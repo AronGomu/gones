@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<!-- <script defer src="component/AronTable.js"></script> -->
+	 <script defer type="module" src="../component/SimpleToggle.js"></script>
+	<title>liguemtg</title>
+</head>
+
+<body>
+	<a href="leagues.html">Create League</a>
+	<simple-toggle id="my-toggle"></simple-toggle>
+	<div>test</div>
+</body>
+
+
+<script>
+  const btn = document.getElementById('my-toggle');
+
+  btn.addEventListener('toggle-button-clicked', (event) => {
+    console.log('Button was toggled!', event.detail);
+
+    // Your custom logic here
+    if (event.detail.active) {
+      document.body.style.background = '#e8f5e9';
+      alert("It's now ON!");
+    } else {
+      document.body.style.background = '#ffebee';
+      console.log("Turned OFF");
+    }
+  });
+</script>
+
+</html>
