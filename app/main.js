@@ -18,7 +18,8 @@ const createWindow = () => {
   })
 
   console.log(__dirname);
-  win.loadFile('app/page/add_tournament.html')
+  win.loadFile('app/page/leagues.html')
+  // win.loadFile('app/page/add_tournament.html', {search: '11112233'})
   // win.loadURL('https://www.mtgtop8.com/')
 }
 // START //

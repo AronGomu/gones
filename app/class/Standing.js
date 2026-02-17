@@ -8,6 +8,7 @@ class Standing {
   omw;
   gw;
   ogw;
+  record;
 
   constructor(rank, player, points, win, lose, draw, omw, gw, ogw) {
     this.rank   = rank;
@@ -19,7 +20,14 @@ class Standing {
     this.omw    = omw;
     this.gw     = gw;
     this.ogw    = ogw;
+    this.record = `${win}-${lose}-${draw}`
+  }
+
+  setRecordFromStanding() {
+    return this.record = `${win}-${lose}-${draw}`;
   }
 }
 
-export { Standing };
+
+
+module.exports = { Standing };

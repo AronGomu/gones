@@ -7,7 +7,7 @@ const template = `
 </table>
 `
 
-class AronTable extends HTMLElement {
+class GonesTable extends HTMLElement {
 
     constructor() {
         super();
@@ -40,43 +40,45 @@ class AronTable extends HTMLElement {
         // this.shadowRoot.querySelector('.description').textContent = description;
     }
 
-    loadData(keys, list) {
+    loadData(header_list, id_list, type_list, row_list) {
+        console.log(id_list, id_list, header_list, row_list);
+        
+
         // Loadings Headers
         const header_row = this.shadowRoot.querySelector('.header-row');
         header_row.replaceChildren();
         
-        for (const key of keys) {
-            console.log(key);
-            header_row.insertCell().textContent = key[0]
+        for (const header of header_list) {
+            header_row.insertCell().textContent = header
         }
 
         // Loading Rows
         const table_body = this.shadowRoot.querySelector('.table-body');
         table_body.replaceChildren();
 
-        for (const e of list) {
-            const row = table_body.insertRow();
+        for (const row of row_list) {
+            const tr = table_body.insertRow();
 
-            let i = 0;
-            for (const key of keys) {
+            for (let i = 0; i < id_list.length; i++) {
+                const id = id_list[i];
+                const type = type_list[i]
+                const content = row[id]
+                
 
-                let content = e[key[1]];
-
-                if (key[1] === 'edit') {
-                    row.insertCell().innerHTML = `<a href="${key[2]}.html?id=${e.id}">Edit</a>`;
+                if (type === 'edit') {
+                    tr.insertCell().innerHTML = `<a href="${id[2]}.html?id=${tr.id}">Edit</a>`;
                     continue;
                 }
-                
-                else if (key[2] === 'date') {
-                    content = new Date(e[key[1]]).toLocaleDateString() || 'Ongoing';
+                else if (type === 'date') {
+                    tr.insertCell().textContent = new Date(tr[id]).toLocaleDateString() || 'Ongoing';
                 }
-                
-                row.insertCell().textContent = content;
-                i++;
+                else {
+                    tr.insertCell().textContent = content;
+                }
             }
         }
     }
 }
 
 // Define the new element
-customElements.define('aron-table', AronTable);
+customElements.define('gones-table', GonesTable);

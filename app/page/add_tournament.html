@@ -1,36 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<!-- <script defer src="../component/CustomTable.js"></script> -->
+	<script defer src="../component/GonesTable.js"></script>
 	<title>Add Tournament</title>
 </head>
 
 <body>
 	<h1>Add Tournament for League <span id="league_id"></span></h1>
 
-	<!-- <button onclick="">Import Spicerack Tournament CSV</button> -->
-
 	<label>Load tournament from Spicerack Event</label>
 	<input type="text" id="spice_url" placeholder="Spicerack Event URL">
 	<button type="button" id="start_scrapping_button">Start</button>
 
+	<label>Tournament Date</label>
+	<input type="date" id="tournament_date">
+
+
+
 	<h2>Tournament Ranking</h2>
-	<table id="ranking_table">
-		<thead>
-			<tr>
-				<th>Rank</th>
-				<th>Player</th>
-				<th>Points</th>
-				<th>Record</th>
-				<th>OMW Sum</th>
-				<th>GW Sum</th>
-				<th>OGW Sum</th>
-			</tr>
-		</thead>
-		<tbody> </tbody>
-	</table>
+	<gones-table id="standings_table"></gones-table>
 </body>
 
 <script type="module"src="./add_tournament.js"></script>

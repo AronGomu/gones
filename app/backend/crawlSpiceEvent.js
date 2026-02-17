@@ -1,87 +1,65 @@
 const puppeteer = require('puppeteer');
+const { Standing } = require('../class/Standing.js')
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-const crawlSpiceEvent = async function(url, top_index = null) {
-	// START //
-	const browser = await puppeteer.launch( { headless: false});
+async function waitForSelector(page, selector, timeout = 1000) {
+	await page.waitForSelector(selector, {timeout: timeout});
+	await page.click(selector);
+	return true;
+}
+
+
+async function start(url) {
+	const browser = await puppeteer.launch({ headless: false});
 	const page = await browser.newPage();
 	await page.goto(url);
-	// START //
 
-	// get tournament name //
 	await delay(1000);
 	const h2_el_list = await page.$$('h2');
 	const tournament_name = await h2_el_list[1].evaluate(el =>  el.textContent);
-	// get tournament name //
 
-	const tournament = {
-		name: tournament_name,
-		rounds: {},
-		tops: null,
-	}
+	const tournament = { name: tournament_name, rounds: {}, tops: null }
 
-	let round_index = 1;
-	let has_round = true;
-	while (has_round) {
-		const results = await getMatchListResultRounds(page, round_index);
-		if (!results) has_round = false;
-		else tournament.rounds[`${round_index}`] = results;
-		round_index++;
-	}
-
-	// console.log("all rounds dones", tournament, url, top_index);
-
-	browser.close();
-	
-	if (!top_index) return tournament;
-
-	tournament.tops = {}
-	let has_top = true;
-	while (has_top) {
-		if (top_index === 1) break;
-
-		const results = await getMatchListResultTops(page, top_index);
-		if (!results) has_top = false;
-		else tournament.tops[`${top_index}`] = results;
-		top_index = top_index / 2;
-
-	}
-
-	// console.log('tournament', tournament);
-	// console.log(tournament.tops);
-
-	browser.close();
-
-	return tournament;
-	
-};
-
-async function getMatchListResultRounds(page, round_index) {
-	try {
-		await page.waitForSelector(
-			`button::-p-text("Round ${round_index}")`,
-			{timeout: 1000}
-		);
-		await page.click(`button::-p-text("Round ${round_index}")`);
-		
-	} catch (error) { return null; }
-
-	return getMatchList(page);
+	return {browser,  page, tournament}
 }
 
-async function getMatchListResultTops(page, top_index) {
+async function getMatchListResultRoundList(page, tournament) {
+	let round_index = 1;
+	let has_round = true;
 	try {
-		await page.waitForSelector(
-			`button::-p-text("Top ${top_index}")`,
-			{timeout: 1000}
-		);
-		await page.click(`button::-p-text("Top ${top_index}")`);
-	} catch (error) { return null; }
+		while (has_round) {
+			await waitForSelector(page, `button::-p-text("Round ${round_index}")`)
+			const results = await getMatchList(page);
+			if (!results) has_round = false;
+			else tournament.rounds[`${round_index}`] = results;
+			round_index++;
+		}
+	} catch (error) {
+		console.log("No more rounds starting from round " + round_index);
+		return;
+	}
+}
 
-	return getMatchList(page);
+async function getMatchListTopList(page, tournament, top_index) {
+	tournament.tops = {}
+	let has_top = true;
+	try {
+		while (has_top) {
+			if (top_index === 1) break;
+			await waitForSelector(page, `button::-p-text("Top ${top_index}")`)
+			const results = await getMatchList(page);
+			if (!results) has_top = false;
+			else tournament.tops[`${top_index}`] = results;
+			top_index = top_index / 2;
+		}
+	} catch (error) {
+		console.error("There is top for " + top_index + '!');
+		return;
+	}
+	
 }
 
 async function getMatchList(page) {
@@ -159,11 +137,66 @@ async function getResult(result_cell_el) {
 	}
 }
 
+function getWinsLosesDrawsFromRecord(record) {
+	const record_split = record.split('-');
+	return {wins: record_split[0], loses: record_split[1], draws: record_split[2]}
+}
+
+async function getStandings(page, tournament) {
+	await waitForSelector(page, 'td');
+
+	tournament.standings = [];
+
+	const td_list = await page.$$('td');
+	if (td_list.length % 7 !== 0) throw new Error("Should always be divisible by 7 because 7 cells !");
+
+	for (let i = 0; i < td_list.length; i++) {
+		td_list[i] = await td_list[i].evaluate(el => el.textContent)
+	}
+
+	const nb_line = td_list.length / 7;
+	for (let i = 0; i < nb_line; i++) {
+		const rank = td_list[i*7];
+		const player = td_list[i*7+1];
+		const points = td_list[i*7+2];
+		const record = td_list[i*7+3];
+		const omw = td_list[i*7+4];
+		const gw = td_list[i*7+5];
+		const ogw = td_list[i*7+6];
+
+		const {wins, loses, draws} = getWinsLosesDrawsFromRecord(record);
+
+		standings.push(new Standing(
+			rank, player, points, wins, loses, draws, omw, gw, ogw
+		));
+	}
+
+	return standings
+}
+
+
+async function gotoAndGetStandingsAndComeback(page, tournament) {
+	await waitForSelector(page, `a::-p-text("Standings")`);
+	await getStandings(page)
+	await waitForSelector(page,`a::-p-text("Pairings")`);
+}
+
+
+const crawlSpiceEvent = async function(url, top_index = null) {
+	let {browser, page, tournament} = await start(url);
+
+	await getMatchListResultRoundList(page, tournament);
+	if (top_index) await getMatchListTopList(page, tournament, top_index);
+
+	await gotoAndGetStandingsAndComeback(page, tournament);
+
+	browser.close();
+	return tournament;
+};
 
 // EXEMPLE HOW TO USE
 // const url = "https://www.spicerack.gg/events/2938796/tournament";
-// const top_index
-// getTournamentData(url, 8);
+// crawlSpiceEvent(url, 8);
 
 
 module.exports = crawlSpiceEvent;
