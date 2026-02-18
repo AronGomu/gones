@@ -4,6 +4,8 @@
 	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="../global.css">
+	<link rel="stylesheet" href="edit_tournament.css">
 	<script defer src="../component/GonesTable.js"></script>
 	<title>Add Tournament</title>
 </head>
@@ -11,18 +13,25 @@
 <body>
 	<h1>Add Tournament for League <span id="league_id"></span></h1>
 
-	<label>Load tournament from Spicerack Event</label>
-	<input type="text" id="spice_url" placeholder="Spicerack Event URL">
-	<button type="button" id="start_scrapping_button">Start</button>
-
 	<label>Tournament Date</label>
 	<input type="date" id="tournament_date">
 
-
-
-	<h2>Tournament Ranking</h2>
+	<h2 id="standings_h2">Standings</h2>
 	<gones-table id="standings_table"></gones-table>
+
+	<div class="imports">
+		<div class="import">
+			<label>Load tournament from Spicerack Event</label>
+			<input type="text" id="spice_url" placeholder="Spicerack Event URL">
+			<button type="button" id="start_scrapping_button">Import</button>
+		</div>
+
+		<div class="import">
+			<label>Load tournament from CSV</label>
+			<button type="button" id="start_scrapping_button" disabled>CSV</button>
+		</div>
+	</div>
 </body>
 
-<script type="module"src="./add_tournament.js"></script>
+<script type="module"src="./edit_tournament.js"></script>
 </html>

@@ -1,4 +1,5 @@
 const template = `
+<span id="table_title"></span>
 <table>
     <thead>
         <tr class="header-row"></tr>
@@ -24,9 +25,9 @@ class GonesTable extends HTMLElement {
         this.updateContent();
     }
 
-    // static get observedAttributes() {
-    //     return ['title', 'description'];
-    // }
+    static get observedAttributes() {
+        return ['title', 'row_list'];
+    }
 
     attributeChangedCallback(name, oldValue, newValue) {
         // Update the content when attributes change.
@@ -40,34 +41,41 @@ class GonesTable extends HTMLElement {
         // this.shadowRoot.querySelector('.description').textContent = description;
     }
 
-    loadData(header_list, id_list, type_list, row_list) {
-        console.log(id_list, id_list, header_list, row_list);
-        
+    build(table_title, header_list, id_list, type_list, row_list) {
+        this.title = table_title
+        this.header_list = header_list
+        this.id_list = id_list
+        this.type_list = type_list
+        this.row_list = row_list
 
-        // Loadings Headers
-        const header_row = this.shadowRoot.querySelector('.header-row');
-        header_row.replaceChildren();
-        
-        for (const header of header_list) {
-            header_row.insertCell().textContent = header
-        }
+        // Loadings Headers //
+        const header_row = this.shadowRoot.querySelector('.header-row')
+        header_row.replaceChildren()
+        for (const header of header_list) header_row.insertCell().textContent = header
+        // Loadings Headers //
 
         // Loading Rows
-        const table_body = this.shadowRoot.querySelector('.table-body');
-        table_body.replaceChildren();
+        const table_body = this.shadowRoot.querySelector('.table-body')
+        table_body.replaceChildren()
 
-        for (const row of row_list) {
+        for (let i = 0; i < row_list.length; i++) {
+            const row = row_list[i];
+            const row_index = i;
+
             const tr = table_body.insertRow();
 
             for (let i = 0; i < id_list.length; i++) {
                 const id = id_list[i];
                 const type = type_list[i]
                 const content = row[id]
-                
 
                 if (type === 'edit') {
-                    tr.insertCell().innerHTML = `<a href="${id[2]}.html?id=${tr.id}">Edit</a>`;
-                    continue;
+                    const edit_id = `${this.title}_${row_index}_edit`
+                    const cell = tr.insertCell()
+                    cell.innerHTML = `<button id="${edit_id}" >Edit</button>`
+                    const edit_button = cell.querySelector('button')
+                    edit_button.addEventListener('click', () => this.edit(row_index))
+                    continue
                 }
                 else if (type === 'date') {
                     tr.insertCell().textContent = new Date(tr[id]).toLocaleDateString() || 'Ongoing';
@@ -77,6 +85,14 @@ class GonesTable extends HTMLElement {
                 }
             }
         }
+    }
+
+    edit(row_index) {
+        this.dispatchEvent(new CustomEvent('edit-row', {
+            bubbles:  true,
+            composed: true,
+            detail: { league: this.row_list[row_index], row_index}
+        }))
     }
 }
 

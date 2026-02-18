@@ -1,24 +1,30 @@
 import { League } from './../class/League.js';
-import { loadRows } from './../function/utils.js';
 
-const create_league_button = document.getElementById('create_league_button');
-create_league_button.onclick = createLeague;
+const ligue_list = JSON.parse(localStorage.getItem('ligue_list')) || []
 
-const ligue_list = JSON.parse(localStorage.getItem('ligue_list')) || [];
-const table = document.getElementById('ligue_list_table');
-table.loadData([['ID', 'id', 'int'], ['Name', 'name', 'str'], ['Start Date', 'start', 'date'], ['End Date', 'end', 'date'], ['', 'edit', "edit_league"]], ligue_list);
+const create_league_button = document.getElementById('create_league_button')
+create_league_button.onclick = createLeague
+
+
+const table = buildLeagueListTable(ligue_list)
+
+function buildLeagueListTable(ligue_list) {
+	console.log(ligue_list);
+	const league_list_table = document.getElementById('ligue_list_table')
+	const id_list = ['id', 'name', 'start', 'end', 'edit']
+	const header_list = ['ID', 'Name', 'Start Date', 'End Date', '']
+	const type_list = ['string', 'string', 'date', 'date', 'edit']
+	const row_list = ligue_list;
+	league_list_table.build('Leagues', header_list, id_list, type_list, row_list)
+	league_list_table.addEventListener('edit-row', (e) => editLeague(e.detail.league, e.detail.row_index))
+	return league_list_table
+}
 
 
 function createLeague() {
-	const name_league = document.getElementById('name_league').value;
-	const new_league = new League(name_league);
-
-	const ligue_list = JSON.parse(localStorage.getItem('ligue_list')) || [];
-	ligue_list.push(new_league);
-	localStorage.setItem('ligue_list', JSON.stringify(ligue_list));
-	loadRows(table, ligue_list, [['id', 'int'], ['name', 'str'], ['start', 'date'], ['end', 'date'], ['edit', "edit_league"]]);
+	window.location.href = `edit_league.html`;
 }
 
-function editLeague(leagueId) {
-	console.log(`Edit league with ID: ${leagueId}`);
+function editLeague(league) {
+	window.location.href = `edit_league.html?id=${league.id}`;
 }

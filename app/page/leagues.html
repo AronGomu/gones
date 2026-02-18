@@ -1,27 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<script type="module" defer src="../component/AronTable.js"></script>
-	<script type="module" defer src="../component/MainButton.js"></script>
+	<link rel="stylesheet" href="../global.css">
+	<script type="module" defer src="../component/GonesTable.js"></script>
 	<title>liguemtg</title>
 </head>
 
 <body>
-
 	<h1>Leagues</h1>
 
-	<label for="name_league">League Name</label>
-	<input type="text" id="name_league">
-	<button type="button" id="create_league_button">Create League</button>
+	<!-- <label for="name_league">League Name</label> -->
+	<!-- <input type="text" id="name_league"> -->
 
 	<gones-table id="ligue_list_table"></gones-table>
-	<main-button id="create_league_button">Create League</main-button>
+	<button type="button" id="create_league_button">Create League</button>
 
-	<button type="button" onclick="console.log(localStorage.getItem('ligue_list'))">Check LocalStorage</button>
+	<!-- <button type="button" onclick="console.log(localStorage.getItem('ligue_list'))">Check LocalStorage</button> -->
 
-	<a href="../index.html"><button >Return to Leagues</button></a>
+	<a href="../index.html"><button >Return to Menu</button></a>
 </body>
 
 <script type="module"src="./leagues.js"></script>

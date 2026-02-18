@@ -21,20 +21,20 @@ async function start(url) {
 	const h2_el_list = await page.$$('h2');
 	const tournament_name = await h2_el_list[1].evaluate(el =>  el.textContent);
 
-	const tournament = { name: tournament_name, rounds: {}, tops: null }
+	const tournament = { name: tournament_name, rounds: [], tops: null }
 
 	return {browser,  page, tournament}
 }
 
 async function getMatchListResultRoundList(page, tournament) {
-	let round_index = 1;
+	let round_index = 0;
 	let has_round = true;
 	try {
 		while (has_round) {
-			await waitForSelector(page, `button::-p-text("Round ${round_index}")`)
+			await waitForSelector(page, `button::-p-text("Round ${round_index+1}")`)
 			const results = await getMatchList(page);
 			if (!results) has_round = false;
-			else tournament.rounds[`${round_index}`] = results;
+			else tournament.rounds[round_index] = results;
 			round_index++;
 		}
 	} catch (error) {
@@ -166,18 +166,18 @@ async function getStandings(page, tournament) {
 
 		const {wins, loses, draws} = getWinsLosesDrawsFromRecord(record);
 
-		standings.push(new Standing(
+		tournament.standings.push(new Standing(
 			rank, player, points, wins, loses, draws, omw, gw, ogw
 		));
 	}
 
-	return standings
+	return tournament.standings
 }
 
 
 async function gotoAndGetStandingsAndComeback(page, tournament) {
 	await waitForSelector(page, `a::-p-text("Standings")`);
-	await getStandings(page)
+	await getStandings(page, tournament)
 	await waitForSelector(page,`a::-p-text("Pairings")`);
 }
 

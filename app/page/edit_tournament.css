@@ -1,0 +1,8 @@
+.imports {
+	display: flex;
+	flex-direction: column;
+}
+
+.import {
+	display: flex;
+}

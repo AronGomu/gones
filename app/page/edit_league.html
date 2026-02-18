@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<script defer src="../component/CustomTable.js"></script>
+	<link rel="stylesheet" href="../global.css">
+	<link rel="stylesheet" href="edit_league.css">
+	<script type="module" src="../component/GonesTable.js" defer></script>
 	<title>liguemtg</title>
 </head>
 
@@ -11,49 +14,29 @@
 	<h1>Edit League : <span id="league_id"></span></h1>
 
 	<h2>League Info</h2>
-	<form action="#">
-		<label for="name">Name</label>
-		<input type="text" id="name">
-
-		<label for="start">Start Date</label>
-		<input type="date" id="start">
-
-		<label for="end">End Date</label>
-		<input type="date" id="end">
-	</form>
+	<div class="league_fields_container">
+		<div class="league_field">
+			<label for="name">Name</label>
+			<input type="text" id="name">
+		</div>
+	
+		<div class="league_field">
+			<label for="start">Start Date</label>
+			<input type="date" id="start">
+		</div>
+	
+		<div class="league_field">
+			<label for="end">End Date</label>
+			<input type="date" id="end">
+		</div>
+	</div>
 
 	<h2>Tournaments</h2>
-	<custom-table 
-		id="tournament_list_table"
-	></custom-table>
-	<!-- <table >
-		<thead>
-			<tr>
-				<th>ID</th>
-				<th>Name</th>
-				<th>Date</th>
-				<th></th>
-			</tr>
-		</thead>
-		<tbody></tbody>
-	</table> -->
-	<button type="button" id="add_tournament_button">Add Tournament</button>
+	<gones-table id="tournaments_table"></gones-table>
+	<button type="button" id="create_tournament_button">Add Tournament</button>
 
 	<h2>Ranking</h2>
-	<table id="ranking_table">
-		<thead>
-			<tr>
-				<th>Rank</th>
-				<th>Player</th>
-				<th>Points</th>
-				<th>Record</th>
-				<th>OMW Sum</th>
-				<th>GW Sum</th>
-				<th>OGW Sum</th>
-			</tr>
-		</thead>
-		<tbody></tbody>
-	</table>
+	<gones-table id="standings_table"></gones-table>
 
 	<a href="./leagues.html"><button >Return to Leagues</button></a>
 </body>
