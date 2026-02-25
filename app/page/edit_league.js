@@ -3,12 +3,12 @@ import { League, parseLeagueList } from '../class/League.js'
 import { saveToLocal } from '../function/utils.js'
 
 
-const league_id = getId();
-console.log('league_id', league_id);
+const league_id = getId()
 let league_list = parseLeagueList(localStorage.getItem('league_list')) || []
-console.log('league_list', league_list);
-const league = league_list.find(l => l.id === league_id) || new League('')
-console.log('league', league);
+console.log('league_list', league_list)
+console.log('league_id', league_id)
+
+const league = league_list.find(l => l.id === league_id) || new League('New League')
 league_list = saveLeague(league_list, league)
 
 const nav_menu = document.getElementById('nav-menu')
@@ -33,7 +33,7 @@ end.value = league.end?.toString('yyyy-MM-dd') || null
 nav_menu.onclick = () => window.location.href = "menu.html"
 nav_leagues.onclick = () => window.location.href = "menu.html"
 name.oninput = () => saveLeague(league_list, league, name.value, start.value, end.value)
-create_tournament_button.onclick = () => addTournament()
+create_tournament_button.onclick = () => addTournament(league)
 
 function getId() {
 	let id = getUrlParams('id')
@@ -60,23 +60,19 @@ function saveLeague(league_list, league, name, start, end) {
 	}
  }
 
-function buildTournamentsTable(tournament_list) {
-	console.log(tournament_list);
+function buildTournamentsTable(league) {
+	console.log('buildTournamentsTable', league.tournament_list);
 	const tournament_list_table = document.getElementById('tournaments_table')
 	const id_list = ['id', 'name', 'start', 'end', 'edit']
 	const header_list = ['ID', 'Name', 'Start Date', 'End Date', '']
 	const type_list = ['string', 'string', 'date', 'date', 'edit']
-	const row_list = tournament_list;
+	const row_list = league.tournament_list;
 	tournament_list_table.build('Tournaments', header_list, id_list, type_list, row_list)
-	tournament_list_table.addEventListener('edit-row', (e) => gotoTournament(e.detail.tournament.id))
+	tournament_list_table.addEventListener('edit-row', (e) => gotoTournament(league.id, e.detail.row.id))
 	return tournament_list_table
 }
 
-function editTournament(tournament_id) {
-	window.location.href = `edit_tournament.html?league_id=${league.id}&tournament_id=${tournament_id}`
-}
-
-function addTournament() {
+function addTournament(league) {
 	window.location.href = `edit_tournament.html?league_id=${league.id}`
 }
 
@@ -92,7 +88,10 @@ function buildStandingsTable(standing_list) {
 }
 
 
-function gotoTournament() {
-	window.location.href = `edit_tournament.html?id=${league_id}`;
+function gotoTournament(league_id, tournament_id) {
+	console.log(tournament_id);
+	
+	if (!tournament_id) window.location.href = `edit_tournament.html?league_id=${league_id}`;
+	else window.location.href = `edit_tournament.html?league_id=${league_id}&tournament_id=${tournament_id}`;
 }
 

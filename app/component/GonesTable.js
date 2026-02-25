@@ -42,6 +42,9 @@ class GonesTable extends HTMLElement {
     }
 
     build(table_title, header_list, id_list, type_list, row_list) {
+        console.log('build');
+        console.log(table_title, header_list, id_list, type_list, row_list);
+        
         this.title = table_title
         this.header_list = header_list
         this.id_list = id_list
@@ -91,7 +94,10 @@ class GonesTable extends HTMLElement {
         this.dispatchEvent(new CustomEvent('edit-row', {
             bubbles:  true,
             composed: true,
-            detail: { league: this.row_list[row_index], row_index}
+            detail: {
+                row: this.row_list[row_index],
+                row_index
+            }
         }))
     }
 }

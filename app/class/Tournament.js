@@ -1,11 +1,12 @@
 class Tournament {
-  player_list;
+  id;
 
-  constructor(league_id, name, date, round_list, tops, standings = []) {
+  constructor(league_id, name, date, rounds, tops, standings = []) {
     this.league_id = league_id;
+    this.id = Date.now().toString();
     this.name = name;
     this.date = date;
-    this.round_list = round_list;
+    this.rounds = rounds;
     this.tops = tops;
     this.standings = standings
   }
@@ -16,7 +17,7 @@ function parseTournament(tournament) {
   t.league_id = tournament.league_id
   t.name = tournament.name
   t.date = new Date(tournament.date)
-  t.round_list = tournament.round_list
+  t.rounds = tournament.rounds
   t.tops = tournament.tops
   t.standings = tournament.standings
   return t;

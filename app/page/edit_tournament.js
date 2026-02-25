@@ -1,16 +1,23 @@
 import { getUrlParams } from '../function/utils.js';
 import { tournamentsMock } from '../mock/tournamentsMock.js'
+import { Tournament } from '../class/Tournament.js'
+import { saveToLocal } from "../function/utils.js";
+import { parseLeagueList } from "../class/League.js";
+
+
+console.log(getUrlParams('league_id'));
+console.log(getUrlParams('tournament_id'));
+
 
 const league_id = getUrlParams('league_id')
-if (!league_id) throw new Error("NO LEAGUE ID GIVEN !");
-const tournament_id = getUrlParams('tournament_id') || Date.now().toString()
-const league_list = JSON.parse(localStorage.getItem('league_list')) || []
+const league_list = parseLeagueList(localStorage.getItem('league_list'))
 const league = league_list.find(l => l.id === league_id)
 
-let tournament = null
-if (league.tournament_list && league.tournament_list.length > 0) {
-	tournament = league.tournament_list.find(t => t.id === tournament_id)
-}
+console.log(league_list);
+console.log(league_id);
+
+const tournament_id = getTournamentId(league)
+const tournament = league.tournament_list.find(t => t.id === tournament_id)
 
 const nav_menu = document.getElementById('nav-menu')
 const nav_leagues = document.getElementById('nav-leagues')
@@ -18,7 +25,9 @@ const nav_league = document.getElementById('nav-league')
 const nav_tournament = document.getElementById('nav-tournament')
 
 const league_id_span = document.getElementById('league_id')
+const name_input = document.getElementById('name_input')
 const date_input = document.getElementById('date_input')
+const url_input = document.getElementById('url_input');
 const start_scrapping_button = document.getElementById('start_scrapping_button')
 const tournament_h2 = document.getElementById('standings_h2')
 const standings_table = document.getElementById('standings_table')
@@ -28,36 +37,99 @@ nav_leagues.textContent = " > Leagues "
 nav_league.textContent = " > League " + league_id
 nav_tournament.textContent = " > Tournament " + tournament_id
 league_id_span.textContent = league_id
+loadStandings(tournament)	
 
+saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
+setInputs(tournament)
 nav_menu.onclick = () => window.location.href = "menu.html"
 nav_league.onclick = () => window.location.href = "edit_league.html?=" + league_id
-
-start_scrapping_button.onclick = startScrapping;
-
-
+name_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
+date_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
+start_scrapping_button.onclick = () => startScrapping(url_input.value, tournament, league_list);
 
 
 // TEST ONLY //
-document.getElementById('spice_url').value = "https://www.spicerack.gg/events/2938796/tournament"
-startScrapping(null);
+document.getElementById('url_input').value = "https://www.spicerack.gg/events/2938796/tournament"
+// startScrapping(null);
 // TEST ONLY //
 
-
-async function startScrapping(url) {
-	const spice_url = document.getElementById('spice_url').value;
+function getTournamentId(league) {
+	if (!league) return console.error("No League found within league_list !");
 	
-	console.log("start scrapping", spice_url);
-	// const tournament  = await window.electronAPI.crawlSpiceEvent(spice_url, null)
-    const tournament = tournamentsMock
+	const tournament_id = getUrlParams('tournament_id')
+	console.log('tournament_id : ', tournament_id);
+	console.log(tournament_id);
+	
+	if (!tournament_id) {
+		if (!league.tournament_list) league.tournament_list = [new Tournament(league.id)]
+		else league.tournament_list.push(new Tournament(league.id))
+		return league.tournament_list[0].id
+	} 
+	return tournament_id
+}
 
-	const newTournament = tournament
-	newTournament['league_id'] = league_id
-	newTournament['date'] = document.getElementById('tournament_date').value
+function setInputs(tournament) {
+	console.log(tournament);
+	
+	name_input.value = tournament.name || null
+	date_input.value = tournament.date || null
+}
 
-	console.log('newTournament :', newTournament)
+/** Save tournament by giving all values from inputs and updating the tournament then saving in local */
+function saveTournament(league_list, tournament_list, tournament, name, date, rounds, tops, standings) {
+	console.log('league_list', league_list);
+	console.log('tournament_list', tournament_list);
+	
+	if (!tournament) return tournament_list;
+	console.log(tournament);
+	
+	if (name) tournament.name = name
+	if (date) tournament.date = new Date(date)
+	if (rounds) tournament.rounds = rounds
+	if (tops) tournament.tops = tops
+	if (standings) tournament.standings = standings
+	
+	const leagueToUpdate = league_list.find(l => l.id === tournament.league_id)
+	leagueToUpdate.tournament = tournament
 
-	loadTournamentH2(newTournament.name, newTournament.rounds.length, newTournament.standings.length)
-	loadStandingsTable(newTournament.standings)
+	for (let i = 0; i < league_list.length; i++) {
+		if (league_list[i].id === leagueToUpdate.id) {
+			league_list[i] = leagueToUpdate
+			return saveToLocal('league_list', league_list)
+		}
+	}
+	
+}
+
+function loadStandings(tournament) {
+	if (!tournament?.rounds || !tournament?.standings) return console.log("No Standings to load");
+	;
+	loadTournamentH2(tournament.name, tournament.rounds.length, tournament.standings.length)
+	loadStandingsTable(tournament.standings)
+	
+}
+
+
+async function startScrapping(url, tournament, league_list) {
+	// const tournament  = await window.electronAPI.crawlSpiceEvent(url, null)
+    const tournamentImported = tournamentsMock
+	console.log(tournamentImported);
+	console.log(tournament);
+	tournament.rounds = tournamentImported.rounds
+	tournament.tops = tournamentImported.tops
+	tournament.standings = tournamentImported.standings
+
+	loadStandings(tournament)	
+	return saveTournament(
+		league_list, 
+		league.tournament_list, 
+		tournament,
+		tournament.name, 
+		tournament.date, 
+		tournament.rounds, 
+		tournament.tops, 
+		tournament.standings
+	)
 }
 
 function loadTournamentH2(tournament_name, tournament_rounds, tournament_players_sum) {
@@ -65,6 +137,8 @@ function loadTournamentH2(tournament_name, tournament_rounds, tournament_players
 }
 
 function loadStandingsTable(standings) {
+	console.log('loadStandingsTable');
+	console.log('standings', standings);
 	const id_list = ["rank","player","points","record","omw","gw","ogw"]
 	const type_list = ["string","string","number","string","number","number","number"]
 	const header_list = ["Rank","Player","Points","Record","OMW Sum","GW Sum","OGW Sum"]

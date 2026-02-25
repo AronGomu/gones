@@ -12,16 +12,18 @@
 
 <body>
 	<div class="nav">
-		<span id="nav-menu" class="nav-clickable"></span>
-		<span id="nav-leagues" class="nav-clickable"></span>
-		<span id="nav-league" class="nav-clickable"></span>
-		<span id="nav-tournament" class="nav-current"></span>
+		<span id="nav-menu" class="nav-clickable">Menu -</span>
+		<span id="nav-leagues" class="nav-clickable"> Leagues -</span>
+		<span id="nav-league" class="nav-clickable"> League ??? -</span>
+		<span id="nav-tournament" class="nav-current">Tournament ???</span>
 	</div>
 
 	<h1>Add Tournament for League <span id="league_id"></span></h1>
 
-	<label>Tournament Date</label>
-	<input type="date" id="tournament_date">
+	<label>Name</label>
+	<input type="input" id="name_input">
+	<label>Date</label>
+	<input type="date" id="date_input">
 
 	<h2 id="standings_h2">Standings</h2>
 	<gones-table id="standings_table"></gones-table>
@@ -29,7 +31,7 @@
 	<div class="imports">
 		<div class="import">
 			<label>Load tournament from Spicerack Event</label>
-			<input type="text" id="spice_url" placeholder="Spicerack Event URL">
+			<input type="text" id="url_input" placeholder="Spicerack Event URL">
 			<button type="button" id="start_scrapping_button">Import</button>
 		</div>
 

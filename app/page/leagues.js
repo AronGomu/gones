@@ -24,7 +24,7 @@ function buildLeagueListTable(league_list) {
 	const type_list = ['string', 'string', 'date', 'date', 'edit']
 	const row_list = league_list;
 	league_list_table.build('Leagues', header_list, id_list, type_list, row_list)
-	league_list_table.addEventListener('edit-row', (e) => editLeague(e.detail.league, e.detail.row_index))
+	league_list_table.addEventListener('edit-row', (e) => editLeague(e.detail.row.id))
 	return league_list_table
 }
 
@@ -33,6 +33,6 @@ function createLeague() {
 	window.location.href = `edit_league.html`;
 }
 
-function editLeague(league) {
-	window.location.href = `edit_league.html?id=${league.id}`;
+function editLeague(id) {
+	window.location.href = `edit_league.html?id=${id}`;
 }
