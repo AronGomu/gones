@@ -11,33 +11,29 @@ const league = league_list.find(l => l.id === league_id) || new League('')
 console.log('league', league);
 league_list = saveLeague(league_list, league)
 
+const nav_menu = document.getElementById('nav-menu')
+const nav_leagues = document.getElementById('nav-leagues')
+const nav_league = document.getElementById('nav-league')
 const id = document.getElementById('id') 
 const name = document.getElementById('name') 
 const start = document.getElementById('start') 
 const end = document.getElementById('end') 
 const tournaments_table = buildTournamentsTable(league)
+const create_tournament_button = document.getElementById('create_tournament_button')
 // const standings_table = buildStandingsTable(league.standings)
 
+nav_menu.textContent = "> Menu "
+nav_leagues.textContent = " > Leagues"
+nav_league.textContent = " > League" + league_id
 id.innerText = league_id 
 name.value = league.name
 start.value = league.start.toString('yyyy-MM-dd')
-end.value = league.end.toString('yyyy-MM-dd')
+end.value = league.end?.toString('yyyy-MM-dd') || null
 
-console.log('league', league);
-console.log('league_list', league_list);
-
-name.addEventListener('input', () => saveLeague(league_list, league, name.value, start.value, end.value))
-
-
-console.log('tournaments_table', tournaments_table);
-
-
-// const edit_tournament_button = document.getElementById('edit_tournament_button')
-// edit_tournament_button.onclick = gotoTournament
-const b = document.getElementById('create_tournament_button')
-console.log(b)
-
-document.getElementById('create_tournament_button').addEventListener('click', () => addTournament())
+nav_menu.onclick = () => window.location.href = "menu.html"
+nav_leagues.onclick = () => window.location.href = "menu.html"
+name.oninput = () => saveLeague(league_list, league, name.value, start.value, end.value)
+create_tournament_button.onclick = () => addTournament()
 
 function getId() {
 	let id = getUrlParams('id')

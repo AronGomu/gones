@@ -1,4 +1,4 @@
-const roundsMock = [
+export const roundsMock = [
         [
             {
                 "winner": "John Opffer",

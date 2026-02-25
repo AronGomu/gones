@@ -1,12 +1,20 @@
 import { League } from './../class/League.js';
 
+
 const league_list = JSON.parse(localStorage.getItem('league_list')) || []
 
+
+const nav_menu = document.getElementById('nav-menu')
+const nav_leagues = document.getElementById('nav-leagues')
 const create_league_button = document.getElementById('create_league_button')
+const table = buildLeagueListTable(league_list)
+
+nav_menu.textContent = "> Menu "
+nav_leagues.textContent = " > Leagues"
+
+nav_menu.onclick = () => window.location.href = "menu.html"
 create_league_button.onclick = createLeague
 
-
-const table = buildLeagueListTable(league_list)
 
 function buildLeagueListTable(league_list) {
 	console.log(league_list);

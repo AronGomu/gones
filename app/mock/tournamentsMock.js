@@ -1,5 +1,5 @@
+import {roundsMock} from './roundsMock.js'
 import {standingsMock} from './standingsMock.js'
-import {roundsMock} from './standingsMock.js'
 
 export const tournamentsMock = {
     "name": "Test Event",

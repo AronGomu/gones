@@ -14,3 +14,15 @@ body {
   background: var(--bg);
   color: var(--text);
 }
+
+.nav-clickable {
+  color: aqua;
+}
+.nav-clickable:hover {
+  cursor: pointer;
+  color: blue;
+}
+
+.nav-current {
+  font-style: bold;
+}

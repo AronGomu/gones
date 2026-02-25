@@ -1,27 +1,41 @@
 import { getUrlParams } from '../function/utils.js';
-import {tournamentsMock} from '../mock/tournamentsMock.js'
+import { tournamentsMock } from '../mock/tournamentsMock.js'
 
-const league_id = getUrlParams('league_id');
-const tournament_id = getUrlParams('tournament_id');
+const league_id = getUrlParams('league_id')
+if (!league_id) throw new Error("NO LEAGUE ID GIVEN !");
+const tournament_id = getUrlParams('tournament_id') || Date.now().toString()
 const league_list = JSON.parse(localStorage.getItem('league_list')) || []
 const league = league_list.find(l => l.id === league_id)
 
-let tournament = null;
+let tournament = null
 if (league.tournament_list && league.tournament_list.length > 0) {
 	tournament = league.tournament_list.find(t => t.id === tournament_id)
 }
 
+const nav_menu = document.getElementById('nav-menu')
+const nav_leagues = document.getElementById('nav-leagues')
+const nav_league = document.getElementById('nav-league')
+const nav_tournament = document.getElementById('nav-tournament')
 
-const league_id_span = document.getElementById('league_id');
-league_id_span.textContent = league_id;
+const league_id_span = document.getElementById('league_id')
+const date_input = document.getElementById('date_input')
+const start_scrapping_button = document.getElementById('start_scrapping_button')
+const tournament_h2 = document.getElementById('standings_h2')
+const standings_table = document.getElementById('standings_table')
 
-const date = document.getElementById('date_input');
+nav_menu.textContent = " > Menu "
+nav_leagues.textContent = " > Leagues "
+nav_league.textContent = " > League " + league_id
+nav_tournament.textContent = " > Tournament " + tournament_id
+league_id_span.textContent = league_id
 
-const start_scrapping_button = document.getElementById('start_scrapping_button');
+nav_menu.onclick = () => window.location.href = "menu.html"
+nav_league.onclick = () => window.location.href = "edit_league.html?=" + league_id
+
 start_scrapping_button.onclick = startScrapping;
 
-const tournament_h2 = document.getElementById('standings_h2');
-const standings_table = document.getElementById('standings_table');
+
+
 
 // TEST ONLY //
 document.getElementById('spice_url').value = "https://www.spicerack.gg/events/2938796/tournament"
