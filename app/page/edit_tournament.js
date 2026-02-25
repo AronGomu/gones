@@ -3,7 +3,7 @@ import {tournamentsMock} from '../mock/tournamentsMock.js'
 
 const league_id = getUrlParams('league_id');
 const tournament_id = getUrlParams('tournament_id');
-const league_list = JSON.parse(localStorage.getItem('ligue_list')) || []
+const league_list = JSON.parse(localStorage.getItem('league_list')) || []
 const league = league_list.find(l => l.id === league_id)
 
 let tournament = null;

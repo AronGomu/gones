@@ -1,15 +1,36 @@
 import { getUrlParams } from '../function/utils.js';
+import { League, parseLeagueList } from '../class/League.js'
+import { saveToLocal } from '../function/utils.js'
 
-const league_id = getUrlParams('id');
-const league_list = JSON.parse(localStorage.getItem('ligue_list')) || []
-const league = league_list.find(l => l.id === league_id)
 
-console.log(league_list, league_id, league);
+const league_id = getId();
+console.log('league_id', league_id);
+let league_list = parseLeagueList(localStorage.getItem('league_list')) || []
+console.log('league_list', league_list);
+const league = league_list.find(l => l.id === league_id) || new League('')
+console.log('league', league);
+league_list = saveLeague(league_list, league)
 
-document.getElementById("league_id").innerText = league_id
-
+const id = document.getElementById('id') 
+const name = document.getElementById('name') 
+const start = document.getElementById('start') 
+const end = document.getElementById('end') 
 const tournaments_table = buildTournamentsTable(league)
 // const standings_table = buildStandingsTable(league.standings)
+
+id.innerText = league_id 
+name.value = league.name
+start.value = league.start.toString('yyyy-MM-dd')
+end.value = league.end.toString('yyyy-MM-dd')
+
+console.log('league', league);
+console.log('league_list', league_list);
+
+name.addEventListener('input', () => saveLeague(league_list, league, name.value, start.value, end.value))
+
+
+console.log('tournaments_table', tournaments_table);
+
 
 // const edit_tournament_button = document.getElementById('edit_tournament_button')
 // edit_tournament_button.onclick = gotoTournament
@@ -18,8 +39,30 @@ console.log(b)
 
 document.getElementById('create_tournament_button').addEventListener('click', () => addTournament())
 
-if (!league_list | league_list.length === 0) alert("League not found !")
+function getId() {
+	let id = getUrlParams('id')
+	if (!id) return Date.now().toString()
+	else return id
+}
 
+function saveLeague(league_list, league, name, start, end) {
+	console.log('league_list', league_list);
+	
+	if (!league) return league_list;
+	console.log(league);
+	
+	if (name) league.name = name
+	if (start) league.start = new Date(start)
+	if (end) league.end = new Date(end) 
+
+	if (league_list.length < 1) return saveToLocal('league_list', [league])
+	for (let i = 0; i < league_list.length; i++) {
+		if (league_list[i].id === league.id) {
+			league_list[i] = league
+			return saveToLocal('league_list', league_list)
+		}
+	}
+ }
 
 function buildTournamentsTable(tournament_list) {
 	console.log(tournament_list);
@@ -42,7 +85,7 @@ function addTournament() {
 }
 
 function buildStandingsTable(standing_list) {
-	console.log(standing_list);
+	console.log('standing_list', standing_list);
 	const standings_table = document.getElementById('standings_table')
 	const id_list = ['rank', 'player', 'points', 'record', 'omw', 'gw', 'ogw']
 	const header_list = ['Rank', 'Player', 'Points', 'Record', 'OMW Sum', 'GW Sum', 'OGW Sum']
