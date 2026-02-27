@@ -81,7 +81,9 @@ class GonesTable extends HTMLElement {
                     continue
                 }
                 else if (type === 'date') {
-                    tr.insertCell().textContent = new Date(tr[id]).toLocaleDateString() || 'Ongoing';
+                    const localDate = new Date(row[id]).toLocaleDateString()
+                    if (localDate === 'Invalid Date') tr.insertCell().textContent = "N/A"
+                    else tr.insertCell().textContent = localDate
                 }
                 else {
                     tr.insertCell().textContent = content;

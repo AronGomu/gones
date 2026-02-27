@@ -9,3 +9,11 @@ export function saveToLocal(key, o) {
 	console.log('Saved in local Storage', o)
 	return o
 }
+
+/** Converts a Date object to a YYYY-MM-DD string (for <input type="date">).
+ * @param {Date} date - The Date object to convert
+ * @returns {string} Date formatted as YYYY-MM-DD
+ */
+export function YYYYMMDD(date) {
+	return date.toISOString().split('T')[0]
+}

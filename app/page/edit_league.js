@@ -1,6 +1,6 @@
 import { getUrlParams } from '../function/utils.js';
 import { League, parseLeagueList } from '../class/League.js'
-import { saveToLocal } from '../function/utils.js'
+import { saveToLocal, YYYYMMDD } from '../function/utils.js'
 
 
 const league_id = getId()
@@ -22,13 +22,16 @@ const tournaments_table = buildTournamentsTable(league)
 const create_tournament_button = document.getElementById('create_tournament_button')
 // const standings_table = buildStandingsTable(league.standings)
 
+console.log(YYYYMMDD(league.start))
+
+
 nav_menu.textContent = "> Menu "
 nav_leagues.textContent = " > Leagues"
 nav_league.textContent = " > League" + league_id
 id.innerText = league_id 
 name.value = league.name
-start.value = league.start.toString('yyyy-MM-dd')
-end.value = league.end?.toString('yyyy-MM-dd') || null
+start.value = YYYYMMDD(league.start)
+end.value = YYYYMMDD(league.end) || null
 
 nav_menu.onclick = () => window.location.href = "menu.html"
 nav_leagues.onclick = () => window.location.href = "menu.html"
@@ -63,10 +66,12 @@ function saveLeague(league_list, league, name, start, end) {
 function buildTournamentsTable(league) {
 	console.log('buildTournamentsTable', league.tournament_list);
 	const tournament_list_table = document.getElementById('tournaments_table')
-	const id_list = ['id', 'name', 'start', 'end', 'edit']
-	const header_list = ['ID', 'Name', 'Start Date', 'End Date', '']
-	const type_list = ['string', 'string', 'date', 'date', 'edit']
+	const id_list = ['id', 'name', 'date', 'edit']
+	const header_list = ['ID', 'Name', 'Date', '']
+	const type_list = ['string', 'string', 'date', 'edit']
 	const row_list = league.tournament_list;
+	console.log(row_list);
+	
 	tournament_list_table.build('Tournaments', header_list, id_list, type_list, row_list)
 	tournament_list_table.addEventListener('edit-row', (e) => gotoTournament(league.id, e.detail.row.id))
 	return tournament_list_table
