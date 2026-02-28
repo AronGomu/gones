@@ -1,19 +1,17 @@
 import { getUrlParams } from '../function/utils.js';
-import { tournamentsMock } from '../mock/tournamentsMock.js'
+import { getRandomTournamentMock } from '../mock/tournamentsMock.js'
 import { Tournament } from '../class/Tournament.js'
 import { saveToLocal } from "../function/utils.js";
 import { parseLeagueList } from "../class/League.js";
-
-console.log(window.location.href);
-console.log(getUrlParams('league_id'));
-console.log(getUrlParams('tournament_id'));
 
 const league_id = getUrlParams('league_id')
 const league_list = parseLeagueList(localStorage.getItem('league_list'))
 const league = league_list.find(l => l.id === league_id)
 
+console.log(window.location.href);
+console.log(getUrlParams('league_id'));
+console.log(getUrlParams('tournament_id'));
 console.log(league_list);
-console.log(league_id);
 console.log(league);
 
 const tournament_id = getTournamentId(league)
@@ -29,7 +27,7 @@ const date_input = document.getElementById('date_input')
 const url_input = document.getElementById('url_input');
 const start_scrapping_button = document.getElementById('start_scrapping_button')
 const tournament_h2 = document.getElementById('standings_h2')
-const standings_table = document.getElementById('standings_table')
+const standings_table = document.getElementById('standings-table')
 const delete_tournament_button = document.getElementById('delete-tournament-button')
 
 nav_menu.textContent = " > Menu "
@@ -37,7 +35,7 @@ nav_leagues.textContent = " > Leagues "
 nav_league.textContent = " > League " + league_id
 nav_tournament.textContent = " > Tournament " + tournament_id
 
-loadStandings(tournament)	
+loadStandings(standings_table, tournament)	
 
 saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
 setInputs(tournament)
@@ -45,7 +43,7 @@ nav_menu.onclick = () => window.location.href = "menu.html"
 nav_league.onclick = () => window.location.href = "edit_league.html?id=" + league_id
 name_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
 date_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
-start_scrapping_button.onclick = () => startScrapping(url_input.value, tournament, league_list);
+start_scrapping_button.onclick = () => startScrapping(url_input.value, tournament, league_list, league_id, standings_table);
 delete_tournament_button.onclick = () => createConfirmDeleteWindow(league_list, league_id, tournament_id)
 
 
@@ -107,25 +105,23 @@ function saveTournament(league_list, tournament_list, tournament, name, date, ro
 	
 }
 
-function loadStandings(tournament) {
+function loadStandings(standings_table, tournament) {
 	if (!tournament?.rounds || !tournament?.standings) return console.log("No Standings to load");
-	;
 	loadTournamentH2(tournament.name, tournament.rounds.length, tournament.standings.length)
-	loadStandingsTable(tournament.standings)
-	
+	loadStandingsTable(standings_table, tournament.standings)
 }
 
 
-async function startScrapping(url, tournament, league_list) {
+async function startScrapping(url, tournament, league_list, league_id, standings_table) {
+	console.log("Start Scrapping");
+	
 	// const tournament  = await window.electronAPI.crawlSpiceEvent(url, null)
-    const tournamentImported = tournamentsMock
-	console.log(tournamentImported);
-	console.log(tournament);
+    const tournamentImported = getRandomTournamentMock(league_id)
 	tournament.rounds = tournamentImported.rounds
 	tournament.tops = tournamentImported.tops
 	tournament.standings = tournamentImported.standings
 
-	loadStandings(tournament)	
+	loadStandings(standings_table, tournament)	
 	return saveTournament(
 		league_list, 
 		league.tournament_list, 
@@ -142,7 +138,7 @@ function loadTournamentH2(tournament_name, tournament_rounds, tournament_players
 	tournament_h2.textContent =  tournament_name + " Standings - " + tournament_rounds + " Rounds - " + tournament_players_sum + " Players"
 }
 
-function loadStandingsTable(standings) {
+function loadStandingsTable(standings_table, standings) {
 	console.log('loadStandingsTable');
 	console.log('standings', standings);
 	const id_list = ["rank","player","points","record","omw","gw","ogw"]

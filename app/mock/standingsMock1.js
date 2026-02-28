@@ -1,4 +1,4 @@
-export const standingsMock = [
+export const standingsMock1 = [
         {
             "rank": "1",
             "player": "Timothy taranto",

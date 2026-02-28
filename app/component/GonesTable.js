@@ -42,9 +42,6 @@ class GonesTable extends HTMLElement {
     }
 
     build(table_title, header_list, id_list, type_list, row_list) {
-        console.log('build');
-        console.log(table_title, header_list, id_list, type_list, row_list);
-        
         this.title = table_title
         this.header_list = header_list
         this.id_list = id_list

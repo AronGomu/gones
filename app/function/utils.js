@@ -18,3 +18,11 @@ export function YYYYMMDD(date) {
 	if (!date) return null;
 	return date.toISOString().split('T')[0]
 }
+
+export function deepCopySimpleObject(o) {
+	return JSON.parse(JSON.stringify(o))
+}
+
+export function trunc4(n) {
+  return ((n * 10000) | 0) / 10000;
+}

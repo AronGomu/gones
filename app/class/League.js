@@ -1,6 +1,4 @@
-import { parseTournamentList } from './Tournament.js'
-
-class League {
+export class League {
   constructor(name) {
 	  this.id = Date.now().toString()
     this.name = name
@@ -12,7 +10,7 @@ class League {
   }
 }
 
-function parseLeague(league) {
+export function parseLeague(league) {
   const l = new League(league.name)
   l.id = league.id
   l.start = new Date(league.start)
@@ -23,7 +21,7 @@ function parseLeague(league) {
   return l
 }
 
-function parseLeagueList(league_list_string) {
+export function parseLeagueList(league_list_string) {
   const league_list = JSON.parse(league_list_string)
   
   const l_list = []
@@ -33,5 +31,3 @@ function parseLeagueList(league_list_string) {
   return l_list
   
 }
-
-export { League, parseLeague, parseLeagueList };

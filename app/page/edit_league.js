@@ -1,6 +1,7 @@
-import { getUrlParams } from '../function/utils.js';
+import { deepCopySimpleObject, getUrlParams } from '../function/utils.js';
 import { League, parseLeagueList } from '../class/League.js'
 import { saveToLocal, YYYYMMDD } from '../function/utils.js'
+import { parseStanding } from "../class/Standing.js";
 
 const league_id = getId()
 let league_list = getLeagueList();
@@ -15,11 +16,10 @@ const id = document.getElementById('id')
 const name = document.getElementById('name') 
 const start = document.getElementById('start') 
 const end = document.getElementById('end') 
-const tournaments_table = buildTournamentsTable(league)
+const tournaments_table = document.getElementById('tournaments-table')
 const create_tournament_button = document.getElementById('create-tournament-button')
-// const standings_table = buildStandingsTable(league.standings)
+const standings_table = document.getElementById('standings-table')
 const delete_league_button = document.getElementById('delete-league-button')
-
 
 nav_menu.textContent = "> Menu "
 nav_leagues.textContent = " > Leagues"
@@ -27,8 +27,9 @@ nav_league.textContent = " > League" + league_id
 id.innerText = league_id 
 name.value = league.name
 start.value = YYYYMMDD(league.start)
-console.log(league.end);
 end.value = YYYYMMDD(league.end)
+loadTournaments(tournaments_table, league.tournament_list)
+loadStandings(standings_table, league.tournament_list)
 
 nav_menu.onclick = () => window.location.href = "menu.html"
 nav_leagues.onclick = () => window.location.href = "leagues.html"
@@ -74,42 +75,59 @@ function saveLeague(league_list, league, name, start, end) {
 	return saveToLocal('league_list', league_list)
  }
 
-function buildTournamentsTable(league) {
-	console.log('buildTournamentsTable', league.tournament_list);
-	const tournament_list_table = document.getElementById('tournaments_table')
+function loadTournaments(tournaments_table, tournament_list) {
 	const id_list = ['id', 'name', 'date', 'edit']
 	const header_list = ['ID', 'Name', 'Date', '']
 	const type_list = ['string', 'string', 'date', 'edit']
-	const row_list = league.tournament_list;
-	console.log(row_list);
-	
-	tournament_list_table.build('Tournaments', header_list, id_list, type_list, row_list)
-	tournament_list_table.addEventListener('edit-row', (e) => gotoTournament(league.id, e.detail.row.id))
-	return tournament_list_table
+	const row_list = tournament_list;
+	tournaments_table.build('Tournaments', header_list, id_list, type_list, row_list)
+	tournaments_table.addEventListener('edit-row', (e) => gotoTournament(e.detail.row))
 }
 
 function addTournament(league_id) {
-	// console.log(`edit_tournament.html?league_id=${league_id}`);
 	window.location.href = `edit_tournament.html?league_id=${league_id}`
 }
 
-function buildStandingsTable(standing_list) {
-	console.log('standing_list', standing_list);
-	const standings_table = document.getElementById('standings_table')
-	const id_list = ['rank', 'player', 'points', 'record', 'omw', 'gw', 'ogw']
-	const header_list = ['Rank', 'Player', 'Points', 'Record', 'OMW Sum', 'GW Sum', 'OGW Sum']
-	const type_list = ['number', 'string', 'date', 'string', 'number', 'number', 'number']
-	const row_list = standing_list;
-	standings_table.build('Standings', header_list, id_list, type_list, row_list)
-	return standings_table 
+function loadStandings(standings_table, tournament_list) {
+	if (!tournament_list || tournament_list.length < 1) return null;
+	const standings = buildLeagueStandings(tournament_list)
+	const id_list = ["rank","player","points","record","omw","gw","ogw"]
+	const type_list = ["string","string","number","string","number","number","number"]
+	const header_list = ["Rank","Player","Points","Record","OMW Sum","GW Sum","OGW Sum"]
+	standings_table.build('Standings', header_list, id_list, type_list, standings)
+}
+
+function buildLeagueStandings(tournament_list) {
+	// Load all standings
+	const global_standings = []
+	for (let i = 0; i < tournament_list.length; i++) {
+		const t = tournament_list[i]
+		for (let j = 0; j < t.standings.length; j++) {
+			const s = t.standings[j];
+			const found = global_standings.find(gs => s.player === gs.player)
+			if (found) found.addStanding(s)
+			else global_standings.push(parseStanding(s))
+		}
+	}
+
+	// Correct errors and reorder based on points
+	global_standings.sort((a,b) => {
+		if (a.points !== b.points) return a.points < b.points ? 1 : -1
+		if (a.omw !== b.omw) return a.omw < b.omw? 1 : -1
+		if (a.gw !== b.gw) return a.gw < b.gw ? 1 : -1
+		return a.ogw < b.ogw ? 1 : -1
+		
+	})
+	for (let i = 0; i < global_standings.length; i++) {
+		global_standings[i].rank = i+1
+	}
+
+	return global_standings
 }
 
 
-function gotoTournament(league_id, tournament_id) {
-	console.log(tournament_id);
-	
-	if (!tournament_id) window.location.href = `edit_tournament.html?league_id=${league_id}`;
-	else window.location.href = `edit_tournament.html?league_id=${league_id}&tournament_id=${tournament_id}`;
+function gotoTournament(tournament) {
+	window.location.href = `edit_tournament.html?league_id=${tournament.league_id}&tournament_id=${tournament.id}`;
 }
 
 function createConfirmDeleteWindow(league_list, league_id) {
