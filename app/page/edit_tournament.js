@@ -4,10 +4,9 @@ import { Tournament } from '../class/Tournament.js'
 import { saveToLocal } from "../function/utils.js";
 import { parseLeagueList } from "../class/League.js";
 
-
+console.log(window.location.href);
 console.log(getUrlParams('league_id'));
 console.log(getUrlParams('tournament_id'));
-
 
 const league_id = getUrlParams('league_id')
 const league_list = parseLeagueList(localStorage.getItem('league_list'))
@@ -15,6 +14,7 @@ const league = league_list.find(l => l.id === league_id)
 
 console.log(league_list);
 console.log(league_id);
+console.log(league);
 
 const tournament_id = getTournamentId(league)
 const tournament = league.tournament_list.find(t => t.id === tournament_id)
@@ -24,28 +24,29 @@ const nav_leagues = document.getElementById('nav-leagues')
 const nav_league = document.getElementById('nav-league')
 const nav_tournament = document.getElementById('nav-tournament')
 
-const league_id_span = document.getElementById('league_id')
 const name_input = document.getElementById('name_input')
 const date_input = document.getElementById('date_input')
 const url_input = document.getElementById('url_input');
 const start_scrapping_button = document.getElementById('start_scrapping_button')
 const tournament_h2 = document.getElementById('standings_h2')
 const standings_table = document.getElementById('standings_table')
+const delete_tournament_button = document.getElementById('delete-tournament-button')
 
 nav_menu.textContent = " > Menu "
 nav_leagues.textContent = " > Leagues "
 nav_league.textContent = " > League " + league_id
 nav_tournament.textContent = " > Tournament " + tournament_id
-league_id_span.textContent = league_id
+
 loadStandings(tournament)	
 
 saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
 setInputs(tournament)
 nav_menu.onclick = () => window.location.href = "menu.html"
-nav_league.onclick = () => window.location.href = "edit_league.html?=" + league_id
+nav_league.onclick = () => window.location.href = "edit_league.html?id=" + league_id
 name_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
 date_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
 start_scrapping_button.onclick = () => startScrapping(url_input.value, tournament, league_list);
+delete_tournament_button.onclick = () => createConfirmDeleteWindow(league_list, league_id, tournament_id)
 
 
 // TEST ONLY //
@@ -66,6 +67,11 @@ function getTournamentId(league) {
 		return league.tournament_list[0].id
 	} 
 	return tournament_id
+}
+
+function getTournamentH1(tournament) {
+	if (tournament.name) return tournament.name 
+	return "Import Tournament"
 }
 
 function setInputs(tournament) {
@@ -144,4 +150,28 @@ function loadStandingsTable(standings) {
 	const header_list = ["Rank","Player","Points","Record","OMW Sum","GW Sum","OGW Sum"]
 	console.log(standings_table)
 	standings_table.build('Standings', header_list, id_list, type_list, standings)
+}
+
+function createConfirmDeleteWindow(league_list, league_id, tournament_id) {
+	if (confirm("Are you sure to delete Tournament ?")) deleteTournament(league_list, league_id, tournament_id)
+}
+
+function deleteTournament(league_list, league_id, tournament_id) {
+		for (let i = 0; i < league_list.length; i++) {
+			const l = league_list[i];
+			if (l.id === league_id) {
+				console.log("working", l);
+				
+				for (let j = 0; j < l.tournament_list.length; j++) {
+					const t = l.tournament_list[j];
+					if (t.id === tournament_id) {
+						console.log("Tournament Found and deleted succesfully");
+						l.tournament_list.splice(j, 1)
+						break;
+					}
+				}
+			}
+		}
+		saveToLocal('league_list', league_list)
+		return window.location.href = 'edit_league.html?id=' + league_id
 }

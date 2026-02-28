@@ -6,7 +6,7 @@ export function getUrlParams(key) {
 export function saveToLocal(key, o) {
 	const j = JSON.stringify(o)
 	localStorage.setItem(key, j)
-	console.log('Saved in local Storage', o)
+	console.log('Item saved in local Storage', o)
 	return o
 }
 
@@ -15,5 +15,6 @@ export function saveToLocal(key, o) {
  * @returns {string} Date formatted as YYYY-MM-DD
  */
 export function YYYYMMDD(date) {
+	if (!date) return null;
 	return date.toISOString().split('T')[0]
 }
