@@ -4,28 +4,44 @@
 	<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="../global.css">
+	<link rel="stylesheet" href="../style/bulma.css">
+	<link rel="stylesheet" href="../style/global.css">
 	<script type="module" defer src="../component/GonesTable.js"></script>
 	<title>leaguemtg</title>
 </head>
 
 <body>
-	<div class="nav">
-		<span id="nav-menu" class="nav-clickable"></span>
-		<span id="nav-leagues" class="nav-current"></span>
+	<div class="container">
+		<div>
+			<nav class="breadcrumb is-large has-succeeds-separator" aria-label="breadcrumbs">
+				<ul>
+					<!-- <li id="nav-menu"><a href="#">Menu</a></li> -->
+					<li id="nav-leagues" class="is-active"><a href="#" aria-current="page">Leagues</a></li>
+				</ul>
+				<hr>
+			</nav>
+
+
+			<div class="has-text-centered">
+				<h1 class="title is-1">Leagues</h1>
+			</div>
+			<div class="m-4">
+				<gones-table id="league_list_table"></gones-table>
+			</div>
+		</div>
+
+		<div class="m-4 is-full-width is-flex is-flex-direction-row is-justify-content-space-around">
+			<button type="button" id="create_league_button" 
+			class="button is-large is-primary is-dark"
+			>Create League</button>
+		</div>
+
+
+
+		<!-- <button type="button" onclick="console.log(localStorage.getItem('league_list'))">Check LocalStorage</button> -->
+
+		<!-- <a href="../index.html"><button >Return to Menu</button></a> -->
 	</div>
-
-	<h1>Leagues</h1>
-
-	<!-- <label for="name_league">League Name</label> -->
-	<!-- <input type="text" id="name_league"> -->
-
-	<gones-table id="league_list_table"></gones-table>
-	<button type="button" id="create_league_button">Create League</button>
-
-	<!-- <button type="button" onclick="console.log(localStorage.getItem('league_list'))">Check LocalStorage</button> -->
-
-	<a href="../index.html"><button >Return to Menu</button></a>
 </body>
 
 <script type="module"src="./leagues.js"></script>

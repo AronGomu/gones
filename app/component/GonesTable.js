@@ -1,6 +1,8 @@
 const template = `
+
 <span id="table_title"></span>
-<table>
+
+<table class="table is-hoverable is-fullwidth">
     <thead>
         <tr class="header-row"></tr>
     </thead>
@@ -13,16 +15,14 @@ class GonesTable extends HTMLElement {
     constructor() {
         super();
 
-        // Attach a shadow root to the element.
-        const shadow = this.attachShadow({ mode: 'open' });
-
         // Define the inner structure and styles of the component.
-        shadow.innerHTML = template;
+        // this.innerHTML = template;
     }
 
     connectedCallback() {
         // Update the content when the component is attached to the DOM.
-        this.updateContent();
+        // this.updateContent();
+        this.innerHTML = template
     }
 
     static get observedAttributes() {
@@ -49,13 +49,18 @@ class GonesTable extends HTMLElement {
         this.row_list = row_list
 
         // Loadings Headers //
-        const header_row = this.shadowRoot.querySelector('.header-row')
+        const header_row = this.querySelector('.header-row')
         header_row.replaceChildren()
-        for (const header of header_list) header_row.insertCell().textContent = header
+        for (const header of header_list) {
+            console.log(header);
+            const th = document.createElement("th");
+            th.textContent = header;
+            header_row.appendChild(th);
+        }
         // Loadings Headers //
 
         // Loading Rows
-        const table_body = this.shadowRoot.querySelector('.table-body')
+        const table_body = this.querySelector('.table-body')
         table_body.replaceChildren()
 
         for (let i = 0; i < row_list.length; i++) {
@@ -63,6 +68,7 @@ class GonesTable extends HTMLElement {
             const row_index = i;
 
             const tr = table_body.insertRow();
+            tr.addEventListener('click', () => this.edit(row_index))
 
             for (let i = 0; i < id_list.length; i++) {
                 const id = id_list[i];
@@ -72,9 +78,8 @@ class GonesTable extends HTMLElement {
                 if (type === 'edit') {
                     const edit_id = `${this.title}_${row_index}_edit`
                     const cell = tr.insertCell()
-                    cell.innerHTML = `<button id="${edit_id}" >Edit</button>`
+                    cell.innerHTML = `<button id="${edit_id}" class="button is-primary is-dark" >Edit</button>`
                     const edit_button = cell.querySelector('button')
-                    edit_button.addEventListener('click', () => this.edit(row_index))
                     continue
                 }
                 else if (type === 'date') {

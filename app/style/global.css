@@ -10,9 +10,14 @@
   }
 }
 
+html {
+    height: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
+  height: 100%;
 }
 
 .nav-clickable {
@@ -25,4 +30,16 @@ body {
 
 .nav-current {
   font-style: bold;
+}
+
+/* overload-bulma */
+.container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+table.is-hoverable tbody td:hover {
+  cursor: pointer;
 }
