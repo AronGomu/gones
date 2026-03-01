@@ -88,7 +88,11 @@ class GonesTable extends HTMLElement {
                     else tr.insertCell().textContent = localDate
                 }
                 else {
-                    tr.insertCell().textContent = content;
+                    const td = document.createElement('td')
+                    // add bold style to td on condition
+                    if (id === 'name') td.style = 'font-weight: bold; font-size: larger;'
+                    td.textContent = content
+                    tr.appendChild(td)
                 }
             }
         }

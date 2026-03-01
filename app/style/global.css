@@ -43,3 +43,7 @@ body {
 table.is-hoverable tbody td:hover {
   cursor: pointer;
 }
+
+.modifiable-h1 {
+  cursor: pointer;
+}

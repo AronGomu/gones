@@ -17,9 +17,9 @@ create_league_button.onclick = createLeague
 function buildLeagueListTable(league_list) {
 	console.log(league_list);
 	const league_list_table = document.getElementById('league_list_table')
-	const id_list = ['id', 'name', 'start', 'end']
-	const header_list = ['ID', 'Name', 'Start Date', 'End Date']
-	const type_list = ['string', 'string', 'date', 'date']
+	const id_list = ['name', 'start', 'end']
+	const header_list = ['Name', 'Start Date', 'End Date']
+	const type_list = ['string', 'date', 'date']
 	const row_list = league_list;
 	league_list_table.build('Leagues', header_list, id_list, type_list, row_list)
 	league_list_table.addEventListener('edit-row', (e) => editLeague(e.detail.row.id))

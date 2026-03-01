@@ -12,8 +12,9 @@ league_list = saveLeague(league_list, league)
 const nav_menu = document.getElementById('nav-menu')
 const nav_leagues = document.getElementById('nav-leagues')
 const nav_league = document.getElementById('nav-league')
-const id = document.getElementById('id') 
+const h1 = document.getElementById('h1') 
 const name = document.getElementById('name') 
+const name_input = document.getElementById('name-input') 
 const start = document.getElementById('start') 
 const end = document.getElementById('end') 
 const tournaments_table = document.getElementById('tournaments-table')
@@ -21,19 +22,21 @@ const create_tournament_button = document.getElementById('create-tournament-butt
 const standings_table = document.getElementById('standings-table')
 const delete_league_button = document.getElementById('delete-league-button')
 
-nav_menu.textContent = "> Menu "
-nav_leagues.textContent = " > Leagues"
-nav_league.textContent = " > League" + league_id
-id.innerText = league_id 
-name.value = league.name
+// nav_menu.textContent = "> Menu "
+// nav_leagues.textContent = " > Leagues"
+if (league_id) nav_league.textContent = "League " + league.name
+// h1.innerText = "Edit League " + league_id 
+h1.innerText = league.name
+name_input.value = league.name
 start.value = YYYYMMDD(league.start)
 end.value = YYYYMMDD(league.end)
 loadTournaments(tournaments_table, league.tournament_list)
 loadStandings(standings_table, league.tournament_list)
 
-nav_menu.onclick = () => window.location.href = "menu.html"
+// nav_menu.onclick = () => window.location.href = "menu.html"
 nav_leagues.onclick = () => window.location.href = "leagues.html"
-name.oninput = () => saveLeague(league_list, league, name.value, start.value, end.value)
+h1.onclick = () => enterH1Input(h1, name)
+name_input.oninput = () => saveLeague(league_list, league, name_input.value, start.value, end.value)
 create_tournament_button.onclick = () => addTournament(league_id)
 delete_league_button.onclick = () => createConfirmDeleteWindow(league_list, league_id)
 
@@ -76,9 +79,9 @@ function saveLeague(league_list, league, name, start, end) {
  }
 
 function loadTournaments(tournaments_table, tournament_list) {
-	const id_list = ['id', 'name', 'date', 'edit']
-	const header_list = ['ID', 'Name', 'Date', '']
-	const type_list = ['string', 'string', 'date', 'edit']
+	const id_list = ['name', 'date']
+	const header_list = ['Name', 'Date',]
+	const type_list = ['string', 'date']
 	const row_list = tournament_list;
 	tournaments_table.build('Tournaments', header_list, id_list, type_list, row_list)
 	tournaments_table.addEventListener('edit-row', (e) => gotoTournament(e.detail.row))
@@ -145,4 +148,15 @@ function deleteLeague(league_list, league_id) {
 		}
 		saveToLocal('league_list', league_list)
 		return window.location.href = 'leagues.html'
+}
+
+function enterH1Input(h1, name) {
+	h1.hidden = true
+	name.hidden = false
+	name.focus()
+}
+
+function exitH1Input() {
+	h1.hidden = false
+	name.hidden = true
 }
