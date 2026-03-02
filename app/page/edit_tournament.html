@@ -49,17 +49,53 @@
 
 				<div id="import-div" class="is-flex is-flex-direction-column is-justify-content-space-around mt-4">
 					<div class="is-flex m-2">
-						<!-- <label>Load tournament from Spicerack Event</label> -->
 						<input type="text" id="url_input" placeholder="Spicerack Event URL" class="input is-large mr-4">
 						<button type="button" id="start_scrapping_button"
 							class="button is-large is-primary is-dark"
 						>Import</button>
 					</div>
 					
-					<div class="is-flex is-justify-content-center">
-						<button type="button" id="start_scrapping_button" disabled
-							class="button is-large is-secondary is-dark"
-						>Load tournament from CSV</button>
+					<div class="is-flex">
+
+            <div id="import-standings-button-div" class="is-flex is-flex-direction-column">
+              <button type="button" id="import-standings-button"
+							  class="button is-large is-primary"
+              >Import Standings CSV</button>
+            </div>
+            
+
+						<!-- <button type="button" id="import-round-1-button" hidden="false" -->
+						<!-- 	class="button is-large is-secondary" -->
+						<!-- >Import Round 1 CSV</button> -->
+						<!---->
+						<!--       <div id="import-round-2-button-container" hidden="true"> -->
+						<!--         <button type="button" id="import-round-2-button"  -->
+						<!-- 	  class="button is-large is-secondary" -->
+						<!--   >Import Round 2 CSV</button> -->
+						<!---->
+						<!---->
+						<!--         </div> -->
+						<!---->
+						<!--       <button type="button" id="import-round-3-button" hidden="true" -->
+						<!-- 	class="button is-large is-secondary" -->
+						<!-- >Import Round 3 CSV</button> -->
+						<!---->
+						<!--       <button type="button" id="import-round-4-button" hidden="true" -->
+						<!-- 	class="button is-large is-primary" -->
+						<!-- >Import Round 4 CSV</button> -->
+						<!---->
+						<!--       <button type="button" id="import-pairing-5-button" hidden="true" -->
+						<!-- 	class="button is-large is-primary" -->
+						<!-- >Import Pairing Round 5 CSV</button> -->
+						<!---->
+						<!--       <button type="button" id="import-pairing-6-button" hidden="true" -->
+						<!-- 	class="button is-large is-primary" -->
+						<!-- >Import Pairing Round 6 CSV</button> -->
+						<!---->
+						<!--       <button type="button" id="submit-import-csv" hidden="false" -->
+						<!-- 	class="button is-large is-success" -->
+						<!-- >Submit CSV Import</button> -->
+						<!---->
 					</div>
 				</div>
 			</div>

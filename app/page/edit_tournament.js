@@ -6,7 +6,6 @@ import { parseLeagueList } from "../class/League.js";
 
 const league_id = getUrlParams('league_id')
 const league_list = parseLeagueList(localStorage.getItem('league_list'))
-console.log(league_list);
 
 const league = league_list.find(l => l.id === league_id)
 
@@ -23,6 +22,7 @@ const name_input = document.getElementById('name-input')
 const tournament_date_input = document.getElementById('tournament-date-input')
 const url_input = document.getElementById('url_input')
 const start_scrapping_button = document.getElementById('start_scrapping_button')
+const import_standings_button_div = document.getElementById('import-standings-button-div')
 const tournament_h2 = document.getElementById('standings-h2')
 const standings_table = document.getElementById('standings-table')
 const delete_tournament_button = document.getElementById('delete-tournament-button')
@@ -33,32 +33,34 @@ nav_tournament.textContent = "Tournament " + tournament_id
 h1.innerText = tournament.name
 name_input.value = tournament.name
 
-console.log(tournament);
-
-
-
 loadStandings(standings_table, tournament)	
 
-saveTournament(league_list, league.tournament_list, tournament, name_input.value, tournament_date_input.value, null, null, null)
+saveTournament(league_list, tournament)
 setInputs(tournament)
 // nav_menu.onclick = () => window.location.href = "menu.html"
 nav_league.onclick = () => window.location.href = "edit_league.html?id=" + league_id
-name_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, tournament_date_input.value, null, null, null)
+name_input.oninput = () => {
+  tournament.name = name_input.value
+  saveTournament(league_list, tournament)
+}
 h1.onclick = () => enterH1Input(h1, name)
 name_input.onblur = () => exitH1Input()
 name_input.onkeydown = (e) => {
 	h1.textContent = name_input.value
  	if (e.key === "Enter" || e.key === "Escape") exitH1Input()
 }
-
-tournament_date_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, tournament_date_input.value, null, null, null)
+tournament_date_input.oninput = () => {
+  tournament.date = tournament_date_input.value
+  saveTournament(league_list, tournament)
+}
 start_scrapping_button.onclick = () => startScrapping(url_input.value, tournament, league_list, league_id, standings_table, h1, name_input)
+import_csv.onclick = () => startScrapping(url_input.value, tournament, league_list, league_id, standings_table, h1, name_input)
 delete_tournament_button.onclick = () => createConfirmDeleteWindow(league_list, league_id, tournament_id)
 to_league_button.onclick = () => window.location.href = "edit_league.html?id=" + league_id
 
 
 // TEST ONLY //
-document.getElementById('url_input').value = "https://www.spicerack.gg/events/2945730/tournament"
+// document.getElementById('url_input').value = "https://www.spicerack.gg/events/2945730/tournament"
 // startScrapping(null);
 // TEST ONLY //
 
@@ -84,58 +86,30 @@ function setInputs(tournament) {
 }
 
 /** Save tournament by giving all values from inputs and updating the tournament then saving in local */
-function saveTournament(league_list, tournament_list, tournament, name, date, rounds, tops, standings) {
+function saveTournament(league_list, tournament) {
+  if (!league_list || league_list.length < 1) {
+    console.error("Cannot save because league_list is null or empty !", league_list);
+    return league_list.tournament_list;
+  }
+
+  if (!tournament || !tournament.id) {
+    console.error("Cannot save because tournament is null or has no id !", tournament);
+    return league_list.tournament_list;
+  }
+
+  const leagueToUpdate = league_list.find(l => l.id === league_id)
+
 	
-	console.log( JSON.stringify(tournament) );
-
-	if (!tournament) return tournament_list;
 	
-	if (name) tournament.name = name
-	if (date) tournament.date = new Date(date)
-	if (rounds) tournament.rounds = rounds
-	if (tops) tournament.tops = tops
-	if (standings) tournament.standings = standings
-	
-	// const leagueToUpdate = league_list.find(l => l.id === tournament.league_id)
-	// console.log( JSON.stringify(tournament) );
-	// console.log(JSON.stringify(leagueToUpdate));
-	// forof
-	// const tournamentToUpdate = leagueToUpdate.tournament_list.find(l => l.id === tournament.id)
-	// tournamentToUpdate
-	// leagueToUpdate.tournament_list = tournament
-	// console.log(JSON.stringify(leagueToUpdate));
+  for (let i = 0; i < leagueToUpdate.tournament_list.length; i++) {
+    const t = leagueToUpdate.tournament_list[i];
+    if (t.id === tournament.id) {
+      leagueToUpdate.tournament_list[i] = tournament
+      break
+    }
+  }
 
-	for (let i = 0; i < league_list.length; i++) {
-		const l = league_list[i]
-		for (let j = 0; j < l.tournament_list.length; j++) {
-			const t = l.tournament_list[j]
-			if (l.id === league_id && t.id === tournament.id) {
-				l.tournament_list[j] = tournament
-				return saveToLocal('league_list', league_list)
-			}
-		}
-		
-	}
-
-
-	// for (let i = 0; i < league_list.length; i++) {
-	// 	if (league_list[i].id === leagueToUpdate.id) {
-	// 		league_list[i] = leagueToUpdate
-	// 		for (let j = 0; j < array.length; j++) {
-	// 			const element = array[j];
-				
-	// 		}
-	// 		return saveToLocal('league_list', league_list)
-	// 	}
-	// }
-
-	// for (let i = 0; i < league_list.length; i++) {
-	// 	if (league_list[i].id === leagueToUpdate.id) {
-	// 		league_list[i] = leagueToUpdate
-	// 		return saveToLocal('league_list', league_list)
-	// 	}
-	// }
-	
+  return saveToLocal('league_list', league_list)
 }
 
 function loadStandings(standings_table, tournament) {
@@ -147,30 +121,19 @@ function loadStandings(standings_table, tournament) {
 
 
 async function startScrapping(url, tournament, league_list, league_id, standings_table, h1, name_input) {
-	// tournament = await window.electronAPI.crawlSpiceEvent(url, null)
-	tournament = gones4
+  const tournament_id = tournament.id
+	tournament = await window.electronAPI.crawlSpiceEvent(url, null)
+  // TEST ONLY //
+	// tournament = gones4
+  // TEST ONLY //
+  tournament.id = tournament_id
 	tournament.league_id = league_id
-	console.log(tournament);
 	
 	h1.innerText = tournament.name
 	name_input.value = tournament.name
-	console.log(standings_table, tournament);
-	
 	loadStandings(standings_table, tournament)	
-	
-	console.log(league_list, league, tournament);
-	
-	saveTournament(
-		league_list, 
-		league.tournament_list, 
-		tournament,
-		tournament.name, 
-		tournament.date, 
-		tournament.rounds, 
-		tournament.tops, 
-		tournament.standings
-	)
-	
+
+	saveTournament(league_list, tournament)
 }
 
 function loadTournamentH2(tournament_rounds, tournament_players_sum) {

@@ -4,10 +4,7 @@ export function getUrlParams(key) {
 }
 
 export function saveToLocal(key, o) {
-	const j = JSON.stringify(o)
-	console.log(key, JSON.stringify(o[0].tournament_list[0]));
-	
-	localStorage.setItem(key, j)
+	localStorage.setItem(key, JSON.stringify(o))
 	console.log('Item saved in local Storage', o)
 	return o
 }
@@ -17,7 +14,7 @@ export function saveToLocal(key, o) {
  * @returns {string} Date formatted as YYYY-MM-DD
  */
 export function YYYYMMDD(date) {
-	if (!date) return null;
+	if (!date || !date.toISOString() || !date.toISOString().split('T')) return null;
 	return date.toISOString().split('T')[0]
 }
 

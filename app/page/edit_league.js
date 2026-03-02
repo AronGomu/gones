@@ -27,7 +27,7 @@ const to_leagues_button = document.getElementById('to-leagues-button')
 
 // nav_menu.textContent = "> Menu "
 // nav_leagues.textContent = " > Leagues"
-if (league_id) nav_league.textContent = "League " + league.name
+if (league_id) nav_league.textContent = "League " + league.id
 // h1.innerText = "Edit League " + league_id 
 h1.innerText = league.name
 name_input.value = league.name
