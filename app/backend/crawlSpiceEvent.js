@@ -27,12 +27,14 @@ async function start(url) {
 }
 
 async function getMatchListResultRoundList(page, tournament) {
+	
 	let round_index = 0;
 	let has_round = true;
 	try {
 		while (has_round) {
 			await waitForSelector(page, `button::-p-text("Round ${round_index+1}")`)
 			const results = await getMatchList(page);
+			
 			if (!results) has_round = false;
 			else tournament.rounds[round_index] = results;
 			round_index++;
@@ -63,55 +65,86 @@ async function getMatchListTopList(page, tournament, top_index) {
 }
 
 async function getMatchList(page) {
-	await delay(1000)
+	try {
+		await delay(1000)
 
-	let round_match_list = [];
+		let round_match_list = [];
 
-	await page.waitForFunction(() => document.body.innerText.includes('Table 1'));
+		await page.waitForFunction(() => document.body.innerText.includes('Table 1'));
+		
+		const td_list = await page.$$('td');
+		if (td_list.length % 4 !== 0) throw new Error("Should always be divisible by 4 because 4 cells !");
 
-	const td_list = await page.$$('td');
-	if (td_list.length % 4 !== 0) throw new Error("Should always be divisible by 4 because 4 cells !");
+		const nb_line = td_list.length / 4;
 
-	const nb_line = td_list.length / 4;
-	for (let i = 0; i < nb_line; i++) {
-		const players_cell_el = td_list[i*4+1];
-		const result_cell_el = td_list[i*4+3];
+		for (let i = 0; i < nb_line; i++) {
+			const table_cell_el = td_list[i*4+0];
+			const players_cell_el = td_list[i*4+1];
+			const result_cell_el = td_list[i*4+3];
 
-		const players = await getPlayers(players_cell_el);
-		const result = await getResult(result_cell_el);
+			const table_div = await table_cell_el.$('div')
+			const table_div_innerText = await table_div.evaluate(el => el.innerText)
 
-		let winner, loser;
-		if (players.player1 === result.winner_name) {
-			winner = players.player1;
-			loser = players.player2;
+
+			const is_bye = table_div_innerText === "No table"
+			
+			const players = await getPlayers(players_cell_el, is_bye);
+			const result = await getResult(result_cell_el, is_bye, players.player1);
+
+			let winner, loser;
+			if (players.player1 === result.winner_name) {
+				winner = players.player1;
+				loser = players.player2;
+			}
+			else {
+				winner = players.player2;
+				loser = players.player1;
+			}
+
+			round_match_list.push({
+				winner: winner,
+				loser: loser,
+				winner_score: result.winner_score,
+				loser_score: result.loser_score,
+				is_draw: result.is_draw,
+				is_bye: result.is_bye
+			});
+			
+			round_match_list
 		}
-		else {
-			winner = players.player2;
-			loser = players.player1;
-		}
 
-		round_match_list.push({
-			winner: winner,
-			loser: loser,
-			winner_score: result.winner_score,
-			loser_score: result.loser_score,
-			is_draw: result.is_draw,
-		});
+		return round_match_list
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+async function getPlayers(players_cell_el, is_bye = false) {
+	try {
+		const player_el_list = await players_cell_el.$$('span');
+		
+		const player1 = await player_el_list[0].evaluate(el => el.textContent.slice(1))
+		if (is_bye === true) {
+			return {player1, player2: 'bye'}
+		}
+		const player2 = await player_el_list[1].evaluate(el => el.textContent.slice(1))
+		return {player1, player2}
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+async function getResult(result_cell_el, is_bye = false, bye_name) {
+	if (is_bye) {
+		return {
+			winner_name: bye_name,
+			winner_score: 1,
+			loser_score: 0,
+			is_draw: false,
+			is_bye: true
+		}
 	}
 
-	return round_match_list
-}
-
-async function getPlayers(players_cell_el) {
-	const player_el_list = await players_cell_el.$$('span');
-
-	const player1 = await player_el_list[0].evaluate(el => el.textContent.slice(1))
-	const player2 = await player_el_list[1].evaluate(el => el.textContent.slice(1))
-
-	return {player1, player2}
-}
-
-async function getResult(result_cell_el) {
 	const result_el = await result_cell_el.$('p');
 	const result = await result_el.evaluate(el => el.textContent);
 
@@ -120,6 +153,7 @@ async function getResult(result_cell_el) {
 		winner_score: 1,
 		loser_score: 1,
 		is_draw: true,
+		is_bye: false
 	}
 
 	const result_split = result.split(':');
@@ -134,6 +168,7 @@ async function getResult(result_cell_el) {
 		winner_score,
 		loser_score,
 		is_draw: false,
+		is_bye: false
 	}
 }
 
@@ -191,12 +226,16 @@ const crawlSpiceEvent = async function(url, top_index = null) {
 	await gotoAndGetStandingsAndComeback(page, tournament);
 
 	browser.close();
+
+	console.log(tournament);
+
 	return tournament;
 };
 
 // EXEMPLE HOW TO USE
 // const url = "https://www.spicerack.gg/events/2938796/tournament";
-// crawlSpiceEvent(url, 8);
+// const url = "https://www.spicerack.gg/events/2945730/tournament"
+// crawlSpiceEvent(url, null)
 
 
 module.exports = crawlSpiceEvent;

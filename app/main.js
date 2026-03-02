@@ -19,6 +19,7 @@ const createWindow = () => {
 
   console.log(__dirname);
   win.loadFile('app/page/leagues.html')
+  // win.loadFile('app/page/edit_tournament.html?league_id=1772020531244&tournament_id=1772057181615')
   // win.loadFile('app/page/edit_tournament.html', {search: '11112233'})
   // win.loadURL('https://www.mtgtop8.com/')
 }

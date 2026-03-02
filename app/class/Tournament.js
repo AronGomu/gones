@@ -27,15 +27,13 @@ function parseTournament(tournament) {
 
 function parseTournamentList(tournament_list) {
   const t_list = []
-  console.log('parseTournamentList', tournament_list);
 
   for (let i = 0; i < tournament_list.length; i++) {
     const t = tournament_list[i];
     t_list.push(parseTournament(t))
-    console.log('parseTournamentList 2', JSON.stringify(t_list.at(-1).id));
   }
   
   return t_list
 }
 
-export { Tournament, parseTournament, parseTournamentList };
+export { Tournament, parseTournament, parseTournamentList }

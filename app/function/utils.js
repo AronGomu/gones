@@ -5,6 +5,8 @@ export function getUrlParams(key) {
 
 export function saveToLocal(key, o) {
 	const j = JSON.stringify(o)
+	console.log(key, JSON.stringify(o[0].tournament_list[0]));
+	
 	localStorage.setItem(key, j)
 	console.log('Item saved in local Storage', o)
 	return o

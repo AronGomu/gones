@@ -52,7 +52,6 @@ class GonesTable extends HTMLElement {
         const header_row = this.querySelector('.header-row')
         header_row.replaceChildren()
         for (const header of header_list) {
-            console.log(header);
             const th = document.createElement("th");
             th.textContent = header;
             header_row.appendChild(th);

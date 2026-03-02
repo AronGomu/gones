@@ -9,7 +9,7 @@ const league = league_list.find(l => l.id === league_id) || new League('New Leag
 
 league_list = saveLeague(league_list, league)
 
-const nav_menu = document.getElementById('nav-menu')
+// const nav_menu = document.getElementById('nav-menu')
 const nav_leagues = document.getElementById('nav-leagues')
 const nav_league = document.getElementById('nav-league')
 const h1 = document.getElementById('h1') 
@@ -40,6 +40,11 @@ loadStandings(standings_table, league.tournament_list)
 nav_leagues.onclick = () => window.location.href = "leagues.html"
 h1.onclick = () => enterH1Input(h1, name)
 name_input.oninput = () => saveLeague(league_list, league, name_input.value, start.value, end.value)
+name_input.onblur = () => exitH1Input()
+name_input.onkeydown = (e) => {
+	h1.textContent = name_input.value
+ 	if (e.key === "Enter" || e.key === "Escape") exitH1Input()
+}
 create_tournament_button.onclick = () => addTournament(league_id)
 delete_league_button.onclick = () => createConfirmDeleteWindow(league_list, league_id)
 to_leagues_button.onclick = () => window.location.href = "leagues.html"
@@ -162,13 +167,14 @@ function deleteLeague(league_list, league_id) {
 		return window.location.href = 'leagues.html'
 }
 
-function enterH1Input(h1, name) {
+function enterH1Input() {
 	h1.hidden = true
 	name.hidden = false
-	name.focus()
+	name_input.focus()
 }
 
 function exitH1Input() {
-	h1.hidden = false
+	name_input.blur()
 	name.hidden = true
+	h1.hidden = false
 }
