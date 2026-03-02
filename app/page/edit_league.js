@@ -1,7 +1,7 @@
 import { deepCopySimpleObject, getUrlParams } from '../function/utils.js';
 import { League, parseLeagueList } from '../class/League.js'
 import { saveToLocal, YYYYMMDD } from '../function/utils.js'
-import { parseStanding } from "../class/Standing.js";
+import { parseStanding } from "../class/Standing.mjs";
 
 const league_id = getId()
 let league_list = getLeagueList();
@@ -21,6 +21,9 @@ const tournaments_table = document.getElementById('tournaments-table')
 const create_tournament_button = document.getElementById('create-tournament-button')
 const standings_table = document.getElementById('standings-table')
 const delete_league_button = document.getElementById('delete-league-button')
+const tournaments_table_container = document.getElementById('tournaments-table-container')
+const standings_table_container = document.getElementById('standings-table-container')
+const to_leagues_button = document.getElementById('to-leagues-button')
 
 // nav_menu.textContent = "> Menu "
 // nav_leagues.textContent = " > Leagues"
@@ -39,6 +42,8 @@ h1.onclick = () => enterH1Input(h1, name)
 name_input.oninput = () => saveLeague(league_list, league, name_input.value, start.value, end.value)
 create_tournament_button.onclick = () => addTournament(league_id)
 delete_league_button.onclick = () => createConfirmDeleteWindow(league_list, league_id)
+to_leagues_button.onclick = () => window.location.href = "leagues.html"
+
 
 function getId() {
 	let id = getUrlParams('id')
@@ -79,6 +84,10 @@ function saveLeague(league_list, league, name, start, end) {
  }
 
 function loadTournaments(tournaments_table, tournament_list) {
+	if (!tournament_list || tournament_list.length < 1) {
+		return console.error("Cannot load tournament because tournament is null or contain no items");
+	}
+	
 	const id_list = ['name', 'date']
 	const header_list = ['Name', 'Date',]
 	const type_list = ['string', 'date']
@@ -92,6 +101,9 @@ function addTournament(league_id) {
 }
 
 function loadStandings(standings_table, tournament_list) {
+	if (!tournament_list || tournament_list.length < 1) {
+		return console.error("Cannot load standings because tournament is null or contain no items");
+	}
 	if (!tournament_list || tournament_list.length < 1) return null;
 	const standings = buildLeagueStandings(tournament_list)
 	const id_list = ["rank","player","points","record","omw","gw","ogw"]

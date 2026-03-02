@@ -1,4 +1,4 @@
-import { getUrlParams } from '../function/utils.js';
+import { getUrlParams, YYYYMMDD } from '../function/utils.js';
 import { getRandomTournamentMock } from '../mock/tournamentsMock.js'
 import { Tournament } from '../class/Tournament.js'
 import { saveToLocal } from "../function/utils.js";
@@ -21,30 +21,31 @@ const nav_menu = document.getElementById('nav-menu')
 const nav_leagues = document.getElementById('nav-leagues')
 const nav_league = document.getElementById('nav-league')
 const nav_tournament = document.getElementById('nav-tournament')
-
-const name_input = document.getElementById('name_input')
-const date_input = document.getElementById('date_input')
+const name_input = document.getElementById('name-input')
+const tournament_date_input = document.getElementById('tournament-date-input')
 const url_input = document.getElementById('url_input');
 const start_scrapping_button = document.getElementById('start_scrapping_button')
-const tournament_h2 = document.getElementById('standings_h2')
+const tournament_h2 = document.getElementById('standings-h2')
 const standings_table = document.getElementById('standings-table')
 const delete_tournament_button = document.getElementById('delete-tournament-button')
+const to_league_button = document.getElementById('to-league-button')
 
-nav_menu.textContent = " > Menu "
+// nav_menu.textContent = " > Menu "
 nav_leagues.textContent = " > Leagues "
 nav_league.textContent = " > League " + league_id
 nav_tournament.textContent = " > Tournament " + tournament_id
 
 loadStandings(standings_table, tournament)	
 
-saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
+saveTournament(league_list, league.tournament_list, tournament, name_input.value, tournament_date_input.value, null, null, null)
 setInputs(tournament)
-nav_menu.onclick = () => window.location.href = "menu.html"
+// nav_menu.onclick = () => window.location.href = "menu.html"
 nav_league.onclick = () => window.location.href = "edit_league.html?id=" + league_id
-name_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
-date_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, date_input.value, null, null, null)
+name_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, tournament_date_input.value, null, null, null)
+tournament_date_input.oninput = () => saveTournament(league_list, league.tournament_list, tournament, name_input.value, tournament_date_input.value, null, null, null)
 start_scrapping_button.onclick = () => startScrapping(url_input.value, tournament, league_list, league_id, standings_table);
 delete_tournament_button.onclick = () => createConfirmDeleteWindow(league_list, league_id, tournament_id)
+to_league_button.onclick = () => window.location.href = "edit_league.html?id=" + league_id
 
 
 // TEST ONLY //
@@ -74,9 +75,8 @@ function getTournamentH1(tournament) {
 
 function setInputs(tournament) {
 	console.log(tournament);
-	
 	name_input.value = tournament.name || null
-	date_input.value = tournament.date || null
+	tournament_date_input.value = YYYYMMDD(tournament.date)
 }
 
 /** Save tournament by giving all values from inputs and updating the tournament then saving in local */
@@ -135,7 +135,7 @@ async function startScrapping(url, tournament, league_list, league_id, standings
 }
 
 function loadTournamentH2(tournament_name, tournament_rounds, tournament_players_sum) {
-	tournament_h2.textContent =  tournament_name + " Standings - " + tournament_rounds + " Rounds - " + tournament_players_sum + " Players"
+	tournament_h2.textContent =  "Standings - " + tournament_rounds + " Rounds - " + tournament_players_sum + " Players"
 }
 
 function loadStandingsTable(standings_table, standings) {

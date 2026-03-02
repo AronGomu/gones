@@ -1,3 +1,5 @@
+import { parseTournamentList } from "./Tournament.js"
+
 export class League {
   constructor(name) {
 	  this.id = Date.now().toString()
@@ -15,7 +17,7 @@ export function parseLeague(league) {
   l.id = league.id
   l.start = new Date(league.start)
   l.end = new Date(league.end)
-  l.tournament_list = league.tournament_list
+  l.tournament_list = parseTournamentList(league.tournament_list) 
   l.player_list = league.player_list
   l.standings = league.standings
   return l
@@ -23,11 +25,11 @@ export function parseLeague(league) {
 
 export function parseLeagueList(league_list_string) {
   const league_list = JSON.parse(league_list_string)
-  
   const l_list = []
   for (const l of league_list) {
     l_list.push(parseLeague(l))
   }
+  
   return l_list
   
 }

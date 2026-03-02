@@ -1,5 +1,3 @@
-import { trunc4 } from "../function/utils.js";
-
 export class Standing {
   rank;
   player;
@@ -43,4 +41,8 @@ export class Standing {
 
 export function parseStanding(s) {
   return new Standing(s.rank, s.player, s.points, s.win, s.lose, s.draw, s.omw, s.gw, s.ogw)
+}
+
+function trunc4(n) {
+  return ((n * 10000) | 0) / 10000;
 }

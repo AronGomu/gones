@@ -1,5 +1,5 @@
 const puppeteer = require('puppeteer');
-const { Standing } = require('../class/Standing.js')
+const { Standing } = require('../class/Standing.mjs')
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));

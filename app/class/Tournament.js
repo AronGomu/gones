@@ -13,7 +13,8 @@ class Tournament {
 }
 
 function parseTournament(tournament) {
-  const t = new Tournament(tournament.league_id, )
+  const t = new Tournament()
+  t.id = tournament.id
   t.league_id = tournament.league_id
   t.name = tournament.name
   t.date = new Date(tournament.date)
@@ -26,9 +27,14 @@ function parseTournament(tournament) {
 
 function parseTournamentList(tournament_list) {
   const t_list = []
-  for (const t of tournament_list) {
+  console.log('parseTournamentList', tournament_list);
+
+  for (let i = 0; i < tournament_list.length; i++) {
+    const t = tournament_list[i];
     t_list.push(parseTournament(t))
+    console.log('parseTournamentList 2', JSON.stringify(t_list.at(-1).id));
   }
+  
   return t_list
 }
 
