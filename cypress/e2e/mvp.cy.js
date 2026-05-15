@@ -14,6 +14,33 @@ describe("Gones MVP", () => {
     cy.get("[data-cy='empty-ranking']").should("contain", "Empty League");
   });
 
+  it("shows a centered breadcrumb path through League and Tournament pages", () => {
+    cy.visit("/app/pages/leagues.html");
+    cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues");
+    cy.get("[data-cy='breadcrumb']").shouldBeCenteredInHeader();
+
+    cy.get("[data-cy='league-name-input']").type("Spring League");
+    cy.get("[data-cy='create-league']").click();
+
+    cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues > Spring League");
+    cy.get("[data-cy='breadcrumb']").shouldBeCenteredInHeader();
+    cy.get("[data-cy='breadcrumb-current']").should("have.text", "Spring League");
+    cy.get("[data-cy='breadcrumb-current']").find("a").should("not.exist");
+
+    cy.get("[data-cy='tournament-name-input']").type("Week One");
+    cy.get("[data-cy='create-tournament']").click();
+
+    cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues > Spring League > Week One");
+    cy.get("[data-cy='breadcrumb']").shouldBeCenteredInHeader();
+    cy.get("[data-cy='breadcrumb']").contains("a", "Leagues").should("have.attr", "href", "leagues.html");
+    cy.get("[data-cy='breadcrumb']").contains("a", "Spring League").should("have.attr", "href").and("include", "league.html?leagueId=");
+    cy.get("[data-cy='breadcrumb-current']").should("have.text", "Week One");
+    cy.get("[data-cy='breadcrumb-current']").find("a").should("not.exist");
+
+    cy.get("[data-cy='tournament-name']").clear().type("Week Two");
+    cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues > Spring League > Week Two");
+  });
+
   it("creates a Tournament, imports a Round, shows results, and opens Player Statistics", () => {
     cy.visit("/app/pages/leagues.html");
     cy.get("[data-cy='league-name-input']").type("Spring League");
@@ -66,4 +93,16 @@ describe("Gones MVP", () => {
     cy.get("[data-cy='delete-round']").click();
     cy.get("[data-cy='round']").should("not.exist");
   });
+});
+
+Cypress.Commands.add("shouldHaveNormalizedText", { prevSubject: true }, (subject, expected) => {
+  expect(subject.text().replace(/\s+/g, " ").trim()).to.eq(expected);
+});
+
+Cypress.Commands.add("shouldBeCenteredInHeader", { prevSubject: true }, (subject) => {
+  const breadcrumb = subject[0].getBoundingClientRect();
+  const header = subject[0].closest("header").getBoundingClientRect();
+  const breadcrumbCenter = breadcrumb.left + breadcrumb.width / 2;
+  const headerCenter = header.left + header.width / 2;
+  expect(Math.abs(breadcrumbCenter - headerCenter)).to.be.lessThan(2);
 });

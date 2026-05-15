@@ -4,27 +4,33 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gones - Leagues</title>
-    <link rel="stylesheet" href="../styles/global.css">
+    <link rel="stylesheet" href="../styles/tailwind.css">
   </head>
-  <body>
-    <header class="app-header">
-      <a class="brand" href="leagues.html">Gones</a>
-      <nav><a href="leagues.html">Leagues</a></nav>
+  <body class="min-h-screen bg-slate-50 text-slate-900 font-sans leading-normal">
+    <header class="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-b border-slate-200 bg-white px-6">
+      <a class="font-extrabold text-slate-900 hover:underline" href="leagues.html">Gones</a>
+      <nav class="justify-self-center max-w-[min(70vw,760px)] overflow-x-auto whitespace-nowrap text-slate-500 [scrollbar-width:thin]" aria-label="Breadcrumb" data-cy="breadcrumb">
+        <span class="font-semibold text-slate-900" data-cy="breadcrumb-current">Leagues</span>
+      </nav>
+      <div class="min-w-0" aria-hidden="true"></div>
     </header>
-    <main class="page">
-      <section class="toolbar">
-        <div>
-          <h1>Leagues</h1>
-          <p class="muted">Tournament source data, calculated results, and player statistics.</p>
+    <main class="mx-auto w-[min(1180px,calc(100vw-32px))] py-7 pb-14">
+      <section>
+        <div class="flex items-center justify-center gap-[18px]">
+          <h1 class="m-0 text-3xl leading-tight">Leagues</h1>
+          <p class="text-slate-500">Tournament source data, calculated results, and player statistics.</p>
         </div>
-        <form id="create-league-form" class="inline-form">
-          <input name="name" data-cy="league-name-input" placeholder="League name" required>
-          <button type="submit" data-cy="create-league">Create League</button>
-        </form>
       </section>
-      <section id="league-list" class="list" data-cy="league-list"></section>
+      <section>
+        <div class="flex items-center justify-center gap-[18px]">
+          <form id="create-league-form" class="flex flex-wrap items-center gap-2.5">
+            <input class="min-h-[38px] rounded-md border border-slate-200 bg-white px-2.5 py-2 text-slate-900" name="name" data-cy="league-name-input" placeholder="League name" required>
+            <button class="min-h-[38px] cursor-pointer rounded-md border border-teal-700 bg-teal-700 px-3 py-2 font-semibold text-white" type="submit" data-cy="create-league">Create New League</button>
+          </form>
+        </div>
+      </section>
+      <section id="league-list" class="mt-5 grid gap-3" data-cy="league-list"></section>
     </main>
     <script type="module" src="./leagues.js"></script>
   </body>
 </html>
-

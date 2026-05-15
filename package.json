@@ -4,14 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:css": "tailwindcss -i ./app/styles/tailwind-source.css -o ./app/styles/tailwind.css --minify",
     "dev": "vite --host 127.0.0.1",
     "test:domain": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.js",
     "cy:open": "cypress open",
     "cy:run": "cypress run"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.0",
     "cypress": "^15.0.0",
     "jest": "^30.4.2",
+    "tailwindcss": "^4.3.0",
     "vite": "^7.0.0"
   }
 }

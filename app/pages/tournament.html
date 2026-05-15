@@ -4,15 +4,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Gones - Tournament</title>
-    <link rel="stylesheet" href="../styles/global.css">
+    <link rel="stylesheet" href="../styles/tailwind.css">
   </head>
-  <body>
-    <header class="app-header">
-      <a class="brand" href="leagues.html">Gones</a>
-      <nav><a id="league-link" href="leagues.html">League</a></nav>
+  <body class="min-h-screen bg-slate-50 text-slate-900 font-sans leading-normal">
+    <header class="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-b border-slate-200 bg-white px-6">
+      <a class="font-extrabold text-slate-900 hover:underline" href="leagues.html">Gones</a>
+      <nav class="justify-self-center max-w-[min(70vw,760px)] overflow-x-auto whitespace-nowrap text-slate-500 [scrollbar-width:thin]" aria-label="Breadcrumb" data-cy="breadcrumb">
+        <a class="text-teal-800 hover:underline" href="leagues.html">Leagues</a>
+        <span class="text-slate-500"> &gt; </span>
+        <a class="text-teal-800 hover:underline" id="breadcrumb-league" href="leagues.html">League</a>
+        <span class="text-slate-500"> &gt; </span>
+        <span class="font-semibold text-slate-900" data-cy="breadcrumb-current">Tournament</span>
+      </nav>
+      <div class="min-w-0" aria-hidden="true"></div>
     </header>
-    <main id="app" class="page"></main>
+    <main id="app" class="mx-auto w-[min(1180px,calc(100vw-32px))] py-7 pb-14"></main>
     <script type="module" src="./tournament.js"></script>
   </body>
 </html>
-
