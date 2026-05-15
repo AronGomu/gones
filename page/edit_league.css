@@ -1,8 +1,0 @@
-.league_fields_container {
-	display: flex;
-	flex-direction: column;
-}
-
-.league_field {
-	display: flex;
-}
