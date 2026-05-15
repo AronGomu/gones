@@ -33,7 +33,7 @@ The MVP CSV shape used to paste Round Match data into Gones.
 _Avoid_: SpiceRack format as the canonical model
 
 **Round Replacement**:
-Replacing all Matches in one Round with newly entered or imported Matches.
+Replacing all Round Entries in one Round with newly entered or imported Round Entries.
 _Avoid_: Append import
 
 **Player Name**:
@@ -47,6 +47,14 @@ _Avoid_: Player profile, player account
 **Bye Count**:
 The number of Byes assigned to a Player Name.
 _Avoid_: Bye win
+
+**Played Match Count**:
+The number of non-bye Matches played by a Player Name.
+_Avoid_: Total match count
+
+**Match Assignment Count**:
+The number of played Matches plus Byes assigned to a Player Name.
+_Avoid_: Played matches
 
 **Match Winrate**:
 The share of played non-bye Matches won by a Player Name, with draws counted as non-wins.
@@ -69,19 +77,23 @@ A derived view of tournament results across a League.
 _Avoid_: Stored ranking
 
 **Round**:
-A set of Matches played in a Tournament at the same stage.
+A set of Round Entries in a Tournament at the same stage.
 _Avoid_: Pairing list
 
+**Round Entry**:
+An ordered source-data item in a Round.
+_Avoid_: Match when the entry may be a Bye or Invalid Round Entry
+
 **Match**:
-A recorded result between two Player Names in a Round.
+A played result between two Player Names in a Round.
 _Avoid_: Game
 
 **Valid Match**:
 A Match with enough information to contribute to calculated results.
 _Avoid_: Complete row
 
-**Invalid Match**:
-A Match entry preserved for correction but excluded from calculated results.
+**Invalid Round Entry**:
+A Round Entry preserved for correction but excluded from calculated results.
 _Avoid_: Deleted line
 
 **Match Outcome**:
@@ -117,7 +129,7 @@ A derived view of a Tournament's Rounds.
 _Avoid_: Imported standing, stored standing
 
 **Incomplete Tournament**:
-A Tournament with at least one missing Match or Invalid Match.
+A Tournament with at least one missing Match or Invalid Round Entry.
 _Avoid_: Broken tournament
 
 **Provisional Result**:
@@ -143,6 +155,14 @@ _Avoid_: Merge import
 **Gones Data Version**:
 The version of the Gones data shape used in a Gones Export.
 _Avoid_: App version
+
+**Ranking Table**:
+A UI table for presenting Tournament Results or League Results.
+_Avoid_: Generic table
+
+**Round Editor**:
+A UI component for editing Round Entries in one Round.
+_Avoid_: Ranking Table
 
 ## Relationships
 
@@ -184,26 +204,26 @@ _Avoid_: App version
 - **Player Statistics** include only active, non-deleted Tournaments and Leagues
 - **Player Statistics** include valid Matches from Incomplete Tournaments
 - **Delete** is destructive in the MVP
-- A **Delete** removes a Match rather than preserving it as an Invalid Match
+- A **Delete** removes a Match rather than preserving it as an Invalid Round Entry
 - **Gones Export** preserves one League dataset for round-trip restore
 - **Gones Export** is distinct from **Round Import**
 - **Gones Export** is part of the MVP
-- **Gones Export** covers one League, including all Tournaments, Rounds, and Matches in that League
+- **Gones Export** covers one League, including all Tournaments, Rounds, and Round Entries in that League
 - **Gones Export** includes descriptive League dates
 - **Gones Export** includes Tournament names and Tournament Dates
 - **Gones Export** stores source data, not derived results
 - **Gones Export** does not store derived warnings
-- **Gones Export** preserves **Invalid Matches** for later correction
+- **Gones Export** preserves **Invalid Round Entries** for later correction
 - **Gones Export** includes a **Gones Data Version**
 - **Gones Restore** imports one League dataset
 - **Gones Restore** creates a new League by default
 - **Gones Restore** preserves the exported League name unless it must distinguish a duplicate
 - **Gones Restore** gives the imported League and its Tournaments new identities
 - **Gones Restore** rejects malformed or unsupported Gones Exports
-- **Gones Restore** preserves **Invalid Matches** from valid Gones Exports
+- **Gones Restore** preserves **Invalid Round Entries** from valid Gones Exports
 - A **League Result** is recalculated from the League's Tournaments after relevant data changes
 - A **Tournament** may contain zero or more **Rounds** while editing
-- A **Round** contains one or more **Matches**
+- A **Round** contains zero or more **Round Entries**
 - A **Round** may be empty while editing
 - An empty **Round** contributes nothing to calculated results
 - **Round** order matters for display and recency
@@ -214,10 +234,17 @@ _Avoid_: App version
 - Remaining **Rounds** are displayed by their current order after a Round is deleted
 - A **Match** has one **Match Outcome**
 - A **Match** may have a **Game Score**
+- A **Round Entry** can be a **Match**, **Bye**, or **Invalid Round Entry**
+- **Match** source data records neutral Player Name and Game Score fields rather than winner and loser fields
+- **Match Outcome** is derived from Match source data
+- **Round Entry** source data distinguishes Matches, Byes, and Invalid Round Entries with `kind` values of `match`, `bye`, and `invalid`
+- A `kind: "match"` Round Entry is a **Valid Match**
+- A malformed Round Entry uses `kind: "invalid"` until corrected
 - MVP **Match** order within a Round comes from creation or import order
 - MVP Gones does not support manual Match reordering
 - A played **Valid Match** has two different Player Names, a Match Outcome, and a Game Score
 - A **Valid Match** may instead assign one Player Name a **Bye**
+- A **Bye** Round Entry requires a non-empty allowed Player Name
 - An empty Player Name makes a Match invalid
 - A Match with the same Player Name on both sides is invalid
 - A drawn **Valid Match** has equal Game Score values
@@ -232,16 +259,26 @@ _Avoid_: App version
 - A Match draw awards 1 **Tournament Point** to each Player Name
 - A Match loss awards 0 **Tournament Points**
 - A **Bye** is not a **Player Name**
-- A **Bye** does not count toward game statistics or match win/loss statistics
+- A **Bye** counts as a Match win for Tournament Result and League Result
+- A **Bye** does not count toward Player Statistics match win/loss statistics or game statistics
+- A **Bye** does not count toward **Game Win Percentage**
 - A **Bye** awards Tournament Points to its assigned Player Name
 - Bye Tournament Points contribute to **League Result**
+- Ranking records display Byes as wins
+- Byes contribute to opponent-derived Match Winrate records
+- Byes do not contribute to opponent-derived Game Win Percentage records
 - A **Bye** contributes to **Bye Count**
 - A Player Name with only Byes can appear in Tournament Result and League Result
 - Unqualified "winrate" means **Match Winrate**
+- **Played Match Count** excludes Byes
+- **Match Assignment Count** includes Byes
+- **Player Statistics** show Played Match Count and Bye Count as primary counts
+- **Match Assignment Count** is helper language, not a primary statistic
 - **Player Statistics** include both **Match Winrate** and **Game Winrate**
 - Draws count as non-wins in **Match Winrate**
 - Individual drawn games are ignored in **Game Winrate**
 - **Match Winrate** and **Game Winrate** are N/A when they have no denominator
+- **Match Winrate** and **Game Winrate** display as percentages with 2 decimal places when defined
 - **Player Statistics** use raw percentages without tiebreaker floors
 - **Nemesis** excludes Byes
 - **Nemesis** ties are broken by the selected Player Name's worst Match Winrate against the tied opponents, then opposing Player Name
@@ -252,22 +289,51 @@ _Avoid_: App version
 - A **Tournament Result** is recalculated from the Tournament's Rounds after relevant data changes
 - A **League Result** is recalculated from Tournament Results after relevant data changes
 - An **Incomplete Tournament** may still produce a **Provisional Result**
-- A **Provisional Result** excludes missing Matches and **Invalid Matches**
+- A **Provisional Result** excludes missing Matches and **Invalid Round Entries**
 - An empty **Tournament** is an **Incomplete Tournament**
 - A **League Result** may be provisional when it includes an **Incomplete Tournament**
 - A provisional **League Result** includes valid Matches from Incomplete Tournaments
-- A **Tournament Import** preserves invalid imported lines as **Invalid Matches** for correction
-- Manual Match edits can create **Invalid Matches**
-- Editing an **Invalid Match** makes the edited fields the source data
+- A **Tournament Import** preserves invalid imported lines as **Invalid Round Entries** for correction
+- Valid imported Round Entries do not preserve raw import text
+- **Invalid Round Entries** preserve raw import text until edited
+- Manual Match edits can create **Invalid Round Entries**
+- Editing an **Invalid Round Entry** makes the edited fields the source data
+- Correcting an **Invalid Round Entry** can turn it into a **Match** or **Bye**
+- **Invalid Round Entry** reasons are derived from source data
 - A repeated Match between the same two Player Names in one Tournament creates a **Pairing Warning** but still counts
 - A Player Name appearing in multiple Matches in one Round creates a **Pairing Warning** but still counts
 - Multiple Byes in one Round create a **Pairing Warning** but still count
 - Each **Tournament** contributes equally to a **League Result**
 - Ties in a **Tournament Result** are broken by **Opponents' Match Win Percentage**, then **Game Win Percentage**, then **Opponents' Game Win Percentage**, then Player Name
 - Ties in a **League Result** use league-wide **Opponents' Match Win Percentage**, **Game Win Percentage**, and **Opponents' Game Win Percentage** calculated across all Tournaments in that League
+- A **Ranking Table** presents calculated Tournament Result or League Result rows
+- A **Ranking Table** does not calculate results from Rounds
+- Tournament Result and League Result rows are sorted by domain calculation before reaching a **Ranking Table**
+- A **Ranking Table** row may navigate to **Player Statistics** for that Player Name
+- A **Round Editor** edits Round Entries and does not present ranking rows
+- **Round Import** is performed from the **Round Editor** for the targeted Round
+- A **Round Editor** can add Match and Bye Round Entries manually
+- A **Round Editor** shows Invalid Round Entries inline for correction
+- Warning summaries may point to Invalid Round Entries but do not replace inline correction
+- A **Round Editor** shows Pairing Warnings inline without excluding the affected Round Entries
+- MVP Tournament pages show Round Editors directly for visibility
+- MVP Tournament pages show Tournament Result before Round Editors
+- MVP League pages show League Result before the Tournament list
+- MVP Leagues list shows lightweight League summaries, not full League Results
+- MVP includes a **Player Statistics** page
+- **Player Statistics** page can be opened from **Ranking Table** rows
+- **Player Statistics** page identifies the selected player by encoded Player Name, not a player ID
+- **Player Statistics** filters are represented in the page URL
+- League and Tournament pages identify source entities by internal IDs in the URL
+- **Opponents' Match Win Percentage** is treated as 0 for ranking tiebreakers when there are no opponents
+- **Opponents' Game Win Percentage** is treated as 0 for ranking tiebreakers when there are no opponents
 - **Game Win Percentage** is treated as 0 for ranking tiebreakers when it has no denominator
 - **Opponents' Match Win Percentage** applies a 33% floor to each opponent's Match Winrate contribution
 - **Opponents' Game Win Percentage** applies a 33% floor to each opponent's Game Win Percentage contribution
+- Opponent-derived tiebreaker floors apply even when the opponent contribution has no denominator
+- **Opponents' Match Win Percentage** uses **Match Winrate**, where draws are non-wins
+- Tiebreaker sorting uses full precision
+- Tiebreaker display uses percentages with 2 decimal places
 - Opponent-derived tiebreaker contributions use each opponent's full record
 - **Tournament Result** opponent-derived tiebreakers use each opponent's full record in that Tournament
 - **League Result** opponent-derived tiebreakers use each opponent's full record in the League
@@ -290,7 +356,7 @@ _Avoid_: App version
 > **Dev:** "Should pasted score fields like ` 2 ` be accepted?"
 > **Domain expert:** "Yes - a **Round Import** removes leading and trailing whitespace from imported fields."
 >
-> **Dev:** "Should blank lines become invalid Matches?"
+> **Dev:** "Should blank lines become invalid Round Entries?"
 > **Domain expert:** "No - **Round Import** ignores blank lines."
 >
 > **Dev:** "Can a Player Name contain a comma in pasted CSV?"
@@ -303,7 +369,7 @@ _Avoid_: App version
 > **Domain expert:** "No - rows with extra columns do not match the MVP **Round Import Format**."
 >
 > **Dev:** "Should `Alice,Bob,2` import as a partial Match?"
-> **Domain expert:** "It is preserved as an **Invalid Match** because it does not match the MVP **Round Import Format**."
+> **Domain expert:** "It is preserved as an **Invalid Round Entry** because it does not match the MVP **Round Import Format**."
 >
 > **Dev:** "Does the MVP import need a separate winner column?"
 > **Domain expert:** "No - the **Round Import Format** derives the **Match Outcome** from the **Game Score**."
@@ -326,6 +392,9 @@ _Avoid_: App version
 > **Dev:** "Does an empty opponent field mean **Bye**?"
 > **Domain expert:** "No - a **Bye** must be explicit. An empty **Player Name** makes the Match invalid."
 >
+> **Dev:** "Can a Bye have an empty assigned Player Name?"
+> **Domain expert:** "No - a **Bye** Round Entry requires a non-empty allowed **Player Name**."
+>
 > **Dev:** "Can Alice play a valid Match against Alice?"
 > **Domain expert:** "No - a Match with the same **Player Name** on both sides is invalid."
 >
@@ -340,6 +409,15 @@ _Avoid_: App version
 >
 > **Dev:** "If Alice beats Bob 2-1, are those tournament points or game counts?"
 > **Domain expert:** "The win gives Alice **Tournament Points** from the **Match Outcome**. The 2-1 is the **Game Score** for game statistics and tiebreakers."
+>
+> **Dev:** "Should a drawn Match store a winner or loser?"
+> **Domain expert:** "No - Match source data records neutral Player Name and **Game Score** fields, and **Match Outcome** is derived."
+>
+> **Dev:** "Should a Bye be stored as an opponent named `bye` or a null opponent?"
+> **Domain expert:** "No - **Round Entry** source data uses an explicit kind to distinguish **Matches** from **Byes**."
+>
+> **Dev:** "Should invalid imported rows live outside the Round?"
+> **Domain expert:** "No - a **Round** contains ordered **Round Entries**: **Matches**, **Byes**, and **Invalid Round Entries**."
 >
 > **Dev:** "Can Alice's win over Bob count if the Game Score is missing?"
 > **Domain expert:** "No - a played **Valid Match** needs both a **Match Outcome** and a **Game Score**."
@@ -363,16 +441,25 @@ _Avoid_: App version
 > **Domain expert:** "No - it awards draw **Tournament Points** and match draw records, but adds no counted games."
 >
 > **Dev:** "Should a **Bye** behave like an opponent named `bye`?"
-> **Domain expert:** "No - a **Bye** is not a **Player Name** and does not count toward game statistics or match win/loss statistics."
+> **Domain expert:** "No - a **Bye** is not a **Player Name**. It counts as a ranking win, but not as a Player Statistics match or game."
 >
 > **Dev:** "Does a **Bye** still help the assigned Player Name's Tournament Result?"
-> **Domain expert:** "Yes - a **Bye** awards **Tournament Points**, but it is not counted as a played match."
+> **Domain expert:** "Yes - a **Bye** awards **Tournament Points** and counts as a Match win for rankings."
+>
+> **Dev:** "How does a ranking record display two played wins, two losses, one draw, and one Bye?"
+> **Domain expert:** "As 3-2-1, because ranking records display Byes as wins."
 >
 > **Dev:** "Should a **Bye** increase Player Statistics winrate?"
 > **Domain expert:** "No - it only increases **Bye Count**."
 >
+> **Dev:** "Do Byes count as played matches on the player page?"
+> **Domain expert:** "No - **Played Match Count** excludes Byes. **Match Assignment Count** includes them."
+>
+> **Dev:** "Should Match Assignment Count be a primary player stat?"
+> **Domain expert:** "No - show **Played Match Count** and **Bye Count** as primary counts."
+>
 > **Dev:** "Can a Player Name with only Byes appear in standings?"
-> **Domain expert:** "Yes - Byes award **Tournament Points**, even when the Player Name has no played Matches."
+> **Domain expert:** "Yes - Byes count as ranking wins, even when the Player Name has no played Matches."
 >
 > **Dev:** "When Gones says winrate, does it mean matches or games?"
 > **Domain expert:** "Unqualified winrate means **Match Winrate**. The player page should also show **Game Winrate** separately."
@@ -385,6 +472,9 @@ _Avoid_: App version
 >
 > **Dev:** "Is winrate 0% when there are no played Matches?"
 > **Domain expert:** "No - winrate is N/A when it has no denominator."
+>
+> **Dev:** "How should Player Statistics winrates display?"
+> **Domain expert:** "Display **Match Winrate** and **Game Winrate** as percentages with 2 decimal places when defined."
 >
 > **Dev:** "Should **Player Statistics** apply the 33% tiebreaker floor?"
 > **Domain expert:** "No - **Player Statistics** use raw percentages."
@@ -437,6 +527,9 @@ _Avoid_: App version
 > **Dev:** "Should Alice's own **Game Win Percentage** be floored?"
 > **Domain expert:** "No - only opponent-derived tiebreaker contributions use the 33% floor."
 >
+> **Dev:** "Should displayed tiebreakers be rounded before sorting?"
+> **Domain expert:** "No - sort with full precision and display percentages with 2 decimal places."
+>
 > **Dev:** "Should Bob's contribution to Alice's OMW exclude Bob's Match against Alice?"
 > **Domain expert:** "No - opponent-derived tiebreakers use each opponent's full record."
 >
@@ -449,7 +542,7 @@ _Avoid_: App version
 > **Dev:** "Does winning one Tournament award a League bonus?"
 > **Domain expert:** "No - each **Tournament** contributes equally through its Matches."
 >
-> **Dev:** "Should one invalid Match block the whole **Tournament Result**?"
+> **Dev:** "Should one invalid Round Entry block the whole **Tournament Result**?"
 > **Domain expert:** "No - calculate a **Provisional Result** from valid Matches and warn that the **Tournament** is incomplete."
 >
 > **Dev:** "Should an empty Tournament show as incomplete?"
@@ -459,13 +552,22 @@ _Avoid_: App version
 > **Domain expert:** "Yes - the **League Result** may be provisional and still include valid Matches."
 >
 > **Dev:** "Should a **Tournament Import** discard lines it cannot parse?"
-> **Domain expert:** "No - import every line, preserve bad lines as **Invalid Matches**, and warn that some lines need correction."
+> **Domain expert:** "No - import every line, preserve bad lines as **Invalid Round Entries**, and warn that some lines need correction."
+>
+> **Dev:** "Should valid imported Matches keep their original CSV line?"
+> **Domain expert:** "No - only **Invalid Round Entries** preserve raw import text, and only until edited."
 >
 > **Dev:** "If a manual edit clears a required Match field, is the Match deleted?"
-> **Domain expert:** "No - it becomes an **Invalid Match** until corrected."
+> **Domain expert:** "No - it becomes an **Invalid Round Entry** until corrected."
 >
 > **Dev:** "After editing an invalid imported line, should the original raw line remain authoritative?"
-> **Domain expert:** "No - editing an **Invalid Match** makes the edited fields the source data."
+> **Domain expert:** "No - editing an **Invalid Round Entry** makes the edited fields the source data."
+>
+> **Dev:** "Should users delete and recreate bad imported rows?"
+> **Domain expert:** "No - correcting an **Invalid Round Entry** can turn it into a **Match** or **Bye**."
+>
+> **Dev:** "Should an Invalid Round Entry store its warning reason?"
+> **Domain expert:** "No - **Invalid Round Entry** reasons are derived from source data."
 >
 > **Dev:** "Should repeated pairings block results?"
 > **Domain expert:** "No - repeated pairings count, but they should create a **Pairing Warning**."
@@ -501,7 +603,7 @@ _Avoid_: App version
 > **Domain expert:** "No - **Gones Export** is part of the MVP."
 >
 > **Dev:** "Does **Gones Export** export only one League?"
-> **Domain expert:** "Yes - MVP **Gones Export** covers one League and all Tournaments, Rounds, and Matches in that League."
+> **Domain expert:** "Yes - MVP **Gones Export** covers one League and all Tournaments, Rounds, and Round Entries in that League."
 >
 > **Dev:** "Should descriptive League dates survive export and restore?"
 > **Domain expert:** "Yes - **Gones Export** includes descriptive League dates."
@@ -549,6 +651,7 @@ _Avoid_: App version
 
 - "scrapping", "crawl", "raw text", and "import CSV" were used for the same workflow - resolved: the canonical term is **Tournament Import**, with **SpiceRack Import** for the SpiceRack-specific format.
 - "standings import" was part of the early design - resolved: Gones supports **Round Import**, not standings import.
+- Legacy standings are not source data and are ignored during migration.
 - "SpiceRack format" could mean the domain model or a source adapter - resolved: the MVP **Round Import Format** is simple CSV and may adapt later to SpiceRack exports.
 - "import" could mean append or replace - resolved: **Round Import** performs a **Round Replacement**.
 - "export" could mean reporting or backup - resolved: **Gones Export** preserves one League dataset for round-trip restore.

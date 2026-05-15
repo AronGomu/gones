@@ -1,0 +1,17 @@
+{
+  "name": "gones",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "test:domain": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.js",
+    "cy:open": "cypress open",
+    "cy:run": "cypress run"
+  },
+  "devDependencies": {
+    "cypress": "^15.0.0",
+    "jest": "^30.4.2",
+    "vite": "^7.0.0"
+  }
+}
