@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gones - Leagues</title>
+    <link rel="stylesheet" href="../styles/global.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="leagues.html">Gones</a>
+      <nav><a href="leagues.html">Leagues</a></nav>
+    </header>
+    <main class="page">
+      <section class="toolbar">
+        <div>
+          <h1>Leagues</h1>
+          <p class="muted">Tournament source data, calculated results, and player statistics.</p>
+        </div>
+        <form id="create-league-form" class="inline-form">
+          <input name="name" data-cy="league-name-input" placeholder="League name" required>
+          <button type="submit" data-cy="create-league">Create League</button>
+        </form>
+      </section>
+      <section id="league-list" class="list" data-cy="league-list"></section>
+    </main>
+    <script type="module" src="./leagues.js"></script>
+  </body>
+</html>
+
