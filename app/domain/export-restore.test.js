@@ -3,14 +3,14 @@ import { exportLeague, restoreLeague } from "./export-restore.js";
 
 describe("Gones Export and Restore", () => {
   it("exports source data only", () => {
-    const exported = exportLeague(createLeague({ name: "League", tournaments: [{ rounds: [{ entries: [{ player1Name: "A", player2Name: "B" }] }] }] }));
+    const exported = exportLeague(createLeague({ name: "League", tournaments: [{ rounds: [{ entries: [{ player: "A", opponent: "B", result: "Won 2-0" }] }] }] }));
     expect(exported).toHaveProperty("version", 1);
     expect(exported).toHaveProperty("league");
     expect(exported).not.toHaveProperty("rows");
   });
 
   it("restores as a new League with remapped IDs", () => {
-    const source = createLeague({ id: "league-old", name: "League", tournaments: [{ id: "t-old", rounds: [{ id: "r-old", entries: [{ id: "e-old", player1Name: "A", player2Name: "B" }] }] }] });
+    const source = createLeague({ id: "league-old", name: "League", tournaments: [{ id: "t-old", rounds: [{ id: "r-old", entries: [{ id: "e-old", player: "A", opponent: "B", result: "Won 2-0" }] }] }] });
     const restored = restoreLeague(exportLeague(source), { idFactory: createIdFactory("new") });
     expect(restored.id).toBe("new-1");
     expect(restored.tournaments[0].id).toBe("new-2");

@@ -1,4 +1,4 @@
-import { toScore, validateRoundEntry } from "./validation.js";
+import { entryScores, validateRoundEntry } from "./validation.js";
 
 export function calculateTournamentResult(tournament) {
   const entries = collectTournamentEntries(tournament);
@@ -40,7 +40,7 @@ function calculateRows(entryRefs) {
     if (!validateRoundEntry(entry).valid) continue;
 
     if (entry.kind === "bye") {
-      const record = ensureRecord(records, entry.playerName);
+      const record = ensureRecord(records, entry.player);
       record.matchWins += 1;
       record.byes += 1;
       record.points += 3;
@@ -48,35 +48,34 @@ function calculateRows(entryRefs) {
       continue;
     }
 
-    const player1Score = toScore(entry.player1Score);
-    const player2Score = toScore(entry.player2Score);
-    const player1 = ensureRecord(records, entry.player1Name);
-    const player2 = ensureRecord(records, entry.player2Name);
+    const { playerScore, opponentScore } = entryScores(entry);
+    const player = ensureRecord(records, entry.player);
+    const opponent = ensureRecord(records, entry.opponent);
 
-    player1.playedMatchCount += 1;
-    player2.playedMatchCount += 1;
-    player1.matchAssignmentCount += 1;
-    player2.matchAssignmentCount += 1;
-    player1.gameWins += player1Score;
-    player1.gameLosses += player2Score;
-    player2.gameWins += player2Score;
-    player2.gameLosses += player1Score;
-    addOpponent(opponentNamesByPlayer, entry.player1Name, entry.player2Name);
-    addOpponent(opponentNamesByPlayer, entry.player2Name, entry.player1Name);
+    player.playedMatchCount += 1;
+    opponent.playedMatchCount += 1;
+    player.matchAssignmentCount += 1;
+    opponent.matchAssignmentCount += 1;
+    player.gameWins += playerScore;
+    player.gameLosses += opponentScore;
+    opponent.gameWins += opponentScore;
+    opponent.gameLosses += playerScore;
+    addOpponent(opponentNamesByPlayer, entry.player, entry.opponent);
+    addOpponent(opponentNamesByPlayer, entry.opponent, entry.player);
 
-    if (player1Score > player2Score) {
-      player1.matchWins += 1;
-      player2.matchLosses += 1;
-      player1.points += 3;
-    } else if (player2Score > player1Score) {
-      player2.matchWins += 1;
-      player1.matchLosses += 1;
-      player2.points += 3;
+    if (playerScore > opponentScore) {
+      player.matchWins += 1;
+      opponent.matchLosses += 1;
+      player.points += 3;
+    } else if (opponentScore > playerScore) {
+      opponent.matchWins += 1;
+      player.matchLosses += 1;
+      opponent.points += 3;
     } else {
-      player1.matchDraws += 1;
-      player2.matchDraws += 1;
-      player1.points += 1;
-      player2.points += 1;
+      player.matchDraws += 1;
+      opponent.matchDraws += 1;
+      player.points += 1;
+      opponent.points += 1;
     }
   }
 

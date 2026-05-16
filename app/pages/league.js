@@ -9,6 +9,7 @@ let data = loadData();
 const params = new URLSearchParams(location.search);
 const leagueId = params.get("leagueId");
 let league = findLeague(data, leagueId);
+let leagueResultCollapsed = false;
 const LAST_LEAGUE_KEY = "gones_last_league_id";
 
 const BUTTON_CREATE = "button-create";
@@ -62,10 +63,11 @@ function render() {
       </section>
 
       <section class="grid gap-[18px]">
-        <div class="${SECTION_HEADER_CLASSES}">
+        <button type="button" class="group flex min-h-[44px] items-center gap-3 border-0 bg-transparent p-0 text-left text-ash" data-action="toggle-league-result" data-cy="toggle-league-result" aria-expanded="${leagueResultCollapsed ? "false" : "true"}">
+          <span class="inline-flex size-7 items-center justify-center bg-transparent text-lg text-steel transition-colors group-hover:text-ash" aria-hidden="true">${leagueResultCollapsed ? "▸" : "▾"}</span>
           <h2 class="section-title">League Result</h2>
-        </div>
-        ${renderRankingTable(result.rows, {
+        </button>
+        ${leagueResultCollapsed ? "" : renderRankingTable(result.rows, {
     emptyText: "Empty League has no League Result",
     playerHref: (playerName) => `player.html?playerName=${encodeURIComponent(playerName)}&leagueId=${encodeURIComponent(league.id)}`
   })}
@@ -150,6 +152,11 @@ function bindEvents() {
       league[input.dataset.field] = input.value;
       saveData(data);
     });
+  });
+
+  document.querySelector("[data-action='toggle-league-result']").addEventListener("click", () => {
+    leagueResultCollapsed = !leagueResultCollapsed;
+    render();
   });
 
   document.querySelector("[data-action='toggle-status']").addEventListener("click", () => {

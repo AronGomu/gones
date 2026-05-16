@@ -1,4 +1,5 @@
 import { trimPlayerName } from "./models.js";
+import { parseResult } from "./round-import.js";
 
 export function isReservedByeName(value) {
   return trimPlayerName(value).toLowerCase() === "bye";
@@ -10,10 +11,12 @@ export function toScore(value) {
   return null;
 }
 
+export function entryScores(entry) {
+  return parseResult(entry?.result);
+}
+
 export function validateRoundEntry(entry) {
-  if (!entry || entry.kind === "invalid") {
-    return { valid: false, codes: ["invalidRoundEntry"] };
-  }
+  if (!entry || entry.kind === "invalid") return { valid: false, codes: ["invalidRoundEntry"] };
   if (entry.kind === "bye") return validateBye(entry);
   if (entry.kind === "match") return validateMatch(entry);
   return { valid: false, codes: ["unknownRoundEntryKind"] };
@@ -21,39 +24,25 @@ export function validateRoundEntry(entry) {
 
 export function validateBye(entry) {
   const codes = [];
-  const playerName = trimPlayerName(entry.playerName);
-  if (!playerName) codes.push("playerNameRequired");
-  if (isReservedByeName(playerName)) codes.push("byeReservedPlayerName");
+  const player = trimPlayerName(entry.player);
+  if (!player) codes.push("playerRequired");
+  if (isReservedByeName(player)) codes.push("byeReservedPlayerName");
   return { valid: codes.length === 0, codes };
 }
 
 export function validateMatch(entry) {
   const codes = [];
-  const player1Name = trimPlayerName(entry.player1Name);
-  const player2Name = trimPlayerName(entry.player2Name);
-  const player1Score = toScore(entry.player1Score);
-  const player2Score = toScore(entry.player2Score);
-
-  if (!player1Name) codes.push("player1NameRequired");
-  if (!player2Name) codes.push("player2NameRequired");
-  if (isReservedByeName(player1Name)) codes.push("byeReservedPlayer1Name");
-  if (isReservedByeName(player2Name)) codes.push("byeReservedPlayer2Name");
-  if (player1Name && player2Name && player1Name === player2Name) codes.push("samePlayerName");
-  if (player1Score === null) codes.push("player1ScoreInvalid");
-  if (player2Score === null) codes.push("player2ScoreInvalid");
-  if (
-    player1Score !== null &&
-    player2Score !== null &&
-    player1Score === player2Score &&
-    !(player1Score === 0 || player1Score === 1)
-  ) {
-    codes.push("drawScoreInvalid");
-  }
-
+  const player = trimPlayerName(entry.player);
+  const opponent = trimPlayerName(entry.opponent);
+  if (!player) codes.push("playerRequired");
+  if (!opponent) codes.push("opponentRequired");
+  if (isReservedByeName(player)) codes.push("byeReservedPlayerName");
+  if (isReservedByeName(opponent)) codes.push("byeReservedOpponentName");
+  if (player && opponent && player === opponent) codes.push("samePlayerName");
+  if (!entryScores(entry)) codes.push("resultInvalid");
   return { valid: codes.length === 0, codes };
 }
 
 export function isValidRoundEntry(entry) {
   return validateRoundEntry(entry).valid;
 }
-

@@ -1,4 +1,4 @@
-import { createByeRoundEntry, createMatchRoundEntry, createRound } from "../domain/models.js";
+import { createMatchRoundEntry, createRound } from "../domain/models.js";
 import { calculateTournamentResult } from "../domain/results.js";
 import { getTournamentWarnings } from "../domain/warnings.js";
 import { renderRankingTable } from "../components/ranking-table.js";
@@ -12,6 +12,8 @@ const leagueId = params.get("leagueId");
 const tournamentId = params.get("tournamentId");
 let league = findLeague(data, leagueId);
 let tournament = findTournament(league, tournamentId);
+const collapsedRoundIds = new Set();
+let tournamentResultCollapsed = false;
 
 const BUTTON_CREATE = "button-create";
 const INPUT_CLASSES = "field";
@@ -40,11 +42,9 @@ function render() {
           <div class="min-w-0">
             <button type="button" class="page-title block max-w-full cursor-text border-0 bg-transparent p-0 text-left" data-action="edit-tournament-title" data-cy="tournament-title" title="Edit tournament name">${escapeHtml(tournament.name)}</button>
             <input class="${INPUT_CLASSES} mt-1 hidden w-full max-w-[560px] text-3xl font-extrabold leading-tight md:text-5xl" data-action="tournament-title-input" data-cy="tournament-name" value="${escapeAttribute(tournament.name)}" aria-label="Tournament name">
-            <p class="mt-2 text-dim-ash" data-cy="tournament-state">${result.provisional ? "Provisional Result" : result.incomplete ? "Incomplete Tournament" : "Tournament Result"}</p>
+            ${result.provisional || result.incomplete ? `<p class="mt-2 text-dim-ash" data-cy="tournament-state">${result.provisional ? "Provisional Result" : "Incomplete Tournament"}</p>` : ""}
           </div>
-        </div>
-        <div class="mt-5 grid gap-3 sm:ml-auto sm:w-auto sm:min-w-[240px]">
-          <label class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
+          <label class="grid shrink-0 gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel sm:min-w-[240px]">
             Tournament date
             <input class="${INPUT_CLASSES} normal-case tracking-normal" type="date" data-field="tournamentDate" data-cy="tournament-date" value="${escapeAttribute(tournament.tournamentDate)}">
           </label>
@@ -52,8 +52,11 @@ function render() {
       </section>
 
       <section class="grid gap-[18px]">
-        <h2 class="section-title">Tournament Result</h2>
-        ${renderRankingTable(result.rows, {
+        <button type="button" class="group flex min-h-[44px] items-center gap-3 border-0 bg-transparent p-0 text-left text-ash" data-action="toggle-tournament-result" data-cy="toggle-tournament-result" aria-expanded="${tournamentResultCollapsed ? "false" : "true"}">
+          <span class="inline-flex size-7 items-center justify-center bg-transparent text-lg text-steel transition-colors group-hover:text-ash" aria-hidden="true">${tournamentResultCollapsed ? "▸" : "▾"}</span>
+          <h2 class="section-title">Tournament Result</h2>
+        </button>
+        ${tournamentResultCollapsed ? "" : renderRankingTable(result.rows, {
     emptyText: "No valid Round Entries yet",
     playerHref: (playerName) =>
       `player.html?playerName=${encodeURIComponent(playerName)}&leagueId=${encodeURIComponent(league.id)}&tournamentId=${encodeURIComponent(tournament.id)}`
@@ -65,7 +68,7 @@ function render() {
       </div>
 
       <section class="grid gap-[18px]" data-cy="round-list">
-        ${(tournament.rounds ?? []).map((round, index) => renderRoundEditor(round, index, warnings)).join("")}
+        ${(tournament.rounds ?? []).map((round, index) => ({ round, index })).reverse().map(({ round, index }) => renderRoundEditor(round, index, warnings, { collapsed: collapsedRoundIds.has(round.id) })).join("")}
       </section>
       ${renderBackButton()}
     </div>
@@ -123,17 +126,28 @@ function bindEvents() {
   document.querySelectorAll("[data-action]").forEach((element) => {
     element.addEventListener("click", (event) => {
       const action = event.currentTarget.dataset.action;
+      if (action === "toggle-tournament-result") {
+        tournamentResultCollapsed = !tournamentResultCollapsed;
+        render();
+        return;
+      }
+      if (action === "toggle-round-collapse") {
+        const roundId = event.currentTarget.dataset.roundId;
+        if (collapsedRoundIds.has(roundId)) collapsedRoundIds.delete(roundId);
+        else collapsedRoundIds.add(roundId);
+        render();
+        return;
+      }
       if (action === "add-round") {
         tournament.rounds.push(createRound());
       }
       if (action === "delete-round") {
+        collapsedRoundIds.delete(event.currentTarget.dataset.roundId);
         tournament.rounds = tournament.rounds.filter((round) => round.id !== event.currentTarget.dataset.roundId);
       }
       if (action === "add-match") {
-        findRound(event.currentTarget.dataset.roundId).entries.push(createMatchRoundEntry());
-      }
-      if (action === "add-bye") {
-        findRound(event.currentTarget.dataset.roundId).entries.push(createByeRoundEntry());
+        const round = findRound(event.currentTarget.dataset.roundId);
+        round.entries.push(createMatchRoundEntry({ table: nextTable(round), result: "Won 2-0" }));
       }
       if (action === "delete-entry") {
         const round = findRound(event.currentTarget.dataset.roundId);
@@ -151,6 +165,11 @@ function bindEvents() {
 
 function findRound(roundId) {
   return tournament.rounds.find((round) => round.id === roundId);
+}
+
+function nextTable(round) {
+  const maxTable = Math.max(0, ...(round.entries ?? []).map((entry) => Number(entry.table)).filter(Number.isFinite));
+  return String(maxTable + 1);
 }
 
 function saveAndRender() {

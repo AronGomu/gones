@@ -1,78 +1,13 @@
 export const GONES_DATA_VERSION = 1;
 export const LEAGUE_STATUSES = ["active", "finished"];
 
-/**
- * @typedef {Object} GonesData
- * @property {1} version
- * @property {League[]} leagues
- */
-
-/**
- * @typedef {Object} League
- * @property {string} id
- * @property {string} name
- * @property {"active" | "finished"} status
- * @property {string} startDate
- * @property {string} endDate
- * @property {Tournament[]} tournaments
- */
-
-/**
- * @typedef {Object} Tournament
- * @property {string} id
- * @property {string} leagueId
- * @property {string} name
- * @property {string} tournamentDate
- * @property {Round[]} rounds
- */
-
-/**
- * @typedef {Object} Round
- * @property {string} id
- * @property {RoundEntry[]} entries
- */
-
-/**
- * @typedef {MatchRoundEntry | ByeRoundEntry | InvalidRoundEntry} RoundEntry
- */
-
-/**
- * @typedef {Object} MatchRoundEntry
- * @property {"match"} kind
- * @property {string} id
- * @property {string} player1Name
- * @property {string} player2Name
- * @property {number | string} player1Score
- * @property {number | string} player2Score
- */
-
-/**
- * @typedef {Object} ByeRoundEntry
- * @property {"bye"} kind
- * @property {string} id
- * @property {string} playerName
- */
-
-/**
- * @typedef {Object} InvalidRoundEntry
- * @property {"invalid"} kind
- * @property {string} id
- * @property {string} rawText
- * @property {string} player1Name
- * @property {string} player2Name
- * @property {number | string} player1Score
- * @property {number | string} player2Score
- */
-
 export function createIdFactory(prefix = "id") {
   let next = 1;
   return () => `${prefix}-${next++}`;
 }
 
 export function defaultIdFactory() {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
-  }
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
@@ -81,16 +16,10 @@ export function trimPlayerName(value) {
 }
 
 export function createGonesData({ leagues = [] } = {}) {
-  return {
-    version: GONES_DATA_VERSION,
-    leagues: leagues.map((league) => normalizeLeague(league))
-  };
+  return { version: GONES_DATA_VERSION, leagues: leagues.map((league) => normalizeLeague(league)) };
 }
 
-export function createLeague(
-  { id, name = "New League", status = "active", startDate = "", endDate = "", tournaments = [] } = {},
-  { idFactory = defaultIdFactory } = {}
-) {
+export function createLeague({ id, name = "New League", status = "active", startDate = "", endDate = "", tournaments = [] } = {}, { idFactory = defaultIdFactory } = {}) {
   const leagueId = id ?? idFactory();
   return {
     id: leagueId,
@@ -98,9 +27,7 @@ export function createLeague(
     status: normalizeLeagueStatus(status),
     startDate: String(startDate ?? ""),
     endDate: String(endDate ?? ""),
-    tournaments: tournaments.map((tournament) =>
-      createTournament({ ...tournament, leagueId: tournament.leagueId ?? leagueId }, { idFactory })
-    )
+    tournaments: tournaments.map((tournament) => createTournament({ ...tournament, leagueId: tournament.leagueId ?? leagueId }, { idFactory }))
   };
 }
 
@@ -112,10 +39,7 @@ export function normalizeLeagueStatus(status) {
   return LEAGUE_STATUSES.includes(status) ? status : "active";
 }
 
-export function createTournament(
-  { id, leagueId = "", name = "New Tournament", tournamentDate = "", rounds = [] } = {},
-  { idFactory = defaultIdFactory } = {}
-) {
+export function createTournament({ id, leagueId = "", name = "New Tournament", tournamentDate = "", rounds = [] } = {}, { idFactory = defaultIdFactory } = {}) {
   return {
     id: id ?? idFactory(),
     leagueId,
@@ -126,10 +50,7 @@ export function createTournament(
 }
 
 export function createRound({ id, entries = [] } = {}, { idFactory = defaultIdFactory } = {}) {
-  return {
-    id: id ?? idFactory(),
-    entries: entries.map((entry) => createRoundEntry(entry, { idFactory }))
-  };
+  return { id: id ?? idFactory(), entries: entries.map((entry, index) => createRoundEntry({ table: String(index + 1), ...entry }, { idFactory })) };
 }
 
 export function createRoundEntry(entry = {}, { idFactory = defaultIdFactory } = {}) {
@@ -138,46 +59,33 @@ export function createRoundEntry(entry = {}, { idFactory = defaultIdFactory } = 
   return createMatchRoundEntry(entry, { idFactory });
 }
 
-export function createMatchRoundEntry(
-  { id, player1Name = "", player2Name = "", player1Score = 0, player2Score = 0 } = {},
-  { idFactory = defaultIdFactory } = {}
-) {
+export function createMatchRoundEntry({ id, table = "", player = "", result = "", opponent = "", playerDecklist = "", opponentDecklist = "" } = {}, { idFactory = defaultIdFactory } = {}) {
   return {
     kind: "match",
     id: id ?? idFactory(),
-    player1Name: trimPlayerName(player1Name),
-    player2Name: trimPlayerName(player2Name),
-    player1Score,
-    player2Score
+    table: String(table ?? ""),
+    player: trimPlayerName(player),
+    result: String(result ?? ""),
+    opponent: trimPlayerName(opponent),
+    playerDecklist: String(playerDecklist ?? ""),
+    opponentDecklist: String(opponentDecklist ?? "")
   };
 }
 
-export function createByeRoundEntry({ id, playerName = "" } = {}, { idFactory = defaultIdFactory } = {}) {
-  return {
-    kind: "bye",
-    id: id ?? idFactory(),
-    playerName: trimPlayerName(playerName)
-  };
+export function createByeRoundEntry({ id, table = "", player = "", playerDecklist = "" } = {}, { idFactory = defaultIdFactory } = {}) {
+  return { kind: "bye", id: id ?? idFactory(), table: String(table ?? ""), player: trimPlayerName(player), playerDecklist: String(playerDecklist ?? "") };
 }
 
-export function createInvalidRoundEntry(
-  {
-    id,
-    rawText = "",
-    player1Name = "",
-    player2Name = "",
-    player1Score = "",
-    player2Score = ""
-  } = {},
-  { idFactory = defaultIdFactory } = {}
-) {
+export function createInvalidRoundEntry({ id, rawText = "", table = "", player = "", result = "", opponent = "", playerDecklist = "", opponentDecklist = "" } = {}, { idFactory = defaultIdFactory } = {}) {
   return {
     kind: "invalid",
     id: id ?? idFactory(),
     rawText: String(rawText ?? ""),
-    player1Name: trimPlayerName(player1Name),
-    player2Name: trimPlayerName(player2Name),
-    player1Score,
-    player2Score
+    table: String(table ?? ""),
+    player: trimPlayerName(player),
+    result: String(result ?? ""),
+    opponent: trimPlayerName(opponent),
+    playerDecklist: String(playerDecklist ?? ""),
+    opponentDecklist: String(opponentDecklist ?? "")
   };
 }

@@ -243,4 +243,27 @@
   .round-entry-warning {
     @apply border-[oklch(56%_0.12_54)] bg-[oklch(19%_0.06_48)];
   }
+
+  .stat-tooltip-trigger {
+    @apply relative inline-flex w-fit cursor-help items-center border-b border-dotted border-steel;
+  }
+
+  .stat-tooltip {
+    @apply pointer-events-none absolute left-0 bottom-[calc(100%+8px)] z-20 w-[min(260px,80vw)] rounded-md border border-[oklch(44%_0.05_38)] bg-black-metal px-3 py-2 text-sm font-semibold normal-case tracking-normal text-ash opacity-0 shadow-[0_12px_28px_oklch(4%_0.012_29_/_0.58)] transition;
+  }
+
+  .stat-tooltip::after {
+    content: "";
+    position: absolute;
+    left: 14px;
+    top: 100%;
+    border-width: 6px 6px 0 6px;
+    border-style: solid;
+    border-color: var(--color-black-metal) transparent transparent transparent;
+  }
+
+  .stat-tooltip-trigger:hover .stat-tooltip,
+  .stat-tooltip-trigger:focus-visible .stat-tooltip {
+    @apply opacity-100;
+  }
 }

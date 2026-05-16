@@ -1,4 +1,4 @@
-import { isValidRoundEntry } from "./validation.js";
+import { validateRoundEntry } from "./validation.js";
 
 export function getTournamentWarnings(tournament) {
   const warnings = [];
@@ -6,40 +6,27 @@ export function getTournamentWarnings(tournament) {
 
   for (const round of tournament.rounds ?? []) {
     const seenInRound = new Map();
-    const byeEntries = [];
-
     for (const entry of round.entries ?? []) {
-      if (!isValidRoundEntry(entry)) continue;
+      if (!validateRoundEntry(entry).valid) continue;
       if (entry.kind === "bye") {
-        recordSeen(seenInRound, entry.playerName, entry.id);
-        byeEntries.push(entry.id);
+        recordSeen(seenInRound, entry.player, entry.id);
         continue;
       }
-
-      recordSeen(seenInRound, entry.player1Name, entry.id);
-      recordSeen(seenInRound, entry.player2Name, entry.id);
-      const key = [entry.player1Name, entry.player2Name].sort().join("\u0000");
-      if (pairings.has(key)) {
-        warnings.push({
-          code: "repeatedPairing",
-          entryIds: [pairings.get(key), entry.id],
-          roundId: round.id
-        });
-      } else {
-        pairings.set(key, entry.id);
-      }
+      recordSeen(seenInRound, entry.player, entry.id);
+      recordSeen(seenInRound, entry.opponent, entry.id);
+      const key = [entry.player, entry.opponent].sort().join("\u0000");
+      const existing = pairings.get(key) ?? [];
+      existing.push(entry.id);
+      pairings.set(key, existing);
     }
-
     for (const [playerName, entryIds] of seenInRound.entries()) {
-      if (entryIds.length > 1) {
-        warnings.push({ code: "duplicateSameRoundPlayerName", playerName, entryIds, roundId: round.id });
-      }
-    }
-    if (byeEntries.length > 1) {
-      warnings.push({ code: "multipleByesInRound", entryIds: byeEntries, roundId: round.id });
+      if (entryIds.length > 1) warnings.push({ code: "duplicateSameRoundPlayerName", playerName, entryIds, roundId: round.id });
     }
   }
 
+  for (const entryIds of pairings.values()) {
+    if (entryIds.length > 1) warnings.push({ code: "repeatedPairing", entryIds });
+  }
   return warnings;
 }
 
@@ -48,4 +35,3 @@ function recordSeen(map, playerName, entryId) {
   list.push(entryId);
   map.set(playerName, list);
 }
-
