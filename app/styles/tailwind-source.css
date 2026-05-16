@@ -1,2 +1,246 @@
 @import "tailwindcss";
 
+@theme {
+  --color-forge: oklch(8% 0.02 30);
+  --color-black-metal: oklch(10% 0.03 30);
+  --color-iron: oklch(17% 0.045 31);
+  --color-raised-iron: oklch(22% 0.055 33);
+  --color-soot: oklch(31% 0.055 38);
+  --color-ash: oklch(93% 0.018 72);
+  --color-dim-ash: oklch(76% 0.036 68);
+  --color-steel: oklch(62% 0.03 70);
+  --color-blood: oklch(49% 0.24 27);
+  --color-hot-blood: oklch(57% 0.25 27);
+  --color-deep-blood: oklch(24% 0.12 27);
+  --color-create-green: oklch(52% 0.16 145);
+  --color-create-green-hot: oklch(60% 0.18 145);
+  --color-rust: oklch(31% 0.09 30);
+  --color-parchment: oklch(68% 0.055 64);
+  --color-parchment-ink: oklch(17% 0.04 32);
+  --radius-card: 0;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-screen bg-forge text-ash font-sans leading-normal antialiased;
+    background:
+      radial-gradient(circle at 20% 0%, oklch(23% 0.08 28 / 0.38), transparent 28rem),
+      linear-gradient(180deg, oklch(11% 0.028 28), oklch(7% 0.018 30) 44rem),
+      oklch(7% 0.018 30);
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  label {
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(67%_0.17_29)];
+  }
+
+  a[href],
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  [role="button"],
+  [data-action] {
+    @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen text-ash font-sans leading-normal antialiased;
+  }
+
+  .app-header {
+    @apply sticky top-0 z-20 flex min-h-14 items-center justify-between gap-4 border-b border-soot bg-black-metal px-4 sm:px-6;
+  }
+
+  .app-header-left {
+    @apply flex min-w-0 items-center gap-3;
+  }
+
+  .app-header-actions {
+    @apply flex shrink-0 flex-wrap justify-end gap-2;
+  }
+
+  .app-brand {
+    @apply font-extrabold text-[1.08rem] text-[oklch(96%_0.018_70)] no-underline hover:text-hot-blood;
+  }
+
+  .app-breadcrumb {
+    @apply max-w-[min(52vw,720px)] overflow-x-auto whitespace-nowrap rounded-md border border-soot bg-iron px-3 py-1.5 text-sm text-steel [scrollbar-width:thin];
+  }
+
+  .breadcrumb-link {
+    @apply font-semibold text-[oklch(86%_0.18_28)] hover:text-[oklch(93%_0.018_72)] hover:underline;
+  }
+
+  .breadcrumb-current {
+    @apply font-bold text-hot-blood;
+  }
+
+  .app-main {
+    @apply mx-auto w-[min(1180px,calc(100vw-32px))] py-7 pb-14;
+  }
+
+  .app-main-narrow {
+    @apply mx-auto grid w-[min(1040px,calc(100vw-32px))] gap-6 py-8 pb-14;
+  }
+
+  .app-main-wide {
+    @apply mx-auto grid w-[min(1280px,calc(100vw-32px))] gap-7 py-7 pb-14 md:gap-8 md:py-9;
+  }
+
+  .page-stack {
+    @apply grid gap-[18px];
+  }
+
+  .kicker {
+    @apply text-sm font-bold uppercase tracking-[0.12em] text-[oklch(70%_0.11_33)];
+  }
+
+  .page-title {
+    @apply m-0 text-3xl font-extrabold leading-tight text-[oklch(97%_0.014_72)] md:text-5xl;
+  }
+
+  .section-title {
+    @apply m-0 text-2xl font-extrabold leading-tight text-[oklch(95%_0.014_76)];
+  }
+
+  .muted-copy {
+    @apply text-sm text-dim-ash;
+  }
+
+  .panel {
+    @apply rounded-card border border-soot bg-iron p-[18px] shadow-[0_18px_34px_oklch(4%_0.012_29_/_0.42)];
+  }
+
+  .panel-raised {
+    @apply rounded-card border border-soot bg-raised-iron p-4;
+  }
+
+  .section-header {
+    @apply flex items-start justify-between gap-[18px] max-[760px]:grid max-[760px]:grid-cols-1;
+  }
+
+  .button-primary {
+    @apply inline-flex min-h-[38px] cursor-pointer items-center justify-center rounded-card border border-[oklch(42%_0.22_27)] bg-blood px-3 py-2 font-bold text-[oklch(96%_0.018_70)] shadow-[inset_0_1px_0_oklch(70%_0.2_28_/_0.3),0_4px_0_oklch(7%_0.018_30)] hover:bg-hot-blood active:bg-[oklch(39%_0.2_27)];
+  }
+
+  .button-secondary {
+    @apply inline-flex min-h-[38px] cursor-pointer items-center justify-center rounded-card border border-[oklch(34%_0.07_36)] bg-[oklch(15%_0.045_30)] px-3 py-2 font-bold text-ash hover:border-blood hover:bg-[oklch(22%_0.07_30)];
+  }
+
+  .button-create {
+    @apply inline-flex min-h-[38px] cursor-pointer items-center justify-center rounded-card border border-[oklch(40%_0.13_145)] bg-create-green px-3 py-2 font-bold text-[oklch(96%_0.018_70)] shadow-[inset_0_1px_0_oklch(76%_0.14_145_/_0.28),0_4px_0_oklch(7%_0.018_30)] hover:bg-create-green-hot active:bg-[oklch(39%_0.14_145)] disabled:cursor-not-allowed disabled:border-[oklch(33%_0.035_38)] disabled:bg-[oklch(22%_0.035_38)] disabled:text-[oklch(62%_0.025_70)] disabled:shadow-none disabled:hover:bg-[oklch(22%_0.035_38)];
+  }
+
+  .button-danger {
+    @apply inline-flex min-h-[38px] cursor-pointer items-center justify-center rounded-card border border-[oklch(34%_0.13_27)] bg-deep-blood px-3 py-2 font-bold text-[oklch(90%_0.045_38)] hover:border-[oklch(45%_0.16_27)] hover:bg-[oklch(30%_0.14_27)] hover:text-ash;
+  }
+
+  .field {
+    @apply min-h-[38px] rounded-card border border-[oklch(42%_0.07_36)] bg-black-metal px-2.5 py-2 text-ash placeholder:text-[oklch(58%_0.025_70)] focus-visible:border-[oklch(58%_0.16_29)];
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 grid place-items-center bg-[oklch(4%_0.012_29_/_0.72)] p-4;
+  }
+
+  .modal-panel {
+    @apply grid w-[min(460px,100%)] gap-4 rounded-card border border-soot bg-iron p-5 shadow-[0_30px_90px_oklch(3%_0.01_29_/_0.68)];
+  }
+
+  .bottom-nav {
+    @apply flex justify-start pt-2;
+  }
+
+  .table-shell {
+    @apply w-full overflow-hidden rounded-card border border-soot bg-iron border-collapse max-[760px]:block max-[760px]:overflow-x-auto;
+  }
+
+  .table-head-cell {
+    @apply whitespace-nowrap border-b border-soot bg-rust px-3 py-2.5 text-left text-sm font-bold uppercase tracking-[0.08em] text-[oklch(82%_0.06_65)];
+  }
+
+  .table-cell {
+    @apply whitespace-nowrap border-b border-soot px-3 py-2.5 text-left text-[oklch(88%_0.018_72)];
+  }
+
+  .text-link {
+    @apply font-semibold text-hot-blood hover:text-[oklch(91%_0.18_29)] hover:underline;
+  }
+
+  .status-seal {
+    @apply inline-flex w-fit rounded-card border border-[oklch(43%_0.07_36)] bg-[oklch(20%_0.06_30)] px-2 py-1 text-sm font-semibold text-[oklch(82%_0.05_65)];
+  }
+
+  .league-status {
+    @apply inline-flex w-fit shrink-0 items-center gap-2 text-sm font-bold text-dim-ash;
+  }
+
+  .league-status-dot {
+    @apply block size-2.5 rounded-full shadow-[0_0_0_3px_var(--league-status-halo)];
+    background: var(--league-status-color);
+  }
+
+  .league-status-active {
+    --league-status-color: oklch(72% 0.18 145);
+    --league-status-halo: oklch(72% 0.18 145 / 0.16);
+  }
+
+  .league-status-finished {
+    --league-status-color: var(--color-hot-blood);
+    --league-status-halo: oklch(49% 0.24 27 / 0.18);
+  }
+
+  .open-affordance {
+    @apply inline-flex min-h-14 min-w-14 items-center justify-center text-5xl font-extrabold leading-none text-hot-blood transition-transform duration-200 ease-out group-hover:translate-x-1;
+  }
+
+  .league-card {
+    @apply grid gap-3 rounded-card border border-soot bg-iron p-4 text-ash no-underline transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-blood hover:bg-[oklch(14%_0.052_29)] hover:shadow-[0_22px_42px_oklch(4%_0.012_29_/_0.5)];
+  }
+
+  .featured-league-card {
+    @apply grid min-h-[230px] gap-5 rounded-card border border-blood bg-[oklch(14%_0.052_29)] p-5 text-ash no-underline shadow-[0_24px_80px_oklch(5%_0.01_29_/_0.38)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-hot-blood hover:bg-[oklch(17%_0.065_29)] md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:p-6;
+  }
+
+  .league-card-grid {
+    @apply grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-4;
+  }
+
+  .metric-box {
+    @apply rounded-card border border-soot bg-black-metal p-4;
+  }
+
+  .metric-label {
+    @apply text-xs font-bold uppercase tracking-[0.08em] text-steel;
+  }
+
+  .metric-value {
+    @apply mt-1 text-2xl font-extrabold text-ash;
+  }
+
+  .mobile-row {
+    @apply grid gap-3 border-t border-soot p-4 first:border-t-0;
+  }
+
+  .round-entry {
+    @apply items-start gap-2 rounded-card border border-soot bg-black-metal p-2;
+  }
+
+  .round-entry-invalid {
+    @apply border-[oklch(50%_0.16_28)] bg-[oklch(18%_0.065_29)];
+  }
+
+  .round-entry-warning {
+    @apply border-[oklch(56%_0.12_54)] bg-[oklch(19%_0.06_48)];
+  }
+}

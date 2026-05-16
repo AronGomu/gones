@@ -1,5 +1,6 @@
 import { calculatePlayerStatistics } from "../domain/player-stats.js";
 import { formatPercentage } from "../components/ranking-table.js";
+import { bindBackButton, renderBackButton } from "../components/back-button.js";
 import { loadData } from "../storage/league-store.js";
 
 const data = loadData();
@@ -11,8 +12,8 @@ const filters = {
   opponentName: params.get("opponentName") ?? ""
 };
 
-const INPUT_CLASSES = "min-h-[38px] rounded-md border border-slate-200 bg-white px-2.5 py-2 text-slate-900";
-const PANEL_CLASSES = "rounded-lg border border-slate-200 bg-white p-[18px]";
+const INPUT_CLASSES = "field";
+const PANEL_CLASSES = "panel";
 
 render();
 
@@ -23,7 +24,7 @@ function render() {
   app.innerHTML = `
     <div class="grid gap-[18px]">
       <section class="${PANEL_CLASSES}">
-        <h1 class="m-0 text-3xl leading-tight" data-cy="player-title">${escapeHtml(playerName)}</h1>
+        <h1 class="page-title" data-cy="player-title">${escapeHtml(playerName)}</h1>
         <form id="filters" class="flex flex-wrap items-center gap-2.5">
           <select class="${INPUT_CLASSES}" name="leagueId" data-cy="filter-league">
             <option value="">All Leagues</option>
@@ -37,7 +38,7 @@ function render() {
               .join("")}
           </select>
           <input class="${INPUT_CLASSES}" name="opponentName" data-cy="filter-opponent" placeholder="Opponent Player Name" value="${escapeAttribute(filters.opponentName)}">
-          <button class="min-h-[38px] cursor-pointer rounded-md border border-teal-700 bg-teal-700 px-3 py-2 font-semibold text-white" type="submit">Apply</button>
+          <button class="button-primary" type="submit">Apply</button>
         </form>
       </section>
       <section class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
@@ -51,9 +52,10 @@ function render() {
       <section class="${PANEL_CLASSES}">
         <h2 class="m-0 text-xl leading-tight">Matches</h2>
         <div class="mt-5 grid gap-3" data-cy="player-match-list">
-          ${stats.matches.length ? stats.matches.map(renderMatch).join("") : `<p class="text-slate-500">No Matches.</p>`}
+          ${stats.matches.length ? stats.matches.map(renderMatch).join("") : `<p class="text-dim-ash">No Matches.</p>`}
         </div>
       </section>
+      ${renderBackButton()}
     </div>
   `;
 
@@ -67,17 +69,18 @@ function render() {
     }
     location.href = `player.html?${next.toString()}`;
   });
+  bindBackButton();
 }
 
 function stat(label, value) {
-  return `<article class="rounded-lg border border-slate-200 bg-white p-3.5"><span class="text-slate-500">${label}</span><strong class="block text-2xl">${escapeHtml(value)}</strong></article>`;
+  return `<article class="panel p-3.5"><span class="text-dim-ash">${label}</span><strong class="block text-2xl text-ash">${escapeHtml(value)}</strong></article>`;
 }
 
 function renderMatch(match) {
   if (match.kind === "bye") {
-    return `<article class="grid gap-2 rounded-lg border border-slate-200 bg-white p-[18px]" data-cy="player-match">Bye in ${escapeHtml(match.tournament.name)}, Round ${match.roundIndex + 1}</article>`;
+    return `<article class="league-card" data-cy="player-match">Bye in ${escapeHtml(match.tournament.name)}, Round ${match.roundIndex + 1}</article>`;
   }
-  return `<article class="grid gap-2 rounded-lg border border-slate-200 bg-white p-[18px]" data-cy="player-match">${escapeHtml(match.opponentName)} · ${match.ownScore}-${match.opponentScore} · ${escapeHtml(match.tournament.name)}, Round ${match.roundIndex + 1}</article>`;
+  return `<article class="league-card" data-cy="player-match">${escapeHtml(match.opponentName)} · ${match.ownScore}-${match.opponentScore} · ${escapeHtml(match.tournament.name)}, Round ${match.roundIndex + 1}</article>`;
 }
 
 function escapeHtml(value) {

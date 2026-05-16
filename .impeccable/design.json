@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-16T08:23:45Z",
+  "title": "Design System: Gones",
+  "extensions": {
+    "northStar": {
+      "name": "The Pairing-Sheet Ledger",
+      "summary": "A fast tournament operations ledger laid on a dark tabletop: precise ruled rows, old event-paper warmth, red action marks, and compact source-data rhythm."
+    },
+    "colorMeta": {
+      "abyss-table": {
+        "role": "neutral",
+        "displayName": "Abyss Table",
+        "canonical": "#0c0605",
+        "oklch": "oklch(12% 0.018 32)"
+      },
+      "header-black": {
+        "role": "neutral",
+        "displayName": "Header Black",
+        "canonical": "#150b08",
+        "oklch": "oklch(16% 0.02 36)"
+      },
+      "ledger-brown": {
+        "role": "neutral",
+        "displayName": "Ledger Brown",
+        "canonical": "#26130e",
+        "oklch": "oklch(20% 0.025 42)"
+      },
+      "sheet-brown": {
+        "role": "neutral",
+        "displayName": "Sheet Brown",
+        "canonical": "#332019",
+        "oklch": "oklch(24% 0.028 46)"
+      },
+      "rule-brass": {
+        "role": "secondary",
+        "displayName": "Rule Brass",
+        "canonical": "#6c4a30",
+        "oklch": "oklch(43% 0.045 58)"
+      },
+      "oxblood-red": {
+        "role": "primary",
+        "displayName": "Oxblood Red",
+        "canonical": "#aa221c",
+        "oklch": "oklch(45% 0.16 29)"
+      },
+      "rust-red": {
+        "role": "primary",
+        "displayName": "Rust Red",
+        "canonical": "#c23829",
+        "oklch": "oklch(52% 0.18 29)"
+      }
+    },
+    "mockFidelityContract": {
+      "approvedDirection": "Pairing-sheet ledger",
+      "mustCarryForward": [
+        "Dense ruled League ledger on desktop",
+        "Readable stacked League rows on mobile",
+        "Dark tabletop shell with parchment-brown work surfaces",
+        "Oxblood red primary action treatment",
+        "Brass-toned row rules and status chips",
+        "Organizer and player entry lanes above the ledger"
+      ],
+      "mustNotLiteralize": [
+        "Copyrighted Magic card art",
+        "Exact Magic card frames",
+        "Fantasy illustration as a page background",
+        "Generic SaaS cards replacing the ledger structure"
+      ]
+    },
+    "componentMeta": {
+      "league-ledger": {
+        "displayName": "League Ledger",
+        "purpose": "Home page work queue for opening existing Leagues.",
+        "desktop": "Dense table with uppercase labels, tabular counts, status chips, and right-aligned Open action.",
+        "mobile": "Stacked rows with League name, tournament/player summary, status chip, and Open action."
+      },
+      "entry-lanes": {
+        "displayName": "Organizer And Player Entry Lanes",
+        "purpose": "Separate creation from restore/import so both user types can start without reading instructions."
+      }
+    },
+    "rules": [
+      "Red means act or current target.",
+      "No teal on new Gones surfaces.",
+      "Use ruled rows and complete borders, never decorative side stripes.",
+      "Old-school Magic influence comes from ledger material and tournament-paper rhythm, not copied card art."
+    ]
+  }
+}

@@ -1,4 +1,5 @@
 export const GONES_DATA_VERSION = 1;
+export const LEAGUE_STATUSES = ["active", "finished"];
 
 /**
  * @typedef {Object} GonesData
@@ -10,6 +11,7 @@ export const GONES_DATA_VERSION = 1;
  * @typedef {Object} League
  * @property {string} id
  * @property {string} name
+ * @property {"active" | "finished"} status
  * @property {string} startDate
  * @property {string} endDate
  * @property {Tournament[]} tournaments
@@ -81,24 +83,33 @@ export function trimPlayerName(value) {
 export function createGonesData({ leagues = [] } = {}) {
   return {
     version: GONES_DATA_VERSION,
-    leagues
+    leagues: leagues.map((league) => normalizeLeague(league))
   };
 }
 
 export function createLeague(
-  { id, name = "New League", startDate = "", endDate = "", tournaments = [] } = {},
+  { id, name = "New League", status = "active", startDate = "", endDate = "", tournaments = [] } = {},
   { idFactory = defaultIdFactory } = {}
 ) {
   const leagueId = id ?? idFactory();
   return {
     id: leagueId,
     name: String(name || "New League").trim() || "New League",
+    status: normalizeLeagueStatus(status),
     startDate: String(startDate ?? ""),
     endDate: String(endDate ?? ""),
     tournaments: tournaments.map((tournament) =>
       createTournament({ ...tournament, leagueId: tournament.leagueId ?? leagueId }, { idFactory })
     )
   };
+}
+
+export function normalizeLeague(league = {}, { idFactory = defaultIdFactory } = {}) {
+  return createLeague(league, { idFactory });
+}
+
+export function normalizeLeagueStatus(status) {
+  return LEAGUE_STATUSES.includes(status) ? status : "active";
 }
 
 export function createTournament(
@@ -170,4 +181,3 @@ export function createInvalidRoundEntry(
     player2Score
   };
 }
-

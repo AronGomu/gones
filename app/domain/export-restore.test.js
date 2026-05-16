@@ -23,5 +23,10 @@ describe("Gones Export and Restore", () => {
     const restored = restoreLeague(exportLeague(source), { idFactory: createIdFactory("new") });
     expect(restored.tournaments[0].rounds[0].entries[0]).toMatchObject({ kind: "invalid", rawText: "bad row" });
   });
-});
 
+  it("preserves League status", () => {
+    const source = createLeague({ status: "finished" });
+    const restored = restoreLeague(exportLeague(source), { idFactory: createIdFactory("new") });
+    expect(restored.status).toBe("finished");
+  });
+});

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gones - Leagues Layout Prototype</title>
+    <link rel="stylesheet" href="../styles/tailwind.css">
+  </head>
+  <body class="min-h-screen bg-[oklch(13%_0.014_248)] text-[oklch(94%_0.012_248)] font-sans leading-normal antialiased">
+    <header class="sticky top-0 z-20 flex min-h-14 items-center justify-between gap-4 border-b border-[oklch(30%_0.02_248)] bg-[oklch(16%_0.016_248_/_0.96)] px-4 backdrop-blur md:px-6">
+      <div class="flex min-w-0 items-center gap-3">
+        <a class="shrink-0 text-base font-extrabold text-[oklch(96%_0.01_248)] no-underline hover:text-[oklch(86%_0.11_38)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[oklch(72%_0.14_38)]" href="leagues.html">Gones</a>
+        <nav class="min-w-0 max-w-[min(52vw,720px)] overflow-x-auto whitespace-nowrap rounded-md border border-[oklch(38%_0.028_248)] bg-[oklch(20%_0.018_248)] px-3 py-1.5 text-sm text-[oklch(78%_0.018_248)] [scrollbar-width:thin]" aria-label="Breadcrumb">
+          <span class="font-bold text-[oklch(86%_0.11_38)]">Leagues</span>
+        </nav>
+      </div>
+      <div class="flex justify-self-end gap-2">
+        <button class="min-h-10 rounded-md border border-[oklch(38%_0.028_248)] bg-[oklch(20%_0.018_248)] px-3 text-sm font-semibold text-[oklch(84%_0.016_248)] hover:border-[oklch(48%_0.04_248)] hover:bg-[oklch(24%_0.02_248)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(72%_0.14_38)]" type="button">Import league</button>
+        <button class="min-h-10 rounded-md border border-[oklch(38%_0.028_248)] bg-[oklch(20%_0.018_248)] px-3 text-sm font-semibold text-[oklch(84%_0.016_248)] hover:border-[oklch(48%_0.04_248)] hover:bg-[oklch(24%_0.02_248)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(72%_0.14_38)]" type="button">Export league</button>
+        <button class="min-h-10 rounded-md border border-[oklch(44%_0.05_38)] bg-[oklch(24%_0.03_38)] px-3 text-sm font-semibold text-[oklch(91%_0.045_38)] hover:border-[oklch(58%_0.09_38)] hover:bg-[oklch(29%_0.045_38)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(72%_0.14_38)]" type="button">New league</button>
+      </div>
+    </header>
+
+    <main class="mx-auto grid w-[min(1280px,calc(100vw-32px))] gap-7 py-7 pb-14 md:gap-8 md:py-9">
+      <section>
+        <div class="grid gap-2">
+          <h1 class="m-0 text-4xl font-extrabold leading-tight text-[oklch(97%_0.008_248)] md:text-5xl">Leagues</h1>
+        </div>
+      </section>
+
+      <section aria-labelledby="current-league-title" class="grid gap-3">
+        <div class="flex items-center justify-between gap-4">
+          <h2 id="current-league-title" class="m-0 text-sm font-bold uppercase tracking-[0.12em] text-[oklch(72%_0.05_38)]">Last consulted league</h2>
+        </div>
+
+        <a class="group grid min-h-[230px] gap-5 rounded-lg border border-[oklch(50%_0.08_38)] bg-[oklch(20%_0.022_248)] p-5 text-inherit no-underline shadow-[0_24px_80px_oklch(7%_0.01_248_/_0.38)] transition hover:-translate-y-0.5 hover:border-[oklch(66%_0.13_38)] hover:bg-[oklch(22%_0.024_248)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[oklch(72%_0.14_38)] md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:p-6" href="league.html" data-cy="featured-league-card">
+          <div class="grid content-between gap-6">
+            <div class="grid gap-3">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <h3 class="m-0 text-3xl font-extrabold leading-tight text-[oklch(97%_0.008_248)] md:text-4xl">Tuesday Legacy</h3>
+                <span class="rounded-full border border-[oklch(55%_0.13_142)] bg-[oklch(27%_0.06_142)] px-3 py-1 text-sm font-bold text-[oklch(84%_0.11_142)]">Running</span>
+              </div>
+              <p class="max-w-[62ch] text-[oklch(76%_0.018_248)]">The league you opened most recently. Continue with tournament entry, ranking review, and player statistics from the same place.</p>
+            </div>
+            <span class="inline-flex min-h-10 items-center justify-center justify-self-start rounded-md border border-[oklch(44%_0.05_38)] bg-[oklch(24%_0.03_38)] px-4 text-sm font-bold text-[oklch(91%_0.045_38)] group-hover:border-[oklch(58%_0.09_38)] group-hover:bg-[oklch(29%_0.045_38)]">View</span>
+          </div>
+
+          <dl class="grid grid-cols-2 gap-3 md:grid-cols-1">
+            <div class="rounded-md border border-[oklch(33%_0.022_248)] bg-[oklch(16%_0.014_248)] p-4">
+              <dt class="text-sm font-semibold text-[oklch(68%_0.016_248)]">Tournaments</dt>
+              <dd class="mt-1 text-3xl font-extrabold text-[oklch(96%_0.008_248)]">18</dd>
+            </div>
+            <div class="rounded-md border border-[oklch(33%_0.022_248)] bg-[oklch(16%_0.014_248)] p-4">
+              <dt class="text-sm font-semibold text-[oklch(68%_0.016_248)]">Players</dt>
+              <dd class="mt-1 text-3xl font-extrabold text-[oklch(96%_0.008_248)]">74</dd>
+            </div>
+          </dl>
+        </a>
+      </section>
+
+      <section aria-labelledby="all-leagues-title" class="grid gap-4">
+        <div>
+          <h2 id="all-leagues-title" class="m-0 text-xl font-bold text-[oklch(95%_0.01_248)]">All leagues</h2>
+        </div>
+
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-4" data-cy="league-card-grid">
+          <a class="group grid min-h-[210px] content-between gap-5 rounded-lg border border-[oklch(32%_0.022_248)] bg-[oklch(18%_0.016_248)] p-5 text-inherit no-underline transition hover:-translate-y-0.5 hover:border-[oklch(48%_0.06_38)] hover:bg-[oklch(21%_0.018_248)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[oklch(72%_0.14_38)]" href="league.html" data-cy="league-card">
+            <div class="grid gap-3">
+              <div class="flex items-start justify-between gap-3">
+                <h3 class="m-0 text-2xl font-extrabold leading-tight text-[oklch(96%_0.008_248)]">Quarterly Staples</h3>
+                <span class="shrink-0 rounded-full border border-[oklch(55%_0.13_142)] bg-[oklch(27%_0.06_142)] px-3 py-1 text-xs font-bold text-[oklch(84%_0.11_142)]">Running</span>
+              </div>
+              <p class="text-sm text-[oklch(72%_0.018_248)]">A long-running league with one incomplete tournament preserved for correction.</p>
+            </div>
+            <div class="grid gap-4">
+              <dl class="grid grid-cols-2 gap-3">
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Tournaments</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">12</dd>
+                </div>
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Players</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">48</dd>
+                </div>
+              </dl>
+              <span class="inline-flex min-h-10 items-center justify-center justify-self-end rounded-md border border-[oklch(44%_0.05_38)] bg-[oklch(24%_0.03_38)] px-4 text-sm font-bold text-[oklch(91%_0.045_38)] group-hover:border-[oklch(58%_0.09_38)] group-hover:bg-[oklch(29%_0.045_38)]">View</span>
+            </div>
+          </a>
+
+          <a class="group grid min-h-[210px] content-between gap-5 rounded-lg border border-[oklch(32%_0.022_248)] bg-[oklch(18%_0.016_248)] p-5 text-inherit no-underline transition hover:-translate-y-0.5 hover:border-[oklch(48%_0.06_38)] hover:bg-[oklch(21%_0.018_248)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[oklch(72%_0.14_38)]" href="league.html" data-cy="league-card">
+            <div class="grid gap-3">
+              <div class="flex items-start justify-between gap-3">
+                <h3 class="m-0 text-2xl font-extrabold leading-tight text-[oklch(96%_0.008_248)]">Sunday Archive</h3>
+                <span class="shrink-0 rounded-full border border-[oklch(48%_0.05_248)] bg-[oklch(24%_0.02_248)] px-3 py-1 text-xs font-bold text-[oklch(78%_0.018_248)]">Complete</span>
+              </div>
+              <p class="text-sm text-[oklch(72%_0.018_248)]">A finished set of tournaments mainly used for standings review.</p>
+            </div>
+            <div class="grid gap-4">
+              <dl class="grid grid-cols-2 gap-3">
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Tournaments</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">21</dd>
+                </div>
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Players</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">96</dd>
+                </div>
+              </dl>
+              <span class="inline-flex min-h-10 items-center justify-center justify-self-end rounded-md border border-[oklch(44%_0.05_38)] bg-[oklch(24%_0.03_38)] px-4 text-sm font-bold text-[oklch(91%_0.045_38)] group-hover:border-[oklch(58%_0.09_38)] group-hover:bg-[oklch(29%_0.045_38)]">View</span>
+            </div>
+          </a>
+
+          <a class="group grid min-h-[210px] content-between gap-5 rounded-lg border border-[oklch(32%_0.022_248)] bg-[oklch(18%_0.016_248)] p-5 text-inherit no-underline transition hover:-translate-y-0.5 hover:border-[oklch(48%_0.06_38)] hover:bg-[oklch(21%_0.018_248)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[oklch(72%_0.14_38)]" href="league.html" data-cy="league-card">
+            <div class="grid gap-3">
+              <div class="flex items-start justify-between gap-3">
+                <h3 class="m-0 text-2xl font-extrabold leading-tight text-[oklch(96%_0.008_248)]">Proxy Night Archive</h3>
+                <span class="shrink-0 rounded-full border border-[oklch(56%_0.1_80)] bg-[oklch(28%_0.05_80)] px-3 py-1 text-xs font-bold text-[oklch(86%_0.1_80)]">Setup</span>
+              </div>
+              <p class="text-sm text-[oklch(72%_0.018_248)]">Created and ready for the first tournament import.</p>
+            </div>
+            <div class="grid gap-4">
+              <dl class="grid grid-cols-2 gap-3">
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Tournaments</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">0</dd>
+                </div>
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Players</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">0</dd>
+                </div>
+              </dl>
+              <span class="inline-flex min-h-10 items-center justify-center justify-self-end rounded-md border border-[oklch(44%_0.05_38)] bg-[oklch(24%_0.03_38)] px-4 text-sm font-bold text-[oklch(91%_0.045_38)] group-hover:border-[oklch(58%_0.09_38)] group-hover:bg-[oklch(29%_0.045_38)]">View</span>
+            </div>
+          </a>
+
+          <a class="group grid min-h-[210px] content-between gap-5 rounded-lg border border-[oklch(32%_0.022_248)] bg-[oklch(18%_0.016_248)] p-5 text-inherit no-underline transition hover:-translate-y-0.5 hover:border-[oklch(48%_0.06_38)] hover:bg-[oklch(21%_0.018_248)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[oklch(72%_0.14_38)]" href="league.html" data-cy="league-card">
+            <div class="grid gap-3">
+              <div class="flex items-start justify-between gap-3">
+                <h3 class="m-0 text-2xl font-extrabold leading-tight text-[oklch(96%_0.008_248)]">Monthly Modern</h3>
+                <span class="shrink-0 rounded-full border border-[oklch(55%_0.13_142)] bg-[oklch(27%_0.06_142)] px-3 py-1 text-xs font-bold text-[oklch(84%_0.11_142)]">Running</span>
+              </div>
+              <p class="text-sm text-[oklch(72%_0.018_248)]">Regular tournament data with enough history for useful player statistics.</p>
+            </div>
+            <div class="grid gap-4">
+              <dl class="grid grid-cols-2 gap-3">
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Tournaments</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">16</dd>
+                </div>
+                <div>
+                  <dt class="text-xs font-bold uppercase tracking-[0.08em] text-[oklch(62%_0.016_248)]">Players</dt>
+                  <dd class="mt-1 text-2xl font-extrabold text-[oklch(95%_0.008_248)]">63</dd>
+                </div>
+              </dl>
+              <span class="inline-flex min-h-10 items-center justify-center justify-self-end rounded-md border border-[oklch(44%_0.05_38)] bg-[oklch(24%_0.03_38)] px-4 text-sm font-bold text-[oklch(91%_0.045_38)] group-hover:border-[oklch(58%_0.09_38)] group-hover:bg-[oklch(29%_0.045_38)]">View</span>
+            </div>
+          </a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

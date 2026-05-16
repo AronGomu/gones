@@ -6,17 +6,21 @@
     <title>Gones - League</title>
     <link rel="stylesheet" href="../styles/tailwind.css">
   </head>
-  <body class="min-h-screen bg-slate-50 text-slate-900 font-sans leading-normal">
-    <header class="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 border-b border-slate-200 bg-white px-6">
-      <a class="font-extrabold text-slate-900 hover:underline" href="leagues.html">Gones</a>
-      <nav class="justify-self-center max-w-[min(70vw,760px)] overflow-x-auto whitespace-nowrap text-slate-500 [scrollbar-width:thin]" aria-label="Breadcrumb" data-cy="breadcrumb">
-        <a class="text-teal-800 hover:underline" href="leagues.html">Leagues</a>
-        <span class="text-slate-500"> &gt; </span>
-        <span class="font-semibold text-slate-900" data-cy="breadcrumb-current">League</span>
-      </nav>
-      <div class="min-w-0" aria-hidden="true"></div>
+  <body class="app-shell">
+    <header class="app-header">
+      <div class="app-header-left">
+        <a class="app-brand" href="leagues.html">Gones</a>
+        <nav class="app-breadcrumb" aria-label="Breadcrumb" data-cy="breadcrumb">
+          <a class="breadcrumb-link" href="leagues.html">Leagues</a>
+          <span class="text-steel"> &gt; </span>
+          <span class="breadcrumb-current" data-cy="breadcrumb-current">League</span>
+        </nav>
+      </div>
+      <div class="app-header-actions">
+        <button type="button" class="button-secondary min-h-10 px-3 text-sm" data-action="export" data-cy="export-league">Export League</button>
+      </div>
     </header>
-    <main id="app" class="mx-auto w-[min(1180px,calc(100vw-32px))] py-7 pb-14"></main>
+    <main id="app" class="app-main"></main>
     <script type="module" src="./league.js"></script>
   </body>
 </html>

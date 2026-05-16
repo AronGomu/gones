@@ -1,0 +1,791 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 20% 0%, oklch(23% 0.08 28 / 0.55), transparent 28rem),
+    linear-gradient(180deg, oklch(11% 0.028 28), oklch(7% 0.018 30) 44rem),
+    oklch(7% 0.018 30);
+  color: oklch(93% 0.018 72);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  min-height: 44px;
+  border: 1px solid oklch(38% 0.17 28);
+  border-radius: 0;
+  background: linear-gradient(180deg, oklch(44% 0.18 28), oklch(31% 0.14 28));
+  color: oklch(96% 0.018 70);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 780;
+  padding: 10px 15px;
+  box-shadow:
+    inset 0 1px 0 oklch(68% 0.15 30 / 0.34),
+    0 5px 0 oklch(13% 0.05 28);
+}
+
+button:hover {
+  background: linear-gradient(180deg, oklch(50% 0.18 28), oklch(35% 0.15 28));
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid oklch(67% 0.17 29);
+  outline-offset: 3px;
+}
+
+.variant-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  min-height: 58px;
+  border-bottom: 1px solid oklch(28% 0.05 34);
+  background: oklch(10% 0.024 30 / 0.96);
+  padding: 0 24px;
+}
+
+.brand-mark,
+.rail-brand {
+  color: oklch(95% 0.018 70);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.18rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.variant-nav {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.variant-nav a {
+  border: 1px solid oklch(34% 0.056 38);
+  border-radius: 0;
+  color: oklch(80% 0.04 65);
+  font-size: 0.86rem;
+  font-weight: 720;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.variant-nav a:hover {
+  border-color: oklch(49% 0.14 28);
+  color: oklch(95% 0.018 70);
+}
+
+.variant-gallery {
+  display: grid;
+  gap: 38px;
+  width: min(1320px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 34px 0 56px;
+}
+
+.gallery-intro {
+  display: grid;
+  gap: 8px;
+  max-width: 74ch;
+}
+
+.gallery-intro h1,
+.variant-titlebar h2 {
+  margin: 0;
+  color: oklch(97% 0.014 72);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 2.05rem;
+  line-height: 1.12;
+}
+
+.gallery-intro p,
+.scene-note {
+  margin: 0;
+  color: oklch(75% 0.034 64);
+}
+
+.kicker {
+  margin: 0;
+  color: oklch(70% 0.11 33);
+  font-size: 0.76rem;
+  font-weight: 820;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.design-frame {
+  display: grid;
+  gap: 14px;
+}
+
+.variant-titlebar {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(260px, 0.65fr);
+  gap: 20px;
+  align-items: end;
+}
+
+.scene-note {
+  max-width: 60ch;
+  font-size: 0.92rem;
+}
+
+.card-app {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  overflow: hidden;
+  border: 2px solid oklch(17% 0.035 30);
+  border-radius: 0;
+  background: oklch(8% 0.02 30);
+  box-shadow:
+    0 32px 90px oklch(4% 0.01 29 / 0.58),
+    inset 0 0 0 1px oklch(45% 0.075 54 / 0.22);
+}
+
+.card-rail {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  border-right: 1px solid oklch(30% 0.06 35);
+  background:
+    linear-gradient(90deg, oklch(11% 0.032 30), oklch(18% 0.055 31) 54%, oklch(9% 0.026 30)),
+    oklch(11% 0.032 30);
+  padding: 22px;
+}
+
+.card-rail nav,
+.rail-note {
+  display: grid;
+  gap: 8px;
+}
+
+.card-rail a {
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: oklch(79% 0.043 66);
+  font-weight: 720;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
+.card-rail a.active,
+.card-rail a:hover {
+  border-color: oklch(42% 0.12 30);
+  background: oklch(21% 0.075 30);
+  color: oklch(96% 0.016 70);
+}
+
+.rail-note {
+  border: 1px solid oklch(36% 0.08 31);
+  background: oklch(15% 0.052 29);
+  padding: 12px;
+}
+
+.rail-note strong {
+  color: oklch(93% 0.018 70);
+}
+
+.rail-note span {
+  color: oklch(72% 0.04 65);
+  font-size: 0.9rem;
+}
+
+.card-stage {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.card-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  min-height: 62px;
+  border-bottom: 1px solid oklch(30% 0.06 35);
+  background: oklch(10% 0.03 30);
+  padding: 0 18px;
+}
+
+.card-topbar nav {
+  color: oklch(92% 0.02 70);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-weight: 800;
+}
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: end;
+}
+
+.framed-panel,
+.league-card,
+.relic-card,
+.archive-row {
+  position: relative;
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 1px oklch(76% 0.07 69 / 0.2),
+    inset 0 0 0 5px oklch(13% 0.04 30),
+    inset 0 0 0 7px oklch(43% 0.08 52),
+    0 18px 34px oklch(4% 0.012 29 / 0.42);
+}
+
+.framed-panel {
+  border: 2px solid oklch(17% 0.035 30);
+  background:
+    linear-gradient(180deg, oklch(31% 0.055 35), oklch(17% 0.045 31)),
+    oklch(17% 0.045 31);
+  padding: 22px;
+}
+
+.card-hero,
+.archive-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: end;
+}
+
+.card-hero h3,
+.relic-namebar h3,
+.archive-header h3 {
+  margin: 4px 0 8px;
+  color: oklch(96% 0.018 70);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 2.1rem;
+  line-height: 1.08;
+}
+
+.card-hero p,
+.framed-panel p {
+  margin: 0;
+  max-width: 68ch;
+  color: oklch(78% 0.036 68);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: end;
+}
+
+.secondary-action,
+.table-action {
+  border-color: oklch(34% 0.07 36);
+  background: linear-gradient(180deg, oklch(25% 0.065 31), oklch(15% 0.045 30));
+  color: oklch(92% 0.02 70);
+}
+
+.secondary-action:hover,
+.table-action:hover {
+  border-color: oklch(49% 0.14 28);
+  background: linear-gradient(180deg, oklch(31% 0.09 30), oklch(18% 0.055 30));
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.league-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-height: 430px;
+  border: 2px solid oklch(11% 0.024 29);
+  background:
+    linear-gradient(180deg, oklch(18% 0.05 30), oklch(10% 0.032 29)),
+    oklch(10% 0.032 29);
+  padding: 17px;
+}
+
+.featured-card {
+  background:
+    linear-gradient(180deg, oklch(20% 0.052 30), oklch(11% 0.035 29)),
+    oklch(11% 0.035 29);
+}
+
+.card-namebar,
+.relic-namebar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid oklch(42% 0.08 52);
+  background:
+    linear-gradient(180deg, oklch(78% 0.055 70), oklch(58% 0.07 58)),
+    oklch(70% 0.06 64);
+  color: oklch(16% 0.04 32);
+  padding: 9px 10px;
+}
+
+.card-namebar h4,
+.relic-namebar h3,
+.archive-row h4,
+.framed-panel h4 {
+  margin: 0;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+.card-namebar h4 {
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.mana-mark {
+  display: grid;
+  min-width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid oklch(31% 0.05 38);
+  background: radial-gradient(circle, oklch(72% 0.08 63), oklch(36% 0.1 34));
+  color: oklch(14% 0.03 30);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.art-window,
+.relic-plate {
+  display: grid;
+  gap: 5px;
+  min-height: 130px;
+  align-content: center;
+  border: 2px solid oklch(12% 0.03 30);
+  background:
+    radial-gradient(circle at 65% 22%, oklch(42% 0.16 28 / 0.6), transparent 8rem),
+    linear-gradient(135deg, oklch(23% 0.07 31), oklch(10% 0.03 29) 70%);
+  color: oklch(94% 0.02 70);
+  padding: 16px;
+  box-shadow: inset 0 0 0 1px oklch(63% 0.09 56 / 0.2);
+}
+
+.provisional-window {
+  background:
+    radial-gradient(circle at 25% 18%, oklch(49% 0.14 36 / 0.45), transparent 8rem),
+    linear-gradient(135deg, oklch(18% 0.05 30), oklch(8% 0.024 29) 70%);
+}
+
+.art-window span {
+  color: oklch(73% 0.045 64);
+  font-size: 0.78rem;
+  font-weight: 820;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.art-window strong {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.75rem;
+}
+
+.rules-box {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border: 2px solid oklch(31% 0.055 38);
+  background:
+    repeating-linear-gradient(180deg, transparent 0 29px, oklch(44% 0.055 49 / 0.24) 29px 30px),
+    linear-gradient(180deg, oklch(75% 0.052 69), oklch(63% 0.066 58));
+  color: oklch(18% 0.04 33);
+  padding: 13px;
+  box-shadow: inset 0 0 0 1px oklch(86% 0.035 77 / 0.35);
+}
+
+.rules-box div,
+.relic-stats div,
+.docket-stat div {
+  display: grid;
+  gap: 2px;
+}
+
+.rules-box dt,
+.relic-stats span,
+.archive-row p,
+label {
+  color: oklch(34% 0.064 36);
+  font-size: 0.75rem;
+  font-weight: 830;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rules-box dd {
+  margin: 0;
+  color: oklch(16% 0.04 32);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.05rem;
+  font-weight: 820;
+}
+
+.table-action {
+  align-self: end;
+  justify-self: start;
+  min-height: 38px;
+  padding: 7px 12px;
+}
+
+.black-core {
+  grid-template-columns: 1fr;
+}
+
+.black-core button {
+  background: oklch(17% 0.05 30);
+  box-shadow:
+    inset 0 0 0 1px oklch(55% 0.11 43 / 0.18),
+    0 4px 0 oklch(7% 0.018 30);
+}
+
+.black-core button:hover {
+  background: oklch(26% 0.085 29);
+}
+
+.black-core .card-stage {
+  background: oklch(8% 0.02 30);
+}
+
+.black-core .framed-panel {
+  background: oklch(17% 0.045 31);
+}
+
+.black-core .card-hero {
+  grid-template-columns: 1fr;
+}
+
+.black-core .card-grid {
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+}
+
+.black-core .league-card {
+  min-height: 0;
+  background: oklch(10% 0.032 29);
+  color: inherit;
+  gap: 10px;
+  padding: 17px;
+  text-decoration: none;
+  transition:
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.black-core .league-card:hover,
+.black-core .league-card:focus-visible {
+  border-color: oklch(47% 0.16 28);
+  background: oklch(14% 0.052 29);
+  box-shadow:
+    inset 0 0 0 1px oklch(83% 0.07 69 / 0.24),
+    inset 0 0 0 5px oklch(17% 0.06 29),
+    inset 0 0 0 7px oklch(54% 0.14 32),
+    0 22px 42px oklch(4% 0.012 29 / 0.5);
+  transform: translateY(-2px);
+}
+
+.black-core .featured-card {
+  background: oklch(11% 0.035 29);
+}
+
+.black-core .card-namebar {
+  background: oklch(68% 0.058 64);
+}
+
+.black-core .mana-mark {
+  background: oklch(46% 0.095 35);
+  color: oklch(92% 0.02 72);
+}
+
+.league-summary {
+  display: grid;
+  gap: 12px;
+  border: 2px solid oklch(31% 0.055 38);
+  background: oklch(68% 0.055 64);
+  color: oklch(17% 0.04 32);
+  padding: 13px;
+  box-shadow: inset 0 0 0 1px oklch(86% 0.035 77 / 0.3);
+}
+
+.league-summary p {
+  margin: 0;
+  color: oklch(23% 0.045 36);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.league-summary dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.league-summary div {
+  display: grid;
+  gap: 2px;
+}
+
+.league-summary dt {
+  color: oklch(34% 0.064 36);
+  font-size: 0.72rem;
+  font-weight: 830;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.league-summary dd {
+  margin: 0;
+  color: oklch(16% 0.04 32);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.02rem;
+  font-weight: 820;
+}
+
+.red-relic {
+  border-color: oklch(25% 0.08 28);
+  background: oklch(9% 0.024 28);
+}
+
+.red-relic .card-rail {
+  background:
+    linear-gradient(90deg, oklch(14% 0.055 27), oklch(26% 0.11 28) 56%, oklch(12% 0.04 28)),
+    oklch(16% 0.06 28);
+}
+
+.relic-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(280px, 0.65fr);
+  gap: 18px;
+}
+
+.relic-card {
+  display: grid;
+  gap: 14px;
+  min-height: 520px;
+  border: 2px solid oklch(11% 0.026 29);
+  background:
+    linear-gradient(180deg, oklch(32% 0.13 28), oklch(15% 0.06 29)),
+    oklch(20% 0.08 28);
+  padding: 18px;
+}
+
+.relic-namebar {
+  grid-template-columns: 1fr;
+}
+
+.relic-namebar h3 {
+  color: oklch(15% 0.04 32);
+  font-size: 1.9rem;
+}
+
+.relic-plate {
+  min-height: 210px;
+  align-content: end;
+  background:
+    radial-gradient(circle at 50% 18%, oklch(51% 0.18 28 / 0.52), transparent 11rem),
+    linear-gradient(180deg, oklch(19% 0.062 29), oklch(7% 0.02 29));
+}
+
+.relic-plate p {
+  margin: 0;
+  color: oklch(81% 0.035 66);
+}
+
+.status-seal {
+  display: inline-flex;
+  width: fit-content;
+  border: 2px solid oklch(55% 0.18 28);
+  color: oklch(82% 0.14 29);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  padding: 5px 8px;
+  text-transform: uppercase;
+}
+
+.quiet-seal {
+  border-color: oklch(43% 0.06 48);
+  color: oklch(70% 0.04 58);
+}
+
+.relic-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(80px, 1fr));
+  gap: 10px;
+}
+
+.relic-stats div {
+  border: 1px solid oklch(39% 0.09 31);
+  background: oklch(14% 0.04 29);
+  padding: 11px;
+}
+
+.relic-stats span {
+  color: oklch(72% 0.04 65);
+}
+
+.relic-stats strong {
+  color: oklch(94% 0.02 70);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.65rem;
+}
+
+.relic-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.framed-panel h4 {
+  color: oklch(96% 0.018 70);
+  font-size: 1.35rem;
+}
+
+.archive-panel .card-rail {
+  background:
+    linear-gradient(90deg, oklch(10% 0.028 30), oklch(18% 0.06 32) 54%, oklch(9% 0.022 30)),
+    oklch(10% 0.028 30);
+}
+
+.archive-header {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+}
+
+label {
+  display: grid;
+  gap: 5px;
+  color: oklch(78% 0.04 65);
+}
+
+.input-surface {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  border: 1px solid oklch(38% 0.08 34);
+  background: oklch(13% 0.032 29);
+  color: oklch(62% 0.038 62);
+  font-weight: 520;
+  padding: 8px 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.archive-list {
+  display: grid;
+  gap: 14px;
+}
+
+.archive-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 14px;
+  align-items: center;
+  border: 2px solid oklch(12% 0.03 30);
+  background:
+    linear-gradient(180deg, oklch(24% 0.06 31), oklch(12% 0.035 30)),
+    oklch(12% 0.035 30);
+  padding: 14px;
+}
+
+.row-frame {
+  border: 2px solid oklch(31% 0.055 38);
+  background:
+    repeating-linear-gradient(180deg, transparent 0 29px, oklch(44% 0.055 49 / 0.22) 29px 30px),
+    linear-gradient(180deg, oklch(74% 0.052 69), oklch(62% 0.066 58));
+  color: oklch(17% 0.04 32);
+  padding: 12px;
+}
+
+.archive-row h4 {
+  margin: 0 0 4px;
+  color: oklch(16% 0.04 32);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 1.18rem;
+}
+
+.archive-row p {
+  margin: 0;
+  color: oklch(32% 0.05 38);
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 980px) {
+  .variant-titlebar,
+  .card-app,
+  .card-hero,
+  .archive-header,
+  .relic-layout,
+  .black-core .card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card-rail {
+    border-right: 0;
+    border-bottom: 1px solid oklch(30% 0.06 35);
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .variant-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px 16px;
+  }
+
+  .variant-gallery {
+    width: min(100% - 20px, 1320px);
+    padding-top: 22px;
+  }
+
+  .card-stage,
+  .card-rail {
+    padding: 16px;
+  }
+
+  .hero-actions,
+  .relic-stats,
+  .topbar-actions,
+  .league-summary dl {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .card-topbar {
+    grid-template-columns: 1fr;
+    align-items: start;
+    padding: 14px 16px;
+  }
+
+  .archive-row {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+}

@@ -6,24 +6,22 @@ describe("Gones MVP", () => {
   it("opens the new Leagues page and navigates to a new League", () => {
     cy.visit("/app/pages/leagues.html");
 
-    cy.get("[data-cy='league-name-input']").type("Spring League");
-    cy.get("[data-cy='create-league']").click();
+    createLeague("Spring League");
 
     cy.location("pathname").should("include", "/app/pages/league.html");
     cy.get("[data-cy='league-title']").should("contain", "Spring League");
     cy.get("[data-cy='empty-ranking']").should("contain", "Empty League");
   });
 
-  it("shows a centered breadcrumb path through League and Tournament pages", () => {
+  it("shows a left breadcrumb path through League and Tournament pages", () => {
     cy.visit("/app/pages/leagues.html");
     cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues");
-    cy.get("[data-cy='breadcrumb']").shouldBeCenteredInHeader();
+    cy.get("[data-cy='breadcrumb']").shouldSitNextToBrand();
 
-    cy.get("[data-cy='league-name-input']").type("Spring League");
-    cy.get("[data-cy='create-league']").click();
+    createLeague("Spring League");
 
     cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues > Spring League");
-    cy.get("[data-cy='breadcrumb']").shouldBeCenteredInHeader();
+    cy.get("[data-cy='breadcrumb']").shouldSitNextToBrand();
     cy.get("[data-cy='breadcrumb-current']").should("have.text", "Spring League");
     cy.get("[data-cy='breadcrumb-current']").find("a").should("not.exist");
 
@@ -31,20 +29,17 @@ describe("Gones MVP", () => {
     cy.get("[data-cy='create-tournament']").click();
 
     cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues > Spring League > Week One");
-    cy.get("[data-cy='breadcrumb']").shouldBeCenteredInHeader();
+    cy.get("[data-cy='breadcrumb']").shouldSitNextToBrand();
     cy.get("[data-cy='breadcrumb']").contains("a", "Leagues").should("have.attr", "href", "leagues.html");
     cy.get("[data-cy='breadcrumb']").contains("a", "Spring League").should("have.attr", "href").and("include", "league.html?leagueId=");
     cy.get("[data-cy='breadcrumb-current']").should("have.text", "Week One");
     cy.get("[data-cy='breadcrumb-current']").find("a").should("not.exist");
 
-    cy.get("[data-cy='tournament-name']").clear().type("Week Two");
-    cy.get("[data-cy='breadcrumb']").shouldHaveNormalizedText("Leagues > Spring League > Week Two");
   });
 
   it("creates a Tournament, imports a Round, shows results, and opens Player Statistics", () => {
     cy.visit("/app/pages/leagues.html");
-    cy.get("[data-cy='league-name-input']").type("Spring League");
-    cy.get("[data-cy='create-league']").click();
+    createLeague("Spring League");
 
     cy.get("[data-cy='league-start-date']").type("2026-01-01");
     cy.get("[data-cy='league-end-date']").type("2026-06-30").blur();
@@ -71,8 +66,7 @@ describe("Gones MVP", () => {
 
   it("supports manual entry editing, invalid rows, warnings, and deletion", () => {
     cy.visit("/app/pages/leagues.html");
-    cy.get("[data-cy='league-name-input']").type("Manual League");
-    cy.get("[data-cy='create-league']").click();
+    createLeague("Manual League");
     cy.get("[data-cy='tournament-name-input']").type("Manual Event");
     cy.get("[data-cy='create-tournament']").click();
 
@@ -99,10 +93,15 @@ Cypress.Commands.add("shouldHaveNormalizedText", { prevSubject: true }, (subject
   expect(subject.text().replace(/\s+/g, " ").trim()).to.eq(expected);
 });
 
-Cypress.Commands.add("shouldBeCenteredInHeader", { prevSubject: true }, (subject) => {
+Cypress.Commands.add("shouldSitNextToBrand", { prevSubject: true }, (subject) => {
   const breadcrumb = subject[0].getBoundingClientRect();
-  const header = subject[0].closest("header").getBoundingClientRect();
-  const breadcrumbCenter = breadcrumb.left + breadcrumb.width / 2;
-  const headerCenter = header.left + header.width / 2;
-  expect(Math.abs(breadcrumbCenter - headerCenter)).to.be.lessThan(2);
+  const brand = subject[0].closest("header").querySelector(".app-brand").getBoundingClientRect();
+  expect(breadcrumb.left).to.be.greaterThan(brand.right);
+  expect(breadcrumb.left - brand.right).to.be.lessThan(24);
 });
+
+function createLeague(name) {
+  cy.get("[data-cy='open-create-league']").click();
+  cy.get("[data-cy='league-name-input']").type(name);
+  cy.get("[data-cy='create-league']").click();
+}

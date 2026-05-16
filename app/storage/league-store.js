@@ -1,4 +1,4 @@
-import { GONES_DATA_VERSION, createGonesData } from "../domain/models.js";
+import { GONES_DATA_VERSION, createGonesData, normalizeLeague } from "../domain/models.js";
 import { migrateLegacyLeagueList } from "../domain/migration.js";
 
 const STORAGE_KEY = "gones_data";
@@ -25,7 +25,7 @@ export function normalizeVersionedData(data) {
   if (!isVersionedData(data)) return createGonesData();
   return {
     version: GONES_DATA_VERSION,
-    leagues: Array.isArray(data.leagues) ? data.leagues : []
+    leagues: Array.isArray(data.leagues) ? data.leagues.map((league) => normalizeLeague(league)) : []
   };
 }
 
@@ -49,4 +49,3 @@ function readJson(value) {
     return null;
   }
 }
-

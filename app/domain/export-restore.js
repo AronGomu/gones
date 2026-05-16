@@ -27,6 +27,7 @@ export function restoreLeague(exportedLeague, { idFactory, existingLeagues = [] 
   const league = createLeague(
     {
       name: duplicateName ? `${source.name} (restored)` : source.name,
+      status: source.status,
       startDate: source.startDate,
       endDate: source.endDate,
       tournaments: []

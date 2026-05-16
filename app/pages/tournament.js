@@ -2,6 +2,7 @@ import { createByeRoundEntry, createMatchRoundEntry, createRound } from "../doma
 import { calculateTournamentResult } from "../domain/results.js";
 import { getTournamentWarnings } from "../domain/warnings.js";
 import { renderRankingTable } from "../components/ranking-table.js";
+import { bindBackButton, renderBackButton } from "../components/back-button.js";
 import { renderRoundEditor, replaceRoundEntriesFromText } from "../components/round-editor.js";
 import { findLeague, findTournament, loadData, saveData } from "../storage/league-store.js";
 
@@ -12,17 +13,18 @@ const tournamentId = params.get("tournamentId");
 let league = findLeague(data, leagueId);
 let tournament = findTournament(league, tournamentId);
 
-const BUTTON_PRIMARY = "min-h-[38px] cursor-pointer rounded-md border border-teal-700 bg-teal-700 px-3 py-2 font-semibold text-white";
-const INPUT_CLASSES = "min-h-[38px] rounded-md border border-slate-200 bg-white px-2.5 py-2 text-slate-900";
-const PANEL_CLASSES = "rounded-lg border border-slate-200 bg-white p-[18px]";
-const SECTION_HEADER_CLASSES = "flex items-start justify-between gap-[18px] max-[760px]:grid max-[760px]:grid-cols-1";
+const BUTTON_CREATE = "button-create";
+const INPUT_CLASSES = "field";
+const PANEL_CLASSES = "panel";
+const SECTION_HEADER_CLASSES = "section-header";
 
 render();
 
 function render() {
   const app = document.querySelector("#app");
   if (!league || !tournament) {
-    app.innerHTML = `<section class="${PANEL_CLASSES}"><h1 class="m-0 text-3xl leading-tight">Tournament not found</h1><p><a class="text-teal-800 hover:underline" href="leagues.html">Back to Leagues</a></p></section>`;
+    app.innerHTML = `<div class="grid gap-[18px]"><section class="${PANEL_CLASSES}"><h1 class="page-title">Tournament not found</h1><p><a class="text-link" href="leagues.html">Back to Leagues</a></p></section>${renderBackButton()}</div>`;
+    bindBackButton();
     return;
   }
 
@@ -35,20 +37,22 @@ function render() {
     <div class="grid gap-[18px]">
       <section class="${PANEL_CLASSES}">
         <div class="${SECTION_HEADER_CLASSES}">
-          <div>
-            <h1 class="m-0 text-3xl leading-tight" data-cy="tournament-title">${escapeHtml(tournament.name)}</h1>
-            <p class="text-slate-500" data-cy="tournament-state">${result.provisional ? "Provisional Result" : result.incomplete ? "Incomplete Tournament" : "Tournament Result"}</p>
+          <div class="min-w-0">
+            <button type="button" class="page-title block max-w-full cursor-text border-0 bg-transparent p-0 text-left" data-action="edit-tournament-title" data-cy="tournament-title" title="Edit tournament name">${escapeHtml(tournament.name)}</button>
+            <input class="${INPUT_CLASSES} mt-1 hidden w-full max-w-[560px] text-3xl font-extrabold leading-tight md:text-5xl" data-action="tournament-title-input" data-cy="tournament-name" value="${escapeAttribute(tournament.name)}" aria-label="Tournament name">
+            <p class="mt-2 text-dim-ash" data-cy="tournament-state">${result.provisional ? "Provisional Result" : result.incomplete ? "Incomplete Tournament" : "Tournament Result"}</p>
           </div>
-          <button type="button" class="${BUTTON_PRIMARY}" data-action="add-round" data-cy="add-round">Add Round</button>
         </div>
-        <div class="flex flex-wrap items-center gap-2.5">
-          <input class="${INPUT_CLASSES}" data-field="name" data-cy="tournament-name" value="${escapeAttribute(tournament.name)}" aria-label="Tournament name">
-          <input class="${INPUT_CLASSES}" type="date" data-field="tournamentDate" data-cy="tournament-date" value="${escapeAttribute(tournament.tournamentDate)}" aria-label="Tournament Date">
+        <div class="mt-5 grid gap-3 sm:ml-auto sm:w-auto sm:min-w-[240px]">
+          <label class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
+            Tournament date
+            <input class="${INPUT_CLASSES} normal-case tracking-normal" type="date" data-field="tournamentDate" data-cy="tournament-date" value="${escapeAttribute(tournament.tournamentDate)}">
+          </label>
         </div>
       </section>
 
       <section class="grid gap-[18px]">
-        <h2 class="m-0 text-xl leading-tight">Tournament Result</h2>
+        <h2 class="section-title">Tournament Result</h2>
         ${renderRankingTable(result.rows, {
     emptyText: "No valid Round Entries yet",
     playerHref: (playerName) =>
@@ -56,16 +60,52 @@ function render() {
   })}
       </section>
 
+      <div class="flex justify-center">
+        <button type="button" class="${BUTTON_CREATE} min-h-14 px-8 text-base" data-action="add-round" data-cy="add-round">Add Round</button>
+      </div>
+
       <section class="grid gap-[18px]" data-cy="round-list">
         ${(tournament.rounds ?? []).map((round, index) => renderRoundEditor(round, index, warnings)).join("")}
       </section>
+      ${renderBackButton()}
     </div>
   `;
 
   bindEvents();
+  bindBackButton();
 }
 
 function bindEvents() {
+  const titleButton = document.querySelector("[data-action='edit-tournament-title']");
+  const titleInput = document.querySelector("[data-action='tournament-title-input']");
+
+  titleButton.addEventListener("click", () => {
+    titleButton.classList.add("hidden");
+    titleInput.classList.remove("hidden");
+    titleInput.focus();
+    titleInput.select();
+  });
+
+  const saveTournamentTitle = () => {
+    tournament.name = titleInput.value.trim() || "New Tournament";
+    titleInput.value = tournament.name;
+    saveData(data);
+    titleButton.textContent = tournament.name;
+    document.title = `Gones - ${tournament.name}`;
+    renderBreadcrumb();
+    titleInput.classList.add("hidden");
+    titleButton.classList.remove("hidden");
+  };
+
+  titleInput.addEventListener("blur", saveTournamentTitle);
+  titleInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") titleInput.blur();
+    if (event.key === "Escape") {
+      titleInput.value = tournament.name;
+      titleInput.blur();
+    }
+  });
+
   document.querySelectorAll("[data-field]").forEach((input) => {
     input.addEventListener("input", () => {
       const entryRow = input.closest("[data-entry-id]");
@@ -75,8 +115,6 @@ function bindEvents() {
         entry[input.dataset.field] = input.value;
       } else {
         tournament[input.dataset.field] = input.value;
-        if (input.dataset.field === "name") document.querySelector("[data-cy='tournament-title']").textContent = tournament.name;
-        if (input.dataset.field === "name") renderBreadcrumb();
       }
       saveData(data);
     });

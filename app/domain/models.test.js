@@ -21,5 +21,10 @@ describe("source model builders", () => {
     expect(league.tournaments[0].rounds[0].id).toBe("test-3");
     expect(league.tournaments[0].rounds[0].entries[0].id).toBe("test-4");
   });
-});
 
+  it("defaults League status to active and only accepts known statuses", () => {
+    expect(createLeague().status).toBe("active");
+    expect(createLeague({ status: "finished" }).status).toBe("finished");
+    expect(createLeague({ status: "paused" }).status).toBe("active");
+  });
+});
