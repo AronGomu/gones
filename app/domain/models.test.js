@@ -17,4 +17,8 @@ describe("source model builders", () => {
     expect(league.tournaments[0].rounds[0].id).toBe("test-3");
     expect(league.tournaments[0].rounds[0].entries[0].id).toBe("test-4");
   });
+
+  it("does not store League start and end dates", () => {
+    expect(createLeague({ startDate: "2026-01-01", endDate: "2026-03-20" })).not.toMatchObject({ startDate: expect.anything(), endDate: expect.anything() });
+  });
 });

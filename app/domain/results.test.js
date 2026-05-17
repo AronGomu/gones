@@ -1,5 +1,5 @@
 import { createByeRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament } from "./models.js";
-import { calculateLeagueResult, calculateTournamentResult } from "./results.js";
+import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate, calculateTournamentResult } from "./results.js";
 
 describe("Tournament and League Results", () => {
   it("awards 3 points for a match win", () => {
@@ -25,6 +25,23 @@ describe("Tournament and League Results", () => {
   it("sums League Result points across Tournaments", () => {
     const league = createLeague({ tournaments: [{ rounds: [{ entries: [match("Alice", "Bob", "Won 2-0")] }] }, { rounds: [{ entries: [match("Alice", "Cara", "Won 2-0")] }] }] });
     expect(calculateLeagueResult(league).rows[0]).toMatchObject({ playerName: "Alice", points: 6 });
+  });
+
+  it("derives League dates from first and last Tournament dates", () => {
+    const league = createLeague({
+      startDate: "2020-01-01",
+      endDate: "2020-12-31",
+      tournaments: [
+        { tournamentDate: "2026-03-20" },
+        { tournamentDate: "" },
+        { tournamentDate: "2026-01-01" },
+        { tournamentDate: "2026-02-15" }
+      ]
+    });
+
+    expect(calculateLeagueStartDate(league)).toBe("2026-01-01");
+    expect(calculateLeagueEndDate(league)).toBe("2026-03-20");
+    expect(calculateLeagueResult(league)).toMatchObject({ startDate: "2026-01-01", endDate: "2026-03-20" });
   });
 
   it("uses valid entries from incomplete Tournaments for provisional results", () => {

@@ -169,8 +169,28 @@
     @apply whitespace-nowrap border-b border-soot bg-rust px-3 py-2.5 text-left text-sm font-bold uppercase tracking-[0.08em] text-[oklch(82%_0.06_65)];
   }
 
+  .table-shell tbody tr:nth-child(even) {
+    background-color: oklch(20% 0.055 32 / 0.7);
+  }
+
+  .table-shell tbody tr:nth-child(odd) {
+    background-color: oklch(16% 0.04 31 / 0.92);
+  }
+
+  .match-row-win {
+    background-color: oklch(24% 0.08 145 / 0.78) !important;
+  }
+
+  .match-row-loss {
+    background-color: oklch(23% 0.1 27 / 0.78) !important;
+  }
+
   .table-cell {
     @apply whitespace-nowrap border-b border-soot px-3 py-2.5 text-left text-[oklch(88%_0.018_72)];
+  }
+
+  .warning-message {
+    @apply flex items-center gap-2 rounded-card border border-[oklch(62%_0.16_70)] bg-[oklch(24%_0.08_62)] px-3 py-2 text-sm font-bold text-[oklch(92%_0.12_82)];
   }
 
   .text-link {
@@ -196,8 +216,8 @@
   }
 
   .league-status-finished {
-    --league-status-color: var(--color-hot-blood);
-    --league-status-halo: oklch(49% 0.24 27 / 0.18);
+    --league-status-color: var(--color-steel);
+    --league-status-halo: oklch(62% 0.03 70 / 0.16);
   }
 
   .open-affordance {
@@ -205,11 +225,27 @@
   }
 
   .league-card {
-    @apply grid gap-3 rounded-card border border-soot bg-iron p-4 text-ash no-underline transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-blood hover:bg-[oklch(14%_0.052_29)] hover:shadow-[0_22px_42px_oklch(4%_0.012_29_/_0.5)];
+    @apply relative grid gap-3 rounded-card border border-soot bg-iron p-4 text-ash no-underline transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-blood hover:bg-[oklch(14%_0.052_29)] hover:shadow-[0_22px_42px_oklch(4%_0.012_29_/_0.5)];
   }
 
   .featured-league-card {
-    @apply grid min-h-[230px] gap-5 rounded-card border border-blood bg-[oklch(14%_0.052_29)] p-5 text-ash no-underline shadow-[0_24px_80px_oklch(5%_0.01_29_/_0.38)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-hot-blood hover:bg-[oklch(17%_0.065_29)] md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:p-6;
+    @apply relative grid min-h-[230px] gap-5 rounded-card border border-blood bg-[oklch(14%_0.052_29)] p-5 text-ash no-underline shadow-[0_24px_80px_oklch(5%_0.01_29_/_0.38)] transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-hot-blood hover:bg-[oklch(17%_0.065_29)] md:p-6;
+  }
+
+  .league-card-status-slot {
+    @apply absolute right-5 top-5;
+  }
+
+  .league-card-header {
+    @apply grid gap-3 pr-24;
+  }
+
+  .league-card-footer {
+    @apply grid grid-cols-[1fr_auto] items-end gap-3 self-end;
+  }
+
+  .league-metrics {
+    @apply flex flex-wrap justify-end gap-3 justify-self-end text-right;
   }
 
   .league-card-grid {
@@ -217,7 +253,7 @@
   }
 
   .metric-box {
-    @apply rounded-card border border-soot bg-black-metal p-4;
+    @apply rounded-card border border-soot bg-black-metal p-4 text-left;
   }
 
   .metric-label {
@@ -232,15 +268,19 @@
     @apply grid gap-3 border-t border-soot p-4 first:border-t-0;
   }
 
-  .round-entry {
-    @apply items-start gap-2 rounded-card border border-soot bg-black-metal p-2;
+  .round-entry-header {
+    @apply grid grid-cols-[64px_minmax(120px,1fr)_minmax(120px,1fr)_120px_minmax(120px,1fr)_minmax(120px,1fr)_auto] gap-2 px-1 text-xs font-bold uppercase tracking-[0.08em] text-steel max-[760px]:hidden;
   }
 
-  .round-entry-invalid {
+  .round-entry {
+    @apply items-start gap-2;
+  }
+
+  .round-entry-invalid .field {
     @apply border-[oklch(50%_0.16_28)] bg-[oklch(18%_0.065_29)];
   }
 
-  .round-entry-warning {
+  .round-entry-warning .field {
     @apply border-[oklch(56%_0.12_54)] bg-[oklch(19%_0.06_48)];
   }
 

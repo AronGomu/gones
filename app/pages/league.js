@@ -1,8 +1,9 @@
 import { createTournament } from "../domain/models.js";
 import { exportLeague } from "../domain/export-restore.js";
-import { calculateLeagueResult, calculateTournamentResult } from "../domain/results.js";
+import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate, calculateTournamentResult } from "../domain/results.js";
+import { hasMissingByeWarning } from "../domain/warnings.js";
 import { renderRankingTable } from "../components/ranking-table.js";
-import { bindBackButton, renderBackButton } from "../components/back-button.js";
+import { bindBackButton, renderBackButton, renderBackButtonsAround } from "../components/back-button.js";
 import { findLeague, loadData, saveData } from "../storage/league-store.js";
 
 let data = loadData();
@@ -10,6 +11,7 @@ const params = new URLSearchParams(location.search);
 const leagueId = params.get("leagueId");
 let league = findLeague(data, leagueId);
 let leagueResultCollapsed = false;
+let tournamentSortDirection = "desc";
 const LAST_LEAGUE_KEY = "gones_last_league_id";
 
 const BUTTON_CREATE = "button-create";
@@ -22,18 +24,21 @@ render();
 function render() {
   const app = document.querySelector("#app");
   if (!league) {
-    app.innerHTML = `<div class="grid gap-[18px]"><section class="${PANEL_CLASSES}"><h1 class="page-title">League not found</h1><p><a class="text-link" href="leagues.html">Back to Leagues</a></p></section>${renderBackButton()}</div>`;
+    app.innerHTML = `<div class="grid gap-[18px]">${renderBackButtonsAround(`<section class="${PANEL_CLASSES}"><h1 class="page-title">League not found</h1><p><a class="text-link" href="leagues.html">Back to Leagues</a></p></section>`)}</div>`;
     bindBackButton();
     return;
   }
 
   const result = calculateLeagueResult(league);
   const leagueActive = league.status !== "finished";
+  const leagueStartDate = calculateLeagueStartDate(league);
+  const leagueEndDate = calculateLeagueEndDate(league);
   localStorage.setItem(LAST_LEAGUE_KEY, league.id);
   renderBreadcrumb();
   document.title = `Gones - ${league.name}`;
   app.innerHTML = `
     <div class="grid gap-[18px]">
+      ${renderBackButton()}
       <section class="${PANEL_CLASSES}">
         <div class="${SECTION_HEADER_CLASSES}">
           <div class="min-w-0">
@@ -44,28 +49,28 @@ function render() {
         <div class="mt-5 grid gap-3 sm:ml-auto sm:w-auto sm:min-w-[520px] sm:grid-cols-3">
           <label class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
             Status
-            <button type="button" class="grid min-h-[38px] grid-cols-[1fr_auto] items-center gap-3 rounded-card border px-2.5 py-1.5 text-left font-bold normal-case tracking-normal transition ${leagueActive ? "border-[oklch(55%_0.13_142)] bg-[oklch(27%_0.06_142)] text-[oklch(84%_0.11_142)]" : "border-[oklch(50%_0.16_28)] bg-[oklch(24%_0.12_27)] text-[oklch(90%_0.045_38)]"}" data-action="toggle-status" data-cy="league-status" aria-pressed="${leagueActive}">
-              <span>${leagueActive ? "Active" : "Inactive"}</span>
-              <span class="relative h-5 w-10 rounded-full ${leagueActive ? "bg-[oklch(72%_0.18_145)]" : "bg-hot-blood"}" aria-hidden="true">
+            <button type="button" class="grid min-h-[38px] grid-cols-[1fr_auto] items-center gap-3 rounded-card border px-2.5 py-1.5 text-left font-bold normal-case tracking-normal transition ${leagueActive ? "border-[oklch(55%_0.13_142)] bg-[oklch(27%_0.06_142)] text-[oklch(84%_0.11_142)]" : "border-soot bg-raised-iron text-dim-ash"}" data-action="toggle-status" data-cy="league-status" aria-pressed="${leagueActive}">
+              <span>${leagueActive ? "Active" : "Completed"}</span>
+              <span class="relative h-5 w-10 rounded-full ${leagueActive ? "bg-[oklch(72%_0.18_145)]" : "bg-steel"}" aria-hidden="true">
                 <span class="absolute top-0.5 size-4 rounded-full bg-[oklch(96%_0.018_70)] transition ${leagueActive ? "right-0.5" : "left-0.5"}"></span>
               </span>
             </button>
           </label>
-          <label class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
+          <div class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
             Start date
-            <input class="${INPUT_CLASSES} normal-case tracking-normal" type="date" data-field="startDate" data-cy="league-start-date" value="${escapeAttribute(league.startDate)}">
-          </label>
-          <label class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
+            <span class="status-seal normal-case tracking-normal" data-cy="league-start-date">${leagueStartDate || "No tournaments"}</span>
+          </div>
+          <div class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
             End date
-            <input class="${INPUT_CLASSES} normal-case tracking-normal" type="date" data-field="endDate" data-cy="league-end-date" value="${escapeAttribute(league.endDate)}">
-          </label>
+            <span class="status-seal normal-case tracking-normal" data-cy="league-end-date">${leagueEndDate || "No tournaments"}</span>
+          </div>
         </div>
       </section>
 
       <section class="grid gap-[18px]">
         <button type="button" class="group flex min-h-[44px] items-center gap-3 border-0 bg-transparent p-0 text-left text-ash" data-action="toggle-league-result" data-cy="toggle-league-result" aria-expanded="${leagueResultCollapsed ? "false" : "true"}">
           <span class="inline-flex size-7 items-center justify-center bg-transparent text-lg text-steel transition-colors group-hover:text-ash" aria-hidden="true">${leagueResultCollapsed ? "▸" : "▾"}</span>
-          <h2 class="section-title">League Result</h2>
+          <h2 class="section-title">League Ranking</h2>
         </button>
         ${leagueResultCollapsed ? "" : renderRankingTable(result.rows, {
     emptyText: "Empty League has no League Result",
@@ -75,12 +80,13 @@ function render() {
 
       <section class="${PANEL_CLASSES}">
         <div class="${SECTION_HEADER_CLASSES}">
-          <h2 class="section-title">Tournaments</h2>
-          <form id="create-tournament-form" class="flex flex-wrap items-center gap-2.5">
-            <input class="${INPUT_CLASSES}" name="name" data-cy="tournament-name-input" placeholder="Tournament name" minlength="3" required>
-            <input class="${INPUT_CLASSES}" type="date" name="tournamentDate" data-cy="tournament-date-input" aria-label="Tournament date">
-            <button class="${BUTTON_CREATE}" type="submit" data-cy="create-tournament" disabled>Add Tournament</button>
-          </form>
+          <div class="grid gap-2">
+            <h2 class="section-title">Tournaments</h2>
+            <button type="button" class="button-secondary w-fit" data-action="toggle-tournament-sort" data-cy="toggle-tournament-sort" aria-label="Sort tournaments by date ${tournamentSortDirection === "asc" ? "descending" : "ascending"}">
+              Date ${tournamentSortDirection === "asc" ? "ascending ↑" : "descending ↓"}
+            </button>
+          </div>
+          <button class="${BUTTON_CREATE}" type="button" data-action="create-tournament" data-cy="create-tournament">Add Tournament</button>
         </div>
         <div class="mt-5 grid gap-3" data-cy="tournament-list">
           ${renderTournamentList()}
@@ -96,24 +102,49 @@ function render() {
 
 function renderTournamentList() {
   if (!league.tournaments?.length) return `<p class="text-dim-ash">No Tournaments yet.</p>`;
-  return league.tournaments
+  return [...league.tournaments]
+    .sort(compareTournamentsByDate)
     .map((tournament) => {
       const href = `tournament.html?leagueId=${encodeURIComponent(league.id)}&tournamentId=${encodeURIComponent(tournament.id)}`;
       const playerCount = calculateTournamentResult(tournament).rows.length;
+      const hasMissingBye = hasMissingByeWarning(tournament);
       return `
-        <a class="group league-card" data-cy="tournament-list-item" href="${href}">
+        <a class="group league-card ${hasMissingBye ? "border-blood" : ""}" data-cy="tournament-list-item" href="${href}">
           <div class="${SECTION_HEADER_CLASSES}">
             <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h3 class="m-0 text-xl font-extrabold leading-tight text-hot-blood md:text-2xl">${escapeHtml(tournament.name)}</h3>
-              <span class="text-sm font-semibold text-dim-ash">${tournament.tournamentDate || "No Tournament Date"}</span>
-              <span class="text-sm font-semibold text-dim-ash">${playerCount} player${playerCount === 1 ? "" : "s"}</span>
+              <h3 class="m-0 text-xl font-extrabold leading-tight text-hot-blood">${escapeHtml(tournament.name)}</h3>
+              <span class="text-xl font-semibold leading-tight text-dim-ash">${formatTournamentDate(tournament.tournamentDate)}</span>
+              <span class="text-xl font-semibold leading-tight text-dim-ash">${playerCount} player${playerCount === 1 ? "" : "s"}</span>
             </div>
             <span class="open-affordance" data-cy="open-tournament" aria-hidden="true">→</span>
           </div>
+          ${hasMissingBye ? `<div class="warning-message" data-cy="tournament-list-missing-bye-warning"><span aria-hidden="true">⚠</span> Missing bye matches. Open tournament and click Add Missing Byes Matches.</div>` : ""}
         </a>
       `;
     })
     .join("");
+}
+
+function compareTournamentsByDate(left, right) {
+  const leftDate = left.tournamentDate || "9999-12-31";
+  const rightDate = right.tournamentDate || "9999-12-31";
+  const byDate = leftDate.localeCompare(rightDate);
+  const byName = left.name.localeCompare(right.name);
+  return tournamentSortDirection === "asc" ? byDate || byName : -(byDate || byName);
+}
+
+function formatTournamentDate(value) {
+  if (!value) return "No Tournament Date";
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+  const date = new Date(year, month - 1, day);
+  const monthName = new Intl.DateTimeFormat(undefined, { month: "long" }).format(date);
+  return `${monthName} ${ordinal(day)} ${year}`;
+}
+
+function ordinal(day) {
+  const suffix = day % 100 >= 11 && day % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[day % 10] ?? "th";
+  return `${day}${suffix}`;
 }
 
 function bindEvents() {
@@ -147,13 +178,6 @@ function bindEvents() {
     }
   });
 
-  document.querySelectorAll("[data-field]").forEach((input) => {
-    input.addEventListener("input", () => {
-      league[input.dataset.field] = input.value;
-      saveData(data);
-    });
-  });
-
   document.querySelector("[data-action='toggle-league-result']").addEventListener("click", () => {
     leagueResultCollapsed = !leagueResultCollapsed;
     render();
@@ -162,6 +186,11 @@ function bindEvents() {
   document.querySelector("[data-action='toggle-status']").addEventListener("click", () => {
     league.status = league.status === "finished" ? "active" : "finished";
     saveData(data);
+    render();
+  });
+
+  document.querySelector("[data-action='toggle-tournament-sort']").addEventListener("click", () => {
+    tournamentSortDirection = tournamentSortDirection === "asc" ? "desc" : "asc";
     render();
   });
 
@@ -174,28 +203,11 @@ function bindEvents() {
     URL.revokeObjectURL(anchor.href);
   });
 
-  const tournamentForm = document.querySelector("#create-tournament-form");
-  const tournamentNameInput = tournamentForm.querySelector("[name='name']");
-  const createTournamentButton = tournamentForm.querySelector("[data-cy='create-tournament']");
-  const syncCreateTournamentButton = () => {
-    createTournamentButton.disabled = tournamentNameInput.value.trim().length < 3;
-  };
-
-  tournamentNameInput.addEventListener("input", syncCreateTournamentButton);
-  syncCreateTournamentButton();
-
-  tournamentForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (tournamentNameInput.value.trim().length < 3) return;
-    const form = new FormData(event.currentTarget);
-    const tournament = createTournament({
-      leagueId: league.id,
-      name: form.get("name"),
-      tournamentDate: form.get("tournamentDate")
-    });
+  document.querySelector("[data-action='create-tournament']").addEventListener("click", () => {
+    const tournament = createTournament({ leagueId: league.id, name: "New Tournament" });
     league.tournaments.push(tournament);
     saveData(data);
-    location.href = `tournament.html?leagueId=${encodeURIComponent(league.id)}&tournamentId=${encodeURIComponent(tournament.id)}`;
+    location.href = `tournament.html?leagueId=${encodeURIComponent(league.id)}&tournamentId=${encodeURIComponent(tournament.id)}&editName=1`;
   });
 
 }

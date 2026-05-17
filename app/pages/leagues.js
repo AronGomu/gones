@@ -124,7 +124,7 @@ function renderLeagueCard(league, { featured = false } = {}) {
   const playerCount = result.rows.length;
   const href = `league.html?leagueId=${encodeURIComponent(league.id)}`;
   const status = league.status === "finished" ? "finished" : "active";
-  const statusLabel = status === "finished" ? "Finished" : "Active";
+  const statusLabel = status === "finished" ? "Completed" : "Active";
   const cardClass = featured ? "featured-league-card" : "league-card h-[320px] content-between gap-5 p-5";
   const titleClass = featured ? "m-0 text-3xl font-extrabold leading-tight text-ash md:text-4xl" : "m-0 text-2xl font-extrabold leading-tight text-ash";
   const description = featured
@@ -134,36 +134,34 @@ function renderLeagueCard(league, { featured = false } = {}) {
 
   return `
     <a class="group ${cardClass}" href="${href}" data-cy="${featured ? "featured-league-card" : "league-list-item"}">
-      <div class="grid content-between gap-6">
-        <div class="grid gap-3">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <h3 class="${titleClass} line-clamp-2">${escapeHtml(league.name)}</h3>
-            ${renderLeagueStatus(statusLabel, status)}
-          </div>
-          <p class="max-w-[62ch] text-sm text-dim-ash ${featured ? "md:text-base" : ""}">${description}</p>
-        </div>
-
+      <div class="league-card-status-slot">
+        ${renderLeagueStatus(statusLabel, status)}
       </div>
 
-      <div class="grid grid-cols-[1fr_auto] items-end gap-3">
-      <dl class="grid flex-1 grid-cols-2 gap-3 ${featured ? "md:grid-cols-1" : ""}">
-        <div class="${metricClass}">
-          <dt class="metric-label">Tournaments</dt>
-          <dd class="metric-value">${tournamentCount}</dd>
-        </div>
-        <div class="${metricClass}">
-          <dt class="metric-label">Players</dt>
-          <dd class="metric-value">${playerCount}</dd>
-        </div>
-      </dl>
-      <span class="open-affordance self-end justify-self-end" data-cy="open-league" aria-hidden="true">→</span>
+      <div class="league-card-header">
+        <h3 class="${titleClass} line-clamp-2">${escapeHtml(league.name)}</h3>
+        <p class="max-w-[62ch] text-sm text-dim-ash ${featured ? "md:text-base" : ""}">${description}</p>
+      </div>
+
+      <div class="league-card-footer">
+        <dl class="league-metrics">
+          <div class="${metricClass}">
+            <dt class="metric-label">Tournaments</dt>
+            <dd class="metric-value">${tournamentCount}</dd>
+          </div>
+          <div class="${metricClass}">
+            <dt class="metric-label">Players</dt>
+            <dd class="metric-value">${playerCount}</dd>
+          </div>
+        </dl>
+        <span class="open-affordance self-end justify-self-end" data-cy="open-league" aria-hidden="true">→</span>
       </div>
     </a>
   `;
 }
 
 function leagueDescription({ tournamentCount, playerCount, status }) {
-  if (status === "finished") return "Finished League data is preserved for standings review and Player Statistics.";
+  if (status === "finished") return "Completed League data is preserved for standings review and Player Statistics.";
   if (!tournamentCount) return "Created and ready for the first Tournament import or manual entry.";
   if (playerCount) return "Tournament data is ready for standings review and Player Statistics.";
   return "Tournament source data is present, with no calculated League Result yet.";

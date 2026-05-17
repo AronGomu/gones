@@ -19,14 +19,12 @@ export function createGonesData({ leagues = [] } = {}) {
   return { version: GONES_DATA_VERSION, leagues: leagues.map((league) => normalizeLeague(league)) };
 }
 
-export function createLeague({ id, name = "New League", status = "active", startDate = "", endDate = "", tournaments = [] } = {}, { idFactory = defaultIdFactory } = {}) {
+export function createLeague({ id, name = "New League", status = "active", tournaments = [] } = {}, { idFactory = defaultIdFactory } = {}) {
   const leagueId = id ?? idFactory();
   return {
     id: leagueId,
     name: String(name || "New League").trim() || "New League",
     status: normalizeLeagueStatus(status),
-    startDate: String(startDate ?? ""),
-    endDate: String(endDate ?? ""),
     tournaments: tournaments.map((tournament) => createTournament({ ...tournament, leagueId: tournament.leagueId ?? leagueId }, { idFactory }))
   };
 }

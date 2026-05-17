@@ -9,7 +9,7 @@ export function restoreLeague(exportedLeague, { idFactory, existingLeagues = [] 
   if (!exportedLeague || exportedLeague.version !== GONES_DATA_VERSION || !exportedLeague.league) throw new Error("unsupportedGonesExport");
   const source = exportedLeague.league;
   const duplicateName = existingLeagues.some((league) => league.name === source.name);
-  const league = createLeague({ name: duplicateName ? `${source.name} (restored)` : source.name, status: source.status, startDate: source.startDate, endDate: source.endDate, tournaments: [] }, { idFactory });
+  const league = createLeague({ name: duplicateName ? `${source.name} (restored)` : source.name, status: source.status, tournaments: [] }, { idFactory });
   league.tournaments = (source.tournaments ?? []).map((tournament) => remapTournament(tournament, league.id, { idFactory }));
   return league;
 }

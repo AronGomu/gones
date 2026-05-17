@@ -9,8 +9,10 @@ const playerName = params.get("playerName") ?? "";
 let filters = {
   leagueId: params.get("leagueId") ?? "",
   tournamentId: params.get("tournamentId") ?? "",
-  opponentName: params.get("opponentName") ?? ""
+  opponentName: ""
 };
+let matchSearch = "";
+let matchSortDirection = "desc";
 
 const INPUT_CLASSES = "field";
 const PANEL_CLASSES = "panel";
@@ -22,64 +24,41 @@ function render() {
   document.title = `Gones - ${playerName}`;
   app.innerHTML = `
     <div class="grid gap-[18px]">
+      ${renderBackButton()}
       <section class="${PANEL_CLASSES}">
         <h1 class="page-title" data-cy="player-title">${escapeHtml(playerName)}</h1>
-        <form id="filters" class="flex flex-wrap items-end gap-2.5">
-          <label class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
-            League
-            <select class="${INPUT_CLASSES} normal-case tracking-normal" name="leagueId" data-cy="filter-league">
-              <option value="">All Leagues</option>
-              ${data.leagues.map((league) => `<option value="${escapeAttribute(league.id)}" ${league.id === filters.leagueId ? "selected" : ""}>${escapeHtml(league.name)}</option>`).join("")}
-            </select>
-          </label>
-          <label class="grid gap-1.5 text-sm font-bold uppercase tracking-[0.08em] text-steel">
-            Tournament
-            <select class="${INPUT_CLASSES} normal-case tracking-normal" name="tournamentId" data-cy="filter-tournament">
-              <option value="">All Tournaments</option>
-              ${data.leagues
-                .filter((league) => !filters.leagueId || league.id === filters.leagueId)
-                .flatMap((league) => league.tournaments ?? [])
-                .map((tournament) => `<option value="${escapeAttribute(tournament.id)}" ${tournament.id === filters.tournamentId ? "selected" : ""}>${escapeHtml(tournament.name)}</option>`)
-                .join("")}
-            </select>
-          </label>
-          <input class="${INPUT_CLASSES}" name="opponentName" data-cy="filter-opponent" placeholder="Opponent Player Name" value="${escapeAttribute(filters.opponentName)}">
-        </form>
       </section>
       <section class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3" data-cy="player-stat-list"></section>
       <section class="${PANEL_CLASSES}">
-        <h2 class="m-0 text-xl leading-tight">Matches</h2>
-        <div class="mt-5 grid gap-3" data-cy="player-match-list"></div>
+        <div class="section-header">
+          <h2 class="m-0 text-xl leading-tight">Matches</h2>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <input class="${INPUT_CLASSES}" name="matchSearch" data-cy="filter-matches" placeholder="Filter matches" value="${escapeAttribute(matchSearch)}">
+            <button type="button" class="button-secondary" data-action="toggle-match-sort" data-cy="toggle-match-sort" aria-label="Sort matches by date ${matchSortDirection === "asc" ? "descending" : "ascending"}">
+              Date ${matchSortDirection === "asc" ? "ascending ↑" : "descending ↓"}
+            </button>
+          </div>
+        </div>
+        <div class="mt-5" data-cy="player-match-list"></div>
       </section>
       ${renderBackButton()}
     </div>
   `;
 
-  bindFilters();
+  bindMatchControls();
   renderStats();
   bindBackButton();
 }
 
-function bindFilters() {
-  const form = document.querySelector("#filters");
-  form.addEventListener("submit", (event) => event.preventDefault());
+function bindMatchControls() {
+  document.querySelector("[data-cy='filter-matches']").addEventListener("input", (event) => {
+    matchSearch = event.currentTarget.value;
+    renderStats();
+  });
 
-  form.querySelector("[name='leagueId']").addEventListener("change", (event) => {
-    filters = { ...filters, leagueId: event.currentTarget.value, tournamentId: "" };
-    updateUrl();
+  document.querySelector("[data-action='toggle-match-sort']").addEventListener("click", () => {
+    matchSortDirection = matchSortDirection === "asc" ? "desc" : "asc";
     render();
-  });
-
-  form.querySelector("[name='tournamentId']").addEventListener("change", (event) => {
-    filters = { ...filters, tournamentId: event.currentTarget.value };
-    updateUrl();
-    renderStats();
-  });
-
-  form.querySelector("[name='opponentName']").addEventListener("input", (event) => {
-    filters = { ...filters, opponentName: event.currentTarget.value };
-    updateUrl();
-    renderStats();
   });
 }
 
@@ -93,7 +72,8 @@ function renderStats() {
     ${stat("Nemesis", stats.nemesis ?? "N/A", "Opponent this player performs worst against in the selected scope.")}
     ${stat("Rival", stats.rival ?? "N/A", "Opponent this player has faced most often in the selected scope.")}
   `;
-  document.querySelector("[data-cy='player-match-list']").innerHTML = stats.matches.length ? stats.matches.map(renderMatch).join("") : `<p class="text-dim-ash">No Matches.</p>`;
+  const matches = stats.matches.filter(matchesSearch).sort(compareMatchesByDate);
+  document.querySelector("[data-cy='player-match-list']").innerHTML = matches.length ? renderMatchTable(matches) : `<p class="text-dim-ash">No Matches.</p>`;
 }
 
 function updateUrl() {
@@ -111,11 +91,69 @@ function stat(label, value, description = "") {
   return `<article class="panel p-3.5"><span class="stat-tooltip-trigger text-dim-ash" tabindex="0">${escapeHtml(label)}${tooltip}</span><strong class="block text-2xl text-ash">${escapeHtml(value)}</strong></article>`;
 }
 
-function renderMatch(match) {
+function renderMatchTable(matches) {
+  return `
+    <table class="table-shell" data-cy="player-match-table">
+      <thead>
+        <tr>
+          <th class="table-head-cell">date match</th>
+          <th class="table-head-cell">tournament</th>
+          <th class="table-head-cell">opponent</th>
+          <th class="table-head-cell">result</th>
+        </tr>
+      </thead>
+      <tbody>${matches.map(renderMatchRow).join("")}</tbody>
+    </table>`;
+}
+
+function renderMatchRow(match) {
+  const cells = matchCells(match);
+  const outcomeClass = matchOutcomeClass(match);
+  return `<tr class="${outcomeClass}" data-cy="player-match"><td class="table-cell">${escapeHtml(cells.date)}</td><td class="table-cell">${escapeHtml(cells.tournament)}</td><td class="table-cell">${escapeHtml(cells.opponent)}</td><td class="table-cell">${escapeHtml(cells.result)}</td></tr>`;
+}
+
+function matchOutcomeClass(match) {
+  if (match.kind === "bye") return "match-row-win";
+  if (match.ownScore > match.opponentScore) return "match-row-win";
+  if (match.ownScore < match.opponentScore) return "match-row-loss";
+  return "";
+}
+
+function matchCells(match) {
   if (match.kind === "bye") {
-    return `<article class="league-card" data-cy="player-match">Bye in ${escapeHtml(match.tournament.name)}, Round ${match.roundIndex + 1}</article>`;
+    return {
+      date: match.tournament.tournamentDate || "No date",
+      tournament: `${match.league.name} ${match.tournament.name} Round ${match.roundIndex + 1}`,
+      opponent: "Bye",
+      result: "Won 2-0"
+    };
   }
-  return `<article class="league-card flex flex-wrap items-baseline gap-x-6 gap-y-1" data-cy="player-match"><strong>${escapeHtml(match.opponentName)}</strong><span>${match.ownScore}-${match.opponentScore}</span><span>Tournament: <strong>${escapeHtml(match.tournament.name)}</strong></span><span>round ${match.roundIndex + 1}</span></article>`;
+  return {
+    date: match.tournament.tournamentDate || "No date",
+    tournament: `${match.league.name} ${match.tournament.name} Round ${match.roundIndex + 1}`,
+    opponent: match.opponentName,
+    result: formatMatchResult(match)
+  };
+}
+
+function formatMatchResult(match) {
+  const label = match.ownScore > match.opponentScore ? "Won" : match.ownScore < match.opponentScore ? "Lose" : "Draw";
+  return `${label} ${match.ownScore}-${match.opponentScore}`;
+}
+
+function compareMatchesByDate(left, right) {
+  const leftDate = left.tournament.tournamentDate || "9999-12-31";
+  const rightDate = right.tournament.tournamentDate || "9999-12-31";
+  const byDate = leftDate.localeCompare(rightDate) || left.tournament.name.localeCompare(right.tournament.name) || left.roundIndex - right.roundIndex;
+  return matchSortDirection === "asc" ? byDate : -byDate;
+}
+
+function matchesSearch(match) {
+  const search = matchSearch.trim().toLocaleLowerCase();
+  if (!search) return true;
+  const cells = matchCells(match);
+  const haystack = Object.values(cells).join(" ").toLocaleLowerCase();
+  return search.split(/\s+/).every((token) => haystack.includes(token));
 }
 
 function escapeHtml(value) {

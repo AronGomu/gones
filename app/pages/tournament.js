@@ -1,8 +1,8 @@
-import { createMatchRoundEntry, createRound } from "../domain/models.js";
+import { createByeRoundEntry, createMatchRoundEntry, createRound } from "../domain/models.js";
 import { calculateTournamentResult } from "../domain/results.js";
 import { getTournamentWarnings } from "../domain/warnings.js";
 import { renderRankingTable } from "../components/ranking-table.js";
-import { bindBackButton, renderBackButton } from "../components/back-button.js";
+import { bindBackButton, renderBackButton, renderBackButtonsAround } from "../components/back-button.js";
 import { renderRoundEditor, replaceRoundEntriesFromText } from "../components/round-editor.js";
 import { findLeague, findTournament, loadData, saveData } from "../storage/league-store.js";
 
@@ -10,9 +10,10 @@ let data = loadData();
 const params = new URLSearchParams(location.search);
 const leagueId = params.get("leagueId");
 const tournamentId = params.get("tournamentId");
+let shouldEditNameOnLoad = params.get("editName") === "1";
 let league = findLeague(data, leagueId);
 let tournament = findTournament(league, tournamentId);
-const collapsedRoundIds = new Set();
+const collapsedRoundIds = new Set((tournament?.rounds ?? []).map((round) => round.id));
 let tournamentResultCollapsed = false;
 
 const BUTTON_CREATE = "button-create";
@@ -25,7 +26,7 @@ render();
 function render() {
   const app = document.querySelector("#app");
   if (!league || !tournament) {
-    app.innerHTML = `<div class="grid gap-[18px]"><section class="${PANEL_CLASSES}"><h1 class="page-title">Tournament not found</h1><p><a class="text-link" href="leagues.html">Back to Leagues</a></p></section>${renderBackButton()}</div>`;
+    app.innerHTML = `<div class="grid gap-[18px]">${renderBackButtonsAround(`<section class="${PANEL_CLASSES}"><h1 class="page-title">Tournament not found</h1><p><a class="text-link" href="leagues.html">Back to Leagues</a></p></section>`)}</div>`;
     bindBackButton();
     return;
   }
@@ -37,6 +38,11 @@ function render() {
   document.title = `Gones - ${tournament.name}`;
   app.innerHTML = `
     <div class="grid gap-[18px]">
+      <div class="flex flex-wrap items-center gap-3">
+        ${renderBackButton()}
+        ${renderMissingByeTournamentWarning(warnings)}
+        ${renderAddMissingByesButton(warnings)}
+      </div>
       <section class="${PANEL_CLASSES}">
         <div class="${SECTION_HEADER_CLASSES}">
           <div class="min-w-0">
@@ -54,7 +60,7 @@ function render() {
       <section class="grid gap-[18px]">
         <button type="button" class="group flex min-h-[44px] items-center gap-3 border-0 bg-transparent p-0 text-left text-ash" data-action="toggle-tournament-result" data-cy="toggle-tournament-result" aria-expanded="${tournamentResultCollapsed ? "false" : "true"}">
           <span class="inline-flex size-7 items-center justify-center bg-transparent text-lg text-steel transition-colors group-hover:text-ash" aria-hidden="true">${tournamentResultCollapsed ? "▸" : "▾"}</span>
-          <h2 class="section-title">Tournament Result</h2>
+          <h2 class="section-title">Tournament Ranking</h2>
         </button>
         ${tournamentResultCollapsed ? "" : renderRankingTable(result.rows, {
     emptyText: "No valid Round Entries yet",
@@ -76,6 +82,7 @@ function render() {
 
   bindEvents();
   bindBackButton();
+  focusTournamentNameIfRequested();
 }
 
 function bindEvents() {
@@ -126,6 +133,7 @@ function bindEvents() {
   document.querySelectorAll("[data-action]").forEach((element) => {
     element.addEventListener("click", (event) => {
       const action = event.currentTarget.dataset.action;
+      if (action === "edit-tournament-title") return;
       if (action === "toggle-tournament-result") {
         tournamentResultCollapsed = !tournamentResultCollapsed;
         render();
@@ -141,7 +149,11 @@ function bindEvents() {
       if (action === "add-round") {
         tournament.rounds.push(createRound());
       }
+      if (action === "add-missing-byes") {
+        addMissingByes();
+      }
       if (action === "delete-round") {
+        if (!confirm("Delete this entire round?")) return;
         collapsedRoundIds.delete(event.currentTarget.dataset.roundId);
         tournament.rounds = tournament.rounds.filter((round) => round.id !== event.currentTarget.dataset.roundId);
       }
@@ -150,6 +162,7 @@ function bindEvents() {
         round.entries.push(createMatchRoundEntry({ table: nextTable(round), result: "Won 2-0" }));
       }
       if (action === "delete-entry") {
+        if (!confirm("Delete this match?")) return;
         const round = findRound(event.currentTarget.dataset.roundId);
         round.entries = round.entries.filter((entry) => entry.id !== event.currentTarget.dataset.entryId);
       }
@@ -161,6 +174,70 @@ function bindEvents() {
       saveAndRender();
     });
   });
+}
+
+function focusTournamentNameIfRequested() {
+  if (!shouldEditNameOnLoad) return;
+  shouldEditNameOnLoad = false;
+  const cleanParams = new URLSearchParams(location.search);
+  cleanParams.delete("editName");
+  history.replaceState(null, "", `tournament.html?${cleanParams.toString()}`);
+  const titleButton = document.querySelector("[data-action='edit-tournament-title']");
+  const titleInput = document.querySelector("[data-action='tournament-title-input']");
+  titleButton.classList.add("hidden");
+  titleInput.classList.remove("hidden");
+  titleInput.focus();
+  titleInput.select();
+}
+
+function renderMissingByeTournamentWarning(warnings) {
+  return warnings.some((warning) => warning.code === "missingBye")
+    ? `<div class="warning-message" data-cy="tournament-missing-bye-warning"><span aria-hidden="true">⚠</span> Missing bye matches. Click Add Missing Byes Matches to fix them.</div>`
+    : "";
+}
+
+function renderAddMissingByesButton(warnings) {
+  return warnings.some((warning) => warning.code === "missingBye")
+    ? `<button type="button" class="button-create min-h-[52px] px-6 text-lg" data-action="add-missing-byes" data-cy="add-missing-byes">Add Missing Byes Matches</button>`
+    : "";
+}
+
+function addMissingByes() {
+  const players = collectTournamentPlayers();
+  for (const round of tournament.rounds ?? []) {
+    if (round.entries?.some((entry) => entry.kind === "bye")) continue;
+    const roundPlayers = collectRoundPlayers(round);
+    const missingPlayer = [...players].find((player) => !roundPlayers.has(player));
+    if (!missingPlayer) continue;
+    round.entries.push(createByeRoundEntry({ table: nextTable(round), player: missingPlayer }));
+    collapsedRoundIds.delete(round.id);
+  }
+}
+
+function collectTournamentPlayers() {
+  const players = new Set();
+  for (const round of tournament.rounds ?? []) {
+    for (const entry of round.entries ?? []) {
+      if (entry.kind === "bye" && entry.player) players.add(entry.player);
+      if (entry.kind === "match") {
+        if (entry.player) players.add(entry.player);
+        if (entry.opponent) players.add(entry.opponent);
+      }
+    }
+  }
+  return players;
+}
+
+function collectRoundPlayers(round) {
+  const players = new Set();
+  for (const entry of round.entries ?? []) {
+    if (entry.kind === "bye" && entry.player) players.add(entry.player);
+    if (entry.kind === "match") {
+      if (entry.player) players.add(entry.player);
+      if (entry.opponent) players.add(entry.opponent);
+    }
+  }
+  return players;
 }
 
 function findRound(roundId) {

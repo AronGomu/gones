@@ -19,10 +19,27 @@ export function calculateLeagueResult(league) {
   const incomplete = (league.tournaments ?? []).some((tournament) => calculateTournamentResult(tournament).incomplete);
   return {
     scope: "league",
+    startDate: calculateLeagueStartDate(league),
+    endDate: calculateLeagueEndDate(league),
     incomplete,
     provisional: incomplete && rows.length > 0,
     rows
   };
+}
+
+export function calculateLeagueStartDate(league) {
+  return getSortedTournamentDates(league)[0] ?? "";
+}
+
+export function calculateLeagueEndDate(league) {
+  return getSortedTournamentDates(league).at(-1) ?? "";
+}
+
+function getSortedTournamentDates(league) {
+  return (league.tournaments ?? [])
+    .map((tournament) => tournament.tournamentDate)
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function collectTournamentEntries(tournament) {

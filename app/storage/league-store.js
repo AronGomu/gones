@@ -6,7 +6,7 @@ const LEGACY_STORAGE_KEY = "league_list";
 
 export function loadData(storage = globalThis.localStorage) {
   const stored = readJson(storage.getItem(STORAGE_KEY));
-  if (isVersionedData(stored)) return stored;
+  if (isVersionedData(stored)) return normalizeVersionedData(stored);
 
   const migrated = migrateLegacyLeagueList(storage.getItem(LEGACY_STORAGE_KEY));
   if (migrated) {
