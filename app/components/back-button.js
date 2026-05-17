@@ -10,14 +10,36 @@ export function renderBackButtonsAround(content) {
   return `${renderBackButton()}${content}${renderBackButton()}`;
 }
 
-export function bindBackButton({ fallbackHref = "leagues.html" } = {}) {
+export function bindBackButton() {
   document.querySelectorAll("[data-action='go-back']").forEach((button) => {
     button.addEventListener("click", () => {
-      if (history.length > 1) {
-        history.back();
+      if (location.pathname.endsWith("/player.html")) {
+        if (history.length > 1) {
+          history.back();
+          return;
+        }
+        location.href = parentHref();
         return;
       }
-      location.href = fallbackHref;
+      location.href = parentHref();
     });
   });
+}
+
+function parentHref() {
+  const page = location.pathname.split("/").at(-1);
+  const params = new URLSearchParams(location.search);
+  const leagueId = params.get("leagueId") ?? "";
+  const tournamentId = params.get("tournamentId") ?? "";
+
+  if (page === "tournament.html" && leagueId) {
+    return `league.html?leagueId=${encodeURIComponent(leagueId)}`;
+  }
+  if (page === "player.html" && leagueId && tournamentId) {
+    return `tournament.html?leagueId=${encodeURIComponent(leagueId)}&tournamentId=${encodeURIComponent(tournamentId)}`;
+  }
+  if (page === "player.html" && leagueId) {
+    return `league.html?leagueId=${encodeURIComponent(leagueId)}`;
+  }
+  return "leagues.html";
 }

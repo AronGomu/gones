@@ -58,23 +58,27 @@
   }
 
   .app-header {
-    @apply sticky top-0 z-20 flex min-h-14 items-center justify-between gap-4 border-b border-soot bg-black-metal px-4 sm:px-6;
+    @apply sticky top-0 z-20 flex min-h-20 items-center justify-between gap-5 border-b border-soot bg-black-metal px-5 sm:px-8;
   }
 
   .app-header-left {
-    @apply flex min-w-0 items-center gap-3;
+    @apply flex min-w-0 items-center gap-4;
   }
 
   .app-header-actions {
-    @apply flex shrink-0 flex-wrap justify-end gap-2;
+    @apply flex shrink-0 flex-wrap justify-end gap-3;
   }
 
   .app-brand {
-    @apply font-extrabold text-[1.08rem] text-[oklch(96%_0.018_70)] no-underline hover:text-hot-blood;
+    @apply inline-flex shrink-0 items-center no-underline transition hover:opacity-90;
+  }
+
+  .app-brand-logo {
+    @apply block h-12 w-auto;
   }
 
   .app-breadcrumb {
-    @apply max-w-[min(52vw,720px)] overflow-x-auto whitespace-nowrap rounded-md border border-soot bg-iron px-3 py-1.5 text-sm text-steel [scrollbar-width:thin];
+    @apply max-w-[min(56vw,820px)] overflow-x-auto whitespace-nowrap rounded-md border border-soot bg-iron px-4 py-2 text-base text-steel [scrollbar-width:thin];
   }
 
   .breadcrumb-link {
@@ -185,12 +189,29 @@
     background-color: oklch(23% 0.1 27 / 0.78) !important;
   }
 
+  .table-shell tbody tr:hover {
+    background-color: oklch(31% 0.09 30 / 0.95) !important;
+  }
+
+  .table-clickable-row {
+    cursor: pointer;
+  }
+
+  .table-clickable-row:focus-visible {
+    outline: 2px solid oklch(67% 0.17 29);
+    outline-offset: -2px;
+  }
+
   .table-cell {
     @apply whitespace-nowrap border-b border-soot px-3 py-2.5 text-left text-[oklch(88%_0.018_72)];
   }
 
   .warning-message {
     @apply flex items-center gap-2 rounded-card border border-[oklch(62%_0.16_70)] bg-[oklch(24%_0.08_62)] px-3 py-2 text-sm font-bold text-[oklch(92%_0.12_82)];
+  }
+
+  .button-warning {
+    @apply inline-flex min-h-[52px] items-center justify-center rounded-card border border-[oklch(62%_0.16_70)] bg-[oklch(56%_0.16_76)] px-6 py-2 text-lg font-bold text-[oklch(13%_0.045_62)] shadow-[inset_0_1px_0_oklch(82%_0.13_84_/_0.35),0_4px_0_oklch(7%_0.018_30)] hover:bg-[oklch(64%_0.17_82)];
   }
 
   .text-link {

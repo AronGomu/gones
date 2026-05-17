@@ -130,7 +130,7 @@ function renderLeagueCard(league, { featured = false } = {}) {
   const description = featured
     ? "Continue with tournament entry, ranking review, source data, and player statistics from the same place."
     : leagueDescription({ tournamentCount, playerCount, status });
-  const metricClass = featured ? "metric-box" : "";
+  const metricClass = "metric-box";
 
   return `
     <a class="group ${cardClass}" href="${href}" data-cy="${featured ? "featured-league-card" : "league-list-item"}">

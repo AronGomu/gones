@@ -109,7 +109,18 @@ function renderMatchTable(matches) {
 function renderMatchRow(match) {
   const cells = matchCells(match);
   const outcomeClass = matchOutcomeClass(match);
-  return `<tr class="${outcomeClass}" data-cy="player-match"><td class="table-cell">${escapeHtml(cells.date)}</td><td class="table-cell">${escapeHtml(cells.tournament)}</td><td class="table-cell">${escapeHtml(cells.opponent)}</td><td class="table-cell">${escapeHtml(cells.result)}</td></tr>`;
+  const opponentHref = match.kind === "bye" ? "" : playerStatsHref(match.opponentName, match);
+  const clickableAttributes = opponentHref
+    ? `class="${outcomeClass} table-clickable-row" data-href="${escapeAttribute(opponentHref)}" tabindex="0" role="link" aria-label="Open Player Statistics for ${escapeAttribute(match.opponentName)}" onclick="location.href = this.dataset.href" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); location.href = this.dataset.href; }"`
+    : `class="${outcomeClass}"`;
+  return `<tr ${clickableAttributes} data-cy="player-match"><td class="table-cell">${escapeHtml(cells.date)}</td><td class="table-cell">${escapeHtml(cells.tournament)}</td><td class="table-cell">${opponentHref ? `<a class="text-link" href="${escapeAttribute(opponentHref)}">${escapeHtml(cells.opponent)}</a>` : escapeHtml(cells.opponent)}</td><td class="table-cell">${escapeHtml(cells.result)}</td></tr>`;
+}
+
+function playerStatsHref(playerName, match) {
+  const next = new URLSearchParams({ playerName });
+  if (match.league?.id) next.set("leagueId", match.league.id);
+  if (match.tournament?.id) next.set("tournamentId", match.tournament.id);
+  return `player.html?${next.toString()}`;
 }
 
 function matchOutcomeClass(match) {

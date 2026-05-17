@@ -37,14 +37,21 @@ export function normalizeLeagueStatus(status) {
   return LEAGUE_STATUSES.includes(status) ? status : "active";
 }
 
-export function createTournament({ id, leagueId = "", name = "New Tournament", tournamentDate = "", rounds = [] } = {}, { idFactory = defaultIdFactory } = {}) {
+export function createTournament({ id, leagueId = "", name = getDefaultTournamentName(), tournamentDate = "", rounds = [] } = {}, { idFactory = defaultIdFactory } = {}) {
   return {
     id: id ?? idFactory(),
     leagueId,
-    name: String(name || "New Tournament").trim() || "New Tournament",
+    name: String(name || getDefaultTournamentName()).trim() || getDefaultTournamentName(),
     tournamentDate: String(tournamentDate ?? ""),
     rounds: rounds.map((round) => createRound(round, { idFactory }))
   };
+}
+
+export function getDefaultTournamentName(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}/${month}/${day}`;
 }
 
 export function createRound({ id, entries = [] } = {}, { idFactory = defaultIdFactory } = {}) {

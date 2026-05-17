@@ -24,10 +24,11 @@ export function renderRankingTable(rows, { emptyText = "No result yet", playerHr
 }
 
 function renderRow(row, playerHref) {
+  const href = playerHref(row.playerName);
   return `
-    <tr data-cy="ranking-row">
+    <tr class="table-clickable-row" data-cy="ranking-row" data-href="${escapeAttribute(href)}" tabindex="0" role="link" aria-label="Open Player Statistics for ${escapeAttribute(row.playerName)}" onclick="location.href = this.dataset.href" onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); location.href = this.dataset.href; }">
       <td class="table-cell">${row.rank}</td>
-      <td class="table-cell"><a class="text-link" data-cy="ranking-player" href="${playerHref(row.playerName)}">${escapeHtml(row.playerName)}</a></td>
+      <td class="table-cell"><a class="text-link" data-cy="ranking-player" href="${escapeAttribute(href)}">${escapeHtml(row.playerName)}</a></td>
       <td class="table-cell">${row.matchWins}-${row.matchLosses}-${row.matchDraws}${row.byes ? ` (${row.byes} bye)` : ""}</td>
       <td class="table-cell">${row.points}</td>
       <td class="table-cell">${formatPercentage(row.opponentsMatchWinPercentage)}</td>
@@ -50,6 +51,9 @@ function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll(">", "&gt;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replaceAll('"', "&quot;");
 }

@@ -86,7 +86,7 @@ function render() {
               Date ${tournamentSortDirection === "asc" ? "ascending ↑" : "descending ↓"}
             </button>
           </div>
-          <button class="${BUTTON_CREATE}" type="button" data-action="create-tournament" data-cy="create-tournament">Add Tournament</button>
+          <button class="${BUTTON_CREATE}" type="button" data-action="create-tournament" data-cy="create-tournament" ${leagueActive ? "" : "disabled aria-disabled=\"true\" title=\"Completed Leagues cannot add Tournaments\""}>Add Tournament</button>
         </div>
         <div class="mt-5 grid gap-3" data-cy="tournament-list">
           ${renderTournamentList()}
@@ -110,8 +110,8 @@ function renderTournamentList() {
       const hasMissingBye = hasMissingByeWarning(tournament);
       return `
         <a class="group league-card ${hasMissingBye ? "border-blood" : ""}" data-cy="tournament-list-item" href="${href}">
-          <div class="${SECTION_HEADER_CLASSES}">
-            <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div class="${SECTION_HEADER_CLASSES} items-center">
+            <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
               <h3 class="m-0 text-xl font-extrabold leading-tight text-hot-blood">${escapeHtml(tournament.name)}</h3>
               <span class="text-xl font-semibold leading-tight text-dim-ash">${formatTournamentDate(tournament.tournamentDate)}</span>
               <span class="text-xl font-semibold leading-tight text-dim-ash">${playerCount} player${playerCount === 1 ? "" : "s"}</span>
@@ -204,7 +204,7 @@ function bindEvents() {
   });
 
   document.querySelector("[data-action='create-tournament']").addEventListener("click", () => {
-    const tournament = createTournament({ leagueId: league.id, name: "New Tournament" });
+    const tournament = createTournament({ leagueId: league.id });
     league.tournaments.push(tournament);
     saveData(data);
     location.href = `tournament.html?leagueId=${encodeURIComponent(league.id)}&tournamentId=${encodeURIComponent(tournament.id)}&editName=1`;

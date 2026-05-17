@@ -24,7 +24,7 @@ describe("Gones MVP", () => {
 
     cy.get("[data-cy='create-tournament']").click();
 
-    cy.get("[data-cy='tournament-name']").should("be.visible").and("have.value", "New Tournament").clear().type("Renamed Tournament{enter}");
+    cy.get("[data-cy='tournament-name']").should("be.visible").and("have.value", todaysTournamentName()).clear().type("Renamed Tournament{enter}");
     cy.get("[data-cy='tournament-title']").should("be.visible").and("contain", "Renamed Tournament");
     cy.get("[data-cy='breadcrumb-current']").should("have.text", "Renamed Tournament");
   });
@@ -232,6 +232,11 @@ Cypress.Commands.add("shouldSitNextToBrand", { prevSubject: true }, (subject) =>
   expect(breadcrumb.left).to.be.greaterThan(brand.right);
   expect(breadcrumb.left - brand.right).to.be.lessThan(24);
 });
+
+function todaysTournamentName() {
+  const today = new Date();
+  return `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, "0")}/${String(today.getDate()).padStart(2, "0")}`;
+}
 
 function createLeague(name) {
   cy.get("[data-cy='open-create-league']").click();

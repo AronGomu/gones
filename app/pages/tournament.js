@@ -1,4 +1,4 @@
-import { createByeRoundEntry, createMatchRoundEntry, createRound } from "../domain/models.js";
+import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName } from "../domain/models.js";
 import { calculateTournamentResult } from "../domain/results.js";
 import { getTournamentWarnings } from "../domain/warnings.js";
 import { renderRankingTable } from "../components/ranking-table.js";
@@ -38,7 +38,7 @@ function render() {
   document.title = `Gones - ${tournament.name}`;
   app.innerHTML = `
     <div class="grid gap-[18px]">
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
         ${renderBackButton()}
         ${renderMissingByeTournamentWarning(warnings)}
         ${renderAddMissingByesButton(warnings)}
@@ -97,7 +97,7 @@ function bindEvents() {
   });
 
   const saveTournamentTitle = () => {
-    tournament.name = titleInput.value.trim() || "New Tournament";
+    tournament.name = titleInput.value.trim() || getDefaultTournamentName();
     titleInput.value = tournament.name;
     saveData(data);
     titleButton.textContent = tournament.name;
@@ -198,7 +198,7 @@ function renderMissingByeTournamentWarning(warnings) {
 
 function renderAddMissingByesButton(warnings) {
   return warnings.some((warning) => warning.code === "missingBye")
-    ? `<button type="button" class="button-create min-h-[52px] px-6 text-lg" data-action="add-missing-byes" data-cy="add-missing-byes">Add Missing Byes Matches</button>`
+    ? `<button type="button" class="button-warning justify-self-end" data-action="add-missing-byes" data-cy="add-missing-byes">Add Missing Byes Matches</button>`
     : "";
 }
 
