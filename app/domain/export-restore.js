@@ -1,4 +1,4 @@
-import { GONES_DATA_VERSION, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament } from "./models.js";
+import { GONES_DATA_VERSION, createByeRoundEntry, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament } from "./models.js";
 
 export function exportLeague(league) {
   if (!league?.id) throw new Error("invalidLeague");
@@ -29,5 +29,6 @@ function remapRound(source, { idFactory }) {
 function remapEntry(entry, { idFactory }) {
   const { id, ...entryWithoutId } = entry;
   if (entry.kind === "invalid") return createInvalidRoundEntry(entryWithoutId, { idFactory });
+  if (entry.kind === "bye") return createByeRoundEntry(entryWithoutId, { idFactory });
   return createMatchRoundEntry(entryWithoutId, { idFactory });
 }

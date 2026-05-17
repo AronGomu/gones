@@ -125,7 +125,7 @@ function renderDeleteLeagueDialog() {
         </label>
         <div class="flex flex-wrap justify-end gap-3">
           <button class="button-secondary" type="button" data-action="close-delete-league-dialog">Cancel</button>
-          <button class="button-danger" type="button" data-action="confirm-delete-league" data-cy="confirm-delete-league" disabled>Delete League</button>
+          <button class="button-danger delete-confirm-button" type="button" data-action="confirm-delete-league" data-cy="confirm-delete-league" disabled aria-disabled="true">Delete League</button>
         </div>
       </section>
     </div>
@@ -250,13 +250,20 @@ function bindDeleteLeagueDialog() {
   const dialog = document.querySelector("[data-dialog='delete-league']");
   const input = document.querySelector("[data-action='delete-league-confirmation-input']");
   const confirmButton = document.querySelector("[data-action='confirm-delete-league']");
+  const updateConfirmButton = () => {
+    const disabled = input.value !== league.name;
+    confirmButton.disabled = disabled;
+    confirmButton.setAttribute("aria-disabled", String(disabled));
+  };
   const closeDialog = () => {
     dialog.classList.add("hidden");
     input.value = "";
-    confirmButton.disabled = true;
+    updateConfirmButton();
   };
 
   document.querySelector("[data-action='open-delete-league-dialog']").addEventListener("click", () => {
+    input.value = "";
+    updateConfirmButton();
     dialog.classList.remove("hidden");
     requestAnimationFrame(() => input.focus());
   });
@@ -265,9 +272,7 @@ function bindDeleteLeagueDialog() {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) closeDialog();
   });
-  input.addEventListener("input", () => {
-    confirmButton.disabled = input.value !== league.name;
-  });
+  input.addEventListener("input", updateConfirmButton);
   input.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeDialog();
   });

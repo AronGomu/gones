@@ -146,7 +146,17 @@
   }
 
   .button-danger {
-    @apply inline-flex min-h-[38px] cursor-pointer items-center justify-center rounded-card border border-[oklch(34%_0.13_27)] bg-deep-blood px-3 py-2 font-bold text-[oklch(90%_0.045_38)] hover:border-[oklch(45%_0.16_27)] hover:bg-[oklch(30%_0.14_27)] hover:text-ash;
+    @apply inline-flex min-h-[38px] cursor-pointer items-center justify-center rounded-card border border-[oklch(34%_0.13_27)] bg-deep-blood px-3 py-2 font-bold text-[oklch(90%_0.045_38)] hover:border-[oklch(45%_0.16_27)] hover:bg-[oklch(30%_0.14_27)] hover:text-ash disabled:cursor-not-allowed;
+  }
+
+  .delete-confirm-button:disabled,
+  .delete-confirm-button[aria-disabled="true"] {
+    cursor: not-allowed;
+    border-color: oklch(31% 0.045 34) !important;
+    background-color: oklch(16% 0.035 31) !important;
+    color: var(--color-steel) !important;
+    box-shadow: none !important;
+    opacity: 0.62;
   }
 
   .field {

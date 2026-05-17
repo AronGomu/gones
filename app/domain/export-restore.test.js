@@ -1,5 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createIdFactory, createLeague } from "./models.js";
 import { exportLeague, restoreLeague } from "./export-restore.js";
+import { getTournamentWarnings } from "./warnings.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe("Gones Export and Restore", () => {
   it("exports source data only", () => {
@@ -28,5 +34,12 @@ describe("Gones Export and Restore", () => {
     const source = createLeague({ status: "finished" });
     const restored = restoreLeague(exportLeague(source), { idFactory: createIdFactory("new") });
     expect(restored.status).toBe("finished");
+  });
+
+  it("restores clean real League data without false missing bye warnings", () => {
+    const exported = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/gones-league-6.clean.json"), "utf8"));
+    const restored = restoreLeague(exported, { idFactory: createIdFactory("new") });
+    const warnings = restored.tournaments.flatMap((tournament) => getTournamentWarnings(tournament));
+    expect(warnings.filter((warning) => warning.code === "missingBye")).toEqual([]);
   });
 });
