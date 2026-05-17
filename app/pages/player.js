@@ -33,7 +33,10 @@ function render() {
         <div class="section-header">
           <h2 class="m-0 text-xl leading-tight">Matches</h2>
           <div class="flex flex-wrap items-center gap-2.5">
-            <input class="${INPUT_CLASSES}" name="matchSearch" data-cy="filter-matches" placeholder="Filter matches" value="${escapeAttribute(matchSearch)}">
+            <div class="filter-field-wrap">
+              <input class="${INPUT_CLASSES} pr-10" name="matchSearch" data-cy="filter-matches" placeholder="Filter matches" value="${escapeAttribute(matchSearch)}">
+              <button type="button" class="filter-clear-button ${matchSearch ? "" : "hidden"}" data-action="clear-match-filter" data-cy="clear-match-filter" aria-label="Clear match filter">×</button>
+            </div>
             <button type="button" class="button-secondary" data-action="toggle-match-sort" data-cy="toggle-match-sort" aria-label="Sort matches by date ${matchSortDirection === "asc" ? "descending" : "ascending"}">
               Date ${matchSortDirection === "asc" ? "ascending ↑" : "descending ↓"}
             </button>
@@ -53,7 +56,13 @@ function render() {
 function bindMatchControls() {
   document.querySelector("[data-cy='filter-matches']").addEventListener("input", (event) => {
     matchSearch = event.currentTarget.value;
+    updateClearFilterButton();
     renderStats();
+  });
+
+  document.querySelector("[data-action='clear-match-filter']").addEventListener("click", () => {
+    matchSearch = "";
+    render();
   });
 
   document.querySelector("[data-action='toggle-match-sort']").addEventListener("click", () => {
@@ -69,11 +78,12 @@ function renderStats() {
     ${stat("Byes", stats.byeCount, "Number of rounds where this player received a bye instead of playing an opponent.")}
     ${stat("Match Win Rate", formatPercentage(stats.matchWinrate), "Percentage of played matches this player won, excluding byes.")}
     ${stat("Game Win Rate", formatPercentage(stats.gameWinrate), "Percentage of individual games this player won across played matches, excluding byes.")}
-    ${stat("Nemesis", stats.nemesis ?? "N/A", "Opponent this player performs worst against in the selected scope.")}
-    ${stat("Rival", stats.rival ?? "N/A", "Opponent this player has faced most often in the selected scope.")}
+    ${stat("Nemesis", stats.nemesis ?? "N/A", "Opponent this player performs worst against in the selected scope.", { filterValue: stats.nemesis })}
+    ${stat("Rival", stats.rival ?? "N/A", "Opponent this player has faced most often in the selected scope.", { filterValue: stats.rival })}
   `;
   const matches = stats.matches.filter(matchesSearch).sort(compareMatchesByDate);
   document.querySelector("[data-cy='player-match-list']").innerHTML = matches.length ? renderMatchTable(matches) : `<p class="text-dim-ash">No Matches.</p>`;
+  bindStatFilterCards();
 }
 
 function updateUrl() {
@@ -84,11 +94,37 @@ function updateUrl() {
   history.replaceState(null, "", `player.html?${next.toString()}`);
 }
 
-function stat(label, value, description = "") {
+function stat(label, value, description = "", { filterValue = "" } = {}) {
   const tooltip = description
     ? `<span class="stat-tooltip" role="tooltip">${escapeHtml(description)}</span>`
     : "";
-  return `<article class="panel p-3.5"><span class="stat-tooltip-trigger text-dim-ash" tabindex="0">${escapeHtml(label)}${tooltip}</span><strong class="block text-2xl text-ash">${escapeHtml(value)}</strong></article>`;
+  const canFilter = filterValue && filterValue !== "N/A";
+  const filterAttributes = canFilter ? ` role="button" tabindex="0" data-action="filter-by-stat" data-filter-value="${escapeAttribute(filterValue)}" title="Filter matches by ${escapeAttribute(filterValue)}"` : "";
+  const className = canFilter ? "panel stat-filter-card p-3.5" : "panel p-3.5";
+  return `<article class="${className}"${filterAttributes}><span class="stat-tooltip-trigger text-dim-ash" tabindex="0">${escapeHtml(label)}${tooltip}</span><strong class="block text-2xl text-ash">${escapeHtml(value)}</strong></article>`;
+}
+
+function updateClearFilterButton() {
+  document.querySelector("[data-action='clear-match-filter']")?.classList.toggle("hidden", !matchSearch);
+}
+
+function bindStatFilterCards() {
+  document.querySelectorAll("[data-action='filter-by-stat']").forEach((card) => {
+    const applyFilter = () => {
+      matchSearch = card.dataset.filterValue ?? "";
+      const input = document.querySelector("[data-cy='filter-matches']");
+      if (input) input.value = matchSearch;
+      updateClearFilterButton();
+      renderStats();
+    };
+    card.addEventListener("click", applyFilter);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        applyFilter();
+      }
+    });
+  });
 }
 
 function renderMatchTable(matches) {

@@ -153,6 +153,14 @@
     @apply min-h-[38px] rounded-card border border-[oklch(42%_0.07_36)] bg-black-metal px-2.5 py-2 text-ash placeholder:text-[oklch(58%_0.025_70)] focus-visible:border-[oklch(58%_0.16_29)];
   }
 
+  .filter-field-wrap {
+    @apply relative inline-flex;
+  }
+
+  .filter-clear-button {
+    @apply absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-card border border-soot bg-raised-iron text-lg font-bold leading-none text-dim-ash hover:border-blood hover:bg-[oklch(24%_0.06_30)] hover:text-ash;
+  }
+
   .modal-backdrop {
     @apply fixed inset-0 z-50 grid place-items-center bg-[oklch(4%_0.012_29_/_0.72)] p-4;
   }
@@ -321,6 +329,23 @@
     border-width: 6px 6px 0 6px;
     border-style: solid;
     border-color: var(--color-black-metal) transparent transparent transparent;
+  }
+
+  .stat-filter-card {
+    @apply cursor-pointer transition-[background-color,border-color,box-shadow,transform] duration-200 ease-out;
+  }
+
+  .stat-filter-card:hover {
+    @apply -translate-y-0.5 border-blood bg-[oklch(14%_0.052_29)] shadow-[0_18px_34px_oklch(4%_0.012_29_/_0.5)];
+  }
+
+  .stat-filter-card:hover strong {
+    @apply text-hot-blood;
+  }
+
+  .stat-filter-card:focus-visible {
+    outline: 2px solid oklch(67% 0.17 29);
+    outline-offset: 2px;
   }
 
   .stat-tooltip-trigger:hover .stat-tooltip,
