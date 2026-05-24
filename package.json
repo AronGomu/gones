@@ -4,17 +4,43 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:css": "tailwindcss -i ./app/styles/tailwind-source.css -o ./app/styles/tailwind.css --minify",
-    "dev": "vite --host 127.0.0.1",
-    "test:domain": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.js",
+    "dev": "ng serve --host 127.0.0.1",
     "cy:open": "cypress open",
-    "cy:run": "cypress run"
+    "cy:run": "cypress run",
+    "build": "ng build",
+    "lint": "ng build --configuration development",
+    "test": "vitest run",
+    "supabase": "supabase",
+    "supabase:start": "supabase start",
+    "supabase:reset": "supabase db reset"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "^4.3.0",
+    "@angular/build": "^21.2.12",
+    "@angular/cli": "^21.2.12",
+    "@angular/compiler-cli": "^21.2.14",
+    "@types/node": "^25.9.1",
     "cypress": "^15.0.0",
-    "jest": "^30.4.2",
-    "tailwindcss": "^4.3.0",
-    "vite": "^7.0.0"
+    "jsdom": "^29.1.1",
+    "supabase": "^2.101.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.7"
+  },
+  "dependencies": {
+    "@angular/animations": "^21.2.14",
+    "@angular/cdk": "^21.2.12",
+    "@angular/common": "^21.2.14",
+    "@angular/compiler": "^21.2.14",
+    "@angular/core": "^21.2.14",
+    "@angular/forms": "^21.2.14",
+    "@angular/material": "^21.2.12",
+    "@angular/platform-browser": "^21.2.14",
+    "@angular/router": "^21.2.14",
+    "@angular/service-worker": "^21.2.14",
+    "@supabase/supabase-js": "^2.106.1",
+    "rxjs": "^7.8.2",
+    "tslib": "^2.8.1"
+  },
+  "overrides": {
+    "qs": "6.15.2"
   }
 }
