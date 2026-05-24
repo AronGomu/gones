@@ -1,0 +1,3 @@
+# Use Supabase for Backend Services
+
+Gones needs public read access, authenticated organizer/admin writes, OAuth, and database persistence, but traffic is expected to stay very low. We decided to use Supabase for PostgreSQL, Auth, and access control instead of hosting a custom backend, because it avoids always-on server cost and keeps deployment simple while still allowing a custom backend later if the app outgrows Supabase policies or functions. The Angular SPA will read and write through the Supabase client directly, with public read policies and authenticated Organizer/Admin write policies, rather than introducing a custom API layer for the MVP.

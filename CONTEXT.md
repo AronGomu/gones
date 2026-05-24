@@ -16,6 +16,14 @@ _Avoid_: Creation date
 A named collection of Tournaments whose results are combined.
 _Avoid_: Season when dates are meant
 
+**Active League**:
+A League that can still receive tournament source data changes.
+_Avoid_: Running league
+
+**Completed League**:
+A League whose tournament source data is preserved for review and no longer receives normal tournament source-data edits.
+_Avoid_: Finished league
+
 **Tournament Import**:
 The act of bringing externally formatted tournament data into Gones.
 _Avoid_: Scrapping, crawl, raw text
@@ -29,7 +37,7 @@ A Tournament Import that brings Round and Match data into Gones.
 _Avoid_: Standings import
 
 **Round Import Format**:
-The MVP CSV shape used to paste Round Match data into Gones.
+The CSV shape used to paste Round Entry source data into Gones.
 _Avoid_: SpiceRack format as the canonical model
 
 **Round Replacement**:
@@ -43,6 +51,22 @@ _Avoid_: Player entity, account, user
 **Player Statistics**:
 A derived view that aggregates all Matches with a specific Player Name.
 _Avoid_: Player profile, player account
+
+**User**:
+A logged-in account that can access Gones.
+_Avoid_: Player, Player Name
+
+**Organizer User**:
+A User allowed to modify tournament source data.
+_Avoid_: Admin when account management is meant
+
+**Admin User**:
+A User allowed to manage which Users are Organizer Users.
+_Avoid_: Organizer when account management is meant
+
+**Visitor**:
+An unauthenticated person who can consult and export public Gones data without modifying source data.
+_Avoid_: Viewer User, Player
 
 **Bye Count**:
 The number of Byes assigned to a Player Name.
@@ -104,6 +128,10 @@ _Avoid_: Score
 The number of games won by each Player Name inside a Match.
 _Avoid_: Match score
 
+**Deck Archetype**:
+The archetype name recorded for a Player Name on a Match result when available.
+_Avoid_: Decklist when full card lists are not meant, Deck as a standalone MVP entity
+
 **Tournament Points**:
 Points awarded from Match Outcomes inside a Tournament.
 _Avoid_: Game points
@@ -145,16 +173,40 @@ Removing a League, Tournament, Round, or Match from Gones' active dataset.
 _Avoid_: Archive
 
 **Gones Export**:
-Exporting one League's source data so it can be preserved or restored without losing meaning.
-_Avoid_: Round Import, report
+Creating a JSON source-data backup for one League or the full Gones dataset.
+_Avoid_: Round Import, Report Download
+
+**League Export**:
+A Gones Export covering one League and its source data.
+_Avoid_: Full Data Export, Report Download
+
+**Full Data Export**:
+A Gones Export covering all Leagues and their source data.
+_Avoid_: League Export, Report Download
 
 **Gones Restore**:
-Importing one League dataset from a Gones Export.
-_Avoid_: Merge import
+Importing source data from a Gones Export.
+_Avoid_: Merge import, Report Download
+
+**League Restore**:
+A Gones Restore that creates a League from a League Export.
+_Avoid_: Full Data Restore, overwrite
+
+**Full Data Restore**:
+A Gones Restore that imports the full Gones dataset from a Full Data Export.
+_Avoid_: League Restore
+
+**Report Download**:
+Creating a presentation PDF or image of a Tournament Result, League Result, or Player Statistics.
+_Avoid_: Gones Export, backup
 
 **Gones Data Version**:
 The version of the Gones data shape used in a Gones Export.
 _Avoid_: App version
+
+**Gones App Version**:
+The version of the Gones application that created a Gones Export.
+_Avoid_: Gones Data Version
 
 **Ranking Table**:
 A UI table for presenting Tournament Results or League Results.
@@ -179,19 +231,19 @@ _Avoid_: Ranking Table
 - A **Round Import** performs a **Round Replacement** for its targeted Round
 - A **Round Import** removes leading and trailing whitespace from imported fields
 - A **Round Import** ignores blank lines
-- The MVP **Round Import Format** is `player_1,player_2,player_1_score,player_2_score`
-- The MVP **Round Import Format** supports quoted CSV fields
-- The MVP **Round Import Format** supports comma-separated and semicolon-separated rows
-- Rows with extra columns do not match the MVP **Round Import Format**
-- Rows with missing columns do not match the MVP **Round Import Format**
-- The MVP **Round Import Format** derives Match Outcome from Game Score
-- The MVP **Round Import Format** does not use explicit outcome text
-- In the MVP **Round Import Format**, `0,0` scores between two Player Names import as a drawn Match
-- The MVP **Round Import Format** may include a matching header row
-- In the MVP **Round Import Format**, `bye` in `player_2` represents a **Bye** after trimming and ignoring case
-- **Bye** scores in a **Round Import** are ignored
+- The current **Round Import Format** is `table,player,result,opponent,player_decklist,opponent_decklist`
+- The current **Round Import Format** requires a matching header row before Round Entries
+- The current **Round Import Format** supports quoted CSV fields
+- Rows with extra columns do not match the current **Round Import Format**
+- Rows with missing columns do not match the current **Round Import Format**
+- The current **Round Import Format** uses explicit result text such as `Won 2-0`, `Lost 1-2`, or `Draw 1-1`
+- The current **Round Import Format** may record Deck Archetypes for both Player Names
+- Deck Archetype data from Round Import is preserved in canonical Match source data
+- The current **Round Import Format** treats malformed rows as Invalid Round Entries
+- Current Angular migration preserves existing Round Import behavior through adapters before redesigning import semantics
 - A **Tournament** is not tied to SpiceRack after import
 - Gones has no independent Player entity outside recorded Match results
+- A **User** is distinct from a **Player Name**
 - A **Player Name** is edited only by changing the name recorded on Match results
 - Two different **Player Names** represent different statistical identities, even when they look like variants of the same real person
 - **Player Name** matching is exact after removing leading and trailing whitespace
@@ -203,24 +255,58 @@ _Avoid_: Ranking Table
 - **Player Statistics** may be filtered by League or Tournament
 - **Player Statistics** include only active, non-deleted Tournaments and Leagues
 - **Player Statistics** include valid Matches from Incomplete Tournaments
+- **Leagues** have a status of active or completed
+- The persisted League status value for a Completed League is `completed`
+- Legacy `finished` League status values are normalized to `completed` during migration
+- A Completed League blocks normal tournament source-data edits
+- Organizer Users can reopen a Completed League by changing it back to active before editing
+- **Leagues** are public to Visitors and Users
+- **Leagues** are not owned by individual **Organizer Users**
+- Any **Organizer User** can modify any **League**
+- An **Organizer User** can modify tournament source data
+- An **Admin User** can add and remove Organizer Users
+- An **Admin User** can do everything an Organizer User can do
+- Organizer and Admin access is granted by matching a Google-authenticated User to an authorized email
+- Authorized emails are stored and compared in lowercase
+- Any Google-authenticated User may sign in
+- A Google-authenticated User without authorized access has the same data permissions as a Visitor
+- An Admin User cannot remove or downgrade their own Admin access through Gones
+- Gones must keep at least one Admin User
+- A **Visitor** can consult and export tournament data
+- A **Visitor** can perform League Export, Full Data Export, and Report Download
+- A **Visitor** cannot perform Gones Restore
+- A **Visitor** cannot modify tournament source data
+- Visitors and unauthorized Users do not see source-data modification controls
 - **Delete** is destructive in the MVP
 - A **Delete** removes a Match rather than preserving it as an Invalid Round Entry
-- **Gones Export** preserves one League dataset for round-trip restore
+- **Gones Export** preserves source data for round-trip restore
 - **Gones Export** is distinct from **Round Import**
+- **Gones Export** is distinct from **Report Download**
 - **Gones Export** is part of the MVP
-- **Gones Export** covers one League, including all Tournaments, Rounds, and Round Entries in that League
+- **League Export** covers one League, including all Tournaments, Rounds, and Round Entries in that League
+- **Full Data Export** covers all Leagues and their source data
+- Visitors, Organizer Users, and Admin Users can perform Full Data Export
 - **Gones Export** includes descriptive League dates
 - **Gones Export** includes Tournament names and Tournament Dates
 - **Gones Export** stores source data, not derived results
 - **Gones Export** does not store derived warnings
 - **Gones Export** preserves **Invalid Round Entries** for later correction
 - **Gones Export** includes a **Gones Data Version**
-- **Gones Restore** imports one League dataset
-- **Gones Restore** creates a new League by default
-- **Gones Restore** preserves the exported League name unless it must distinguish a duplicate
-- **Gones Restore** gives the imported League and its Tournaments new identities
+- **Gones Export** includes a **Gones App Version**
+- **Gones Restore** imports source data from a Gones Export
+- **Gones Restore** modifies canonical source data
+- Organizer Users and Admin Users can perform League Restore
+- Only Admin Users can perform Full Data Restore
+- **League Restore** creates a new League by default
+- **League Restore** preserves the exported League name unless it must distinguish a duplicate
+- **League Restore** gives the imported League and its Tournaments new identities
+- **Full Data Restore** imports restored Leagues alongside existing Leagues by default
+- **Full Data Restore** does not overwrite the full active dataset in the MVP
+- **Full Data Restore** gives imported Leagues and their Tournaments new identities
 - **Gones Restore** rejects malformed or unsupported Gones Exports
 - **Gones Restore** preserves **Invalid Round Entries** from valid Gones Exports
+- **Report Download** does not create source-data backup files
+- **Report Download** can present a Tournament Result, League Result, or Player Statistics
 - A **League Result** is recalculated from the League's Tournaments after relevant data changes
 - A **Tournament** may contain zero or more **Rounds** while editing
 - A **Round** contains zero or more **Round Entries**
@@ -235,15 +321,23 @@ _Avoid_: Ranking Table
 - A **Match** has one **Match Outcome**
 - A **Match** may have a **Game Score**
 - A **Round Entry** can be a **Match**, **Bye**, or **Invalid Round Entry**
-- **Match** source data records neutral Player Name and Game Score fields rather than winner and loser fields
+- **Match** source data records neutral Player Name, Game Score, and Deck Archetype fields rather than winner and loser fields
+- Canonical Match source data uses `table`, `player1Name`, `player2Name`, `player1Score`, `player2Score`, `player1DeckArchetype`, and `player2DeckArchetype`
+- Table is optional source data on Round Entries and does not affect rankings
+- Round Import adapters convert source-format fields such as `table`, `player`, `result`, `opponent`, `player_decklist`, and `opponent_decklist` into canonical Match source data
+- Legacy import headers named `player_decklist` and `opponent_decklist` contain Deck Archetype data, not full Decklists
+- `result` strings are not canonical Match source data after migration
+- Round Import adapter tests must preserve Deck Archetype data during conversion
 - **Match Outcome** is derived from Match source data
 - **Round Entry** source data distinguishes Matches, Byes, and Invalid Round Entries with `kind` values of `match`, `bye`, and `invalid`
 - A `kind: "match"` Round Entry is a **Valid Match**
 - A malformed Round Entry uses `kind: "invalid"` until corrected
+- Canonical Invalid Round Entry source data preserves `rawText` and may include optional editable fields matching Match or Bye correction fields
 - MVP **Match** order within a Round comes from creation or import order
 - MVP Gones does not support manual Match reordering
 - A played **Valid Match** has two different Player Names, a Match Outcome, and a Game Score
 - A **Valid Match** may instead assign one Player Name a **Bye**
+- Canonical Bye source data uses `table`, `playerName`, and `playerDeckArchetype`
 - A **Bye** Round Entry requires a non-empty allowed Player Name
 - An empty Player Name makes a Match invalid
 - A Match with the same Player Name on both sides is invalid
@@ -363,28 +457,25 @@ _Avoid_: Ranking Table
 > **Domain expert:** "Yes - the **Round Import Format** supports quoted CSV fields."
 >
 > **Dev:** "Should `Alice;Bob;2;1` import as a Match?"
-> **Domain expert:** "Yes - the **Round Import Format** supports comma-separated and semicolon-separated rows."
+> **Domain expert:** "No - the current **Round Import Format** uses comma-separated fields with the header `table,player,result,opponent,player_decklist,opponent_decklist`."
 >
 > **Dev:** "Should extra CSV columns be ignored?"
-> **Domain expert:** "No - rows with extra columns do not match the MVP **Round Import Format**."
+> **Domain expert:** "No - rows with extra columns do not match the current **Round Import Format**."
 >
 > **Dev:** "Should `Alice,Bob,2` import as a partial Match?"
-> **Domain expert:** "It is preserved as an **Invalid Round Entry** because it does not match the MVP **Round Import Format**."
+> **Domain expert:** "It is preserved as an **Invalid Round Entry** because it does not match the current **Round Import Format**."
 >
-> **Dev:** "Does the MVP import need a separate winner column?"
-> **Domain expert:** "No - the **Round Import Format** derives the **Match Outcome** from the **Game Score**."
+> **Dev:** "Does the current import need explicit result text?"
+> **Domain expert:** "Yes - the current **Round Import Format** uses result text such as `Won 2-0`, `Lost 1-2`, or `Draw 1-1`."
 >
-> **Dev:** "Can a pasted row use `draw` instead of scores?"
-> **Domain expert:** "No - the MVP **Round Import Format** derives outcome from **Game Score** only."
+> **Dev:** "Can pasted Round CSV include deck archetype fields?"
+> **Domain expert:** "Yes - the current **Round Import Format** may record a **Deck Archetype** for both Player Names, even though legacy headers say `decklist`."
 >
-> **Dev:** "Does `Alice,Bob,0,0` import as a draw?"
-> **Domain expert:** "Yes - `0,0` scores between two **Player Names** import as a drawn **Match**."
->
-> **Dev:** "Can pasted Round CSV include a header row?"
-> **Domain expert:** "Yes - a matching **Round Import Format** header row is ignored."
+> **Dev:** "Can pasted Round CSV omit the header row?"
+> **Domain expert:** "No - the current **Round Import Format** requires its matching header row before Round Entries."
 >
 > **Dev:** "Should `Alice,BYE,1,0` import as a **Bye**?"
-> **Domain expert:** "Yes - `bye` in the second Player Name field means **Bye**, and its scores are ignored."
+> **Domain expert:** "No - the current **Round Import Format** does not import Byes from a `bye` opponent row."
 >
 > **Dev:** "Can a real participant use `bye` as their Player Name?"
 > **Domain expert:** "No - `bye` is reserved and is not allowed as a **Player Name**."
@@ -597,13 +688,16 @@ _Avoid_: Ranking Table
 > **Domain expert:** "No - **Delete** removes the Match from the Round."
 >
 > **Dev:** "Is exported Gones data the same thing as **Round Import** data?"
-> **Domain expert:** "No - **Gones Export** is for preserving and restoring one League dataset exactly."
+> **Domain expert:** "No - **Gones Export** is for JSON source-data backups, not importing Round rows."
 >
 > **Dev:** "Can backup export wait until after MVP?"
 > **Domain expert:** "No - **Gones Export** is part of the MVP."
 >
 > **Dev:** "Does **Gones Export** export only one League?"
-> **Domain expert:** "Yes - MVP **Gones Export** covers one League and all Tournaments, Rounds, and Round Entries in that League."
+> **Domain expert:** "No - use **League Export** for one League and **Full Data Export** for all Leagues."
+>
+> **Dev:** "Should a nice-looking PDF of standings be called an export?"
+> **Domain expert:** "No - use **Report Download** for PDF or image presentations of results or player statistics."
 >
 > **Dev:** "Should descriptive League dates survive export and restore?"
 > **Domain expert:** "Yes - **Gones Export** includes descriptive League dates."
@@ -623,17 +717,20 @@ _Avoid_: Ranking Table
 > **Dev:** "How should future Gones versions understand old exports?"
 > **Domain expert:** "A **Gones Export** includes a **Gones Data Version** so it can be migrated."
 >
+> **Dev:** "How should we know which app version created an export file?"
+> **Domain expert:** "A **Gones Export** includes a **Gones App Version** for provenance and debugging."
+>
 > **Dev:** "Should restoring an export merge with current data?"
-> **Domain expert:** "**Gones Restore** imports one League dataset; it does not restore the full Gones dataset."
+> **Domain expert:** "**League Restore** creates a new League by default; **Full Data Restore** restores a full dataset."
 >
 > **Dev:** "If I import a League export with the same name as an existing League, should it overwrite?"
-> **Domain expert:** "No - **Gones Restore** creates a new **League** by default."
+> **Domain expert:** "No - **League Restore** creates a new **League** by default."
 >
 > **Dev:** "What if the imported League has the same name as an existing League?"
 > **Domain expert:** "Preserve the name when possible; if it collides, make the imported **League** distinguishable."
 >
 > **Dev:** "Should restored internal IDs be reused?"
-> **Domain expert:** "No - **Gones Restore** creates a new **League** with new identities."
+> **Domain expert:** "No - **League Restore** creates a new **League** with new identities."
 >
 > **Dev:** "Should a malformed export create a partial League?"
 > **Domain expert:** "No - **Gones Restore** rejects malformed or unsupported **Gones Exports**."
@@ -652,12 +749,21 @@ _Avoid_: Ranking Table
 - "scrapping", "crawl", "raw text", and "import CSV" were used for the same workflow - resolved: the canonical term is **Tournament Import**, with **SpiceRack Import** for the SpiceRack-specific format.
 - "standings import" was part of the early design - resolved: Gones supports **Round Import**, not standings import.
 - Legacy standings are not source data and are ignored during migration.
-- "SpiceRack format" could mean the domain model or a source adapter - resolved: the MVP **Round Import Format** is simple CSV and may adapt later to SpiceRack exports.
+- "SpiceRack format" could mean the domain model or a source adapter - resolved: the current **Round Import Format** is a headered CSV with table, player, result, opponent, and Deck Archetype fields, and may adapt later to SpiceRack exports.
 - "import" could mean append or replace - resolved: **Round Import** performs a **Round Replacement**.
-- "export" could mean reporting or backup - resolved: **Gones Export** preserves one League dataset for round-trip restore.
-- "restore" could mean full-app restore or League import - resolved: **Gones Restore** imports one League dataset.
+- "export" could mean reporting or backup - resolved: **Gones Export** means JSON source-data backup only, while **Report Download** means a presentation PDF or image.
+- "Gones Export" could mean one League or all Leagues - resolved: use **League Export** for one League and **Full Data Export** for all Leagues.
+- "who can export" could mean public League backups or full-dataset backups - resolved: Visitors can perform **League Export** and **Full Data Export** because export is read-only public source data.
+- "restore" could mean full-app restore or League import - resolved: use **League Restore** for one League and **Full Data Restore** for all Leagues.
+- "finished League" and "completed League" referred to the same status - resolved: use **Completed League** and persist the status value as `completed`.
+- "version" could mean data compatibility or app release provenance - resolved: use **Gones Data Version** for data shape and **Gones App Version** for the application version that created an export.
 - "player" could mean an independent entity or a name recorded in Match results - resolved: Gones has no independent Player entity; use **Player Name** for the recorded value.
 - "player page" could imply a stored profile - resolved: **Player Statistics** are derived by aggregating Match results with a selected **Player Name** across all Leagues.
+- "user" and "player" could imply the same person - resolved: a **User** is a logged-in account, while a **Player Name** is recorded tournament data.
+- "admin" could mean app-wide account management or tournament editing - resolved: use **Admin User** for managing Organizer Users and **Organizer User** for modifying tournament source data.
+- "organizer ownership" could mean each Organizer User owns specific Leagues - resolved: Leagues are shared Gones organization data and any Organizer User can modify any League.
+- "read-only user" was reconsidered - resolved: use **Visitor** for unauthenticated read/export access instead of a logged-in Viewer User.
+- "update tournament result" could mean directly editing rankings - resolved: **Tournament Result** remains derived; Organizer Users modify source data.
 - "same player name" could mean exact or normalized matching - resolved: **Player Name** matching is exact after removing leading and trailing whitespace.
 - "ranking" could mean stored input data or a derived output - resolved: **Tournament Result** and **League Result** are derived from Rounds after relevant edits.
 - "score" could mean match outcome points or games won inside a match - resolved: use **Tournament Points** for ranking points and **Game Score** for games won.
@@ -665,6 +771,7 @@ _Avoid_: Ranking Table
 - "bye" was considered as a Player-like opponent - resolved: **Bye** is not a **Player Name** and is excluded from player statistics.
 - "league OMW/GW/OGW" could mean summed Tournament percentages or League-wide percentages - resolved: League tiebreakers are calculated across all Tournaments in the League.
 - "tops" appeared in the code but has no domain meaning - resolved: Gones does not model elimination rounds or top cuts.
-- "deck" appears in the early architecture notes but is not part of the MVP domain.
+- "deck" could mean a standalone deck entity or source text recorded on a Match - resolved: Gones records a **Deck Archetype** on a Match result, but does not model Deck as a standalone MVP entity.
+- "decklist" could mean a full card list or an archetype label - resolved: use **Deck Archetype** because Gones records archetype names, not full card lists.
 - "incomplete" could mean unusable or partially usable - resolved: an **Incomplete Tournament** can produce a **Provisional Result** from valid Matches.
 - "valid match" could mean only a winner is known or the full result is known - resolved: a played **Valid Match** requires both a **Match Outcome** and a **Game Score**.
