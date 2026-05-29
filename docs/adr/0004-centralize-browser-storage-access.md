@@ -1,5 +1,5 @@
 # Centralize Browser Storage Access
 
-Status: superseded by [ADR 0008](./0008-use-supabase-as-source-of-truth.md) for the Angular/Supabase migration.
+Status: superseded by [ADR 0008](./0008-use-browser-store-as-temporary-source-of-truth.md) for the Angular frontend-only bridge.
 
-Gones pages should not read and write `localStorage` directly. Browser storage access belongs in a small storage module that exposes load/save functions for source data, while domain modules remain unaware of persistence and pages focus on interaction and rendering. Local storage should use the same versioned data contract as Gones Export so persistence, export, restore, and migrations share one shape. The storage module should detect legacy `league_list` data and migrate it best-effort into the versioned shape, preserving what it can and marking uncertain source data invalid where needed. Legacy standings are ignored because standings are derived; legacy winner/loser round rows are mapped into neutral Round Entries where they are consistent. This keeps export, restore, migration, and future storage changes from being scattered across page files.
+Gones pages should not read and write `localStorage` directly. Browser storage access belongs behind the application backend bridge, while domain modules remain unaware of persistence and pages focus on interaction and rendering. Local storage should use the same versioned data contract as Gones Export so persistence, export, restore, and future migrations share one shape.

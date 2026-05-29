@@ -4,7 +4,7 @@ import { exportFullData, exportLeague, restoreFullData, restoreLeague } from './
 
 describe('export/restore contracts', () => {
   it('uses kind-tagged league exports and regenerates ids on restore', () => {
-    const source = createLeague({ id: 'old-league', name: 'League', tournaments: [{ id: 'old-tournament', rounds: [{ id: 'old-round', entries: [{ kind: 'match', id: 'old-entry', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0 }] }] }] });
+    const source = createLeague({ id: 'old-league', name: 'League', tournaments: [{ id: 'old-tournament', leagueId: 'old-league', name: 'Tournament', tournamentDate: '2026-01-01', rounds: [{ id: 'old-round', entries: [{ kind: 'match', id: 'old-entry', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }] }] });
     const file = exportLeague(source, { appVersion: 'test', now: new Date('2026-01-01T00:00:00Z') });
     expect(file).toMatchObject({ kind: 'league', gonesDataVersion: 2, gonesAppVersion: 'test' });
     const restored = restoreLeague(file, { idFactory: createIdFactory('new') });

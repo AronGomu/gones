@@ -1,12 +1,11 @@
-import { computed, Injectable, signal } from '@angular/core';
-import { Session, User } from '@supabase/supabase-js';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { APP_BACKEND, ApplicationBackend, AuthSession } from '../backend/application-backend';
 import { UserRole } from '../domain/models';
-import { SupabaseClientService } from '../data/supabase-client.service';
 import { logBoundaryError } from '../shared/app-logger';
 
 export interface AuthState {
   loading: boolean;
-  session: Session | null;
+  session: AuthSession | null;
   email: string;
   role: UserRole;
 }
@@ -18,53 +17,33 @@ export class AuthService {
   readonly canEdit = computed(() => this.state().role === 'organizer' || this.state().role === 'admin');
   readonly isAdmin = computed(() => this.state().role === 'admin');
 
-  constructor(private readonly supabase: SupabaseClientService) {
+  private readonly backend: ApplicationBackend = inject(APP_BACKEND);
+
+  constructor() {
     void this.refresh();
-    this.supabase.client?.auth.onAuthStateChange((_event, session) => {
-      void this.applySession(session);
-    });
   }
 
   async refresh(): Promise<void> {
-    if (!this.supabase.client) {
+    try {
+      const session = await this.backend.getSession();
+      this.applySession(session);
+    } catch (error) {
+      logBoundaryError('auth.refresh', error);
       this.stateSignal.set({ loading: false, session: null, email: '', role: 'visitor' });
-      return;
     }
-    const { data } = await this.supabase.client.auth.getSession();
-    await this.applySession(data.session);
   }
 
-  async login(returnUrl = location.pathname + location.search): Promise<void> {
-    const client = this.supabase.requireClient();
-    await client.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${location.origin}/login?returnUrl=${encodeURIComponent(returnUrl)}` }
-    });
+  async login(_returnUrl = location.pathname + location.search, email = 'admin@example.com'): Promise<void> {
+    const session = await this.backend.signIn(email);
+    this.applySession(session);
   }
 
   async signOut(): Promise<void> {
-    await this.supabase.client?.auth.signOut();
+    await this.backend.signOut();
     this.stateSignal.set({ loading: false, session: null, email: '', role: 'visitor' });
   }
 
-  private async applySession(session: Session | null): Promise<void> {
-    const email = verifiedEmail(session?.user);
-    const role = email ? await this.lookupRole(email) : 'visitor';
-    this.stateSignal.set({ loading: false, session, email, role });
+  private applySession(session: AuthSession | null): void {
+    this.stateSignal.set({ loading: false, session, email: session?.email ?? '', role: session?.role ?? 'visitor' });
   }
-
-  private async lookupRole(email: string): Promise<UserRole> {
-    const client = this.supabase.client;
-    if (!client) return 'visitor';
-    const { data, error } = await client.from('authorized_users').select('role').eq('email', email.toLowerCase()).maybeSingle();
-    if (error) { logBoundaryError('auth.lookupRole', error, { email }); return 'visitor'; }
-    if (!data?.role) return 'visitor';
-    return data.role === 'admin' ? 'admin' : data.role === 'organizer' ? 'organizer' : 'visitor';
-  }
-}
-
-function verifiedEmail(user: User | null | undefined): string {
-  const email = user?.email?.toLowerCase() ?? '';
-  const verified = user?.email_confirmed_at || user?.user_metadata?.['email_verified'] === true;
-  return email && verified ? email : '';
 }

@@ -1,45 +1,24 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
+import { APP_BACKEND, ApplicationBackend, type AuthorizedUser } from '../backend/application-backend';
 import { AuthService } from '../auth/auth.service';
-import { SupabaseClientService } from '../data/supabase-client.service';
 
-export interface AuthorizedUser {
-  email: string;
-  role: 'organizer' | 'admin';
-  created_at?: string;
-  updated_at?: string;
-}
+export type { AuthorizedUser } from '../backend/application-backend';
 
 @Injectable({ providedIn: 'root' })
 export class AuthorizedUsersService {
-  private demoUsers: AuthorizedUser[] = [{ email: 'admin@example.com', role: 'admin' }];
+  private readonly backend: ApplicationBackend = inject(APP_BACKEND);
 
-  constructor(private readonly supabase: SupabaseClientService, private readonly auth: AuthService) {}
+  constructor(private readonly auth: AuthService) {}
 
   async list(): Promise<AuthorizedUser[]> {
-    if (!this.supabase.client) return structuredClone(this.demoUsers);
-    const { data, error } = await this.supabase.client.from('authorized_users').select('email,role,created_at,updated_at').order('email');
-    if (error) throw error;
-    return data ?? [];
+    return this.backend.listAuthorizedUsers();
   }
 
   async upsert(email: string, role: 'organizer' | 'admin'): Promise<void> {
-    const normalized = email.trim().toLowerCase();
-    if (!this.supabase.client) {
-      this.demoUsers = [...this.demoUsers.filter((user) => user.email !== normalized), { email: normalized, role }];
-      return;
-    }
-    const actor = this.auth.state().email || null;
-    const { error } = await this.supabase.client.from('authorized_users').upsert({ email: normalized, role, created_by_email: actor, updated_by_email: actor }, { onConflict: 'email' });
-    if (error) throw error;
+    await this.backend.upsertAuthorizedUser(email, role, this.auth.state().email);
   }
 
   async remove(email: string): Promise<void> {
-    const normalized = email.trim().toLowerCase();
-    if (!this.supabase.client) {
-      this.demoUsers = this.demoUsers.filter((user) => user.email !== normalized);
-      return;
-    }
-    const { error } = await this.supabase.client.from('authorized_users').delete().eq('email', normalized);
-    if (error) throw error;
+    await this.backend.removeAuthorizedUser(email, this.auth.state().email);
   }
 }

@@ -49,6 +49,10 @@ h2 { margin: 0; font-size: 1.5rem; }
 .open-affordance { justify-self: end; color: var(--hot-blood); font-size: 3rem; font-weight: 900; }
 .file-button { position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 1rem; border: 1px solid var(--soot); cursor: pointer; }
 .file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.file-button:focus-within { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+.file-button.disabled { opacity: .6; cursor: progress; }
+.toolbar-import { margin-right: .75rem; }
+.app-banner { margin: .75rem auto 0; width: min(1280px, calc(100vw - 32px)); box-sizing: border-box; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--soot); }
 .ranking-table { width: 100%; background: var(--iron); }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }

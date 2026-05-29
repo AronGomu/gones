@@ -12,7 +12,7 @@ import { AuthorizedUser, AuthorizedUsersService } from './authorized-users.servi
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule],
   template: `
-    <section class="page-heading"><div><p class="kicker">Admin</p><h1>Authorized Users</h1><p class="muted">Admin Users inherit Organizer permissions. The database also enforces last-admin/self-protection.</p></div></section>
+    <section class="page-heading"><div><p class="kicker">Admin</p><h1>Authorized Users</h1><p class="muted">Admin Users inherit Organizer permissions. The backend bridge enforces last-admin/self-protection.</p></div></section>
     @if (message()) { <p class="warning">{{ message() }}</p> }
     <mat-card class="panel"><mat-card-title>Add or update User</mat-card-title><mat-card-content class="user-form"><mat-form-field appearance="outline"><mat-label>Email</mat-label><input matInput type="email" [(ngModel)]="email"></mat-form-field><mat-form-field appearance="outline"><mat-label>Role</mat-label><mat-select [(ngModel)]="role"><mat-option value="organizer">Organizer</mat-option><mat-option value="admin">Admin</mat-option></mat-select></mat-form-field></mat-card-content><mat-card-actions align="end"><button mat-flat-button color="primary" (click)="save()">Save User</button></mat-card-actions></mat-card>
     <div class="stack">

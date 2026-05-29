@@ -12,7 +12,7 @@ import { AuthService } from '../../auth/auth.service';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { PersistedLeague } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
-import { exportFullData, restoreLeague } from '../../domain/export-restore';
+import { exportFullData } from '../../domain/export-restore';
 import { saveJsonFile } from '../../shared/save-json-file';
 import { logBoundaryError } from '../../shared/app-logger';
 import { TextPromptDialogComponent } from '../../shared/dialogs';
@@ -26,7 +26,6 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
       <div class="actions">
         <button mat-stroked-button (click)="downloadFullExport()" [disabled]="!leagues().length">Full Data Export</button>
         @if (auth.canEdit()) {
-          <label class="file-button" mat-stroked-button>League Restore<input type="file" accept=".json,application/json" (change)="restore($event)"></label>
           <button mat-flat-button color="primary" (click)="createLeague()">New League</button>
         }
       </div>
@@ -66,7 +65,7 @@ export class LeagueListComponent {
   async load(): Promise<void> {
     this.loading.set(true);
     try { this.leagues.set(await this.repo.listLeagues()); }
-    catch (error) { logBoundaryError('league-list.load', error); this.error.set('Could not load Leagues. Check Supabase configuration and RLS policies.'); }
+    catch (error) { logBoundaryError('league-list.load', error); this.error.set('Could not load Leagues from browser storage.'); }
     finally { this.loading.set(false); }
   }
 
@@ -80,20 +79,6 @@ export class LeagueListComponent {
   }
 
   downloadFullExport(): void { saveJsonFile(exportFullData(this.leagues()), 'gones-full-data.gones.json'); }
-
-  async restore(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      const restored = restoreLeague(JSON.parse(await file.text()), { existingLeagues: this.leagues() });
-      const persisted = await this.repo.insertLeague(restored);
-      await this.router.navigate(['/leagues', persisted.id]);
-    } catch (error) {
-      logBoundaryError('league-list.restore', error, { fileName: file.name });
-      this.error.set('That file is not a supported League Export.');
-    } finally { input.value = ''; }
-  }
 }
 
 function firstDialogValue<T>(source: Observable<T | undefined>): Promise<T | undefined> {

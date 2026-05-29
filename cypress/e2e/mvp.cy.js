@@ -2,11 +2,31 @@ describe("Gones Angular MVP", () => {
   it("opens the Angular League collection in demo mode", () => {
     cy.visit("/leagues");
     cy.contains("h1", "Leagues");
-    cy.contains("Demo mode: configure Supabase");
-    cy.contains("Demo League").click();
+    cy.contains(".app-toolbar", "Import").should("exist");
+    cy.contains("Frontend-only mode");
+    cy.contains("Demo League").click({ force: true });
     cy.location("pathname").should("eq", "/leagues/demo-league");
     cy.contains("League Ranking");
     cy.contains("Empty League has no League Result");
+  });
+
+  it("imports a League from the signed-out header", () => {
+    cy.visit("/leagues");
+    cy.contains("button", "Sign in locally").should("exist");
+    cy.contains(".app-toolbar", "Import").should("exist");
+    cy.get('[data-cy="header-import-input"]').selectFile({
+      contents: Cypress.Buffer.from(JSON.stringify({
+        kind: "league",
+        gonesDataVersion: 2,
+        gonesAppVersion: "test",
+        exportedAt: "2026-05-29T00:00:00.000Z",
+        league: { id: "source-league", name: "Imported League", status: "active", tournaments: [] }
+      })),
+      fileName: "imported-league.gones.json",
+      mimeType: "application/json"
+    }, { force: true });
+    cy.location("pathname").should("match", /\/leagues\/.+/);
+    cy.contains("h1", "Imported League");
   });
 
   it("shows Visitor permissions without edit controls", () => {

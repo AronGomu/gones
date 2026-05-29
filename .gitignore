@@ -5,5 +5,3 @@
 /cypress/screenshots
 /cypress/videos
 .env
-/supabase/.branches
-/supabase/.temp

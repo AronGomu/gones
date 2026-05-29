@@ -2,15 +2,5 @@
   "settings": {
     "autoAuth": true
   },
-  "mcpServers": {
-    "supabase": {
-      "url": "https://mcp.supabase.com/mcp?project_ref=yidfdolincawzxquyjfn&read_only=true&features=database,docs,development,debugging",
-      "auth": "oauth",
-      "lifecycle": "lazy"
-    },
-    "supabase-local": {
-      "url": "http://localhost:54321/mcp",
-      "lifecycle": "lazy"
-    }
-  }
+  "mcpServers": {}
 }

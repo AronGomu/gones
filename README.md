@@ -1,14 +1,15 @@
 # Gones
 
-Gones is an Angular single-page PWA for consulting tournament League results, exporting Gones source-data backups, and letting authorized Organizer/Admin users edit League source data through Supabase.
+Gones is an Angular single-page PWA for consulting tournament League results, exporting Gones source-data backups, and letting Organizer/Admin users edit League source data in a frontend-only browser store.
 
 ## Stack
 
 - Angular standalone components, Angular Router, Signals, zoneless change detection
 - Angular Material UI with Gones dark metal / blood-red theme tokens
-- Supabase Auth, PostgreSQL, RLS, and local Supabase CLI config
+- Frontend-only backend bridge backed by browser `localStorage`
+- Future Nest.js adapter contract in `src/app/backend/`
 - Vitest for domain/unit tests
-- Cypress for browser flows with app-service/auth boundaries mocked for MVP
+- Cypress for browser flows
 - Cloudflare Pages static hosting
 
 ## Local setup
@@ -20,33 +21,16 @@ npm run dev
 
 The app runs at `http://127.0.0.1:4200`.
 
-## Supabase setup
+## Frontend-only data and auth
 
-Local CLI setup:
+No external backend is required today. The current bridge implementation stores Leagues, Authorized Users, and the local session in browser `localStorage` under `gones.frontend.backend.v1`.
 
-```bash
-npm run supabase:start
-npm run supabase:reset
-```
+- Visitors can consult League data and export backups.
+- Use **Sign in locally** with `admin@example.com` to unlock the bootstrap local Admin User.
+- Admin Users can add Organizer/Admin emails from `/admin/users`.
+- Gones Export/Gones Restore remain the portability and backup mechanism.
 
-The schema lives in `supabase/migrations/0001_initial_schema.sql` and seed data lives in `supabase/seed.sql`.
-
-Before using a shared Supabase project:
-
-1. Create a Supabase project.
-2. Apply the SQL migration.
-3. Insert the first real lowercase Admin User email using setup SQL/seed data.
-4. Configure Google OAuth in Supabase Auth.
-5. Copy Supabase URL and anon key into the Angular environment used by your deployment.
-6. Manually verify RLS:
-   - unauthenticated visitors can select from `public_leagues`;
-   - visitors cannot insert/update/delete `leagues`;
-   - unknown signed-in Google users behave like visitors;
-   - Organizer/Admin users can modify League documents;
-   - only Admin users can manage `authorized_users`;
-   - the last Admin User cannot be removed or downgraded.
-
-No service-role key belongs in the Angular app.
+If you are cutting over from any previous hosted backend, export League/Full Data JSON from the old deployment before deploying this frontend-only build, then restore it in the new app. When a Nest.js backend is added later, implement/provide the `ApplicationBackend` bridge from `src/app/backend/application-backend.ts`; UI components and repositories should not need to call HTTP directly.
 
 ## Commands
 
@@ -59,4 +43,4 @@ npm run cy:run
 
 ## Data portability
 
-Gones Export is JSON source-data backup only. League Export uses `kind: "league"`; Full Data Export uses `kind: "fullData"`. Direct browser `localStorage` migration is intentionally not implemented; use Gones Restore paths instead.
+Gones Export is JSON source-data backup only. League Export uses `kind: "league"`; Full Data Export uses `kind: "fullData"`.
