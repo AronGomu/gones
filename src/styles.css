@@ -71,6 +71,10 @@ h2 { margin: 0; font-size: 1.5rem; }
 .file-button.disabled { opacity: .6; cursor: progress; }
 .toolbar-import { margin-right: .75rem; }
 .app-banner { margin: .75rem auto 0; width: min(1280px, calc(100vw - 32px)); box-sizing: border-box; }
+.collapsible-table { display: grid; gap: .75rem; }
+.collapsible-table__header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.collapsible-table__summary { margin: 0; font-weight: 700; }
+.collapsible-table__toggle { white-space: nowrap; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--soot); -webkit-overflow-scrolling: touch; }
 .ranking-table { width: 100%; min-width: 680px; background: var(--iron); }
 .ranking-table th, .ranking-table td { white-space: nowrap; }
