@@ -10,9 +10,9 @@ describe("Gones Angular MVP", () => {
     cy.contains("Empty League has no League Result");
   });
 
-  it("imports a League from the signed-out header", () => {
+  it("imports a League from the header", () => {
     cy.visit("/leagues");
-    cy.contains("button", "Sign in locally").should("exist");
+    cy.contains("button", "Sign in locally").should("not.exist");
     cy.contains(".app-toolbar", "Import").should("exist");
     cy.get('[data-cy="header-import-input"]').selectFile({
       contents: Cypress.Buffer.from(JSON.stringify({
@@ -29,9 +29,9 @@ describe("Gones Angular MVP", () => {
     cy.contains("h1", "Imported League");
   });
 
-  it("shows Visitor permissions without edit controls", () => {
+  it("shows frontend-only edit controls without login", () => {
     cy.visit("/leagues/demo-league");
-    cy.contains("Edit source data").should("not.exist");
+    cy.contains("Edit source data").should("exist");
     cy.contains("League Export").should("exist");
   });
 

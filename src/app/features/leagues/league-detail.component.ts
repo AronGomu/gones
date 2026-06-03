@@ -8,7 +8,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { AuthService } from '../../auth/auth.service';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { createTournament, LeagueDocument, PersistedLeague } from '../../domain/models';
 import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate } from '../../domain/results';
@@ -33,7 +32,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
         </div>
         <div class="actions">
           <button mat-stroked-button (click)="downloadExport(saved)">League Export</button>
-          @if (auth.canEdit() && !editing()) { <button mat-flat-button color="primary" (click)="startEdit(saved)">Edit source data</button> }
+          @if (!editing()) { <button mat-flat-button color="primary" (click)="startEdit(saved)">Edit source data</button> }
         </div>
       </section>
 
@@ -62,7 +61,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
         }
       </section>
 
-      @if (auth.canEdit() && !editing()) { <button mat-stroked-button color="warn" (click)="deleteLeague(saved)">Delete League</button> }
+      @if (!editing()) { <button mat-stroked-button color="warn" (click)="deleteLeague(saved)">Delete League</button> }
     } @else if (!loading()) {
       <mat-card class="panel"><mat-card-title>League not found</mat-card-title><mat-card-actions><a mat-button routerLink="/leagues">Back to Leagues</a></mat-card-actions></mat-card>
     }
@@ -80,7 +79,7 @@ export class LeagueDetailComponent {
   readonly sortedTournaments = computed(() => [...(this.currentLeague().tournaments ?? [])].sort((a, b) => (b.tournamentDate || '9999-12-31').localeCompare(a.tournamentDate || '9999-12-31') || b.name.localeCompare(a.name)));
   readonly saveShortcutLabel = navigator.platform.toLowerCase().includes('mac') ? '⌘S' : 'Ctrl+S';
 
-  constructor(public readonly auth: AuthService, private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
+  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
 
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void { if (this.editing()) event.preventDefault(); }
   @HostListener('document:keydown', ['$event']) handleShortcut(event: KeyboardEvent): void {

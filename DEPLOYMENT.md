@@ -40,17 +40,16 @@ No app-specific environment variables are required while the app is frontend-onl
 Open the deployed URL and check:
 
 1. `/leagues` loads without console errors.
-2. Visitors can view League data and download exports.
-3. **Sign in locally** with `admin@example.com` unlocks edit controls.
-4. Organizer/Admin users can create, restore, edit, and delete League data in browser storage.
-5. Admin users can open `/admin/users` and manage local authorized users.
-6. Refreshing a nested route still loads the Angular app.
+2. Users can view League data and download exports.
+3. Users can create, restore, edit, and delete League data in browser storage without signing in.
+4. No login, account menu, or role-management buttons are shown.
+5. Refreshing a nested route still loads the Angular app.
 
 Browser storage is per-device/per-browser. Use Gones Export/Gones Restore to move data between browsers until the Nest.js backend is introduced.
 
 ## 3. If direct route refreshes 404
 
-Angular routes such as `/leagues` and `/admin/users` need a static-host fallback to `index.html`.
+Angular routes such as `/leagues` and `/players/Alice` need a static-host fallback to `index.html`.
 
 If Cloudflare Pages does not handle this automatically, add a `_redirects` file to the built site with this content:
 

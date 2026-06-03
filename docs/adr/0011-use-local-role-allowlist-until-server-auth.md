@@ -1,5 +1,7 @@
-# Use Local Role Allowlist Until Server Auth Exists
+# Supersede Local Role Allowlist for the Frontend-Only MVP
 
-Gones data should be publicly readable and downloadable, while only trusted organizers should modify source data and manage access once a server backend exists. During the frontend-only phase, local sign-in and the Authorized Users list are browser-local convenience controls, not a security boundary.
+Gones data remains publicly readable and downloadable. For the first frontend-only MVP, source-data editing is also available directly in the browser without login, authentication, or role-management UI.
 
-The bootstrap local Admin User is `admin@example.com`. The future Nest.js backend must replace this with server-owned authentication, authorization, and persistence while keeping the Angular UI behind the same `ApplicationBackend` bridge.
+This supersedes the earlier local role allowlist decision. Admin and Organizer remain product design concepts for the future backend-backed experience, but the Angular MVP no longer stores authorized users, creates local sessions, gates edit controls by role, or exposes `/admin/users`.
+
+The future Nest.js backend can reintroduce server-owned authentication, authorization, and persistence behind the `ApplicationBackend` bridge when those controls become part of the production scope.

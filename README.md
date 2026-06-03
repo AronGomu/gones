@@ -1,6 +1,6 @@
 # Gones
 
-Gones is an Angular single-page PWA for consulting tournament League results, exporting Gones source-data backups, and letting Organizer/Admin users edit League source data in a frontend-only browser store.
+Gones is an Angular single-page PWA for consulting tournament League results, exporting Gones source-data backups, and editing League source data in a frontend-only browser store.
 
 ## Stack
 
@@ -21,13 +21,12 @@ npm run dev
 
 The app runs at `http://127.0.0.1:4200`.
 
-## Frontend-only data and auth
+## Frontend-only data
 
-No external backend is required today. The current bridge implementation stores Leagues, Authorized Users, and the local session in browser `localStorage` under `gones.frontend.backend.v1`.
+No external backend is required today. The current bridge implementation stores Leagues in browser `localStorage` under `gones.frontend.backend.v1`.
 
-- Visitors can consult League data and export backups.
-- Use **Sign in locally** with `admin@example.com` to unlock the bootstrap local Admin User.
-- Admin Users can add Organizer/Admin emails from `/admin/users`.
+- Everyone can consult League data, export backups, and edit source data in the MVP.
+- Admin and Organizer remain product design concepts for a later backend-backed version, but there is no login, authentication, or role-management UI in this frontend-only release.
 - Gones Export/Gones Restore remain the portability and backup mechanism.
 
 If you are cutting over from any previous hosted backend, export League/Full Data JSON from the old deployment before deploying this frontend-only build, then restore it in the new app. When a Nest.js backend is added later, implement/provide the `ApplicationBackend` bridge from `src/app/backend/application-backend.ts`; UI components and repositories should not need to call HTTP directly.

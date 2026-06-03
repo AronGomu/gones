@@ -8,7 +8,6 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AuthService } from '../../auth/auth.service';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { PersistedLeague } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
@@ -22,12 +21,10 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule],
   template: `
     <section class="page-heading">
-      <div><p class="kicker">Public archive</p><h1>Leagues</h1><p class="muted">Consult public data, export backups, or sign in as an Organizer/Admin to modify source data.</p></div>
+      <div><p class="kicker">Public archive</p><h1>Leagues</h1><p class="muted">Consult public data, export backups, and modify source data in the frontend-only MVP.</p></div>
       <div class="actions">
         <button mat-stroked-button (click)="downloadFullExport()" [disabled]="!leagues().length">Full Data Export</button>
-        @if (auth.canEdit()) {
-          <button mat-flat-button color="primary" (click)="createLeague()">New League</button>
-        }
+        <button mat-flat-button color="primary" (click)="createLeague()">New League</button>
       </div>
     </section>
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
@@ -58,7 +55,7 @@ export class LeagueListComponent {
     return this.leagues().filter((league) => !search || league.name.toLowerCase().includes(search));
   });
 
-  constructor(public readonly auth: AuthService, private readonly repo: LeagueRepository, private readonly router: Router, private readonly dialog: MatDialog) {
+  constructor(private readonly repo: LeagueRepository, private readonly router: Router, private readonly dialog: MatDialog) {
     void this.load();
   }
 

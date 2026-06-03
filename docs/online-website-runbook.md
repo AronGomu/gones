@@ -23,10 +23,9 @@ After deployment:
 1. Open `/leagues`.
 2. Confirm `Frontend-only mode` is visible.
 3. Open the demo League.
-4. Sign in locally as `admin@example.com`.
+4. Confirm no login/account/role-management controls are visible.
 5. Create a League, edit it, export it, refresh the page, and confirm the data remains in browser storage.
-6. Open `/admin/users` and add/remove a local Organizer email.
-7. Refresh a nested route and confirm the static-host SPA fallback works.
+6. Refresh a nested route and confirm the static-host SPA fallback works.
 
 ## 3. Operational notes
 

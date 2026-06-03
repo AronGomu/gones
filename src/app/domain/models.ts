@@ -1,8 +1,6 @@
 export const GONES_DATA_VERSION = 2;
 export const SUPPORTED_IMPORT_DATA_VERSIONS = [1, 2] as const;
 export type LeagueStatus = 'active' | 'completed';
-export type UserRole = 'visitor' | 'organizer' | 'admin';
-
 export interface GonesData {
   version: typeof GONES_DATA_VERSION;
   leagues: LeagueDocument[];

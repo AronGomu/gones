@@ -259,24 +259,12 @@ _Avoid_: Ranking Table
 - The persisted League status value for a Completed League is `completed`
 - Legacy `finished` League status values are normalized to `completed` during migration
 - A Completed League blocks normal tournament source-data edits
-- Organizer Users can reopen a Completed League by changing it back to active before editing
-- **Leagues** are public to Visitors and Users
+- Users can reopen a Completed League by changing it back to active before editing
+- **Leagues** are public in the frontend-only MVP
 - **Leagues** are not owned by individual **Organizer Users**
-- Any **Organizer User** can modify any **League**
-- An **Organizer User** can modify tournament source data
-- An **Admin User** can add and remove Organizer Users
-- An **Admin User** can do everything an Organizer User can do
-- Organizer and Admin access is granted by matching a Google-authenticated User to an authorized email
-- Authorized emails are stored and compared in lowercase
-- Any Google-authenticated User may sign in
-- A Google-authenticated User without authorized access has the same data permissions as a Visitor
-- An Admin User cannot remove or downgrade their own Admin access through Gones
-- Gones must keep at least one Admin User
-- A **Visitor** can consult and export tournament data
-- A **Visitor** can perform League Export, Full Data Export, and Report Download
-- A **Visitor** cannot perform Gones Restore
-- A **Visitor** cannot modify tournament source data
-- Visitors and unauthorized Users do not see source-data modification controls
+- Admin and Organizer remain design concepts for the future backend-backed product
+- The frontend-only MVP has no login, authentication, authorized-user list, or role-management behavior
+- Any MVP user can consult, export, restore, and modify tournament source data in browser storage
 - **Delete** is destructive in the MVP
 - A **Delete** removes a Match rather than preserving it as an Invalid Round Entry
 - **Gones Export** preserves source data for round-trip restore

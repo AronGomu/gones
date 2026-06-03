@@ -8,7 +8,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { AuthService } from '../../auth/auth.service';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { createMatchRoundEntry, createRound, LeagueDocument, PersistedLeague, RoundDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
@@ -34,7 +33,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
           } @else { <h1>{{ t.name }}</h1><p class="muted">{{ t.tournamentDate || 'No Tournament Date' }}</p> }
           @if (result().provisional || result().incomplete) { <p class="warning">{{ result().provisional ? 'Provisional Result' : 'Incomplete Tournament' }}</p> }
         </div>
-        @if (auth.canEdit() && !editing()) { <button mat-flat-button color="primary" (click)="startEdit()" [disabled]="currentLeague().status === 'completed'">Edit source data</button> }
+        @if (!editing()) { <button mat-flat-button color="primary" (click)="startEdit()" [disabled]="currentLeague().status === 'completed'">Edit source data</button> }
       </section>
       @if (currentLeague().status === 'completed') { <p class="muted">Completed Leagues block normal Tournament source-data edits until reopened as active.</p> }
       @if (editing()) { <mat-card class="panel edit-banner"><mat-card-title>Unsaved tournament draft</mat-card-title><mat-card-actions align="end"><button mat-button (click)="cancelEdit()">Cancel Esc</button><button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save {{ saveShortcutLabel }}</button></mat-card-actions></mat-card> }
@@ -82,7 +81,7 @@ export class TournamentDetailComponent {
   private readonly tournamentId = signal('');
   readonly saveShortcutLabel = navigator.platform.toLowerCase().includes('mac') ? '⌘S' : 'Ctrl+S';
 
-  constructor(public readonly auth: AuthService, private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly dialog: MatDialog) { void this.load(); }
+  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly dialog: MatDialog) { void this.load(); }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void { if (this.editing()) event.preventDefault(); }
   @HostListener('document:keydown', ['$event']) handleShortcut(event: KeyboardEvent): void {
     if (!this.editing()) return;

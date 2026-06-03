@@ -2,7 +2,6 @@ import { Injectable } from '@angular/core';
 import { LeagueRepository } from './league-repository.service';
 import { normalizeExportFile, restoreFullData, restoreLeague } from '../domain/export-restore';
 import { defaultIdFactory } from '../domain/models';
-import { AuthService } from '../auth/auth.service';
 import { logBoundaryError } from '../shared/app-logger';
 
 export interface LeagueImportResult {
@@ -15,7 +14,7 @@ const MAX_FULL_DATA_LEAGUES = 100;
 
 @Injectable({ providedIn: 'root' })
 export class LeagueImportService {
-  constructor(private readonly repo: LeagueRepository, private readonly auth: AuthService) {}
+  constructor(private readonly repo: LeagueRepository) {}
 
   async importFile(file: File): Promise<LeagueImportResult> {
     if (file.size > MAX_IMPORT_FILE_BYTES) throw new Error('gonesImportFileTooLarge');
@@ -24,7 +23,6 @@ export class LeagueImportService {
     const exportFile = normalizeExportFile(parsed);
 
     if (exportFile.kind === 'fullData') {
-      if (!this.auth.isAdmin()) throw new Error('adminOnlyFullDataRestore');
       if (exportFile.leagues.length > MAX_FULL_DATA_LEAGUES) throw new Error('gonesImportTooManyLeagues');
       const existingLeagues = await this.repo.listLeagues();
       const restoredLeagues = restoreFullData(parsed, { idFactory: defaultIdFactory, existingLeagues: [...existingLeagues] });

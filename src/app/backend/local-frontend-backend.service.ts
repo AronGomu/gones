@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { createLeague, LeagueDocument, normalizeLeague, PersistedLeague } from '../domain/models';
 import { logBoundaryError } from '../shared/app-logger';
-import type { ApplicationBackend, AuthSession, AuthorizedUser } from './application-backend';
+import type { ApplicationBackend } from './application-backend';
 
 interface StoredLeague extends PersistedLeague {
   updatedAt: string;
@@ -10,13 +10,10 @@ interface StoredLeague extends PersistedLeague {
 interface FrontendStore {
   version: 1;
   leagues: StoredLeague[];
-  authorizedUsers: AuthorizedUser[];
-  session: AuthSession | null;
 }
 
 const STORE_KEY = 'gones.frontend.backend.v1';
 const CORRUPT_BACKUP_PREFIX = `${STORE_KEY}.corrupt`;
-const BOOTSTRAP_ADMIN = 'admin@example.com';
 const DEMO_LEAGUES: StoredLeague[] = [
   { ...createLeague({ id: 'demo-league', name: 'Demo League', status: 'active', tournaments: [] }), documentVersion: 1, updatedAt: new Date(0).toISOString() }
 ];
@@ -34,11 +31,11 @@ export class LocalFrontendBackend implements ApplicationBackend {
     return this.clone(this.read().leagues.find((league) => league.id === id) ?? null);
   }
 
-  async createLeague(name: string, actorEmail: string): Promise<PersistedLeague> {
-    return this.insertLeague(createLeague({ name }), actorEmail);
+  async createLeague(name: string): Promise<PersistedLeague> {
+    return this.insertLeague(createLeague({ name }));
   }
 
-  async insertLeague(league: LeagueDocument, _actorEmail: string): Promise<PersistedLeague> {
+  async insertLeague(league: LeagueDocument): Promise<PersistedLeague> {
     const persisted = this.toStoredLeague(league, 1);
     this.mutate((store) => {
       if (store.leagues.some((item) => item.id === persisted.id)) throw new Error('leagueAlreadyExists');
@@ -47,7 +44,7 @@ export class LocalFrontendBackend implements ApplicationBackend {
     return this.clone(persisted);
   }
 
-  async saveLeague(league: LeagueDocument, expectedVersion: number, _actorEmail: string): Promise<PersistedLeague> {
+  async saveLeague(league: LeagueDocument, expectedVersion: number): Promise<PersistedLeague> {
     const normalized = normalizeLeague(league);
     let saved: StoredLeague | null = null;
     this.mutate((store) => {
@@ -64,74 +61,6 @@ export class LocalFrontendBackend implements ApplicationBackend {
 
   async deleteLeague(id: string): Promise<void> {
     this.mutate((store) => ({ ...store, leagues: store.leagues.filter((league) => league.id !== id) }));
-  }
-
-  async getSession(): Promise<AuthSession | null> {
-    const store = this.read();
-    if (!store.session) return null;
-    const role = this.lookupRoleInStore(store, store.session.email);
-    return this.clone({ ...store.session, role });
-  }
-
-  async signIn(email: string): Promise<AuthSession> {
-    const normalized = normalizeEmail(email) || BOOTSTRAP_ADMIN;
-    const store = this.read();
-    const session: AuthSession = { email: normalized, role: this.lookupRoleInStore(store, normalized), provider: 'local' };
-    this.mutate((current) => ({ ...current, session }));
-    return this.clone(session);
-  }
-
-  async signOut(): Promise<void> {
-    this.mutate((store) => ({ ...store, session: null }));
-  }
-
-  async lookupRole(email: string): Promise<AuthSession['role']> {
-    return this.lookupRoleInStore(this.read(), email);
-  }
-
-  async listAuthorizedUsers(): Promise<AuthorizedUser[]> {
-    return this.clone(this.read().authorizedUsers).sort((a, b) => a.email.localeCompare(b.email));
-  }
-
-  async upsertAuthorizedUser(email: string, role: 'organizer' | 'admin', actorEmail: string): Promise<void> {
-    const normalized = normalizeEmail(email);
-    const actor = normalizeEmail(actorEmail);
-    if (!normalized) throw new Error('authorizedUserEmailRequired');
-    this.mutate((store) => {
-      const existing = store.authorizedUsers.find((user) => user.email === normalized);
-      const downgradingAdmin = existing?.role === 'admin' && role !== 'admin';
-      if (downgradingAdmin && actor === normalized) throw new Error('cannotDowngradeSelfAdmin');
-      if (downgradingAdmin && adminCount(store.authorizedUsers) <= 1) throw new Error('cannotRemoveLastAdmin');
-
-      const now = new Date().toISOString();
-      const nextUser: AuthorizedUser = { email: normalized, role, createdAt: existing?.createdAt ?? now, updatedAt: now };
-      const authorizedUsers = normalizeAuthorizedUsers([...store.authorizedUsers.filter((user) => user.email !== normalized), nextUser]);
-      return { ...store, authorizedUsers, session: this.refreshStoredSessionRole(store.session, authorizedUsers) };
-    });
-  }
-
-  async removeAuthorizedUser(email: string, actorEmail: string): Promise<void> {
-    const normalized = normalizeEmail(email);
-    const actor = normalizeEmail(actorEmail);
-    this.mutate((store) => {
-      const existing = store.authorizedUsers.find((user) => user.email === normalized);
-      if (existing?.role === 'admin' && actor === normalized) throw new Error('cannotRemoveSelfAdmin');
-      if (existing?.role === 'admin' && adminCount(store.authorizedUsers) <= 1) throw new Error('cannotRemoveLastAdmin');
-      const authorizedUsers = normalizeAuthorizedUsers(store.authorizedUsers.filter((user) => user.email !== normalized));
-      return { ...store, authorizedUsers, session: this.refreshStoredSessionRole(store.session, authorizedUsers) };
-    });
-  }
-
-  private lookupRoleInStore(store: FrontendStore, email: string): AuthSession['role'] {
-    const normalized = normalizeEmail(email);
-    const user = store.authorizedUsers.find((item) => item.email === normalized);
-    return user?.role ?? 'visitor';
-  }
-
-  private refreshStoredSessionRole(session: AuthSession | null, authorizedUsers: AuthorizedUser[]): AuthSession | null {
-    if (!session) return null;
-    const role = authorizedUsers.find((user) => user.email === session.email)?.role ?? 'visitor';
-    return { ...session, role };
   }
 
   private toStoredLeague(league: LeagueDocument, documentVersion: number): StoredLeague {
@@ -160,12 +89,9 @@ export class LocalFrontendBackend implements ApplicationBackend {
       this.backupRawStore(raw);
       return this.defaultStore();
     }
-    const authorizedUsers = normalizeAuthorizedUsers(store.authorizedUsers);
     return {
       version: 1,
-      leagues: store.leagues.map((league) => this.normalizeStoredLeague(league)),
-      authorizedUsers,
-      session: store.session?.email ? this.refreshStoredSessionRole({ email: normalizeEmail(store.session.email), role: 'visitor', provider: 'local' }, authorizedUsers) : null
+      leagues: store.leagues.map((league) => this.normalizeStoredLeague(league))
     };
   }
 
@@ -180,37 +106,10 @@ export class LocalFrontendBackend implements ApplicationBackend {
   }
 
   private defaultStore(): FrontendStore {
-    return { version: 1, leagues: this.clone(DEMO_LEAGUES), authorizedUsers: normalizeAuthorizedUsers([]), session: null };
+    return { version: 1, leagues: this.clone(DEMO_LEAGUES) };
   }
 
   private clone<T>(value: T): T {
     return structuredClone(value);
   }
-}
-
-function normalizeAuthorizedUsers(users: unknown): AuthorizedUser[] {
-  const normalized = new Map<string, AuthorizedUser>();
-  if (Array.isArray(users)) {
-    for (const user of users) {
-      if (!user || typeof user !== 'object') continue;
-      const value = user as Partial<AuthorizedUser>;
-      const email = normalizeEmail(value.email ?? '');
-      const role = value.role === 'admin' || value.role === 'organizer' ? value.role : null;
-      if (!email || !role) continue;
-      normalized.set(email, { email, role, createdAt: value.createdAt, updatedAt: value.updatedAt });
-    }
-  }
-  if (!normalized.has(BOOTSTRAP_ADMIN)) {
-    const now = new Date(0).toISOString();
-    normalized.set(BOOTSTRAP_ADMIN, { email: BOOTSTRAP_ADMIN, role: 'admin', createdAt: now, updatedAt: now });
-  }
-  return [...normalized.values()];
-}
-
-function adminCount(users: AuthorizedUser[]): number {
-  return users.filter((user) => user.role === 'admin').length;
-}
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
 }
