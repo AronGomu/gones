@@ -1,19 +1,19 @@
 import { Component, computed, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { GonesData, PersistedLeague } from '../../domain/models';
 import { calculatePlayerStatistics } from '../../domain/player-stats';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule],
+  imports: [FormsModule, MatCardModule, MatFormFieldModule, MatInputModule, BackButtonComponent],
   template: `
-    <a mat-button routerLink="/leagues">← Leagues</a>
+    <gones-back-button label="Back to previous page" position="top" />
     <section class="page-heading"><div><p class="kicker">Player Statistics</p><h1>{{ playerName() }}</h1></div></section>
     <mat-form-field appearance="outline"><mat-label>Filter matches</mat-label><input matInput [(ngModel)]="matchSearch"></mat-form-field>
     <div class="stat-grid">
@@ -30,6 +30,7 @@ import { calculatePlayerStatistics } from '../../domain/player-stats';
         <mat-card class="match-card"><mat-card-title>{{ match.tournament.tournamentDate || 'No date' }} · {{ match.league.name }} {{ match.tournament.name }} Round {{ match.roundIndex + 1 }}</mat-card-title><mat-card-content>{{ match.opponentName }} · {{ match.ownScore }}-{{ match.opponentScore }}</mat-card-content></mat-card>
       }
     </section>
+    <gones-back-button label="Back to previous page" position="bottom" />
   `
 })
 export class PlayerDetailComponent {
