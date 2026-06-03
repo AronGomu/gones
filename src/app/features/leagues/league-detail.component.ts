@@ -44,7 +44,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           <mat-card-content>
             <mat-form-field appearance="outline"><mat-label>Status</mat-label><mat-select [(ngModel)]="draft().status"><mat-option value="active">Active</mat-option><mat-option value="completed">Completed</mat-option></mat-select></mat-form-field>
           </mat-card-content>
-          <mat-card-actions align="end"><button mat-button (click)="cancelEdit()">Cancel Esc</button><button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save {{ saveShortcutLabel }}</button></mat-card-actions>
+          <mat-card-actions align="end"><button mat-button aria-keyshortcuts="Escape" (click)="cancelEdit()">Cancel Esc</button><button mat-flat-button color="primary" (click)="save()" [disabled]="saving()">Save {{ saveShortcutLabel }}</button></mat-card-actions>
         </mat-card>
       }
 

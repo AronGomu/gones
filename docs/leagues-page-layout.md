@@ -4,7 +4,7 @@ This document captures the agreed layout direction for the Gones Leagues page. I
 
 ## Product Context
 
-Gones manages tournament results across leagues so players and organizers can review standings, rounds, and player statistics.
+Gones manages tournament results across leagues so players and organizers can review standings, rounds, and player statistics. The primary usage context is a phone at or around an event: users check a Tournament, inspect standings, and enter or correct results without relying on a desktop layout.
 
 Assumed users for this page:
 
@@ -16,6 +16,7 @@ Confirmed user model:
 - The MVP does not separate organizer and player interfaces.
 - Organizers and players use the same pages.
 - The same League page is used to consult data and insert or update data.
+- Phone-first layout is the default design constraint; desktop layouts are enhancements of the phone structure.
 
 ## Page Role
 
@@ -86,7 +87,7 @@ Medium screens:
 [ League Card ] [ League Card ]
 ```
 
-Mobile:
+Mobile / iPhone 11:
 
 ```txt
 [ Featured League Card ]
@@ -94,13 +95,15 @@ Mobile:
 [ League Card ]
 ```
 
+The mobile column is the baseline. It must not require horizontal scrolling for names, counts, actions, or navigation cues.
+
 Grid requirements:
 
 - Use a responsive card grid.
 - Prioritize the last active League when available.
 - Three cards per row is acceptable on full HD desktop screens.
 - The layout should reduce to two columns on medium screens.
-- The layout should reduce to one column on mobile.
+- The layout should reduce to one column on mobile and treat that one-column layout as the primary design, not a degraded fallback.
 - Prefer a minimum card width approach over hard-coded breakpoints where practical.
 - Each card should remain large enough to feel like a destination, not a list row.
 

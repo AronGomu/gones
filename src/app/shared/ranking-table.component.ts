@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, HostListener, Input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { RankingRow } from '../domain/results';
@@ -10,8 +10,26 @@ import { RankingRow } from '../domain/results';
   template: `
     @if (!rows.length) {
       <p class="muted" data-cy="empty-ranking">{{ emptyText }}</p>
+    } @else if (isPhoneLayout()) {
+      <ol class="ranking-cards" data-cy="ranking-card-list" aria-label="Ranking list">
+        @for (row of rows; track row.playerName) {
+          <li class="ranking-card">
+            <div class="ranking-card-main">
+              <span class="rank-badge">#{{ row.rank }}</span>
+              <a [routerLink]="['/players', row.playerName]">{{ row.playerName }}</a>
+            </div>
+            <dl class="ranking-card-stats">
+              <div><dt>Record</dt><dd>{{ row.matchWins }}-{{ row.matchLosses }}-{{ row.matchDraws }} @if (row.byes) { <span>({{ row.byes }} bye)</span> }</dd></div>
+              <div><dt>Pts</dt><dd>{{ row.points }}</dd></div>
+              <div><dt>OMW</dt><dd>{{ formatPercentage(row.opponentsMatchWinPercentage) }}</dd></div>
+              <div><dt>GW</dt><dd>{{ formatPercentage(row.gameWinPercentage) }}</dd></div>
+              <div><dt>OGW</dt><dd>{{ formatPercentage(row.opponentsGameWinPercentage) }}</dd></div>
+            </dl>
+          </li>
+        }
+      </ol>
     } @else {
-      <div class="table-wrap">
+      <div class="table-wrap" aria-label="Ranking table">
         <table mat-table [dataSource]="rows" class="ranking-table" data-cy="ranking-table">
           <ng-container matColumnDef="rank"><th mat-header-cell *matHeaderCellDef>Rank</th><td mat-cell *matCellDef="let row">{{ row.rank }}</td></ng-container>
           <ng-container matColumnDef="player"><th mat-header-cell *matHeaderCellDef>Player</th><td mat-cell *matCellDef="let row"><a [routerLink]="['/players', row.playerName]">{{ row.playerName }}</a></td></ng-container>
@@ -31,8 +49,17 @@ export class RankingTableComponent {
   @Input({ required: true }) rows: RankingRow[] = [];
   @Input() emptyText = 'No result yet';
   columns = ['rank', 'player', 'record', 'points', 'omw', 'gw', 'ogw'];
+  readonly isPhoneLayout = signal(getIsPhoneLayout());
+
+  @HostListener('window:resize') updateLayout(): void {
+    this.isPhoneLayout.set(getIsPhoneLayout());
+  }
 
   formatPercentage(value: number | null | undefined): string {
     return value === null || value === undefined ? 'N/A' : `${Math.round(value * 100)}%`;
   }
+}
+
+function getIsPhoneLayout(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches;
 }

@@ -97,7 +97,7 @@ components:
 
 Gones is a practical product interface with the weight of a dark metal tournament relic. It should use familiar SaaS dashboard structure, but the first impression should read as old-school trading-card tournament software, especially Magic-adjacent, without copying official card frames, art, symbols, or assets.
 
-The visual system is low-density and phone-first. Most screens contain a small number of large forms, card items, or list objects. The user should never feel surrounded by decorative panels or secondary controls.
+The visual system is low-density and phone-first. Most screens contain a small number of large forms, card items, or list objects. The user should never feel surrounded by decorative panels or secondary controls. Design the phone layout first for an iPhone 11-class viewport because the primary real-world use is checking Tournaments and entering or correcting results on a phone during events.
 
 Old-school fantasy and card-game influence belongs in the typography, square card-like surfaces, heavy borders, color temperature, and subtle material character. It should not become literal fantasy decoration.
 
@@ -214,6 +214,15 @@ Gones should rely mostly on tonal layering, borders, and surface contrast. Shado
 - **Breadcrumbs:** One bordered breadcrumb container. Current page text uses accent color only, not a pill or button shape.
 - **Active State:** Accent text, stronger weight, and no extra ornament.
 - **Mobile Treatment:** Header actions may wrap or collapse, but primary navigation must remain visible.
+
+### Phone-First Layout
+
+- **Primary canvas:** Optimize for a 375px-wide phone before adding tablet or desktop enhancements.
+- **Tournament workflow:** Tournament pages must make standings readable and match/result entry practical without horizontal scrolling.
+- **Tables:** Dense ranking or result tables should turn into stacked cards or summaries on phone widths. Horizontal scroll is acceptable only as a desktop/tablet fallback, not as the main phone experience.
+- **Forms:** Match-entry fields stack with visible labels, full-width inputs, and 44px minimum touch targets on phones.
+- **Actions:** Page and section actions wrap to full-width buttons on phones so import, edit, add, save, and delete controls remain reachable.
+- **Text:** Long player names, deck names, League names, and Tournament names must wrap inside cards instead of pushing the viewport wider.
 
 ### League Cards
 
