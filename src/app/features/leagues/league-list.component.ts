@@ -11,8 +11,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { PersistedLeague } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
-import { exportFullData } from '../../domain/export-restore';
-import { saveJsonFile } from '../../shared/save-json-file';
 import { logBoundaryError } from '../../shared/app-logger';
 import { TextPromptDialogComponent } from '../../shared/dialogs';
 
@@ -21,21 +19,20 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule],
   template: `
     <section class="page-heading">
-      <div><p class="kicker">Public archive</p><h1>Leagues</h1><p class="muted">Consult public data, export backups, and modify source data in the frontend-only MVP.</p></div>
-      <div class="actions">
-        <button mat-stroked-button (click)="downloadFullExport()" [disabled]="!leagues().length">Full Data Export</button>
-        <button mat-flat-button color="primary" (click)="createLeague()">New League</button>
-      </div>
+      <div><h1>Leagues</h1><p class="muted">Consult public data, export backups, and modify source data in the frontend-only MVP.</p></div>
     </section>
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-    <mat-form-field appearance="outline" class="search"><mat-label>Search Leagues</mat-label><input matInput [(ngModel)]="searchTerm"></mat-form-field>
+    <div class="league-toolbar">
+      <mat-form-field appearance="outline" class="search"><mat-label>Search Leagues</mat-label><input matInput [(ngModel)]="searchTerm"></mat-form-field>
+      <button mat-flat-button color="primary" (click)="createLeague()">New League</button>
+    </div>
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else if (!filteredLeagues().length) { <mat-card class="panel"><mat-card-title>No Leagues</mat-card-title><mat-card-content>No public Leagues match this view.</mat-card-content></mat-card> }
     @else {
       <div class="league-grid">
         @for (league of filteredLeagues(); track league.id) {
           <a class="league-card" [routerLink]="['/leagues', league.id]" data-cy="league-list-item">
-            <span class="status" [class.completed]="league.status === 'completed'">{{ league.status === 'completed' ? 'Completed' : 'Active' }}</span>
+            <span class="status league-card-status" [class.completed]="league.status === 'completed'"><span class="status-dot" aria-hidden="true"></span>{{ league.status === 'completed' ? 'Completed' : 'Active' }}</span>
             <h2>{{ league.name }}</h2>
             <p>{{ league.tournaments.length }} Tournament{{ league.tournaments.length === 1 ? '' : 's' }} · {{ playerCount(league) }} Player{{ playerCount(league) === 1 ? '' : 's' }}</p>
             <span class="open-affordance">→</span>
@@ -75,7 +72,6 @@ export class LeagueListComponent {
     await this.router.navigate(['/leagues', league.id]);
   }
 
-  downloadFullExport(): void { saveJsonFile(exportFullData(this.leagues()), 'gones-full-data.gones.json'); }
 }
 
 function firstDialogValue<T>(source: Observable<T | undefined>): Promise<T | undefined> {

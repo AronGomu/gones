@@ -21,7 +21,7 @@ No backend environment variables are required while the app uses the local front
 After deployment:
 
 1. Open `/leagues`.
-2. Confirm `Frontend-only mode` is visible.
+2. Confirm the Leagues page and header Import control load.
 3. Open the demo League.
 4. Confirm no login/account/role-management controls are visible.
 5. Create a League, edit it, export it, refresh the page, and confirm the data remains in browser storage.

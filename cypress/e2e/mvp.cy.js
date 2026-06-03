@@ -4,11 +4,13 @@ describe("Gones Angular MVP", () => {
     cy.contains("h1", "Leagues");
     cy.contains(".app-toolbar", "Import").should("exist");
     cy.contains(".back-button", "Back").should("not.exist");
-    cy.contains("Frontend-only mode");
     cy.contains("Demo League").click({ force: true });
     cy.location("pathname").should("eq", "/leagues/demo-league");
     cy.get(".back-button").should("have.length", 2);
     cy.contains("League Ranking");
+    cy.get('[data-cy="ranking-table-toggle"]').should("be.visible").and("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking").click();
+    cy.get('[data-cy="empty-ranking"]').should("not.be.visible");
+    cy.get('[data-cy="ranking-table-toggle"]').should("contain", "▸").and("have.attr", "aria-label", "Expand Ranking").click();
     cy.contains("Empty League has no League Result");
     cy.get(".back-button").first().click();
     cy.location("pathname").should("eq", "/leagues");
@@ -73,6 +75,53 @@ describe("Gones Angular MVP", () => {
     cy.contains("Unsaved draft").should("not.exist");
     cy.get('[data-cy="league-name-input"]').should("be.focused").clear().type("Updated League").blur();
     cy.contains("h1 button", "Updated League");
+  });
+
+  it("always shows a Ranking toggle for League and Tournament standings", () => {
+    const league = {
+      id: "ranking-toggle-league",
+      name: "Ranking Toggle League",
+      status: "active",
+      documentVersion: 1,
+      updatedAt: "2026-06-03T00:00:00.000Z",
+      tournaments: [{
+        id: "ranking-toggle-tournament",
+        leagueId: "ranking-toggle-league",
+        name: "Ranking Toggle Tournament",
+        tournamentDate: "2026-06-03",
+        rounds: [{
+          id: "round-1",
+          entries: [{
+            kind: "match",
+            id: "match-1",
+            table: "1",
+            player1Name: "Alice",
+            player2Name: "Bob",
+            player1Score: 2,
+            player2Score: 0,
+            player1DeckArchetype: "Fire",
+            player2DeckArchetype: "Ice"
+          }]
+        }]
+      }]
+    };
+
+    cy.visit("/leagues/ranking-toggle-league", {
+      onBeforeLoad(win) {
+        win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({ version: 1, leagues: [league] }));
+      }
+    });
+    cy.get('[data-cy="ranking-table-toggle"]').should("be.visible").and("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking").click();
+    cy.get('[data-cy="ranking-table-toggle"]').should("contain", "▸").and("have.attr", "aria-label", "Expand Ranking").and("have.attr", "aria-expanded", "false");
+    cy.get('[data-cy="ranking-table"]').should("not.be.visible");
+    cy.get('[data-cy="ranking-table-toggle"]').click().should("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking");
+    cy.get('[data-cy="ranking-table"]').should("be.visible");
+
+    cy.visit("/leagues/ranking-toggle-league/tournaments/ranking-toggle-tournament");
+    cy.get('[data-cy="ranking-table-toggle"]').should("be.visible").and("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking").click();
+    cy.get('[data-cy="ranking-table-toggle"]').should("contain", "▸").and("have.attr", "aria-label", "Expand Ranking").and("have.attr", "aria-expanded", "false");
+    cy.get('[data-cy="ranking-table-toggle"]').click().should("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking");
+    cy.get('[data-cy="ranking-table"]').should("be.visible");
   });
 
   it("shows frontend-only edit controls without login", () => {
