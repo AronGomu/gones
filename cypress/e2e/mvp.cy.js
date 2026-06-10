@@ -58,17 +58,17 @@ describe("Gones Angular MVP", () => {
         }));
       }
     });
-    cy.contains("h1 button", "Title Tournament").click();
-    cy.contains("Unsaved tournament draft").should("not.exist");
-    cy.get('[data-cy="tournament-name-input"]').should("be.focused").clear().type("Updated Tournament{enter}");
-    cy.contains("h1 button", "Updated Tournament");
+    cy.contains("button", "Edit source data").should("not.exist");
+    cy.get('[data-cy="tournament-name-input"]').clear().type("Updated Tournament");
+    cy.contains("button", "Save").click();
+    cy.get('[data-cy="tournament-name-input"]').should("have.value", "Updated Tournament");
 
     cy.visit("/leagues/completed-title-league/tournaments/completed-title-tournament");
-    cy.contains("button", "Edit source data").should("be.disabled");
-    cy.contains("h1 button", "Completed Tournament").click();
-    cy.get('[data-cy="tournament-name-input"]').should("be.focused").clear().type("Renamed Completed Tournament").blur();
-    cy.contains("Add Round").should("not.exist");
-    cy.contains("h1 button", "Renamed Completed Tournament");
+    cy.contains("button", "Edit source data").should("not.exist");
+    cy.get('[data-cy="tournament-name-input"]').clear().type("Renamed Completed Tournament");
+    cy.contains("Add Round").should("exist").click();
+    cy.contains("button", "Save").click();
+    cy.get('[data-cy="tournament-name-input"]').should("have.value", "Renamed Completed Tournament");
 
     cy.visit("/leagues/title-league");
     cy.contains("h1 button", "Title League").click();
@@ -128,6 +128,31 @@ describe("Gones Angular MVP", () => {
     cy.visit("/leagues/demo-league");
     cy.contains("Edit source data").should("exist");
     cy.contains("League Export").should("exist");
+  });
+
+  it("opens Tournament source data as editable and imports headerless CSV rows", () => {
+    cy.visit("/leagues/editable-tournament-league/tournaments/editable-tournament", {
+      onBeforeLoad(win) {
+        win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
+          version: 1,
+          leagues: [{
+            id: "editable-tournament-league",
+            name: "Editable Tournament League",
+            status: "completed",
+            documentVersion: 1,
+            updatedAt: "2026-06-03T00:00:00.000Z",
+            tournaments: [{ id: "editable-tournament", leagueId: "editable-tournament-league", name: "Editable Tournament", tournamentDate: "", rounds: [{ id: "round-1", entries: [] }] }]
+          }]
+        }));
+      }
+    });
+    cy.contains("button", "Edit source data").should("not.exist");
+    cy.contains("Round Import").should("exist");
+    cy.get('textarea[placeholder="Table,Player,Result,Opponent,Player_Decklist,Opponent_Decklist"]').type("7,Alice,Won 2-1,Bob,Fire,Ice", { force: true });
+    cy.contains("button", "Import").click();
+    cy.get('input[aria-label="Player 1"]').should("have.value", "Alice").clear().type("Alicia");
+    cy.contains("button", "Save").click();
+    cy.get('input[aria-label="Player 1"]').should("have.value", "Alicia");
   });
 
   it("shows Player Statistics route with history back buttons", () => {

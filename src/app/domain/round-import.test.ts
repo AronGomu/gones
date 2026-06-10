@@ -18,6 +18,16 @@ describe('round import adapter', () => {
     }]);
   });
 
+  it('converts rows without a header', () => {
+    const imported = importRoundEntries('7,Alice,Won 2-1,Bob,Fire,Ice', { idFactory: createIdFactory('entry') });
+    expect(imported.entries[0]).toMatchObject({ kind: 'match', table: '7', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 1 });
+  });
+
+  it('converts semicolon-delimited rows', () => {
+    const imported = importRoundEntries('Table;Player;Result;Opponent;Player_Decklist;Opponent_Decklist\n7;Alice;Won 2-1;Bob;Fire;Ice', { idFactory: createIdFactory('entry') });
+    expect(imported.entries[0]).toMatchObject({ kind: 'match', table: '7', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 1 });
+  });
+
   it('preserves invalid rows as source data', () => {
     const imported = importRoundEntries('Table,Player,Result,Opponent,Player_Decklist,Opponent_Decklist\n1,Alice,Won 0-2,Bob,Fire,Ice', { idFactory: createIdFactory('entry') });
     expect(imported.entries[0]).toMatchObject({ kind: 'invalid', rawText: '1,Alice,Won 0-2,Bob,Fire,Ice', playerDecklist: 'Fire', opponentDecklist: 'Ice' });

@@ -18,18 +18,11 @@ export function importRoundEntries(text: string, { idFactory }: { idFactory?: Id
     .map((line) => line.trim())
     .filter(Boolean);
 
+  const delimiter = detectDelimiter(lines);
   const entries: ImportResult['entries'] = [];
-  let sawHeader = false;
-  for (const line of lines) {
-    const parsed = parseDelimitedLine(line, ',');
-    if (!sawHeader) {
-      if (isHeader(parsed)) {
-        sawHeader = true;
-        continue;
-      }
-      entries.push(createInvalidRoundEntry({ rawText: line }, { idFactory }));
-      continue;
-    }
+  for (const [index, line] of lines.entries()) {
+    const parsed = parseDelimitedLine(line, delimiter);
+    if (index === 0 && isHeader(parsed)) continue;
 
     if (parsed.length !== 6) {
       entries.push(createInvalidRoundEntry({ rawText: line }, { idFactory }));
@@ -91,6 +84,11 @@ export function parseDelimitedLine(line: string, delimiter: string): string[] {
   }
   fields.push(current);
   return fields;
+}
+
+function detectDelimiter(lines: string[]): ',' | ';' {
+  const firstDataLine = lines.find((line) => parseDelimitedLine(line, ',').length >= HEADER.length || parseDelimitedLine(line, ';').length >= HEADER.length) ?? '';
+  return parseDelimitedLine(firstDataLine, ';').length > parseDelimitedLine(firstDataLine, ',').length ? ';' : ',';
 }
 
 function isHeader(fields: string[]): boolean {
