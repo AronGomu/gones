@@ -24,6 +24,11 @@ export function exportLeague(league: LeagueDocument, { appVersion = '0.1.0', now
   return { kind: 'league', gonesDataVersion: GONES_DATA_VERSION, gonesAppVersion: appVersion, exportedAt: now.toISOString(), league: structuredClone(normalizeLeague(league)) };
 }
 
+export function leagueExportFilename(league: Pick<LeagueDocument, 'name'>, now = new Date()): string {
+  const date = now.toISOString().slice(0, 10);
+  return `${date} ${league.name || 'League'}.json`;
+}
+
 export function exportFullData(leagues: LeagueDocument[], { appVersion = '0.1.0', now = new Date() } = {}): FullDataExportFile {
   return { kind: 'fullData', gonesDataVersion: GONES_DATA_VERSION, gonesAppVersion: appVersion, exportedAt: now.toISOString(), leagues: leagues.map((league) => structuredClone(normalizeLeague(league))) };
 }

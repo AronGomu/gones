@@ -1,13 +1,16 @@
-import { Component, inject, Injector, signal } from '@angular/core';
+import { Component, ElementRef, inject, Injector, signal, ViewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { filter } from 'rxjs';
+import { filter, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { LeagueRepository } from './data/league-repository.service';
-import { exportFullData } from './domain/export-restore';
+import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
 import { PersistedLeague } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
+import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
 
 interface BreadcrumbItem {
@@ -18,7 +21,7 @@ interface BreadcrumbItem {
 @Component({
   selector: 'gones-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, MatButtonModule, MatIconModule, MatToolbarModule],
+  imports: [RouterOutlet, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatToolbarModule],
   template: `
     <mat-toolbar class="app-toolbar">
       <a class="brand" routerLink="/leagues" aria-label="Gones home"><img src="assets/gones_logo.png" alt="Gones"></a>
@@ -35,8 +38,17 @@ interface BreadcrumbItem {
       <span class="spacer"></span>
       @if (showHeaderImport()) {
         <div class="header-actions">
-          <label class="file-button toolbar-import secondary-action" [class.disabled]="importing()" mat-stroked-button>{{ importing() ? 'Importing…' : 'Import' }}<input data-cy="header-import-input" type="file" accept=".json,application/json" [disabled]="importing()" (change)="importLeague($event)"></label>
+          <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? 'Importing…' : 'Import' }}</button>
+          <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" [disabled]="importing()" (change)="importLeague($event)">
           <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">Full Data Export</button>
+        </div>
+      } @else if (headerLeague(); as league) {
+        <div class="header-actions league-header-actions">
+          <button mat-stroked-button class="secondary-action" type="button" (click)="downloadLeagueExport(league)">Export League</button>
+          <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" aria-label="League actions">⋮</button>
+          <mat-menu #leagueActionsMenu="matMenu">
+            <button mat-menu-item class="destructive-menu-item" (click)="deleteLeague(league)">Delete League</button>
+          </mat-menu>
         </div>
       }
     </mat-toolbar>
@@ -55,13 +67,17 @@ interface BreadcrumbItem {
   `
 })
 export class AppComponent {
+  @ViewChild('headerImportInput') private headerImportInput?: ElementRef<HTMLInputElement>;
+
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
   private readonly repo = inject(LeagueRepository);
+  private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
   readonly importing = signal(false);
   readonly importError = signal('');
   readonly showHeaderImport = signal(true);
+  readonly headerLeague = signal<PersistedLeague | null>(null);
   readonly breadcrumbs = signal<BreadcrumbItem[]>([{ label: 'Leagues' }]);
   private routeStateRequest = 0;
 
@@ -77,8 +93,15 @@ export class AppComponent {
     this.currentUrl.set(url);
     const path = url.split('?')[0];
     this.showHeaderImport.set(path === '/leagues');
+    this.headerLeague.set(await this.buildHeaderLeague(path));
     const breadcrumbs = await this.buildBreadcrumbs(path);
     if (request === this.routeStateRequest) this.breadcrumbs.set(breadcrumbs);
+  }
+
+  private async buildHeaderLeague(path: string): Promise<PersistedLeague | null> {
+    const segments = path.split('/').filter(Boolean);
+    if (segments[0] !== 'leagues' || !segments[1] || segments.length !== 2) return null;
+    return this.safeGetLeague(decodeURIComponent(segments[1]));
   }
 
   private async buildBreadcrumbs(path: string): Promise<BreadcrumbItem[]> {
@@ -100,8 +123,22 @@ export class AppComponent {
     catch (error) { logBoundaryError('app-breadcrumb.loadLeague', error, { leagueId }); return null; }
   }
 
+  openImportPicker(): void {
+    if (!this.importing()) this.headerImportInput?.nativeElement.click();
+  }
+
   async downloadFullExport(): Promise<void> {
     saveJsonFile(exportFullData(await this.repo.listLeagues()), 'gones-full-data.gones.json');
+  }
+
+  downloadLeagueExport(league: PersistedLeague): void { const exported = exportLeague(league); saveJsonFile(exported, leagueExportFilename(league, new Date(exported.exportedAt))); }
+
+  async deleteLeague(league: PersistedLeague): Promise<void> {
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete League', message: `Delete ${league.name}? This permanently deletes its Tournaments, rounds, and Player Statistics source data.`, confirmLabel: 'Delete League', destructive: true } }).afterClosed());
+    if (!confirmed) return;
+    await this.repo.deleteLeague(league.id);
+    this.headerLeague.set(null);
+    await this.router.navigate(['/leagues']);
   }
 
   async importLeague(event: Event): Promise<void> {

@@ -26,17 +26,17 @@ import { BackButtonComponent } from '../../shared/back-button.component';
     <gones-back-button [link]="leagueBackLink()" label="Back to League" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (tournament(); as t) {
-      <section class="page-heading" (input)="markDirty()">
+      <section class="page-heading tournament-page-heading" (input)="markDirty()">
         <div>
           <p class="kicker">Tournament</p>
-          <mat-form-field appearance="outline" class="title-field"><mat-label>Tournament name</mat-label><input #tournamentNameInput data-cy="tournament-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()"></mat-form-field>
-          <mat-form-field appearance="outline"><mat-label>Tournament date</mat-label><input matInput type="date" [(ngModel)]="t.tournamentDate"></mat-form-field>
+          <div class="tournament-heading-fields">
+            @if (titleOnlyEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>Tournament name</mat-label><input #tournamentNameInput data-cy="tournament-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
+            @else { <h1><button #tournamentTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="'Edit Tournament name: ' + t.name">{{ t.name }}</button></h1> }
+            <mat-form-field appearance="outline" class="tournament-date-field"><mat-label>Tournament date</mat-label><input matInput type="date" [(ngModel)]="t.tournamentDate"></mat-form-field>
+          </div>
           @if (result().provisional || result().incomplete) { <p class="warning">{{ result().provisional ? 'Provisional Result' : 'Incomplete Tournament' }}</p> }
         </div>
-        <div class="actions">
-          <button mat-button aria-keyshortcuts="Escape" (click)="cancelEdit()" [disabled]="saving() || !dirty()">Revert Esc</button>
-          <button mat-flat-button color="primary" (click)="save()" [disabled]="saving() || !dirty()">Save {{ saveShortcutLabel }}</button>
-        </div>
+
       </section>
       @if (warnings().length) { <p class="warning">Warnings: {{ warnings().length }} source-data issue(s) need review.</p> }
       <section class="stack"><h2>Tournament Ranking</h2><gones-ranking-table [rows]="result().rows" emptyText="No valid Round Entries yet" /></section>
@@ -75,6 +75,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 })
 export class TournamentDetailComponent {
   @ViewChild('tournamentNameInput') private tournamentNameInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('tournamentTitleButton') private tournamentTitleButton?: ElementRef<HTMLButtonElement>;
 
   readonly league = signal<PersistedLeague | null>(null);
   readonly draft = signal<LeagueDocument>(null as unknown as LeagueDocument);
@@ -114,8 +115,17 @@ export class TournamentDetailComponent {
     finally { this.loading.set(false); }
   }
 
-  startEdit(league = this.league()): void { if (!league) return; this.titleOnlyEditing.set(false); this.draft.set(structuredClone(league)); this.editing.set(true); this.dirty.set(false); }
-  startTitleEdit(): void { this.startEdit(); this.titleOnlyEditing.set(true); this.focusTournamentNameInput(); }
+  startEdit(league = this.league()): void {
+    if (!league) return;
+    const draft = structuredClone(league);
+    const tournament = draft.tournaments.find((item) => item.id === this.tournamentId());
+    if (tournament && !tournament.tournamentDate) tournament.tournamentDate = todayDateInputValue();
+    this.titleOnlyEditing.set(false);
+    this.draft.set(draft);
+    this.editing.set(true);
+    this.dirty.set(false);
+  }
+  startTitleEdit(): void { if (!this.editing()) this.startEdit(); this.titleOnlyEditing.set(true); this.focusTournamentNameInput(); }
   cancelEdit(): void { this.startEdit(); this.focusTournamentTitleButton(); }
   markDirty(): void { if (!this.saving()) this.dirty.set(true); }
   addRound(): void { this.updateTournament((tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound()] })); }
@@ -125,7 +135,7 @@ export class TournamentDetailComponent {
     return tournament.rounds.map((round, index) => ({ round, number: index + 1 })).reverse();
   }
   private focusTournamentNameInput(): void { setTimeout(() => this.tournamentNameInput?.nativeElement.focus()); }
-  private focusTournamentTitleButton(): void { this.focusTournamentNameInput(); }
+  private focusTournamentTitleButton(): void { setTimeout(() => this.tournamentTitleButton?.nativeElement.focus()); }
   private updateTournament(updater: (tournament: TournamentDocument) => TournamentDocument): void {
     this.draft.update((league) => ({ ...league, tournaments: league.tournaments.map((tournament) => tournament.id === this.tournamentId() ? updater(tournament) : tournament) }));
     this.markDirty();
@@ -155,4 +165,11 @@ export class TournamentDetailComponent {
     catch (error) { logBoundaryError('tournament-detail.save', error, { leagueId: saved.id, tournamentId: this.tournamentId() }); this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? 'This League changed since you opened it. Reload the latest saved data before saving again.' : 'Could not save this Tournament.'); }
     finally { this.saving.set(false); }
   }
+}
+
+function todayDateInputValue(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }

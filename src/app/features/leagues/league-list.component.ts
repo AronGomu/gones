@@ -18,26 +18,32 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
   standalone: true,
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule],
   template: `
-    <section class="page-heading">
-      <div><h1>Leagues</h1><p class="muted">Consult public data, export backups, and modify source data in the frontend-only MVP.</p></div>
+    <section class="page-heading league-list-heading">
+      <div><h1>Leagues</h1></div>
     </section>
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-    <div class="league-toolbar">
-      <mat-form-field appearance="outline" class="search"><mat-label>Search Leagues</mat-label><input matInput [(ngModel)]="searchTerm"></mat-form-field>
-      <button mat-flat-button color="primary" (click)="createLeague()">New League</button>
-    </div>
+    @if (showLeagueFilter()) {
+      <div class="league-toolbar">
+        <mat-form-field appearance="outline" class="search"><mat-label>Search Leagues</mat-label><input matInput [(ngModel)]="searchTerm"></mat-form-field>
+      </div>
+    }
     @if (loading()) { <mat-spinner diameter="40" /> }
-    @else if (!filteredLeagues().length) { <mat-card class="panel"><mat-card-title>No Leagues</mat-card-title><mat-card-content>No public Leagues match this view.</mat-card-content></mat-card> }
     @else {
+      @if (!filteredLeagues().length) { <p class="muted">No public Leagues match this view.</p> }
       <div class="league-grid">
         @for (league of filteredLeagues(); track league.id) {
           <a class="league-card" [routerLink]="['/leagues', league.id]" data-cy="league-list-item">
             <span class="status league-card-status" [class.completed]="league.status === 'completed'"><span class="status-dot" aria-hidden="true"></span>{{ league.status === 'completed' ? 'Completed' : 'Active' }}</span>
             <h2>{{ league.name }}</h2>
             <p>{{ league.tournaments.length }} Tournament{{ league.tournaments.length === 1 ? '' : 's' }} · {{ playerCount(league) }} Player{{ playerCount(league) === 1 ? '' : 's' }}</p>
-            <span class="open-affordance">→</span>
+            <span class="card-view-action" aria-hidden="true">VIEW</span>
           </a>
         }
+        <button class="league-card league-create-card" type="button" (click)="createLeague()" data-cy="create-league-card">
+          <h2>New League</h2>
+          <p>Create a fresh League.</p>
+          <span class="card-view-action" aria-hidden="true">CREATE</span>
+        </button>
       </div>
     }
   `
@@ -47,8 +53,9 @@ export class LeagueListComponent {
   readonly loading = signal(true);
   readonly error = signal('');
   searchTerm = '';
+  readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {
-    const search = this.searchTerm.trim().toLowerCase();
+    const search = this.showLeagueFilter() ? this.searchTerm.trim().toLowerCase() : '';
     return this.leagues().filter((league) => !search || league.name.toLowerCase().includes(search));
   });
 

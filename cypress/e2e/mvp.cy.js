@@ -35,7 +35,7 @@ describe("Gones Angular MVP", () => {
     cy.contains("h1", "Imported League");
   });
 
-  it("turns League and Tournament titles into live name inputs", () => {
+  it("turns Tournament titles into live name inputs while League titles stay read-only", () => {
     cy.visit("/leagues/title-league/tournaments/title-tournament", {
       onBeforeLoad(win) {
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
@@ -59,22 +59,26 @@ describe("Gones Angular MVP", () => {
       }
     });
     cy.contains("button", "Edit source data").should("not.exist");
-    cy.get('[data-cy="tournament-name-input"]').clear().type("Updated Tournament");
-    cy.contains("button", "Save").click();
-    cy.get('[data-cy="tournament-name-input"]').should("have.value", "Updated Tournament");
+    cy.contains("h1 button", "Title Tournament").click();
+    cy.get('[data-cy="tournament-name-input"]').should("be.focused").clear();
+    cy.get('[data-cy="tournament-name-input"]').type("Updated Tournament{enter}");
+    cy.contains("h1 button", "Updated Tournament");
 
     cy.visit("/leagues/completed-title-league/tournaments/completed-title-tournament");
     cy.contains("button", "Edit source data").should("not.exist");
-    cy.get('[data-cy="tournament-name-input"]').clear().type("Renamed Completed Tournament");
+    cy.contains("h1 button", "Completed Tournament").click();
+    cy.get('[data-cy="tournament-name-input"]').should("be.focused").clear();
+    cy.get('[data-cy="tournament-name-input"]').type("Renamed Completed Tournament{enter}");
+    cy.contains("h1 button", "Renamed Completed Tournament");
     cy.contains("Add Round").should("exist").click();
     cy.contains("button", "Save").click();
-    cy.get('[data-cy="tournament-name-input"]').should("have.value", "Renamed Completed Tournament");
+    cy.contains("h1 button", "Renamed Completed Tournament");
 
     cy.visit("/leagues/title-league");
-    cy.contains("h1 button", "Title League").click();
+    cy.contains("h1", "Title League");
+    cy.contains("h1 button", "Title League").should("not.exist");
+    cy.get('[data-cy="league-name-input"]').should("not.exist");
     cy.contains("Unsaved draft").should("not.exist");
-    cy.get('[data-cy="league-name-input"]').should("be.focused").clear().type("Updated League").blur();
-    cy.contains("h1 button", "Updated League");
   });
 
   it("always shows a Ranking toggle for League and Tournament standings", () => {
@@ -116,6 +120,8 @@ describe("Gones Angular MVP", () => {
     cy.get('[data-cy="ranking-table"]').should("not.be.visible");
     cy.get('[data-cy="ranking-table-toggle"]').click().should("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking");
     cy.get('[data-cy="ranking-table"]').should("be.visible");
+    cy.contains('[data-cy="ranking-table"] tr', "Alice").should("have.attr", "role", "link").click();
+    cy.location("pathname").should("eq", "/players/Alice");
 
     cy.visit("/leagues/ranking-toggle-league/tournaments/ranking-toggle-tournament");
     cy.get('[data-cy="ranking-table-toggle"]').should("be.visible").and("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking").click();
@@ -124,10 +130,36 @@ describe("Gones Angular MVP", () => {
     cy.get('[data-cy="ranking-table"]').should("be.visible");
   });
 
-  it("shows frontend-only edit controls without login", () => {
+  it("shows Tournaments as clickable responsive cards", () => {
+    cy.visit("/leagues/table-league", {
+      onBeforeLoad(win) {
+        win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
+          version: 1,
+          leagues: [{
+            id: "table-league",
+            name: "Table League",
+            status: "active",
+            documentVersion: 1,
+            updatedAt: "2026-06-03T00:00:00.000Z",
+            tournaments: [
+              { id: "table-tournament-1", leagueId: "table-league", name: "First Table Tournament", tournamentDate: "2026-06-01", rounds: [] },
+              { id: "table-tournament-2", leagueId: "table-league", name: "Second Table Tournament", tournamentDate: "2026-06-02", rounds: [] }
+            ]
+          }]
+        }));
+      }
+    });
+    cy.get('[data-cy="tournament-card-grid"]').within(() => {
+      cy.contains("a", "Second Table Tournament").should("contain", "2026").and("have.attr", "href", "/leagues/table-league/tournaments/table-tournament-2").click();
+    });
+    cy.location("pathname").should("eq", "/leagues/table-league/tournaments/table-tournament-2");
+  });
+
+  it("shows read-only League controls without login", () => {
     cy.visit("/leagues/demo-league");
-    cy.contains("Edit source data").should("exist");
-    cy.contains("League Export").should("exist");
+    cy.contains("Edit source data").should("not.exist");
+    cy.get('[data-cy="league-name-input"]').should("not.exist");
+    cy.contains("Export League").should("exist");
   });
 
   it("opens Tournament source data as editable and imports headerless CSV rows", () => {

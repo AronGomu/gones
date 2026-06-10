@@ -1,5 +1,5 @@
 import { Component, Input } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
 import { RankingRow } from '../domain/results';
 
@@ -29,34 +29,27 @@ let nextRankingTableId = 0;
         @if (!rows.length) {
           <p class="muted" data-cy="empty-ranking">{{ emptyText }}</p>
         } @else {
-          <ol class="ranking-cards" data-cy="ranking-card-list" aria-label="Ranking list">
-            @for (row of rows; track row.playerName) {
-              <li class="ranking-card">
-                <div class="ranking-card-main">
-                  <span class="rank-badge">#{{ row.rank }}</span>
-                  <a [routerLink]="['/players', row.playerName]">{{ row.playerName }}</a>
-                  <span class="ranking-card-record">{{ row.matchWins }}-{{ row.matchLosses }}-{{ row.matchDraws }} @if (row.byes) { <span>({{ row.byes }} bye)</span> }</span>
-                  <span class="ranking-card-points">{{ row.points }} pts</span>
-                </div>
-                <dl class="ranking-card-stats" aria-label="Tiebreakers">
-                  <div><dt>OMW</dt><dd>{{ formatPercentage(row.opponentsMatchWinPercentage) }}</dd></div>
-                  <div><dt>GW</dt><dd>{{ formatPercentage(row.gameWinPercentage) }}</dd></div>
-                  <div><dt>OGW</dt><dd>{{ formatPercentage(row.opponentsGameWinPercentage) }}</dd></div>
-                </dl>
-              </li>
-            }
-          </ol>
           <div class="table-wrap">
             <table mat-table [dataSource]="rows" class="ranking-table" data-cy="ranking-table">
               <ng-container matColumnDef="rank"><th mat-header-cell *matHeaderCellDef>Rank</th><td mat-cell *matCellDef="let row">{{ row.rank }}</td></ng-container>
               <ng-container matColumnDef="player"><th mat-header-cell *matHeaderCellDef>Player</th><td mat-cell *matCellDef="let row"><a [routerLink]="['/players', row.playerName]">{{ row.playerName }}</a></td></ng-container>
-              <ng-container matColumnDef="record"><th mat-header-cell *matHeaderCellDef>Record</th><td mat-cell *matCellDef="let row">{{ row.matchWins }}-{{ row.matchLosses }}-{{ row.matchDraws }} @if (row.byes) { <span>({{ row.byes }} bye)</span> }</td></ng-container>
               <ng-container matColumnDef="points"><th mat-header-cell *matHeaderCellDef>Pts</th><td mat-cell *matCellDef="let row">{{ row.points }}</td></ng-container>
+              <ng-container matColumnDef="record"><th mat-header-cell *matHeaderCellDef>Record</th><td mat-cell *matCellDef="let row"><span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">({{ row.byes }} bye)</span> }</td></ng-container>
               <ng-container matColumnDef="omw"><th mat-header-cell *matHeaderCellDef>OMW</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td></ng-container>
               <ng-container matColumnDef="gw"><th mat-header-cell *matHeaderCellDef>GW</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.gameWinPercentage) }}</td></ng-container>
               <ng-container matColumnDef="ogw"><th mat-header-cell *matHeaderCellDef>OGW</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.opponentsGameWinPercentage) }}</td></ng-container>
               <tr mat-header-row *matHeaderRowDef="columns"></tr>
-              <tr mat-row *matRowDef="let row; columns: columns"></tr>
+              <tr
+                mat-row
+                *matRowDef="let row; columns: columns"
+                class="ranking-table__clickable-row"
+                tabindex="0"
+                role="link"
+                [attr.aria-label]="'Open Player Statistics for ' + row.playerName"
+                (click)="openPlayerStats(row)"
+                (keydown.enter)="openPlayerStats(row)"
+                (keydown.space)="$event.preventDefault(); openPlayerStats(row)"
+              ></tr>
             </table>
           </div>
         }
@@ -67,9 +60,11 @@ let nextRankingTableId = 0;
 export class RankingTableComponent {
   @Input({ required: true }) rows: RankingRow[] = [];
   @Input() emptyText = 'No result yet';
-  columns = ['rank', 'player', 'record', 'points', 'omw', 'gw', 'ogw'];
+  columns = ['rank', 'player', 'points', 'record', 'omw', 'gw', 'ogw'];
   collapsed = false;
   readonly panelId = `ranking-table-panel-${nextRankingTableId++}`;
+
+  constructor(private readonly router: Router) {}
 
   get rankingSummary(): string {
     if (!this.rows.length) return 'No ranked players';
@@ -78,6 +73,10 @@ export class RankingTableComponent {
 
   toggleCollapsed(): void {
     this.collapsed = !this.collapsed;
+  }
+
+  openPlayerStats(row: RankingRow): void {
+    void this.router.navigate(['/players', row.playerName]);
   }
 
   formatPercentage(value: number | null | undefined): string {

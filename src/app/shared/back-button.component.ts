@@ -1,4 +1,4 @@
-import { Location } from '@angular/common';
+import { Location, NgTemplateOutlet } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,15 +6,25 @@ import { MatButtonModule } from '@angular/material/button';
 @Component({
   selector: 'gones-back-button',
   standalone: true,
-  imports: [RouterLink, MatButtonModule],
+  imports: [RouterLink, MatButtonModule, NgTemplateOutlet],
   template: `
-    <div class="back-button-row" [class.back-button-row--top]="position === 'top'" [class.back-button-row--bottom]="position === 'bottom'">
+    @if (position === 'bottom') {
+      <footer class="back-button-row back-button-row--bottom" aria-label="Page footer navigation">
+        <ng-container *ngTemplateOutlet="backButton" />
+      </footer>
+    } @else {
+      <div class="back-button-row back-button-row--top">
+        <ng-container *ngTemplateOutlet="backButton" />
+      </div>
+    }
+
+    <ng-template #backButton>
       @if (link) {
         <a mat-stroked-button class="back-button secondary-action" [routerLink]="link" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ label }}</span></a>
       } @else {
         <button mat-stroked-button class="back-button secondary-action" type="button" (click)="goBack()" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ label }}</span></button>
       }
-    </div>
+    </ng-template>
   `
 })
 export class BackButtonComponent {
