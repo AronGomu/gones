@@ -35,7 +35,7 @@ describe("Gones Angular MVP", () => {
     cy.contains("h1", "Imported League");
   });
 
-  it("turns Tournament titles into live name inputs while League titles stay read-only", () => {
+  it("turns League and Tournament titles into live name inputs", () => {
     cy.visit("/leagues/title-league/tournaments/title-tournament", {
       onBeforeLoad(win) {
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
@@ -75,10 +75,12 @@ describe("Gones Angular MVP", () => {
     cy.contains("h1 button", "Renamed Completed Tournament");
 
     cy.visit("/leagues/title-league");
-    cy.contains("h1", "Title League");
-    cy.contains("h1 button", "Title League").should("not.exist");
+    cy.contains("h1 button", "Title League").click();
+    cy.get('[data-cy="league-name-input"]').should("be.focused").clear().type("Updated League{enter}");
+    cy.contains("h1 button", "Updated League");
     cy.get('[data-cy="league-name-input"]').should("not.exist");
-    cy.contains("Unsaved draft").should("not.exist");
+    cy.reload();
+    cy.contains("h1 button", "Updated League");
   });
 
   it("always shows a Ranking toggle for League and Tournament standings", () => {
@@ -180,7 +182,7 @@ describe("Gones Angular MVP", () => {
     });
     cy.contains("button", "Edit source data").should("not.exist");
     cy.contains("Round Import").should("exist");
-    cy.get('textarea[placeholder="Table,Player,Result,Opponent,Player_Decklist,Opponent_Decklist"]').type("7,Alice,Won 2-1,Bob,Fire,Ice", { force: true });
+    cy.get('[data-cy="round-import-input"]').should("have.attr", "placeholder", "table number, player name, result, opponent name, player deck archetype, opponent deck archetype\n7,Alice,Won 2-1,Bob,Fire,Ice\n8,Charlie,Lost 1-2,Dana,Water,Earth\n9,Eve,Draw 1-1,Frank,Air,Metal").type("7,Alice,Won 2-1,Bob,Fire,Ice", { force: true });
     cy.contains("button", "Import").click();
     cy.get('input[aria-label="Player 1"]').should("have.value", "Alice").clear().type("Alicia");
     cy.contains("button", "Save").click();

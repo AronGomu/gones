@@ -10,10 +10,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { createMatchRoundEntry, createRound, LeagueDocument, PersistedLeague, RoundDocument, TournamentDocument } from '../../domain/models';
+import { createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
 import { calculateTournamentResult } from '../../domain/results';
-import { getTournamentWarnings } from '../../domain/warnings';
+import { getTournamentWarnings, TournamentWarning } from '../../domain/warnings';
+import { validateRoundEntry } from '../../domain/validation';
 import { RankingTableComponent } from '../../shared/ranking-table.component';
 import { logBoundaryError } from '../../shared/app-logger';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -24,6 +25,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   imports: [FormsModule, MatButtonModule, MatCardModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatMenuModule, RankingTableComponent, BackButtonComponent],
   template: `
     <gones-back-button [link]="leagueBackLink()" label="Back to League" position="top" />
+    <div class="tournament-detail-content">
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (tournament(); as t) {
       <section class="page-heading tournament-page-heading" (input)="markDirty()">
@@ -34,11 +36,26 @@ import { BackButtonComponent } from '../../shared/back-button.component';
             @else { <h1><button #tournamentTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="'Edit Tournament name: ' + t.name">{{ t.name }}</button></h1> }
             <mat-form-field appearance="outline" class="tournament-date-field"><mat-label>Tournament date</mat-label><input matInput type="date" [(ngModel)]="t.tournamentDate"></mat-form-field>
           </div>
-          @if (result().provisional || result().incomplete) { <p class="warning">{{ result().provisional ? 'Provisional Result' : 'Incomplete Tournament' }}</p> }
+          @if (result().provisional || result().incomplete) {
+            <div class="warning">
+              <p>{{ result().provisional ? 'Provisional Result' : 'Incomplete Tournament' }}</p>
+              @if (completionIssues().length) {
+                <ul>
+                  @for (issue of completionIssues(); track issue) { <li>{{ issue }}</li> }
+                </ul>
+              }
+            </div>
+          }
         </div>
-
       </section>
-      @if (warnings().length) { <p class="warning">Warnings: {{ warnings().length }} source-data issue(s) need review.</p> }
+      @if (warnings().length) {
+        <div class="warning">
+          <p>Warnings: {{ warnings().length }} source-data issue(s) need review.</p>
+          <ul>
+            @for (warning of warningMessages(); track warning) { <li>{{ warning }}</li> }
+          </ul>
+        </div>
+      }
       <section class="stack"><h2>Tournament Ranking</h2><gones-ranking-table [rows]="result().rows" emptyText="No valid Round Entries yet" /></section>
       <section class="stack" (input)="markDirty()">
         <div class="section-header"><h2>Rounds</h2><button class="add-round-button" mat-flat-button color="primary" (click)="addRound()">Add Round</button></div>
@@ -52,7 +69,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
             <mat-menu #roundMenu="matMenu">
               <button class="destructive-menu-item" mat-menu-item type="button" (click)="deleteRound(roundView.round)">Delete Round</button>
             </mat-menu>
-            <div class="import-row"><mat-form-field appearance="outline"><mat-label>Round Import</mat-label><textarea matInput #importText placeholder="Table,Player,Result,Opponent,Player_Decklist,Opponent_Decklist"></textarea></mat-form-field><button mat-stroked-button (click)="replaceRound(roundView.round, importText.value); importText.value = ''">Import</button></div>
+            <div class="import-row"><mat-form-field appearance="outline"><mat-label>Round Import</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field><button mat-stroked-button (click)="replaceRound(roundView.round, importText.value); importText.value = ''">Import</button></div>
             <button mat-stroked-button (click)="addMatch(roundView.round)">Add Match</button>
             <div class="entry-list">
               @for (entry of roundView.round.entries; track entry.id) {
@@ -70,6 +87,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         }
       </section>
     } @else if (!loading()) { <mat-card class="panel"><mat-card-title>Tournament not found</mat-card-title><mat-card-content><p>The requested Tournament does not exist or was deleted.</p></mat-card-content></mat-card> }
+    </div>
     @if (!loading()) { <gones-back-button [link]="leagueBackLink()" label="Back to League" position="bottom" /> }
   `
 })
@@ -89,10 +107,13 @@ export class TournamentDetailComponent {
   readonly tournament = computed(() => this.currentLeague()?.tournaments.find((item) => item.id === this.tournamentId()) ?? null);
   readonly result = computed(() => this.tournament() ? calculateTournamentResult(this.tournament()!) : { rows: [], incomplete: true, provisional: false });
   readonly warnings = computed(() => this.tournament() ? getTournamentWarnings(this.tournament()!) : []);
+  readonly completionIssues = computed(() => this.tournament() ? tournamentCompletionIssues(this.tournament()!) : []);
+  readonly warningMessages = computed(() => this.tournament() ? this.warnings().map((warning) => tournamentWarningMessage(warning, this.tournament()!)) : []);
   private readonly leagueId = signal('');
   private readonly tournamentId = signal('');
   readonly leagueBackLink = computed(() => ['/leagues', this.leagueId()]);
   readonly saveShortcutLabel = navigator.platform.toLowerCase().includes('mac') ? '⌘S' : 'Ctrl+S';
+  readonly roundImportPlaceholder = 'table number, player name, result, opponent name, player deck archetype, opponent deck archetype\n7,Alice,Won 2-1,Bob,Fire,Ice\n8,Charlie,Lost 1-2,Dana,Water,Earth\n9,Eve,Draw 1-1,Frank,Air,Metal';
 
   constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly dialog: MatDialog) { void this.load(); }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void { if (this.dirty()) event.preventDefault(); }
@@ -154,6 +175,8 @@ export class TournamentDetailComponent {
 
   async saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): Promise<void> {
     if (!this.titleOnlyEditing() || this.saving()) return;
+    const tournament = this.tournament();
+    if (tournament) tournament.name = String(tournament.name ?? '').trim() || getDefaultTournamentName();
     await this.save({ restoreFocus });
   }
 
@@ -165,6 +188,40 @@ export class TournamentDetailComponent {
     catch (error) { logBoundaryError('tournament-detail.save', error, { leagueId: saved.id, tournamentId: this.tournamentId() }); this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? 'This League changed since you opened it. Reload the latest saved data before saving again.' : 'Could not save this Tournament.'); }
     finally { this.saving.set(false); }
   }
+}
+
+function tournamentCompletionIssues(tournament: TournamentDocument): string[] {
+  const issues: string[] = [];
+  if (!tournament.rounds?.length) issues.push('Add at least one Round.');
+  tournament.rounds?.forEach((round, roundIndex) => {
+    round.entries.forEach((entry, entryIndex) => {
+      const validation = validateRoundEntry(entry);
+      if (validation.valid) return;
+      const prefix = `Round ${roundIndex + 1}, entry ${entryIndex + 1}`;
+      for (const code of validation.codes) issues.push(`${prefix}: ${validationMessage(code)}.`);
+    });
+  });
+  return issues;
+}
+
+function validationMessage(code: string): string {
+  const messages: Record<string, string> = {
+    invalidRoundEntry: 'replace the invalid imported row with a valid Match or Bye',
+    playerRequired: 'enter the player name',
+    opponentRequired: 'enter the opponent name',
+    byeReservedPlayerName: 'use the real player name instead of Bye',
+    byeReservedOpponentName: 'use the real opponent name instead of Bye',
+    samePlayerName: 'use two different player names',
+    resultInvalid: 'enter non-negative whole-number game scores'
+  };
+  return messages[code] ?? `fix ${code}`;
+}
+
+function tournamentWarningMessage(warning: TournamentWarning, tournament: TournamentDocument): string {
+  const roundNumber = warning.roundId ? tournament.rounds.findIndex((round) => round.id === warning.roundId) + 1 : 0;
+  if (warning.code === 'missingBye') return `Round ${roundNumber}: add the missing Bye for the unpaired player.`;
+  if (warning.code === 'duplicateSameRoundPlayerName') return `Round ${roundNumber}: ${warning.playerName ?? 'A player'} appears more than once; correct the duplicate entry.`;
+  return 'A player pairing appears more than once; correct one of the repeated matches.';
 }
 
 function todayDateInputValue(date = new Date()): string {

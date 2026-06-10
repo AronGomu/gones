@@ -41,7 +41,6 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
         }
         <button class="league-card league-create-card" type="button" (click)="createLeague()" data-cy="create-league-card">
           <h2>New League</h2>
-          <p>Create a fresh League.</p>
           <span class="card-view-action" aria-hidden="true">CREATE</span>
         </button>
       </div>

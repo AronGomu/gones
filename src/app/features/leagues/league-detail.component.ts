@@ -1,6 +1,9 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, ElementRef, signal, ViewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { createTournament, LeagueDocument, PersistedLeague } from '../../domain/models';
 import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate } from '../../domain/results';
@@ -10,14 +13,15 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatCardModule, RankingTableComponent, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatCardModule, MatFormFieldModule, MatInputModule, RankingTableComponent, BackButtonComponent],
   template: `
     <gones-back-button [link]="['/leagues']" label="Back to Leagues" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (league(); as saved) {
       <section class="page-heading">
         <div>
-          <h1>{{ saved.name }}</h1>
+          @if (titleEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>League name</mat-label><input #leagueNameInput data-cy="league-name-input" matInput [(ngModel)]="leagueNameDraft" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
+          @else { <h1><button #leagueTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="'Edit League name: ' + saved.name">{{ saved.name }}</button></h1> }
           <p class="muted">{{ saved.tournaments.length }} Tournaments · {{ startDate(saved) || 'No start date' }} — {{ endDate(saved) || 'No end date' }}</p>
         </div>
 
@@ -56,10 +60,15 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   `
 })
 export class LeagueDetailComponent {
+  @ViewChild('leagueNameInput') private leagueNameInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('leagueTitleButton') private leagueTitleButton?: ElementRef<HTMLButtonElement>;
+
   readonly league = signal<PersistedLeague | null>(null);
   readonly loading = signal(true);
   readonly saving = signal(false);
+  readonly titleEditing = signal(false);
   readonly error = signal('');
+  leagueNameDraft = '';
   readonly result = computed(() => calculateLeagueResult(this.league()!));
   readonly sortedTournaments = computed(() => [...(this.league()?.tournaments ?? [])].sort((a, b) => (b.tournamentDate || '9999-12-31').localeCompare(a.tournamentDate || '9999-12-31') || b.name.localeCompare(a.name)));
 
@@ -68,13 +77,50 @@ export class LeagueDetailComponent {
   async load(): Promise<void> {
     this.loading.set(true);
     const id = this.route.snapshot.paramMap.get('leagueId') ?? '';
-    try { this.league.set(await this.repo.getLeague(id)); }
+    try { const league = await this.repo.getLeague(id); this.league.set(league); this.leagueNameDraft = league?.name ?? ''; this.titleEditing.set(false); }
     catch (error) { logBoundaryError('league-detail.load', error, { leagueId: id }); this.error.set('Could not load this League.'); }
     finally { this.loading.set(false); }
   }
 
   startDate(league: LeagueDocument): string { return calculateLeagueStartDate(league); }
   endDate(league: LeagueDocument): string { return calculateLeagueEndDate(league); }
+
+  startTitleEdit(): void {
+    const saved = this.league();
+    if (!saved || this.saving()) return;
+    this.leagueNameDraft = saved.name;
+    this.titleEditing.set(true);
+    this.focusLeagueNameInput();
+  }
+
+  async saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): Promise<void> {
+    const saved = this.league();
+    if (!saved || !this.titleEditing() || this.saving()) return;
+    const name = this.validLeagueName(this.leagueNameDraft, saved.name);
+    this.leagueNameDraft = name;
+    if (name === saved.name) {
+      this.titleEditing.set(false);
+      if (restoreFocus) this.focusLeagueTitleButton();
+      return;
+    }
+
+    this.saving.set(true);
+    try {
+      const updatedLeague = await this.repo.saveLeague({ ...saved, name }, saved.documentVersion);
+      this.league.set(updatedLeague);
+      this.leagueNameDraft = updatedLeague.name;
+      this.titleEditing.set(false);
+      this.error.set('');
+      if (restoreFocus) this.focusLeagueTitleButton();
+    } catch (error) {
+      logBoundaryError('league-detail.renameLeague', error, { leagueId: saved.id });
+      this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? 'This League changed before the name could be saved. Reload the latest saved data and try again.' : 'Could not save this League name.');
+      this.leagueNameDraft = saved.name;
+      this.titleEditing.set(false);
+    } finally {
+      this.saving.set(false);
+    }
+  }
 
   async createNewTournament(): Promise<void> {
     const saved = this.league();
@@ -101,6 +147,10 @@ export class LeagueDetailComponent {
     if (!date) return value;
     return new Intl.DateTimeFormat(navigator.language, { dateStyle: 'medium' }).format(date);
   }
+
+  private validLeagueName(value: string, fallback: string): string { return String(value ?? '').trim() || fallback; }
+  private focusLeagueNameInput(): void { setTimeout(() => this.leagueNameInput?.nativeElement.focus()); }
+  private focusLeagueTitleButton(): void { setTimeout(() => this.leagueTitleButton?.nativeElement.focus()); }
 
   private parseDateOnly(value: string): Date | null {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);

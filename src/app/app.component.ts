@@ -8,7 +8,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { LeagueRepository } from './data/league-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
-import { PersistedLeague } from './domain/models';
+import { PersistedLeague, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
@@ -18,6 +18,11 @@ interface BreadcrumbItem {
   link?: unknown[];
 }
 
+interface HeaderTournament {
+  league: PersistedLeague;
+  tournament: TournamentDocument;
+}
+
 @Component({
   selector: 'gones-root',
   standalone: true,
@@ -25,22 +30,19 @@ interface BreadcrumbItem {
   template: `
     <mat-toolbar class="app-toolbar">
       <a class="brand" routerLink="/leagues" aria-label="Gones home"><img src="assets/gones_logo.png" alt="Gones"></a>
-      <nav class="breadcrumb-shell breadcrumb-shell--desktop" aria-label="Breadcrumb">
-        <ol class="breadcrumbs">
-          @for (item of breadcrumbs(); track item.label + $index) {
-            <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
-              @if (!$last && item.link) { <a [routerLink]="item.link">{{ item.label }}</a> }
-              @else { <span>{{ item.label }}</span> }
-            </li>
-          }
-        </ol>
-      </nav>
       <span class="spacer"></span>
       @if (showHeaderImport()) {
         <div class="header-actions">
           <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? 'Importing…' : 'Import' }}</button>
           <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" [disabled]="importing()" (change)="importLeague($event)">
           <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">Full Data Export</button>
+        </div>
+      } @else if (headerTournament(); as item) {
+        <div class="header-actions tournament-header-actions">
+          <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" aria-label="Tournament actions" [disabled]="deletingTournament()">⋮</button>
+          <mat-menu #tournamentActionsMenu="matMenu">
+            <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? 'Deleting Tournament…' : 'Delete Tournament' }}</button>
+          </mat-menu>
         </div>
       } @else if (headerLeague(); as league) {
         <div class="header-actions league-header-actions">
@@ -52,7 +54,7 @@ interface BreadcrumbItem {
         </div>
       }
     </mat-toolbar>
-    <nav class="breadcrumb-shell breadcrumb-shell--mobile" aria-label="Breadcrumb">
+    <nav class="breadcrumb-shell breadcrumb-shell--header" aria-label="Breadcrumb">
       <ol class="breadcrumbs">
         @for (item of breadcrumbs(); track item.label + $index) {
           <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
@@ -75,9 +77,11 @@ export class AppComponent {
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
   readonly importing = signal(false);
+  readonly deletingTournament = signal(false);
   readonly importError = signal('');
   readonly showHeaderImport = signal(true);
   readonly headerLeague = signal<PersistedLeague | null>(null);
+  readonly headerTournament = signal<HeaderTournament | null>(null);
   readonly breadcrumbs = signal<BreadcrumbItem[]>([{ label: 'Leagues' }]);
   private routeStateRequest = 0;
 
@@ -94,6 +98,7 @@ export class AppComponent {
     const path = url.split('?')[0];
     this.showHeaderImport.set(path === '/leagues');
     this.headerLeague.set(await this.buildHeaderLeague(path));
+    this.headerTournament.set(await this.buildHeaderTournament(path));
     const breadcrumbs = await this.buildBreadcrumbs(path);
     if (request === this.routeStateRequest) this.breadcrumbs.set(breadcrumbs);
   }
@@ -102,6 +107,14 @@ export class AppComponent {
     const segments = path.split('/').filter(Boolean);
     if (segments[0] !== 'leagues' || !segments[1] || segments.length !== 2) return null;
     return this.safeGetLeague(decodeURIComponent(segments[1]));
+  }
+
+  private async buildHeaderTournament(path: string): Promise<HeaderTournament | null> {
+    const segments = path.split('/').filter(Boolean);
+    if (segments[0] !== 'leagues' || !segments[1] || segments[2] !== 'tournaments' || !segments[3]) return null;
+    const league = await this.safeGetLeague(decodeURIComponent(segments[1]));
+    const tournament = league?.tournaments.find((item) => item.id === decodeURIComponent(segments[3]));
+    return league && tournament ? { league, tournament } : null;
   }
 
   private async buildBreadcrumbs(path: string): Promise<BreadcrumbItem[]> {
@@ -139,6 +152,25 @@ export class AppComponent {
     await this.repo.deleteLeague(league.id);
     this.headerLeague.set(null);
     await this.router.navigate(['/leagues']);
+  }
+
+  async deleteTournament({ league, tournament }: HeaderTournament): Promise<void> {
+    if (this.deletingTournament()) return;
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete Tournament', message: `Delete ${tournament.name}? This permanently deletes its rounds and Player Statistics source data.`, confirmLabel: 'Delete Tournament', destructive: true } }).afterClosed());
+    if (!confirmed) return;
+    this.deletingTournament.set(true);
+    this.importError.set('');
+    try {
+      const nextLeague = { ...league, tournaments: league.tournaments.filter((item) => item.id !== tournament.id) };
+      await this.repo.saveLeague(nextLeague, league.documentVersion);
+      this.headerTournament.set(null);
+      await this.router.navigate(['/leagues', league.id]);
+    } catch (error) {
+      logBoundaryError('app-header.deleteTournament', error, { leagueId: league.id, tournamentId: tournament.id });
+      this.importError.set(error instanceof Error && error.message === 'staleLeagueDocument' ? 'This League changed since you opened it. Reload the latest saved data before deleting this Tournament.' : 'Could not delete this Tournament.');
+    } finally {
+      this.deletingTournament.set(false);
+    }
   }
 
   async importLeague(event: Event): Promise<void> {
