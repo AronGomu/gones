@@ -47,7 +47,6 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           }
           <button class="league-card league-create-card tournament-add-card" type="button" (click)="createNewTournament()" [disabled]="saving()" data-cy="create-tournament-card">
             <h2>{{ saving() ? 'Creating…' : 'Add Tournament' }}</h2>
-            <p>Create a fresh Tournament.</p>
             <span class="card-view-action" aria-hidden="true">CREATE</span>
           </button>
         </div>

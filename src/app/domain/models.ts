@@ -24,6 +24,12 @@ export interface TournamentDocument {
   name: string;
   tournamentDate: string;
   rounds: RoundDocument[];
+  playerArchetypes: PlayerArchetypeDocument[];
+}
+
+export interface PlayerArchetypeDocument {
+  playerName: string;
+  archetype: string;
 }
 
 export interface RoundDocument {
@@ -106,15 +112,17 @@ export function normalizeLeague(league: Partial<LeagueDocument> = {}, options: {
 }
 
 export function createTournament(
-  { id, leagueId = '', name = getDefaultTournamentName(), tournamentDate = '', rounds = [] }: Partial<TournamentDocument> = {},
+  { id, leagueId = '', name = getDefaultTournamentName(), tournamentDate = '', rounds = [], playerArchetypes }: Partial<TournamentDocument> = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): TournamentDocument {
+  const normalizedRounds = rounds.map((round) => createRound(round, { idFactory }));
   return {
     id: id ?? idFactory(),
     leagueId,
     name: String(name || getDefaultTournamentName()).trim() || getDefaultTournamentName(),
     tournamentDate: String(tournamentDate ?? ''),
-    rounds: rounds.map((round) => createRound(round, { idFactory }))
+    rounds: normalizedRounds,
+    playerArchetypes: normalizePlayerArchetypeDocuments(playerArchetypes ?? derivePlayerArchetypesFromRoundDocuments(normalizedRounds))
   };
 }
 
@@ -180,6 +188,42 @@ function withDefaultTable(entry: RoundEntry, fallbackTable: string): Partial<Rou
   if (entry.kind === 'bye') return { ...entry, table: entry.table || fallbackTable };
   if (entry.kind === 'invalid') return { ...entry, table: entry.table || fallbackTable };
   return { ...entry, table: entry.table || fallbackTable };
+}
+
+function normalizePlayerArchetypeDocuments(archetypes: unknown): PlayerArchetypeDocument[] {
+  if (!Array.isArray(archetypes)) return [];
+  const normalized: PlayerArchetypeDocument[] = [];
+  const seen = new Set<string>();
+  for (const item of archetypes) {
+    if (!item || typeof item !== 'object') continue;
+    const value = item as Partial<PlayerArchetypeDocument>;
+    const playerName = trimPlayerName(value.playerName);
+    if (!playerName || seen.has(playerName)) continue;
+    seen.add(playerName);
+    normalized.push({ playerName, archetype: String(value.archetype ?? '').trim() });
+  }
+  return normalized.sort((left, right) => left.playerName.localeCompare(right.playerName));
+}
+
+function derivePlayerArchetypesFromRoundDocuments(rounds: RoundDocument[]): PlayerArchetypeDocument[] {
+  const archetypes = new Map<string, string>();
+  for (const round of rounds) {
+    for (const entry of round.entries) {
+      if (entry.kind === 'match') {
+        addDerivedArchetype(archetypes, entry.player1Name, entry.player1DeckArchetype);
+        addDerivedArchetype(archetypes, entry.player2Name, entry.player2DeckArchetype);
+      } else if (entry.kind === 'bye') {
+        addDerivedArchetype(archetypes, entry.playerName, entry.deckArchetype);
+      }
+    }
+  }
+  return [...archetypes.entries()].map(([playerName, archetype]) => ({ playerName, archetype }));
+}
+
+function addDerivedArchetype(archetypes: Map<string, string>, playerName: string, archetype: string): void {
+  const normalizedPlayerName = trimPlayerName(playerName);
+  if (!normalizedPlayerName || archetypes.has(normalizedPlayerName)) return;
+  archetypes.set(normalizedPlayerName, String(archetype ?? '').trim());
 }
 
 function toNonNegativeInteger(value: unknown): number {

@@ -29,7 +29,7 @@ interface HeaderTournament {
   imports: [RouterOutlet, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatToolbarModule],
   template: `
     <mat-toolbar class="app-toolbar">
-      <a class="brand" routerLink="/leagues" aria-label="Gones home"><img src="assets/gones_logo.png" alt="Gones"></a>
+      <a class="brand" routerLink="/" aria-label="Gones home"><img src="assets/gones_logo.png" alt="Gones"></a>
       <span class="spacer"></span>
       @if (showHeaderImport()) {
         <div class="header-actions">
@@ -39,6 +39,7 @@ interface HeaderTournament {
         </div>
       } @else if (headerTournament(); as item) {
         <div class="header-actions tournament-header-actions">
+          <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="'View result page for ' + item.tournament.name">View Result</a>
           <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" aria-label="Tournament actions" [disabled]="deletingTournament()">⋮</button>
           <mat-menu #tournamentActionsMenu="matMenu">
             <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? 'Deleting Tournament…' : 'Delete Tournament' }}</button>
@@ -51,6 +52,11 @@ interface HeaderTournament {
           <mat-menu #leagueActionsMenu="matMenu">
             <button mat-menu-item class="destructive-menu-item" (click)="deleteLeague(league)">Delete League</button>
           </mat-menu>
+        </div>
+      } @else if (showHomeActions()) {
+        <div class="header-actions home-header-actions">
+          <button mat-stroked-button class="secondary-action" type="button" disabled>Login</button>
+          <a mat-stroked-button class="secondary-action" routerLink="/settings" data-cy="menu-settings-link">Settings</a>
         </div>
       }
     </mat-toolbar>
@@ -79,10 +85,11 @@ export class AppComponent {
   readonly importing = signal(false);
   readonly deletingTournament = signal(false);
   readonly importError = signal('');
-  readonly showHeaderImport = signal(true);
+  readonly showHeaderImport = signal(this.router.url.split('?')[0] === '/leagues');
+  readonly showHomeActions = signal(this.router.url.split('?')[0] === '/');
   readonly headerLeague = signal<PersistedLeague | null>(null);
   readonly headerTournament = signal<HeaderTournament | null>(null);
-  readonly breadcrumbs = signal<BreadcrumbItem[]>([{ label: 'Leagues' }]);
+  readonly breadcrumbs = signal<BreadcrumbItem[]>([{ label: 'Menu' }]);
   private routeStateRequest = 0;
 
   constructor() {
@@ -97,6 +104,7 @@ export class AppComponent {
     this.currentUrl.set(url);
     const path = url.split('?')[0];
     this.showHeaderImport.set(path === '/leagues');
+    this.showHomeActions.set(path === '/');
     this.headerLeague.set(await this.buildHeaderLeague(path));
     this.headerTournament.set(await this.buildHeaderTournament(path));
     const breadcrumbs = await this.buildBreadcrumbs(path);
@@ -119,16 +127,23 @@ export class AppComponent {
 
   private async buildBreadcrumbs(path: string): Promise<BreadcrumbItem[]> {
     const segments = path.split('/').filter(Boolean);
-    if (segments[0] !== 'leagues' || !segments[1]) return [{ label: 'Leagues' }];
+    if (!segments.length) return [{ label: 'Menu' }];
+    if (segments[0] === 'about') return [{ label: 'Menu', link: ['/'] }, { label: 'About' }];
+    if (segments[0] === 'calendar') return [{ label: 'Menu', link: ['/'] }, { label: 'Calendar' }];
+    if (segments[0] === 'settings') return [{ label: 'Menu', link: ['/'] }, { label: 'Settings' }];
+    if (segments[0] === 'players') return [{ label: 'Menu', link: ['/'] }, { label: 'Player' }];
+    if (segments[0] !== 'leagues') return [{ label: 'Menu', link: ['/'] }, { label: 'Not Found' }];
+    if (!segments[1]) return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues' }];
 
     const leagueId = decodeURIComponent(segments[1]);
     const league = await this.safeGetLeague(leagueId);
     const leagueLabel = league?.name || 'League';
-    if (segments[2] !== 'tournaments' || !segments[3]) return [{ label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel }];
+    if (segments[2] !== 'tournaments' || !segments[3]) return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel }];
 
     const tournamentId = decodeURIComponent(segments[3]);
     const tournamentLabel = league?.tournaments.find((item) => item.id === tournamentId)?.name || 'Tournament';
-    return [{ label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel }];
+    if (segments[4] === 'result') return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel, link: ['/leagues', leagueId, 'tournaments', tournamentId] }, { label: 'Result' }];
+    return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel }];
   }
 
   private async safeGetLeague(leagueId: string): Promise<PersistedLeague | null> {

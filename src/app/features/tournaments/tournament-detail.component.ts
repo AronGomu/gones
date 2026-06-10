@@ -12,6 +12,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
+import { archetypeForPlayer, mergeImportedRoundArchetypes, setTournamentPlayerArchetype, tournamentPlayerArchetypeRows, validateTournamentPlayerArchetypes } from '../../domain/tournament-archetypes';
 import { calculateTournamentResult } from '../../domain/results';
 import { getTournamentWarnings, TournamentWarning } from '../../domain/warnings';
 import { validateRoundEntry } from '../../domain/validation';
@@ -25,10 +26,9 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   imports: [FormsModule, MatButtonModule, MatCardModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatMenuModule, RankingTableComponent, BackButtonComponent],
   template: `
     <gones-back-button [link]="leagueBackLink()" label="Back to League" position="top" />
-    <div class="tournament-detail-content">
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (tournament(); as t) {
-      <section class="page-heading tournament-page-heading" (input)="markDirty()">
+      <section class="page-heading" (input)="markDirty()">
         <div>
           <p class="kicker">Tournament</p>
           <div class="tournament-heading-fields">
@@ -56,11 +56,19 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           </ul>
         </div>
       }
+      @if (importErrors().length) {
+        <div class="error" role="alert">
+          <p>Round import kept the current Tournament archetype for conflicting player(s).</p>
+          <ul>
+            @for (message of importErrors(); track message) { <li>{{ message }}</li> }
+          </ul>
+        </div>
+      }
       <section class="stack"><h2>Tournament Ranking</h2><gones-ranking-table [rows]="result().rows" emptyText="No valid Round Entries yet" /></section>
-      <section class="stack" (input)="markDirty()">
+      <section class="stack" (input)="syncPlayerArchetypesFromRoundEntries()">
         <div class="section-header"><h2>Rounds</h2><button class="add-round-button" mat-flat-button color="primary" (click)="addRound()">Add Round</button></div>
         @for (roundView of roundViewModels(t); track roundView.round.id) {
-          <mat-expansion-panel class="round-panel" [expanded]="true">
+          <mat-expansion-panel class="round-panel" [expanded]="false">
             <mat-expansion-panel-header>
               <mat-panel-title class="round-panel-title">Round {{ roundView.number }}</mat-panel-title>
               <mat-panel-description>{{ roundView.round.entries.length }} entries</mat-panel-description>
@@ -71,23 +79,79 @@ import { BackButtonComponent } from '../../shared/back-button.component';
             </mat-menu>
             <div class="import-row"><mat-form-field appearance="outline"><mat-label>Round Import</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field><button mat-stroked-button (click)="replaceRound(roundView.round, importText.value); importText.value = ''">Import</button></div>
             <button mat-stroked-button (click)="addMatch(roundView.round)">Add Match</button>
-            <div class="entry-list">
-              @for (entry of roundView.round.entries; track entry.id) {
-                <div class="entry-row" [class.invalid]="entry.kind === 'invalid'">
-                  @if (entry.kind === 'match') {
-                    <label><span>Table</span><input [(ngModel)]="entry.table" aria-label="Table"></label><label><span>Player 1</span><input [(ngModel)]="entry.player1Name" aria-label="Player 1"></label><label><span>Deck 1</span><input [(ngModel)]="entry.player1DeckArchetype" aria-label="Player 1 Deck Archetype"></label><label><span>Score</span><input type="number" [(ngModel)]="entry.player1Score" aria-label="Player 1 Score"></label><label><span>Score</span><input type="number" [(ngModel)]="entry.player2Score" aria-label="Player 2 Score"></label><label><span>Player 2</span><input [(ngModel)]="entry.player2Name" aria-label="Player 2"></label><label><span>Deck 2</span><input [(ngModel)]="entry.player2DeckArchetype" aria-label="Player 2 Deck Archetype"></label><button mat-button color="warn" (click)="deleteEntry(roundView.round, entry.id)">Delete</button>
-                  } @else if (entry.kind === 'bye') {
-                    <label><span>Table</span><input [(ngModel)]="entry.table" aria-label="Table"></label><label><span>Player</span><input [(ngModel)]="entry.playerName" aria-label="Bye Player"></label><label><span>Deck</span><input [(ngModel)]="entry.deckArchetype" aria-label="Bye Deck Archetype"></label><button mat-button color="warn" (click)="deleteEntry(roundView.round, entry.id)">Delete</button>
-                  }
-                  @else { <label><span>Invalid row</span><input [(ngModel)]="entry.rawText" aria-label="Invalid row"></label><label><span>Table</span><input [(ngModel)]="entry.table" aria-label="Invalid row table"></label><label><span>Player</span><input [(ngModel)]="entry.player" aria-label="Invalid row player"></label><label><span>Result</span><input [(ngModel)]="entry.result" aria-label="Invalid row result"></label><label><span>Opponent</span><input [(ngModel)]="entry.opponent" aria-label="Invalid row opponent"></label><button mat-button color="warn" (click)="deleteEntry(roundView.round, entry.id)">Delete</button> }
-                </div>
-              }
-            </div>
+            @if (roundView.round.entries.length) {
+              <div class="table-wrap round-entry-table-wrap">
+                <table class="ranking-table round-entry-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Table</th>
+                      <th scope="col">Player 1</th>
+                      <th scope="col">Wins</th>
+                      <th scope="col">Losses</th>
+                      <th scope="col">Player 2</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (entry of roundView.round.entries; track entry.id; let entryIndex = $index) {
+                      <tr [class.invalid]="entry.kind === 'invalid'">
+                        @if (entry.kind === 'match') {
+                          <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
+                          <td><input [(ngModel)]="entry.player1Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1')"></td>
+                          <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player1Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 wins')"></td>
+                          <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player2Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 losses')"></td>
+                          <td><input [(ngModel)]="entry.player2Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2')"></td>
+                          <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                        } @else if (entry.kind === 'bye') {
+                          <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
+                          <td><input [(ngModel)]="entry.playerName" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'bye player')"></td>
+                          <td class="round-entry-table__empty"></td>
+                          <td class="round-entry-table__empty"></td>
+                          <td class="round-entry-table__empty"></td>
+                          <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                        }
+                        @else {
+                          <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row table')"></td>
+                          <td><input [(ngModel)]="entry.rawText" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row')"></td>
+                          <td><input [(ngModel)]="entry.result" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row result')"></td>
+                          <td class="round-entry-table__empty"></td>
+                          <td><input [(ngModel)]="entry.opponent" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row opponent')"></td>
+                          <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
           </mat-expansion-panel>
         }
       </section>
+      <section class="stack" (input)="markDirty()">
+        <mat-expansion-panel class="round-panel player-archetype-panel" data-cy="player-archetype-panel" [expanded]="false">
+          <mat-expansion-panel-header>
+            <mat-panel-title class="round-panel-title">Player Archetypes</mat-panel-title>
+            <mat-panel-description>{{ playerArchetypeRows(t).length }} players</mat-panel-description>
+          </mat-expansion-panel-header>
+          <p class="muted">One deck archetype is stored per player for this Tournament.</p>
+          @if (playerArchetypeRows(t).length) {
+            <div class="table-wrap player-archetype-table-wrap">
+              <table class="player-archetype-table">
+                <thead><tr><th scope="col">Player</th><th scope="col">Deck Archetype</th></tr></thead>
+                <tbody>
+                  @for (row of playerArchetypeRows(t); track row.playerName) {
+                    <tr data-cy="player-archetype-row">
+                      <td><strong>{{ row.playerName }}</strong></td>
+                      <td><input [ngModel]="archetypeFor(t, row.playerName)" (ngModelChange)="setArchetype(row.playerName, $event)" [attr.aria-label]="'Deck archetype for ' + row.playerName"></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else { <p class="empty">No players yet. Add or import Round Entries first.</p> }
+        </mat-expansion-panel>
+      </section>
     } @else if (!loading()) { <mat-card class="panel"><mat-card-title>Tournament not found</mat-card-title><mat-card-content><p>The requested Tournament does not exist or was deleted.</p></mat-card-content></mat-card> }
-    </div>
     @if (!loading()) { <gones-back-button [link]="leagueBackLink()" label="Back to League" position="bottom" /> }
   `
 })
@@ -103,6 +167,7 @@ export class TournamentDetailComponent {
   readonly saving = signal(false);
   readonly dirty = signal(false);
   readonly error = signal('');
+  readonly importErrors = signal<string[]>([]);
   readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);
   readonly tournament = computed(() => this.currentLeague()?.tournaments.find((item) => item.id === this.tournamentId()) ?? null);
   readonly result = computed(() => this.tournament() ? calculateTournamentResult(this.tournament()!) : { rows: [], incomplete: true, provisional: false });
@@ -112,7 +177,6 @@ export class TournamentDetailComponent {
   private readonly leagueId = signal('');
   private readonly tournamentId = signal('');
   readonly leagueBackLink = computed(() => ['/leagues', this.leagueId()]);
-  readonly saveShortcutLabel = navigator.platform.toLowerCase().includes('mac') ? '⌘S' : 'Ctrl+S';
   readonly roundImportPlaceholder = 'table number, player name, result, opponent name, player deck archetype, opponent deck archetype\n7,Alice,Won 2-1,Bob,Fire,Ice\n8,Charlie,Lost 1-2,Dana,Water,Earth\n9,Eve,Draw 1-1,Frank,Air,Metal';
 
   constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly dialog: MatDialog) { void this.load(); }
@@ -151,7 +215,33 @@ export class TournamentDetailComponent {
   markDirty(): void { if (!this.saving()) this.dirty.set(true); }
   addRound(): void { this.updateTournament((tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound()] })); }
   addMatch(round: RoundDocument): void { this.updateRound(round.id, (item) => ({ ...item, entries: [...item.entries, createMatchRoundEntry({ table: String(item.entries.length + 1) })] })); }
-  replaceRound(round: RoundDocument, text: string): void { this.updateRound(round.id, (item) => ({ ...item, entries: importRoundEntries(text).entries })); }
+  replaceRound(round: RoundDocument, text: string): void {
+    const imported = importRoundEntries(text);
+    this.updateTournament((tournament) => {
+      const merged = mergeImportedRoundArchetypes(tournament, imported.entries);
+      this.importErrors.set(merged.conflicts.map((conflict) => `${conflict.playerName}: imported "${conflict.importedArchetype || 'No archetype'}" conflicts with current "${conflict.existingArchetype || 'No archetype'}".`));
+      return { ...tournament, playerArchetypes: merged.playerArchetypes, rounds: tournament.rounds.map((item) => item.id === round.id ? { ...item, entries: merged.entries } : item) };
+    });
+  }
+  playerArchetypeRows(tournament: TournamentDocument) { return tournamentPlayerArchetypeRows(tournament); }
+  archetypeFor(tournament: TournamentDocument, playerName: string): string { return archetypeForPlayer(tournament, playerName); }
+  syncPlayerArchetypesFromRoundEntries(): void {
+    const tournament = this.tournament();
+    if (!tournament) return;
+    const rows = tournamentPlayerArchetypeRows(tournament);
+    const sameRows = rows.length === (tournament.playerArchetypes ?? []).length && rows.every((row, index) => row.playerName === tournament.playerArchetypes[index]?.playerName && row.archetype === tournament.playerArchetypes[index]?.archetype);
+    if (sameRows) {
+      this.markDirty();
+      return;
+    }
+    this.updateTournament((item) => ({ ...item, playerArchetypes: rows }));
+  }
+  setArchetype(playerName: string, archetype: string): void {
+    this.importErrors.set([]);
+    this.updateTournament((tournament) => setTournamentPlayerArchetype(tournament, playerName, archetype));
+  }
+  roundEntryInputLabel(roundNumber: number, entryIndex: number, field: string): string { return `Round ${roundNumber}, entry ${entryIndex + 1}: ${field}`; }
+  roundEntryDeleteLabel(roundNumber: number, entryIndex: number): string { return `Delete Round ${roundNumber}, entry ${entryIndex + 1}`; }
   roundViewModels(tournament: TournamentDocument): Array<{ round: RoundDocument; number: number }> {
     return tournament.rounds.map((round, index) => ({ round, number: index + 1 })).reverse();
   }
@@ -184,7 +274,7 @@ export class TournamentDetailComponent {
     const saved = this.league();
     if (!saved || this.saving()) return;
     this.saving.set(true);
-    try { const league = await this.repo.saveLeague(this.draft(), saved.documentVersion); this.league.set(league); this.startEdit(league); this.error.set(''); if (restoreFocus) this.focusTournamentTitleButton(); }
+    try { const league = await this.repo.saveLeague(this.draft(), saved.documentVersion); this.league.set(league); this.startEdit(league); this.error.set(''); this.importErrors.set([]); if (restoreFocus) this.focusTournamentTitleButton(); }
     catch (error) { logBoundaryError('tournament-detail.save', error, { leagueId: saved.id, tournamentId: this.tournamentId() }); this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? 'This League changed since you opened it. Reload the latest saved data before saving again.' : 'Could not save this Tournament.'); }
     finally { this.saving.set(false); }
   }
@@ -201,6 +291,9 @@ function tournamentCompletionIssues(tournament: TournamentDocument): string[] {
       for (const code of validation.codes) issues.push(`${prefix}: ${validationMessage(code)}.`);
     });
   });
+  for (const conflict of validateTournamentPlayerArchetypes(tournament)) {
+    issues.push(`Player Archetypes: ${conflict.playerName} has both ${conflict.existingArchetype || 'No archetype'} and ${conflict.importedArchetype || 'No archetype'}; keep one archetype for the Tournament.`);
+  }
   return issues;
 }
 

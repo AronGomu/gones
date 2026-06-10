@@ -20,6 +20,12 @@ describe('export/restore contracts', () => {
     expect(restored.tournaments[0].rounds[0].entries[0].id).not.toBe('old-entry');
   });
 
+  it('preserves tournament-level player archetypes across export restore', () => {
+    const source = createLeague({ name: 'League', tournaments: [{ name: 'Tournament', playerArchetypes: [{ playerName: 'Alice', archetype: 'Fire' }], rounds: [] }] });
+    const restored = restoreLeague(exportLeague(source), { idFactory: createIdFactory('new') });
+    expect(restored.tournaments[0].playerArchetypes).toEqual([{ playerName: 'Alice', archetype: 'Fire' }]);
+  });
+
   it('builds League export filenames from date and League name', () => {
     const league = createLeague({ name: 'Demo League' });
     expect(leagueExportFilename(league, new Date('2026-06-10T17:30:00Z'))).toBe('2026-06-10 Demo League.json');
