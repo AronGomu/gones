@@ -1,4 +1,4 @@
-import { CalendarEventDocument, CalendarEventTournamentLink, createByeRoundEntry, createCalendarEvent, createIdFactory, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament, GONES_DATA_VERSION, LeagueDocument, normalizeCalendarEvents, normalizeLeague, normalizeLeagueStatus, RoundEntry } from './models';
+import { CalendarEventDocument, createByeRoundEntry, createCalendarEvent, createIdFactory, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament, GONES_DATA_VERSION, LeagueDocument, normalizeCalendarEvents, normalizeLeague, normalizeLeagueStatus, RoundEntry } from './models';
 
 export type ExportKind = 'league' | 'fullData';
 
@@ -48,13 +48,10 @@ export function restoreFullDataBundle(file: unknown, { idFactory = createIdFacto
   const normalized = normalizeExportFile(file);
   if (normalized.kind !== 'fullData') throw new Error('wrongExportKind');
   const restored: LeagueDocument[] = [];
-  const tournamentIdMap = new Map<string, CalendarEventTournamentLink>();
   for (const league of normalized.leagues) {
-    const result = remapLeagueWithTournamentMap(league, { idFactory, existingLeagues: [...existingLeagues, ...restored] });
-    restored.push(result.league);
-    for (const [oldKey, link] of result.tournamentIdMap) tournamentIdMap.set(oldKey, link);
+    restored.push(remapLeague(league, { idFactory, existingLeagues: [...existingLeagues, ...restored] }));
   }
-  return { leagues: restored, calendarEvents: normalized.calendarEvents.map((event) => createCalendarEvent({ ...event, id: undefined, tournamentLinks: remapCalendarEventTournamentLinks(event.tournamentLinks, tournamentIdMap) }, { idFactory })) };
+  return { leagues: restored, calendarEvents: normalized.calendarEvents.map((event) => createCalendarEvent({ ...event, id: undefined }, { idFactory })) };
 }
 
 export function normalizeExportFile(file: unknown): GonesExportFile {
@@ -84,24 +81,14 @@ function assertSupportedVersion(version: unknown): void {
 }
 
 function remapLeague(source: LeagueDocument, { idFactory, existingLeagues }: { idFactory: () => string; existingLeagues: LeagueDocument[] }): LeagueDocument {
-  return remapLeagueWithTournamentMap(source, { idFactory, existingLeagues }).league;
-}
-
-function remapLeagueWithTournamentMap(source: LeagueDocument, { idFactory, existingLeagues }: { idFactory: () => string; existingLeagues: LeagueDocument[] }): { league: LeagueDocument; tournamentIdMap: Map<string, CalendarEventTournamentLink> } {
   const name = uniqueRestoredName(source.name, existingLeagues);
   const league = createLeague({ name, status: source.status, tournaments: [] }, { idFactory });
-  const tournamentIdMap = new Map<string, CalendarEventTournamentLink>();
   league.tournaments = (source.tournaments ?? []).map((tournament) => {
     const next = createTournament({ leagueId: league.id, name: tournament.name, tournamentDate: tournament.tournamentDate, playerArchetypes: tournament.playerArchetypes, rounds: [] }, { idFactory });
-    tournamentIdMap.set(`${source.id}:${tournament.id}`, { leagueId: league.id, tournamentId: next.id });
     next.rounds = (tournament.rounds ?? []).map((round) => createRound({ entries: (round.entries ?? []).map((entry) => remapEntry(entry, { idFactory })) }, { idFactory }));
     return next;
   });
-  return { league, tournamentIdMap };
-}
-
-function remapCalendarEventTournamentLinks(links: CalendarEventTournamentLink[], tournamentIdMap: Map<string, CalendarEventTournamentLink>): CalendarEventTournamentLink[] {
-  return links.map((link) => tournamentIdMap.get(`${link.leagueId}:${link.tournamentId}`) ?? link);
+  return league;
 }
 
 function remapEntry(entry: RoundEntry, { idFactory }: { idFactory: () => string }): RoundEntry {

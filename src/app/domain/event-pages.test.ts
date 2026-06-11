@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createCalendarEvent, createLeague, createTournament, normalizeCalendarEvent, normalizeCalendarEvents } from './models';
+import { CalendarEventDocument, createCalendarEvent, createLeague, createTournament, normalizeCalendarEvent, normalizeCalendarEvents } from './models';
 import { exportFullData, restoreFullDataBundle } from './export-restore';
 
 describe('event pages', () => {
-  it('normalizes event page fields with a slug and tournament links', () => {
+  it('normalizes event page fields with a slug and ignores legacy tournament links', () => {
     const event = normalizeCalendarEvent({
       title: 'Weekend Championship!',
       country: 'France',
@@ -15,12 +15,12 @@ describe('event pages', () => {
         { leagueId: 'league-1', tournamentId: 'tournament-1' },
         { leagueId: '', tournamentId: 'ignored' }
       ]
-    });
+    } as Partial<CalendarEventDocument> & { tournamentLinks: unknown });
 
     expect(event.slug).toBe('weekend-championship');
     expect(event.location).toBe('12 Rue Example, Lyon, France');
     expect(event.richDescriptionHtml).toContain('<h2>Main event</h2>');
-    expect(event.tournamentLinks).toEqual([{ leagueId: 'league-1', tournamentId: 'tournament-1' }]);
+    expect('tournamentLinks' in event).toBe(false);
   });
 
   it('sanitizes event rich text HTML before storage/rendering', () => {
@@ -45,10 +45,10 @@ describe('event pages', () => {
     expect(events.map((event) => event.slug)).toEqual(['store-championship', 'store-championship-2']);
   });
 
-  it('remaps linked tournaments when restoring full data with regenerated IDs', () => {
+  it('drops legacy linked tournaments when restoring full data with regenerated IDs', () => {
     const tournament = createTournament({ id: 'old-tournament', leagueId: 'old-league', name: 'Main Event' });
     const league = createLeague({ id: 'old-league', name: 'Old League', tournaments: [tournament] });
-    const event = createCalendarEvent({ title: 'Weekend', tournamentLinks: [{ leagueId: 'old-league', tournamentId: 'old-tournament' }] });
+    const event = createCalendarEvent({ title: 'Weekend', tournamentLinks: [{ leagueId: 'old-league', tournamentId: 'old-tournament' }] } as Partial<CalendarEventDocument> & { tournamentLinks: unknown });
     const exported = exportFullData([league], { calendarEvents: [event] });
     const ids = ['new-league', 'new-tournament', 'new-event'];
 
@@ -56,6 +56,6 @@ describe('event pages', () => {
 
     expect(restored.leagues[0].id).toBe('new-league');
     expect(restored.leagues[0].tournaments[0].id).toBe('new-tournament');
-    expect(restored.calendarEvents[0].tournamentLinks).toEqual([{ leagueId: 'new-league', tournamentId: 'new-tournament' }]);
+    expect('tournamentLinks' in restored.calendarEvents[0]).toBe(false);
   });
 });

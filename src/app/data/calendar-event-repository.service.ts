@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { APP_BACKEND, ApplicationBackend } from '../backend/application-backend';
-import { CalendarEventDocument, CalendarEventTournamentLink, createCalendarEvent, normalizeCalendarEvent, normalizeCalendarEvents, normalizeSlug } from '../domain/models';
+import { CalendarEventDocument, createCalendarEvent, normalizeCalendarEvent, normalizeCalendarEvents, normalizeSlug } from '../domain/models';
 
 @Injectable({ providedIn: 'root' })
 export class CalendarEventRepository {
@@ -18,22 +18,6 @@ export class CalendarEventRepository {
   async save(event: CalendarEventDocument): Promise<CalendarEventDocument> {
     const normalized = await this.withUniqueSlug(normalizeCalendarEvent(event));
     return normalizeCalendarEvent(await this.backend.saveCalendarEvent(normalized));
-  }
-
-  async removeTournamentLinks(predicate: (link: CalendarEventTournamentLink) => boolean): Promise<void> {
-    const events = await this.list();
-    await Promise.all(events.map((event) => {
-      const tournamentLinks = event.tournamentLinks.filter((link) => !predicate(link));
-      return tournamentLinks.length === event.tournamentLinks.length ? Promise.resolve() : this.save({ ...event, tournamentLinks });
-    }));
-  }
-
-  async rewriteTournamentLeague(tournamentId: string, fromLeagueId: string, toLeagueId: string): Promise<void> {
-    const events = await this.list();
-    await Promise.all(events.map((event) => {
-      const tournamentLinks = event.tournamentLinks.map((link) => link.tournamentId === tournamentId && link.leagueId === fromLeagueId ? { ...link, leagueId: toLeagueId } : link);
-      return JSON.stringify(tournamentLinks) === JSON.stringify(event.tournamentLinks) ? Promise.resolve() : this.save({ ...event, tournamentLinks });
-    }));
   }
 
   async delete(id: string): Promise<void> {

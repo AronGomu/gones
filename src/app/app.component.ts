@@ -182,7 +182,6 @@ export class AppComponent {
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete League', message: `Delete ${league.name}? This permanently deletes its Tournaments, rounds, and Player Statistics source data.`, confirmLabel: 'Delete League', destructive: true } }).afterClosed());
     if (!confirmed) return;
     await this.repo.deleteLeague(league.id);
-    await this.calendarRepo.removeTournamentLinks((link) => link.leagueId === league.id);
     this.headerLeague.set(null);
     await this.router.navigate(['/leagues']);
   }
@@ -196,7 +195,6 @@ export class AppComponent {
     try {
       const nextLeague = { ...league, tournaments: league.tournaments.filter((item) => item.id !== tournament.id) };
       await this.repo.saveLeague(nextLeague, league.documentVersion);
-      await this.calendarRepo.removeTournamentLinks((link) => link.leagueId === league.id && link.tournamentId === tournament.id);
       this.headerTournament.set(null);
       await this.router.navigate(['/leagues', league.id]);
     } catch (error) {

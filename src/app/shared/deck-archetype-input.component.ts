@@ -22,7 +22,7 @@ let nextDeckArchetypeInputId = 1;
         @for (archetype of suggestions(); track archetype) { <option [value]="archetype"></option> }
       </datalist>
       @if (canAddCurrentValue()) {
-        <button mat-stroked-button type="button" class="deck-archetype-input__add" [disabled]="adding()" (click)="addCurrentValue()">Add new archetype to settings</button>
+        <button mat-flat-button type="button" class="deck-archetype-input__add" [disabled]="adding()" [attr.aria-label]="'Add ' + value + ' to archetype settings'" (click)="addCurrentValue()">Add</button>
       }
     </div>
   `

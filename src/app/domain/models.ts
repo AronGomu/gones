@@ -9,11 +9,6 @@ export interface GonesData {
   calendarEvents: CalendarEventDocument[];
 }
 
-export interface CalendarEventTournamentLink {
-  leagueId: string;
-  tournamentId: string;
-}
-
 export interface CalendarEventDocument {
   id: string;
   slug: string;
@@ -28,7 +23,6 @@ export interface CalendarEventDocument {
   description: string;
   richDescriptionHtml: string;
   externalLink: string;
-  tournamentLinks: CalendarEventTournamentLink[];
 }
 
 export interface LeagueDocument {
@@ -97,6 +91,10 @@ export interface InvalidRoundEntry {
 }
 
 export type IdFactory = () => string;
+type RoundEntryInput = Partial<MatchRoundEntry> | Partial<ByeRoundEntry> | Partial<InvalidRoundEntry>;
+type RoundInput = Partial<Omit<RoundDocument, 'entries'>> & { entries?: RoundEntryInput[] };
+type TournamentInput = Partial<Omit<TournamentDocument, 'rounds'>> & { rounds?: RoundInput[] };
+type LeagueInput = Partial<Omit<LeagueDocument, 'tournaments'>> & { tournaments?: TournamentInput[] };
 
 export function createIdFactory(prefix = 'id'): IdFactory {
   let next = 1;
@@ -120,10 +118,10 @@ export function createGonesData({ leagues = [], calendarEvents = [] }: { leagues
 }
 
 export function createCalendarEvent(
-  { id, slug = '', title = 'New event', eventDate = todayDateString(), startTime = '', endTime = '', location = '', country = '', city = '', address = '', description = '', richDescriptionHtml = '', externalLink = '', tournamentLinks = [] }: Partial<CalendarEventDocument> = {},
+  { id, slug = '', title = '', eventDate = todayDateString(), startTime = '', endTime = '', location = '', country = '', city = '', address = '', description = '', richDescriptionHtml = '', externalLink = '' }: Partial<CalendarEventDocument> = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): CalendarEventDocument {
-  const normalizedTitle = String(title || 'New event').trim() || 'New event';
+  const normalizedTitle = String(title ?? '').trim();
   const normalizedCountry = String(country ?? '').trim();
   const normalizedCity = String(city ?? '').trim();
   const normalizedAddress = String(address ?? '').trim();
@@ -142,8 +140,7 @@ export function createCalendarEvent(
     address: normalizedAddress,
     description: normalizedDescription,
     richDescriptionHtml: normalizeRichDescriptionHtml(richDescriptionHtml || normalizedDescription),
-    externalLink: normalizeExternalLink(externalLink),
-    tournamentLinks: normalizeCalendarEventTournamentLinks(tournamentLinks)
+    externalLink: normalizeExternalLink(externalLink)
   };
 }
 
@@ -161,7 +158,7 @@ export function normalizeCalendarEvents(events: unknown, options: { idFactory?: 
 }
 
 export function createLeague(
-  { id, name = 'New League', status = 'active', tournaments = [] }: Partial<LeagueDocument> = {},
+  { id, name = 'New League', status = 'active', tournaments = [] }: LeagueInput = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): LeagueDocument {
   const leagueId = id ?? idFactory();
@@ -178,12 +175,12 @@ export function createPlaceholderLeague(): LeagueDocument {
   return createLeague({ id: PLACEHOLDER_LEAGUE_ID, name: PLACEHOLDER_LEAGUE_NAME, status: 'active', tournaments: [] });
 }
 
-export function normalizeLeague(league: Partial<LeagueDocument> = {}, options: { idFactory?: IdFactory } = {}): LeagueDocument {
+export function normalizeLeague(league: LeagueInput = {}, options: { idFactory?: IdFactory } = {}): LeagueDocument {
   return createLeague(league, options);
 }
 
 export function createTournament(
-  { id, leagueId = '', name = getDefaultTournamentName(), tournamentDate = '', rounds = [], playerArchetypes }: Partial<TournamentDocument> = {},
+  { id, leagueId = '', name = getDefaultTournamentName(), tournamentDate = '', rounds = [], playerArchetypes }: TournamentInput = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): TournamentDocument {
   const normalizedRounds = rounds.map((round) => createRound(round, { idFactory }));
@@ -204,11 +201,11 @@ export function getDefaultTournamentName(date = new Date()): string {
   return `${year}/${month}/${day}`;
 }
 
-export function createRound({ id, entries = [] }: Partial<RoundDocument> = {}, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): RoundDocument {
+export function createRound({ id, entries = [] }: RoundInput = {}, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): RoundDocument {
   return { id: id ?? idFactory(), entries: entries.map((entry, index) => createRoundEntry(withDefaultTable(entry, String(index + 1)), { idFactory })) };
 }
 
-export function createRoundEntry(entry: Partial<RoundEntry> = {}, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): RoundEntry {
+export function createRoundEntry(entry: RoundEntryInput = {}, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): RoundEntry {
   if (entry.kind === 'bye') return createByeRoundEntry(entry, { idFactory });
   if (entry.kind === 'invalid') return createInvalidRoundEntry(entry, { idFactory });
   return createMatchRoundEntry(entry as Partial<MatchRoundEntry>, { idFactory });
@@ -255,7 +252,7 @@ export function createInvalidRoundEntry(
   };
 }
 
-function withDefaultTable(entry: RoundEntry, fallbackTable: string): Partial<RoundEntry> {
+function withDefaultTable(entry: RoundEntryInput, fallbackTable: string): RoundEntryInput {
   if (entry.kind === 'bye') return { ...entry, table: entry.table || fallbackTable };
   if (entry.kind === 'invalid') return { ...entry, table: entry.table || fallbackTable };
   return { ...entry, table: entry.table || fallbackTable };
@@ -304,23 +301,6 @@ function toNonNegativeInteger(value: unknown): number {
 
 function compareCalendarEvents(left: CalendarEventDocument, right: CalendarEventDocument): number {
   return left.eventDate.localeCompare(right.eventDate) || left.startTime.localeCompare(right.startTime) || left.title.localeCompare(right.title);
-}
-
-function normalizeCalendarEventTournamentLinks(links: unknown): CalendarEventTournamentLink[] {
-  if (!Array.isArray(links)) return [];
-  const seen = new Set<string>();
-  const normalized: CalendarEventTournamentLink[] = [];
-  for (const item of links) {
-    if (!item || typeof item !== 'object') continue;
-    const value = item as Partial<CalendarEventTournamentLink>;
-    const leagueId = String(value.leagueId ?? '').trim();
-    const tournamentId = String(value.tournamentId ?? '').trim();
-    const key = `${leagueId}:${tournamentId}`;
-    if (!leagueId || !tournamentId || seen.has(key)) continue;
-    seen.add(key);
-    normalized.push({ leagueId, tournamentId });
-  }
-  return normalized;
 }
 
 function uniqueCalendarEventSlug(slug: string, counts: Map<string, number>): string {

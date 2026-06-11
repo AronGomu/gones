@@ -21,7 +21,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   standalone: true,
   imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" label="Back to Menu" position="top" />
+    <gones-back-button [link]="['/live-tournaments']" label="Back to Running Tournaments" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else if (tournament(); as live) {
@@ -289,8 +289,8 @@ export class LiveTournamentRunnerComponent {
       const nextLeague = { ...league, tournaments: league.tournaments.some((item) => item.id === nextTournament.id) ? league.tournaments.map((item) => item.id === nextTournament.id ? nextTournament : item) : [...league.tournaments, nextTournament] };
       const saved = await this.leagueRepo.saveLeague(nextLeague, league.documentVersion);
       const savedTournament = saved.tournaments.find((item) => item.id === nextTournament.id) ?? nextTournament;
-      const nextLive = await this.liveRepo.save({ ...stableLive, stage: 'completed', finalizedTournamentId: savedTournament.id });
-      this.tournament.set(nextLive);
+      await this.liveRepo.save({ ...stableLive, stage: 'completed', finalizedTournamentId: savedTournament.id });
+      await this.deleteFinalizedLiveTournament(stableLive.id);
       await this.router.navigate(['/leagues', saved.id, 'tournaments', savedTournament.id]);
     } catch (error) {
       logBoundaryError('live-tournament.finalize', error, { liveTournamentId: live.id, leagueId: live.leagueId });
@@ -301,6 +301,14 @@ export class LiveTournamentRunnerComponent {
   }
 
   saveDraft(): void { void this.persist(); }
+
+  private async deleteFinalizedLiveTournament(liveTournamentId: string): Promise<void> {
+    try {
+      await this.liveRepo.delete(liveTournamentId);
+    } catch (error) {
+      logBoundaryError('live-tournament.finalize.cleanup', error, { liveTournamentId });
+    }
+  }
 
   private pruneCheckpointsAfterEditedRound(live: LiveTournamentDocument, roundNumber: number): LiveTournamentCheckpointDocument[] {
     return live.checkpoints.filter((checkpoint) => {

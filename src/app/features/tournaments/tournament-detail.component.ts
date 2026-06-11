@@ -10,7 +10,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
-import { CalendarEventRepository } from '../../data/calendar-event-repository.service';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
@@ -70,7 +69,7 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
       }
       <section class="stack"><h2>Tournament Ranking</h2><gones-ranking-table [rows]="result().rows" emptyText="No valid Round Entries yet" /></section>
       <section class="stack tournament-rounds-section" (input)="syncPlayerArchetypesFromRoundEntries()">
-        <div class="rounds-section-actions"><button class="add-round-button create-action-button" mat-flat-button type="button" aria-label="Add Round" (click)="addRound()"><span class="create-action-button__icon" aria-hidden="true">+</span><span>Add Round</span></button></div>
+        <div class="rounds-section-actions"><button class="add-round-button create-action-button" mat-flat-button type="button" aria-label="Add Round" (click)="addRound()"><span>Add Round</span></button></div>
         <mat-expansion-panel class="round-panel rounds-section-panel" [expanded]="roundsExpanded()" (opened)="roundsExpanded.set(true)" (closed)="roundsExpanded.set(false)">
           <mat-expansion-panel-header>
             <mat-panel-title class="round-panel-title">Rounds</mat-panel-title>
@@ -86,53 +85,56 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
               <mat-menu #roundMenu="matMenu">
                 <button class="destructive-menu-item" mat-menu-item type="button" (click)="deleteRound(roundView.round)">Delete Round</button>
               </mat-menu>
-              <div class="import-row"><mat-form-field appearance="outline"><mat-label>Round Import</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field><button mat-stroked-button (click)="replaceRound(roundView.round, importText.value); importText.value = ''">Import</button></div>
-              <button mat-stroked-button (click)="addMatch(roundView.round)">Add Match</button>
-              @if (roundView.round.entries.length) {
-              <div class="table-wrap round-entry-table-wrap">
-                <table class="ranking-table round-entry-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Table</th>
-                      <th scope="col">Player 1</th>
-                      <th scope="col">Wins</th>
-                      <th scope="col">Losses</th>
-                      <th scope="col">Player 2</th>
-                      <th scope="col">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (entry of roundView.round.entries; track entry.id; let entryIndex = $index) {
-                      <tr [class.invalid]="entry.kind === 'invalid'">
-                        @if (entry.kind === 'match') {
-                          <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
-                          <td><input [(ngModel)]="entry.player1Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1')"></td>
-                          <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player1Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 wins')"></td>
-                          <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player2Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 losses')"></td>
-                          <td><input [(ngModel)]="entry.player2Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2')"></td>
-                          <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
-                        } @else if (entry.kind === 'bye') {
-                          <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
-                          <td><input [(ngModel)]="entry.playerName" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'bye player')"></td>
-                          <td class="round-entry-table__empty"></td>
-                          <td class="round-entry-table__empty"></td>
-                          <td class="round-entry-table__empty"></td>
-                          <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
-                        }
-                        @else {
-                          <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row table')"></td>
-                          <td><input [(ngModel)]="entry.rawText" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row')"></td>
-                          <td><input [(ngModel)]="entry.result" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row result')"></td>
-                          <td class="round-entry-table__empty"></td>
-                          <td><input [(ngModel)]="entry.opponent" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row opponent')"></td>
-                          <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
-                        }
-                      </tr>
-                    }
-                  </tbody>
-                </table>
+              <div class="import-row">
+                <mat-form-field appearance="outline"><mat-label>Round Import</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field>
+                @if (hasValidRoundImport(importText.value)) { <button class="round-import-button create-action-button" mat-flat-button type="button" (click)="replaceRound(roundView.round, importText.value); importText.value = ''">Import Round Data</button> }
               </div>
-            }
+              @if (roundView.round.entries.length) {
+                <div class="table-wrap round-entry-table-wrap">
+                  <table class="ranking-table round-entry-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Table</th>
+                        <th scope="col">Player 1</th>
+                        <th scope="col">Wins</th>
+                        <th scope="col">Losses</th>
+                        <th scope="col">Player 2</th>
+                        <th scope="col">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (entry of roundView.round.entries; track entry.id; let entryIndex = $index) {
+                        <tr [class.invalid]="entry.kind === 'invalid'">
+                          @if (entry.kind === 'match') {
+                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
+                            <td><input [(ngModel)]="entry.player1Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1')"></td>
+                            <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player1Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 wins')"></td>
+                            <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player2Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 losses')"></td>
+                            <td><input [(ngModel)]="entry.player2Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2')"></td>
+                            <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                          } @else if (entry.kind === 'bye') {
+                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
+                            <td><input [(ngModel)]="entry.playerName" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'bye player')"></td>
+                            <td class="round-entry-table__empty"></td>
+                            <td class="round-entry-table__empty"></td>
+                            <td class="round-entry-table__empty"></td>
+                            <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                          }
+                          @else {
+                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row table')"></td>
+                            <td><input [(ngModel)]="entry.rawText" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row')"></td>
+                            <td><input [(ngModel)]="entry.result" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row result')"></td>
+                            <td class="round-entry-table__empty"></td>
+                            <td><input [(ngModel)]="entry.opponent" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row opponent')"></td>
+                            <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                          }
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+              <div class="round-entry-actions"><button mat-stroked-button type="button" (click)="addMatch(roundView.round)">Add Match</button></div>
             </mat-expansion-panel>
           }
         </mat-expansion-panel>
@@ -190,7 +192,7 @@ export class TournamentDetailComponent {
   readonly leagueBackLink = computed(() => ['/leagues', this.leagueId()]);
   readonly roundImportPlaceholder = 'table number, player name, result, opponent name, player deck archetype, opponent deck archetype\n7,Alice,Won 2-1,Bob,Fire,Ice\n8,Charlie,Lost 1-2,Dana,Water,Earth\n9,Eve,Draw 1-1,Frank,Air,Metal';
 
-  constructor(private readonly repo: LeagueRepository, private readonly calendarRepo: CalendarEventRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
+  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void { if (this.dirty()) event.preventDefault(); }
   @HostListener('document:keydown', ['$event']) handleShortcut(event: KeyboardEvent): void {
     if (!this.editing() || this.saving()) return;
@@ -255,6 +257,10 @@ export class TournamentDetailComponent {
     this.importErrors.set([]);
     this.updateTournament((tournament) => setTournamentPlayerArchetype(tournament, playerName, archetype));
   }
+  hasValidRoundImport(text: string): boolean {
+    const entries = importRoundEntries(text).entries;
+    return entries.length > 0 && entries.every((entry) => entry.kind === 'match');
+  }
   roundEntryInputLabel(roundNumber: number, entryIndex: number, field: string): string { return `Round ${roundNumber}, entry ${entryIndex + 1}: ${field}`; }
   roundEntryDeleteLabel(roundNumber: number, entryIndex: number): string { return `Delete Round ${roundNumber}, entry ${entryIndex + 1}`; }
   roundViewModels(tournament: TournamentDocument): Array<{ round: RoundDocument; number: number }> {
@@ -268,7 +274,6 @@ export class TournamentDetailComponent {
     this.saving.set(true);
     try {
       const result = await this.repo.moveTournament(tournament.id, saved.id, targetLeagueId);
-      await this.calendarRepo.rewriteTournamentLeague(tournament.id, saved.id, result.toLeague.id);
       this.error.set('');
       await this.router.navigate(['/leagues', result.toLeague.id, 'tournaments', tournament.id]);
     } catch (error) {

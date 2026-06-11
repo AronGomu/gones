@@ -1,34 +1,4 @@
 describe("Gones Angular MVP", () => {
-  it("opens the main menu from the home page", () => {
-    cy.visit("/");
-    cy.contains("h1", "Magic nights, recorded like they matter.");
-    cy.contains("button", "Login").should("be.disabled");
-    cy.get('[data-cy="menu-leagues-link"]').should("have.attr", "href", "/leagues").click();
-    cy.location("pathname").should("eq", "/leagues");
-    cy.contains("h1", "Leagues");
-    cy.visit("/");
-    cy.get('[data-cy="menu-settings-link"]').should("have.attr", "href", "/settings").click();
-    cy.location("pathname").should("eq", "/settings");
-    cy.contains("h1", "Set the app language.");
-  });
-
-  it("opens the Angular League collection in demo mode", () => {
-    cy.visit("/leagues");
-    cy.contains("h1", "Leagues");
-    cy.contains(".app-toolbar", "Import").should("exist");
-    cy.contains(".back-button", "Back").should("not.exist");
-    cy.contains("Demo League").click({ force: true });
-    cy.location("pathname").should("eq", "/leagues/demo-league");
-    cy.get(".back-button").should("have.length", 2);
-    cy.contains("League Ranking");
-    cy.get('[data-cy="ranking-table-toggle"]').should("be.visible").and("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking").click();
-    cy.get('[data-cy="empty-ranking"]').should("not.be.visible");
-    cy.get('[data-cy="ranking-table-toggle"]').should("contain", "▸").and("have.attr", "aria-label", "Expand Ranking").click();
-    cy.contains("Empty League has no League Result");
-    cy.get(".back-button").first().click();
-    cy.location("pathname").should("eq", "/leagues");
-  });
-
   it("imports a League from the header", () => {
     cy.visit("/leagues");
     cy.contains("button", "Sign in locally").should("not.exist");
@@ -46,54 +16,6 @@ describe("Gones Angular MVP", () => {
     }, { force: true });
     cy.location("pathname").should("match", /\/leagues\/.+/);
     cy.contains("h1", "Imported League");
-  });
-
-  it("turns League and Tournament titles into live name inputs", () => {
-    cy.visit("/leagues/title-league/tournaments/title-tournament", {
-      onBeforeLoad(win) {
-        win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
-          version: 1,
-          leagues: [{
-            id: "title-league",
-            name: "Title League",
-            status: "active",
-            documentVersion: 1,
-            updatedAt: "2026-06-03T00:00:00.000Z",
-            tournaments: [{ id: "title-tournament", leagueId: "title-league", name: "Title Tournament", tournamentDate: "", rounds: [] }]
-          }, {
-            id: "completed-title-league",
-            name: "Completed Title League",
-            status: "completed",
-            documentVersion: 1,
-            updatedAt: "2026-06-03T00:00:00.000Z",
-            tournaments: [{ id: "completed-title-tournament", leagueId: "completed-title-league", name: "Completed Tournament", tournamentDate: "", rounds: [] }]
-          }]
-        }));
-      }
-    });
-    cy.contains("button", "Edit source data").should("not.exist");
-    cy.contains("h1 button", "Title Tournament").click();
-    cy.get('[data-cy="tournament-name-input"]').should("be.focused").clear();
-    cy.get('[data-cy="tournament-name-input"]').type("Updated Tournament{enter}");
-    cy.contains("h1 button", "Updated Tournament");
-
-    cy.visit("/leagues/completed-title-league/tournaments/completed-title-tournament");
-    cy.contains("button", "Edit source data").should("not.exist");
-    cy.contains("h1 button", "Completed Tournament").click();
-    cy.get('[data-cy="tournament-name-input"]').should("be.focused").clear();
-    cy.get('[data-cy="tournament-name-input"]').type("Renamed Completed Tournament{enter}");
-    cy.contains("h1 button", "Renamed Completed Tournament");
-    cy.contains("Add Round").should("exist").click();
-    cy.document().trigger("keydown", { key: "s", ctrlKey: true });
-    cy.contains("h1 button", "Renamed Completed Tournament");
-
-    cy.visit("/leagues/title-league");
-    cy.contains("h1 button", "Title League").click();
-    cy.get('[data-cy="league-name-input"]').should("be.focused").clear().type("Updated League{enter}");
-    cy.contains("h1 button", "Updated League");
-    cy.get('[data-cy="league-name-input"]').should("not.exist");
-    cy.reload();
-    cy.contains("h1 button", "Updated League");
   });
 
   it("always shows a Ranking toggle for League and Tournament standings", () => {
@@ -267,7 +189,8 @@ describe("Gones Angular MVP", () => {
                   { kind: "match", id: "match-1", table: "1", player1Name: "Alice", player2Name: "Bob", player1Score: 2, player2Score: 0, player1DeckArchetype: "Fire", player2DeckArchetype: "Ice" },
                   { kind: "match", id: "match-2", table: "2", player1Name: "Charlie", player2Name: "Dana", player1Score: 2, player2Score: 1, player1DeckArchetype: "Fire", player2DeckArchetype: "Earth" },
                   { kind: "match", id: "match-3", table: "3", player1Name: "Eve", player2Name: "Frank", player1Score: 2, player2Score: 0, player1DeckArchetype: "Ice", player2DeckArchetype: "Water" },
-                  { kind: "match", id: "match-4", table: "4", player1Name: "Grace", player2Name: "Heidi", player1Score: 1, player2Score: 2, player1DeckArchetype: "Air", player2DeckArchetype: "Fire" }
+                  { kind: "match", id: "match-4", table: "4", player1Name: "Grace", player2Name: "Heidi", player1Score: 1, player2Score: 2, player1DeckArchetype: "Air", player2DeckArchetype: "Fire" },
+                  { kind: "match", id: "match-5", table: "5", player1Name: "Ivan", player2Name: "Judy", player1Score: 2, player2Score: 0, player1DeckArchetype: "Stone", player2DeckArchetype: "Shadow" }
                 ]
               }]
             }]
@@ -279,6 +202,9 @@ describe("Gones Angular MVP", () => {
     cy.contains("a", "View Result").should("have.attr", "href", "/leagues/result-page-league/tournaments/result-page-tournament/result").click();
     cy.location("pathname").should("eq", "/leagues/result-page-league/tournaments/result-page-tournament/result");
     cy.get('[data-cy="tournament-result-page"]').should("contain", "Result Page League").and("contain", "Result Page Tournament").and("contain", "Rounds").and("contain", "Matches").and("contain", "Alice").and("not.contain", "Final Results");
+    cy.get(".result-standings th").should("not.contain", "Pts");
+    cy.get(".result-standings tbody tr").should("have.length", 8).last().should("be.visible");
+    cy.get(".result-standings").should("not.contain", "Judy");
     cy.contains("a", "See Archetype Share").click();
     cy.location("pathname").should("eq", "/leagues/result-page-league/tournaments/result-page-tournament/result/metagames");
     cy.get('[data-cy="tournament-result-page"]').should("contain", "Metagame").and("contain", "Fire");

@@ -5,6 +5,7 @@ import { logBoundaryError } from '../shared/app-logger';
 interface LiveTournamentStore {
   version: 1;
   tournaments: LiveTournamentDocument[];
+  deletedTournamentIds: string[];
 }
 
 const STORE_KEY = 'gones.live-tournaments.v1';
@@ -34,6 +35,7 @@ export class LiveTournamentRepository {
         const existingIndex = store.tournaments.findIndex((item) => item.id === incoming.id);
         const tournaments = [...store.tournaments];
         if (existingIndex === -1) {
+          if (store.deletedTournamentIds.includes(incoming.id)) throw new Error('deletedLiveTournamentDocument');
           saved = normalizeLiveTournament({ ...incoming, documentVersion: 1, updatedAt: new Date().toISOString() });
           tournaments.unshift(saved);
         } else {
@@ -50,7 +52,13 @@ export class LiveTournamentRepository {
   }
 
   async delete(id: string): Promise<void> {
-    this.mutate((store) => ({ ...store, tournaments: store.tournaments.filter((tournament) => tournament.id !== id) }));
+    await this.withStoreLock(() => {
+      this.mutate((store) => ({
+        ...store,
+        tournaments: store.tournaments.filter((tournament) => tournament.id !== id),
+        deletedTournamentIds: store.deletedTournamentIds.includes(id) ? store.deletedTournamentIds : [...store.deletedTournamentIds, id]
+      }));
+    });
   }
 
   private async withStoreLock<T>(callback: () => T): Promise<T> {
@@ -80,7 +88,11 @@ export class LiveTournamentRepository {
       this.backupRawStore(raw);
       return this.defaultStore();
     }
-    return { version: 1, tournaments: store.tournaments.map((tournament) => normalizeLiveTournament(tournament)) };
+    return {
+      version: 1,
+      tournaments: store.tournaments.map((tournament) => normalizeLiveTournament(tournament)),
+      deletedTournamentIds: Array.isArray(store.deletedTournamentIds) ? store.deletedTournamentIds.filter((id) => typeof id === 'string') : []
+    };
   }
 
   private backupRawStore(raw: string | null): void {
@@ -89,7 +101,7 @@ export class LiveTournamentRepository {
   }
 
   private defaultStore(): LiveTournamentStore {
-    return { version: 1, tournaments: [] };
+    return { version: 1, tournaments: [], deletedTournamentIds: [] };
   }
 
   private clone<T>(value: T): T {

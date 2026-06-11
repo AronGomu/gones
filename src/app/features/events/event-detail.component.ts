@@ -1,19 +1,10 @@
-import { Component, OnInit, computed, signal } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { CalendarEventRepository } from '../../data/calendar-event-repository.service';
-import { LeagueRepository } from '../../data/league-repository.service';
-import { CalendarEventDocument, PersistedLeague } from '../../domain/models';
+import { CalendarEventDocument } from '../../domain/models';
 import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
-
-interface LinkedTournamentView {
-  leagueId: string;
-  tournamentId: string;
-  leagueName: string;
-  tournamentName: string;
-  tournamentDate: string;
-}
 
 @Component({
   standalone: true,
@@ -38,20 +29,6 @@ interface LinkedTournamentView {
           </div>
         </section>
 
-        @if (linkedTournaments().length) {
-          <section class="event-section panel" aria-labelledby="event-tournaments-title">
-            <div class="section-header"><div><p class="kicker">Tournament links</p><h2 id="event-tournaments-title">Tournaments in this event</h2></div></div>
-            <div class="event-tournament-grid">
-              @for (item of linkedTournaments(); track item.leagueId + item.tournamentId) {
-                <a class="tournament-rect-card" [routerLink]="['/leagues', item.leagueId, 'tournaments', item.tournamentId]">
-                  <span class="tournament-card-copy"><strong>{{ item.tournamentName }}</strong><span>{{ item.leagueName }} · {{ item.tournamentDate || 'No Tournament Date' }}</span></span>
-                  <span class="card-view-action">Open</span>
-                </a>
-              }
-            </div>
-          </section>
-        }
-
         <section class="event-section panel" aria-labelledby="event-description-title">
           <div class="section-header"><div><p class="kicker">Description</p><h2 id="event-description-title">Event information</h2></div></div>
           @if (eventPage.richDescriptionHtml) { <div class="rich-content" [innerHTML]="eventPage.richDescriptionHtml"></div> }
@@ -67,29 +44,18 @@ interface LinkedTournamentView {
 })
 export class EventDetailComponent implements OnInit {
   readonly event = signal<CalendarEventDocument | null>(null);
-  readonly leagues = signal<PersistedLeague[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
-  readonly linkedTournaments = computed<LinkedTournamentView[]>(() => {
-    const eventPage = this.event();
-    if (!eventPage) return [];
-    return eventPage.tournamentLinks.flatMap((link) => {
-      const league = this.leagues().find((item) => item.id === link.leagueId);
-      const tournament = league?.tournaments.find((item) => item.id === link.tournamentId);
-      return league && tournament ? [{ leagueId: league.id, tournamentId: tournament.id, leagueName: league.name, tournamentName: tournament.name, tournamentDate: tournament.tournamentDate }] : [];
-    });
-  });
 
-  constructor(private readonly route: ActivatedRoute, private readonly eventRepo: CalendarEventRepository, private readonly leagueRepo: LeagueRepository) {}
+  constructor(private readonly route: ActivatedRoute, private readonly eventRepo: CalendarEventRepository) {}
 
   async ngOnInit(): Promise<void> {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
     this.loading.set(true);
     try {
-      const [events, leagues] = await Promise.all([this.eventRepo.list(), this.leagueRepo.listLeagues()]);
+      const events = await this.eventRepo.list();
       const eventPage = events.find((event) => event.slug === slug) ?? null;
       this.event.set(eventPage);
-      this.leagues.set(leagues);
       this.error.set('');
       logBoundaryInfo('event-detail.load.success', { slug, found: Boolean(eventPage) });
     } catch (error) {

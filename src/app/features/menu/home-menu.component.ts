@@ -13,7 +13,7 @@ import { MatButtonModule } from '@angular/material/button';
           <h1 id="home-title">Magic nights, recorded like they matter.</h1>
           <p class="home-hero__lead">Gones gathers leagues, tournament results, player histories, and event information for the local Magic: The Gathering community.</p>
           <div class="home-hero__actions" aria-label="Primary destinations">
-            <a mat-flat-button class="home-primary-action" routerLink="/live-tournaments/new" data-cy="menu-live-tournament-link">Run live tournament</a>
+            <a mat-flat-button class="home-primary-action" routerLink="/live-tournaments" data-cy="menu-live-tournament-link">Running tournaments</a>
             <a mat-stroked-button class="secondary-action" routerLink="/leagues" data-cy="menu-leagues-link">Open leagues</a>
             <a mat-stroked-button class="secondary-action" routerLink="/calendar" data-cy="menu-calendar-link">See calendar</a>
           </div>
@@ -35,10 +35,10 @@ import { MatButtonModule } from '@angular/material/button';
       </div>
 
       <nav class="home-destinations" aria-label="Main menu">
-        <a class="home-destination home-destination--leagues" routerLink="/live-tournaments/new">
-          <span>Run the night</span>
-          <strong>Live Tournament</strong>
-          <p>Register players, generate Swiss pairings, enter results, and finalize into a league tournament.</p>
+        <a class="home-destination home-destination--leagues" routerLink="/live-tournaments" data-cy="menu-running-tournaments-card">
+          <span>Return to the floor</span>
+          <strong>Running Tournaments</strong>
+          <p>Resume a saved live tournament, create a new running tournament, or delete old local drafts from one place.</p>
         </a>
         <a class="home-destination home-destination--about" routerLink="/leagues">
           <span>Archive the season</span>

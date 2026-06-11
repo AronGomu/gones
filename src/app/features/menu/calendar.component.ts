@@ -9,10 +9,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
 import { CalendarEventRepository } from '../../data/calendar-event-repository.service';
-import { LeagueRepository } from '../../data/league-repository.service';
 import { buildCalendarIcs, calendarIcsFilename } from '../../domain/calendar-ics';
-import { CalendarEventDocument, CalendarEventTournamentLink, PersistedLeague, createCalendarEvent, normalizeCalendarEvent, normalizeSlug } from '../../domain/models';
+import { CalendarEventDocument, createCalendarEvent, normalizeCalendarEvent, normalizeSlug } from '../../domain/models';
 import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -25,57 +25,68 @@ interface CalendarDay {
   events: CalendarEventDocument[];
 }
 
-interface TournamentOption extends CalendarEventTournamentLink {
-  label: string;
-}
+const COUNTRIES = ['France', 'Germany', 'Italy', 'Spain', 'United Kingdom', 'United States'] as const;
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, MatMenuModule, MatSelectModule, BackButtonComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, MatMenuModule, MatSelectModule, MatTabsModule, BackButtonComponent],
   template: `
     <gones-back-button [link]="['/']" label="Back to Home" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     <section class="info-page calendar-page" aria-labelledby="calendar-title">
-      <div class="info-hero calendar-hero">
-        <p class="kicker">Tournament events</p>
-        <h1 id="calendar-title">Plan the next weekend.</h1>
-        <p>Create public Event pages, attach tournaments, publish rich descriptions, and export dates to any calendar app.</p>
-        <div class="info-actions">
-          <button mat-flat-button class="home-primary-action" type="button" (click)="startNewEvent()">Add Event</button>
-          <button mat-stroked-button class="secondary-action" type="button" [disabled]="!events().length" (click)="downloadAllEvents()">Download Calendar ICS</button>
-        </div>
-      </div>
+      <h1 id="calendar-title" class="sr-only">Tournament events calendar</h1>
 
       <section class="calendar-toolbar" aria-label="Calendar navigation">
-        <button mat-stroked-button class="secondary-action" type="button" (click)="previousMonth()">Previous</button>
-        <h2>{{ monthLabel() }}</h2>
-        <button mat-stroked-button class="secondary-action" type="button" (click)="nextMonth()">Next</button>
+        <div class="calendar-month-controls">
+          <button mat-stroked-button class="secondary-action" type="button" (click)="previousMonth()">Previous</button>
+          <h2>{{ monthLabel() }}</h2>
+          <button mat-stroked-button class="secondary-action" type="button" (click)="nextMonth()">Next</button>
+        </div>
+        <button mat-stroked-button class="secondary-action calendar-download-button" type="button" [disabled]="!events().length" (click)="downloadAllEvents()">Download Calendar ICS</button>
       </section>
 
-      <section class="classic-calendar" role="grid" aria-label="Monthly calendar">
-        <div class="classic-calendar__weekday" role="columnheader">Sun</div>
-        <div class="classic-calendar__weekday" role="columnheader">Mon</div>
-        <div class="classic-calendar__weekday" role="columnheader">Tue</div>
-        <div class="classic-calendar__weekday" role="columnheader">Wed</div>
-        <div class="classic-calendar__weekday" role="columnheader">Thu</div>
-        <div class="classic-calendar__weekday" role="columnheader">Fri</div>
-        <div class="classic-calendar__weekday" role="columnheader">Sat</div>
-        @for (day of monthDays(); track day.date) {
-          <article class="classic-calendar__day" role="gridcell" [attr.aria-label]="dayLabel(day)" [class.classic-calendar__day--muted]="!day.inMonth">
-            <time [attr.datetime]="day.date">{{ day.dayNumber }}</time>
-            @for (event of day.events; track event.id) {
-              <button class="calendar-pill" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">{{ event.startTime || 'All day' }} {{ event.title }}</button>
+      <mat-tab-group class="calendar-tabs" mat-stretch-tabs="false" animationDuration="150ms">
+        <mat-tab label="Calendar">
+          <section class="classic-calendar" role="grid" aria-label="Monthly calendar">
+            <div class="classic-calendar__weekday" role="columnheader">Sun</div>
+            <div class="classic-calendar__weekday" role="columnheader">Mon</div>
+            <div class="classic-calendar__weekday" role="columnheader">Tue</div>
+            <div class="classic-calendar__weekday" role="columnheader">Wed</div>
+            <div class="classic-calendar__weekday" role="columnheader">Thu</div>
+            <div class="classic-calendar__weekday" role="columnheader">Fri</div>
+            <div class="classic-calendar__weekday" role="columnheader">Sat</div>
+            @for (day of monthDays(); track day.date) {
+              <article class="classic-calendar__day" role="gridcell" [attr.aria-label]="dayLabel(day)" [class.classic-calendar__day--muted]="!day.inMonth">
+                <button class="classic-calendar__day-add" type="button" [disabled]="saving()" [attr.aria-label]="addEventLabel(day)" (click)="startEventOnDate(day.date)"><time [attr.datetime]="day.date">{{ day.dayNumber }}</time></button>
+                @for (event of day.events; track event.id) {
+                  <button class="calendar-pill" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">{{ event.startTime || 'All day' }} {{ event.title }}</button>
+                }
+              </article>
             }
-          </article>
-        }
-      </section>
+          </section>
+        </mat-tab>
+        <mat-tab label="Upcoming tournaments">
+          <section class="calendar-board calendar-board--tab" aria-label="Upcoming events">
+            @if (upcomingEvents().length) {
+              @for (event of upcomingEvents(); track event.id) {
+                <ng-container *ngTemplateOutlet="eventCard; context: { $implicit: event }" />
+              }
+            } @else if (loading()) {
+              <section class="calendar-empty-callout" aria-live="polite"><div><p class="kicker">Loading</p><h2>Loading event pages…</h2></div></section>
+            } @else {
+              <section class="calendar-empty-callout" aria-labelledby="calendar-empty-title">
+                <div><p class="kicker">No upcoming events</p><h2 id="calendar-empty-title">Create the first tournament event.</h2></div>
+                <p>Click any calendar day to prefill the event form with that date.</p>
+              </section>
+            }
+          </section>
+        </mat-tab>
+      </mat-tab-group>
 
-      <section class="calendar-layout">
-        <section class="calendar-editor panel" aria-labelledby="calendar-editor-title" [attr.aria-busy]="saving()">
+      <section #calendarEditor class="calendar-editor panel" aria-label="Calendar editor" [attr.aria-busy]="saving()">
           <div class="section-header">
             <div>
-              <p class="kicker">{{ editingExisting() ? 'Edit event page' : 'New event page' }}</p>
-              <h2 id="calendar-editor-title">{{ draft().title || 'Event page' }}</h2>
+              <p class="kicker">{{ editingExisting() ? 'Edit event page' : 'Event page' }}</p>
             </div>
             @if (editingExisting()) { <a mat-stroked-button class="secondary-action" [routerLink]="['/events', draft().slug]">View Page</a> }
           </div>
@@ -85,16 +96,14 @@ interface TournamentOption extends CalendarEventTournamentLink {
             <mat-form-field appearance="outline"><mat-label>Date</mat-label><input matInput name="eventDate" type="date" required [ngModel]="draft().eventDate" (ngModelChange)="updateDraft('eventDate', $event)" [readonly]="saving()"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Start time</mat-label><input matInput name="startTime" type="time" [ngModel]="draft().startTime" (ngModelChange)="updateDraft('startTime', $event)" [readonly]="saving()"></mat-form-field>
             <mat-form-field appearance="outline"><mat-label>Estimated finish</mat-label><input matInput name="endTime" type="time" [ngModel]="draft().endTime" (ngModelChange)="updateDraft('endTime', $event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Country</mat-label><input matInput name="country" [ngModel]="draft().country" (ngModelChange)="updateLocationDraft('country', $event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>City</mat-label><input matInput name="city" [ngModel]="draft().city" (ngModelChange)="updateLocationDraft('city', $event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Address</mat-label><input matInput name="address" [ngModel]="draft().address" (ngModelChange)="updateLocationDraft('address', $event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline" class="calendar-form__wide"><mat-label>Linked tournaments</mat-label><mat-select name="tournamentLinks" multiple [ngModel]="selectedTournamentKeys()" (ngModelChange)="updateTournamentLinks($event)" [disabled]="saving()"><mat-option *ngFor="let option of tournamentOptions()" [value]="tournamentKey(option)">{{ option.label }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Country</mat-label><mat-select name="country" [ngModel]="draft().country" (ngModelChange)="updateCountry($event)" [disabled]="saving()"><mat-option value="">Select a country</mat-option><mat-option *ngFor="let country of countries" [value]="country">{{ country }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" class="calendar-form__double"><mat-label>City and address</mat-label><input matInput name="address" autocomplete="street-address" [disabled]="saving() || !draft().country.trim()" [ngModel]="draft().address" (ngModelChange)="updateCombinedAddress($event)"><mat-hint>Select a country first to enable address autocomplete.</mat-hint></mat-form-field>
             <mat-form-field appearance="outline" class="calendar-form__wide"><mat-label>Plain summary for calendar export</mat-label><textarea matInput name="description" rows="3" [ngModel]="draft().description" (ngModelChange)="updateDraft('description', $event)" [readonly]="saving()"></textarea></mat-form-field>
             <mat-form-field appearance="outline" class="calendar-form__wide"><mat-label>External link</mat-label><input matInput name="externalLink" type="url" [ngModel]="draft().externalLink" (ngModelChange)="updateDraft('externalLink', $event)" [readonly]="saving()"></mat-form-field>
 
             <section class="calendar-form__wide rich-editor" aria-labelledby="rich-editor-title">
               <div class="rich-editor__toolbar" aria-label="Rich description formatting controls">
-                <h3 id="rich-editor-title">Rich event description</h3>
+                <h3 id="rich-editor-title">Event Description</h3>
                 <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatBlock('H2')">Header</button>
                 <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatBlock('P')">Paragraph</button>
                 <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('bold')">Bold</button>
@@ -102,55 +111,42 @@ interface TournamentOption extends CalendarEventTournamentLink {
                 <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('insertUnorderedList')">List</button>
                 <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="insertImage()">Image URL</button>
               </div>
-              <div #richEditor class="rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rich-editor-title" [attr.aria-disabled]="saving()" [innerHTML]="draft().richDescriptionHtml" (input)="syncRichDescription()" (blur)="syncRichDescription()"></div>
+              <div #richEditor class="rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rich-editor-title" [attr.aria-disabled]="saving()" (input)="syncRichDescription()" (blur)="syncRichDescription()"></div>
             </section>
 
             <div class="actions calendar-form__wide">
-              <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="resetDraft()">Cancel Esc</button>
               <button mat-flat-button class="home-primary-action" type="submit" [disabled]="saving() || !draft().title.trim() || !draft().eventDate || !draft().slug.trim()">{{ saving() ? 'Saving…' : 'Save Event Ctrl+S' }}</button>
             </div>
           </form>
-        </section>
-
-        <section class="calendar-board" aria-label="Upcoming events">
-          @if (events().length) {
-            @for (event of events(); track event.id) {
-              <article class="calendar-event">
-                <time class="calendar-date" [attr.datetime]="event.eventDate"><span>{{ eventMonth(event) }}</span><strong>{{ eventDay(event) }}</strong></time>
-                <div class="calendar-event__body">
-                  <span class="calendar-status">{{ eventTime(event) }}</span>
-                  <h2><a [routerLink]="['/events', event.slug]">{{ event.title }}</a></h2>
-                  @if (eventLocation(event)) { <p>{{ eventLocation(event) }}</p> }
-                  @if (event.description) { <small>{{ event.description }}</small> }
-                  @if (linkedTournamentLabels(event).length) { <p class="muted">{{ linkedTournamentLabels(event).length }} linked tournament{{ linkedTournamentLabels(event).length === 1 ? '' : 's' }}</p> }
-                  <div class="calendar-event__actions">
-                    <a mat-stroked-button class="secondary-action" [routerLink]="['/events', event.slug]">View Page</a>
-                    <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">Edit</button>
-                    <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="downloadEventLabel(event)" (click)="downloadEvent(event)">Add to Calendar</button>
-                    <button mat-button color="warn" type="button" [disabled]="deletingEventId() === event.id" [attr.aria-label]="deleteEventLabel(event)" (click)="confirmDelete(event)">{{ deletingEventId() === event.id ? 'Deleting…' : 'Delete' }}</button>
-                  </div>
-                </div>
-              </article>
-            }
-          } @else if (loading()) {
-            <section class="calendar-empty-callout" aria-live="polite"><div><p class="kicker">Loading</p><h2>Loading event pages…</h2></div></section>
-          } @else {
-            <section class="calendar-empty-callout" aria-labelledby="calendar-empty-title">
-              <div><p class="kicker">No event pages yet</p><h2 id="calendar-empty-title">Create the first tournament event.</h2></div>
-              <p>Add a tournament weekend, connect one or more tournaments, and publish the rich event page for players.</p>
-            </section>
-          }
-        </section>
       </section>
+
+      <ng-template #eventCard let-event>
+        <article class="calendar-event">
+          <time class="calendar-date" [attr.datetime]="event.eventDate"><span>{{ eventMonth(event) }}</span><strong>{{ eventDay(event) }}</strong></time>
+          <div class="calendar-event__body">
+            <span class="calendar-status">{{ eventTime(event) }}</span>
+            <h2><a [routerLink]="['/events', event.slug]">{{ event.title }}</a></h2>
+            @if (eventLocation(event)) { <p>{{ eventLocation(event) }}</p> }
+            @if (event.description) { <small>{{ event.description }}</small> }
+            <div class="calendar-event__actions">
+              <a mat-stroked-button class="secondary-action" [routerLink]="['/events', event.slug]">View Page</a>
+              <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">Edit</button>
+              <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="downloadEventLabel(event)" (click)="downloadEvent(event)">Add to Calendar</button>
+              <button mat-button color="warn" type="button" [disabled]="deletingEventId() === event.id" [attr.aria-label]="deleteEventLabel(event)" (click)="confirmDelete(event)">{{ deletingEventId() === event.id ? 'Deleting…' : 'Delete' }}</button>
+            </div>
+          </div>
+        </article>
+      </ng-template>
     </section>
     <gones-back-button [link]="['/']" label="Back to Home" position="bottom" />
   `
 })
 export class CalendarComponent implements OnInit {
   @ViewChild('richEditor') private richEditor?: ElementRef<HTMLElement>;
+  @ViewChild('calendarEditor') private calendarEditor?: ElementRef<HTMLElement>;
 
+  readonly countries = COUNTRIES;
   readonly events = signal<CalendarEventDocument[]>([]);
-  readonly leagues = signal<PersistedLeague[]>([]);
   readonly draft = signal<CalendarEventDocument>(createCalendarEvent());
   readonly editingExisting = signal(false);
   readonly loading = signal(true);
@@ -159,13 +155,11 @@ export class CalendarComponent implements OnInit {
   readonly error = signal('');
   readonly visibleMonth = signal(startOfMonth(new Date()));
   readonly monthLabel = computed(() => this.visibleMonth().toLocaleDateString(undefined, { month: 'long', year: 'numeric' }));
-  readonly tournamentOptions = computed<TournamentOption[]>(() => this.leagues().flatMap((league) => league.tournaments.map((tournament) => ({ leagueId: league.id, tournamentId: tournament.id, label: `${league.name} · ${tournament.name}${tournament.tournamentDate ? ` (${tournament.tournamentDate})` : ''}` }))));
-  readonly selectedTournamentKeys = computed(() => this.draft().tournamentLinks.map((link) => this.tournamentKey(link)));
+  readonly upcomingEvents = computed(() => this.events().filter((event) => event.eventDate >= todayDateInputValue()));
   readonly monthDays = computed(() => buildMonthDays(this.visibleMonth(), this.events()));
   private loadRequest = 0;
 
-  constructor(private readonly repo: CalendarEventRepository, private readonly leagueRepo: LeagueRepository, private readonly dialog: MatDialog) {}
-
+  constructor(private readonly repo: CalendarEventRepository, private readonly dialog: MatDialog) {}
   async ngOnInit(): Promise<void> { await this.load(); }
 
   @HostListener('document:keydown', ['$event'])
@@ -174,19 +168,17 @@ export class CalendarComponent implements OnInit {
       event.preventDefault();
       void this.saveEvent();
     }
-    if (event.key === 'Escape') this.resetDraft();
   }
 
   async load(): Promise<void> {
     const request = ++this.loadRequest;
     this.loading.set(true);
     try {
-      const [events, leagues] = await Promise.all([this.repo.list(), this.leagueRepo.listLeagues()]);
+      const events = await this.repo.list();
       if (request !== this.loadRequest) return;
       this.events.set(events);
-      this.leagues.set(leagues);
       this.error.set('');
-      logBoundaryInfo('calendar.load.success', { eventCount: events.length, leagueCount: leagues.length });
+      logBoundaryInfo('calendar.load.success', { eventCount: events.length });
     } catch (error) {
       if (request === this.loadRequest) {
         logBoundaryError('calendar.load', error);
@@ -202,6 +194,14 @@ export class CalendarComponent implements OnInit {
     this.setDraft(createCalendarEvent({ eventDate: toDateInputValue(this.visibleMonth()) }));
   }
 
+  startEventOnDate(eventDate: string): void {
+    if (this.saving()) return;
+    this.editingExisting.set(false);
+    this.visibleMonth.set(startOfMonth(new Date(`${eventDate}T00:00:00`)));
+    this.setDraft(createCalendarEvent({ eventDate }));
+    this.scrollToForm();
+  }
+
   editEvent(event: CalendarEventDocument): void {
     this.editingExisting.set(true);
     this.setDraft(structuredClone(event));
@@ -215,16 +215,19 @@ export class CalendarComponent implements OnInit {
     this.draft.update((draft) => ({ ...draft, [field]: value }));
   }
 
-  updateLocationDraft(field: 'country' | 'city' | 'address', value: string): void {
+  updateCountry(value: string): void {
     this.draft.update((draft) => {
-      const next = { ...draft, [field]: value };
+      const country = String(value ?? '');
+      const next = country.trim() ? { ...draft, country } : { ...draft, country, address: '', city: '' };
       return { ...next, location: [next.address, next.city, next.country].filter(Boolean).join(', ') };
     });
   }
 
-  updateTournamentLinks(keys: string[]): void {
-    const keySet = new Set(keys);
-    this.draft.update((draft) => ({ ...draft, tournamentLinks: this.tournamentOptions().filter((option) => keySet.has(this.tournamentKey(option))).map(({ leagueId, tournamentId }) => ({ leagueId, tournamentId })) }));
+  updateCombinedAddress(value: string): void {
+    this.draft.update((draft) => {
+      const next = { ...draft, address: String(value ?? ''), city: '' };
+      return { ...next, location: [next.address, next.country].filter(Boolean).join(', ') };
+    });
   }
 
   resetDraft(): void {
@@ -240,7 +243,7 @@ export class CalendarComponent implements OnInit {
     try {
       await this.repo.save(savedDraft);
       await this.load();
-      logBoundaryInfo('calendar.saveEvent.success', { eventId: savedDraft.id, slug: savedDraft.slug, tournamentLinkCount: savedDraft.tournamentLinks.length });
+      logBoundaryInfo('calendar.saveEvent.success', { eventId: savedDraft.id, slug: savedDraft.slug });
       if (this.draft().id === savedDraft.id) this.resetDraft();
     } catch (error) {
       logBoundaryError('calendar.saveEvent', error, { eventId: savedDraft.id });
@@ -315,10 +318,9 @@ export class CalendarComponent implements OnInit {
   }
 
   normalizeSlugInput(value: string): string { return normalizeSlug(value); }
-  tournamentKey(link: CalendarEventTournamentLink): string { return `${link.leagueId}:${link.tournamentId}`; }
-  linkedTournamentLabels(event: CalendarEventDocument): string[] { return event.tournamentLinks.map((link) => this.tournamentOptions().find((option) => this.tournamentKey(option) === this.tournamentKey(link))?.label ?? '').filter(Boolean); }
   eventLocation(event: CalendarEventDocument): string { return [event.address, event.city, event.country].filter(Boolean).join(', ') || event.location; }
   dayLabel(day: CalendarDay): string { return `${new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}: ${day.events.length} ${day.events.length === 1 ? 'event' : 'events'}`; }
+  addEventLabel(day: CalendarDay): string { return `Add event on ${new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`; }
   editEventLabel(event: CalendarEventDocument): string { return `Edit event ${event.title} on ${event.eventDate}${event.startTime ? ` at ${event.startTime}` : ''}`; }
   downloadEventLabel(event: CalendarEventDocument): string { return `Add ${event.title} to calendar`; }
   deleteEventLabel(event: CalendarEventDocument): string { return `Delete event ${event.title}`; }
@@ -331,6 +333,15 @@ export class CalendarComponent implements OnInit {
     this.draft.set(normalized);
     setTimeout(() => {
       if (this.richEditor) this.richEditor.nativeElement.innerHTML = normalized.richDescriptionHtml;
+    });
+  }
+
+  private scrollToForm(): void {
+    setTimeout(() => {
+      const editor = this.calendarEditor?.nativeElement;
+      if (!editor) return;
+      const top = editor.getBoundingClientRect().top + window.scrollY - 8;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     });
   }
 
@@ -352,4 +363,5 @@ function buildMonthDays(month: Date, events: CalendarEventDocument[]): CalendarD
 function startOfMonth(date: Date): Date { return new Date(date.getFullYear(), date.getMonth(), 1); }
 function addMonths(date: Date, count: number): Date { return new Date(date.getFullYear(), date.getMonth() + count, 1); }
 function toDateInputValue(date: Date): string { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+function todayDateInputValue(): string { return toDateInputValue(new Date()); }
 function monthShort(date: string): string { return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short' }); }

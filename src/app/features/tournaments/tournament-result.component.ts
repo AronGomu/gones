@@ -32,12 +32,12 @@ import { logBoundaryError } from '../../shared/app-logger';
           @if (page() === 'standings') {
             <section class="result-panel result-standings" aria-label="Standings">
               <table>
-                <thead><tr><th>#</th><th>Player</th><th>Archetype</th><th>Record</th><th>Pts</th></tr></thead>
+                <thead><tr><th>#</th><th>Player</th><th>Archetype</th><th>Record</th></tr></thead>
                 <tbody>
-                  @for (row of report.topRows; track row.playerName) {
-                    <tr><td class="rank">{{ row.rank }}</td><td><strong>{{ row.playerName }}</strong></td><td>{{ row.archetype }}</td><td>{{ row.record }}</td><td>{{ row.points }}</td></tr>
+                  @for (row of topStandingRows(); track row.playerName) {
+                    <tr><td class="rank">{{ row.rank }}</td><td><strong>{{ row.playerName }}</strong></td><td>{{ row.archetype }}</td><td>{{ row.record }}</td></tr>
                   } @empty {
-                    <tr><td colspan="5" class="empty">No valid results yet.</td></tr>
+                    <tr><td colspan="4" class="empty">No valid results yet.</td></tr>
                   }
                 </tbody>
               </table>
@@ -107,6 +107,7 @@ export class TournamentResultComponent {
   readonly summary = computed<TournamentSummary | null>(() => this.tournament() ? buildTournamentSummary(this.tournament() as TournamentDocument) : null);
   readonly page = signal<'standings' | 'metagames'>('standings');
   readonly pageLabel = computed(() => this.page() === 'metagames' ? 'Metagame' : 'Standings');
+  readonly topStandingRows = computed(() => this.summary()?.topRows.slice(0, 8) ?? []);
   readonly metagameBars = computed(() => buildMetagameBars(this.summary()?.archetypeShares.slice(0, 30) ?? []));
   readonly metagameColumns = computed(() => splitMetagameBars(this.metagameBars()));
 
