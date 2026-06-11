@@ -1,9 +1,23 @@
-export const GONES_DATA_VERSION = 2;
-export const SUPPORTED_IMPORT_DATA_VERSIONS = [1, 2] as const;
+export const GONES_DATA_VERSION = 3;
+export const SUPPORTED_IMPORT_DATA_VERSIONS = [1, 2, 3] as const;
+export const PLACEHOLDER_LEAGUE_ID = 'placeholder-league';
+export const PLACEHOLDER_LEAGUE_NAME = 'Unassigned Tournaments';
 export type LeagueStatus = 'active' | 'completed';
 export interface GonesData {
   version: typeof GONES_DATA_VERSION;
   leagues: LeagueDocument[];
+  calendarEvents: CalendarEventDocument[];
+}
+
+export interface CalendarEventDocument {
+  id: string;
+  title: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  description: string;
+  externalLink: string;
 }
 
 export interface LeagueDocument {
@@ -90,8 +104,33 @@ export function normalizeLeagueStatus(status: unknown): LeagueStatus {
   return status === 'completed' || status === 'finished' ? 'completed' : 'active';
 }
 
-export function createGonesData({ leagues = [] }: { leagues?: Partial<LeagueDocument>[] } = {}): GonesData {
-  return { version: GONES_DATA_VERSION, leagues: leagues.map((league) => normalizeLeague(league)) };
+export function createGonesData({ leagues = [], calendarEvents = [] }: { leagues?: Partial<LeagueDocument>[]; calendarEvents?: Partial<CalendarEventDocument>[] } = {}): GonesData {
+  return { version: GONES_DATA_VERSION, leagues: leagues.map((league) => normalizeLeague(league)), calendarEvents: normalizeCalendarEvents(calendarEvents) };
+}
+
+export function createCalendarEvent(
+  { id, title = 'New event', eventDate = todayDateString(), startTime = '', endTime = '', location = '', description = '', externalLink = '' }: Partial<CalendarEventDocument> = {},
+  { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
+): CalendarEventDocument {
+  return {
+    id: id ?? idFactory(),
+    title: String(title || 'New event').trim() || 'New event',
+    eventDate: normalizeDateString(eventDate),
+    startTime: normalizeTimeString(startTime),
+    endTime: normalizeTimeString(endTime),
+    location: String(location ?? '').trim(),
+    description: String(description ?? '').trim(),
+    externalLink: normalizeExternalLink(externalLink)
+  };
+}
+
+export function normalizeCalendarEvent(event: Partial<CalendarEventDocument> = {}, options: { idFactory?: IdFactory } = {}): CalendarEventDocument {
+  return createCalendarEvent(event, options);
+}
+
+export function normalizeCalendarEvents(events: unknown, options: { idFactory?: IdFactory } = {}): CalendarEventDocument[] {
+  if (!Array.isArray(events)) return [];
+  return events.map((event) => normalizeCalendarEvent(event as Partial<CalendarEventDocument>, options)).sort((left, right) => compareCalendarEvents(left, right));
 }
 
 export function createLeague(
@@ -99,12 +138,17 @@ export function createLeague(
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): LeagueDocument {
   const leagueId = id ?? idFactory();
+  const fallbackName = leagueId === PLACEHOLDER_LEAGUE_ID ? PLACEHOLDER_LEAGUE_NAME : 'New League';
   return {
     id: leagueId,
-    name: String(name || 'New League').trim() || 'New League',
+    name: String(name || fallbackName).trim() || fallbackName,
     status: normalizeLeagueStatus(status),
-    tournaments: tournaments.map((tournament) => createTournament({ ...tournament, leagueId: tournament.leagueId ?? leagueId }, { idFactory }))
+    tournaments: tournaments.map((tournament) => createTournament({ ...tournament, leagueId: tournament.leagueId || leagueId }, { idFactory }))
   };
+}
+
+export function createPlaceholderLeague(): LeagueDocument {
+  return createLeague({ id: PLACEHOLDER_LEAGUE_ID, name: PLACEHOLDER_LEAGUE_NAME, status: 'active', tournaments: [] });
 }
 
 export function normalizeLeague(league: Partial<LeagueDocument> = {}, options: { idFactory?: IdFactory } = {}): LeagueDocument {
@@ -229,4 +273,33 @@ function addDerivedArchetype(archetypes: Map<string, string>, playerName: string
 function toNonNegativeInteger(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(String(value ?? '').trim());
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function compareCalendarEvents(left: CalendarEventDocument, right: CalendarEventDocument): number {
+  return left.eventDate.localeCompare(right.eventDate) || left.startTime.localeCompare(right.startTime) || left.title.localeCompare(right.title);
+}
+
+function todayDateString(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeDateString(value: unknown): string {
+  const text = String(value ?? '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : todayDateString();
+}
+
+function normalizeTimeString(value: unknown): string {
+  const text = String(value ?? '').trim();
+  return /^\d{2}:\d{2}$/.test(text) ? text : '';
+}
+
+function normalizeExternalLink(value: unknown): string {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  try {
+    const url = new URL(text);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
 }

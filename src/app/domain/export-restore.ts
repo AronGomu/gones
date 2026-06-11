@@ -1,4 +1,4 @@
-import { createByeRoundEntry, createIdFactory, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament, GONES_DATA_VERSION, LeagueDocument, normalizeLeague, normalizeLeagueStatus, RoundEntry } from './models';
+import { CalendarEventDocument, createByeRoundEntry, createCalendarEvent, createIdFactory, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament, GONES_DATA_VERSION, LeagueDocument, normalizeCalendarEvents, normalizeLeague, normalizeLeagueStatus, RoundEntry } from './models';
 
 export type ExportKind = 'league' | 'fullData';
 
@@ -16,6 +16,7 @@ export interface FullDataExportFile {
   gonesAppVersion: string;
   exportedAt: string;
   leagues: LeagueDocument[];
+  calendarEvents: CalendarEventDocument[];
 }
 
 export type GonesExportFile = LeagueExportFile | FullDataExportFile;
@@ -29,8 +30,8 @@ export function leagueExportFilename(league: Pick<LeagueDocument, 'name'>, now =
   return `${date} ${league.name || 'League'}.json`;
 }
 
-export function exportFullData(leagues: LeagueDocument[], { appVersion = '0.1.0', now = new Date() } = {}): FullDataExportFile {
-  return { kind: 'fullData', gonesDataVersion: GONES_DATA_VERSION, gonesAppVersion: appVersion, exportedAt: now.toISOString(), leagues: leagues.map((league) => structuredClone(normalizeLeague(league))) };
+export function exportFullData(leagues: LeagueDocument[], { appVersion = '0.1.0', now = new Date(), calendarEvents = [] as CalendarEventDocument[] } = {}): FullDataExportFile {
+  return { kind: 'fullData', gonesDataVersion: GONES_DATA_VERSION, gonesAppVersion: appVersion, exportedAt: now.toISOString(), leagues: leagues.map((league) => structuredClone(normalizeLeague(league))), calendarEvents: structuredClone(normalizeCalendarEvents(calendarEvents)) };
 }
 
 export function restoreLeague(file: unknown, { idFactory = createIdFactory('restored'), existingLeagues = [] }: { idFactory?: () => string; existingLeagues?: LeagueDocument[] } = {}): LeagueDocument {
@@ -40,13 +41,17 @@ export function restoreLeague(file: unknown, { idFactory = createIdFactory('rest
 }
 
 export function restoreFullData(file: unknown, { idFactory = createIdFactory('restored'), existingLeagues = [] }: { idFactory?: () => string; existingLeagues?: LeagueDocument[] } = {}): LeagueDocument[] {
+  return restoreFullDataBundle(file, { idFactory, existingLeagues }).leagues;
+}
+
+export function restoreFullDataBundle(file: unknown, { idFactory = createIdFactory('restored'), existingLeagues = [] }: { idFactory?: () => string; existingLeagues?: LeagueDocument[] } = {}): { leagues: LeagueDocument[]; calendarEvents: CalendarEventDocument[] } {
   const normalized = normalizeExportFile(file);
   if (normalized.kind !== 'fullData') throw new Error('wrongExportKind');
   const restored: LeagueDocument[] = [];
   for (const league of normalized.leagues) {
     restored.push(remapLeague(league, { idFactory, existingLeagues: [...existingLeagues, ...restored] }));
   }
-  return restored;
+  return { leagues: restored, calendarEvents: normalized.calendarEvents.map((event) => createCalendarEvent({ ...event, id: undefined }, { idFactory })) };
 }
 
 export function normalizeExportFile(file: unknown): GonesExportFile {
@@ -60,7 +65,7 @@ export function normalizeExportFile(file: unknown): GonesExportFile {
   if (value['kind'] === 'fullData') {
     assertSupportedVersion(value['gonesDataVersion']);
     const leagues = Array.isArray(value['leagues']) ? value['leagues'].map((league) => normalizeLeague(league as Partial<LeagueDocument>)) : [];
-    return { kind: 'fullData', gonesDataVersion: Number(value['gonesDataVersion']), gonesAppVersion: String(value['gonesAppVersion'] ?? ''), exportedAt: String(value['exportedAt'] ?? ''), leagues };
+    return { kind: 'fullData', gonesDataVersion: Number(value['gonesDataVersion']), gonesAppVersion: String(value['gonesAppVersion'] ?? ''), exportedAt: String(value['exportedAt'] ?? ''), leagues, calendarEvents: normalizeCalendarEvents(value['calendarEvents']) };
   }
 
   // Legacy pre-Angular League Export shape: { version, exportedAt, league }.
@@ -72,7 +77,7 @@ export function normalizeExportFile(file: unknown): GonesExportFile {
 }
 
 function assertSupportedVersion(version: unknown): void {
-  if (version !== 1 && version !== 2) throw new Error('unsupportedGonesExport');
+  if (version !== 1 && version !== 2 && version !== 3) throw new Error('unsupportedGonesExport');
 }
 
 function remapLeague(source: LeagueDocument, { idFactory, existingLeagues }: { idFactory: () => string; existingLeagues: LeagueDocument[] }): LeagueDocument {

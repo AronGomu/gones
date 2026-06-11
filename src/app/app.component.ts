@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, Injector, signal, ViewChild } from '@angular/core';
+import { Component, computed, ElementRef, inject, Injector, signal, ViewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,9 +6,10 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { CalendarEventRepository } from './data/calendar-event-repository.service';
 import { LeagueRepository } from './data/league-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
-import { PersistedLeague, TournamentDocument } from './domain/models';
+import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
@@ -28,48 +29,50 @@ interface HeaderTournament {
   standalone: true,
   imports: [RouterOutlet, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatToolbarModule],
   template: `
-    <mat-toolbar class="app-toolbar">
-      <a class="brand" routerLink="/" aria-label="Gones home"><img src="assets/gones_logo.png" alt="Gones"></a>
-      <span class="spacer"></span>
-      @if (showHeaderImport()) {
-        <div class="header-actions">
-          <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? 'Importing…' : 'Import' }}</button>
-          <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" [disabled]="importing()" (change)="importLeague($event)">
-          <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">Full Data Export</button>
-        </div>
-      } @else if (headerTournament(); as item) {
-        <div class="header-actions tournament-header-actions">
-          <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="'View result page for ' + item.tournament.name">View Result</a>
-          <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" aria-label="Tournament actions" [disabled]="deletingTournament()">⋮</button>
-          <mat-menu #tournamentActionsMenu="matMenu">
-            <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? 'Deleting Tournament…' : 'Delete Tournament' }}</button>
-          </mat-menu>
-        </div>
-      } @else if (headerLeague(); as league) {
-        <div class="header-actions league-header-actions">
-          <button mat-stroked-button class="secondary-action" type="button" (click)="downloadLeagueExport(league)">Export League</button>
-          <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" aria-label="League actions">⋮</button>
-          <mat-menu #leagueActionsMenu="matMenu">
-            <button mat-menu-item class="destructive-menu-item" (click)="deleteLeague(league)">Delete League</button>
-          </mat-menu>
-        </div>
-      } @else if (showHomeActions()) {
-        <div class="header-actions home-header-actions">
-          <button mat-stroked-button class="secondary-action" type="button" disabled>Login</button>
-          <a mat-stroked-button class="secondary-action" routerLink="/settings" data-cy="menu-settings-link">Settings</a>
-        </div>
-      }
-    </mat-toolbar>
-    <nav class="breadcrumb-shell breadcrumb-shell--header" aria-label="Breadcrumb">
-      <ol class="breadcrumbs">
-        @for (item of breadcrumbs(); track item.label + $index) {
-          <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
-            @if (!$last && item.link) { <a [routerLink]="item.link">{{ item.label }}</a> }
-            @else { <span>{{ item.label }}</span> }
-          </li>
+    @if (!isResultPage()) {
+      <mat-toolbar class="app-toolbar">
+        <a class="brand" routerLink="/" aria-label="Gones home"><img src="assets/gones_logo.png" alt="Gones"></a>
+        <span class="spacer"></span>
+        @if (showHeaderImport()) {
+          <div class="header-actions">
+            <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? 'Importing…' : 'Import' }}</button>
+            <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" [disabled]="importing()" (change)="importLeague($event)">
+            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">Full Data Export</button>
+          </div>
+        } @else if (headerTournament(); as item) {
+          <div class="header-actions tournament-header-actions">
+            <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="'View result page for ' + item.tournament.name">View Result</a>
+            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" aria-label="Tournament actions" [disabled]="deletingTournament()">⋮</button>
+            <mat-menu #tournamentActionsMenu="matMenu">
+              <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? 'Deleting Tournament…' : 'Delete Tournament' }}</button>
+            </mat-menu>
+          </div>
+        } @else if (headerLeague(); as league) {
+          <div class="header-actions league-header-actions">
+            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadLeagueExport(league)">Export League</button>
+            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" aria-label="League actions">⋮</button>
+            <mat-menu #leagueActionsMenu="matMenu">
+              <button mat-menu-item class="destructive-menu-item" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? 'Placeholder League cannot be deleted' : 'Delete League' }}</button>
+            </mat-menu>
+          </div>
+        } @else if (showHomeActions()) {
+          <div class="header-actions home-header-actions">
+            <button mat-stroked-button class="secondary-action" type="button" disabled>Login</button>
+            <a mat-stroked-button class="secondary-action" routerLink="/settings" data-cy="menu-settings-link">Settings</a>
+          </div>
         }
-      </ol>
-    </nav>
+      </mat-toolbar>
+      <nav class="breadcrumb-shell breadcrumb-shell--header" aria-label="Breadcrumb">
+        <ol class="breadcrumbs">
+          @for (item of breadcrumbs(); track item.label + $index) {
+            <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
+              @if (!$last && item.link) { <a [routerLink]="item.link">{{ item.label }}</a> }
+              @else { <span>{{ item.label }}</span> }
+            </li>
+          }
+        </ol>
+      </nav>
+    }
     @if (importError()) { <p class="error app-banner" role="alert">{{ importError() }}</p> }
     <main class="app-main"><router-outlet /></main>
   `
@@ -80,8 +83,10 @@ export class AppComponent {
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
   private readonly repo = inject(LeagueRepository);
+  private readonly calendarRepo = inject(CalendarEventRepository);
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
+  readonly isResultPage = computed(() => this.currentUrl().split('?')[0].split('/').includes('result'));
   readonly importing = signal(false);
   readonly deletingTournament = signal(false);
   readonly importError = signal('');
@@ -156,12 +161,15 @@ export class AppComponent {
   }
 
   async downloadFullExport(): Promise<void> {
-    saveJsonFile(exportFullData(await this.repo.listLeagues()), 'gones-full-data.gones.json');
+    const leagues = (await this.repo.listLeagues()).filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID);
+    saveJsonFile(exportFullData(leagues, { calendarEvents: await this.calendarRepo.list() }), 'gones-full-data.gones.json');
   }
 
   downloadLeagueExport(league: PersistedLeague): void { const exported = exportLeague(league); saveJsonFile(exported, leagueExportFilename(league, new Date(exported.exportedAt))); }
+  isPlaceholderLeague(league: PersistedLeague): boolean { return league.id === PLACEHOLDER_LEAGUE_ID; }
 
   async deleteLeague(league: PersistedLeague): Promise<void> {
+    if (this.isPlaceholderLeague(league)) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete League', message: `Delete ${league.name}? This permanently deletes its Tournaments, rounds, and Player Statistics source data.`, confirmLabel: 'Delete League', destructive: true } }).afterClosed());
     if (!confirmed) return;
     await this.repo.deleteLeague(league.id);
@@ -198,8 +206,9 @@ export class AppComponent {
       const result = await this.injector.get(LeagueImportService).importFile(file);
       this.importError.set('');
       const firstImportedLeagueId = result.importedLeagueIds[0];
-      logBoundaryInfo('app-header.importLeague.success', { kind: result.kind, importedCount: result.importedLeagueIds.length, destinationLeagueId: firstImportedLeagueId ?? null });
-      await this.router.navigate(firstImportedLeagueId ? ['/leagues', firstImportedLeagueId] : ['/leagues']);
+      const importedCount = result.importedLeagueIds.length + result.importedCalendarEventIds.length;
+      logBoundaryInfo('app-header.importLeague.success', { kind: result.kind, importedCount, importedLeagueCount: result.importedLeagueIds.length, importedCalendarEventCount: result.importedCalendarEventIds.length, destinationLeagueId: firstImportedLeagueId ?? null });
+      await this.router.navigate(firstImportedLeagueId ? ['/leagues', firstImportedLeagueId] : result.importedCalendarEventIds.length ? ['/calendar'] : ['/leagues']);
     } catch (error) {
       logBoundaryError('app-header.importLeague', error, { fileName: file.name });
       this.importError.set(importErrorMessage(error));

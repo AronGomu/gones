@@ -1,6 +1,6 @@
 import { Component, computed, ElementRef, HostListener, signal, ViewChild } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -9,6 +9,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSelectModule } from '@angular/material/select';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
@@ -20,10 +21,11 @@ import { RankingTableComponent } from '../../shared/ranking-table.component';
 import { logBoundaryError } from '../../shared/app-logger';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatCardModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatMenuModule, RankingTableComponent, BackButtonComponent],
+  imports: [FormsModule, MatButtonModule, MatCardModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatMenuModule, MatSelectModule, RankingTableComponent, BackButtonComponent, DeckArchetypeInputComponent],
   template: `
     <gones-back-button [link]="leagueBackLink()" label="Back to League" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
@@ -35,6 +37,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
             @if (titleOnlyEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>Tournament name</mat-label><input #tournamentNameInput data-cy="tournament-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
             @else { <h1><button #tournamentTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="'Edit Tournament name: ' + t.name">{{ t.name }}</button></h1> }
             <mat-form-field appearance="outline" class="tournament-date-field"><mat-label>Tournament date</mat-label><input matInput type="date" [(ngModel)]="t.tournamentDate"></mat-form-field>
+            <mat-form-field appearance="outline" class="tournament-league-field"><mat-label>League</mat-label><mat-select [ngModel]="leagueId()" (ngModelChange)="moveTournamentToLeague($event)">@for (leagueOption of leagues(); track leagueOption.id) { <mat-option [value]="leagueOption.id">{{ leagueOption.name }}</mat-option> }</mat-select></mat-form-field>
           </div>
           @if (result().provisional || result().incomplete) {
             <div class="warning">
@@ -65,21 +68,26 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         </div>
       }
       <section class="stack"><h2>Tournament Ranking</h2><gones-ranking-table [rows]="result().rows" emptyText="No valid Round Entries yet" /></section>
-      <section class="stack" (input)="syncPlayerArchetypesFromRoundEntries()">
-        <div class="section-header"><h2>Rounds</h2><button class="add-round-button" mat-flat-button color="primary" (click)="addRound()">Add Round</button></div>
-        @for (roundView of roundViewModels(t); track roundView.round.id) {
-          <mat-expansion-panel class="round-panel" [expanded]="false">
-            <mat-expansion-panel-header>
-              <mat-panel-title class="round-panel-title">Round {{ roundView.number }}</mat-panel-title>
-              <mat-panel-description>{{ roundView.round.entries.length }} entries</mat-panel-description>
-              <button class="round-menu-button" mat-icon-button [matMenuTriggerFor]="roundMenu" type="button" aria-label="Round actions" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋯</button>
-            </mat-expansion-panel-header>
-            <mat-menu #roundMenu="matMenu">
-              <button class="destructive-menu-item" mat-menu-item type="button" (click)="deleteRound(roundView.round)">Delete Round</button>
-            </mat-menu>
-            <div class="import-row"><mat-form-field appearance="outline"><mat-label>Round Import</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field><button mat-stroked-button (click)="replaceRound(roundView.round, importText.value); importText.value = ''">Import</button></div>
-            <button mat-stroked-button (click)="addMatch(roundView.round)">Add Match</button>
-            @if (roundView.round.entries.length) {
+      <section class="stack tournament-rounds-section" (input)="syncPlayerArchetypesFromRoundEntries()">
+        <div class="rounds-section-actions"><button class="add-round-button create-action-button" mat-flat-button type="button" aria-label="Add Round" (click)="addRound()"><span class="create-action-button__icon" aria-hidden="true">+</span><span>Add Round</span></button></div>
+        <mat-expansion-panel class="round-panel rounds-section-panel" [expanded]="roundsExpanded()" (opened)="roundsExpanded.set(true)" (closed)="roundsExpanded.set(false)">
+          <mat-expansion-panel-header>
+            <mat-panel-title class="round-panel-title">Rounds</mat-panel-title>
+            <mat-panel-description>{{ t.rounds.length }} {{ t.rounds.length === 1 ? 'round' : 'rounds' }}</mat-panel-description>
+          </mat-expansion-panel-header>
+          @for (roundView of roundViewModels(t); track roundView.round.id) {
+            <mat-expansion-panel class="round-panel" [expanded]="false">
+              <mat-expansion-panel-header>
+                <mat-panel-title class="round-panel-title">Round {{ roundView.number }}</mat-panel-title>
+                <mat-panel-description>{{ roundView.round.entries.length }} entries</mat-panel-description>
+                <button class="round-menu-button" mat-icon-button [matMenuTriggerFor]="roundMenu" type="button" aria-label="Round actions" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋯</button>
+              </mat-expansion-panel-header>
+              <mat-menu #roundMenu="matMenu">
+                <button class="destructive-menu-item" mat-menu-item type="button" (click)="deleteRound(roundView.round)">Delete Round</button>
+              </mat-menu>
+              <div class="import-row"><mat-form-field appearance="outline"><mat-label>Round Import</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field><button mat-stroked-button (click)="replaceRound(roundView.round, importText.value); importText.value = ''">Import</button></div>
+              <button mat-stroked-button (click)="addMatch(roundView.round)">Add Match</button>
+              @if (roundView.round.entries.length) {
               <div class="table-wrap round-entry-table-wrap">
                 <table class="ranking-table round-entry-table">
                   <thead>
@@ -124,10 +132,11 @@ import { BackButtonComponent } from '../../shared/back-button.component';
                 </table>
               </div>
             }
-          </mat-expansion-panel>
-        }
+            </mat-expansion-panel>
+          }
+        </mat-expansion-panel>
       </section>
-      <section class="stack" (input)="markDirty()">
+      <section class="stack tournament-player-archetypes-section" (input)="markDirty()">
         <mat-expansion-panel class="round-panel player-archetype-panel" data-cy="player-archetype-panel" [expanded]="false">
           <mat-expansion-panel-header>
             <mat-panel-title class="round-panel-title">Player Archetypes</mat-panel-title>
@@ -135,18 +144,17 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           </mat-expansion-panel-header>
           <p class="muted">One deck archetype is stored per player for this Tournament.</p>
           @if (playerArchetypeRows(t).length) {
-            <div class="table-wrap player-archetype-table-wrap">
-              <table class="player-archetype-table">
-                <thead><tr><th scope="col">Player</th><th scope="col">Deck Archetype</th></tr></thead>
-                <tbody>
-                  @for (row of playerArchetypeRows(t); track row.playerName) {
-                    <tr data-cy="player-archetype-row">
-                      <td><strong>{{ row.playerName }}</strong></td>
-                      <td><input [ngModel]="archetypeFor(t, row.playerName)" (ngModelChange)="setArchetype(row.playerName, $event)" [attr.aria-label]="'Deck archetype for ' + row.playerName"></td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
+            <div class="player-archetype-list" role="group" aria-label="Player Archetypes">
+              <div class="player-archetype-list__header" aria-hidden="true">
+                <span>Player</span>
+                <span>Deck Archetype</span>
+              </div>
+              @for (row of playerArchetypeRows(t); track row.playerName; let rowIndex = $index) {
+                <div class="player-archetype-row" data-cy="player-archetype-row">
+                  <label class="player-archetype-row__player" [attr.for]="'player-archetype-' + rowIndex"><span class="sr-only">Deck archetype for </span>{{ row.playerName }}</label>
+                  <gones-deck-archetype-input [inputId]="'player-archetype-' + rowIndex" [label]="'Deck archetype for ' + row.playerName" [value]="archetypeFor(t, row.playerName)" (valueChange)="setArchetype(row.playerName, $event)" />
+                </div>
+              }
             </div>
           } @else { <p class="empty">No players yet. Add or import Round Entries first.</p> }
         </mat-expansion-panel>
@@ -168,18 +176,20 @@ export class TournamentDetailComponent {
   readonly dirty = signal(false);
   readonly error = signal('');
   readonly importErrors = signal<string[]>([]);
+  readonly roundsExpanded = signal(false);
+  readonly leagues = signal<PersistedLeague[]>([]);
   readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);
   readonly tournament = computed(() => this.currentLeague()?.tournaments.find((item) => item.id === this.tournamentId()) ?? null);
   readonly result = computed(() => this.tournament() ? calculateTournamentResult(this.tournament()!) : { rows: [], incomplete: true, provisional: false });
   readonly warnings = computed(() => this.tournament() ? getTournamentWarnings(this.tournament()!) : []);
   readonly completionIssues = computed(() => this.tournament() ? tournamentCompletionIssues(this.tournament()!) : []);
   readonly warningMessages = computed(() => this.tournament() ? this.warnings().map((warning) => tournamentWarningMessage(warning, this.tournament()!)) : []);
-  private readonly leagueId = signal('');
+  readonly leagueId = signal('');
   private readonly tournamentId = signal('');
   readonly leagueBackLink = computed(() => ['/leagues', this.leagueId()]);
   readonly roundImportPlaceholder = 'table number, player name, result, opponent name, player deck archetype, opponent deck archetype\n7,Alice,Won 2-1,Bob,Fire,Ice\n8,Charlie,Lost 1-2,Dana,Water,Earth\n9,Eve,Draw 1-1,Frank,Air,Metal';
 
-  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly dialog: MatDialog) { void this.load(); }
+  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void { if (this.dirty()) event.preventDefault(); }
   @HostListener('document:keydown', ['$event']) handleShortcut(event: KeyboardEvent): void {
     if (!this.editing() || this.saving()) return;
@@ -192,8 +202,9 @@ export class TournamentDetailComponent {
     this.leagueId.set(leagueId);
     this.tournamentId.set(this.route.snapshot.paramMap.get('tournamentId') ?? '');
     try {
-      const league = await this.repo.getLeague(leagueId);
+      const [league, leagues] = await Promise.all([this.repo.getLeague(leagueId), this.repo.listLeagues()]);
       this.league.set(league);
+      this.leagues.set(leagues);
       this.startEdit(league);
     }
     catch (error) { logBoundaryError('tournament-detail.load', error, { leagueId, tournamentId: this.tournamentId() }); this.error.set('Could not load this Tournament.'); }
@@ -213,7 +224,10 @@ export class TournamentDetailComponent {
   startTitleEdit(): void { if (!this.editing()) this.startEdit(); this.titleOnlyEditing.set(true); this.focusTournamentNameInput(); }
   cancelEdit(): void { this.startEdit(); this.focusTournamentTitleButton(); }
   markDirty(): void { if (!this.saving()) this.dirty.set(true); }
-  addRound(): void { this.updateTournament((tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound()] })); }
+  addRound(): void {
+    this.roundsExpanded.set(true);
+    this.updateTournament((tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound()] }));
+  }
   addMatch(round: RoundDocument): void { this.updateRound(round.id, (item) => ({ ...item, entries: [...item.entries, createMatchRoundEntry({ table: String(item.entries.length + 1) })] })); }
   replaceRound(round: RoundDocument, text: string): void {
     const imported = importRoundEntries(text);
@@ -244,6 +258,23 @@ export class TournamentDetailComponent {
   roundEntryDeleteLabel(roundNumber: number, entryIndex: number): string { return `Delete Round ${roundNumber}, entry ${entryIndex + 1}`; }
   roundViewModels(tournament: TournamentDocument): Array<{ round: RoundDocument; number: number }> {
     return tournament.rounds.map((round, index) => ({ round, number: index + 1 })).reverse();
+  }
+  async moveTournamentToLeague(targetLeagueId: string): Promise<void> {
+    const saved = this.league();
+    const tournament = this.tournament();
+    if (!saved || !tournament || targetLeagueId === saved.id) return;
+    if (this.dirty()) { this.error.set('Save or discard changes before moving this Tournament to another League.'); return; }
+    this.saving.set(true);
+    try {
+      const result = await this.repo.moveTournament(tournament.id, saved.id, targetLeagueId);
+      this.error.set('');
+      await this.router.navigate(['/leagues', result.toLeague.id, 'tournaments', tournament.id]);
+    } catch (error) {
+      logBoundaryError('tournament-detail.moveTournament', error, { leagueId: saved.id, tournamentId: tournament.id, targetLeagueId });
+      this.error.set('Could not move this Tournament to the selected League. Reload and try again.');
+    } finally {
+      this.saving.set(false);
+    }
   }
   private focusTournamentNameInput(): void { setTimeout(() => this.tournamentNameInput?.nativeElement.focus()); }
   private focusTournamentTitleButton(): void { setTimeout(() => this.tournamentTitleButton?.nativeElement.focus()); }

@@ -13,7 +13,8 @@ import { MatButtonModule } from '@angular/material/button';
           <h1 id="home-title">Magic nights, recorded like they matter.</h1>
           <p class="home-hero__lead">Gones gathers leagues, tournament results, player histories, and event information for the local Magic: The Gathering community.</p>
           <div class="home-hero__actions" aria-label="Primary destinations">
-            <a mat-flat-button class="home-primary-action" routerLink="/leagues" data-cy="menu-leagues-link">Open leagues</a>
+            <a mat-flat-button class="home-primary-action" routerLink="/live-tournaments/new" data-cy="menu-live-tournament-link">Run live tournament</a>
+            <a mat-stroked-button class="secondary-action" routerLink="/leagues" data-cy="menu-leagues-link">Open leagues</a>
             <a mat-stroked-button class="secondary-action" routerLink="/calendar" data-cy="menu-calendar-link">See calendar</a>
           </div>
         </div>
@@ -34,15 +35,15 @@ import { MatButtonModule } from '@angular/material/button';
       </div>
 
       <nav class="home-destinations" aria-label="Main menu">
-        <a class="home-destination home-destination--leagues" routerLink="/leagues">
+        <a class="home-destination home-destination--leagues" routerLink="/live-tournaments/new">
           <span>Run the night</span>
+          <strong>Live Tournament</strong>
+          <p>Register players, generate Swiss pairings, enter results, and finalize into a league tournament.</p>
+        </a>
+        <a class="home-destination home-destination--about" routerLink="/leagues">
+          <span>Archive the season</span>
           <strong>Leagues</strong>
           <p>Create leagues, open tournaments, enter rounds, import results, and review standings.</p>
-        </a>
-        <a class="home-destination home-destination--about" routerLink="/about">
-          <span>Know the crew</span>
-          <strong>About Gones</strong>
-          <p>Learn what the organization does and how tournament information is preserved.</p>
         </a>
         <a class="home-destination home-destination--calendar" routerLink="/calendar">
           <span>Find the next event</span>

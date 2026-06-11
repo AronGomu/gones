@@ -5,7 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { GonesData, PersistedLeague } from '../../domain/models';
+import { GonesData, GONES_DATA_VERSION, PersistedLeague } from '../../domain/models';
 import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
@@ -95,7 +95,7 @@ export class PlayerDetailComponent {
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly matchSearch = signal('');
   readonly newestFirst = signal(true);
-  readonly data = computed<GonesData>(() => ({ version: 2, leagues: this.leagues() }));
+  readonly data = computed<GonesData>(() => ({ version: GONES_DATA_VERSION, leagues: this.leagues(), calendarEvents: [] }));
   readonly stats = computed(() => calculatePlayerStatistics(this.data(), this.playerName()));
   readonly orderedMatches = computed(() => orderMatches(this.stats().matches, this.newestFirst()));
   readonly filteredMatches = computed(() => {

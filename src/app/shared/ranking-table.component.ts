@@ -11,20 +11,18 @@ let nextRankingTableId = 0;
   imports: [MatTableModule, RouterLink],
   template: `
     <section class="collapsible-table" [class.is-collapsed]="collapsed" data-cy="collapsible-ranking-table">
-      <div class="collapsible-table__header">
-        <button
-          type="button"
-          class="collapsible-table__toggle"
-          [attr.aria-expanded]="!collapsed"
-          [attr.aria-controls]="panelId"
-          [attr.aria-label]="collapsed ? 'Expand Ranking' : 'Collapse Ranking'"
-          (click)="toggleCollapsed()"
-          data-cy="ranking-table-toggle"
-        >
-          <span class="collapsible-table__chevron" aria-hidden="true">{{ collapsed ? '▸' : '▾' }}</span>
-        </button>
-        <p class="muted collapsible-table__summary">{{ rankingSummary }}</p>
-      </div>
+      <button
+        type="button"
+        class="collapsible-table__header"
+        [attr.aria-expanded]="!collapsed"
+        [attr.aria-controls]="panelId"
+        [attr.aria-label]="collapsed ? 'Expand Ranking' : 'Collapse Ranking'"
+        (click)="toggleCollapsed()"
+        data-cy="ranking-table-toggle"
+      >
+        <span class="collapsible-table__chevron" aria-hidden="true">{{ collapsed ? '▸' : '▾' }}</span>
+        <span class="muted collapsible-table__summary">{{ rankingSummary }}</span>
+      </button>
       <div [id]="panelId" class="collapsible-table__content" [hidden]="collapsed">
         @if (!rows.length) {
           <p class="muted" data-cy="empty-ranking">{{ emptyText }}</p>

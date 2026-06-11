@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createIdFactory, createLeague } from './models';
-import { exportFullData, exportLeague, leagueExportFilename, restoreFullData, restoreLeague } from './export-restore';
+import { createCalendarEvent, createIdFactory, createLeague } from './models';
+import { exportFullData, exportLeague, leagueExportFilename, restoreFullData, restoreFullDataBundle, restoreLeague } from './export-restore';
 
 describe('export/restore contracts', () => {
   it('uses kind-tagged league exports with only the selected League and regenerates ids on restore', () => {
     const source = createLeague({ id: 'old-league', name: 'League', tournaments: [{ id: 'old-tournament', leagueId: 'old-league', name: 'Tournament', tournamentDate: '2026-01-01', rounds: [{ id: 'old-round', entries: [{ kind: 'match', id: 'old-entry', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }] }] });
     const otherLeague = createLeague({ id: 'other-league', name: 'Other League' });
     const file = exportLeague(source, { appVersion: 'test', now: new Date('2026-01-01T00:00:00Z') });
-    expect(file).toMatchObject({ kind: 'league', gonesDataVersion: 2, gonesAppVersion: 'test' });
+    expect(file).toMatchObject({ kind: 'league', gonesDataVersion: 3, gonesAppVersion: 'test' });
     expect(file.league.id).toBe('old-league');
     expect(file.league.name).toBe('League');
     expect(file.league.tournaments).toHaveLength(1);
@@ -45,6 +45,20 @@ describe('export/restore contracts', () => {
     const file = exportFullData([createLeague({ name: 'League' }), createLeague({ name: 'League' })]);
     const restored = restoreFullData(file, { idFactory: createIdFactory('new'), existingLeagues: [createLeague({ name: 'League' })] });
     expect(restored.map((league) => league.name)).toEqual(['League (restored)', 'League (restored) 2']);
+  });
+
+  it('preserves calendar events in full-data exports and remaps ids on restore', () => {
+    const event = createCalendarEvent({ id: 'old-event', title: 'Modern Night', eventDate: '2026-07-10', startTime: '19:30', endTime: '22:00', location: 'Store', description: 'Bring decklists', externalLink: 'https://example.com/register' });
+    const file = exportFullData([], { calendarEvents: [event], now: new Date('2026-06-11T00:00:00Z') });
+    expect(file.calendarEvents).toEqual([event]);
+
+    const restored = restoreFullDataBundle(file, { idFactory: createIdFactory('new') });
+    expect(restored.calendarEvents).toEqual([{ ...event, id: 'new-1' }]);
+  });
+
+  it('normalizes older full-data exports without calendar events', () => {
+    const file = { kind: 'fullData', gonesDataVersion: 2, gonesAppVersion: 'old', exportedAt: '', leagues: [] };
+    expect(restoreFullDataBundle(file).calendarEvents).toEqual([]);
   });
 
   it('rejects unsupported future data versions', () => {

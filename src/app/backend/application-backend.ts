@@ -1,6 +1,6 @@
 import { InjectionToken, inject } from '@angular/core';
 import { environment } from '../../environments/environment';
-import { LeagueDocument, PersistedLeague } from '../domain/models';
+import { CalendarEventDocument, LeagueDocument, PersistedLeague } from '../domain/models';
 import { LocalFrontendBackend } from './local-frontend-backend.service';
 import { NestApiBackend } from './nest-api-backend.service';
 
@@ -13,7 +13,13 @@ export interface LeagueBackendPort {
   deleteLeague(id: string): Promise<void>;
 }
 
-export interface ApplicationBackend extends LeagueBackendPort {
+export interface CalendarEventBackendPort {
+  listCalendarEvents(): Promise<CalendarEventDocument[]>;
+  saveCalendarEvent(event: CalendarEventDocument): Promise<CalendarEventDocument>;
+  deleteCalendarEvent(id: string): Promise<void>;
+}
+
+export interface ApplicationBackend extends LeagueBackendPort, CalendarEventBackendPort {
   readonly mode: 'frontend-local' | 'nest-api';
   readonly configured: boolean;
 }

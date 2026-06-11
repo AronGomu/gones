@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { createLeague, LeagueDocument, normalizeLeague, PersistedLeague } from '../domain/models';
+import { CalendarEventDocument, createLeague, createPlaceholderLeague, LeagueDocument, normalizeCalendarEvent, normalizeCalendarEvents, normalizeLeague, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../domain/models';
 import { logBoundaryError } from '../shared/app-logger';
 import type { ApplicationBackend } from './application-backend';
 
@@ -10,11 +10,13 @@ interface StoredLeague extends PersistedLeague {
 interface FrontendStore {
   version: 1;
   leagues: StoredLeague[];
+  calendarEvents: CalendarEventDocument[];
 }
 
 const STORE_KEY = 'gones.frontend.backend.v1';
 const CORRUPT_BACKUP_PREFIX = `${STORE_KEY}.corrupt`;
 const DEMO_LEAGUES: StoredLeague[] = [
+  { ...createPlaceholderLeague(), documentVersion: 1, updatedAt: new Date(0).toISOString() },
   { ...createLeague({ id: 'demo-league', name: 'Demo League', status: 'active', tournaments: [] }), documentVersion: 1, updatedAt: new Date(0).toISOString() }
 ];
 
@@ -37,9 +39,11 @@ export class LocalFrontendBackend implements ApplicationBackend {
 
   async insertLeague(league: LeagueDocument): Promise<PersistedLeague> {
     const persisted = this.toStoredLeague(league, 1);
-    this.mutate((store) => {
-      if (store.leagues.some((item) => item.id === persisted.id)) throw new Error('leagueAlreadyExists');
-      return { ...store, leagues: [persisted, ...store.leagues] };
+    await this.withStoreLock(() => {
+      this.mutate((store) => {
+        if (store.leagues.some((item) => item.id === persisted.id)) throw new Error('leagueAlreadyExists');
+        return { ...store, leagues: [persisted, ...store.leagues] };
+      });
     });
     return this.clone(persisted);
   }
@@ -47,20 +51,49 @@ export class LocalFrontendBackend implements ApplicationBackend {
   async saveLeague(league: LeagueDocument, expectedVersion: number): Promise<PersistedLeague> {
     const normalized = normalizeLeague(league);
     let saved: StoredLeague | null = null;
-    this.mutate((store) => {
-      const index = store.leagues.findIndex((item) => item.id === normalized.id);
-      if (index === -1 || store.leagues[index].documentVersion !== expectedVersion) throw new Error('staleLeagueDocument');
-      saved = this.toStoredLeague(normalized, expectedVersion + 1);
-      const leagues = [...store.leagues];
-      leagues[index] = saved;
-      return { ...store, leagues };
+    await this.withStoreLock(() => {
+      this.mutate((store) => {
+        const index = store.leagues.findIndex((item) => item.id === normalized.id);
+        if (index === -1 || store.leagues[index].documentVersion !== expectedVersion) throw new Error('staleLeagueDocument');
+        saved = this.toStoredLeague(normalized, expectedVersion + 1);
+        const leagues = [...store.leagues];
+        leagues[index] = saved;
+        return { ...store, leagues };
+      });
     });
     if (!saved) throw new Error('leagueSaveFailed');
     return this.clone(saved);
   }
 
   async deleteLeague(id: string): Promise<void> {
-    this.mutate((store) => ({ ...store, leagues: store.leagues.filter((league) => league.id !== id) }));
+    if (id === PLACEHOLDER_LEAGUE_ID) throw new Error('placeholderLeagueCannotBeDeleted');
+    await this.withStoreLock(() => {
+      this.mutate((store) => ({ ...store, leagues: this.ensurePlaceholderLeague(store.leagues.filter((league) => league.id !== id)) }));
+    });
+  }
+
+  async listCalendarEvents(): Promise<CalendarEventDocument[]> {
+    return this.clone(this.read().calendarEvents);
+  }
+
+  async saveCalendarEvent(event: CalendarEventDocument): Promise<CalendarEventDocument> {
+    const normalized = normalizeCalendarEvent(event);
+    await this.withStoreLock(() => {
+      this.mutate((store) => {
+        const index = store.calendarEvents.findIndex((item) => item.id === normalized.id);
+        const calendarEvents = [...store.calendarEvents];
+        if (index === -1) calendarEvents.push(normalized);
+        else calendarEvents[index] = normalized;
+        return { ...store, calendarEvents: normalizeCalendarEvents(calendarEvents) };
+      });
+    });
+    return this.clone(normalized);
+  }
+
+  async deleteCalendarEvent(id: string): Promise<void> {
+    await this.withStoreLock(() => {
+      this.mutate((store) => ({ ...store, calendarEvents: store.calendarEvents.filter((event) => event.id !== id) }));
+    });
   }
 
   private toStoredLeague(league: LeagueDocument, documentVersion: number): StoredLeague {
@@ -83,6 +116,12 @@ export class LocalFrontendBackend implements ApplicationBackend {
     localStorage.setItem(STORE_KEY, JSON.stringify(update(this.read())));
   }
 
+  private async withStoreLock(callback: () => void): Promise<void> {
+    const locks = navigator.locks;
+    if (locks) await locks.request(STORE_KEY, callback);
+    else callback();
+  }
+
   private normalizeStore(store: Partial<FrontendStore> | null, raw: string | null): FrontendStore {
     if (!store) return this.defaultStore();
     if (!Array.isArray(store.leagues)) {
@@ -91,7 +130,8 @@ export class LocalFrontendBackend implements ApplicationBackend {
     }
     return {
       version: 1,
-      leagues: store.leagues.map((league) => this.normalizeStoredLeague(league))
+      leagues: this.ensurePlaceholderLeague(store.leagues.map((league) => this.normalizeStoredLeague(league))),
+      calendarEvents: normalizeCalendarEvents(store.calendarEvents)
     };
   }
 
@@ -100,13 +140,19 @@ export class LocalFrontendBackend implements ApplicationBackend {
     return { ...normalized, documentVersion: league.documentVersion || 1, updatedAt: league.updatedAt ?? new Date().toISOString() };
   }
 
+  private ensurePlaceholderLeague(leagues: StoredLeague[]): StoredLeague[] {
+    return leagues.some((league) => league.id === PLACEHOLDER_LEAGUE_ID)
+      ? leagues
+      : [{ ...createPlaceholderLeague(), documentVersion: 1, updatedAt: new Date().toISOString() }, ...leagues];
+  }
+
   private backupRawStore(raw: string | null): void {
     if (!raw) return;
     localStorage.setItem(`${CORRUPT_BACKUP_PREFIX}.${new Date().toISOString()}`, raw);
   }
 
   private defaultStore(): FrontendStore {
-    return { version: 1, leagues: this.clone(DEMO_LEAGUES) };
+    return { version: 1, leagues: this.clone(DEMO_LEAGUES), calendarEvents: [] };
   }
 
   private clone<T>(value: T): T {

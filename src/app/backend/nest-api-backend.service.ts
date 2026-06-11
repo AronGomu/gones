@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { LeagueDocument, PersistedLeague } from '../domain/models';
+import { CalendarEventDocument, LeagueDocument, PersistedLeague } from '../domain/models';
 import type { ApplicationBackend } from './application-backend';
 
 /**
@@ -39,6 +39,18 @@ export class NestApiBackend implements ApplicationBackend {
 
   deleteLeague(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(this.url(`/leagues/${encodeURIComponent(id)}`)));
+  }
+
+  listCalendarEvents(): Promise<CalendarEventDocument[]> {
+    return firstValueFrom(this.http.get<CalendarEventDocument[]>(this.url('/calendar-events')));
+  }
+
+  saveCalendarEvent(event: CalendarEventDocument): Promise<CalendarEventDocument> {
+    return firstValueFrom(this.http.put<CalendarEventDocument>(this.url(`/calendar-events/${encodeURIComponent(event.id)}`), { event }));
+  }
+
+  deleteCalendarEvent(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(this.url(`/calendar-events/${encodeURIComponent(id)}`)));
   }
 
   private url(path: string): string {

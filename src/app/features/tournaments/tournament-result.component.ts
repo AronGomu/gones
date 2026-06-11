@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, ElementRef, ViewChild, computed, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -13,11 +13,11 @@ import { logBoundaryError } from '../../shared/app-logger';
   template: `
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (summary(); as report) {
-      <section class="tournament-result-page" [class.result-page--metagame]="page() === 'metagames'" data-cy="tournament-result-page">
+      <section #resultSection class="tournament-result-page" [class.result-page--metagame]="page() === 'metagames'" data-cy="tournament-result-page">
         <section class="result-hero">
           <div class="result-title-block">
             <h1><span>{{ league()?.name || 'Unknown league' }}</span><span>&nbsp;</span><span>{{ report.tournamentName }}</span><span class="result-page-separator" aria-hidden="true"> — </span><span class="result-page-label">{{ pageLabel() }}</span></h1>
-            <p class="result-subtitle">{{ report.tournamentDate || 'No date' }}</p>
+            <p class="result-subtitle">{{ formatTournamentDate(report.tournamentDate) }}</p>
           </div>
           @if (page() === 'standings') {
             <div class="result-counts" aria-label="Tournament statistics">
@@ -44,21 +44,29 @@ import { logBoundaryError } from '../../shared/app-logger';
             </section>
           } @else {
             <section class="result-panel result-metagame" aria-label="Metagame">
-              @if (metagameSegments().length) {
-                <div class="metagame-pie-wrap">
-                  <svg class="metagame-pie" viewBox="0 0 100 100" role="img" aria-label="Metagame archetype share pie chart">
-                    @for (segment of metagameSegments(); track segment.archetype) {
-                      @if (segment.fullCircle) {
-                        <circle cx="50" cy="50" r="42" [attr.fill]="segment.color" />
-                      } @else {
-                        <path [attr.d]="segment.path" [attr.fill]="segment.color"></path>
+              @if (metagameBars().length) {
+                <div
+                  class="metagame-bar-columns"
+                  [class.metagame-bar-columns--sparse]="metagameBars().length <= 8"
+                  [class.metagame-bar-columns--comfortable]="metagameBars().length > 8 && metagameBars().length <= 18"
+                  [class.metagame-bar-columns--dense]="metagameBars().length > 18"
+                  role="list"
+                  aria-label="Metagame archetype share bars"
+                >
+                  @for (column of metagameColumns(); track $index) {
+                    <div class="metagame-bar-column">
+                      @for (bar of column; track bar.archetype) {
+                        <article class="metagame-bar-row" role="listitem" [attr.aria-label]="bar.ariaLabel">
+                          <strong>{{ bar.archetype }}</strong>
+                          <div class="metagame-bar-track" aria-hidden="true">
+                            <span [style.width.%]="bar.percentageValue"></span>
+                          </div>
+                          <span class="metagame-bar-row__percent">{{ bar.percentageLabel }}</span>
+                          <span class="metagame-bar-row__count">{{ bar.playerCount }}/{{ bar.totalPlayerCount }}</span>
+                        </article>
                       }
-                      <text class="metagame-pie-label" [attr.x]="segment.labelX" [attr.y]="segment.labelY" text-anchor="middle">
-                        <tspan [attr.x]="segment.labelX" dy="-0.15em">{{ segment.archetype }}</tspan>
-                        <tspan [attr.x]="segment.labelX" dy="1.25em">{{ segment.playerCount }}/{{ segment.totalPlayerCount }}</tspan>
-                      </text>
-                    }
-                  </svg>
+                    </div>
+                  }
                 </div>
               } @else {
                 <p class="empty">No archetype data yet.</p>
@@ -79,13 +87,19 @@ import { logBoundaryError } from '../../shared/app-logger';
         } @else {
           <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId(), 'result']">See Standings</a>
         }
+        <span class="result-footer__spacer"></span>
+        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadResultImage()">Download Image</button>
+        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadAllResultImages()">Download All</button>
       </footer>
     }
   `
 })
 export class TournamentResultComponent {
+  @ViewChild('resultSection') private resultSection?: ElementRef<HTMLElement>;
+
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly downloading = signal(false);
   readonly league = signal<PersistedLeague | null>(null);
   readonly leagueId = signal('');
   readonly tournamentId = signal('');
@@ -93,9 +107,50 @@ export class TournamentResultComponent {
   readonly summary = computed<TournamentSummary | null>(() => this.tournament() ? buildTournamentSummary(this.tournament() as TournamentDocument) : null);
   readonly page = signal<'standings' | 'metagames'>('standings');
   readonly pageLabel = computed(() => this.page() === 'metagames' ? 'Metagame' : 'Standings');
-  readonly metagameSegments = computed(() => buildPieSegments(this.summary()?.archetypeShares.slice(0, 8) ?? []));
+  readonly metagameBars = computed(() => buildMetagameBars(this.summary()?.archetypeShares.slice(0, 30) ?? []));
+  readonly metagameColumns = computed(() => splitMetagameBars(this.metagameBars()));
 
   constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
+
+  formatTournamentDate(value: string): string {
+    if (!value) return 'No date';
+    const parsed = parseDateInputValue(value);
+    if (!parsed) return value;
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
+  }
+
+  async downloadResultImage(): Promise<void> {
+    if (!this.resultSection) return;
+    this.downloading.set(true);
+    try {
+      const blob = await captureElementAsPng(this.resultSection.nativeElement);
+      downloadBlob(blob, `${this.resultFilenameBase()}-${this.page()}.png`);
+    }
+    catch (error) { logBoundaryError('tournament-result.downloadImage', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId(), page: this.page() }); this.error.set('Could not download this Result image.'); }
+    finally { this.downloading.set(false); }
+  }
+
+  async downloadAllResultImages(): Promise<void> {
+    if (!this.resultSection) return;
+    this.downloading.set(true);
+    const originalPage = this.page();
+    try {
+      const files: ZipFile[] = [];
+      for (const resultPage of ['standings', 'metagames'] as const) {
+        this.page.set(resultPage);
+        await nextFrame();
+        const blob = await captureElementAsPng(this.resultSection.nativeElement);
+        files.push({ name: `${this.resultFilenameBase()}-${resultPage}.png`, data: new Uint8Array(await blob.arrayBuffer()) });
+      }
+      downloadBlob(createZip(files), `${this.resultFilenameBase()}-results.zip`);
+    }
+    catch (error) { logBoundaryError('tournament-result.downloadAllImages', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() }); this.error.set('Could not download all Result images.'); }
+    finally { this.page.set(originalPage); this.downloading.set(false); }
+  }
+
+  private resultFilenameBase(): string {
+    return sanitizeFilename(`${this.league()?.name || 'league'}-${this.summary()?.tournamentName || 'tournament'}`);
+  }
 
   async load(): Promise<void> {
     const leagueId = this.route.snapshot.paramMap.get('leagueId') ?? '';
@@ -110,50 +165,183 @@ export class TournamentResultComponent {
 
 }
 
-interface PieSegment {
+interface MetagameBar {
   archetype: string;
   playerCount: number;
   totalPlayerCount: number;
-  color: string;
-  path: string;
-  labelX: string;
-  labelY: string;
-  fullCircle: boolean;
+  percentageValue: number;
+  percentageLabel: string;
+  ariaLabel: string;
 }
 
-const PIE_COLORS = ['#d73a31', '#f2b84b', '#7fbf5b', '#44a7c4', '#8b6ee8', '#d96fa8', '#d9823b', '#c9d1d9'];
+function parseDateInputValue(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+}
 
-function buildPieSegments(shares: ArchetypeShare[]): PieSegment[] {
-  let startAngle = -90;
-  return shares.map((share, index) => {
-    const sweep = share.percentage * 360;
-    const endAngle = startAngle + sweep;
-    const midAngle = startAngle + sweep / 2;
-    const segment = {
+function buildMetagameBars(shares: ArchetypeShare[]): MetagameBar[] {
+  return shares.map((share) => {
+    const percentageValue = Math.round(share.percentage * 1000) / 10;
+    const percentageLabel = `${percentageValue.toFixed(percentageValue % 1 === 0 ? 0 : 1)}%`;
+    return {
       archetype: share.archetype,
       playerCount: share.playerCount,
       totalPlayerCount: share.totalPlayerCount,
-      color: PIE_COLORS[index % PIE_COLORS.length],
-      path: describeSlice(50, 50, 42, startAngle, endAngle),
-      ...polarPoint(50, 50, 26, midAngle),
-      fullCircle: share.percentage >= 0.999
+      percentageValue,
+      percentageLabel,
+      ariaLabel: `${share.archetype}: ${percentageLabel}, ${share.playerCount} of ${share.totalPlayerCount} players`
     };
-    startAngle = endAngle;
-    return segment;
   });
 }
 
-function describeSlice(cx: number, cy: number, radius: number, startAngle: number, endAngle: number): string {
-  const start = polarPoint(cx, cy, radius, endAngle);
-  const end = polarPoint(cx, cy, radius, startAngle);
-  const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
-  return [`M ${cx} ${cy}`, `L ${start.labelX} ${start.labelY}`, `A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.labelX} ${end.labelY}`, 'Z'].join(' ');
+function splitMetagameBars(bars: MetagameBar[]): MetagameBar[][] {
+  const midpoint = Math.ceil(bars.length / 2);
+  return [bars.slice(0, midpoint), bars.slice(midpoint)];
 }
 
-function polarPoint(cx: number, cy: number, radius: number, angleDegrees: number): { labelX: string; labelY: string } {
-  const angleRadians = angleDegrees * Math.PI / 180;
-  return {
-    labelX: (cx + radius * Math.cos(angleRadians)).toFixed(2),
-    labelY: (cy + radius * Math.sin(angleRadians)).toFixed(2)
-  };
+async function captureElementAsPng(element: HTMLElement): Promise<Blob> {
+  await document.fonts.ready;
+  const rect = element.getBoundingClientRect();
+  const width = Math.ceil(rect.width);
+  const height = Math.ceil(rect.height);
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  clone.style.width = `${width}px`;
+  clone.style.height = `${height}px`;
+  clone.style.margin = '0';
+  clone.style.fontFamily = getComputedStyle(element).fontFamily;
+  clone.classList.add('result-page--capture');
+
+  const style = document.createElement('style');
+  style.textContent = collectDocumentCss();
+  clone.prepend(style);
+
+  const serialized = new XMLSerializer().serializeToString(clone);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
+  const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  try {
+    const image = new Image();
+    image.decoding = 'sync';
+    const loaded = new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('Could not render result image.'));
+    });
+    image.src = svgUrl;
+    await loaded;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas is unavailable.');
+    context.drawImage(image, 0, 0);
+    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not encode PNG.')), 'image/png'));
+  }
+  finally { URL.revokeObjectURL(svgUrl); }
+}
+
+function collectDocumentCss(): string {
+  return Array.from(document.styleSheets).map((sheet) => {
+    try { return Array.from(sheet.cssRules).map((rule) => rule.cssText).join('\n'); }
+    catch { return ''; }
+  }).join('\n');
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function sanitizeFilename(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'result';
+}
+
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
+
+interface ZipFile {
+  name: string;
+  data: Uint8Array;
+}
+
+function createZip(files: ZipFile[]): Blob {
+  const chunks: Uint8Array[] = [];
+  const centralDirectory: Uint8Array[] = [];
+  let offset = 0;
+  for (const file of files) {
+    const name = new TextEncoder().encode(file.name);
+    const crc = crc32(file.data);
+    const localHeader = zipLocalHeader(name, crc, file.data.length);
+    chunks.push(localHeader, file.data);
+    centralDirectory.push(zipCentralHeader(name, crc, file.data.length, offset));
+    offset += localHeader.length + file.data.length;
+  }
+  const centralDirectorySize = centralDirectory.reduce((sum, item) => sum + item.length, 0);
+  chunks.push(...centralDirectory, zipEndRecord(files.length, centralDirectorySize, offset));
+  return new Blob(chunks.map(copyUint8ArrayBuffer), { type: 'application/zip' });
+}
+
+function copyUint8ArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer as ArrayBuffer;
+}
+
+function zipLocalHeader(name: Uint8Array, crc: number, size: number): Uint8Array {
+  const header = new Uint8Array(30 + name.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, 0, true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, size, true);
+  view.setUint32(22, size, true);
+  view.setUint16(26, name.length, true);
+  header.set(name, 30);
+  return header;
+}
+
+function zipCentralHeader(name: Uint8Array, crc: number, size: number, offset: number): Uint8Array {
+  const header = new Uint8Array(46 + name.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, 0, true);
+  view.setUint32(16, crc, true);
+  view.setUint32(20, size, true);
+  view.setUint32(24, size, true);
+  view.setUint16(28, name.length, true);
+  view.setUint32(42, offset, true);
+  header.set(name, 46);
+  return header;
+}
+
+function zipEndRecord(fileCount: number, centralDirectorySize: number, centralDirectoryOffset: number): Uint8Array {
+  const header = new Uint8Array(22);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(8, fileCount, true);
+  view.setUint16(10, fileCount, true);
+  view.setUint32(12, centralDirectorySize, true);
+  view.setUint32(16, centralDirectoryOffset, true);
+  return header;
+}
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let index = 0; index < 8; index++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
