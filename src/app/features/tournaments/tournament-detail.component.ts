@@ -10,6 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
+import { CalendarEventRepository } from '../../data/calendar-event-repository.service';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
@@ -189,7 +190,7 @@ export class TournamentDetailComponent {
   readonly leagueBackLink = computed(() => ['/leagues', this.leagueId()]);
   readonly roundImportPlaceholder = 'table number, player name, result, opponent name, player deck archetype, opponent deck archetype\n7,Alice,Won 2-1,Bob,Fire,Ice\n8,Charlie,Lost 1-2,Dana,Water,Earth\n9,Eve,Draw 1-1,Frank,Air,Metal';
 
-  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
+  constructor(private readonly repo: LeagueRepository, private readonly calendarRepo: CalendarEventRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void { if (this.dirty()) event.preventDefault(); }
   @HostListener('document:keydown', ['$event']) handleShortcut(event: KeyboardEvent): void {
     if (!this.editing() || this.saving()) return;
@@ -267,6 +268,7 @@ export class TournamentDetailComponent {
     this.saving.set(true);
     try {
       const result = await this.repo.moveTournament(tournament.id, saved.id, targetLeagueId);
+      await this.calendarRepo.rewriteTournamentLeague(tournament.id, saved.id, result.toLeague.id);
       this.error.set('');
       await this.router.navigate(['/leagues', result.toLeague.id, 'tournaments', tournament.id]);
     } catch (error) {

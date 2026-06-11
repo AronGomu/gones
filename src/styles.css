@@ -154,6 +154,22 @@ h2 { margin: 0; font-size: 1.5rem; }
 .calendar-event small { display: block; color: var(--dim-ash); line-height: 1.5; white-space: pre-wrap; }
 .calendar-event__body { min-width: 0; }
 .calendar-event__actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .75rem; }
+.rich-editor { display: grid; gap: .75rem; }
+.rich-editor__toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding: .75rem; border: 1px solid var(--soot); background: var(--black-metal); }
+.rich-editor__toolbar h3 { flex: 1 1 14rem; margin: 0; font-size: 1rem; }
+.rich-editor__surface { min-height: 16rem; padding: 1rem; border: 1px solid var(--soot); background: var(--forge); color: var(--ash); line-height: 1.7; overflow-wrap: anywhere; }
+.rich-editor__surface:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+.rich-content { display: grid; gap: 1rem; color: var(--dim-ash); font-size: 1.05rem; line-height: 1.75; overflow-wrap: anywhere; }
+.rich-content h1, .rich-content h2, .rich-content h3 { color: var(--ash); }
+.rich-content img, .rich-editor__surface img { max-width: 100%; height: auto; border: 1px solid var(--soot); }
+.event-page { display: grid; gap: 1rem; }
+.event-hero, .event-section { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 2rem); }
+.event-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .75rem; margin: 0; }
+.event-facts div { padding: .85rem; border: 1px solid var(--soot); background: var(--black-metal); }
+.event-facts dt { color: oklch(75% 0.12 35); font-size: .75rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.event-facts dd { margin: .25rem 0 0; color: var(--ash); font-weight: 800; }
+.event-tournament-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); grid-auto-rows: 4.75rem; gap: .5rem; }
+.event-description-fallback { margin: 0; color: var(--dim-ash); white-space: pre-wrap; line-height: 1.7; }
 .settings-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 20rem); gap: 1rem; align-items: start; }
 .settings-row--wide { grid-template-columns: minmax(0, 1fr) minmax(16rem, 28rem); }
 .settings-language-field, .settings-archetype-field { width: 100%; }

@@ -9,15 +9,26 @@ export interface GonesData {
   calendarEvents: CalendarEventDocument[];
 }
 
+export interface CalendarEventTournamentLink {
+  leagueId: string;
+  tournamentId: string;
+}
+
 export interface CalendarEventDocument {
   id: string;
+  slug: string;
   title: string;
   eventDate: string;
   startTime: string;
   endTime: string;
   location: string;
+  country: string;
+  city: string;
+  address: string;
   description: string;
+  richDescriptionHtml: string;
   externalLink: string;
+  tournamentLinks: CalendarEventTournamentLink[];
 }
 
 export interface LeagueDocument {
@@ -109,18 +120,30 @@ export function createGonesData({ leagues = [], calendarEvents = [] }: { leagues
 }
 
 export function createCalendarEvent(
-  { id, title = 'New event', eventDate = todayDateString(), startTime = '', endTime = '', location = '', description = '', externalLink = '' }: Partial<CalendarEventDocument> = {},
+  { id, slug = '', title = 'New event', eventDate = todayDateString(), startTime = '', endTime = '', location = '', country = '', city = '', address = '', description = '', richDescriptionHtml = '', externalLink = '', tournamentLinks = [] }: Partial<CalendarEventDocument> = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): CalendarEventDocument {
+  const normalizedTitle = String(title || 'New event').trim() || 'New event';
+  const normalizedCountry = String(country ?? '').trim();
+  const normalizedCity = String(city ?? '').trim();
+  const normalizedAddress = String(address ?? '').trim();
+  const normalizedLocation = String(location || [normalizedAddress, normalizedCity, normalizedCountry].filter(Boolean).join(', ')).trim();
+  const normalizedDescription = String(description ?? '').trim();
   return {
     id: id ?? idFactory(),
-    title: String(title || 'New event').trim() || 'New event',
+    slug: normalizeSlug(slug || normalizedTitle),
+    title: normalizedTitle,
     eventDate: normalizeDateString(eventDate),
     startTime: normalizeTimeString(startTime),
     endTime: normalizeTimeString(endTime),
-    location: String(location ?? '').trim(),
-    description: String(description ?? '').trim(),
-    externalLink: normalizeExternalLink(externalLink)
+    location: normalizedLocation,
+    country: normalizedCountry,
+    city: normalizedCity,
+    address: normalizedAddress,
+    description: normalizedDescription,
+    richDescriptionHtml: normalizeRichDescriptionHtml(richDescriptionHtml || normalizedDescription),
+    externalLink: normalizeExternalLink(externalLink),
+    tournamentLinks: normalizeCalendarEventTournamentLinks(tournamentLinks)
   };
 }
 
@@ -130,7 +153,11 @@ export function normalizeCalendarEvent(event: Partial<CalendarEventDocument> = {
 
 export function normalizeCalendarEvents(events: unknown, options: { idFactory?: IdFactory } = {}): CalendarEventDocument[] {
   if (!Array.isArray(events)) return [];
-  return events.map((event) => normalizeCalendarEvent(event as Partial<CalendarEventDocument>, options)).sort((left, right) => compareCalendarEvents(left, right));
+  const slugCounts = new Map<string, number>();
+  return events
+    .map((event) => normalizeCalendarEvent(event as Partial<CalendarEventDocument>, options))
+    .map((event) => ({ ...event, slug: uniqueCalendarEventSlug(event.slug, slugCounts) }))
+    .sort((left, right) => compareCalendarEvents(left, right));
 }
 
 export function createLeague(
@@ -277,6 +304,95 @@ function toNonNegativeInteger(value: unknown): number {
 
 function compareCalendarEvents(left: CalendarEventDocument, right: CalendarEventDocument): number {
   return left.eventDate.localeCompare(right.eventDate) || left.startTime.localeCompare(right.startTime) || left.title.localeCompare(right.title);
+}
+
+function normalizeCalendarEventTournamentLinks(links: unknown): CalendarEventTournamentLink[] {
+  if (!Array.isArray(links)) return [];
+  const seen = new Set<string>();
+  const normalized: CalendarEventTournamentLink[] = [];
+  for (const item of links) {
+    if (!item || typeof item !== 'object') continue;
+    const value = item as Partial<CalendarEventTournamentLink>;
+    const leagueId = String(value.leagueId ?? '').trim();
+    const tournamentId = String(value.tournamentId ?? '').trim();
+    const key = `${leagueId}:${tournamentId}`;
+    if (!leagueId || !tournamentId || seen.has(key)) continue;
+    seen.add(key);
+    normalized.push({ leagueId, tournamentId });
+  }
+  return normalized;
+}
+
+function uniqueCalendarEventSlug(slug: string, counts: Map<string, number>): string {
+  const base = normalizeSlug(slug || 'event');
+  const count = counts.get(base) ?? 0;
+  counts.set(base, count + 1);
+  return count ? `${base}-${count + 1}` : base;
+}
+
+export function normalizeSlug(value: unknown): string {
+  const text = String(value ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return text || 'event';
+}
+
+function normalizeRichDescriptionHtml(value: unknown): string {
+  const html = String(value ?? '').trim();
+  if (!html) return '';
+  if (typeof document === 'undefined') return html.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  sanitizeRichNode(template.content);
+  return template.innerHTML;
+}
+
+function sanitizeRichNode(parent: ParentNode): void {
+  const allowedTags = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'UL', 'OL', 'LI', 'H2', 'H3', 'A', 'IMG']);
+  for (const node of Array.from(parent.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) continue;
+    if (!(node instanceof HTMLElement)) {
+      node.remove();
+      continue;
+    }
+    if (!allowedTags.has(node.tagName)) {
+      node.replaceWith(...Array.from(node.childNodes));
+      sanitizeRichNode(parent);
+      continue;
+    }
+    const originalHref = node.getAttribute('href');
+    const originalSrc = node.getAttribute('src');
+    const originalAlt = node.getAttribute('alt');
+    for (const attribute of Array.from(node.attributes)) node.removeAttribute(attribute.name);
+    if (node instanceof HTMLAnchorElement) {
+      const href = normalizeExternalLink(originalHref);
+      if (href) {
+        node.setAttribute('href', href);
+        node.setAttribute('target', '_blank');
+        node.setAttribute('rel', 'noopener noreferrer');
+      }
+    }
+    if (node instanceof HTMLImageElement) {
+      const src = normalizeHttpsImageUrl(originalSrc);
+      if (!src) {
+        node.remove();
+        continue;
+      }
+      node.setAttribute('src', src);
+      node.setAttribute('alt', originalAlt ?? '');
+      node.setAttribute('loading', 'lazy');
+    }
+    sanitizeRichNode(node);
+  }
+}
+
+function normalizeHttpsImageUrl(value: unknown): string {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  try {
+    const url = new URL(text);
+    return url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
 }
 
 function todayDateString(date = new Date()): string {

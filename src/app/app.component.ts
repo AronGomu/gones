@@ -9,7 +9,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { CalendarEventRepository } from './data/calendar-event-repository.service';
 import { LeagueRepository } from './data/league-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
-import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
+import { CalendarEventDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
@@ -135,6 +135,10 @@ export class AppComponent {
     if (!segments.length) return [{ label: 'Menu' }];
     if (segments[0] === 'about') return [{ label: 'Menu', link: ['/'] }, { label: 'About' }];
     if (segments[0] === 'calendar') return [{ label: 'Menu', link: ['/'] }, { label: 'Calendar' }];
+    if (segments[0] === 'events') {
+      const eventPage = segments[1] ? await this.safeGetEvent(decodeURIComponent(segments[1])) : null;
+      return [{ label: 'Menu', link: ['/'] }, { label: 'Calendar', link: ['/calendar'] }, { label: eventPage?.title || 'Event' }];
+    }
     if (segments[0] === 'settings') return [{ label: 'Menu', link: ['/'] }, { label: 'Settings' }];
     if (segments[0] === 'players') return [{ label: 'Menu', link: ['/'] }, { label: 'Player' }];
     if (segments[0] !== 'leagues') return [{ label: 'Menu', link: ['/'] }, { label: 'Not Found' }];
@@ -156,6 +160,11 @@ export class AppComponent {
     catch (error) { logBoundaryError('app-breadcrumb.loadLeague', error, { leagueId }); return null; }
   }
 
+  private async safeGetEvent(slug: string): Promise<CalendarEventDocument | null> {
+    try { return (await this.calendarRepo.list()).find((event) => event.slug === slug) ?? null; }
+    catch (error) { logBoundaryError('app-breadcrumb.loadEvent', error, { slug }); return null; }
+  }
+
   openImportPicker(): void {
     if (!this.importing()) this.headerImportInput?.nativeElement.click();
   }
@@ -173,6 +182,7 @@ export class AppComponent {
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete League', message: `Delete ${league.name}? This permanently deletes its Tournaments, rounds, and Player Statistics source data.`, confirmLabel: 'Delete League', destructive: true } }).afterClosed());
     if (!confirmed) return;
     await this.repo.deleteLeague(league.id);
+    await this.calendarRepo.removeTournamentLinks((link) => link.leagueId === league.id);
     this.headerLeague.set(null);
     await this.router.navigate(['/leagues']);
   }
@@ -186,6 +196,7 @@ export class AppComponent {
     try {
       const nextLeague = { ...league, tournaments: league.tournaments.filter((item) => item.id !== tournament.id) };
       await this.repo.saveLeague(nextLeague, league.documentVersion);
+      await this.calendarRepo.removeTournamentLinks((link) => link.leagueId === league.id && link.tournamentId === tournament.id);
       this.headerTournament.set(null);
       await this.router.navigate(['/leagues', league.id]);
     } catch (error) {
