@@ -12,12 +12,15 @@ import { LeagueRepository } from '../../data/league-repository.service';
 import { PersistedLeague } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
 import { logBoundaryError } from '../../shared/app-logger';
+import { BackButtonComponent } from '../../shared/back-button.component';
 import { TextPromptDialogComponent } from '../../shared/dialogs';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, BackButtonComponent],
   template: `
+    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
+
     <section class="page-heading league-list-heading">
       <div><h1>Leagues</h1></div>
     </section>
@@ -45,6 +48,8 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
         </button>
       </div>
     }
+
+    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
   `
 })
 export class LeagueListComponent {
