@@ -15,7 +15,9 @@ export interface AppSettingsExport {
 @Injectable({ providedIn: 'root' })
 export class DeckArchetypeSettingsService {
   private readonly archetypesSignal = signal(loadDeckArchetypes());
+  private readonly languageSignal = signal(loadSettingsLanguage());
   readonly archetypes = computed(() => this.archetypesSignal());
+  readonly language = computed(() => this.languageSignal());
 
   constructor() {
     window.addEventListener('storage', (event) => {
@@ -29,11 +31,11 @@ export class DeckArchetypeSettingsService {
   }
 
   currentLanguage(): SettingsLanguage {
-    return loadSettingsLanguage();
+    return this.languageSignal();
   }
 
   exportSettings(): AppSettingsExport {
-    return { language: loadSettingsLanguage(), deckArchetypes: [...this.archetypesSignal()] };
+    return { language: this.languageSignal(), deckArchetypes: [...this.archetypesSignal()] };
   }
 
   async replaceSettings(value: unknown): Promise<boolean> {
@@ -43,6 +45,7 @@ export class DeckArchetypeSettingsService {
     return this.runExclusive(() => {
       writeSettings(settings.deckArchetypes, settings.language);
       this.archetypesSignal.set(settings.deckArchetypes);
+      this.languageSignal.set(settings.language);
       return true;
     });
   }
@@ -53,6 +56,7 @@ export class DeckArchetypeSettingsService {
 
     return this.runExclusive(() => {
       writeSettings(loadDeckArchetypes(), language);
+      this.languageSignal.set(language);
       return true;
     });
   }
@@ -116,12 +120,13 @@ export class DeckArchetypeSettingsService {
     }
     const next = uniqueArchetypes(updated);
     this.archetypesSignal.set(next);
-    writeSettings(next, loadSettingsLanguage());
+    writeSettings(next, this.languageSignal());
     return true;
   }
 
   private refreshFromStorage(): void {
     this.archetypesSignal.set(loadDeckArchetypes());
+    this.languageSignal.set(loadSettingsLanguage());
   }
 }
 
