@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DeckArchetypeSettingsService } from './deck-archetype-settings.service';
+import { DeckArchetypeSettingsService, parseAppSettings } from './deck-archetype-settings.service';
 
 describe('DeckArchetypeSettingsService', () => {
   beforeEach(() => {
@@ -36,5 +36,36 @@ describe('DeckArchetypeSettingsService', () => {
 
     expect(service.suggestions('br')).toContain('Blue Red Tempo');
     expect(service.suggestions('green')[0]).toBe('Mono Green Aggro');
+  });
+
+  it('stores and exports settings as a JSON object', async () => {
+    const service = new DeckArchetypeSettingsService();
+
+    await service.add('Fire Control');
+
+    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ deckArchetypes: ['Fire Control'] });
+    expect(service.exportSettings()).toEqual({ deckArchetypes: ['Fire Control'] });
+  });
+
+  it('normalizes imported settings before replacing existing archetypes', async () => {
+    const service = new DeckArchetypeSettingsService();
+    await service.add('Fire');
+
+    await expect(service.replaceSettings({ deckArchetypes: [' Zoo ', 'zoo', '', 'Blue   Tempo'] })).resolves.toBe(true);
+
+    expect(service.archetypes()).toEqual(['Blue Tempo', 'Zoo']);
+    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ deckArchetypes: ['Blue Tempo', 'Zoo'] });
+  });
+
+  it('rejects invalid imported settings without replacing current archetypes', async () => {
+    const service = new DeckArchetypeSettingsService();
+    await service.add('Fire');
+
+    expect(parseAppSettings({ deckArchetypes: 'Fire' })).toBeNull();
+    expect(parseAppSettings({ deckArchetypes: ['Fire', true] })).toBeNull();
+    await expect(service.replaceSettings({ deckArchetypes: 'Fire' })).resolves.toBe(false);
+    await expect(service.replaceSettings({ deckArchetypes: ['Fire', true] })).resolves.toBe(false);
+
+    expect(service.archetypes()).toEqual(['Fire']);
   });
 });

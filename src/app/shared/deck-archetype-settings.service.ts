@@ -1,7 +1,16 @@
 import { computed, Injectable, signal } from '@angular/core';
 
+const SETTINGS_KEY = 'gones.settings';
+const SETTINGS_LANGUAGE_KEY = 'gones.settings.language';
 const DECK_ARCHETYPES_KEY = 'gones.settings.deckArchetypes';
 const DECK_ARCHETYPES_LOCK_NAME = 'gones.settings.deckArchetypes';
+
+export type SettingsLanguage = 'en' | 'fr';
+
+export interface AppSettingsExport {
+  language: SettingsLanguage;
+  deckArchetypes: string[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class DeckArchetypeSettingsService {
@@ -10,13 +19,42 @@ export class DeckArchetypeSettingsService {
 
   constructor() {
     window.addEventListener('storage', (event) => {
-      if (event.key === DECK_ARCHETYPES_KEY) this.refreshFromStorage();
+      if (event.key === SETTINGS_KEY || event.key === SETTINGS_LANGUAGE_KEY || event.key === DECK_ARCHETYPES_KEY) this.refreshFromStorage();
     });
   }
 
   has(name: string): boolean {
     const key = archetypeKey(name);
     return !!key && this.archetypesSignal().some((archetype) => archetypeKey(archetype) === key);
+  }
+
+  currentLanguage(): SettingsLanguage {
+    return loadSettingsLanguage();
+  }
+
+  exportSettings(): AppSettingsExport {
+    return { language: loadSettingsLanguage(), deckArchetypes: [...this.archetypesSignal()] };
+  }
+
+  async replaceSettings(value: unknown): Promise<boolean> {
+    const settings = parseAppSettings(value);
+    if (!settings) return false;
+
+    return this.runExclusive(() => {
+      writeSettings(settings.deckArchetypes, settings.language);
+      this.archetypesSignal.set(settings.deckArchetypes);
+      return true;
+    });
+  }
+
+  async setLanguage(value: string): Promise<boolean> {
+    const language = normalizeSettingsLanguage(value);
+    if (!language) return false;
+
+    return this.runExclusive(() => {
+      writeSettings(loadDeckArchetypes(), language);
+      return true;
+    });
   }
 
   async add(name: string): Promise<boolean> {
@@ -61,11 +99,12 @@ export class DeckArchetypeSettingsService {
   }
 
   private async commit(updater: (archetypes: string[]) => string[] | null): Promise<boolean> {
-    if (!navigator.locks) {
-      this.refreshFromStorage();
-      return false;
-    }
-    return navigator.locks.request(DECK_ARCHETYPES_LOCK_NAME, () => this.commitUnlocked(updater));
+    return this.runExclusive(() => this.commitUnlocked(updater));
+  }
+
+  private runExclusive<T>(action: () => T): Promise<T> {
+    if (!navigator.locks) return Promise.resolve(action());
+    return navigator.locks.request(DECK_ARCHETYPES_LOCK_NAME, action);
   }
 
   private commitUnlocked(updater: (archetypes: string[]) => string[] | null): boolean {
@@ -77,13 +116,22 @@ export class DeckArchetypeSettingsService {
     }
     const next = uniqueArchetypes(updated);
     this.archetypesSignal.set(next);
-    localStorage.setItem(DECK_ARCHETYPES_KEY, JSON.stringify(next));
+    writeSettings(next, loadSettingsLanguage());
     return true;
   }
 
   private refreshFromStorage(): void {
     this.archetypesSignal.set(loadDeckArchetypes());
   }
+}
+
+export function parseAppSettings(value: unknown): AppSettingsExport | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const deckArchetypes = record['deckArchetypes'];
+  const language = record['language'] === undefined ? 'en' : normalizeSettingsLanguage(record['language']);
+  if (!language || !Array.isArray(deckArchetypes) || !deckArchetypes.every((item) => typeof item === 'string')) return null;
+  return { language, deckArchetypes: uniqueArchetypes(deckArchetypes) };
 }
 
 export function normalizeArchetypeName(value: unknown): string {
@@ -94,13 +142,41 @@ export function archetypeKey(value: unknown): string {
   return normalizeArchetypeName(value).toLocaleLowerCase();
 }
 
+export function normalizeSettingsLanguage(value: unknown): SettingsLanguage | null {
+  return value === 'fr' || value === 'en' ? value : null;
+}
+
 function loadDeckArchetypes(): string[] {
+  const settings = parseStoredSettings();
+  if (settings) return settings.deckArchetypes;
+
   try {
     const parsed = JSON.parse(localStorage.getItem(DECK_ARCHETYPES_KEY) ?? '[]') as unknown;
     return Array.isArray(parsed) ? uniqueArchetypes(parsed.map((item) => String(item ?? ''))) : [];
   } catch {
     return [];
   }
+}
+
+function loadSettingsLanguage(): SettingsLanguage {
+  const settings = parseStoredSettings();
+  if (settings) return settings.language;
+  return normalizeSettingsLanguage(localStorage.getItem(SETTINGS_LANGUAGE_KEY)) ?? 'en';
+}
+
+function parseStoredSettings(): AppSettingsExport | null {
+  try {
+    return parseAppSettings(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? 'null'));
+  } catch {
+    return null;
+  }
+}
+
+function writeSettings(archetypes: string[], language: SettingsLanguage): void {
+  const settings = { language, deckArchetypes: uniqueArchetypes(archetypes) } satisfies AppSettingsExport;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  localStorage.setItem(SETTINGS_LANGUAGE_KEY, settings.language);
+  localStorage.setItem(DECK_ARCHETYPES_KEY, JSON.stringify(settings.deckArchetypes));
 }
 
 function uniqueArchetypes(values: string[]): string[] {
