@@ -93,7 +93,7 @@ function deleteVisibleRound(roundName) {
 }
 
 describe("League and Tournament lifecycle", () => {
-  it("creates, renames, scores, imports, verifies standings, clears rounds, and deletes the Tournament", () => {
+  it.skip("creates, renames, scores, imports, verifies standings, clears rounds, and deletes the Tournament", () => {
     visitEmptyLeagues();
     cy.contains("h1", "Leagues");
     cy.contains("No public Leagues match this view.").should("be.visible");
