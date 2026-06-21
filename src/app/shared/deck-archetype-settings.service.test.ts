@@ -43,18 +43,19 @@ describe('DeckArchetypeSettingsService', () => {
 
     await service.add('Fire Control');
 
-    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ deckArchetypes: ['Fire Control'] });
-    expect(service.exportSettings()).toEqual({ deckArchetypes: ['Fire Control'] });
+    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ language: 'en', deckArchetypes: ['Fire Control'] });
+    expect(service.exportSettings()).toEqual({ language: 'en', deckArchetypes: ['Fire Control'] });
   });
 
   it('normalizes imported settings before replacing existing archetypes', async () => {
     const service = new DeckArchetypeSettingsService();
     await service.add('Fire');
 
-    await expect(service.replaceSettings({ deckArchetypes: [' Zoo ', 'zoo', '', 'Blue   Tempo'] })).resolves.toBe(true);
+    await expect(service.replaceSettings({ language: 'fr', deckArchetypes: [' Zoo ', 'zoo', '', 'Blue   Tempo'] })).resolves.toBe(true);
 
+    expect(service.currentLanguage()).toBe('fr');
     expect(service.archetypes()).toEqual(['Blue Tempo', 'Zoo']);
-    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ deckArchetypes: ['Blue Tempo', 'Zoo'] });
+    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ language: 'fr', deckArchetypes: ['Blue Tempo', 'Zoo'] });
   });
 
   it('rejects invalid imported settings without replacing current archetypes', async () => {
@@ -63,9 +64,22 @@ describe('DeckArchetypeSettingsService', () => {
 
     expect(parseAppSettings({ deckArchetypes: 'Fire' })).toBeNull();
     expect(parseAppSettings({ deckArchetypes: ['Fire', true] })).toBeNull();
+    expect(parseAppSettings({ language: 'de', deckArchetypes: ['Fire'] })).toBeNull();
     await expect(service.replaceSettings({ deckArchetypes: 'Fire' })).resolves.toBe(false);
     await expect(service.replaceSettings({ deckArchetypes: ['Fire', true] })).resolves.toBe(false);
+    await expect(service.replaceSettings({ language: 'de', deckArchetypes: ['Fire'] })).resolves.toBe(false);
 
     expect(service.archetypes()).toEqual(['Fire']);
+  });
+
+  it('persists language changes without dropping archetypes', async () => {
+    const service = new DeckArchetypeSettingsService();
+    await service.add('Fire');
+
+    await expect(service.setLanguage('fr')).resolves.toBe(true);
+
+    expect(service.currentLanguage()).toBe('fr');
+    expect(service.archetypes()).toEqual(['Fire']);
+    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ language: 'fr', deckArchetypes: ['Fire'] });
   });
 });
