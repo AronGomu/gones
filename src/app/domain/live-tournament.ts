@@ -43,6 +43,8 @@ export interface LiveTournamentDocument {
   tournamentDate: string;
   type: LiveTournamentType;
   roundCount: number;
+  customRoundCount: boolean;
+  pairingSeed: number;
   stage: LiveTournamentStage;
   currentRoundNumber: number;
   players: LiveTournamentPlayerDocument[];
@@ -68,7 +70,7 @@ export interface LiveStandingRow {
 }
 
 export function createLiveTournament(
-  { id, name = 'Live Tournament', leagueId = '', tournamentDate = todayDateInputValue(), type = 'swiss', roundCount = 3, stage = 'registration', currentRoundNumber = 0, players = [], rounds = [], checkpoints = [], finalizedTournamentId, documentVersion = 1, createdAt = new Date().toISOString(), updatedAt = createdAt }: Partial<LiveTournamentDocument> = {},
+  { id, name = 'Live Tournament', leagueId = '', tournamentDate = todayDateInputValue(), type = 'swiss', roundCount = 3, customRoundCount = false, pairingSeed = 0, stage = 'registration', currentRoundNumber = 0, players = [], rounds = [], checkpoints = [], finalizedTournamentId, documentVersion = 1, createdAt = new Date().toISOString(), updatedAt = createdAt }: Partial<LiveTournamentDocument> = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): LiveTournamentDocument {
   return {
@@ -77,7 +79,9 @@ export function createLiveTournament(
     leagueId: String(leagueId ?? ''),
     tournamentDate: String(tournamentDate || todayDateInputValue()),
     type,
-    roundCount: Math.max(1, toNonNegativeInteger(roundCount) || 3),
+    roundCount: Math.max(0, toNonNegativeInteger(roundCount)),
+    customRoundCount: Boolean(customRoundCount),
+    pairingSeed: toNonNegativeInteger(pairingSeed),
     stage,
     currentRoundNumber: toNonNegativeInteger(currentRoundNumber),
     players: normalizeLivePlayers(players, { idFactory }),
@@ -139,6 +143,17 @@ export function unpaidActivePlayers(tournament: LiveTournamentDocument): LiveTou
   return activeLivePlayers(tournament).filter((player) => !player.paid);
 }
 
+export function expectedLiveSwissRoundCount(playerCount: number): number {
+  if (playerCount < 2) return 0;
+  if (playerCount === 2) return 1;
+  if (playerCount <= 15) return 3;
+  return Math.ceil(Math.log2(playerCount));
+}
+
+export function autoLiveSwissRoundCount(tournament: LiveTournamentDocument): number {
+  return expectedLiveSwissRoundCount(activeLivePlayers(tournament).length);
+}
+
 export function canStartLiveTournament(tournament: LiveTournamentDocument): boolean {
   return activeLivePlayers(tournament).length >= 2 && tournament.roundCount > 0 && tournament.stage === 'registration';
 }
@@ -150,7 +165,13 @@ export function currentLiveRound(tournament: LiveTournamentDocument): LiveTourna
 export function currentRoundComplete(tournament: LiveTournamentDocument): boolean {
   const round = currentLiveRound(tournament);
   if (!round || !round.entries.length) return false;
-  return round.entries.every((entry) => entry.entry.kind === 'bye' || entry.resultEntered);
+  return round.entries.every((entry) => entry.entry.kind === 'bye' || (entry.resultEntered && liveMatchScoreIssue(entry.entry) === null));
+}
+
+export function liveMatchScoreIssue(entry: RoundEntry): string | null {
+  if (entry.kind !== 'match') return null;
+  if (entry.player1Score > 2 || entry.player2Score > 2) return 'A player cannot have more than 2 wins.';
+  return null;
 }
 
 export function calculateLiveStandings(tournament: LiveTournamentDocument): LiveStandingRow[] {
@@ -213,8 +234,9 @@ export function generateNextSwissRound(tournament: LiveTournamentDocument, { idF
 export function regenerateCurrentSwissRound(tournament: LiveTournamentDocument, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): LiveTournamentDocument {
   const round = currentLiveRound(tournament);
   if (!round || round.validated) return tournament;
-  const entries = generateSwissPairings(tournament, round.roundNumber, { idFactory });
-  return touch({ ...tournament, rounds: tournament.rounds.map((item) => item.id === round.id ? normalizeLiveRound({ ...round, entries }, round.roundNumber, { idFactory }) : item) });
+  const seededTournament = { ...tournament, pairingSeed: tournament.pairingSeed + 1 };
+  const entries = generateSwissPairings(seededTournament, round.roundNumber, { idFactory });
+  return touch({ ...seededTournament, rounds: tournament.rounds.map((item) => item.id === round.id ? normalizeLiveRound({ ...round, entries }, round.roundNumber, { idFactory }) : item) });
 }
 
 export function cancelCurrentSwissRound(tournament: LiveTournamentDocument): LiveTournamentDocument {
@@ -262,6 +284,7 @@ function generateSwissPairings(tournament: LiveTournamentDocument, roundNumber: 
   const standings = calculateLiveStandings(tournament);
   const activeIds = new Set(activeLivePlayers(tournament).map((player) => player.id));
   const players = standings.filter((row) => activeIds.has(row.playerId));
+  rotateFirstRoundPlayers(players, roundNumber, tournament.pairingSeed);
   const entries: LiveTournamentRoundEntryDocument[] = [];
   let table = 1;
 
@@ -279,6 +302,12 @@ function generateSwissPairings(tournament: LiveTournamentDocument, roundNumber: 
   }
 
   return entries.sort((left, right) => Number(left.entry.table || 0) - Number(right.entry.table || 0));
+}
+
+function rotateFirstRoundPlayers(players: LiveStandingRow[], roundNumber: number, pairingSeed: number): void {
+  if (roundNumber !== 1 || players.length < 2 || pairingSeed <= 0) return;
+  const steps = pairingSeed % players.length;
+  players.push(...players.splice(0, steps));
 }
 
 function findOpponentIndex(playerName: string, candidates: LiveStandingRow[], tournament: LiveTournamentDocument): number {
@@ -352,7 +381,7 @@ function normalizeLiveCheckpoint(checkpoint: Partial<LiveTournamentCheckpointDoc
     createdAt: String(checkpoint.createdAt || new Date().toISOString()),
     stage,
     currentRoundNumber: toNonNegativeInteger(checkpoint.currentRoundNumber),
-    roundCount: Math.max(1, toNonNegativeInteger(checkpoint.roundCount) || 1),
+    roundCount: Math.max(0, toNonNegativeInteger(checkpoint.roundCount)),
     players: normalizeLivePlayers(checkpoint.players ?? [], { idFactory }),
     rounds: (checkpoint.rounds ?? []).map((round, index) => normalizeLiveRound(round, index + 1, { idFactory }))
   };

@@ -8,6 +8,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { CalendarEventRepository } from './data/calendar-event-repository.service';
 import { LeagueRepository } from './data/league-repository.service';
+import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
 import { CalendarEventDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
@@ -63,11 +64,11 @@ interface HeaderTournament {
         }
       </mat-toolbar>
       <nav class="breadcrumb-shell breadcrumb-shell--header" aria-label="Breadcrumb">
-        <ol class="breadcrumbs">
+        <ol class="breadcrumbs" data-cy="breadcrumbs">
           @for (item of breadcrumbs(); track item.label + $index) {
             <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
               @if (!$last && item.link) { <a [routerLink]="item.link">{{ item.label }}</a> }
-              @else { <span>{{ item.label }}</span> }
+              @else { <span [attr.data-cy]="$last ? 'breadcrumb-current' : null">{{ item.label }}</span> }
             </li>
           }
         </ol>
@@ -83,6 +84,7 @@ export class AppComponent {
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
   private readonly repo = inject(LeagueRepository);
+  private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly calendarRepo = inject(CalendarEventRepository);
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
@@ -99,6 +101,7 @@ export class AppComponent {
 
   constructor() {
     void this.updateRouteState(this.router.url);
+    window.addEventListener('gones-live-tournament-updated', (event) => this.handleLiveTournamentUpdated(event));
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       void this.updateRouteState(event.urlAfterRedirects);
     });
@@ -114,6 +117,16 @@ export class AppComponent {
     this.headerTournament.set(await this.buildHeaderTournament(path));
     const breadcrumbs = await this.buildBreadcrumbs(path);
     if (request === this.routeStateRequest) this.breadcrumbs.set(breadcrumbs);
+  }
+
+  private handleLiveTournamentUpdated(event: Event): void {
+    const detail = event instanceof CustomEvent ? event.detail as { liveTournamentId?: string; name?: string } : {};
+    const segments = this.router.url.split('?')[0].split('/').filter(Boolean);
+    if (segments[0] === 'live-tournaments' && segments[1] && segments[1] === detail.liveTournamentId && detail.name) {
+      this.breadcrumbs.set([{ label: 'Menu', link: ['/'] }, { label: 'Running Tournaments', link: ['/live-tournaments'] }, { label: `${detail.name} (live)` }]);
+      return;
+    }
+    void this.updateRouteState(this.router.url);
   }
 
   private async buildHeaderLeague(path: string): Promise<PersistedLeague | null> {
@@ -141,6 +154,12 @@ export class AppComponent {
     }
     if (segments[0] === 'settings') return [{ label: 'Menu', link: ['/'] }, { label: 'Settings' }];
     if (segments[0] === 'players') return [{ label: 'Menu', link: ['/'] }, { label: 'Player' }];
+    if (segments[0] === 'live-tournaments') {
+      if (!segments[1]) return [{ label: 'Menu', link: ['/'] }, { label: 'Running Tournaments' }];
+      const liveTournament = segments[1] === 'new' ? null : await this.safeGetLiveTournament(decodeURIComponent(segments[1]));
+      const label = segments[1] === 'new' ? 'New Tournament' : `${liveTournament?.name || 'Live Tournament'} (live)`;
+      return [{ label: 'Menu', link: ['/'] }, { label: 'Running Tournaments', link: ['/live-tournaments'] }, { label }];
+    }
     if (segments[0] !== 'leagues') return [{ label: 'Menu', link: ['/'] }, { label: 'Not Found' }];
     if (!segments[1]) return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues' }];
 
@@ -163,6 +182,11 @@ export class AppComponent {
   private async safeGetEvent(slug: string): Promise<CalendarEventDocument | null> {
     try { return (await this.calendarRepo.list()).find((event) => event.slug === slug) ?? null; }
     catch (error) { logBoundaryError('app-breadcrumb.loadEvent', error, { slug }); return null; }
+  }
+
+  private async safeGetLiveTournament(liveTournamentId: string) {
+    try { return await this.liveRepo.get(liveTournamentId); }
+    catch (error) { logBoundaryError('app-breadcrumb.loadLiveTournament', error, { liveTournamentId }); return null; }
   }
 
   openImportPicker(): void {

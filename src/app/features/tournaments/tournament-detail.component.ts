@@ -30,7 +30,7 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
     <gones-back-button [link]="leagueBackLink()" label="Back to League" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (tournament(); as t) {
-      <section class="page-heading" (input)="markDirty()">
+      <section class="page-heading" data-cy="tournament-detail-page" (input)="markDirty()">
         <div>
           <p class="kicker">Tournament</p>
           <div class="tournament-heading-fields">
@@ -91,7 +91,7 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
               </div>
               @if (roundView.round.entries.length) {
                 <div class="table-wrap round-entry-table-wrap">
-                  <table class="ranking-table round-entry-table">
+                  <table class="ranking-table round-entry-table" data-cy="round-entry-table">
                     <thead>
                       <tr>
                         <th scope="col">Table</th>

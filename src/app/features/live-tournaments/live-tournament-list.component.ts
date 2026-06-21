@@ -27,8 +27,14 @@ import { BackButtonComponent } from '../../shared/back-button.component';
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else {
       <section class="running-tournament-list" aria-label="Running tournaments">
+        @if (!runningTournaments().length) {
+          <mat-card class="panel running-tournament-empty" data-cy="running-tournament-empty-state">
+            <mat-card-title>No running tournaments</mat-card-title>
+            <mat-card-content><p>No tournament is running on this device yet.</p></mat-card-content>
+          </mat-card>
+        }
         @for (tournament of runningTournaments(); track tournament.id) {
-          <mat-card class="panel running-tournament-card">
+          <mat-card class="panel running-tournament-card" data-cy="running-tournament-card">
             <div class="running-tournament-card-header">
               <div class="running-tournament-title-row">
                 <h2 mat-card-title>{{ tournament.name || 'Live Tournament' }}</h2>
@@ -51,7 +57,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         }
 
         <button class="running-tournament-card running-tournament-create-card league-create-card" type="button" [disabled]="creating()" (click)="createTournament()" data-cy="create-running-tournament-card">
-          <h2>{{ creating() ? 'Creating…' : 'Start Tournament' }}</h2>
+          <h2>{{ creating() ? 'Creating…' : 'Create a new tournament' }}</h2>
           <span class="card-view-action" aria-hidden="true">CREATE</span>
         </button>
       </section>
