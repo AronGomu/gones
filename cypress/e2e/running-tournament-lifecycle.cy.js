@@ -26,13 +26,6 @@ function todayInputValue() {
   return `${year}-${month}-${day}`;
 }
 
-function expectedRoundCount(playerCount) {
-  if (playerCount < 2) return 0;
-  if (playerCount === 2) return 1;
-  if (playerCount <= 15) return 3;
-  return Math.ceil(Math.log2(playerCount));
-}
-
 function addPlayer(name) {
   cy.get('[data-cy="live-player-name-input"]').clear().type(name);
   cy.get('[data-cy="live-add-player-button"]').click();
@@ -41,7 +34,6 @@ function addPlayer(name) {
 
 function assertRegistrationState(playerCount) {
   cy.get('[data-cy="live-player-count"]').should("contain", String(playerCount));
-  cy.get('[data-cy="live-tournament-round-count-input"]').should("have.value", String(expectedRoundCount(playerCount)));
 
   if (playerCount < 2) {
     cy.get('[data-cy="live-warning-not-enough-players"]').should("exist");
@@ -59,6 +51,16 @@ function selectMatOption(selectSelector, optionText) {
   cy.get(selectSelector).should("be.visible").click({ force: true });
   cy.contains("mat-option", optionText).click({ force: true });
   cy.get(selectSelector).should("contain", optionText);
+}
+
+function openAdvancedSettings() {
+  cy.get('[data-cy="live-tournament-advanced-settings-button"]').click();
+  cy.contains("mat-dialog-container", "Advanced settings").should("be.visible");
+}
+
+function applyAdvancedSettings() {
+  cy.contains("button", "Apply settings").click();
+  cy.get("mat-dialog-container").should("not.exist");
 }
 
 function setNumberInput(selector, value) {
@@ -87,9 +89,7 @@ function resumeThroughMenu() {
   cy.visit("/");
   cy.get('[data-cy="menu-running-tournaments-card"]').click();
   cy.location("pathname").should("eq", "/live-tournaments");
-  cy.contains('[data-cy="running-tournament-card"]', tournamentName).within(() => {
-    cy.get('[data-cy="resume-running-tournament"]').click();
-  });
+  cy.contains('[data-cy="running-tournament-card"]', tournamentName).click();
   cy.location("pathname").should("match", /^\/live-tournaments\/.+/);
 }
 
@@ -131,12 +131,16 @@ describe("Running tournament lifecycle", () => {
     cy.location("pathname").should("match", /^\/live-tournaments\/.+/);
     cy.get('[data-cy="live-warning-not-enough-players"]').should("exist");
     cy.get('[data-cy="breadcrumb-current"]').should("contain", "Live Tournament (live)");
+    cy.get('[data-cy="live-tournament-title-button"]').click();
     cy.get('[data-cy="live-tournament-name-input"]').clear().type(tournamentName).blur();
     cy.get('[data-cy="breadcrumb-current"]').should("contain", `${tournamentName} (live)`);
+    openAdvancedSettings();
     cy.get('[data-cy="live-tournament-date-input"]').should("have.value", todayInputValue());
     cy.get('[data-cy="live-tournament-league-select"]').should("contain", "Unassigned");
     selectMatOption('[data-cy="live-tournament-league-select"]', "Preset League");
     selectMatOption('[data-cy="live-tournament-league-select"]', "Unassigned Tournaments");
+    cy.get('[data-cy="live-tournament-paid-tracking-checkbox"] input').should("be.checked");
+    applyAdvancedSettings();
 
     cy.get('[data-cy="live-tournament-round-count-input"]').should("be.disabled").and("have.value", "0");
     cy.get('[data-cy="live-tournament-custom-round-count-checkbox"]').should("not.be.checked").click();
@@ -149,6 +153,15 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="live-warning-unpaid-players"]').should("exist");
     addPlayer("Bob");
     assertRegistrationState(2);
+    openAdvancedSettings();
+    cy.get('[data-cy="live-tournament-paid-tracking-checkbox"] input').uncheck({ force: true });
+    applyAdvancedSettings();
+    cy.get('[data-cy="live-warning-unpaid-players"]').should("not.exist");
+    cy.get('[data-cy="live-player-paid-checkbox"]').should("not.exist");
+    openAdvancedSettings();
+    cy.get('[data-cy="live-tournament-paid-tracking-checkbox"] input').check({ force: true });
+    applyAdvancedSettings();
+    cy.get('[data-cy="live-warning-unpaid-players"]').should("exist");
     cy.contains('[data-cy="live-player-row"]', "Alice").within(() => cy.get('[data-cy="live-player-remove-button"]').click());
     cy.contains('[data-cy="live-player-row"]', "Alice").should("not.exist");
     assertRegistrationState(1);
@@ -211,7 +224,9 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="live-generate-next-round-button"]').click();
     scoreCurrentRound(2);
 
+    openAdvancedSettings();
     selectMatOption('[data-cy="live-tournament-league-select"]', "Preset League");
+    applyAdvancedSettings();
     readLiveTournamentFromStorage().as("liveBeforeArchive");
     cy.get('[data-cy="live-archive-tournament-button"]').click();
     cy.location("pathname").should("match", /^\/leagues\/preset-league\/tournaments\/.+/);

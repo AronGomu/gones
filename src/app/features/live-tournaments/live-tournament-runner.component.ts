@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, ElementRef, inject, OnDestroy, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -19,54 +20,43 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent],
+  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent],
   template: `
     <gones-back-button [link]="['/live-tournaments']" label="Back to Running Tournaments" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else if (tournament(); as live) {
-      <section class="page-heading live-tournament-heading" (input)="saveDraft()" data-cy="live-tournament-runner">
-        <div>
-          <p class="kicker">Live Tournament</p>
-          <h1>{{ live.name || 'Live Tournament' }}</h1>
-          <p class="muted">{{ stageLabel(live) }} · Swiss · {{ live.roundCount }} rounds</p>
-        </div>
-        <div class="actions">
-          <button mat-stroked-button class="secondary-action" type="button" (click)="saveDraft()">Save Live Tournament</button>
+      <section class="page-heading live-tournament-title-heading">
+        <div class="tournament-heading-fields">
+          @if (titleEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>Tournament name</mat-label><input #liveTournamentNameInput data-cy="live-tournament-name-input" matInput [(ngModel)]="tournamentNameDraft" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
+          @else { <h1><button #liveTournamentTitleButton class="editable-title" type="button" data-cy="live-tournament-title-button" (click)="startTitleEdit()" [attr.aria-label]="'Edit Live Tournament name: ' + (live.name || 'Live Tournament')">{{ live.name || 'Live Tournament' }}</button></h1> }
         </div>
       </section>
+      <div class="live-warning-stack" aria-live="polite">
+        @if (notEnoughPlayers(live)) {
+          <div class="warning live-warning" role="status" data-cy="live-warning-not-enough-players">
+            <p>Not enough player to start tournament. Add at least two active players.</p>
+          </div>
+        }
+        @if (live.paidTrackingEnabled && unpaidPlayers().length) {
+          <div class="warning live-warning" role="status" data-cy="live-warning-unpaid-players">
+            <p>All players have not paid yet: {{ unpaidPlayerNames() }}.</p>
+          </div>
+        }
+        @if (showByeWarning(live)) {
+          <div class="warning live-warning" role="status" data-cy="live-warning-bye">
+            <p>Odd player count: a bye will be generated this round.</p>
+          </div>
+        }
+      </div>
 
-      @if (notEnoughPlayers(live)) {
-        <div class="warning live-warning" role="status" data-cy="live-warning-not-enough-players">
-          <p>Not enough player to start tournament. Add at least two active players.</p>
-        </div>
-      }
-      @if (unpaidPlayers().length) {
-        <div class="warning live-warning" role="status" data-cy="live-warning-unpaid-players">
-          <p>All player has not payed yet: {{ unpaidPlayerNames() }}.</p>
-        </div>
-      }
-      @if (showByeWarning(live)) {
-        <div class="warning live-warning" role="status" data-cy="live-warning-bye">
-          <p>Odd player count: a bye will be generated this round.</p>
-        </div>
-      }
-
-      <section class="live-tournament-grid">
-        <mat-card class="panel live-panel">
-          <mat-card-title>Setup</mat-card-title>
-          <mat-card-content class="live-form-stack" (input)="saveDraft()">
-            <mat-form-field appearance="outline"><mat-label>Tournament name</mat-label><input matInput data-cy="live-tournament-name-input" [ngModel]="live.name" (ngModelChange)="patch({ name: $event })"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Tournament date</mat-label><input matInput data-cy="live-tournament-date-input" type="date" [ngModel]="live.tournamentDate" (ngModelChange)="patch({ tournamentDate: $event })"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>League for finalization</mat-label><mat-select data-cy="live-tournament-league-select" [ngModel]="live.leagueId" (ngModelChange)="patch({ leagueId: $event })"><mat-option value="">Unassigned Tournaments</mat-option>@for (league of leagues(); track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field>
-            <label class="live-custom-round-toggle"><input type="checkbox" data-cy="live-tournament-custom-round-count-checkbox" [ngModel]="live.customRoundCount" (ngModelChange)="setCustomRoundCount($event)"> <span>custom round number</span></label>
-            <mat-form-field appearance="outline"><mat-label>Number of Swiss rounds</mat-label><input matInput data-cy="live-tournament-round-count-input" type="number" min="0" [ngModel]="displayRoundCount(live)" (ngModelChange)="setRoundCount($event)" [disabled]="!live.customRoundCount || live.stage !== 'registration'"></mat-form-field>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="panel live-panel live-roster-panel">
-          <mat-card-title>Registration / Players</mat-card-title>
-          <mat-card-content class="live-form-stack">
+      <section class="live-tournament-grid live-tournament-grid--compact">
+        <mat-expansion-panel class="round-panel panel live-panel live-roster-panel" [expanded]="registrationExpanded()" (opened)="registrationExpanded.set(true)" (closed)="registrationExpanded.set(false)">
+          <mat-expansion-panel-header>
+            <mat-panel-title class="round-panel-title">Registration / Players</mat-panel-title>
+            <mat-panel-description>{{ activePlayerCount(live) }} player{{ activePlayerCount(live) === 1 ? '' : 's' }}</mat-panel-description>
+          </mat-expansion-panel-header>
+          <div class="live-form-stack">
             <div class="live-add-player-row">
               <mat-form-field appearance="outline"><mat-label>Player name</mat-label><input matInput data-cy="live-player-name-input" [(ngModel)]="newPlayerName" [disabled]="live.stage === 'round'" (keydown.enter)="$event.preventDefault(); addPlayer()"></mat-form-field>
               <button mat-flat-button class="create-action-button" type="button" data-cy="live-add-player-button" [disabled]="live.stage === 'round'" (click)="addPlayer()"><span class="create-action-button__icon" aria-hidden="true">+</span><span>Add Player</span></button>
@@ -76,12 +66,12 @@ import { BackButtonComponent } from '../../shared/back-button.component';
             @else {
               <div class="table-wrap live-player-table-wrap">
                 <table class="live-player-table">
-                  <thead><tr><th scope="col">Player</th><th scope="col">Paid</th><th scope="col">Dropped</th><th scope="col">Starting record</th><th scope="col">Actions</th></tr></thead>
+                  <thead><tr><th scope="col">Player</th>@if (live.paidTrackingEnabled) { <th scope="col">Paid</th> }<th scope="col">Dropped</th><th scope="col">Starting record</th><th scope="col">Actions</th></tr></thead>
                   <tbody>
                     @for (player of live.players; track player.id) {
                       <tr data-cy="live-player-row" [class.is-dropped]="player.dropped">
                         <td><span class="sr-only">{{ player.name }}</span><input [ngModel]="player.name" (ngModelChange)="updatePlayer(player.id, { name: $event })" [readonly]="live.rounds.length > 0" [attr.aria-label]="'Player name for ' + player.name"></td>
-                        <td><input type="checkbox" data-cy="live-player-paid-checkbox" [ngModel]="player.paid" (ngModelChange)="updatePlayer(player.id, { paid: $event })" [attr.aria-label]="'Paid status for ' + player.name" [disabled]="live.stage === 'round'"></td>
+                        @if (live.paidTrackingEnabled) { <td><input type="checkbox" data-cy="live-player-paid-checkbox" [ngModel]="player.paid" (ngModelChange)="updatePlayer(player.id, { paid: $event })" [attr.aria-label]="'Paid status for ' + player.name" [disabled]="live.stage === 'round'"></td> }
                         <td><input type="checkbox" [ngModel]="player.dropped" (ngModelChange)="updatePlayer(player.id, { dropped: $event })" [attr.aria-label]="'Dropped status for ' + player.name" [disabled]="live.stage === 'round'"></td>
                         <td class="live-record-inputs">
                           <label><span>W</span><input type="number" min="0" [ngModel]="player.initialWins" (ngModelChange)="updatePlayer(player.id, { initialWins: numberValue($event) })"></label>
@@ -95,14 +85,18 @@ import { BackButtonComponent } from '../../shared/back-button.component';
                 </table>
               </div>
             }
-          </mat-card-content>
-        </mat-card>
+            <div class="live-round-count-settings" data-cy="live-round-count-settings">
+              <label class="live-custom-round-toggle"><input type="checkbox" data-cy="live-tournament-custom-round-count-checkbox" [ngModel]="live.customRoundCount" (ngModelChange)="setCustomRoundCount($event)"> <span>custom round number</span></label>
+              <mat-form-field appearance="outline"><mat-label>Number of Swiss rounds</mat-label><input matInput data-cy="live-tournament-round-count-input" type="number" min="0" [ngModel]="displayRoundCount(live)" (ngModelChange)="setRoundCount($event)" [disabled]="!live.customRoundCount || live.stage !== 'registration'"></mat-form-field>
+            </div>
+          </div>
+        </mat-expansion-panel>
       </section>
 
       @if (live.stage === 'registration') {
         <section class="live-step-panel panel">
           <h2>Step 1 — Inscription</h2>
-          <p class="muted">Select Swiss rounds, add players, and mark who has paid. Unpaid players can still be paired.</p>
+          <p class="muted">{{ registrationCopy(live) }}</p>
           <button mat-flat-button class="home-primary-action" type="button" data-cy="live-start-tournament-button" [disabled]="!canStart(live)" (click)="startTournament()">Start Tournament & Generate Round 1</button>
           @if (!canStart(live)) { <p class="muted">Add at least two active players before starting.</p> }
         </section>
@@ -152,7 +146,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         <div class="table-wrap">
           <table class="ranking-table live-standings-table" data-cy="live-standings-table">
             <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Pts</th><th scope="col">Record</th><th scope="col">Status</th></tr></thead>
-            <tbody>@for (row of rows; track row.playerId) { <tr [class.is-dropped]="row.dropped"><td>{{ row.rank }}</td><td>{{ row.playerName }}</td><td>{{ row.points }}</td><td><span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">({{ row.byes }} bye)</span> }</td><td>{{ row.dropped ? 'Dropped' : (row.paid ? 'Paid' : 'Unpaid') }}</td></tr> }</tbody>
+            <tbody>@for (row of rows; track row.playerId) { <tr [class.is-dropped]="row.dropped"><td>{{ row.rank }}</td><td>{{ row.playerName }}</td><td>{{ row.points }}</td><td><span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">({{ row.byes }} bye)</span> }</td><td>{{ playerStatus(row, live) }}</td></tr> }</tbody>
           </table>
         </div>
       </ng-template>
@@ -183,21 +177,35 @@ import { BackButtonComponent } from '../../shared/back-button.component';
     } @else { <mat-card class="panel"><mat-card-title>Live tournament not found</mat-card-title><mat-card-content><p>This live tournament does not exist or was deleted.</p></mat-card-content></mat-card> }
   `
 })
-export class LiveTournamentRunnerComponent {
+export class LiveTournamentRunnerComponent implements OnDestroy {
+  @ViewChild('liveTournamentNameInput') private liveTournamentNameInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('liveTournamentTitleButton') private liveTournamentTitleButton?: ElementRef<HTMLButtonElement>;
+
   readonly loading = signal(true);
   readonly error = signal('');
   readonly tournament = signal<LiveTournamentDocument | null>(null);
   readonly leagues = signal<PersistedLeague[]>([]);
   newPlayerName = '';
+  tournamentNameDraft = '';
+  readonly titleEditing = signal(false);
+  readonly registrationExpanded = signal(true);
   readonly finalizing = signal(false);
   private saving = false;
   private pendingSave = false;
+  private readonly openAdvancedSettingsListener = () => this.openAdvancedSettings();
   readonly unpaidPlayers = computed(() => this.tournament() ? unpaidActivePlayers(this.tournament()!) : []);
   readonly unpaidPlayerNames = computed(() => this.unpaidPlayers().map((player) => player.name).join(', '));
   readonly currentRound = computed(() => this.tournament() ? currentLiveRound(this.tournament()!) : null);
   readonly standings = computed(() => this.tournament() ? calculateLiveStandings(this.tournament()!) : []);
 
-  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
+  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) {
+    window.addEventListener('gones-open-live-tournament-advanced-settings', this.openAdvancedSettingsListener);
+    void this.load();
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener('gones-open-live-tournament-advanced-settings', this.openAdvancedSettingsListener);
+  }
 
   async load(): Promise<void> {
     this.loading.set(true);
@@ -207,10 +215,13 @@ export class LiveTournamentRunnerComponent {
       if (id === 'new') {
         const created = this.withAutomaticRoundCount(await this.liveRepo.create());
         this.tournament.set(created);
+        this.tournamentNameDraft = created.name;
         await this.router.navigate(['/live-tournaments', created.id], { replaceUrl: true });
       } else {
         const existing = await this.liveRepo.get(id);
-        this.tournament.set(existing ? this.withAutomaticRoundCount(existing) : null);
+        const normalized = existing ? this.withAutomaticRoundCount(existing) : null;
+        this.tournament.set(normalized);
+        this.tournamentNameDraft = normalized?.name ?? '';
       }
     } catch (error) {
       logBoundaryError('live-tournament.load', error);
@@ -236,6 +247,8 @@ export class LiveTournamentRunnerComponent {
   standingRowsForRound(live: LiveTournamentDocument, roundNumber: number): LiveStandingRow[] { return calculateLiveStandingsThroughRound(live, roundNumber); }
   checkpointFor(live: LiveTournamentDocument, label: string): LiveTournamentCheckpointDocument | null { return [...live.checkpoints].reverse().find((checkpoint) => checkpoint.label === label) ?? null; }
   stageLabel(live: LiveTournamentDocument): string { return live.stage === 'registration' ? 'Registration' : live.stage === 'round' ? `Round ${live.currentRoundNumber} running` : live.stage === 'standings' ? 'Between rounds' : 'Completed'; }
+  registrationCopy(live: LiveTournamentDocument): string { return live.paidTrackingEnabled ? 'Add players and mark who has paid. Unpaid players can still be paired.' : 'Add players and start the tournament. Paid-player tracking is disabled in advanced settings.'; }
+  playerStatus(row: LiveStandingRow, live: LiveTournamentDocument): string { return row.dropped ? 'Dropped' : live.paidTrackingEnabled ? (row.paid ? 'Paid' : 'Unpaid') : 'Active'; }
   matchScoreIssue(entry: RoundEntry): string | null { return liveMatchScoreIssue(entry); }
   isDrawMatch(entry: RoundEntry): boolean { return entry.kind === 'match' && entry.player1Score === entry.player2Score; }
   allCurrentMatchesAreDraws(live: LiveTournamentDocument): boolean {
@@ -246,6 +259,24 @@ export class LiveTournamentRunnerComponent {
   validateRoundTitle(live: LiveTournamentDocument): string | null {
     const invalidTables = this.invalidCurrentRoundTables(live);
     return invalidTables.length ? `Invalid result at ${invalidTables.map((table) => `table ${table}`).join(', ')}` : null;
+  }
+
+  startTitleEdit(): void {
+    const live = this.tournament();
+    if (!live || this.finalizing()) return;
+    this.tournamentNameDraft = live.name;
+    this.titleEditing.set(true);
+    this.focusTournamentNameInput();
+  }
+
+  saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): void {
+    const live = this.tournament();
+    if (!live || !this.titleEditing() || this.finalizing()) return;
+    const name = String(this.tournamentNameDraft || live.name || 'Live Tournament').trim() || 'Live Tournament';
+    this.tournamentNameDraft = name;
+    this.titleEditing.set(false);
+    if (name !== live.name) this.patch({ name });
+    if (restoreFocus) this.focusTournamentTitleButton();
   }
 
   addPlayer(): void {
@@ -333,6 +364,18 @@ export class LiveTournamentRunnerComponent {
 
   saveDraft(): void { void this.persist(); }
 
+  openAdvancedSettings(): void {
+    const live = this.tournament();
+    if (!live) return;
+    this.dialog.open<LiveTournamentAdvancedSettingsDialogComponent, LiveTournamentAdvancedSettingsDialogData, LiveTournamentAdvancedSettingsDraft>(LiveTournamentAdvancedSettingsDialogComponent, {
+      width: 'min(92vw, 42rem)',
+      data: { live, leagues: this.leagues() }
+    }).afterClosed().subscribe((result) => {
+      if (!result) return;
+      this.update((current) => this.withAutomaticRoundCount({ ...current, ...result }));
+    });
+  }
+
   private async deleteFinalizedLiveTournament(liveTournamentId: string): Promise<void> {
     try {
       await this.liveRepo.delete(liveTournamentId);
@@ -355,6 +398,7 @@ export class LiveTournamentRunnerComponent {
     if (!live || this.finalizing()) return;
     const updated = updater(live);
     this.tournament.set(updated);
+    if (!this.titleEditing()) this.tournamentNameDraft = updated.name;
     window.dispatchEvent(new CustomEvent('gones-live-tournament-updated', { detail: { liveTournamentId: updated.id, name: updated.name } }));
     void this.persist();
   }
@@ -363,6 +407,9 @@ export class LiveTournamentRunnerComponent {
     if (live.customRoundCount || live.stage !== 'registration') return live;
     return { ...live, roundCount: autoLiveSwissRoundCount(live) };
   }
+
+  private focusTournamentNameInput(): void { setTimeout(() => this.liveTournamentNameInput?.nativeElement.focus()); }
+  private focusTournamentTitleButton(): void { setTimeout(() => this.liveTournamentTitleButton?.nativeElement.focus()); }
 
   private invalidCurrentRoundTables(live: LiveTournamentDocument): string[] {
     const round = currentLiveRound(live);
@@ -391,5 +438,49 @@ export class LiveTournamentRunnerComponent {
       this.saving = false;
       if (this.pendingSave) void this.persist();
     }
+  }
+}
+
+interface LiveTournamentAdvancedSettingsDialogData {
+  live: LiveTournamentDocument;
+  leagues: PersistedLeague[];
+}
+
+type LiveTournamentAdvancedSettingsDraft = Pick<LiveTournamentDocument, 'tournamentDate' | 'leagueId' | 'paidTrackingEnabled'>;
+
+@Component({
+  standalone: true,
+  imports: [CommonModule, FormsModule, MatButtonModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  template: `
+    <h2 mat-dialog-title>Advanced settings</h2>
+    <mat-dialog-content class="live-advanced-settings-dialog">
+      <mat-form-field appearance="outline"><mat-label>Tournament date</mat-label><input matInput data-cy="live-tournament-date-input" type="date" [(ngModel)]="draft.tournamentDate"></mat-form-field>
+      <mat-form-field appearance="outline"><mat-label>League for finalization</mat-label><mat-select data-cy="live-tournament-league-select" [(ngModel)]="draft.leagueId"><mat-option value="">Unassigned Tournaments</mat-option>@for (league of data.leagues; track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field>
+      <mat-checkbox data-cy="live-tournament-paid-tracking-checkbox" [(ngModel)]="draft.paidTrackingEnabled">Track paid players</mat-checkbox>
+      <p class="muted">Turn this off to deactivate the paid option, hide paid checkboxes, and suppress unpaid-player warnings for this tournament.</p>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button type="button" (click)="close()">Cancel</button>
+      <button mat-flat-button class="home-primary-action" type="button" (click)="apply()">Apply settings</button>
+    </mat-dialog-actions>
+  `
+})
+export class LiveTournamentAdvancedSettingsDialogComponent {
+  readonly data = inject<LiveTournamentAdvancedSettingsDialogData>(MAT_DIALOG_DATA);
+  private readonly dialogRef = inject(MatDialogRef<LiveTournamentAdvancedSettingsDialogComponent, LiveTournamentAdvancedSettingsDraft>);
+  readonly draft: LiveTournamentAdvancedSettingsDraft = {
+    tournamentDate: this.data.live.tournamentDate,
+    leagueId: this.data.live.leagueId,
+    paidTrackingEnabled: this.data.live.paidTrackingEnabled
+  };
+
+  close(): void { this.dialogRef.close(); }
+
+  apply(): void {
+    this.dialogRef.close({
+      tournamentDate: String(this.draft.tournamentDate || this.data.live.tournamentDate),
+      leagueId: String(this.draft.leagueId ?? ''),
+      paidTrackingEnabled: Boolean(this.draft.paidTrackingEnabled)
+    });
   }
 }

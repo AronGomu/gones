@@ -32,6 +32,7 @@ export interface LiveTournamentCheckpointDocument {
   stage: Extract<LiveTournamentStage, 'round' | 'standings'>;
   currentRoundNumber: number;
   roundCount: number;
+  paidTrackingEnabled: boolean;
   players: LiveTournamentPlayerDocument[];
   rounds: LiveTournamentRoundDocument[];
 }
@@ -44,6 +45,7 @@ export interface LiveTournamentDocument {
   type: LiveTournamentType;
   roundCount: number;
   customRoundCount: boolean;
+  paidTrackingEnabled: boolean;
   pairingSeed: number;
   stage: LiveTournamentStage;
   currentRoundNumber: number;
@@ -70,7 +72,7 @@ export interface LiveStandingRow {
 }
 
 export function createLiveTournament(
-  { id, name = 'Live Tournament', leagueId = '', tournamentDate = todayDateInputValue(), type = 'swiss', roundCount = 3, customRoundCount = false, pairingSeed = 0, stage = 'registration', currentRoundNumber = 0, players = [], rounds = [], checkpoints = [], finalizedTournamentId, documentVersion = 1, createdAt = new Date().toISOString(), updatedAt = createdAt }: Partial<LiveTournamentDocument> = {},
+  { id, name = 'Live Tournament', leagueId = '', tournamentDate = todayDateInputValue(), type = 'swiss', roundCount = 3, customRoundCount = false, paidTrackingEnabled = true, pairingSeed = 0, stage = 'registration', currentRoundNumber = 0, players = [], rounds = [], checkpoints = [], finalizedTournamentId, documentVersion = 1, createdAt = new Date().toISOString(), updatedAt = createdAt }: Partial<LiveTournamentDocument> = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): LiveTournamentDocument {
   return {
@@ -81,6 +83,7 @@ export function createLiveTournament(
     type,
     roundCount: Math.max(0, toNonNegativeInteger(roundCount)),
     customRoundCount: Boolean(customRoundCount),
+    paidTrackingEnabled: paidTrackingEnabled !== false,
     pairingSeed: toNonNegativeInteger(pairingSeed),
     stage,
     currentRoundNumber: toNonNegativeInteger(currentRoundNumber),
@@ -129,6 +132,7 @@ export function restoreLiveTournamentCheckpoint(tournament: LiveTournamentDocume
     stage: checkpoint.stage,
     currentRoundNumber: checkpoint.currentRoundNumber,
     roundCount: checkpoint.roundCount,
+    paidTrackingEnabled: checkpoint.paidTrackingEnabled,
     players: checkpoint.players.map((player) => createLiveTournamentPlayer(player)),
     rounds: checkpoint.rounds.map((round, index) => normalizeLiveRound(round, index + 1, { idFactory: defaultIdFactory })),
     checkpoints: checkpointIndex === -1 ? tournament.checkpoints : tournament.checkpoints.slice(0, checkpointIndex + 1)
@@ -140,6 +144,7 @@ export function activeLivePlayers(tournament: LiveTournamentDocument): LiveTourn
 }
 
 export function unpaidActivePlayers(tournament: LiveTournamentDocument): LiveTournamentPlayerDocument[] {
+  if (!tournament.paidTrackingEnabled) return [];
   return activeLivePlayers(tournament).filter((player) => !player.paid);
 }
 
@@ -382,6 +387,7 @@ function normalizeLiveCheckpoint(checkpoint: Partial<LiveTournamentCheckpointDoc
     stage,
     currentRoundNumber: toNonNegativeInteger(checkpoint.currentRoundNumber),
     roundCount: Math.max(0, toNonNegativeInteger(checkpoint.roundCount)),
+    paidTrackingEnabled: checkpoint.paidTrackingEnabled !== false,
     players: normalizeLivePlayers(checkpoint.players ?? [], { idFactory }),
     rounds: (checkpoint.rounds ?? []).map((round, index) => normalizeLiveRound(round, index + 1, { idFactory }))
   };
@@ -396,6 +402,7 @@ function withCheckpoint(tournament: LiveTournamentDocument, label: string, { idF
     stage: tournament.stage,
     currentRoundNumber: tournament.currentRoundNumber,
     roundCount: tournament.roundCount,
+    paidTrackingEnabled: tournament.paidTrackingEnabled,
     players: tournament.players,
     rounds: tournament.rounds
   }, { idFactory });

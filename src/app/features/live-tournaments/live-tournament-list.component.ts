@@ -15,7 +15,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   standalone: true,
   imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatProgressSpinnerModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" label="Back to Menu" position="top" />
+    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
 
     <section class="page-heading live-tournament-heading running-tournament-heading">
       <div>
@@ -34,26 +34,26 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           </mat-card>
         }
         @for (tournament of runningTournaments(); track tournament.id) {
-          <mat-card class="panel running-tournament-card" data-cy="running-tournament-card">
+          <a class="panel running-tournament-card" [routerLink]="['/live-tournaments', tournament.id]" [attr.aria-label]="'Resume ' + (tournament.name || 'Live Tournament')" data-cy="running-tournament-card">
             <div class="running-tournament-card-header">
               <div class="running-tournament-title-row">
-                <h2 mat-card-title>{{ tournament.name || 'Live Tournament' }}</h2>
+                <h2>{{ tournament.name || 'Live Tournament' }}</h2>
                 <span class="running-tournament-league">{{ leagueName(tournament.leagueId) }}</span>
                 <span class="running-tournament-rounds">{{ tournament.roundCount }} Swiss rounds</span>
               </div>
               <span class="running-tournament-status" [ngClass]="statusClass(tournament.stage)">{{ statusLabel(tournament.stage, tournament.currentRoundNumber) }}</span>
             </div>
-            <mat-card-content>
+            <div class="running-tournament-card-content">
               <dl class="running-tournament-meta" aria-label="Tournament details">
                 <div><dt>Date</dt><dd>{{ formatDate(tournament.tournamentDate) }}</dd></div>
                 <div><dt>Players</dt><dd>{{ tournament.players.length }}</dd></div>
                 <div><dt>Last saved</dt><dd>{{ formatDateTime(tournament.updatedAt) }}</dd></div>
               </dl>
-            </mat-card-content>
-            <mat-card-actions class="running-tournament-actions">
-              <a class="running-tournament-resume" [routerLink]="['/live-tournaments', tournament.id]" [attr.aria-label]="'Resume ' + (tournament.name || 'Live Tournament')" data-cy="resume-running-tournament">Resume</a>
-            </mat-card-actions>
-          </mat-card>
+            </div>
+            <div class="running-tournament-actions">
+              <span class="running-tournament-resume" data-cy="resume-running-tournament">Resume</span>
+            </div>
+          </a>
         }
 
         <button class="running-tournament-card running-tournament-create-card league-create-card" type="button" [disabled]="creating()" (click)="createTournament()" data-cy="create-running-tournament-card">
@@ -62,6 +62,8 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         </button>
       </section>
     }
+
+    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
   `
 })
 export class LiveTournamentListComponent {
