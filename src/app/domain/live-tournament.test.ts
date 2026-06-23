@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateLiveStandings, calculateLiveStandingsThroughRound, createLiveTournament, createLiveTournamentPlayer, currentRoundComplete, finalizeLiveTournament, generateNextSwissRound, regenerateCurrentSwissRound, restoreLiveTournamentCheckpoint, updateLiveRoundEntryResult, validateCurrentSwissRound } from './live-tournament';
+import { calculateLiveStandings, calculateLiveStandingsThroughRound, createLiveTournament, createLiveTournamentPlayer, currentRoundComplete, finalizeLiveTournament, generateNextSwissRound, liveMatchScoreIssue, regenerateCurrentSwissRound, restoreLiveTournamentCheckpoint, updateLiveRoundEntryResult, validateCurrentSwissRound } from './live-tournament';
 
 function idFactory(prefix = 'test') {
   let next = 1;
@@ -38,7 +38,7 @@ describe('live tournament', () => {
     expect(validateCurrentSwissRound(scored).stage).toBe('standings');
   });
 
-  it('calculates standings from starting records and validated rounds', () => {
+  it('calculates standings from late-player records and validated rounds', () => {
     const ids = idFactory();
     const tournament = createLiveTournament({
       players: [
@@ -51,6 +51,37 @@ describe('live tournament', () => {
     const standings = calculateLiveStandings(tournament);
 
     expect(standings[0]).toMatchObject({ playerName: 'Late Player', points: 3, matchWins: 1, matchLosses: 1 });
+  });
+
+  it('adds game-win and opponent tiebreaker stats to live standings', () => {
+    const ids = idFactory();
+    const running = generateNextSwissRound(createLiveTournament({
+      players: ['Alice', 'Bob', 'Charlie'].map((name) => createLiveTournamentPlayer({ name }, { idFactory: ids }))
+    }, { idFactory: ids }), { idFactory: ids });
+    const match = running.rounds[0].entries.find((item) => item.entry.kind === 'match')?.entry;
+    expect(match?.kind).toBe('match');
+
+    const standings = calculateLiveStandings(validateCurrentSwissRound(updateLiveRoundEntryResult(running, running.rounds[0].id, match!.id, { player1Score: 2, player2Score: 0 })));
+
+    expect(standings[0]).toMatchObject({ playerName: 'Alice', gameWins: 2, gameLosses: 0, gameWinPercentage: 1, opponentsMatchWinPercentage: 1 / 3, opponentsGameWinPercentage: 1 / 3 });
+    expect(standings.find((row) => row.playerName === 'Bob')).toMatchObject({ gameWins: 0, gameLosses: 2, gameWinPercentage: 0 });
+  });
+
+  it('accepts whole-number match scores above best-of-three values', () => {
+    const ids = idFactory();
+    const tournament = generateNextSwissRound(createLiveTournament({
+      players: ['Alice', 'Bob'].map((name) => createLiveTournamentPlayer({ name }, { idFactory: ids }))
+    }, { idFactory: ids }), { idFactory: ids });
+    const round = tournament.rounds[0];
+    const match = round.entries[0].entry;
+    expect(match.kind).toBe('match');
+
+    const scored = updateLiveRoundEntryResult(tournament, round.id, match.id, { player1Score: 7, player2Score: 5 });
+    const scoredMatch = scored.rounds[0].entries[0].entry;
+
+    expect(scoredMatch.kind).toBe('match');
+    expect(liveMatchScoreIssue(scoredMatch)).toBeNull();
+    expect(currentRoundComplete(scored)).toBe(true);
   });
 
   it('regenerates only an unvalidated current round', () => {

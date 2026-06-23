@@ -1,4 +1,4 @@
-import { createByeRoundEntry, createMatchRoundEntry, createRound, createRoundEntry, createTournament, defaultIdFactory, IdFactory, RoundEntry, TournamentDocument, trimPlayerName } from './models';
+import { createByeRoundEntry, createMatchRoundEntry, createRound, createRoundEntry, createTournament, defaultIdFactory, IdFactory, MatchRoundEntry, RoundEntry, TournamentDocument, trimPlayerName } from './models';
 
 export type LiveTournamentStage = 'registration' | 'round' | 'standings' | 'completed';
 export type LiveTournamentType = 'swiss';
@@ -69,7 +69,16 @@ export interface LiveStandingRow {
   matchDraws: number;
   matchLosses: number;
   byes: number;
+  playedMatchCount: number;
+  matchAssignmentCount: number;
+  gameWins: number;
+  gameLosses: number;
+  gameWinPercentage: number;
+  opponentsMatchWinPercentage: number;
+  opponentsGameWinPercentage: number;
 }
+
+type MutableLiveStandingRecord = Omit<LiveStandingRow, 'rank' | 'gameWinPercentage' | 'opponentsMatchWinPercentage' | 'opponentsGameWinPercentage'>;
 
 export function createLiveTournament(
   { id, name = 'Live Tournament', leagueId = '', tournamentDate = todayDateInputValue(), type = 'swiss', roundCount = 3, customRoundCount = false, paidTrackingEnabled = true, pairingSeed = 0, stage = 'registration', currentRoundNumber = 0, players = [], rounds = [], checkpoints = [], finalizedTournamentId, documentVersion = 1, createdAt = new Date().toISOString(), updatedAt = createdAt }: Partial<LiveTournamentDocument> = {},
@@ -175,12 +184,14 @@ export function currentRoundComplete(tournament: LiveTournamentDocument): boolea
 
 export function liveMatchScoreIssue(entry: RoundEntry): string | null {
   if (entry.kind !== 'match') return null;
-  if (entry.player1Score > 2 || entry.player2Score > 2) return 'A player cannot have more than 2 wins.';
+  if (!Number.isInteger(entry.player1Score) || !Number.isInteger(entry.player2Score)) return 'Scores must be whole numbers.';
+  if (entry.player1Score < 0 || entry.player2Score < 0) return 'Scores cannot be negative.';
   return null;
 }
 
 export function calculateLiveStandings(tournament: LiveTournamentDocument): LiveStandingRow[] {
-  const records = new Map<string, Omit<LiveStandingRow, 'rank'>>();
+  const records = new Map<string, MutableLiveStandingRecord>();
+  const opponentIdsByPlayer = new Map<string, string[]>();
   for (const player of tournament.players) {
     const name = trimPlayerName(player.name);
     if (!name) continue;
@@ -193,7 +204,11 @@ export function calculateLiveStandings(tournament: LiveTournamentDocument): Live
       matchWins: player.initialWins,
       matchDraws: player.initialDraws,
       matchLosses: player.initialLosses,
-      byes: 0
+      byes: 0,
+      playedMatchCount: player.initialWins + player.initialDraws + player.initialLosses,
+      matchAssignmentCount: player.initialWins + player.initialDraws + player.initialLosses,
+      gameWins: 0,
+      gameLosses: 0
     });
   }
 
@@ -203,7 +218,7 @@ export function calculateLiveStandings(tournament: LiveTournamentDocument): Live
       if (entry.kind === 'bye') {
         const player = findPlayerByName(tournament, entry.playerName);
         const record = player ? records.get(player.id) : null;
-        if (record) { record.matchWins += 1; record.byes += 1; record.points += 3; }
+        if (record) { record.matchWins += 1; record.byes += 1; record.points += 3; record.matchAssignmentCount += 1; }
         continue;
       }
       if (entry.kind !== 'match') continue;
@@ -211,20 +226,75 @@ export function calculateLiveStandings(tournament: LiveTournamentDocument): Live
       const player2 = findPlayerByName(tournament, entry.player2Name);
       const record1 = player1 ? records.get(player1.id) : null;
       const record2 = player2 ? records.get(player2.id) : null;
-      if (!record1 || !record2) continue;
-      if (entry.player1Score > entry.player2Score) {
-        record1.matchWins += 1; record1.points += 3; record2.matchLosses += 1;
-      } else if (entry.player2Score > entry.player1Score) {
-        record2.matchWins += 1; record2.points += 3; record1.matchLosses += 1;
-      } else {
-        record1.matchDraws += 1; record2.matchDraws += 1; record1.points += 1; record2.points += 1;
-      }
+      if (!player1 || !player2 || !record1 || !record2) continue;
+      record1.playedMatchCount += 1;
+      record2.playedMatchCount += 1;
+      record1.matchAssignmentCount += 1;
+      record2.matchAssignmentCount += 1;
+      record1.gameWins += entry.player1Score;
+      record1.gameLosses += entry.player2Score;
+      record2.gameWins += entry.player2Score;
+      record2.gameLosses += entry.player1Score;
+      addLiveOpponent(opponentIdsByPlayer, player1.id, player2.id);
+      addLiveOpponent(opponentIdsByPlayer, player2.id, player1.id);
+      applyLiveMatchPoints(record1, record2, entry);
     }
   }
 
-  return [...records.values()]
-    .sort((left, right) => right.points - left.points || right.matchWins - left.matchWins || left.playerName.localeCompare(right.playerName))
-    .map((row, index) => ({ ...row, rank: index + 1 }));
+  return [...records.values()].map((record) => {
+    const gameWinPercentage = percentage(record.gameWins, record.gameWins + record.gameLosses) ?? 0;
+    const opponentIds = opponentIdsByPlayer.get(record.playerId) ?? [];
+    return {
+      ...record,
+      rank: 0,
+      gameWinPercentage,
+      opponentsMatchWinPercentage: averageLiveOpponentPercentage(opponentIds, records, liveMatchWinPercentage),
+      opponentsGameWinPercentage: averageLiveOpponentPercentage(opponentIds, records, liveGameWinPercentageForRecord)
+    };
+  }).sort(compareLiveStandingRows).map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+function applyLiveMatchPoints(player: MutableLiveStandingRecord, opponent: MutableLiveStandingRecord, entry: MatchRoundEntry): void {
+  if (entry.player1Score > entry.player2Score) {
+    player.matchWins += 1;
+    opponent.matchLosses += 1;
+    player.points += 3;
+  } else if (entry.player2Score > entry.player1Score) {
+    opponent.matchWins += 1;
+    player.matchLosses += 1;
+    opponent.points += 3;
+  } else {
+    player.matchDraws += 1;
+    opponent.matchDraws += 1;
+    player.points += 1;
+    opponent.points += 1;
+  }
+}
+
+function addLiveOpponent(map: Map<string, string[]>, playerId: string, opponentId: string): void {
+  map.set(playerId, [...(map.get(playerId) ?? []), opponentId]);
+}
+
+function liveMatchWinPercentage(record: MutableLiveStandingRecord | undefined): number | null {
+  return record ? percentage(record.points, record.matchAssignmentCount * 3) : null;
+}
+
+function liveGameWinPercentageForRecord(record: MutableLiveStandingRecord | undefined): number | null {
+  return record ? percentage(record.gameWins, record.gameWins + record.gameLosses) : null;
+}
+
+function averageLiveOpponentPercentage(opponentIds: string[], records: Map<string, MutableLiveStandingRecord>, getPercentage: (record: MutableLiveStandingRecord | undefined) => number | null): number {
+  if (!opponentIds.length) return 0;
+  const values = opponentIds.map((playerId) => Math.max(1 / 3, getPercentage(records.get(playerId)) ?? 0));
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function percentage(numerator: number, denominator: number): number | null {
+  return denominator ? numerator / denominator : null;
+}
+
+function compareLiveStandingRows(a: LiveStandingRow, b: LiveStandingRow): number {
+  return b.points - a.points || b.opponentsMatchWinPercentage - a.opponentsMatchWinPercentage || b.gameWinPercentage - a.gameWinPercentage || b.opponentsGameWinPercentage - a.opponentsGameWinPercentage || b.matchWins - a.matchWins || a.playerName.localeCompare(b.playerName);
 }
 
 export function generateNextSwissRound(tournament: LiveTournamentDocument, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): LiveTournamentDocument {

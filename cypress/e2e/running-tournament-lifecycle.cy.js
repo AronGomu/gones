@@ -27,8 +27,10 @@ function todayInputValue() {
 }
 
 function addPlayer(name) {
-  cy.get('[data-cy="live-player-name-input"]').clear().type(name);
   cy.get('[data-cy="live-add-player-button"]').click();
+  cy.get('[data-cy="live-player-row"]').last().within(() => {
+    cy.get('[data-cy="live-player-name-input"]').clear().type(name);
+  });
   cy.contains('[data-cy="live-player-row"]', name).should("be.visible");
 }
 
@@ -104,11 +106,144 @@ function scoreCurrentRound(offset = 0) {
   cy.get('[data-cy="live-standings-table"]').should("be.visible");
 }
 
-function readLiveTournamentFromStorage() {
-  return cy.window().then((win) => {
-    const store = JSON.parse(win.localStorage.getItem(LIVE_TOURNAMENT_STORE_KEY));
-    return store.tournaments.find((item) => item.name === tournamentName);
+function addStandingPlayer(name, { wins = 0, draws = 0, losses = 0 } = {}) {
+  cy.get('[data-cy="live-standing-add-player-form"]').last().within(() => {
+    cy.get('[data-cy="live-standing-player-name-input"]').clear().type(name);
+    setNumberInput('[data-cy="live-standing-player-wins-input"]', wins);
+    setNumberInput('[data-cy="live-standing-player-draws-input"]', draws);
+    setNumberInput('[data-cy="live-standing-player-losses-input"]', losses);
+    cy.get('[data-cy="live-standing-add-player-button"]').should("be.enabled").click();
   });
+  cy.get('[data-cy="live-standings-table"]').last().should("contain", name);
+}
+
+function confirmDialogAction(label) {
+  cy.contains("mat-dialog-container", label).should("be.visible");
+  cy.contains("mat-dialog-container button", label).click();
+  cy.get("mat-dialog-container").should("not.exist");
+}
+
+function dropStandingPlayer(name, actionLabel = "Drop Player") {
+  cy.get('[data-cy="live-standing-drop-player-button"]').then(($buttons) => {
+    const row = [...$buttons].map((button) => button.closest("tr")).find((candidate) => candidate?.innerText.includes(name));
+    expect(row, `editable standings row for ${name}`).to.exist;
+    cy.wrap(row).within(() => cy.get('[data-cy="live-standing-drop-player-button"]').should("be.enabled").click());
+  });
+  confirmDialogAction(actionLabel);
+}
+
+function playerNamesInEntry(entry) {
+  if (entry.kind === "bye") return [entry.playerName];
+  if (entry.kind === "match") return [entry.player1Name, entry.player2Name];
+  return [];
+}
+
+function calculateExpectedRecord(live, playerName) {
+  const player = live.players.find((item) => item.name === playerName);
+  expect(player, `stored player ${playerName}`).to.exist;
+  const record = {
+    points: player.initialWins * 3 + player.initialDraws,
+    matchWins: player.initialWins,
+    matchDraws: player.initialDraws,
+    matchLosses: player.initialLosses,
+    byes: 0
+  };
+
+  for (const round of live.rounds.filter((item) => item.validated)) {
+    for (const { entry } of round.entries) {
+      if (entry.kind === "bye" && entry.playerName === playerName) {
+        record.points += 3;
+        record.matchWins += 1;
+        record.byes += 1;
+        continue;
+      }
+      if (entry.kind !== "match") continue;
+      const isPlayer1 = entry.player1Name === playerName;
+      const isPlayer2 = entry.player2Name === playerName;
+      if (!isPlayer1 && !isPlayer2) continue;
+      const ownScore = isPlayer1 ? entry.player1Score : entry.player2Score;
+      const opponentScore = isPlayer1 ? entry.player2Score : entry.player1Score;
+      if (ownScore > opponentScore) {
+        record.points += 3;
+        record.matchWins += 1;
+      } else if (ownScore < opponentScore) {
+        record.matchLosses += 1;
+      } else {
+        record.points += 1;
+        record.matchDraws += 1;
+      }
+    }
+  }
+
+  return record;
+}
+
+function expectedRecordText(record) {
+  const byeText = record.byes ? ` (${record.byes} bye)` : "";
+  return `${record.matchWins}-${record.matchLosses}-${record.matchDraws}${byeText}`;
+}
+
+function assertCurrentStandingMatchesStorage(playerName, expectedStatus) {
+  cy.window().should((win) => {
+    const live = storedLiveTournament(win);
+    const player = live.players.find((item) => item.name === playerName);
+    expect(player, `stored player ${playerName}`).to.exist;
+    if (expectedStatus === "Dropped") expect(player.dropped, `${playerName} dropped flag`).to.eq(true);
+  }).then((win) => {
+    const live = storedLiveTournament(win);
+    const record = calculateExpectedRecord(live, playerName);
+    cy.get('[data-cy="live-standings-table"]').last().contains("tr", playerName).within(() => {
+      cy.get("td").eq(2).should("have.text", String(record.points));
+      cy.get("td").eq(3).invoke("text").then((text) => expect(text.replace(/\s+/g, "").trim()).to.eq(expectedRecordText(record).replace(/\s+/g, "")));
+      cy.get("td").eq(7).should("have.text", expectedStatus);
+    });
+  });
+}
+
+function assertLivePlayerAbsent(playerName) {
+  cy.window().should((win) => {
+    const live = storedLiveTournament(win);
+    expect(live.players.map((player) => player.name)).not.to.include(playerName);
+  });
+}
+
+function assertValidatedRoundByeCount(roundNumber, expectedCount) {
+  cy.window().should((win) => {
+    const live = storedLiveTournament(win);
+    const round = live.rounds.find((item) => item.roundNumber === roundNumber);
+    expect(round, `round ${roundNumber}`).to.exist;
+    expect(round.validated, `round ${roundNumber} validated`).to.eq(true);
+    expect(round.entries.filter(({ entry }) => entry.kind === "bye"), `round ${roundNumber} byes`).to.have.length(expectedCount);
+  });
+}
+
+function assertCurrentRoundAssignments({ expectBye, absentPlayers = [] }) {
+  cy.window().should((win) => {
+    const live = storedLiveTournament(win);
+    const round = live.rounds.find((item) => item.roundNumber === live.currentRoundNumber);
+    const activeCount = live.players.filter((player) => player.name && !player.dropped).length;
+    const expectedMatchCount = (activeCount - (expectBye ? 1 : 0)) / 2;
+    expect(round, `current round ${live.currentRoundNumber}`).to.exist;
+    expect(round.entries.filter(({ entry }) => entry.kind === "bye"), `current round ${live.currentRoundNumber} byes`).to.have.length(expectBye ? 1 : 0);
+    expect(round.entries.filter(({ entry }) => entry.kind === "match"), `current round ${live.currentRoundNumber} matches`).to.have.length(expectedMatchCount);
+    const assignedNames = round.entries.flatMap(({ entry }) => playerNamesInEntry(entry));
+    for (const playerName of absentPlayers) expect(assignedNames, `${playerName} current round assignment`).not.to.include(playerName);
+  });
+
+  cy.get('[data-cy="live-round-panel"]').last().within(() => {
+    if (expectBye) cy.get('[data-cy="live-bye-row"]').should("have.length", 1);
+    else cy.get('[data-cy="live-bye-row"]').should("not.exist");
+    for (const playerName of absentPlayers) cy.root().should("not.contain", playerName);
+  });
+}
+
+function storedLiveTournament(win) {
+  const store = JSON.parse(win.localStorage.getItem(LIVE_TOURNAMENT_STORE_KEY));
+  return store.tournaments.find((item) => item.name === tournamentName);
+}
+
+function readLiveTournamentFromStorage() {
+  return cy.window().then((win) => storedLiveTournament(win));
 }
 
 function readArchivedTournament() {
@@ -169,7 +304,7 @@ describe("Running tournament lifecycle", () => {
     for (const name of players.filter((name) => name !== "Bob")) addPlayer(name);
     cy.get('[data-cy="live-player-row"]').should("have.length", 9);
     assertRegistrationState(9);
-    cy.get('[data-cy="live-player-row"]').each(($row) => cy.wrap($row).find('[data-cy="live-player-paid-checkbox"]').check());
+    cy.get('[data-cy="live-player-paid-checkbox"]').check({ force: true });
     cy.get('[data-cy="live-warning-unpaid-players"]').should("not.exist");
 
     resumeThroughMenu();
@@ -183,10 +318,10 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="live-match-row"]').should("have.class", "is-draw-warning");
 
     fillMatchScore(1, 3, 0);
-    cy.get('[data-cy="live-match-row"][data-table="1"]').should("have.class", "is-invalid").and("contain", "cannot have more than 2 wins");
-    cy.get('[data-cy="live-validate-round-button"]').should("be.disabled").and("have.attr", "title").and("include", "table 1");
+    cy.get('[data-cy="live-match-row"][data-table="1"]').should("have.class", "is-valid");
+    cy.get('[data-cy="live-validate-round-button"]').should("be.disabled");
     fillMatchScore(2, 0, 3);
-    cy.get('[data-cy="live-validate-round-button"]').should("have.attr", "title").and("include", "table 1").and("include", "table 2");
+    cy.get('[data-cy="live-match-row"][data-table="2"]').should("have.class", "is-valid");
     fillMatchScore(1, 2, 1);
     fillMatchScore(2, 1, 2);
     fillMatchScore(3, 1, 1);
@@ -218,18 +353,43 @@ describe("Running tournament lifecycle", () => {
       retryUntilDifferent();
     });
 
+    assertCurrentRoundAssignments({ expectBye: true });
     scoreCurrentRound(0);
+    assertValidatedRoundByeCount(1, 1);
+
+    addStandingPlayer("Temporary Drop", { losses: 1 });
+    dropStandingPlayer("Temporary Drop", "Remove Player");
+    cy.get('[data-cy="live-standings-table"]').last().should("not.contain", "Temporary Drop");
+    assertLivePlayerAbsent("Temporary Drop");
+
+    addStandingPlayer("Judy", { wins: 1 });
+    assertCurrentStandingMatchesStorage("Judy", "Unpaid");
+    addStandingPlayer("Mallory", { draws: 1 });
+    assertCurrentStandingMatchesStorage("Mallory", "Unpaid");
+
     cy.get('[data-cy="live-generate-next-round-button"]').click();
+    assertCurrentRoundAssignments({ expectBye: true });
     scoreCurrentRound(1);
+    assertValidatedRoundByeCount(2, 1);
+
+    dropStandingPlayer("Alice");
+    assertCurrentStandingMatchesStorage("Alice", "Dropped");
+
     cy.get('[data-cy="live-generate-next-round-button"]').click();
+    assertCurrentRoundAssignments({ expectBye: false, absentPlayers: ["Alice"] });
     scoreCurrentRound(2);
+    assertValidatedRoundByeCount(3, 0);
+    assertCurrentStandingMatchesStorage("Alice", "Dropped");
+
+    dropStandingPlayer("Bob");
+    assertCurrentStandingMatchesStorage("Bob", "Dropped");
 
     openAdvancedSettings();
     selectMatOption('[data-cy="live-tournament-league-select"]', "Preset League");
     applyAdvancedSettings();
     readLiveTournamentFromStorage().as("liveBeforeArchive");
-    cy.get('[data-cy="live-archive-tournament-button"]').click();
-    cy.location("pathname").should("match", /^\/leagues\/preset-league\/tournaments\/.+/);
+    cy.get('[data-cy="live-archive-tournament-button"]').should("be.enabled").click();
+    cy.location("pathname", { timeout: 15000 }).should("match", /^\/leagues\/preset-league\/tournaments\/.+/);
     cy.get('[data-cy="tournament-detail-page"]').should("contain", tournamentName);
     cy.get('[data-cy="ranking-table"]').should("be.visible");
     cy.get('[data-cy="round-entry-table"]').should("exist");
