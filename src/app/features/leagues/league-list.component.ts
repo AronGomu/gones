@@ -9,7 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { PersistedLeague } from '../../domain/models';
+import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -60,7 +60,9 @@ export class LeagueListComponent {
   readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {
     const search = this.showLeagueFilter() ? this.searchTerm.trim().toLowerCase() : '';
-    return this.leagues().filter((league) => !search || league.name.toLowerCase().includes(search));
+    return this.leagues()
+      .filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID || league.tournaments.length > 0)
+      .filter((league) => !search || league.name.toLowerCase().includes(search));
   });
 
   constructor(private readonly repo: LeagueRepository, private readonly router: Router, private readonly dialog: MatDialog) {

@@ -1,8 +1,8 @@
-import { RoundEntry, TournamentDocument } from './models';
+import { RoundEntry, TournamentDocument, trimPlayerName } from './models';
 import { validateRoundEntry } from './validation';
 
 export interface TournamentWarning {
-  code: 'missingBye' | 'duplicateSameRoundPlayerName' | 'repeatedPairing';
+  code: 'missingBye' | 'duplicateSameRoundPlayerName' | 'repeatedPairing' | 'newPlayerAfterRoundOne' | 'missingDeckArchetype';
   roundId?: string;
   playerName?: string;
   entryIds?: string[];
@@ -11,32 +11,39 @@ export interface TournamentWarning {
 export function getTournamentWarnings(tournament: TournamentDocument): TournamentWarning[] {
   const warnings: TournamentWarning[] = [];
   const pairings = new Map<string, string[]>();
-  const tournamentPlayers = collectTournamentPlayers(tournament);
+  const knownPlayers = new Set<string>();
+  const missingArchetypePlayers = new Set<string>();
 
-  for (const round of tournament.rounds ?? []) {
+  for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
     const seenInRound = new Map<string, string[]>();
     let hasBye = false;
     for (const entry of round.entries ?? []) {
       if (!validateRoundEntry(entry).valid) continue;
-      if (entry.kind === 'bye') {
-        hasBye = true;
-        recordSeen(seenInRound, entry.playerName, entry.id);
-        continue;
+      const players = entryPlayers(entry);
+      if (entry.kind === 'bye') hasBye = true;
+      for (const playerName of players) {
+        recordSeen(seenInRound, playerName, entry.id);
+        if (roundIndex > 0 && !knownPlayers.has(playerName)) warnings.push({ code: 'newPlayerAfterRoundOne', playerName, entryIds: [entry.id], roundId: round.id });
+        if (!playerArchetype(tournament, playerName)) missingArchetypePlayers.add(playerName);
       }
-      if (entry.kind !== 'match') continue;
-      recordSeen(seenInRound, entry.player1Name, entry.id);
-      recordSeen(seenInRound, entry.player2Name, entry.id);
-      const key = [entry.player1Name, entry.player2Name].sort().join('\u0000');
-      pairings.set(key, [...(pairings.get(key) ?? []), entry.id]);
+      if (entry.kind === 'match') {
+        const key = [entry.player1Name, entry.player2Name].sort().join('\u0000');
+        pairings.set(key, [...(pairings.get(key) ?? []), entry.id]);
+      }
     }
-    if (tournamentPlayers.size % 2 === 1 && !hasBye) warnings.push({ code: 'missingBye', roundId: round.id });
+    const tournamentPlayers = collectTournamentPlayers(tournament);
+    if (tournamentPlayers.size % 2 === 1 && !hasBye && seenInRound.size === tournamentPlayers.size - 1) warnings.push({ code: 'missingBye', roundId: round.id });
     for (const [playerName, entryIds] of seenInRound.entries()) {
       if (entryIds.length > 1) warnings.push({ code: 'duplicateSameRoundPlayerName', playerName, entryIds, roundId: round.id });
     }
+    for (const playerName of seenInRound.keys()) knownPlayers.add(playerName);
   }
 
   for (const entryIds of pairings.values()) {
     if (entryIds.length > 1) warnings.push({ code: 'repeatedPairing', entryIds });
+  }
+  for (const playerName of [...missingArchetypePlayers].sort((left, right) => left.localeCompare(right))) {
+    warnings.push({ code: 'missingDeckArchetype', playerName });
   }
   return warnings;
 }
@@ -48,20 +55,25 @@ export function hasMissingByeWarning(tournament: TournamentDocument): boolean {
 function collectTournamentPlayers(tournament: TournamentDocument): Set<string> {
   const players = new Set<string>();
   for (const round of tournament.rounds ?? []) {
-    for (const entry of round.entries ?? []) addEntryPlayers(players, entry);
+    for (const entry of round.entries ?? []) {
+      for (const playerName of entryPlayers(entry)) players.add(playerName);
+    }
   }
   return players;
 }
 
-function addEntryPlayers(players: Set<string>, entry: RoundEntry): void {
-  if (!validateRoundEntry(entry).valid) return;
-  if (entry.kind === 'bye') players.add(entry.playerName);
-  if (entry.kind === 'match') {
-    players.add(entry.player1Name);
-    players.add(entry.player2Name);
-  }
+function entryPlayers(entry: RoundEntry): string[] {
+  if (!validateRoundEntry(entry).valid) return [];
+  if (entry.kind === 'bye') return [entry.playerName];
+  if (entry.kind === 'match') return [entry.player1Name, entry.player2Name];
+  return [];
 }
 
 function recordSeen(map: Map<string, string[]>, playerName: string, entryId: string): void {
   map.set(playerName, [...(map.get(playerName) ?? []), entryId]);
+}
+
+function playerArchetype(tournament: TournamentDocument, playerName: string): string {
+  const normalizedPlayerName = trimPlayerName(playerName);
+  return String((tournament.playerArchetypes ?? []).find((row) => trimPlayerName(row.playerName) === normalizedPlayerName)?.archetype ?? '').trim();
 }

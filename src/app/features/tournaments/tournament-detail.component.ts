@@ -11,7 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, TournamentDocument } from '../../domain/models';
+import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
 import { archetypeForPlayer, mergeImportedRoundArchetypes, setTournamentPlayerArchetype, tournamentPlayerArchetypeRows, validateTournamentPlayerArchetypes } from '../../domain/tournament-archetypes';
 import { calculateTournamentResult } from '../../domain/results';
@@ -60,11 +60,12 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
         </div>
       }
       @if (importErrors().length) {
-        <div class="error" role="alert">
+        <div class="error" role="alert" data-cy="round-import-archetype-conflict">
           <p>Round import kept the current Tournament archetype for conflicting player(s).</p>
           <ul>
             @for (message of importErrors(); track message) { <li>{{ message }}</li> }
           </ul>
+          <button mat-stroked-button type="button" class="secondary-action" data-cy="dismiss-round-import-archetype-conflict" (click)="importErrors.set([])">Close warning</button>
         </div>
       }
       <section class="stack"><h2>Tournament Ranking</h2><gones-ranking-table [rows]="result().rows" emptyText="No valid Round Entries yet" /></section>
@@ -104,7 +105,7 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
                     </thead>
                     <tbody>
                       @for (entry of roundView.round.entries; track entry.id; let entryIndex = $index) {
-                        <tr [class.invalid]="entry.kind === 'invalid'">
+                        <tr [class.invalid]="entryInvalid(entry)" [class.is-warning]="entryHasWarning(roundView.round, entry)">
                           @if (entry.kind === 'match') {
                             <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
                             <td><input [(ngModel)]="entry.player1Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1')"></td>
@@ -134,7 +135,7 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
                   </table>
                 </div>
               }
-              <div class="round-entry-actions"><button mat-stroked-button type="button" (click)="addMatch(roundView.round)">Add Match</button></div>
+              <div class="round-entry-actions"><button mat-stroked-button type="button" (click)="addMatch(roundView.round)">Add Match</button><button mat-stroked-button type="button" (click)="addBye(roundView.round)">Add Bye</button></div>
             </mat-expansion-panel>
           }
         </mat-expansion-panel>
@@ -232,6 +233,7 @@ export class TournamentDetailComponent {
     this.updateTournament((tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound()] }));
   }
   addMatch(round: RoundDocument): void { this.updateRound(round.id, (item) => ({ ...item, entries: [...item.entries, createMatchRoundEntry({ table: String(item.entries.length + 1) })] })); }
+  addBye(round: RoundDocument): void { this.updateRound(round.id, (item) => ({ ...item, entries: [...item.entries, createByeRoundEntry({ table: String(item.entries.length + 1) })] })); }
   replaceRound(round: RoundDocument, text: string): void {
     const imported = importRoundEntries(text);
     this.updateTournament((tournament) => {
@@ -263,6 +265,10 @@ export class TournamentDetailComponent {
   }
   roundEntryInputLabel(roundNumber: number, entryIndex: number, field: string): string { return `Round ${roundNumber}, entry ${entryIndex + 1}: ${field}`; }
   roundEntryDeleteLabel(roundNumber: number, entryIndex: number): string { return `Delete Round ${roundNumber}, entry ${entryIndex + 1}`; }
+  entryInvalid(entry: RoundEntry): boolean { return !validateRoundEntry(entry).valid; }
+  entryHasWarning(round: RoundDocument, entry: RoundEntry): boolean {
+    return this.warnings().some((warning) => warning.roundId === round.id && (warning.entryIds?.includes(entry.id) ?? false));
+  }
   roundViewModels(tournament: TournamentDocument): Array<{ round: RoundDocument; number: number }> {
     return tournament.rounds.map((round, index) => ({ round, number: index + 1 })).reverse();
   }
@@ -343,7 +349,9 @@ function validationMessage(code: string): string {
     byeReservedPlayerName: 'use the real player name instead of Bye',
     byeReservedOpponentName: 'use the real opponent name instead of Bye',
     samePlayerName: 'use two different player names',
-    resultInvalid: 'enter non-negative whole-number game scores'
+    resultInvalid: 'enter non-negative whole-number game scores',
+    resultTooManyGameWins: 'game wins cannot be over 2',
+    resultTooManyGameLosses: 'game losses cannot be over 2'
   };
   return messages[code] ?? `fix ${code}`;
 }
@@ -352,6 +360,8 @@ function tournamentWarningMessage(warning: TournamentWarning, tournament: Tourna
   const roundNumber = warning.roundId ? tournament.rounds.findIndex((round) => round.id === warning.roundId) + 1 : 0;
   if (warning.code === 'missingBye') return `Round ${roundNumber}: add the missing Bye for the unpaired player.`;
   if (warning.code === 'duplicateSameRoundPlayerName') return `Round ${roundNumber}: ${warning.playerName ?? 'A player'} appears more than once; correct the duplicate entry.`;
+  if (warning.code === 'newPlayerAfterRoundOne') return `Round ${roundNumber}: ${warning.playerName ?? 'A player'} was not present in previous rounds.`;
+  if (warning.code === 'missingDeckArchetype') return `${warning.playerName ?? 'A player'} is missing a deck archetype.`;
   return 'A player pairing appears more than once; correct one of the repeated matches.';
 }
 

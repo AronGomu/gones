@@ -29,7 +29,11 @@ export function validateMatch(entry: MatchRoundEntry): ValidationResult {
   if (isReservedByeName(player1)) codes.push('byeReservedPlayerName');
   if (isReservedByeName(player2)) codes.push('byeReservedOpponentName');
   if (player1 && player2 && player1 === player2) codes.push('samePlayerName');
-  if (!Number.isInteger(entry.player1Score) || entry.player1Score < 0 || !Number.isInteger(entry.player2Score) || entry.player2Score < 0) codes.push('resultInvalid');
+  const player1Score = Number(entry.player1Score);
+  const player2Score = Number(entry.player2Score);
+  if (!Number.isInteger(player1Score) || player1Score < 0 || !Number.isInteger(player2Score) || player2Score < 0) codes.push('resultInvalid');
+  if (Number.isInteger(player1Score) && player1Score > 2) codes.push('resultTooManyGameWins');
+  if (Number.isInteger(player2Score) && player2Score > 2) codes.push('resultTooManyGameLosses');
   return { valid: codes.length === 0, codes };
 }
 
