@@ -27,10 +27,8 @@ function todayInputValue() {
 }
 
 function addPlayer(name) {
-  cy.get('[data-cy="live-add-player-button"]').click();
-  cy.get('[data-cy="live-player-row"]').last().within(() => {
-    cy.get('[data-cy="live-player-name-input"]').clear().type(name);
-  });
+  cy.get('[data-cy="live-add-player-name-input"]').should("be.visible").clear().type(`${name}{enter}`);
+  cy.get('[data-cy="live-add-player-name-input"]').should("be.focused").and("have.value", "");
   cy.contains('[data-cy="live-player-row"]', name).should("be.visible");
 }
 
@@ -266,8 +264,7 @@ describe("Running tournament lifecycle", () => {
     cy.location("pathname").should("match", /^\/live-tournaments\/.+/);
     cy.get('[data-cy="live-warning-not-enough-players"]').should("exist");
     cy.get('[data-cy="breadcrumb-current"]').should("contain", "Live Tournament (live)");
-    cy.get('[data-cy="live-tournament-title-button"]').click();
-    cy.get('[data-cy="live-tournament-name-input"]').clear().type(tournamentName).blur();
+    cy.get('[data-cy="live-tournament-name-input"]').should("be.focused").clear().type(tournamentName).blur();
     cy.get('[data-cy="breadcrumb-current"]').should("contain", `${tournamentName} (live)`);
     openAdvancedSettings();
     cy.get('[data-cy="live-tournament-date-input"]').should("have.value", todayInputValue());

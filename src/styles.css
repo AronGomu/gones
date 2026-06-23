@@ -494,6 +494,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .live-advanced-settings-dialog { display: grid; gap: 1rem; padding-top: .25rem; }
 .live-custom-round-toggle { display: inline-flex; align-items: center; justify-content: flex-end; gap: .55rem; min-height: 44px; color: var(--dim-ash); font-weight: 800; text-transform: lowercase; }
 .live-registration-player-card input[type="checkbox"], .live-player-table input[type="checkbox"], .live-custom-round-toggle input { width: 1.2rem; height: 1.2rem; accent-color: var(--create-green); }
+.live-registration-player-card__paid:has(input:not(:disabled)), .live-custom-round-toggle:has(input:not(:disabled)), .live-registration-player-card input[type="checkbox"]:not(:disabled), .live-player-table input[type="checkbox"]:not(:disabled), .live-custom-round-toggle input:not(:disabled), .live-advanced-settings-dialog mat-checkbox, .live-advanced-settings-dialog mat-checkbox * { cursor: pointer; }
+.live-registration-player-card input[type="checkbox"]:not(:disabled):hover, .live-player-table input[type="checkbox"]:not(:disabled):hover, .live-custom-round-toggle input:not(:disabled):hover { filter: brightness(1.2) saturate(1.2); box-shadow: 0 0 0 3px color-mix(in oklch, var(--create-green) 20%, transparent); }
 .live-panel { padding: 1rem; }
 .live-panel mat-card-title { display: block; margin-bottom: 1rem; }
 .live-form-stack { display: grid; gap: .75rem; }
@@ -502,14 +504,17 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .live-add-player-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: start; }
 .live-step-panel { display: grid; gap: 1rem; padding: 1rem; }
 .live-registration-player-grid { display: grid; grid-template-columns: 1fr; gap: .75rem; }
-.live-registration-player-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .75rem; align-items: center; min-height: 5.25rem; border: 1px solid var(--soot); background: var(--iron); padding: .65rem; }
-.live-registration-create-card { grid-template-columns: auto minmax(0, 1fr); justify-content: start; border-style: dashed; border-color: color-mix(in oklch, var(--create-green) 62%, var(--soot)); background: color-mix(in oklch, var(--create-green) 6%, transparent); color: oklch(84% 0.14 145); font: inherit; font-weight: 950; text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
-.live-registration-create-card small { grid-column: 2; color: var(--dim-ash); font-weight: 800; }
-.live-registration-create-card:hover, .live-registration-create-card:focus-visible { transform: translateY(-2px); border-color: var(--create-green); background: color-mix(in oklch, var(--create-green) 11%, transparent); box-shadow: 0 14px 28px color-mix(in oklch, var(--create-green) 20%, transparent); outline: 2px solid var(--create-green); outline-offset: 2px; }
-.live-registration-create-card:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
-.live-registration-create-card__icon { grid-row: span 2; display: inline-grid; place-items: center; width: 2.35rem; height: 2.35rem; border: 1px solid var(--create-green); border-radius: 999px; background: var(--create-green); color: var(--forge); font-size: 1.75rem; line-height: 1; font-weight: 950; }
-.live-registration-player-card__name { display: grid; gap: .25rem; min-width: 0; color: var(--dim-ash); font-size: .75rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-.live-registration-player-card__paid { display: inline-flex; align-items: center; gap: .4rem; color: var(--dim-ash); font-weight: 850; }
+.live-registration-player-card { display: flex; gap: .75rem; align-items: flex-end; min-height: 5.25rem; border: 1px solid var(--soot); background: var(--iron); padding: .65rem; }
+.live-registration-add-card { order: -1; border-color: color-mix(in oklch, var(--create-green) 36%, var(--soot)); }
+.live-registration-add-card__button { flex: 0 0 auto; min-height: 40px; min-width: 6.75rem; }
+.live-registration-add-card__button:not(:disabled), .live-registration-add-card__button:not(:disabled) * { cursor: pointer; }
+.live-registration-add-card__button:not(:disabled):hover, .live-registration-add-card__button:not(:disabled):focus-visible { transform: translateY(-2px) scale(1.03); filter: saturate(1.15); box-shadow: 0 14px 28px color-mix(in oklch, var(--create-green) 30%, transparent), 0 0 0 3px color-mix(in oklch, var(--create-green) 22%, transparent); }
+.live-registration-add-card__button:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+.live-registration-add-card__name input:focus { border-color: var(--create-green); outline: 2px solid color-mix(in oklch, var(--create-green) 35%, transparent); outline-offset: 2px; }
+.live-registration-player-card__name { flex: 1 1 auto; display: flex; flex-direction: column; align-items: stretch; gap: .25rem; min-width: 0; color: var(--dim-ash); font-size: .75rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.live-registration-player-card__name input { flex: 1 1 auto; }
+.live-registration-player-card__paid { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 40px; gap: .4rem; color: var(--dim-ash); font-weight: 850; }
+.live-registration-player-card > button { flex: 0 0 auto; min-height: 40px; }
 .live-registration-player-card input, .live-record-inputs input { min-height: 40px; width: 100%; min-width: 0; background: var(--black-metal); color: var(--ash); border: 1px solid var(--soot); padding: .35rem .45rem; }
 .live-player-table, .live-standings-table { width: 100%; min-width: 880px; border-collapse: collapse; background: var(--iron); }
 .live-player-table th, .live-player-table td, .live-standings-table th, .live-standings-table td { padding: .5rem .55rem; border-bottom: 1px solid var(--soot); text-align: left; vertical-align: middle; }

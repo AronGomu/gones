@@ -96,7 +96,7 @@ export class LiveTournamentListComponent {
     this.creating.set(true);
     try {
       const tournament = await this.liveRepo.create();
-      await this.router.navigate(['/live-tournaments', tournament.id]);
+      await this.router.navigate(['/live-tournaments', tournament.id], { state: { editTitle: true } });
     } catch (error) {
       logBoundaryError('live-tournament-list.create', error);
       this.error.set('Could not create a running tournament.');

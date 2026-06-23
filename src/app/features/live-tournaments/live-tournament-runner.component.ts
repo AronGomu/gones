@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, ElementRef, inject, OnDestroy, QueryList, signal, ViewChild, ViewChildren } from '@angular/core';
+import { Component, computed, ElementRef, inject, OnDestroy, signal, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -62,20 +62,19 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
           <div class="live-form-stack">
             <p class="muted" data-cy="live-player-count">{{ activePlayerCount(live) }} player{{ activePlayerCount(live) === 1 ? '' : 's' }} registered</p>
             <div class="live-registration-player-grid" aria-label="Registered players">
-              <button class="live-registration-player-card live-registration-create-card" type="button" data-cy="live-add-player-button" [disabled]="live.stage !== 'registration'" (click)="addEmptyPlayerCard()" aria-label="Add an empty player card">
-                <span class="live-registration-create-card__icon" aria-hidden="true">+</span>
-                <span>Add Player</span>
-                <small>Create a new player card</small>
-              </button>
               @for (player of live.players; track player.id) {
                 <article class="live-registration-player-card" data-cy="live-player-row" [class.is-dropped]="player.dropped">
-                  <label class="live-registration-player-card__name"><span>Player</span><span class="sr-only">{{ player.name || 'New player' }}</span><input #registrationPlayerNameInput data-cy="live-player-name-input" [attr.data-player-id]="player.id" [ngModel]="player.name" (ngModelChange)="updatePlayer(player.id, { name: $event })" [readonly]="live.stage !== 'registration'" [attr.aria-label]="player.name ? 'Player name for ' + player.name : 'Player name for new player'"></label>
+                  <label class="live-registration-player-card__name"><span>Player</span><span class="sr-only">{{ player.name || 'New player' }}</span><input data-cy="live-player-name-input" [ngModel]="player.name" (ngModelChange)="updatePlayer(player.id, { name: $event })" [readonly]="live.stage !== 'registration'" [attr.aria-label]="player.name ? 'Player name for ' + player.name : 'Player name for new player'"></label>
                   @if (live.paidTrackingEnabled) {
                     <label class="live-registration-player-card__paid"><input type="checkbox" data-cy="live-player-paid-checkbox" [ngModel]="player.paid" (ngModelChange)="updatePlayer(player.id, { paid: $event })" [attr.aria-label]="'Paid status for ' + (player.name || 'new player')" [disabled]="live.stage === 'round'"> <span>Paid</span></label>
                   }
                   <button mat-button color="warn" type="button" data-cy="live-player-remove-button" [disabled]="live.stage !== 'registration'" (click)="removePlayer(player.id)">Remove</button>
                 </article>
               }
+              <article class="live-registration-player-card live-registration-add-card" data-cy="live-add-player-card">
+                <label class="live-registration-player-card__name live-registration-add-card__name"><span>Player</span><span class="sr-only">New player</span><input #newPlayerNameInput data-cy="live-add-player-name-input" placeholder="Input player name" [(ngModel)]="newPlayerName" (keydown.enter)="$event.preventDefault(); addPlayer()" [disabled]="live.stage !== 'registration'" aria-label="New player name" aria-keyshortcuts="Enter"></label>
+                <button mat-flat-button class="create-action-button live-registration-add-card__button" type="button" data-cy="live-add-player-button" [disabled]="!canSubmitNewPlayer(live)" (click)="addPlayer()" aria-label="Add player"><span class="create-action-button__icon" aria-hidden="true">+</span><span>Add ↵</span></button>
+              </article>
             </div>
             @if (!live.players.length) { <p class="empty">No players yet. Add at least two active players to start.</p> }
             <div class="live-round-count-settings" data-cy="live-round-count-settings">
@@ -187,7 +186,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 export class LiveTournamentRunnerComponent implements OnDestroy {
   @ViewChild('liveTournamentNameInput') private liveTournamentNameInput?: ElementRef<HTMLInputElement>;
   @ViewChild('liveTournamentTitleButton') private liveTournamentTitleButton?: ElementRef<HTMLButtonElement>;
-  @ViewChildren('registrationPlayerNameInput') private registrationPlayerNameInputs?: QueryList<ElementRef<HTMLInputElement>>;
+  @ViewChild('newPlayerNameInput') private newPlayerNameInput?: ElementRef<HTMLInputElement>;
 
   readonly loading = signal(true);
   readonly error = signal('');
@@ -218,14 +217,16 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   async load(): Promise<void> {
     this.loading.set(true);
+    let editTitleAfterLoad = false;
     try {
       this.leagues.set(await this.leagueRepo.listLeagues());
       const id = this.route.snapshot.paramMap.get('liveTournamentId') ?? 'new';
+      editTitleAfterLoad = id === 'new' || this.shouldEditTitleFromNavigationState();
       if (id === 'new') {
         const created = this.withAutomaticRoundCount(await this.liveRepo.create());
         this.tournament.set(created);
         this.tournamentNameDraft = created.name;
-        await this.router.navigate(['/live-tournaments', created.id], { replaceUrl: true });
+        await this.router.navigate(['/live-tournaments', created.id], { replaceUrl: true, state: { editTitle: true } });
       } else {
         const existing = await this.liveRepo.get(id);
         const normalized = existing ? this.withAutomaticRoundCount(existing) : null;
@@ -237,6 +238,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       this.error.set('Could not load this live tournament.');
     } finally {
       this.loading.set(false);
+      if (editTitleAfterLoad) this.startTitleEdit();
     }
   }
 
@@ -296,28 +298,27 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     if (restoreFocus) this.focusTournamentTitleButton();
   }
 
-  addEmptyPlayerCard(): void {
-    const live = this.tournament();
-    if (!live || live.stage !== 'registration') return;
-    const player = createLiveTournamentPlayer();
-    this.error.set('');
-    this.update((current) => this.withAutomaticRoundCount({ ...current, players: [...current.players, player] }));
-    this.focusRegistrationPlayerNameInput(player.id);
+  canSubmitNewPlayer(live: LiveTournamentDocument): boolean {
+    return live.stage === 'registration' && Boolean(trimPlayerName(this.newPlayerName));
   }
 
   addPlayer(): void {
     const live = this.tournament();
     const name = trimPlayerName(this.newPlayerName);
-    if (!live || live.stage !== 'registration' || !name) return;
+    if (!live || live.stage !== 'registration' || !name) {
+      this.focusNewPlayerNameInput();
+      return;
+    }
     if (this.playerNameExists(live, name)) {
       this.error.set('This player is already registered.');
+      this.focusNewPlayerNameInput();
       return;
     }
     this.error.set('');
     this.newPlayerName = '';
     const player = createLiveTournamentPlayer({ name });
-    this.update((current) => this.withAutomaticRoundCount({ ...current, players: [...current.players, player] }));
-    this.focusRegistrationPlayerNameInput(player.id);
+    this.update((current) => this.withAutomaticRoundCount({ ...current, players: [player, ...current.players] }));
+    this.focusNewPlayerNameInput();
   }
 
   setLatePlayerRecord(field: 'wins' | 'draws' | 'losses', value: unknown): void {
@@ -502,11 +503,18 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     return { ...live, roundCount: autoLiveSwissRoundCount(live) };
   }
 
-  private focusTournamentNameInput(): void { setTimeout(() => this.liveTournamentNameInput?.nativeElement.focus()); }
-  private focusTournamentTitleButton(): void { setTimeout(() => this.liveTournamentTitleButton?.nativeElement.focus()); }
-  private focusRegistrationPlayerNameInput(playerId: string): void {
-    setTimeout(() => this.registrationPlayerNameInputs?.toArray().find((input) => input.nativeElement.dataset['playerId'] === playerId)?.nativeElement.focus());
+  private focusTournamentNameInput(): void {
+    setTimeout(() => {
+      this.liveTournamentNameInput?.nativeElement.focus();
+      this.liveTournamentNameInput?.nativeElement.select();
+    });
   }
+  private focusTournamentTitleButton(): void { setTimeout(() => this.liveTournamentTitleButton?.nativeElement.focus()); }
+
+  private shouldEditTitleFromNavigationState(): boolean {
+    return Boolean(this.router.getCurrentNavigation()?.extras.state?.['editTitle'] || history.state?.['editTitle']);
+  }
+  private focusNewPlayerNameInput(): void { setTimeout(() => this.newPlayerNameInput?.nativeElement.focus()); }
 
   private canDeleteStandingPlayer(live: LiveTournamentDocument, row: LiveStandingRow): boolean {
     return live.stage === 'standings' && !this.playerHasRoundEntry(live, row.playerName);
