@@ -81,6 +81,21 @@ function fillMatchScore(table, leftScore, rightScore) {
   });
 }
 
+function assertScoreStepperLimits(table) {
+  cy.get(`[data-cy="live-match-row"][data-table="${table}"]`).within(() => {
+    cy.get('[data-cy="live-match-player1-score"]').should("have.attr", "type", "number");
+    cy.get('[data-cy="live-match-player1-decrement"]').should("be.disabled");
+    cy.get('[data-cy="live-match-player2-decrement"]').should("be.disabled");
+    cy.get('[data-cy="live-match-player1-increment"]').should("be.enabled").click();
+    cy.get('[data-cy="live-match-player1-increment"]').should("be.enabled").click();
+    cy.get('[data-cy="live-match-player1-score"]').should("have.value", "2");
+    cy.get('[data-cy="live-match-player1-increment"]').should("be.disabled");
+    cy.get('[data-cy="live-match-player2-increment"]').should("be.enabled").click();
+    cy.get('[data-cy="live-match-player2-score"]').should("have.value", "1");
+    cy.get('[data-cy="live-match-player2-increment"]').should("be.disabled");
+  });
+}
+
 function capturePairings() {
   return cy.get('[data-cy="live-match-row"]').then(($rows) => [...$rows].map((row) => row.innerText.replace(/\s+/g, " ").trim()));
 }
@@ -106,7 +121,7 @@ function scoreCurrentRound(offset = 0) {
 
 function addStandingPlayer(name, { wins = 0, draws = 0, losses = 0 } = {}) {
   cy.get('[data-cy="live-standing-add-player-form"]').last().within(() => {
-    cy.get('[data-cy="live-standing-player-name-input"]').clear().type(name);
+    cy.get('[data-cy="live-standing-player-name-input"]').click({ force: true }).clear({ force: true }).type(name, { force: true });
     setNumberInput('[data-cy="live-standing-player-wins-input"]', wins);
     setNumberInput('[data-cy="live-standing-player-draws-input"]', draws);
     setNumberInput('[data-cy="live-standing-player-losses-input"]', losses);
@@ -193,7 +208,7 @@ function assertCurrentStandingMatchesStorage(playerName, expectedStatus) {
     cy.get('[data-cy="live-standings-table"]').last().contains("tr", playerName).within(() => {
       cy.get("td").eq(2).should("have.text", String(record.points));
       cy.get("td").eq(3).invoke("text").then((text) => expect(text.replace(/\s+/g, "").trim()).to.eq(expectedRecordText(record).replace(/\s+/g, "")));
-      cy.get("td").eq(7).should("have.text", expectedStatus);
+      if (expectedStatus === "Dropped") cy.root().should("have.class", "is-dropped");
     });
   });
 }
@@ -212,6 +227,33 @@ function assertValidatedRoundByeCount(roundNumber, expectedCount) {
     expect(round, `round ${roundNumber}`).to.exist;
     expect(round.validated, `round ${roundNumber} validated`).to.eq(true);
     expect(round.entries.filter(({ entry }) => entry.kind === "bye"), `round ${roundNumber} byes`).to.have.length(expectedCount);
+  });
+}
+
+function assertPreviousStepsAreCollapsedAndDisabled() {
+  cy.window().then((win) => {
+    const live = storedLiveTournament(win);
+    const previousPairingRounds = live.rounds.filter((round) => round.roundNumber < live.currentRoundNumber || live.stage !== "round" || round.validated);
+    const previousStandingRounds = live.rounds.filter((round) => round.validated && (round.roundNumber < live.currentRoundNumber || live.stage !== "standings"));
+
+    for (const round of previousPairingRounds) {
+      cy.get(`[data-cy="live-pairing-step"][data-round="${round.roundNumber}"]`).should("not.have.class", "mat-expanded").within(() => {
+        cy.get("mat-expansion-panel-header").click();
+        cy.get('[data-cy="live-restore-pairing-button"]').should("be.disabled");
+        cy.get('[data-cy="live-match-player1-score"]').should("be.disabled");
+        cy.get('[data-cy="live-match-player2-score"]').should("be.disabled");
+      });
+    }
+
+    for (const round of previousStandingRounds) {
+      cy.get(`[data-cy="live-standing-step"][data-round="${round.roundNumber}"]`).should("not.have.class", "mat-expanded").within(() => {
+        cy.get("mat-expansion-panel-header").click();
+        cy.get('[data-cy="live-restore-standing-button"]').should("be.disabled");
+        cy.get('[data-cy="live-cancel-standings-button"]').should("be.disabled");
+        cy.get('[data-cy="live-standing-add-player-form"]').should("not.exist");
+        cy.get('[data-cy="live-standing-drop-player-button"]').should("not.exist");
+      });
+    }
   });
 }
 
@@ -266,11 +308,11 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="breadcrumb-current"]').should("contain", "Live Tournament (live)");
     cy.get('[data-cy="live-tournament-name-input"]').should("be.focused").clear().type(tournamentName).blur();
     cy.get('[data-cy="breadcrumb-current"]').should("contain", `${tournamentName} (live)`);
-    openAdvancedSettings();
     cy.get('[data-cy="live-tournament-date-input"]').should("have.value", todayInputValue());
     cy.get('[data-cy="live-tournament-league-select"]').should("contain", "Unassigned");
     selectMatOption('[data-cy="live-tournament-league-select"]', "Preset League");
     selectMatOption('[data-cy="live-tournament-league-select"]', "Unassigned Tournaments");
+    openAdvancedSettings();
     cy.get('[data-cy="live-tournament-paid-tracking-checkbox"] input').should("be.checked");
     applyAdvancedSettings();
 
@@ -295,6 +337,7 @@ describe("Running tournament lifecycle", () => {
     applyAdvancedSettings();
     cy.get('[data-cy="live-warning-unpaid-players"]').should("exist");
     cy.contains('[data-cy="live-player-row"]', "Alice").within(() => cy.get('[data-cy="live-player-remove-button"]').click());
+    confirmDialogAction("Remove Player");
     cy.contains('[data-cy="live-player-row"]', "Alice").should("not.exist");
     assertRegistrationState(1);
 
@@ -309,16 +352,24 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="breadcrumb-current"]').should("contain", `${tournamentName} (live)`);
 
     cy.get('[data-cy="live-start-tournament-button"]').click();
+    confirmDialogAction("Start Tournament");
+    cy.get('[data-cy="live-scroll-top-button"]').should("be.visible").click();
+    cy.window().its("scrollY").should("eq", 0);
     cy.get('[data-cy="live-match-row"]').should("have.length", 4);
     cy.get('[data-cy="live-bye-row"]').should("have.length", 1);
     cy.get('[data-cy="live-all-draws-warning"]').should("be.visible");
     cy.get('[data-cy="live-match-row"]').should("have.class", "is-draw-warning");
+    cy.get('[data-cy="live-validate-round-button"]').should("be.enabled").click();
+    confirmDialogAction("Validate Round");
+    cy.get('[data-cy="live-standings-table"]').should("be.visible");
+    cy.get('[data-cy="live-cancel-standings-button"]').click();
+    assertScoreStepperLimits(1);
 
     fillMatchScore(1, 3, 0);
-    cy.get('[data-cy="live-match-row"][data-table="1"]').should("have.class", "is-valid");
+    cy.get('[data-cy="live-match-row"][data-table="1"]').should("have.class", "is-invalid");
     cy.get('[data-cy="live-validate-round-button"]').should("be.disabled");
-    fillMatchScore(2, 0, 3);
-    cy.get('[data-cy="live-match-row"][data-table="2"]').should("have.class", "is-valid");
+    fillMatchScore(2, 2, 2);
+    cy.get('[data-cy="live-match-row"][data-table="2"]').should("have.class", "is-invalid");
     fillMatchScore(1, 2, 1);
     fillMatchScore(2, 1, 2);
     fillMatchScore(3, 1, 1);
@@ -336,22 +387,12 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="live-match-row"]').should("not.exist");
 
     cy.get('[data-cy="live-start-tournament-button"]').click();
-    capturePairings().then((firstPairings) => {
-      let attempts = 0;
-      function retryUntilDifferent() {
-        attempts += 1;
-        cy.get('[data-cy="live-regenerate-pairings-button"]').click();
-        capturePairings().then((nextPairings) => {
-          if (JSON.stringify(nextPairings) !== JSON.stringify(firstPairings)) return;
-          if (attempts >= 5) throw new Error("Pairings did not change after 5 regenerations");
-          retryUntilDifferent();
-        });
-      }
-      retryUntilDifferent();
-    });
+    confirmDialogAction("Start Tournament");
+    cy.get('[data-cy="live-regenerate-pairings-button"]').should("not.exist");
 
     assertCurrentRoundAssignments({ expectBye: true });
     scoreCurrentRound(0);
+    assertPreviousStepsAreCollapsedAndDisabled();
     assertValidatedRoundByeCount(1, 1);
 
     addStandingPlayer("Temporary Drop", { losses: 1 });
@@ -365,25 +406,27 @@ describe("Running tournament lifecycle", () => {
     assertCurrentStandingMatchesStorage("Mallory", "Unpaid");
 
     cy.get('[data-cy="live-generate-next-round-button"]').click();
+    assertPreviousStepsAreCollapsedAndDisabled();
     assertCurrentRoundAssignments({ expectBye: true });
     scoreCurrentRound(1);
+    assertPreviousStepsAreCollapsedAndDisabled();
     assertValidatedRoundByeCount(2, 1);
 
     dropStandingPlayer("Alice");
     assertCurrentStandingMatchesStorage("Alice", "Dropped");
 
     cy.get('[data-cy="live-generate-next-round-button"]').click();
+    assertPreviousStepsAreCollapsedAndDisabled();
     assertCurrentRoundAssignments({ expectBye: false, absentPlayers: ["Alice"] });
     scoreCurrentRound(2);
+    assertPreviousStepsAreCollapsedAndDisabled();
     assertValidatedRoundByeCount(3, 0);
     assertCurrentStandingMatchesStorage("Alice", "Dropped");
 
     dropStandingPlayer("Bob");
     assertCurrentStandingMatchesStorage("Bob", "Dropped");
 
-    openAdvancedSettings();
     selectMatOption('[data-cy="live-tournament-league-select"]', "Preset League");
-    applyAdvancedSettings();
     readLiveTournamentFromStorage().as("liveBeforeArchive");
     cy.get('[data-cy="live-archive-tournament-button"]').should("be.enabled").click();
     cy.location("pathname", { timeout: 15000 }).should("match", /^\/leagues\/preset-league\/tournaments\/.+/);

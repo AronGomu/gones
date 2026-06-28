@@ -1,4 +1,4 @@
-import { createByeRoundEntry, createMatchRoundEntry, createRound, createRoundEntry, createTournament, defaultIdFactory, IdFactory, MatchRoundEntry, RoundEntry, TournamentDocument, trimPlayerName } from './models';
+import { createByeRoundEntry, createMatchRoundEntry, createRound, createRoundEntry, createTournament, defaultIdFactory, IdFactory, MatchRoundEntry, PlayerArchetypeDocument, RoundEntry, TournamentDocument, trimPlayerName } from './models';
 
 export type LiveTournamentStage = 'registration' | 'round' | 'standings' | 'completed';
 export type LiveTournamentType = 'swiss';
@@ -11,6 +11,7 @@ export interface LiveTournamentPlayerDocument {
   initialWins: number;
   initialDraws: number;
   initialLosses: number;
+  archetype: string;
 }
 
 export interface LiveTournamentRoundEntryDocument {
@@ -107,7 +108,7 @@ export function createLiveTournament(
 }
 
 export function createLiveTournamentPlayer(
-  { id, name = '', paid = false, dropped = false, initialWins = 0, initialDraws = 0, initialLosses = 0 }: Partial<LiveTournamentPlayerDocument> = {},
+  { id, name = '', paid = false, dropped = false, initialWins = 0, initialDraws = 0, initialLosses = 0, archetype = '' }: Partial<LiveTournamentPlayerDocument> = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): LiveTournamentPlayerDocument {
   return {
@@ -117,7 +118,8 @@ export function createLiveTournamentPlayer(
     dropped: Boolean(dropped),
     initialWins: toNonNegativeInteger(initialWins),
     initialDraws: toNonNegativeInteger(initialDraws),
-    initialLosses: toNonNegativeInteger(initialLosses)
+    initialLosses: toNonNegativeInteger(initialLosses),
+    archetype: String(archetype ?? '').trim()
   };
 }
 
@@ -179,13 +181,15 @@ export function currentLiveRound(tournament: LiveTournamentDocument): LiveTourna
 export function currentRoundComplete(tournament: LiveTournamentDocument): boolean {
   const round = currentLiveRound(tournament);
   if (!round || !round.entries.length) return false;
-  return round.entries.every((entry) => entry.entry.kind === 'bye' || (entry.resultEntered && liveMatchScoreIssue(entry.entry) === null));
+  return round.entries.every((entry) => entry.entry.kind === 'bye' || liveMatchScoreIssue(entry.entry) === null);
 }
 
 export function liveMatchScoreIssue(entry: RoundEntry): string | null {
   if (entry.kind !== 'match') return null;
   if (!Number.isInteger(entry.player1Score) || !Number.isInteger(entry.player2Score)) return 'Scores must be whole numbers.';
   if (entry.player1Score < 0 || entry.player2Score < 0) return 'Scores cannot be negative.';
+  if (entry.player1Score > 2 || entry.player2Score > 2) return 'Scores cannot be over 2 victories.';
+  if (entry.player1Score === 2 && entry.player2Score === 2) return 'Only one player can reach 2 victories.';
   return null;
 }
 
@@ -325,7 +329,13 @@ export function validateCurrentSwissRound(tournament: LiveTournamentDocument): L
   const round = currentLiveRound(tournament);
   if (!round || round.validated || !currentRoundComplete(tournament)) return tournament;
   const checkpointed = withCheckpoint(tournament, `Pairing ${round.roundNumber}`, { idFactory: defaultIdFactory });
-  return touch({ ...checkpointed, stage: 'standings', rounds: checkpointed.rounds.map((item) => item.id === round.id ? { ...item, validated: true } : item) });
+  return touch({
+    ...checkpointed,
+    stage: 'standings',
+    rounds: checkpointed.rounds.map((item) => item.id === round.id
+      ? { ...item, validated: true, entries: item.entries.map((entry) => ({ ...entry, resultEntered: true })) }
+      : item)
+  });
 }
 
 export function updateLiveRoundEntryResult(tournament: LiveTournamentDocument, roundId: string, entryId: string, score: { player1Score: number; player2Score: number }): LiveTournamentDocument {
@@ -347,12 +357,37 @@ export function finalizeLiveTournament(tournament: LiveTournamentDocument, { idF
     leagueId: tournament.leagueId,
     name: tournament.name,
     tournamentDate: tournament.tournamentDate,
-    rounds: tournament.rounds.filter((round) => round.validated).map((round) => createRound({ entries: round.entries.map((item) => item.entry) }, { idFactory }))
+    rounds: tournament.rounds.filter((round) => round.validated).map((round) => createRound({ entries: round.entries.map((item) => withLivePlayerArchetypes(item.entry, tournament)) }, { idFactory })),
+    playerArchetypes: livePlayerArchetypeRows(tournament)
   }, { idFactory });
 }
 
 export function liveTournamentFinished(tournament: LiveTournamentDocument): boolean {
   return tournament.rounds.filter((round) => round.validated).length >= tournament.roundCount;
+}
+
+function livePlayerArchetypeRows(tournament: LiveTournamentDocument): PlayerArchetypeDocument[] {
+  return tournament.players
+    .map((player) => ({ playerName: trimPlayerName(player.name), archetype: String(player.archetype ?? '').trim() }))
+    .filter((row) => row.playerName)
+    .sort((left, right) => left.playerName.localeCompare(right.playerName));
+}
+
+function withLivePlayerArchetypes(entry: RoundEntry, tournament: LiveTournamentDocument): RoundEntry {
+  if (entry.kind === 'match') {
+    return {
+      ...entry,
+      player1DeckArchetype: liveArchetypeForPlayer(tournament, entry.player1Name),
+      player2DeckArchetype: liveArchetypeForPlayer(tournament, entry.player2Name)
+    };
+  }
+  if (entry.kind === 'bye') return { ...entry, deckArchetype: liveArchetypeForPlayer(tournament, entry.playerName) };
+  return entry;
+}
+
+function liveArchetypeForPlayer(tournament: LiveTournamentDocument, playerName: string): string {
+  const normalizedName = trimPlayerName(playerName);
+  return tournament.players.find((player) => trimPlayerName(player.name) === normalizedName)?.archetype?.trim() ?? '';
 }
 
 function generateSwissPairings(tournament: LiveTournamentDocument, roundNumber: number, { idFactory }: { idFactory: IdFactory }): LiveTournamentRoundEntryDocument[] {

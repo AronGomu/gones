@@ -1,28 +1,40 @@
 import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
-import { DeckArchetypeSettingsService, normalizeArchetypeName } from './deck-archetype-settings.service';
+import { DeckArchetypeSettingsService, fuzzyMatchIndices, normalizeArchetypeName } from './deck-archetype-settings.service';
 
 let nextDeckArchetypeInputId = 1;
 
 @Component({
   selector: 'gones-deck-archetype-input',
   standalone: true,
-  imports: [FormsModule, MatButtonModule],
+  imports: [FormsModule, MatAutocompleteModule, MatButtonModule],
   template: `
     <div class="deck-archetype-input">
       <input
         [attr.id]="inputId"
         [attr.aria-label]="label"
-        [attr.list]="datalistId"
+        autocomplete="off"
+        spellcheck="false"
         [disabled]="disabled"
+        [matAutocomplete]="archetypeAutocomplete"
         [ngModel]="value"
         (ngModelChange)="setValue($event)">
-      <datalist [id]="datalistId">
-        @for (archetype of suggestions(); track archetype) { <option [value]="archetype"></option> }
-      </datalist>
+      <mat-autocomplete #archetypeAutocomplete="matAutocomplete" class="deck-archetype-input__panel" [autoActiveFirstOption]="suggestions().length > 0" (optionSelected)="selectSuggestion($event)">
+        @for (archetype of suggestions(); track archetype) {
+          <mat-option [value]="archetype">
+            <span class="deck-archetype-input__option">
+              @for (segment of highlightedSegments(archetype); track $index) {
+                @if (segment.highlighted) { <strong>{{ segment.text }}</strong> }
+                @else { <span>{{ segment.text }}</span> }
+              }
+            </span>
+          </mat-option>
+        }
+      </mat-autocomplete>
       @if (canAddCurrentValue()) {
-        <button mat-flat-button type="button" class="deck-archetype-input__add" [disabled]="adding()" [attr.aria-label]="'Add ' + value + ' to archetype settings'" (click)="addCurrentValue()">Add</button>
+        <button mat-stroked-button type="button" class="deck-archetype-input__add success-ghost-action" [disabled]="adding()" [attr.aria-label]="'Add ' + value + ' to archetype settings'" (click)="addCurrentValue()">Add</button>
       }
     </div>
   `
@@ -34,7 +46,6 @@ export class DeckArchetypeInputComponent {
   @Input() disabled = false;
   @Output() readonly valueChange = new EventEmitter<string>();
 
-  readonly datalistId = `${this.inputId}-suggestions`;
   readonly adding = signal(false);
 
   constructor(readonly deckArchetypes: DeckArchetypeSettingsService) {}
@@ -51,6 +62,30 @@ export class DeckArchetypeInputComponent {
   setValue(value: string): void {
     this.value = value;
     this.valueChange.emit(value);
+  }
+
+  selectSuggestion(event: MatAutocompleteSelectedEvent): void {
+    this.setValue(String(event.option.value ?? ''));
+  }
+
+  highlightedSegments(archetype: string): { text: string; highlighted: boolean }[] {
+    const highlightedIndices = new Set(fuzzyMatchIndices(archetype, this.value));
+    if (!highlightedIndices.size) return [{ text: archetype, highlighted: false }];
+
+    const segments: { text: string; highlighted: boolean }[] = [];
+    let currentText = '';
+    let currentHighlighted = highlightedIndices.has(0);
+    for (let index = 0; index < archetype.length; index++) {
+      const highlighted = highlightedIndices.has(index);
+      if (highlighted !== currentHighlighted && currentText) {
+        segments.push({ text: currentText, highlighted: currentHighlighted });
+        currentText = '';
+        currentHighlighted = highlighted;
+      }
+      currentText += archetype[index];
+    }
+    if (currentText) segments.push({ text: currentText, highlighted: currentHighlighted });
+    return segments;
   }
 
   async addCurrentValue(): Promise<void> {

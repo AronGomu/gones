@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DeckArchetypeSettingsService, parseAppSettings } from './deck-archetype-settings.service';
+import { DeckArchetypeSettingsService, fuzzyMatchIndices, parseAppSettings } from './deck-archetype-settings.service';
 
 describe('DeckArchetypeSettingsService', () => {
   beforeEach(() => {
@@ -36,6 +36,12 @@ describe('DeckArchetypeSettingsService', () => {
 
     expect(service.suggestions('br')).toContain('Blue Red Tempo');
     expect(service.suggestions('green')[0]).toBe('Mono Green Aggro');
+  });
+
+  it('returns fuzzy match indices for highlighted autocomplete text', () => {
+    expect(fuzzyMatchIndices('Blue Red Tempo', 'br')).toEqual([0, 5]);
+    expect(fuzzyMatchIndices('Mono Green Aggro', 'green')).toEqual([5, 6, 7, 8, 9]);
+    expect(fuzzyMatchIndices('Control', 'zz')).toEqual([]);
   });
 
   it('stores and exports settings as a JSON object', async () => {

@@ -12,7 +12,7 @@ import { DeckArchetypeSettingsService, normalizeArchetypeName } from '../../shar
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" label="Back to Home" position="top" />
+    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
     <section class="info-page settings-page" aria-label="Settings">
       <mat-card class="panel settings-panel">
         <mat-card-content>
@@ -69,7 +69,7 @@ import { DeckArchetypeSettingsService, normalizeArchetypeName } from '../../shar
       </mat-card>
 
     </section>
-    <gones-back-button [link]="['/']" label="Back to Home" position="bottom" />
+    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
   `
 })
 export class SettingsComponent {

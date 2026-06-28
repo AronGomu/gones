@@ -216,6 +216,12 @@ _Avoid_: Generic table
 A UI component for editing Round Entries in one Round.
 _Avoid_: Ranking Table
 
+## UI Conventions
+
+- Create and add actions use the green/success color scheme; ghost create/add actions use green text and a green border.
+- Delete, remove, cancel-destructive, and destructive actions use the red/danger color scheme; ghost destructive actions use red text and a red border.
+- Warning messages and warning state indicators use the yellow/warning color scheme.
+
 ## Relationships
 
 - A **Tournament** may be created through a **Tournament Import**

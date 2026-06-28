@@ -7,7 +7,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   standalone: true,
   imports: [RouterLink, MatButtonModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" label="Back to Home" position="top" />
+    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
     <section class="info-page about-page" aria-labelledby="about-title">
       <div class="info-hero">
         <p class="kicker">About the organization</p>
@@ -44,7 +44,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         <a mat-stroked-button class="secondary-action" routerLink="/leagues">Open leagues</a>
       </div>
     </section>
-    <gones-back-button [link]="['/']" label="Back to Home" position="bottom" />
+    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
   `
 })
 export class AboutComponent {}

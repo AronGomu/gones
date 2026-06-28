@@ -12,6 +12,11 @@ export interface AppSettingsExport {
   deckArchetypes: string[];
 }
 
+interface FuzzyMatch {
+  score: number;
+  indices: number[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class DeckArchetypeSettingsService {
   private readonly archetypesSignal = signal(loadDeckArchetypes());
@@ -95,9 +100,9 @@ export class DeckArchetypeSettingsService {
     if (!normalizedQuery) return archetypes.slice(0, limit);
 
     return archetypes
-      .map((archetype) => ({ archetype, score: fuzzyScore(archetype, normalizedQuery) }))
-      .filter((match) => match.score !== Number.POSITIVE_INFINITY)
-      .sort((left, right) => left.score - right.score || left.archetype.localeCompare(right.archetype))
+      .map((archetype) => ({ archetype, match: fuzzyMatch(archetype, normalizedQuery) }))
+      .filter((match) => match.match.score !== Number.POSITIVE_INFINITY)
+      .sort((left, right) => left.match.score - right.match.score || left.archetype.localeCompare(right.archetype))
       .slice(0, limit)
       .map((match) => match.archetype);
   }
@@ -151,6 +156,13 @@ export function normalizeSettingsLanguage(value: unknown): SettingsLanguage | nu
   return value === 'fr' || value === 'en' ? value : null;
 }
 
+export function fuzzyMatchIndices(archetype: string, query: string): number[] {
+  const normalizedQuery = archetypeKey(query);
+  if (!normalizedQuery) return [];
+  const match = fuzzyMatch(archetype, normalizedQuery);
+  return match.score === Number.POSITIVE_INFINITY ? [] : match.indices;
+}
+
 function loadDeckArchetypes(): string[] {
   const settings = parseStoredSettings();
   if (settings) return settings.deckArchetypes;
@@ -197,21 +209,28 @@ function uniqueArchetypes(values: string[]): string[] {
   return archetypes.sort((left, right) => left.localeCompare(right));
 }
 
-function fuzzyScore(archetype: string, normalizedQuery: string): number {
+function fuzzyMatch(archetype: string, normalizedQuery: string): FuzzyMatch {
   const candidate = archetypeKey(archetype);
-  if (candidate === normalizedQuery) return 0;
-  if (candidate.startsWith(normalizedQuery)) return 10 + candidate.length - normalizedQuery.length;
-  if (candidate.includes(normalizedQuery)) return 30 + candidate.indexOf(normalizedQuery);
+  if (candidate === normalizedQuery) return { score: 0, indices: [...candidate].map((_character, index) => index) };
+  if (candidate.startsWith(normalizedQuery)) return { score: 10 + candidate.length - normalizedQuery.length, indices: range(normalizedQuery.length) };
+  const includesIndex = candidate.indexOf(normalizedQuery);
+  if (includesIndex !== -1) return { score: 30 + includesIndex, indices: range(normalizedQuery.length, includesIndex) };
 
   let queryIndex = 0;
   let firstMatch = -1;
   let gaps = 0;
+  const indices: number[] = [];
   for (let candidateIndex = 0; candidateIndex < candidate.length && queryIndex < normalizedQuery.length; candidateIndex++) {
     if (candidate[candidateIndex] !== normalizedQuery[queryIndex]) continue;
     if (firstMatch === -1) firstMatch = candidateIndex;
     gaps += candidateIndex - queryIndex;
+    indices.push(candidateIndex);
     queryIndex++;
   }
 
-  return queryIndex === normalizedQuery.length ? 60 + firstMatch + gaps : Number.POSITIVE_INFINITY;
+  return queryIndex === normalizedQuery.length ? { score: 60 + firstMatch + gaps, indices } : { score: Number.POSITIVE_INFINITY, indices: [] };
+}
+
+function range(length: number, start = 0): number[] {
+  return Array.from({ length }, (_item, index) => start + index);
 }

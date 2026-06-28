@@ -10,30 +10,33 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
-import { activeLivePlayers, autoLiveSwissRoundCount, cancelCurrentSwissRound, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, createLiveTournamentPlayer, currentLiveRound, currentRoundComplete, finalizeLiveTournament, generateNextSwissRound, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, regenerateCurrentSwissRound, restoreLiveTournamentCheckpoint, unpaidActivePlayers, validateCurrentSwissRound } from '../../domain/live-tournament';
+import { activeLivePlayers, autoLiveSwissRoundCount, cancelCurrentSwissRound, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, createLiveTournamentPlayer, currentLiveRound, currentRoundComplete, finalizeLiveTournament, generateNextSwissRound, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, restoreLiveTournamentCheckpoint, unpaidActivePlayers, validateCurrentSwissRound } from '../../domain/live-tournament';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument, trimPlayerName } from '../../domain/models';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent],
+  imports: [CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatIconModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent],
   template: `
     <gones-back-button [link]="['/live-tournaments']" label="Back to Running Tournaments" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else if (tournament(); as live) {
       <section class="page-heading live-tournament-title-heading">
-        <div class="tournament-heading-fields">
-          @if (titleEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>Tournament name</mat-label><input #liveTournamentNameInput data-cy="live-tournament-name-input" matInput [(ngModel)]="tournamentNameDraft" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
-          @else { <h1><button #liveTournamentTitleButton class="editable-title" type="button" data-cy="live-tournament-title-button" (click)="startTitleEdit()" [attr.aria-label]="'Edit Live Tournament name: ' + (live.name || 'Live Tournament')">{{ live.name || 'Live Tournament' }}</button></h1> }
+        <h1>{{ live.name || 'Live Tournament' }}</h1>
+        <div class="live-tournament-meta-fields">
+          <mat-form-field appearance="outline" class="title-field"><mat-label>Tournament name</mat-label><input #liveTournamentNameInput data-cy="live-tournament-name-input" matInput [(ngModel)]="tournamentNameDraft" (blur)="saveTitleEdit()" (keydown.enter)="$event.preventDefault(); saveTitleEdit()" [disabled]="finalizing()"></mat-form-field>
+          <mat-form-field appearance="outline" class="live-tournament-date-field"><mat-label>Date</mat-label><input matInput data-cy="live-tournament-date-input" type="date" [ngModel]="live.tournamentDate" (ngModelChange)="patch({ tournamentDate: stringValue($event, live.tournamentDate) })" [disabled]="finalizing()"></mat-form-field>
+          <mat-form-field appearance="outline" class="live-tournament-league-field"><mat-label>League for finalization</mat-label><mat-select data-cy="live-tournament-league-select" [ngModel]="live.leagueId" (ngModelChange)="patch({ leagueId: stringValue($event, '') })" [disabled]="finalizing()"><mat-option value="">Unassigned Tournaments</mat-option>@for (league of leagues(); track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field>
         </div>
-        <mat-form-field appearance="outline" class="live-tournament-date-field"><mat-label>Date</mat-label><input matInput data-cy="live-tournament-date-input" type="date" [ngModel]="live.tournamentDate" (ngModelChange)="patch({ tournamentDate: stringValue($event, live.tournamentDate) })" [disabled]="finalizing()"></mat-form-field>
       </section>
       <div class="live-warning-stack" aria-live="polite">
         @if (notEnoughPlayers(live)) {
@@ -61,20 +64,20 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
           </mat-expansion-panel-header>
           <div class="live-form-stack">
             <p class="muted" data-cy="live-player-count">{{ activePlayerCount(live) }} player{{ activePlayerCount(live) === 1 ? '' : 's' }} registered</p>
+            <div class="live-add-player-row" data-cy="live-add-player-card">
+              <label class="live-registration-player-card__name live-registration-add-card__name"><span>NEW PLAYER</span><span class="sr-only">New player</span><input #newPlayerNameInput data-cy="live-add-player-name-input" placeholder="Input player name" [(ngModel)]="newPlayerName" (keydown.enter)="$event.preventDefault(); addPlayer()" [disabled]="live.stage !== 'registration'" aria-label="New player name" aria-keyshortcuts="Enter"></label>
+              <button mat-flat-button class="create-action-button live-registration-add-card__button" type="button" data-cy="live-add-player-button" [disabled]="!canSubmitNewPlayer(live)" (click)="addPlayer()" aria-label="Add player"><mat-icon class="create-action-button__icon" aria-hidden="true">add</mat-icon><span>Add ↵</span></button>
+            </div>
             <div class="live-registration-player-grid" aria-label="Registered players">
               @for (player of live.players; track player.id) {
                 <article class="live-registration-player-card" data-cy="live-player-row" [class.is-dropped]="player.dropped">
-                  <label class="live-registration-player-card__name"><span>Player</span><span class="sr-only">{{ player.name || 'New player' }}</span><input data-cy="live-player-name-input" [ngModel]="player.name" (ngModelChange)="updatePlayer(player.id, { name: $event })" [readonly]="live.stage !== 'registration'" [attr.aria-label]="player.name ? 'Player name for ' + player.name : 'Player name for new player'"></label>
+                  <label class="live-registration-player-card__name"><span>Player</span><span class="sr-only">{{ player.name || 'New player' }}</span><input data-cy="live-player-name-input" [ngModel]="player.name" (ngModelChange)="updatePlayer(player.id, { name: $event })" [attr.aria-label]="player.name ? 'Player name for ' + player.name : 'Player name for new player'"></label>
                   @if (live.paidTrackingEnabled) {
                     <label class="live-registration-player-card__paid"><input type="checkbox" data-cy="live-player-paid-checkbox" [ngModel]="player.paid" (ngModelChange)="updatePlayer(player.id, { paid: $event })" [attr.aria-label]="'Paid status for ' + (player.name || 'new player')" [disabled]="live.stage === 'round'"> <span>Paid</span></label>
                   }
-                  <button mat-button color="warn" type="button" data-cy="live-player-remove-button" [disabled]="live.stage !== 'registration'" (click)="removePlayer(player.id)">Remove</button>
+                  <button mat-button color="warn" type="button" data-cy="live-player-remove-button" [disabled]="live.stage !== 'registration'" (click)="confirmRemovePlayer(player.id)">Remove</button>
                 </article>
               }
-              <article class="live-registration-player-card live-registration-add-card" data-cy="live-add-player-card">
-                <label class="live-registration-player-card__name live-registration-add-card__name"><span>Player</span><span class="sr-only">New player</span><input #newPlayerNameInput data-cy="live-add-player-name-input" placeholder="Input player name" [(ngModel)]="newPlayerName" (keydown.enter)="$event.preventDefault(); addPlayer()" [disabled]="live.stage !== 'registration'" aria-label="New player name" aria-keyshortcuts="Enter"></label>
-                <button mat-flat-button class="create-action-button live-registration-add-card__button" type="button" data-cy="live-add-player-button" [disabled]="!canSubmitNewPlayer(live)" (click)="addPlayer()" aria-label="Add player"><span class="create-action-button__icon" aria-hidden="true">+</span><span>Add ↵</span></button>
-              </article>
             </div>
             @if (!live.players.length) { <p class="empty">No players yet. Add at least two active players to start.</p> }
             <div class="live-round-count-settings" data-cy="live-round-count-settings">
@@ -96,61 +99,56 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 
       @if (live.rounds.length) {
         <section class="stack live-round-progress">
-          <h2>Tournament progress</h2>
-          <p class="muted">Each validated transition is saved with a restore point, so you can return to a previous pairing or standing state.</p>
           @for (round of orderedRounds(live); track round.id) {
-            <section class="live-step-panel panel live-progress-section">
-              <div class="section-header">
-                <div><h2>Pairing {{ round.roundNumber }}</h2><p class="muted">{{ round.validated ? 'Validated pairings' : 'Round running — enter every result before validating.' }}</p></div>
-                @if (checkpointFor(live, 'Pairing ' + round.roundNumber); as checkpoint) { <button mat-stroked-button class="secondary-action" type="button" (click)="restoreCheckpoint(checkpoint)">Restore {{ checkpoint.label }}</button> }
-                @if (live.stage === 'round' && round.roundNumber === live.currentRoundNumber) { <div class="actions"><button mat-stroked-button class="secondary-action" type="button" data-cy="live-regenerate-pairings-button" (click)="regenerateRound()">Regenerate Pairings</button><button mat-stroked-button class="secondary-action" type="button" data-cy="live-cancel-round-button" (click)="cancelRound()">Cancel Round</button></div> }
-              </div>
-              <ng-container [ngTemplateOutlet]="roundTable" [ngTemplateOutletContext]="{ round: round, editable: true }" />
+            <mat-expansion-panel class="live-step-panel panel live-progress-section" data-cy="live-pairing-step" [attr.data-round]="round.roundNumber" [expanded]="stepExpanded(pairingStepKey(round.roundNumber), isActivePairingStep(live, round.roundNumber))" (opened)="setStepExpanded(pairingStepKey(round.roundNumber), true)" (closed)="setStepExpanded(pairingStepKey(round.roundNumber), false)">
+              <mat-expansion-panel-header>
+                <mat-panel-title class="live-panel-title"><h2 class="live-panel-heading">Pairing {{ round.roundNumber }}</h2></mat-panel-title>
+                <mat-panel-description>@if (live.stage === 'round' && round.roundNumber === live.currentRoundNumber) { <button mat-stroked-button class="secondary-action danger-ghost-action live-cancel-round-button" type="button" data-cy="live-cancel-round-button" [disabled]="!isActivePairingStep(live, round.roundNumber)" (click)="$event.stopPropagation(); cancelRound()" (keydown)="$event.stopPropagation()">Cancel Round</button> } <span class="live-step-status" [class.live-step-status--active]="isActivePairingStep(live, round.roundNumber)" [class.live-step-status--readonly]="!isActivePairingStep(live, round.roundNumber)">@if (isActivePairingStep(live, round.roundNumber)) { <span class="status-dot" aria-hidden="true"></span> Active step } @else { Read-only previous step }</span></mat-panel-description>
+              </mat-expansion-panel-header>
+              <ng-container [ngTemplateOutlet]="roundTable" [ngTemplateOutletContext]="{ round: round, editable: isActivePairingStep(live, round.roundNumber) }" />
               @if (live.stage === 'round' && round.roundNumber === live.currentRoundNumber) {
                 @if (allCurrentMatchesAreDraws(live)) { <p class="warning" role="status" data-cy="live-all-draws-warning">All current matches are draws. Confirm this is intentional before validating.</p> }
-                <button mat-flat-button class="home-primary-action" type="button" data-cy="live-validate-round-button" [disabled]="!currentRoundComplete(live)" [attr.title]="validateRoundTitle(live)" (click)="validateRound()">Validate Round & View Standings</button>
-                @if (!currentRoundComplete(live)) { <p class="muted">The validate button unlocks once every match result is entered and every score is valid.</p> }
+                <div class="live-validate-actions"><button mat-flat-button class="home-primary-action create-action-button" type="button" data-cy="live-validate-round-button" [disabled]="!!validateRoundIssue(live) || !isActivePairingStep(live, round.roundNumber)" [attr.title]="validateRoundIssue(live)" (click)="validateRound()">Validate Round & View Standings</button>@if (validateRoundIssue(live); as issue) { <p class="muted live-validate-issue">{{ issue }}</p> }</div>
               }
-            </section>
+            </mat-expansion-panel>
 
             @if (round.validated) {
-              <section class="live-step-panel panel live-progress-section">
-                <div class="section-header">
-                  <div><h2>Standing {{ round.roundNumber }}</h2><p class="muted">Standings after round {{ round.roundNumber }}.</p></div>
-                  @if (checkpointFor(live, 'Standing ' + round.roundNumber); as checkpoint) { <button mat-stroked-button class="secondary-action" type="button" (click)="restoreCheckpoint(checkpoint)">Restore {{ checkpoint.label }}</button> }
-                  @if (checkpointFor(live, 'Pairing ' + round.roundNumber); as pairingCheckpoint) { <button mat-stroked-button class="secondary-action" type="button" data-cy="live-cancel-standings-button" (click)="restoreCheckpoint(pairingCheckpoint)">Cancel Standings</button> }
-                </div>
-                @if (canEditStanding(live, round.roundNumber)) {
-                  <div class="live-standing-add-player" data-cy="live-standing-add-player-form">
-                    <mat-form-field appearance="outline"><mat-label>New player name</mat-label><input matInput data-cy="live-standing-player-name-input" [(ngModel)]="latePlayerDraft.name" (keydown.enter)="$event.preventDefault(); addLatePlayer(round.roundNumber)"></mat-form-field>
-                    <div class="live-record-inputs live-standing-record-inputs" aria-label="Starting record for new player">
-                      <label><span>W</span><input data-cy="live-standing-player-wins-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="latePlayerDraft.wins" (ngModelChange)="setLatePlayerRecord('wins', $event)" [attr.aria-invalid]="latePlayerRecordIssue(round.roundNumber) ? 'true' : null" [attr.aria-describedby]="latePlayerRecordIssue(round.roundNumber) ? 'late-player-record-issue-' + round.roundNumber : null"></label>
-                      <label><span>D</span><input data-cy="live-standing-player-draws-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="latePlayerDraft.draws" (ngModelChange)="setLatePlayerRecord('draws', $event)" [attr.aria-invalid]="latePlayerRecordIssue(round.roundNumber) ? 'true' : null" [attr.aria-describedby]="latePlayerRecordIssue(round.roundNumber) ? 'late-player-record-issue-' + round.roundNumber : null"></label>
-                      <label><span>L</span><input data-cy="live-standing-player-losses-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="latePlayerDraft.losses" (ngModelChange)="setLatePlayerRecord('losses', $event)" [attr.aria-invalid]="latePlayerRecordIssue(round.roundNumber) ? 'true' : null" [attr.aria-describedby]="latePlayerRecordIssue(round.roundNumber) ? 'late-player-record-issue-' + round.roundNumber : null"></label>
-                    </div>
-                    <button mat-flat-button class="create-action-button" type="button" data-cy="live-standing-add-player-button" [disabled]="!canAddLatePlayer(live, round.roundNumber)" (click)="addLatePlayer(round.roundNumber)"><span class="create-action-button__icon" aria-hidden="true">+</span><span>Add Player</span></button>
-                    @if (latePlayerRecordIssue(round.roundNumber)) { <p class="warning" role="status" [id]="'late-player-record-issue-' + round.roundNumber">{{ latePlayerRecordIssue(round.roundNumber) }}</p> }
-                  </div>
-                }
+              <mat-expansion-panel class="live-step-panel panel live-progress-section" data-cy="live-standing-step" [attr.data-round]="round.roundNumber" [expanded]="stepExpanded(standingStepKey(round.roundNumber), isActiveStandingStep(live, round.roundNumber))" (opened)="setStepExpanded(standingStepKey(round.roundNumber), true)" (closed)="setStepExpanded(standingStepKey(round.roundNumber), false)">
+                <mat-expansion-panel-header>
+                  <mat-panel-title class="live-panel-title"><h2 class="live-panel-heading">Standing {{ round.roundNumber }}</h2></mat-panel-title>
+                  <mat-panel-description>
+                    @if (canEditStanding(live, round.roundNumber)) { <button mat-stroked-button class="secondary-action success-ghost-action" type="button" data-cy="live-standing-add-player-button" [disabled]="!isActiveStandingStep(live, round.roundNumber)" (click)="$event.stopPropagation(); addLatePlayer(round.roundNumber)" (keydown)="$event.stopPropagation()" aria-label="Add player to standings"><mat-icon class="create-action-button__icon" aria-hidden="true">add</mat-icon><span>Add Player</span></button> }
+                    @if (checkpointFor(live, 'Standing ' + round.roundNumber); as checkpoint) { <button mat-stroked-button class="secondary-action" type="button" data-cy="live-restore-standing-button" [disabled]="!isActiveStandingStep(live, round.roundNumber)" (click)="$event.stopPropagation(); restoreCheckpoint(checkpoint)" (keydown)="$event.stopPropagation()">Restore {{ checkpoint.label }}</button> }
+                    @if (checkpointFor(live, 'Pairing ' + round.roundNumber); as pairingCheckpoint) { <button mat-stroked-button class="secondary-action danger-ghost-action" type="button" data-cy="live-cancel-standings-button" [disabled]="!isActiveStandingStep(live, round.roundNumber)" (click)="$event.stopPropagation(); restoreCheckpoint(pairingCheckpoint)" (keydown)="$event.stopPropagation()">Cancel Standings</button> }
+                    <span class="live-step-status" [class.live-step-status--active]="isActiveStandingStep(live, round.roundNumber)" [class.live-step-status--readonly]="!isActiveStandingStep(live, round.roundNumber)">@if (isActiveStandingStep(live, round.roundNumber)) { <span class="status-dot" aria-hidden="true"></span> Active step } @else { Read-only previous step }</span>
+                  </mat-panel-description>
+                </mat-expansion-panel-header>
                 <ng-container [ngTemplateOutlet]="standingsTable" [ngTemplateOutletContext]="{ rows: standingRowsForRound(live, round.roundNumber), roundNumber: round.roundNumber, live: live }" />
                 @if (live.currentRoundNumber === round.roundNumber && (live.stage === 'standings' || live.stage === 'completed')) {
-                  <div class="actions live-next-actions">
-                    @if (!finished(live)) { <button mat-flat-button class="create-action-button" type="button" data-cy="live-generate-next-round-button" (click)="generateNextRound()"><span class="create-action-button__icon" aria-hidden="true">+</span><span>Generate Round {{ validatedRoundCount(live) + 1 }}</span></button> }
-                    @else { <button mat-flat-button class="home-primary-action" type="button" data-cy="live-archive-tournament-button" [disabled]="finalizing()" (click)="finalize()">{{ finalizing() ? 'Archiving…' : 'Archive Tournament' }}</button> }
+                  <div class="live-standing-footer-actions">
+                    <div class="actions live-next-actions">
+                      @if (!finished(live)) { <button mat-flat-button class="create-action-button" type="button" data-cy="live-generate-next-round-button" (click)="generateNextRound()">Generate Round {{ validatedRoundCount(live) + 1 }}</button> }
+                      @else { <button mat-flat-button class="home-primary-action" type="button" data-cy="live-archive-tournament-button" [disabled]="finalizing()" (click)="finalize()">{{ finalizing() ? 'Archiving…' : 'Archive Tournament' }}</button> }
+                    </div>
                   </div>
                   @if (finished(live) && !live.leagueId) { <p class="warning" role="status">No league selected. Finalizing will attach this tournament to Unassigned Tournaments.</p> }
                 }
-              </section>
+              </mat-expansion-panel>
             }
           }
         </section>
       }
 
+      <footer class="live-tournament-footer">
+        <button mat-stroked-button class="secondary-action" type="button" data-cy="live-footer-back-button" (click)="returnToRunningTournaments()">Back to Running Tournaments</button>
+        <button mat-stroked-button class="secondary-action live-scroll-top-button" type="button" data-cy="live-scroll-top-button" (click)="scrollToTop()" aria-label="Back to top">↑</button>
+      </footer>
+
       <ng-template #standingsTable let-rows="rows" let-roundNumber="roundNumber" let-live="live">
         <div class="table-wrap">
           <table class="ranking-table live-standings-table" data-cy="live-standings-table">
-            <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Pts</th><th scope="col">Record</th><th scope="col">OMW</th><th scope="col">GWR</th><th scope="col">OGW</th><th scope="col">Status</th>@if (canEditStanding(live, roundNumber)) { <th scope="col">Actions</th> }</tr></thead>
-            <tbody>@for (row of rows; track row.playerId) { <tr [class.is-dropped]="row.dropped"><td>{{ row.rank }}</td><td>{{ row.playerName }}</td><td>{{ row.points }}</td><td><span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">({{ row.byes }} bye)</span> }</td><td>{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td><td>{{ formatPercentage(row.gameWinPercentage) }}</td><td>{{ formatPercentage(row.opponentsGameWinPercentage) }}</td><td>{{ playerStatus(row, live) }}</td>@if (canEditStanding(live, roundNumber)) { <td><button mat-button color="warn" type="button" data-cy="live-standing-drop-player-button" [disabled]="row.dropped" [attr.aria-label]="standingPlayerActionLabel(live, row) + ' ' + row.playerName" (click)="confirmDropPlayer(row)">{{ standingPlayerActionLabel(live, row) }}</button></td> }</tr> }</tbody>
+            <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Pts</th><th scope="col">Record</th><th scope="col">OMW</th><th scope="col">GWR</th><th scope="col">OGW</th>@if (canEditStanding(live, roundNumber)) { <th scope="col">Actions</th> }</tr></thead>
+            <tbody>@for (row of rows; track row.playerId) { <tr [class.is-dropped]="row.dropped"><td>{{ row.rank }}</td><td>@if (canEditStandingPlayerRecord(live, row)) { <input class="live-standing-player-name-input" data-cy="live-standing-player-name-input" [ngModel]="row.playerName" (ngModelChange)="updatePlayer(row.playerId, { name: $event })" [attr.aria-label]="'Player name for ' + row.playerName"> } @else { {{ row.playerName }} }</td><td>{{ row.points }}</td><td>@if (canEditStandingPlayerRecord(live, row)) { <div class="live-record-inputs live-standing-record-inputs" [attr.aria-label]="'Starting record for ' + row.playerName"><label><span>W</span><input data-cy="live-standing-player-wins-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchWins" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialWins', $event)" [attr.aria-label]="'Starting wins for ' + row.playerName"></label><label><span>D</span><input data-cy="live-standing-player-draws-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchDraws" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialDraws', $event)" [attr.aria-label]="'Starting draws for ' + row.playerName"></label><label><span>L</span><input data-cy="live-standing-player-losses-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchLosses" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialLosses', $event)" [attr.aria-label]="'Starting losses for ' + row.playerName"></label></div> } @else { <span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">({{ row.byes }} bye)</span> } }</td><td>{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td><td>{{ formatPercentage(row.gameWinPercentage) }}</td><td>{{ formatPercentage(row.opponentsGameWinPercentage) }}</td>@if (canEditStanding(live, roundNumber)) { <td><button mat-button color="warn" type="button" data-cy="live-standing-drop-player-button" [disabled]="row.dropped" [attr.aria-label]="standingPlayerActionLabel(live, row) + ' ' + row.playerName" (click)="confirmDropPlayer(row)">{{ standingPlayerActionLabel(live, row) }}</button></td> }</tr> }</tbody>
           </table>
         </div>
       </ng-template>
@@ -161,20 +159,16 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
             @if (item.entry.kind === 'match') {
               <article class="live-round-card" role="listitem" [attr.data-cy]="live.stage === 'round' && round.roundNumber === live.currentRoundNumber ? 'live-match-row' : 'live-validated-match-row'" [attr.data-table]="item.entry.table" [class.is-invalid]="matchScoreIssue(item.entry)" [class.is-valid]="item.resultEntered && !matchScoreIssue(item.entry) && !isDrawMatch(item.entry)" [class.is-draw-warning]="!matchScoreIssue(item.entry) && isDrawMatch(item.entry)">
                 <div class="live-round-card__table round-entry-table__number">Table {{ item.entry.table }} @if (matchScoreIssue(item.entry)) { <span class="sr-only" [id]="'live-match-score-issue-' + item.entry.id">{{ matchScoreIssue(item.entry) }}</span> }</div>
-                <div class="live-round-card__player live-round-card__player--one">
-                  <span class="round-entry-table__player">{{ item.entry.player1Name }}</span>
-                  <div class="score-stepper"><button class="score-stepper__button score-stepper__button--decrement" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player1Score', -1)" [disabled]="!canAdjustMatchScore(item.entry, 'player1Score', -1)" [attr.aria-label]="'Decrease score for ' + item.entry.player1Name">−</button><input data-cy="live-match-player1-score" type="number" inputmode="numeric" step="1" min="0" [ngModel]="item.entry.player1Score" (ngModelChange)="setMatchScore(round.id, item.entry, 'player1Score', $event)" [attr.aria-label]="'Score player 1 for ' + item.entry.player1Name + ' at table ' + item.entry.table" [attr.aria-invalid]="matchScoreIssue(item.entry) ? 'true' : null" [attr.aria-describedby]="matchScoreIssue(item.entry) ? 'live-match-score-issue-' + item.entry.id : null"><button class="score-stepper__button score-stepper__button--increment" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player1Score', 1)" [disabled]="!canAdjustMatchScore(item.entry, 'player1Score', 1)" [attr.aria-label]="'Increase score for ' + item.entry.player1Name">+</button></div>
-                </div>
+                <span class="live-round-card__player live-round-card__player--one round-entry-table__player">{{ livePlayerName(live, item.entry.player1Name) }}</span>
+                <div class="score-stepper live-round-card__score live-round-card__score--one"><button class="score-stepper__button score-stepper__button--decrement" data-cy="live-match-player1-decrement" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player1Score', -1)" [disabled]="!editable || !canAdjustMatchScore(item.entry, 'player1Score', -1)" [attr.aria-label]="'Decrease score for ' + livePlayerName(live, item.entry.player1Name)">−</button><input data-cy="live-match-player1-score" type="number" inputmode="numeric" step="1" min="0" max="2" [ngModel]="item.entry.player1Score" (ngModelChange)="setMatchScore(round.id, item.entry, 'player1Score', $event)" [disabled]="!editable" [attr.aria-label]="'Score player 1 for ' + livePlayerName(live, item.entry.player1Name) + ' at table ' + item.entry.table" [attr.aria-invalid]="matchScoreIssue(item.entry) ? 'true' : null" [attr.aria-describedby]="matchScoreIssue(item.entry) ? 'live-match-score-issue-' + item.entry.id : null"><button class="score-stepper__button score-stepper__button--increment" data-cy="live-match-player1-increment" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player1Score', 1)" [disabled]="!editable || !canAdjustMatchScore(item.entry, 'player1Score', 1)" [attr.aria-label]="'Increase score for ' + livePlayerName(live, item.entry.player1Name)">+</button></div>
                 <span class="live-round-card__versus" aria-label="versus">VS</span>
-                <div class="live-round-card__player live-round-card__player--two">
-                  <div class="score-stepper"><button class="score-stepper__button score-stepper__button--decrement" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player2Score', -1)" [disabled]="!canAdjustMatchScore(item.entry, 'player2Score', -1)" [attr.aria-label]="'Decrease score for ' + item.entry.player2Name">−</button><input data-cy="live-match-player2-score" type="number" inputmode="numeric" step="1" min="0" [ngModel]="item.entry.player2Score" (ngModelChange)="setMatchScore(round.id, item.entry, 'player2Score', $event)" [attr.aria-label]="'Score player 2 for ' + item.entry.player2Name + ' at table ' + item.entry.table" [attr.aria-invalid]="matchScoreIssue(item.entry) ? 'true' : null" [attr.aria-describedby]="matchScoreIssue(item.entry) ? 'live-match-score-issue-' + item.entry.id : null"><button class="score-stepper__button score-stepper__button--increment" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player2Score', 1)" [disabled]="!canAdjustMatchScore(item.entry, 'player2Score', 1)" [attr.aria-label]="'Increase score for ' + item.entry.player2Name">+</button></div>
-                  <span class="round-entry-table__player">{{ item.entry.player2Name }}</span>
-                </div>
+                <span class="live-round-card__player live-round-card__player--two round-entry-table__player">{{ livePlayerName(live, item.entry.player2Name) }}</span>
+                <div class="score-stepper live-round-card__score live-round-card__score--two"><button class="score-stepper__button score-stepper__button--decrement" data-cy="live-match-player2-decrement" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player2Score', -1)" [disabled]="!editable || !canAdjustMatchScore(item.entry, 'player2Score', -1)" [attr.aria-label]="'Decrease score for ' + livePlayerName(live, item.entry.player2Name)">−</button><input data-cy="live-match-player2-score" type="number" inputmode="numeric" step="1" min="0" max="2" [ngModel]="item.entry.player2Score" (ngModelChange)="setMatchScore(round.id, item.entry, 'player2Score', $event)" [disabled]="!editable" [attr.aria-label]="'Score player 2 for ' + livePlayerName(live, item.entry.player2Name) + ' at table ' + item.entry.table" [attr.aria-invalid]="matchScoreIssue(item.entry) ? 'true' : null" [attr.aria-describedby]="matchScoreIssue(item.entry) ? 'live-match-score-issue-' + item.entry.id : null"><button class="score-stepper__button score-stepper__button--increment" data-cy="live-match-player2-increment" type="button" (click)="adjustMatchScore(round.id, item.entry, 'player2Score', 1)" [disabled]="!editable || !canAdjustMatchScore(item.entry, 'player2Score', 1)" [attr.aria-label]="'Increase score for ' + livePlayerName(live, item.entry.player2Name)">+</button></div>
               </article>
             } @else if (item.entry.kind === 'bye') {
               <article class="live-round-card live-bye-row" role="listitem" [attr.data-cy]="live.stage === 'round' && round.roundNumber === live.currentRoundNumber ? 'live-bye-row' : 'live-validated-bye-row'">
                 <div class="live-round-card__table round-entry-table__number">Table {{ item.entry.table }}</div>
-                <div class="live-round-card__bye"><strong>{{ item.entry.playerName }}</strong> has a bye — automatic win</div>
+                <div class="live-round-card__bye"><strong>{{ livePlayerName(live, item.entry.playerName) }}</strong> has a bye — automatic win</div>
               </article>
             }
           }
@@ -185,7 +179,6 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 })
 export class LiveTournamentRunnerComponent implements OnDestroy {
   @ViewChild('liveTournamentNameInput') private liveTournamentNameInput?: ElementRef<HTMLInputElement>;
-  @ViewChild('liveTournamentTitleButton') private liveTournamentTitleButton?: ElementRef<HTMLButtonElement>;
   @ViewChild('newPlayerNameInput') private newPlayerNameInput?: ElementRef<HTMLInputElement>;
 
   readonly loading = signal(true);
@@ -193,10 +186,9 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   readonly tournament = signal<LiveTournamentDocument | null>(null);
   readonly leagues = signal<PersistedLeague[]>([]);
   newPlayerName = '';
-  latePlayerDraft = { name: '', wins: 0, draws: 0, losses: 0 };
   tournamentNameDraft = '';
-  readonly titleEditing = signal(false);
   readonly registrationExpanded = signal(true);
+  readonly manuallyExpandedSteps = signal<ReadonlySet<string>>(new Set<string>());
   readonly finalizing = signal(false);
   private saving = false;
   private pendingSave = false;
@@ -238,7 +230,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       this.error.set('Could not load this live tournament.');
     } finally {
       this.loading.set(false);
-      if (editTitleAfterLoad) this.startTitleEdit();
+      if (editTitleAfterLoad) this.focusTournamentNameInput();
     }
   }
 
@@ -262,40 +254,54 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   registrationCopy(live: LiveTournamentDocument): string { return live.paidTrackingEnabled ? 'Add players and mark who has paid. Unpaid players can still be paired.' : 'Add players and start the tournament. Paid-player tracking is disabled in advanced settings.'; }
   playerStatus(row: LiveStandingRow, live: LiveTournamentDocument): string { return row.dropped ? 'Dropped' : live.paidTrackingEnabled ? (row.paid ? 'Paid' : 'Unpaid') : 'Active'; }
   standingPlayerActionLabel(live: LiveTournamentDocument, row: LiveStandingRow): 'Drop' | 'Remove' { return this.canDeleteStandingPlayer(live, row) ? 'Remove' : 'Drop'; }
-  canEditStanding(live: LiveTournamentDocument, roundNumber: number): boolean { return live.stage === 'standings' && live.currentRoundNumber === roundNumber; }
+  canEditStanding(live: LiveTournamentDocument, roundNumber: number): boolean { return this.isActiveStandingStep(live, roundNumber); }
+  isActivePairingStep(live: LiveTournamentDocument, roundNumber: number): boolean { return live.stage === 'round' && live.currentRoundNumber === roundNumber; }
+  isActiveStandingStep(live: LiveTournamentDocument, roundNumber: number): boolean { return (live.stage === 'standings' || live.stage === 'completed') && live.currentRoundNumber === roundNumber; }
+  pairingStepKey(roundNumber: number): string { return `pairing-${roundNumber}`; }
+  standingStepKey(roundNumber: number): string { return `standing-${roundNumber}`; }
+  stepExpanded(key: string, active: boolean): boolean { return active || this.manuallyExpandedSteps().has(key); }
+  setStepExpanded(key: string, expanded: boolean): void {
+    const next = new Set(this.manuallyExpandedSteps());
+    if (expanded) next.add(key);
+    else next.delete(key);
+    this.manuallyExpandedSteps.set(next);
+  }
+  scrollToTop(): void { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  returnToRunningTournaments(): void { void this.router.navigate(['/live-tournaments']); }
   matchScoreIssue(entry: RoundEntry): string | null { return liveMatchScoreIssue(entry); }
   isDrawMatch(entry: RoundEntry): boolean { return entry.kind === 'match' && entry.player1Score === entry.player2Score; }
   formatPercentage(value: number): string { return `${Math.round(value * 100)}%`; }
+  livePlayerName(live: LiveTournamentDocument, storedName: string): string {
+    return this.findPlayerByStoredName(live, storedName)?.name || storedName;
+  }
   canAdjustMatchScore(entry: Extract<RoundEntry, { kind: 'match' }>, field: 'player1Score' | 'player2Score', delta: -1 | 1): boolean {
     const nextScore = entry[field] + delta;
-    return Number.isInteger(nextScore) && nextScore >= 0;
+    const opponentField = field === 'player1Score' ? 'player2Score' : 'player1Score';
+    return Number.isInteger(nextScore) && nextScore >= 0 && nextScore <= 2 && !(nextScore === 2 && entry[opponentField] === 2);
   }
   allCurrentMatchesAreDraws(live: LiveTournamentDocument): boolean {
     const round = currentLiveRound(live);
     const matches = round?.entries.filter((item) => item.entry.kind === 'match') ?? [];
     return live.stage === 'round' && matches.length > 0 && matches.every((item) => item.entry.kind === 'match' && !liveMatchScoreIssue(item.entry) && item.entry.player1Score === item.entry.player2Score);
   }
-  validateRoundTitle(live: LiveTournamentDocument): string | null {
+
+  defaultDrawTables(live: LiveTournamentDocument): string[] {
+    const round = currentLiveRound(live);
+    if (live.stage !== 'round' || !round) return [];
+    return round.entries.flatMap((item) => item.entry.kind === 'match' && !item.resultEntered && !liveMatchScoreIssue(item.entry) && item.entry.player1Score === 0 && item.entry.player2Score === 0 ? [item.entry.table] : []);
+  }
+  validateRoundIssue(live: LiveTournamentDocument): string | null {
     const invalidTables = this.invalidCurrentRoundTables(live);
-    return invalidTables.length ? `Invalid result at ${invalidTables.map((table) => `table ${table}`).join(', ')}` : null;
+    if (invalidTables.length) return `Invalid result at ${invalidTables.map((table) => `table ${table}`).join(', ')}.`;
+    return currentRoundComplete(live) ? null : 'Enter every match result before validating.';
   }
 
-  startTitleEdit(): void {
+  saveTitleEdit(): void {
     const live = this.tournament();
     if (!live || this.finalizing()) return;
-    this.tournamentNameDraft = live.name;
-    this.titleEditing.set(true);
-    this.focusTournamentNameInput();
-  }
-
-  saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): void {
-    const live = this.tournament();
-    if (!live || !this.titleEditing() || this.finalizing()) return;
     const name = String(this.tournamentNameDraft || live.name || 'Live Tournament').trim() || 'Live Tournament';
     this.tournamentNameDraft = name;
-    this.titleEditing.set(false);
     if (name !== live.name) this.patch({ name });
-    if (restoreFocus) this.focusTournamentTitleButton();
   }
 
   canSubmitNewPlayer(live: LiveTournamentDocument): boolean {
@@ -321,34 +327,23 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     this.focusNewPlayerNameInput();
   }
 
-  setLatePlayerRecord(field: 'wins' | 'draws' | 'losses', value: unknown): void {
-    this.latePlayerDraft = { ...this.latePlayerDraft, [field]: this.numberValue(value) };
-  }
-
-  latePlayerRecordIssue(roundNumber: number): string {
-    const total = this.latePlayerRecordTotal();
-    return total > roundNumber ? `Record total cannot be over ${roundNumber} played round${roundNumber === 1 ? '' : 's'}.` : '';
-  }
-
-  canAddLatePlayer(live: LiveTournamentDocument, roundNumber: number): boolean {
-    const name = trimPlayerName(this.latePlayerDraft.name);
-    return this.canEditStanding(live, roundNumber) && Boolean(name) && !this.playerNameExists(live, name) && !this.latePlayerRecordIssue(roundNumber);
+  canEditStandingPlayerRecord(live: LiveTournamentDocument, row: LiveStandingRow): boolean {
+    return this.canEditStanding(live, live.currentRoundNumber) && this.canDeleteStandingPlayer(live, row);
   }
 
   addLatePlayer(roundNumber: number): void {
     const live = this.tournament();
-    if (!live || !this.canAddLatePlayer(live, roundNumber)) {
-      if (this.latePlayerRecordIssue(roundNumber)) this.error.set(this.latePlayerRecordIssue(roundNumber));
-      return;
-    }
-    const name = trimPlayerName(this.latePlayerDraft.name);
+    if (!live || !this.canEditStanding(live, roundNumber)) return;
+    const name = this.nextLatePlayerName(live);
     this.error.set('');
-    const { wins, draws, losses } = this.latePlayerDraft;
-    this.latePlayerDraft = { name: '', wins: 0, draws: 0, losses: 0 };
     this.update((current) => ({
       ...current,
-      players: [...current.players, createLiveTournamentPlayer({ name, initialWins: wins, initialDraws: draws, initialLosses: losses })]
+      players: [...current.players, createLiveTournamentPlayer({ name })]
     }));
+  }
+
+  updateStandingPlayerRecord(playerId: string, field: 'initialWins' | 'initialDraws' | 'initialLosses', value: unknown): void {
+    this.updatePlayer(playerId, { [field]: this.numberValue(value) });
   }
 
   async confirmDropPlayer(row: LiveStandingRow): Promise<void> {
@@ -380,22 +375,59 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
         this.error.set('Player names must be unique.');
         return live;
       }
-      return this.withAutomaticRoundCount({ ...live, players: live.players.map((player) => player.id === playerId ? { ...player, ...patch, name: nextName === null ? player.name : nextName } : player) });
+      const currentPlayer = live.players.find((player) => player.id === playerId);
+      const oldName = currentPlayer?.name ?? '';
+      const updatedPlayers = live.players.map((player) => player.id === playerId ? { ...player, ...patch, name: nextName === null ? player.name : nextName } : player);
+      const updatedRounds = nextName === null || nextName === oldName ? live.rounds : this.renameRoundEntries(live.rounds, oldName, nextName);
+      return this.withAutomaticRoundCount({ ...live, players: updatedPlayers, rounds: updatedRounds });
     });
   }
 
-  removePlayer(playerId: string): void {
+  async confirmRemovePlayer(playerId: string): Promise<void> {
+    const live = this.tournament();
+    const player = live?.players.find((item) => item.id === playerId);
+    if (!live || live.stage !== 'registration' || !player) return;
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: 'Remove Player',
+        message: `Remove ${player.name || 'this player'} from registration?`,
+        confirmLabel: 'Remove Player',
+        destructive: true
+      }
+    }).afterClosed());
+    if (!confirmed) return;
+    this.removePlayer(playerId);
+  }
+
+  private removePlayer(playerId: string): void {
     this.update((live) => live.stage === 'registration'
       ? this.withAutomaticRoundCount({ ...live, players: live.players.filter((player) => player.id !== playerId) })
       : live);
   }
 
-  startTournament(): void { this.update((live) => generateNextSwissRound(this.withAutomaticRoundCount(live))); }
-  generateNextRound(): void { this.update((live) => generateNextSwissRound(this.withAutomaticRoundCount(live))); }
-  regenerateRound(): void { this.update((live) => regenerateCurrentSwissRound(live)); }
-  cancelRound(): void { this.update((live) => cancelCurrentSwissRound(live)); }
-  validateRound(): void { this.update((live) => validateCurrentSwissRound(live)); }
-  restoreCheckpoint(checkpoint: LiveTournamentCheckpointDocument): void { this.update((live) => restoreLiveTournamentCheckpoint(live, checkpoint.id)); }
+  async startTournament(): Promise<void> {
+    const live = this.tournament();
+    if (!live || !(await this.confirmWarnings('Start tournament?', this.startWarnings(live), 'Start Tournament'))) return;
+    this.update((current) => generateNextSwissRound(this.withAutomaticRoundCount(current)));
+  }
+
+  async generateNextRound(): Promise<void> {
+    const live = this.tournament();
+    if (!live || !(await this.confirmWarnings('Generate next round?', this.nextRoundWarnings(live), 'Generate Round'))) return;
+    this.update((current) => generateNextSwissRound(this.withAutomaticRoundCount(current)));
+  }
+
+  cancelRound(): void { this.update((live) => live.stage === 'round' ? cancelCurrentSwissRound(live) : live); }
+
+  async validateRound(): Promise<void> {
+    const live = this.tournament();
+    if (!live || live.stage !== 'round' || this.validateRoundIssue(live)) return;
+    if (!(await this.confirmWarnings('Validate round?', this.validateRoundWarnings(live), 'Validate Round'))) return;
+    this.update((current) => current.stage === 'round' ? validateCurrentSwissRound(current) : current);
+  }
+  restoreCheckpoint(checkpoint: LiveTournamentCheckpointDocument): void {
+    this.update((live) => this.canRestoreCheckpoint(live, checkpoint) ? restoreLiveTournamentCheckpoint(live, checkpoint.id) : live);
+  }
 
   adjustMatchScore(roundId: string, entry: Extract<RoundEntry, { kind: 'match' }>, field: 'player1Score' | 'player2Score', delta: -1 | 1): void {
     if (!this.canAdjustMatchScore(entry, field, delta)) return;
@@ -405,8 +437,9 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   setMatchScore(roundId: string, entry: Extract<RoundEntry, { kind: 'match' }>, field: 'player1Score' | 'player2Score', value: unknown): void {
     const score = this.numberValue(value);
     this.update((live) => {
-      if (live.stage === 'completed') return live;
+      if (live.stage !== 'round') return live;
       const editedRound = live.rounds.find((round) => round.id === roundId);
+      if (!editedRound || !this.isActivePairingStep(live, editedRound.roundNumber)) return live;
       const rounds = live.rounds
         .filter((round) => !editedRound || round.roundNumber <= editedRound.roundNumber)
         .map((round) => round.id !== roundId ? round : {
@@ -422,6 +455,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   async finalize(): Promise<void> {
     const live = this.tournament();
     if (!live || this.finalizing()) return;
+    if (!(await this.confirmWarnings('Archive tournament?', this.finalizeWarnings(live), 'Archive Tournament'))) return;
     this.finalizing.set(true);
     try {
       await this.waitForSaveIdle();
@@ -451,6 +485,40 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   saveDraft(): void { void this.persist(); }
 
+  private startWarnings(live: LiveTournamentDocument): string[] {
+    const warnings: string[] = [];
+    const unpaid = unpaidActivePlayers(live);
+    if (live.paidTrackingEnabled && unpaid.length) warnings.push(`All players have not paid yet: ${unpaid.map((player) => player.name).join(', ')}.`);
+    if (this.showByeWarning(live)) warnings.push('Odd player count: a bye will be generated this round.');
+    return warnings;
+  }
+
+  private validateRoundWarnings(live: LiveTournamentDocument): string[] {
+    if (this.allCurrentMatchesAreDraws(live)) return ['All current matches are draws. Confirm this is intentional before validating.'];
+    const defaultDrawTables = this.defaultDrawTables(live);
+    return defaultDrawTables.length ? [`Default 0-0 draw still present at ${defaultDrawTables.map((table) => `table ${table}`).join(', ')}. Confirm this is intentional before validating.`] : [];
+  }
+
+  private nextRoundWarnings(live: LiveTournamentDocument): string[] {
+    const unpaid = unpaidActivePlayers(live);
+    return live.paidTrackingEnabled && unpaid.length ? [`All players have not paid yet: ${unpaid.map((player) => player.name).join(', ')}.`] : [];
+  }
+
+  private finalizeWarnings(live: LiveTournamentDocument): string[] {
+    const warnings: string[] = [];
+    if (!live.leagueId) warnings.push('No league selected. Finalizing will attach this tournament to Unassigned Tournaments.');
+    warnings.push(...this.nextRoundWarnings(live));
+    return warnings;
+  }
+
+  private async confirmWarnings(title: string, warnings: string[], confirmLabel: string): Promise<boolean> {
+    if (!warnings.length) return true;
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: { title, message: warnings.join('\n\n'), confirmLabel, destructive: false }
+    }).afterClosed());
+    return Boolean(confirmed);
+  }
+
   openAdvancedSettings(): void {
     const live = this.tournament();
     if (!live) return;
@@ -471,12 +539,56 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     }
   }
 
-  private latePlayerRecordTotal(): number {
-    return this.latePlayerDraft.wins + this.latePlayerDraft.draws + this.latePlayerDraft.losses;
+  private canRestoreCheckpoint(live: LiveTournamentDocument, checkpoint: LiveTournamentCheckpointDocument): boolean {
+    const match = /^(Pairing|Standing) (\d+)$/.exec(checkpoint.label);
+    if (!match) return false;
+    const roundNumber = Number(match[2]);
+    return match[1] === 'Pairing' ? this.isActivePairingStep(live, roundNumber) || this.isActiveStandingStep(live, roundNumber) : this.isActiveStandingStep(live, roundNumber);
+  }
+
+  private activeStepKey(live: LiveTournamentDocument): string {
+    if (live.stage === 'round') return this.pairingStepKey(live.currentRoundNumber);
+    if (live.stage === 'standings' || live.stage === 'completed') return this.standingStepKey(live.currentRoundNumber);
+    return 'registration';
   }
 
   private playerNameExists(live: LiveTournamentDocument, name: string): boolean {
     return live.players.some((player) => trimPlayerName(player.name).toLowerCase() === name.toLowerCase());
+  }
+
+  private nextLatePlayerName(live: LiveTournamentDocument): string {
+    let index = live.players.length + 1;
+    let name = `New Player ${index}`;
+    while (this.playerNameExists(live, name)) name = `New Player ${++index}`;
+    return name;
+  }
+
+  private findPlayerByStoredName(live: LiveTournamentDocument, storedName: string): LiveTournamentPlayerDocument | null {
+    const normalizedName = trimPlayerName(storedName).toLowerCase();
+    return live.players.find((player) => trimPlayerName(player.name).toLowerCase() === normalizedName) ?? null;
+  }
+
+  private renameRoundEntries(rounds: LiveTournamentRoundDocument[], oldName: string, newName: string): LiveTournamentRoundDocument[] {
+    const normalizedOldName = trimPlayerName(oldName);
+    if (!normalizedOldName) return rounds;
+    return rounds.map((round) => ({
+      ...round,
+      entries: round.entries.map((item) => {
+        const entry = item.entry;
+        if (entry.kind === 'bye' && trimPlayerName(entry.playerName) === normalizedOldName) return { ...item, entry: { ...entry, playerName: newName } };
+        if (entry.kind === 'match') {
+          return {
+            ...item,
+            entry: {
+              ...entry,
+              player1Name: trimPlayerName(entry.player1Name) === normalizedOldName ? newName : entry.player1Name,
+              player2Name: trimPlayerName(entry.player2Name) === normalizedOldName ? newName : entry.player2Name
+            }
+          };
+        }
+        return item;
+      })
+    }));
   }
 
   private pruneCheckpointsAfterEditedRound(live: LiveTournamentDocument, roundNumber: number): LiveTournamentCheckpointDocument[] {
@@ -491,9 +603,11 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   private update(updater: (live: LiveTournamentDocument) => LiveTournamentDocument): void {
     const live = this.tournament();
     if (!live || this.finalizing()) return;
+    const previousActiveStepKey = this.activeStepKey(live);
     const updated = updater(live);
+    if (this.activeStepKey(updated) !== previousActiveStepKey) this.manuallyExpandedSteps.set(new Set<string>());
     this.tournament.set(updated);
-    if (!this.titleEditing()) this.tournamentNameDraft = updated.name;
+    this.tournamentNameDraft = updated.name;
     window.dispatchEvent(new CustomEvent('gones-live-tournament-updated', { detail: { liveTournamentId: updated.id, name: updated.name } }));
     void this.persist();
   }
@@ -509,8 +623,6 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       this.liveTournamentNameInput?.nativeElement.select();
     });
   }
-  private focusTournamentTitleButton(): void { setTimeout(() => this.liveTournamentTitleButton?.nativeElement.focus()); }
-
   private shouldEditTitleFromNavigationState(): boolean {
     return Boolean(this.router.getCurrentNavigation()?.extras.state?.['editTitle'] || history.state?.['editTitle']);
   }
@@ -568,17 +680,36 @@ interface LiveTournamentAdvancedSettingsDialogData {
   leagues: PersistedLeague[];
 }
 
-type LiveTournamentAdvancedSettingsDraft = Pick<LiveTournamentDocument, 'leagueId' | 'paidTrackingEnabled'>;
+type LiveTournamentAdvancedSettingsDraft = Pick<LiveTournamentDocument, 'leagueId' | 'paidTrackingEnabled' | 'players'>;
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, MatButtonModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatSelectModule],
+  imports: [CommonModule, FormsModule, MatButtonModule, MatCheckboxModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, DeckArchetypeInputComponent],
   template: `
     <h2 mat-dialog-title>Advanced settings</h2>
     <mat-dialog-content class="live-advanced-settings-dialog">
-      <mat-form-field appearance="outline"><mat-label>League for finalization</mat-label><mat-select data-cy="live-tournament-league-select" [(ngModel)]="draft.leagueId"><mat-option value="">Unassigned Tournaments</mat-option>@for (league of data.leagues; track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field>
       <mat-checkbox data-cy="live-tournament-paid-tracking-checkbox" [(ngModel)]="draft.paidTrackingEnabled">Track paid players</mat-checkbox>
       <p class="muted">Turn this off to deactivate the paid option, hide paid checkboxes, and suppress unpaid-player warnings for this tournament.</p>
+      <mat-expansion-panel class="round-panel live-player-archetype-panel" [expanded]="false">
+        <mat-expansion-panel-header>
+          <mat-panel-title class="round-panel-title">Deck archetypes</mat-panel-title>
+          <mat-panel-description>{{ namedPlayers().length }} player{{ namedPlayers().length === 1 ? '' : 's' }}</mat-panel-description>
+        </mat-expansion-panel-header>
+        @if (namedPlayers().length) {
+          <div class="player-archetype-list live-player-archetype-list" role="group" aria-label="Live tournament player deck archetypes">
+            <div class="player-archetype-list__header" aria-hidden="true">
+              <span>Player</span>
+              <span>Deck Archetype</span>
+            </div>
+            @for (player of namedPlayers(); track player.id; let rowIndex = $index) {
+              <div class="player-archetype-row" data-cy="live-player-archetype-row">
+                <label class="player-archetype-row__player" [attr.for]="'live-player-archetype-' + rowIndex"><span class="sr-only">Deck archetype for </span>{{ player.name }}</label>
+                <gones-deck-archetype-input [inputId]="'live-player-archetype-' + rowIndex" [label]="'Deck archetype for ' + player.name" [value]="player.archetype" (valueChange)="setPlayerArchetype(player.id, $event)" />
+              </div>
+            }
+          </div>
+        } @else { <p class="empty">Add players before assigning deck archetypes.</p> }
+      </mat-expansion-panel>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" (click)="close()">Cancel</button>
@@ -591,15 +722,25 @@ export class LiveTournamentAdvancedSettingsDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<LiveTournamentAdvancedSettingsDialogComponent, LiveTournamentAdvancedSettingsDraft>);
   readonly draft: LiveTournamentAdvancedSettingsDraft = {
     leagueId: this.data.live.leagueId,
-    paidTrackingEnabled: this.data.live.paidTrackingEnabled
+    paidTrackingEnabled: this.data.live.paidTrackingEnabled,
+    players: this.data.live.players.map((player) => ({ ...player }))
   };
+
+  namedPlayers(): LiveTournamentPlayerDocument[] {
+    return this.draft.players.filter((player) => trimPlayerName(player.name));
+  }
+
+  setPlayerArchetype(playerId: string, archetype: string): void {
+    this.draft.players = this.draft.players.map((player) => player.id === playerId ? { ...player, archetype } : player);
+  }
 
   close(): void { this.dialogRef.close(); }
 
   apply(): void {
     this.dialogRef.close({
       leagueId: String(this.draft.leagueId ?? ''),
-      paidTrackingEnabled: Boolean(this.draft.paidTrackingEnabled)
+      paidTrackingEnabled: Boolean(this.draft.paidTrackingEnabled),
+      players: this.draft.players.map((player) => ({ ...player, archetype: String(player.archetype ?? '').trim() }))
     });
   }
 }

@@ -96,10 +96,10 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
                     <thead>
                       <tr>
                         <th scope="col">Table</th>
-                        <th scope="col">Player 1</th>
-                        <th scope="col">Wins</th>
-                        <th scope="col">Losses</th>
-                        <th scope="col">Player 2</th>
+                        <th scope="col">Player 1 name</th>
+                        <th scope="col">Player 1 score</th>
+                        <th scope="col">Player 2 name</th>
+                        <th scope="col">Player 2 score</th>
                         <th scope="col">Actions</th>
                       </tr>
                     </thead>
@@ -108,26 +108,26 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
                         <tr [class.invalid]="entryInvalid(entry)" [class.is-warning]="entryHasWarning(roundView.round, entry)">
                           @if (entry.kind === 'match') {
                             <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
-                            <td><input [(ngModel)]="entry.player1Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1')"></td>
-                            <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player1Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 wins')"></td>
-                            <td class="round-entry-table__compact"><input type="number" [(ngModel)]="entry.player2Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 losses')"></td>
-                            <td><input [(ngModel)]="entry.player2Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2')"></td>
-                            <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                            <td><input [(ngModel)]="entry.player1Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 name')"></td>
+                            <td class="round-entry-table__score"><input type="number" [(ngModel)]="entry.player1Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 score')"></td>
+                            <td><input [(ngModel)]="entry.player2Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2 name')"></td>
+                            <td class="round-entry-table__score"><input type="number" [(ngModel)]="entry.player2Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2 score')"></td>
+                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
                           } @else if (entry.kind === 'bye') {
                             <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
                             <td><input [(ngModel)]="entry.playerName" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'bye player')"></td>
                             <td class="round-entry-table__empty"></td>
                             <td class="round-entry-table__empty"></td>
                             <td class="round-entry-table__empty"></td>
-                            <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
                           }
                           @else {
                             <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row table')"></td>
-                            <td><input [(ngModel)]="entry.rawText" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row')"></td>
-                            <td><input [(ngModel)]="entry.result" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row result')"></td>
+                            <td><input [(ngModel)]="entry.rawText" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 1')"></td>
+                            <td class="round-entry-table__score"><input [(ngModel)]="entry.result" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 1 score')"></td>
+                            <td><input [(ngModel)]="entry.opponent" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 2')"></td>
                             <td class="round-entry-table__empty"></td>
-                            <td><input [(ngModel)]="entry.opponent" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row opponent')"></td>
-                            <td><button mat-button color="warn" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
+                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">Delete</button></td>
                           }
                         </tr>
                       }

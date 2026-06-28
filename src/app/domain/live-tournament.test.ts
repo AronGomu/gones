@@ -21,7 +21,7 @@ describe('live tournament', () => {
     expect(running.rounds[0].entries.find((item) => item.entry.kind === 'match')?.entry).toMatchObject({ kind: 'match', player1Name: 'Alice', player2Name: 'Bob' });
   });
 
-  it('blocks round validation until all match results are entered', () => {
+  it('allows untouched 0-0 matches to validate as intentional draws', () => {
     const ids = idFactory();
     const tournament = generateNextSwissRound(createLiveTournament({
       players: ['Alice', 'Bob'].map((name) => createLiveTournamentPlayer({ name }, { idFactory: ids }))
@@ -30,8 +30,10 @@ describe('live tournament', () => {
     const match = round.entries[0].entry;
     expect(match.kind).toBe('match');
 
-    expect(currentRoundComplete(tournament)).toBe(false);
-    expect(validateCurrentSwissRound(tournament).stage).toBe('round');
+    expect(currentRoundComplete(tournament)).toBe(true);
+    const validatedDraw = validateCurrentSwissRound(tournament);
+    expect(validatedDraw.stage).toBe('standings');
+    expect(validatedDraw.rounds[0].entries[0].resultEntered).toBe(true);
 
     const scored = updateLiveRoundEntryResult(tournament, round.id, match.id, { player1Score: 2, player2Score: 1 });
     expect(currentRoundComplete(scored)).toBe(true);
@@ -67,7 +69,7 @@ describe('live tournament', () => {
     expect(standings.find((row) => row.playerName === 'Bob')).toMatchObject({ gameWins: 0, gameLosses: 2, gameWinPercentage: 0 });
   });
 
-  it('accepts whole-number match scores above best-of-three values', () => {
+  it('rejects match scores above best-of-three values and impossible 2-2 results', () => {
     const ids = idFactory();
     const tournament = generateNextSwissRound(createLiveTournament({
       players: ['Alice', 'Bob'].map((name) => createLiveTournamentPlayer({ name }, { idFactory: ids }))
@@ -76,12 +78,14 @@ describe('live tournament', () => {
     const match = round.entries[0].entry;
     expect(match.kind).toBe('match');
 
-    const scored = updateLiveRoundEntryResult(tournament, round.id, match.id, { player1Score: 7, player2Score: 5 });
-    const scoredMatch = scored.rounds[0].entries[0].entry;
+    const overLimit = updateLiveRoundEntryResult(tournament, round.id, match.id, { player1Score: 7, player2Score: 1 });
+    const impossibleDraw = updateLiveRoundEntryResult(tournament, round.id, match.id, { player1Score: 2, player2Score: 2 });
 
-    expect(scoredMatch.kind).toBe('match');
-    expect(liveMatchScoreIssue(scoredMatch)).toBeNull();
-    expect(currentRoundComplete(scored)).toBe(true);
+    expect(overLimit.rounds[0].entries[0].entry.kind).toBe('match');
+    expect(liveMatchScoreIssue(overLimit.rounds[0].entries[0].entry)).toBe('Scores cannot be over 2 victories.');
+    expect(currentRoundComplete(overLimit)).toBe(false);
+    expect(liveMatchScoreIssue(impossibleDraw.rounds[0].entries[0].entry)).toBe('Only one player can reach 2 victories.');
+    expect(currentRoundComplete(impossibleDraw)).toBe(false);
   });
 
   it('regenerates only an unvalidated current round', () => {
@@ -146,6 +150,7 @@ describe('live tournament', () => {
         stage: 'round',
         currentRoundNumber: 1,
         roundCount: 1,
+        paidTrackingEnabled: true,
         players: [createLiveTournamentPlayer({ id: 'player-1', name: 'Alice' })],
         rounds: [{ id: 'round-1', roundNumber: 1, validated: false, entries: [{ entry: null as unknown as never, resultEntered: false }] }]
       }]
@@ -177,7 +182,10 @@ describe('live tournament', () => {
     const running = generateNextSwissRound(createLiveTournament({
       name: 'Friday Night',
       leagueId: 'league-1',
-      players: ['Alice', 'Bob'].map((name) => createLiveTournamentPlayer({ name }, { idFactory: ids }))
+      players: [
+        createLiveTournamentPlayer({ name: 'Alice', archetype: 'Fire' }, { idFactory: ids }),
+        createLiveTournamentPlayer({ name: 'Bob', archetype: 'Ice' }, { idFactory: ids })
+      ]
     }, { idFactory: ids }), { idFactory: ids });
     const round = running.rounds[0];
     const match = round.entries[0].entry;
@@ -188,6 +196,10 @@ describe('live tournament', () => {
 
     expect(tournament).toMatchObject({ name: 'Friday Night', leagueId: 'league-1' });
     expect(tournament.rounds).toHaveLength(1);
-    expect(tournament.rounds[0].entries[0]).toMatchObject({ kind: 'match', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0 });
+    expect(tournament.playerArchetypes).toEqual([
+      { playerName: 'Alice', archetype: 'Fire' },
+      { playerName: 'Bob', archetype: 'Ice' }
+    ]);
+    expect(tournament.rounds[0].entries[0]).toMatchObject({ kind: 'match', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Ice' });
   });
 });

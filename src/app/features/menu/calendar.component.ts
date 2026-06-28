@@ -31,7 +31,7 @@ const COUNTRIES = ['France', 'Germany', 'Italy', 'Spain', 'United Kingdom', 'Uni
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, MatMenuModule, MatSelectModule, MatTabsModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" label="Back to Home" position="top" />
+    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     <section class="info-page calendar-page" aria-labelledby="calendar-title">
       <h1 id="calendar-title" class="sr-only">Tournament events calendar</h1>
@@ -138,7 +138,7 @@ const COUNTRIES = ['France', 'Germany', 'Italy', 'Spain', 'United Kingdom', 'Uni
         </article>
       </ng-template>
     </section>
-    <gones-back-button [link]="['/']" label="Back to Home" position="bottom" />
+    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
   `
 })
 export class CalendarComponent implements OnInit {
