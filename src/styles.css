@@ -130,14 +130,24 @@ mat-expansion-panel .mat-expansion-panel-header { background: color-mix(in oklch
 .about-page h2 { font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.04; letter-spacing: -.035em; }
 .about-page h3 { margin: 0; font-size: 1.35rem; line-height: 1.15; }
 .about-page p { overflow-wrap: anywhere; }
+.about-route { --about-ease: cubic-bezier(.16, 1, .3, 1); display: block; }
+.about-motion-ready [data-reveal] { --reveal-x: 0; --reveal-y: 1.75rem; --reveal-scale: 1; opacity: 0; translate: var(--reveal-x) var(--reveal-y); scale: var(--reveal-scale); transition: opacity .72s var(--about-ease), translate .72s var(--about-ease), scale .72s var(--about-ease); transition-delay: var(--reveal-delay, 0ms); }
+.about-motion-ready [data-reveal="left"] { --reveal-x: -2.25rem; --reveal-y: 0; }
+.about-motion-ready [data-reveal="right"] { --reveal-x: 2.25rem; --reveal-y: 0; }
+.about-motion-ready [data-reveal="scale"] { --reveal-y: .85rem; --reveal-scale: .94; }
+.about-motion-ready [data-reveal].is-visible,
+.about-motion-ready [data-reveal]:focus,
+.about-motion-ready [data-reveal]:focus-within { opacity: 1; translate: 0 0; scale: 1; transition-delay: 0ms; }
+.about-route .home-primary-action, .about-route .secondary-action { transition: transform .24s var(--about-ease), box-shadow .24s var(--about-ease), background-color .24s var(--about-ease), border-color .24s var(--about-ease); }
+.about-route .home-primary-action:active, .about-route .secondary-action:active { transform: translateY(0) scale(.97); }
 .about-hero { position: relative; isolation: isolate; min-height: min(43rem, calc(100dvh - 11rem)); display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(16rem, .6fr); align-items: center; gap: clamp(2rem, 5vw, 5rem); padding: clamp(1.5rem, 5vw, 5rem); border: 1px solid color-mix(in oklch, var(--blood) 55%, var(--soot)); background: radial-gradient(circle at 80% 10%, color-mix(in oklch, var(--blood) 32%, transparent), transparent 22rem), linear-gradient(135deg, color-mix(in oklch, var(--raised-iron) 68%, var(--black-metal)), var(--forge)); overflow: hidden; }
-.about-hero::before { content: ''; position: absolute; inset: auto -8rem -12rem auto; z-index: -1; width: 28rem; aspect-ratio: 1; border: 1px solid color-mix(in oklch, var(--blood) 26%, transparent); transform: rotate(18deg); }
+.about-hero::before { content: ''; position: absolute; inset: auto -8rem -12rem auto; z-index: -1; width: 28rem; aspect-ratio: 1; border: 1px solid color-mix(in oklch, var(--blood) 26%, transparent); transform: rotate(18deg); animation: about-frame-arrive 1.8s var(--about-ease) both; }
 .about-hero__copy { display: grid; gap: 1.35rem; }
 .about-hero h1 { max-width: 10ch; font-size: clamp(3.1rem, 8vw, 7.5rem); letter-spacing: -.065em; }
 .about-hero h1:focus-visible, .about-team:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: .35rem; }
 .about-hero__lede { max-width: 62ch; margin: 0; color: var(--dim-ash); font-size: clamp(1.08rem, 1.8vw, 1.35rem); line-height: 1.65; }
 .about-hero__mark { display: grid; place-items: center; gap: 1rem; align-self: stretch; padding: 1.25rem; border-left: 1px solid color-mix(in oklch, var(--blood) 36%, var(--soot)); color: var(--dim-ash); font-size: .78rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
-.about-hero__mark img { width: min(100%, 24rem); height: auto; }
+.about-hero__mark img { width: min(100%, 24rem); height: auto; transform-origin: 50% 60%; transition: transform .5s var(--about-ease); }
 .about-intro { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: clamp(2rem, 7vw, 7rem); align-items: start; }
 .about-intro__copy { display: grid; gap: 1.15rem; padding-top: .35rem; }
 .about-intro__copy p { max-width: 68ch; margin: 0; color: var(--dim-ash); font-size: 1.08rem; line-height: 1.8; }
@@ -189,6 +199,45 @@ mat-expansion-panel .mat-expansion-panel-header { background: color-mix(in oklch
 .about-contact__details p { display: grid; gap: .25rem; margin: 0; padding-bottom: 1rem; border-bottom: 1px solid var(--soot); }
 .about-contact__details span { color: var(--steel); font-size: .72rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .about-contact__details strong { color: var(--ash); line-height: 1.4; }
+@media (hover: hover) and (pointer: fine) {
+  .about-route .home-primary-action:hover, .about-route .secondary-action:hover { transform: translateY(-2px); box-shadow: 0 12px 28px oklch(4% .012 29 / .42); }
+  .about-hero__mark:hover img { transform: translateY(-.35rem) rotate(1deg) scale(1.025); }
+  .about-numbers div, .about-numbers dt { transition: transform .32s var(--about-ease); }
+  .about-numbers div:hover { transform: translateY(-.3rem); background: color-mix(in oklch, var(--blood) 8%, transparent); }
+  .about-numbers div:hover dt { color: oklch(76% .16 25); transform: translateX(.2rem); }
+  .about-weekly, .about-weekly__date { transition: transform .4s var(--about-ease); }
+  .about-weekly:hover { transform: translateY(-.2rem); border-color: color-mix(in oklch, var(--blood) 78%, var(--soot)); }
+  .about-weekly:hover .about-weekly__date { transform: rotate(-2deg) scale(1.04); border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 25%, var(--forge)); }
+  .about-event { transition: transform .5s var(--about-ease); }
+  .about-event img { transition: transform .75s var(--about-ease); }
+  .about-event__copy { transition: transform .5s var(--about-ease); }
+  .about-event:hover { transform: translateY(-.45rem); border-color: color-mix(in oklch, var(--blood) 64%, var(--soot)); }
+  .about-event:hover img { transform: translate3d(-.7rem, .5rem, 0) rotate(-1.5deg) scale(1.045); }
+  .about-event--ice:hover img { transform: translate3d(-.7rem, .5rem, 0) rotate(1.5deg) scale(1.045); }
+  .about-event:hover .about-event__copy { transform: translateY(-.25rem); }
+  .about-formats li { transition: transform .3s var(--about-ease); }
+  .about-formats li:hover { transform: translateY(-.25rem); background: color-mix(in oklch, var(--blood) 10%, var(--iron)); }
+  .about-formats li:hover strong { color: oklch(78% .15 27); }
+  .about-person, .about-contributor, .about-person__portrait span, .about-contributor__portrait { transition: transform .38s var(--about-ease); }
+  .about-person:hover, .about-contributor:hover { transform: translateY(-.3rem); border-color: color-mix(in oklch, var(--blood) 60%, var(--soot)); }
+  .about-person:hover .about-person__portrait { background-color: color-mix(in oklch, var(--blood) 10%, var(--black-metal)); }
+  .about-person:hover .about-person__portrait span { color: var(--ash); transform: scale(1.08); }
+  .about-contributor:hover .about-contributor__portrait { transform: rotate(-3deg) scale(1.05); border-color: var(--blood); color: var(--ash); }
+  .about-contact__details p { transition: transform .3s var(--about-ease); }
+  .about-contact__details p:hover { transform: translateX(.4rem); border-color: color-mix(in oklch, var(--blood) 70%, var(--soot)); }
+}
+@keyframes about-frame-arrive { from { transform: rotate(8deg) scale(.9); } to { transform: rotate(26deg) scale(1.04); } }
+@media (prefers-reduced-motion: reduce) {
+  .about-route *, .about-route *::before, .about-route *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; }
+  .about-motion-ready [data-reveal] { opacity: 1; translate: none; scale: 1; transition: none; }
+  .about-hero::before { animation: none; }
+  .about-route .home-primary-action:active, .about-route .secondary-action:active,
+  .about-route .home-primary-action:hover, .about-route .secondary-action:hover, .about-hero__mark:hover img,
+  .about-numbers div:hover, .about-numbers div:hover dt, .about-weekly:hover, .about-weekly:hover .about-weekly__date,
+  .about-event:hover, .about-event:hover img, .about-event:hover .about-event__copy, .about-formats li:hover,
+  .about-person:hover, .about-person:hover .about-person__portrait span, .about-contributor:hover,
+  .about-contributor:hover .about-contributor__portrait, .about-contact__details p:hover { transform: none; }
+}
 .calendar-page { gap: .55rem; }
 .calendar-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .75rem; margin-bottom: -.25rem; }
 .calendar-month-controls { grid-column: 2; display: inline-flex; align-items: center; justify-content: center; gap: .75rem; }

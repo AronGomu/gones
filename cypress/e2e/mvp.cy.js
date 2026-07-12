@@ -4,7 +4,9 @@ describe("Gones Angular MVP", () => {
     cy.visit("/");
     cy.get('[data-cy="menu-about-link"]').should("have.attr", "href", "/about").click();
     cy.location("pathname").should("eq", "/about");
-    cy.contains("h1", "Le Legacy se joue à Lyon.").should("be.focused");
+    cy.contains("h1", "Le Legacy se joue à Lyon.").should("be.focused").and("have.class", "is-visible");
+    cy.get(".about-route").should("have.class", "about-motion-ready");
+    cy.get(".about-intro__copy").scrollIntoView().should("have.class", "is-visible");
     cy.contains("h2", "Fire & Ice");
     cy.get(".about-person").should("have.length", 8).and("contain", "Gregory Millon").and("contain", "Simon");
     cy.get(".about-contributor").should("have.length", 3);
@@ -20,6 +22,26 @@ describe("Gones Angular MVP", () => {
         expect(doc.documentElement.scrollWidth, `${label} page width`).to.be.at.most(doc.documentElement.clientWidth);
       });
     }
+  });
+
+  it("keeps About content static when reduced motion is preferred", () => {
+    const emulateReducedMotion = (value) => Cypress.automation("remote:debugger:protocol", {
+      command: "Emulation.setEmulatedMedia",
+      params: { features: [{ name: "prefers-reduced-motion", value }] }
+    });
+
+    cy.then(() => emulateReducedMotion("reduce"));
+    cy.visit("/about");
+    cy.get(".about-route").should("have.class", "about-motion-ready");
+    cy.get("[data-reveal]").first().should("be.visible").and(($element) => {
+      const styles = getComputedStyle($element[0]);
+      expect(styles.opacity).to.eq("1");
+      expect(parseFloat(styles.transitionDuration)).to.be.at.most(0.00001);
+    });
+    cy.get(".about-hero").should(($hero) => {
+      expect(getComputedStyle($hero[0], "::before").animationName).to.eq("none");
+    });
+    cy.then(() => emulateReducedMotion("no-preference"));
   });
 
   it("imports a League from the header", () => {
