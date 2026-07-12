@@ -4,15 +4,62 @@ describe("Gones Angular MVP", () => {
     cy.visit("/");
     cy.get('[data-cy="menu-about-link"]').should("have.attr", "href", "/about").click();
     cy.location("pathname").should("eq", "/about");
-    cy.contains("h1", "Le Legacy se joue à Lyon.").should("be.focused").and("have.class", "is-visible");
+    cy.contains("h1", "Le Legacy se joue à Lyon.").should("not.be.focused").and("have.class", "is-visible").and(($title) => {
+      const styles = getComputedStyle($title[0]);
+      expect(styles.outlineStyle).to.eq("none");
+      expect(styles.boxShadow).to.eq("none");
+    });
     cy.get(".about-route").should("have.class", "about-motion-ready");
-    cy.get(".about-intro__copy").scrollIntoView().should("have.class", "is-visible");
+    cy.document().should((doc) => {
+      expect(getComputedStyle(doc.documentElement).scrollBehavior).to.eq("smooth");
+    });
+    cy.contains("a", "Rencontrer l’équipe").click();
+    cy.location("hash").should("eq", "#equipe");
+    cy.get("#equipe").should("be.focused").and(($team) => {
+      expect($team[0].getBoundingClientRect().top).to.be.within(100, 160);
+    });
+    cy.get(".about-intro__copy").scrollIntoView().should("have.class", "is-visible")
+      .and("contain", "Beer & Magic");
+    cy.contains("h2", "Faire vivre une communauté autour du Legacy.");
+    cy.contains(".about-numbers", "≈ 20 à 30").should("contain", "Joueurs par tournoi");
+    cy.contains(".about-numbers", "1 format").should("contain", "Le Legacy");
+    cy.contains(".about-weekly", "Le Legacy du Jeudi Soir");
+    cy.contains("#weekly-title", "Le Rendez-vous qui ne se rate pas !");
     cy.contains("h2", "Fire & Ice");
-    cy.get(".about-person").should("have.length", 8).and("contain", "Gregory Millon").and("contain", "Simon");
+    cy.get(".about-events__fire").invoke("css", "color").then((fireColor) => {
+      cy.get(".about-event--fire h3").should("have.css", "color", fireColor);
+      cy.get(".about-events__ice").invoke("css", "color").then((iceColor) => {
+        expect(iceColor).not.to.eq(fireColor);
+        cy.get(".about-event--ice h3").should("have.css", "color", iceColor);
+      });
+    });
+    cy.get(".about-event--fire").should(($event) => {
+      expect(getComputedStyle($event[0], "::before").backgroundImage).to.contain("radial-gradient");
+    });
+    cy.contains("h3", "Les formats jouables aux Fire & Ice");
+    cy.get(".about-format-link").should("have.length", 5).each(($link) => {
+      expect($link).to.have.attr("target", "_blank");
+      expect($link).to.have.attr("rel", "noopener noreferrer");
+    });
+    cy.get(".about-person").should("have.length", 9).and("contain", "Gregory Millon").and("contain", "Edouart").and("contain", "Simon");
+    cy.get(".about-person h4").then(($names) => {
+      expect([...$names].map((element) => element.textContent.trim())).to.deep.eq([
+        "Gregory Millon", "Ganesh", "Edouart", "Alexandre Noir", "Chowchow", "Lukas", "Nathan Flachaire", "Yoan", "Simon"
+      ]);
+    });
     cy.get(".about-contributor").should("have.length", 3);
+    cy.get(".about-contact").should("not.contain", "Retour au menu");
+    cy.get('.about-social-link[href="https://www.facebook.com/mtgones/"]').should("be.visible");
+    cy.get('.about-social-link[href="https://x.com/MtgOnes"]').should("be.visible");
+    cy.get('.about-social-link[href="https://discord.gg/znGRG36Kz"]').should("be.visible").and("contain", "Discord");
     cy.contains('a[href="/calendar"]', "Trouver le prochain tournoi").should("be.visible");
     cy.document().should((doc) => {
-      expect(doc.documentElement.scrollWidth, "mobile page width").to.be.at.most(doc.documentElement.clientWidth);
+      const viewportWidth = doc.documentElement.clientWidth;
+      const overflowSources = [...doc.querySelectorAll("body *")]
+        .filter((element) => element.getBoundingClientRect().right > viewportWidth + 0.5)
+        .map((element) => `${element.tagName.toLowerCase()}.${element.className}`)
+        .slice(0, 5);
+      expect(doc.documentElement.scrollWidth, `mobile page width; overflow: ${overflowSources.join(", ")}`).to.be.at.most(viewportWidth);
     });
 
     for (const [width, height, label] of [[768, 1024, "tablet"], [1280, 800, "desktop"], [1920, 1080, "ultrawide"]]) {
@@ -21,7 +68,19 @@ describe("Gones Angular MVP", () => {
       cy.document().should((doc) => {
         expect(doc.documentElement.scrollWidth, `${label} page width`).to.be.at.most(doc.documentElement.clientWidth);
       });
+      if (width === 1920) {
+        cy.get(".about-section-heading").first().should(($heading) => {
+          expect($heading[0].getBoundingClientRect().width).to.be.greaterThan(1200);
+        });
+        cy.get(".about-section-heading").first().find("p").last().should(($description) => {
+          const styles = getComputedStyle($description[0]);
+          expect($description[0].scrollHeight).to.be.at.most(parseFloat(styles.lineHeight) * 1.1);
+        });
+      }
     }
+
+    cy.get('[data-cy="about-logo-link"]').should("have.attr", "href", "/").and("have.css", "cursor", "pointer").click();
+    cy.location("pathname").should("eq", "/");
   });
 
   it("keeps About content static when reduced motion is preferred", () => {
@@ -33,6 +92,9 @@ describe("Gones Angular MVP", () => {
     cy.then(() => emulateReducedMotion("reduce"));
     cy.visit("/about");
     cy.get(".about-route").should("have.class", "about-motion-ready");
+    cy.document().should((doc) => {
+      expect(getComputedStyle(doc.documentElement).scrollBehavior).to.eq("auto");
+    });
     cy.get("[data-reveal]").first().should("be.visible").and(($element) => {
       const styles = getComputedStyle($element[0]);
       expect(styles.opacity).to.eq("1");
