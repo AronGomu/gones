@@ -14,7 +14,7 @@ import { logBoundaryError } from '../../shared/app-logger';
           <strong>Running Tournaments</strong>
           <p>Resume a saved live tournament, create a new running tournament, or delete old local drafts from one place.</p>
         </a>
-        <a class="home-destination home-destination--about" routerLink="/leagues">
+        <a class="home-destination home-destination--leagues" routerLink="/leagues">
           <strong>Leagues</strong>
           <p>Create leagues, open tournaments, enter rounds, import results, and review standings.</p>
         </a>
@@ -25,6 +25,10 @@ import { logBoundaryError } from '../../shared/app-logger';
         <a class="home-destination home-destination--settings" routerLink="/settings" data-cy="menu-settings-link">
           <strong>Settings</strong>
           <p>Manage archetype labels, import tools, and local app configuration.</p>
+        </a>
+        <a class="home-destination home-destination--about" routerLink="/about" data-cy="menu-about-link" lang="fr">
+          <strong>À propos</strong>
+          <p>Découvrez l’association lyonnaise, ses tournois Legacy, l’équipe et les grands rendez-vous Fire & Ice.</p>
         </a>
       </nav>
 

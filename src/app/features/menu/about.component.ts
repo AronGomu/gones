@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, ViewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -6,45 +6,182 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 @Component({
   standalone: true,
   imports: [RouterLink, MatButtonModule, BackButtonComponent],
+  host: { lang: 'fr' },
   template: `
-    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
-    <section class="info-page about-page" aria-labelledby="about-title">
-      <div class="info-hero">
-        <p class="kicker">About the organization</p>
-        <h1 id="about-title">Gones keeps local Magic nights legible.</h1>
-        <p>We organize Magic: The Gathering tournaments, preserve results across leagues, and give players a clear place to find standings, history, and upcoming events.</p>
-      </div>
+    <gones-back-button [link]="['/']" label="Retour au menu" position="top" />
+    <div class="about-page">
+      <section class="about-hero" aria-labelledby="about-title">
+        <div class="about-hero__copy">
+          <p class="kicker">Association lyonnaise · Magic: The Gathering</p>
+          <h1 #aboutTitle id="about-title" tabindex="-1">Le Legacy se joue à Lyon.</h1>
+          <p class="about-hero__lede">Gones réunit les passionnés de Magic autour de tournois exigeants, accueillants et mémorables — du rendez-vous du jeudi aux grands week-ends Fire & Ice.</p>
+          <div class="info-actions">
+            <a mat-flat-button class="home-primary-action" routerLink="/calendar">Voir les prochains tournois</a>
+            <a mat-stroked-button class="secondary-action" href="#equipe">Rencontrer l’équipe</a>
+          </div>
+        </div>
+        <div class="about-hero__mark" aria-hidden="true">
+          <img src="assets/gones_logo.png" alt="">
+          <span>Depuis Lyon</span>
+        </div>
+      </section>
 
-      <div class="about-layout">
-        <section class="about-manifesto" aria-labelledby="about-work-title">
-          <h2 id="about-work-title">What Gones does</h2>
-          <p>Gones exists for the practical work around a tournament: gathering players, running rounds, correcting results, publishing rankings, and keeping the story of a league intact after the last match slip is gone.</p>
-          <p>The app is the public ledger for that work. It is built so organizers can enter data from the floor and players can check where they stand without digging through chats.</p>
-        </section>
+      <section class="about-intro" aria-labelledby="association-title">
+        <div>
+          <p class="kicker">Notre association</p>
+          <h2 id="association-title">Faire vivre une communauté de joueurs, toute l’année.</h2>
+        </div>
+        <div class="about-intro__copy">
+          <p>Gones est une association française basée à Lyon. Elle organise des tournois de Magic: The Gathering avec une spécialité : le Legacy, un format historique où la maîtrise, la préparation et les choix de deck comptent à chaque ronde.</p>
+          <p>Notre ambition est simple : proposer des événements bien organisés, préserver une scène locale active et créer des rendez-vous où compétiteurs, habitués et nouveaux venus ont plaisir à se retrouver.</p>
+        </div>
+      </section>
 
-        <aside class="about-facts" aria-label="Gones principles">
-          <div><span>01</span><strong>Clear pairings</strong><p>Rounds and matches should be easy to read under event pressure.</p></div>
-          <div><span>02</span><strong>Persistent leagues</strong><p>Each tournament contributes to a larger season story.</p></div>
-          <div><span>03</span><strong>Player memory</strong><p>Statistics and match history give players useful context.</p></div>
-        </aside>
-      </div>
+      <dl class="about-numbers" aria-label="Gones en quelques chiffres">
+        <div><dt>Chaque jeudi</dt><dd>Un tournoi Legacy à Lyon</dd></div>
+        <div><dt>≈ 200</dt><dd>Joueurs sur un week-end Fire & Ice</dd></div>
+        <div><dt>5 formats</dt><dd>Legacy, Pauper, Premodern, Vintage et Duel Commander</dd></div>
+      </dl>
 
-      <section class="future-strip" aria-labelledby="future-title">
-        <h2 id="future-title">What comes next</h2>
-        <ul>
-          <li>Public calendar for upcoming tournaments.</li>
-          <li>Organization news and event announcements.</li>
-          <li>Language settings for a broader player base.</li>
-          <li>More tournament formats and community resources.</li>
+      <section class="about-weekly" aria-labelledby="weekly-title">
+        <div class="about-weekly__date" aria-hidden="true"><span>Chaque</span><strong>Jeudi</strong></div>
+        <div>
+          <p class="kicker">Le rendez-vous hebdomadaire</p>
+          <h2 id="weekly-title">Legacy tous les jeudis soir.</h2>
+          <p>Chaque semaine, la communauté lyonnaise se retrouve pour jouer, tester et progresser dans une ambiance conviviale. Consultez le calendrier pour connaître la date, l’horaire et le lieu du prochain tournoi.</p>
+        </div>
+        <a mat-stroked-button class="secondary-action" routerLink="/calendar">Ouvrir le calendrier</a>
+      </section>
+
+      <section class="about-events" aria-labelledby="events-title">
+        <header class="about-section-heading">
+          <p class="kicker">Deux saisons, un grand rendez-vous</p>
+          <h2 id="events-title">Fire & Ice</h2>
+          <p>Deux tournois multi-jours de taille intermédiaire rassemblent environ 200 joueurs le temps d’un week-end, en été comme en hiver.</p>
+        </header>
+        <div class="about-event-grid">
+          @for (event of featuredEvents; track event.name) {
+            <article [class]="'about-event about-event--' + event.theme">
+              <div class="about-event__copy">
+                <p class="kicker">{{ event.season }}</p>
+                <h3>{{ event.name }}</h3>
+                <p>{{ event.description }}</p>
+              </div>
+              <img [src]="event.image" alt="" loading="lazy" [attr.width]="event.width" [attr.height]="event.height">
+            </article>
+          }
+        </div>
+        <ul class="about-formats" aria-label="Formats joués pendant Fire and Ice">
+          <li><strong>Legacy</strong><span>Format principal</span></li>
+          <li><strong>Pauper</strong><span>Cartes communes</span></li>
+          <li><strong>Premodern</strong><span>Magic d’une autre époque</span></li>
+          <li><strong>Vintage</strong><span>La puissance sans compromis</span></li>
+          <li><strong>Duel Commander</strong><span>Commander en face-à-face</span></li>
         </ul>
       </section>
 
-      <div class="info-actions">
-        <a mat-flat-button class="home-primary-action" routerLink="/calendar">View calendar</a>
-        <a mat-stroked-button class="secondary-action" routerLink="/leagues">Open leagues</a>
-      </div>
-    </section>
-    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
+      <section id="equipe" class="about-team" aria-labelledby="team-title" tabindex="-1">
+        <header class="about-section-heading">
+          <p class="kicker">Les visages derrière Gones</p>
+          <h2 id="team-title">L’équipe de l’association</h2>
+          <p>Organiser un tournoi, c’est accueillir, arbitrer le temps, nourrir, raconter et faire vivre la communauté. Voici celles et ceux qui rendent ces rendez-vous possibles.</p>
+        </header>
+        <div class="about-team-grid">
+          @for (member of members; track member.name) {
+            <article class="about-person">
+              <div class="about-person__portrait" aria-hidden="true">
+                <span>{{ member.initials }}</span>
+                <small>Photo à venir</small>
+              </div>
+              <div class="about-person__copy">
+                <p class="about-person__role">{{ member.role }}</p>
+                <h3>{{ member.name }}</h3>
+                @if (member.detail) { <p class="about-person__detail">{{ member.detail }}</p> }
+                <p class="about-person__bio">Biographie à venir. Cet espace présentera son parcours, son rôle dans l’association et ce qui l’anime dans la communauté Magic.</p>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="about-contributors" aria-labelledby="contributors-title">
+        <header class="about-section-heading">
+          <p class="kicker">Ils contribuent aussi à l’aventure</p>
+          <h2 id="contributors-title">Contributeurs</h2>
+          <p>Partenaires, bénévoles et coups de main ponctuels participent eux aussi à la réussite des événements. Les portraits et noms seront ajoutés prochainement.</p>
+        </header>
+        <div class="about-contributor-grid">
+          @for (contributor of contributors; track contributor.name) {
+            <article class="about-contributor">
+              <div class="about-contributor__portrait" aria-hidden="true">?</div>
+              <div><h3>{{ contributor.name }}</h3><p>{{ contributor.description }}</p></div>
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="about-contact" aria-labelledby="contact-title">
+        <div>
+          <p class="kicker">La prochaine ronde commence bientôt</p>
+          <h2 id="contact-title">Retrouvez-nous à Lyon.</h2>
+          <p>Consultez les prochains rendez-vous, venez jouer un jeudi soir ou préparez votre week-end Fire & Ice.</p>
+          <div class="info-actions">
+            <a mat-flat-button class="home-primary-action" routerLink="/calendar">Trouver le prochain tournoi</a>
+            <a mat-stroked-button class="secondary-action" routerLink="/">Retour au menu</a>
+          </div>
+        </div>
+        <address class="about-contact__details">
+          <p><span>Localisation</span><strong>Lyon, France</strong></p>
+          <p><span>Contact</span><strong>Adresse e-mail à compléter</strong></p>
+          <p><span>Réseaux sociaux</span><strong>Liens à compléter</strong></p>
+        </address>
+      </section>
+    </div>
+    <gones-back-button [link]="['/']" label="Retour au menu" position="bottom" />
   `
 })
-export class AboutComponent {}
+export class AboutComponent implements AfterViewInit {
+  @ViewChild('aboutTitle') private aboutTitle?: ElementRef<HTMLHeadingElement>;
+
+  readonly featuredEvents = [
+    {
+      name: 'Fire',
+      theme: 'fire',
+      season: 'Édition d’été',
+      description: 'Un week-end de compétition au cœur de l’été, construit autour du Legacy et complété par plusieurs formats emblématiques.',
+      image: 'assets/fire-about.webp',
+      width: 1000,
+      height: 1324
+    },
+    {
+      name: 'Ice',
+      theme: 'ice',
+      season: 'Édition d’hiver',
+      description: 'Le pendant hivernal de Fire : plusieurs jours de Magic, des joueurs venus se mesurer et une programmation multi-format.',
+      image: 'assets/ice-about.webp',
+      width: 1000,
+      height: 1168
+    }
+  ] as const;
+
+  readonly members = [
+    { name: 'Gregory Millon', initials: 'GM', role: 'Fondateur', detail: '' },
+    { name: 'Ganesh', initials: 'GA', role: 'Fondateur', detail: 'Antoine — nom à compléter' },
+    { name: 'Alexandre Noir', initials: 'AN', role: 'Organisateur de tournois', detail: '' },
+    { name: 'Lucas', initials: 'LU', role: 'Community Manager', detail: 'Nom à compléter' },
+    { name: 'Chowchow', initials: 'CH', role: 'Cuisinier', detail: '' },
+    { name: 'Nathan Flachaire', initials: 'NF', role: 'Créateur de contenu média', detail: '' },
+    { name: 'Yoan', initials: 'YO', role: 'Organisateur de tournois', detail: 'Nom à compléter' },
+    { name: 'Simon', initials: 'SI', role: 'Organisateur de tournois', detail: 'Nom à compléter' }
+  ] as const;
+
+  readonly contributors = [
+    { name: 'Contributeur·rice à venir 01', description: 'Nom, portrait et contribution à compléter.' },
+    { name: 'Contributeur·rice à venir 02', description: 'Nom, portrait et contribution à compléter.' },
+    { name: 'Contributeur·rice à venir 03', description: 'Nom, portrait et contribution à compléter.' }
+  ] as const;
+
+  ngAfterViewInit(): void {
+    this.aboutTitle?.nativeElement.focus();
+  }
+}

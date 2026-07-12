@@ -19,6 +19,7 @@ import { saveJsonFile } from './shared/save-json-file';
 interface BreadcrumbItem {
   label: string;
   link?: unknown[];
+  lang?: string;
 }
 
 interface HeaderTournament {
@@ -79,7 +80,7 @@ interface HeaderTournament {
           @for (item of breadcrumbs(); track item.label + $index) {
             <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
               @if (!$last && item.link) { <a [routerLink]="item.link">{{ item.label }}</a> }
-              @else { <span [attr.data-cy]="$last ? 'breadcrumb-current' : null">{{ item.label }}</span> }
+              @else { <span [attr.data-cy]="$last ? 'breadcrumb-current' : null" [attr.lang]="item.lang">{{ item.label }}</span> }
             </li>
           }
         </ol>
@@ -176,7 +177,7 @@ export class AppComponent {
   private async buildBreadcrumbs(path: string): Promise<BreadcrumbItem[]> {
     const segments = path.split('/').filter(Boolean);
     if (!segments.length) return [{ label: 'Menu' }];
-    if (segments[0] === 'about') return [{ label: 'Menu', link: ['/'] }, { label: 'About' }];
+    if (segments[0] === 'about') return [{ label: 'Menu', link: ['/'] }, { label: 'À propos', lang: 'fr' }];
     if (segments[0] === 'calendar') return [{ label: 'Menu', link: ['/'] }, { label: 'Calendar' }];
     if (segments[0] === 'events') {
       const eventPage = segments[1] ? await this.safeGetEvent(decodeURIComponent(segments[1])) : null;

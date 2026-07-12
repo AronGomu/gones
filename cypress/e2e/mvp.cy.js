@@ -1,4 +1,27 @@
 describe("Gones Angular MVP", () => {
+  it("opens the association About page from the menu", () => {
+    cy.viewport(375, 812);
+    cy.visit("/");
+    cy.get('[data-cy="menu-about-link"]').should("have.attr", "href", "/about").click();
+    cy.location("pathname").should("eq", "/about");
+    cy.contains("h1", "Le Legacy se joue à Lyon.").should("be.focused");
+    cy.contains("h2", "Fire & Ice");
+    cy.get(".about-person").should("have.length", 8).and("contain", "Gregory Millon").and("contain", "Simon");
+    cy.get(".about-contributor").should("have.length", 3);
+    cy.contains('a[href="/calendar"]', "Trouver le prochain tournoi").should("be.visible");
+    cy.document().should((doc) => {
+      expect(doc.documentElement.scrollWidth, "mobile page width").to.be.at.most(doc.documentElement.clientWidth);
+    });
+
+    for (const [width, height, label] of [[768, 1024, "tablet"], [1280, 800, "desktop"], [1920, 1080, "ultrawide"]]) {
+      cy.viewport(width, height);
+      cy.visit("/about");
+      cy.document().should((doc) => {
+        expect(doc.documentElement.scrollWidth, `${label} page width`).to.be.at.most(doc.documentElement.clientWidth);
+      });
+    }
+  });
+
   it("imports a League from the header", () => {
     cy.visit("/leagues");
     cy.contains("button", "Sign in locally").should("not.exist");
