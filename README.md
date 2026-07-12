@@ -10,7 +10,7 @@ Gones is an Angular single-page PWA for consulting tournament League results, ex
 - Future Nest.js adapter contract in `src/app/backend/`
 - Vitest for domain/unit tests
 - Cypress for browser flows
-- Cloudflare Pages static hosting
+- GitHub Pages static hosting through GitHub Actions
 
 ## Local setup
 
@@ -35,6 +35,7 @@ If you are cutting over from any previous hosted backend, export League/Full Dat
 
 ```bash
 npm run build
+npm run build:pages
 npm run lint
 npm run test
 npm run cy:run

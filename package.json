@@ -8,6 +8,7 @@
     "cy:open": "cypress open",
     "cy:run": "cypress run",
     "build": "ng build",
+    "build:pages": "ng build --base-href /gones/ && node scripts/prepare-github-pages.mjs",
     "lint": "ng build --configuration development",
     "test": "vitest run"
   },

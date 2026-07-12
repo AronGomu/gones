@@ -19,6 +19,7 @@
             "tsConfig": "tsconfig.app.json",
             "assets": [
               { "glob": "**/*", "input": "src/assets", "output": "assets" },
+              { "glob": "**/*", "input": "src/legacy-pages", "output": "pages" },
               { "glob": "manifest.webmanifest", "input": "src", "output": "." }
             ],
             "styles": ["src/styles.css"]

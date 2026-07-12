@@ -4,23 +4,22 @@ Gones currently deploys as a static Angular PWA with frontend-only browser stora
 
 ## 1. Build and deploy
 
-Use Cloudflare Pages or any static host that can serve `dist/gones/browser`.
-
-Recommended Cloudflare settings:
+GitHub Pages is the active production host. A push to `main` triggers `.github/workflows/deploy-pages.yml`, which installs dependencies, builds the Angular app for the `/gones/` project path, uploads `dist/gones/browser`, and deploys it to the `github-pages` environment.
 
 | Setting | Value |
 | --- | --- |
-| Node version | `24` |
-| Build command | `npm ci && npm run build` |
+| Node version | `.nvmrc` |
+| Build command | `npm ci && npm run build:pages` |
 | Build output directory | `dist/gones/browser` |
+| Production URL | `https://arongomu.github.io/gones/` |
 
-No backend environment variables are required while the app uses the local frontend backend bridge.
+The Pages artifact includes a `404.html` SPA fallback for direct route refreshes. The historical `/pages/leagues.html` URL redirects to `/leagues`. No backend environment variables are required while the app uses the local frontend backend bridge.
 
 ## 2. Smoke test
 
 After deployment:
 
-1. Open `/leagues`.
+1. Open `https://arongomu.github.io/gones/leagues`.
 2. Confirm the Leagues page and header Import control load.
 3. Open the demo League.
 4. Confirm no login/account/role-management controls are visible.
