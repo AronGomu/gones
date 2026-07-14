@@ -335,6 +335,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .settings-row--wide { grid-template-columns: minmax(0, 1fr) minmax(16rem, 28rem); }
 .settings-archetype-copy { max-width: 64ch; margin: 0 0 .25rem; }
 .settings-language-field, .settings-archetype-field { width: 100%; }
+.settings-archetype-io { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
 .settings-archetype-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .75rem; align-items: start; width: 100%; }
 .settings-archetype-add button { min-height: 56px; white-space: nowrap; }
 .settings-archetype-filter { margin-top: .15rem; }

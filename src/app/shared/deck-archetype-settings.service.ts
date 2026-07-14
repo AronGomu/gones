@@ -85,6 +85,35 @@ export class DeckArchetypeSettingsService {
     });
   }
 
+  /** Merge imported names into catalog — only adds missing archetypes. */
+  async mergeArchetypes(value: unknown): Promise<{ added: number; skipped: number; total: number } | null> {
+    const incoming = parseArchetypeImportList(value);
+    if (!incoming) return null;
+
+    return this.runExclusive(() => {
+      const latest = loadDeckArchetypes();
+      const existingKeys = new Set(latest.map((item) => archetypeKey(item)));
+      let added = 0;
+      let skipped = 0;
+      const merged = [...latest];
+      for (const name of incoming) {
+        const key = archetypeKey(name);
+        if (!key) continue;
+        if (existingKeys.has(key)) {
+          skipped += 1;
+          continue;
+        }
+        existingKeys.add(key);
+        merged.push(name);
+        added += 1;
+      }
+      const next = uniqueArchetypes(merged);
+      this.archetypesSignal.set(next);
+      writeSettings(next, this.languageSignal());
+      return { added, skipped, total: next.length };
+    });
+  }
+
   async update(previousName: string, nextName: string): Promise<boolean> {
     const previousKey = archetypeKey(previousName);
     const nextArchetype = normalizeArchetypeName(nextName);
@@ -152,6 +181,19 @@ export function parseAppSettings(value: unknown): AppSettingsExport | null {
   const language = record['language'] === undefined ? 'en' : normalizeSettingsLanguage(record['language']);
   if (!language || !Array.isArray(deckArchetypes) || !deckArchetypes.every((item) => typeof item === 'string')) return null;
   return { language, deckArchetypes: uniqueArchetypes(deckArchetypes) };
+}
+
+/** Accept pure string[], `{ deckArchetypes }`, `{ archetypes }`, or full settings export. */
+export function parseArchetypeImportList(value: unknown): string[] | null {
+  if (Array.isArray(value)) {
+    if (!value.every((item) => typeof item === 'string')) return null;
+    return uniqueArchetypes(value);
+  }
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const list = record['deckArchetypes'] ?? record['archetypes'];
+  if (!Array.isArray(list) || !list.every((item) => typeof item === 'string')) return null;
+  return uniqueArchetypes(list);
 }
 
 export function normalizeArchetypeName(value: unknown): string {

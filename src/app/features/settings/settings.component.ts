@@ -1,4 +1,4 @@
-import { Component, computed, HostListener, inject, signal } from '@angular/core';
+import { Component, computed, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,10 +14,11 @@ import { collectKnownPlayerNames } from '../../domain/player-stats';
 import { playerNameKey, renamePlayerInLeague, renamePlayerInLiveTournament, samePlayerName } from '../../domain/rename-player';
 import { trimPlayerName } from '../../domain/models';
 import { I18nService } from '../../i18n/i18n.service';
-import { logBoundaryError } from '../../shared/app-logger';
+import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { archetypeKey, DeckArchetypeSettingsService, normalizeArchetypeName } from '../../shared/deck-archetype-settings.service';
+import { saveJsonFile } from '../../shared/save-json-file';
 
 @Component({
   standalone: true,
@@ -53,6 +54,12 @@ import { archetypeKey, DeckArchetypeSettingsService, normalizeArchetypeName } fr
             </mat-expansion-panel-header>
 
             <p class="muted settings-archetype-copy">{{ i18n.t('settings.deckArchetypesHelp') }}</p>
+
+            <div class="settings-archetype-io">
+              <button mat-stroked-button type="button" class="secondary-action" data-cy="settings-export-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="exportArchetypes()">{{ i18n.t('settings.exportArchetypes') }}</button>
+              <button mat-stroked-button type="button" class="settings-add-archetype-button" data-cy="settings-import-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="openArchetypeImportPicker()">{{ archetypeImporting() ? i18n.t('common.importing') : i18n.t('settings.importArchetypes') }}</button>
+              <input #archetypeImportInput class="toolbar-import-input" data-cy="settings-import-archetypes-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="archetypeImporting()" (change)="importArchetypes($event)">
+            </div>
 
             <form class="settings-archetype-add" (ngSubmit)="addArchetype()">
               <mat-form-field appearance="outline" class="settings-archetype-field">
@@ -211,10 +218,12 @@ export class SettingsComponent {
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly dialog = inject(MatDialog);
   readonly language = this.deckArchetypes.language;
+  private readonly archetypeImportInput = viewChild<ElementRef<HTMLInputElement>>('archetypeImportInput');
   readonly newArchetype = signal('');
   readonly archetypeFilter = signal('');
   readonly archetypeMessage = signal('');
   readonly archetypeSaving = signal(false);
+  readonly archetypeImporting = signal(false);
   readonly editingArchetype = signal<string | null>(null);
   readonly archetypeEdits = signal<Record<string, string>>({});
   readonly archetypes = this.deckArchetypes.archetypes;
@@ -265,6 +274,64 @@ export class SettingsComponent {
   canAddNewArchetype(): boolean {
     const archetype = normalizeArchetypeName(this.newArchetype());
     return !!archetype && !this.deckArchetypes.has(archetype);
+  }
+
+  exportArchetypes(): void {
+    const deckArchetypes = [...this.archetypes()];
+    try {
+      saveJsonFile({ deckArchetypes }, `gones-deck-archetypes-${new Date().toISOString().slice(0, 10)}.json`);
+      this.archetypeMessage.set(this.i18n.t('settings.archetypesExported', {
+        count: deckArchetypes.length,
+        plural: deckArchetypes.length === 1 ? '' : 's'
+      }));
+      logBoundaryInfo('settings.exportArchetypes', { count: deckArchetypes.length });
+    } catch (error) {
+      logBoundaryError('settings.exportArchetypes', error, { count: deckArchetypes.length });
+      this.archetypeMessage.set(this.i18n.t('settings.archetypesExportFailed'));
+    }
+  }
+
+  openArchetypeImportPicker(): void {
+    if (this.archetypeImporting()) return;
+    this.archetypeImportInput()?.nativeElement.click();
+  }
+
+  async importArchetypes(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || this.archetypeImporting()) return;
+
+    this.archetypeImporting.set(true);
+    try {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await file.text());
+      } catch {
+        this.archetypeMessage.set(this.i18n.t('settings.archetypesImportBadJson'));
+        return;
+      }
+
+      const result = await this.deckArchetypes.mergeArchetypes(parsed);
+      if (!result) {
+        this.archetypeMessage.set(this.i18n.t('settings.archetypesImportInvalid'));
+        return;
+      }
+
+      const plural = result.added === 1 ? '' : 's';
+      const pluralSkip = result.skipped === 1 ? '' : 's';
+      this.archetypeMessage.set(
+        result.added > 0
+          ? this.i18n.t('settings.archetypesImported', { added: result.added, skipped: result.skipped, plural, pluralSkip })
+          : this.i18n.t('settings.archetypesImportedNone', { skipped: result.skipped, pluralSkip })
+      );
+      logBoundaryInfo('settings.importArchetypes', { fileName: file.name, ...result });
+    } catch (error) {
+      logBoundaryError('settings.importArchetypes', error, { fileName: file.name });
+      this.archetypeMessage.set(this.i18n.t('settings.archetypesImportFailed'));
+    } finally {
+      this.archetypeImporting.set(false);
+      input.value = '';
+    }
   }
 
   async addArchetype(): Promise<void> {
