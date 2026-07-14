@@ -69,10 +69,6 @@ interface HeaderTournament {
             <button mat-flat-button class="home-primary-action" type="button" data-cy="settings-import-button" [disabled]="settingsImporting()" (click)="openSettingsImportPicker()">{{ settingsImporting() ? i18n.t('common.importing') : i18n.t('header.importSettings') }}</button>
             <input #settingsImportInput class="toolbar-import-input" data-cy="settings-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="settingsImporting()" (change)="importSettings($event)">
           </div>
-        } @else if (showHomeActions()) {
-          <div class="header-actions home-header-actions">
-            <a mat-stroked-button class="secondary-action" routerLink="/settings" data-cy="menu-settings-link">{{ i18n.t('header.settings') }}</a>
-          </div>
         }
       </mat-toolbar>
       <nav class="breadcrumb-shell breadcrumb-shell--header" [attr.aria-label]="i18n.t('nav.breadcrumb')">
@@ -113,7 +109,6 @@ export class AppComponent {
   readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
-  readonly showHomeActions = signal(this.pathOnly(this.router.url) === '/');
   readonly headerLeague = signal<PersistedLeague | null>(null);
   readonly headerTournament = signal<HeaderTournament | null>(null);
   readonly breadcrumbs = signal<BreadcrumbItem[]>([]);
@@ -138,7 +133,6 @@ export class AppComponent {
     this.showHeaderImport.set(path === '/leagues');
     this.showLiveTournamentActions.set(this.isLiveTournamentRunnerPath(path));
     this.showSettingsActions.set(path === '/settings');
-    this.showHomeActions.set(path === '/');
     if (path !== '/settings') this.settingsMessage.set('');
     this.headerLeague.set(await this.buildHeaderLeague(path));
     this.headerTournament.set(await this.buildHeaderTournament(path));
