@@ -77,7 +77,7 @@ import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.c
             <mat-panel-description>{{ t.rounds.length }} {{ t.rounds.length === 1 ? 'round' : 'rounds' }}</mat-panel-description>
           </mat-expansion-panel-header>
           @for (roundView of roundViewModels(t); track roundView.round.id) {
-            <mat-expansion-panel class="round-panel" [expanded]="false">
+            <mat-expansion-panel class="round-panel" [attr.id]="'tournament-round-' + roundView.number" [attr.data-cy]="'tournament-round-' + roundView.number" [expanded]="isRoundExpanded(roundView.number)" (opened)="setRoundExpanded(roundView.number, true)" (closed)="setRoundExpanded(roundView.number, false)">
               <mat-expansion-panel-header>
                 <mat-panel-title class="round-panel-title">Round {{ roundView.number }}</mat-panel-title>
                 <mat-panel-description>{{ roundView.round.entries.length }} entries</mat-panel-description>
@@ -181,6 +181,7 @@ export class TournamentDetailComponent {
   readonly error = signal('');
   readonly importErrors = signal<string[]>([]);
   readonly roundsExpanded = signal(false);
+  readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);
   readonly tournament = computed(() => this.currentLeague()?.tournaments.find((item) => item.id === this.tournamentId()) ?? null);
@@ -210,9 +211,34 @@ export class TournamentDetailComponent {
       this.league.set(league);
       this.leagues.set(leagues);
       this.startEdit(league);
+      this.openRoundFromQuery();
     }
     catch (error) { logBoundaryError('tournament-detail.load', error, { leagueId, tournamentId: this.tournamentId() }); this.error.set('Could not load this Tournament.'); }
     finally { this.loading.set(false); }
+  }
+
+  isRoundExpanded(roundNumber: number): boolean {
+    return this.expandedRoundNumbers().has(roundNumber);
+  }
+
+  setRoundExpanded(roundNumber: number, expanded: boolean): void {
+    const next = new Set(this.expandedRoundNumbers());
+    if (expanded) next.add(roundNumber);
+    else next.delete(roundNumber);
+    this.expandedRoundNumbers.set(next);
+  }
+
+  private openRoundFromQuery(): void {
+    const raw = this.route.snapshot.queryParamMap.get('round');
+    const roundNumber = raw ? Number(raw) : NaN;
+    if (!Number.isInteger(roundNumber) || roundNumber < 1) return;
+    const tournament = this.tournament();
+    if (!tournament || roundNumber > (tournament.rounds?.length ?? 0)) return;
+    this.roundsExpanded.set(true);
+    this.setRoundExpanded(roundNumber, true);
+    setTimeout(() => {
+      document.getElementById(`tournament-round-${roundNumber}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
   }
 
   startEdit(league = this.league()): void {

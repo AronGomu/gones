@@ -333,7 +333,82 @@ describe("Gones Angular MVP", () => {
     cy.get("button.back-button").should("have.length", 2);
     cy.contains("Played Matches");
     cy.contains("No Matches.");
+    cy.get('[data-cy="player-scroll-top-button"]').should("be.visible").and("have.attr", "aria-label", "Back to top");
     cy.get("button.back-button").first().click();
     cy.location("pathname").should("eq", "/leagues");
+  });
+
+  it("styles player match history and deep-links into the tournament round", () => {
+    const league = {
+      id: "player-stats-league",
+      name: "Player Stats League",
+      status: "active",
+      documentVersion: 1,
+      updatedAt: "2026-06-10T00:00:00.000Z",
+      tournaments: [{
+        id: "player-stats-tournament",
+        leagueId: "player-stats-league",
+        name: "Player Stats Open",
+        tournamentDate: "2026-06-10",
+        rounds: [
+          {
+            id: "round-1",
+            entries: [
+              { kind: "match", id: "m1", table: "1", player1Name: "Alice", player2Name: "Bob", player1Score: 2, player2Score: 0, player1DeckArchetype: "", player2DeckArchetype: "" },
+              { kind: "match", id: "m2", table: "2", player1Name: "Carol", player2Name: "Dave", player1Score: 2, player2Score: 1, player1DeckArchetype: "", player2DeckArchetype: "" }
+            ]
+          },
+          {
+            id: "round-2",
+            entries: [
+              { kind: "match", id: "m3", table: "1", player1Name: "Alice", player2Name: "Bob", player1Score: 0, player2Score: 2, player1DeckArchetype: "", player2DeckArchetype: "" },
+              { kind: "match", id: "m4", table: "2", player1Name: "Alice", player2Name: "Carol", player1Score: 1, player2Score: 1, player1DeckArchetype: "", player2DeckArchetype: "" }
+            ]
+          }
+        ]
+      }]
+    };
+
+    cy.visit("/players/Alice", {
+      onBeforeLoad(win) {
+        win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({ version: 1, leagues: [league] }));
+      }
+    });
+
+    cy.get('[data-cy="player-name"]').should("contain", "Alice");
+    cy.get('[data-cy="stat-played-matches"]').should("contain", "3");
+    cy.get('[data-cy="stat-match-winrate"]').should("have.class", "stat-number--low").and("contain", "33%");
+    cy.get('[data-cy="stat-game-winrate"]').should("have.class", "stat-number--low");
+    cy.get('[data-cy="stat-nemesis"]').should("contain", "Bob").and("have.class", "stat-filter-button--nemesis");
+    cy.get('[data-cy="stat-rival"]').should("contain", "Bob").and("have.class", "stat-filter-button--nemesis").and("not.have.class", "stat-filter-button--rival");
+
+    cy.get('[data-cy="match-card"]').should("have.length", 3);
+    cy.get('[data-cy="match-card"].match-card--win').should("exist");
+    cy.get('[data-cy="match-card"].match-card--loss').should("exist");
+    cy.get('[data-cy="match-card"].match-card--draw').should("exist");
+    cy.get('[data-cy="match-card"].match-card--draw').should("not.have.class", "match-card--loss");
+
+    cy.get('[data-cy="match-card"]').contains('[data-cy="match-opponent"]', "Bob").first()
+      .should("have.class", "match-card__opponent--nemesis");
+
+    cy.get('[data-cy="match-order-toggle"]').should("contain", "Newest first").and("contain", "↓").click();
+    cy.get('[data-cy="match-order-toggle"]').should("contain", "Oldest first").and("contain", "↑");
+
+    cy.get('[data-cy="match-filter-input"]').type("Draw");
+    cy.get('[data-cy="match-card"]').should("have.length", 1).and("have.class", "match-card--draw");
+    cy.get('[data-cy="match-filter-clear"]').should("be.visible").click();
+    cy.get('[data-cy="match-filter-input"]').should("have.value", "");
+    cy.get('[data-cy="match-card"]').should("have.length", 3);
+
+    cy.get('[data-cy="match-card"]').contains('[data-cy="match-round"]', "Round 2").parents('[data-cy="match-card"]').first().click();
+    cy.location("pathname").should("eq", "/leagues/player-stats-league/tournaments/player-stats-tournament");
+    cy.location("search").should("eq", "?round=2");
+    cy.get('[data-cy="tournament-detail-page"]').should("be.visible");
+    cy.get('[data-cy="tournament-round-2"]').should("have.class", "mat-expanded");
+    cy.get('[data-cy="tournament-round-2"]').should(($panel) => {
+      const rect = $panel[0].getBoundingClientRect();
+      expect(rect.top).to.be.lessThan(window.innerHeight);
+      expect(rect.bottom).to.be.greaterThan(0);
+    });
   });
 });
