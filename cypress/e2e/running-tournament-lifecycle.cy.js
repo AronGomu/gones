@@ -251,8 +251,7 @@ function assertPreviousStepsAreCollapsedAndDisabled() {
     for (const round of previousStandingRounds) {
       cy.get(`[data-cy="live-standing-step"][data-round="${round.roundNumber}"]`).should("not.have.class", "mat-expanded").within(() => {
         cy.get("mat-expansion-panel-header").click();
-        cy.get('[data-cy="live-restore-standing-button"]').should("be.disabled");
-        cy.get('[data-cy="live-cancel-standings-button"]').should("be.disabled");
+        cy.get('[data-cy="live-standing-actions-button"]').should("be.disabled");
         cy.get('[data-cy="live-standing-add-player-form"]').should("not.exist");
         cy.get('[data-cy="live-standing-drop-player-button"]').should("not.exist");
       });
@@ -365,6 +364,7 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="live-validate-round-button"]').should("be.enabled").click();
     confirmDialogAction("Validate Round");
     cy.get('[data-cy="live-standings-table"]').should("be.visible");
+    cy.get('[data-cy="live-standing-actions-button"]').click();
     cy.get('[data-cy="live-cancel-standings-button"]').click();
     assertScoreStepperLimits(1);
 
@@ -384,8 +384,10 @@ describe("Running tournament lifecycle", () => {
     cy.get('[data-cy="live-match-row"]').should("have.length", 4);
     cy.get('[data-cy="live-validate-round-button"]').click();
     cy.get('[data-cy="live-standings-table"]').should("be.visible");
+    cy.get('[data-cy="live-standing-actions-button"]').click();
     cy.get('[data-cy="live-cancel-standings-button"]').click();
     cy.get('[data-cy="live-match-row"]').should("have.length", 4);
+    cy.get('[data-cy="live-pairing-actions-button"]').click();
     cy.get('[data-cy="live-cancel-round-button"]').click();
     cy.get('[data-cy="live-match-row"]').should("not.exist");
 

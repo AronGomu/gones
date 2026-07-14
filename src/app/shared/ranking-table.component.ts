@@ -1,6 +1,7 @@
 import { Component, Input, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatTableModule } from '@angular/material/table';
+import { formatPlayerWithArchetype } from '../domain/models';
 import { RankingRow } from '../domain/results';
 import { I18nService } from '../i18n/i18n.service';
 
@@ -31,13 +32,26 @@ let nextRankingTableId = 0;
           <div class="table-wrap">
             <table mat-table [dataSource]="rows" class="ranking-table" data-cy="ranking-table">
               <ng-container matColumnDef="rank"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.rank') }}</th><td mat-cell *matCellDef="let row">{{ row.rank }}</td></ng-container>
-              <ng-container matColumnDef="player"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.player') }}</th><td mat-cell *matCellDef="let row"><a [routerLink]="['/players', row.playerName]">{{ row.playerName }}</a></td></ng-container>
+              <ng-container matColumnDef="player"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.player') }}</th><td mat-cell *matCellDef="let row"><a [routerLink]="['/players', row.playerName]">{{ playerLabel(row) }}</a></td></ng-container>
               <ng-container matColumnDef="points"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.pts') }}</th><td mat-cell *matCellDef="let row">{{ row.points }}</td></ng-container>
               <ng-container matColumnDef="record"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.record') }}</th><td mat-cell *matCellDef="let row"><span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">{{ i18n.t('ranking.bye', { count: row.byes }) }}</span> }</td></ng-container>
               <ng-container matColumnDef="omw"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.omw') }}</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td></ng-container>
               <ng-container matColumnDef="gw"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.gw') }}</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.gameWinPercentage) }}</td></ng-container>
               <ng-container matColumnDef="ogw"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.ogw') }}</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.opponentsGameWinPercentage) }}</td></ng-container>
-              <tr mat-header-row *matHeaderRowDef="columns"></tr>
+              <tr
+                mat-header-row
+                *matHeaderRowDef="columns"
+                class="ranking-table__header-row"
+                tabindex="0"
+                role="button"
+                [attr.aria-expanded]="!collapsed"
+                [attr.aria-controls]="panelId"
+                [attr.aria-label]="collapsed ? i18n.t('ranking.expand') : i18n.t('ranking.collapse')"
+                data-cy="ranking-table-header-toggle"
+                (click)="toggleCollapsed()"
+                (keydown.enter)="toggleCollapsed()"
+                (keydown.space)="$event.preventDefault(); toggleCollapsed()"
+              ></tr>
               <tr
                 mat-row
                 *matRowDef="let row; columns: columns"
@@ -77,6 +91,10 @@ export class RankingTableComponent {
 
   openPlayerStats(row: RankingRow): void {
     void this.router.navigate(['/players', row.playerName]);
+  }
+
+  playerLabel(row: RankingRow): string {
+    return formatPlayerWithArchetype(row.playerName, row.archetype ?? '');
   }
 
   formatPercentage(value: number | null | undefined): string {

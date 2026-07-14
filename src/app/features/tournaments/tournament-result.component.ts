@@ -3,7 +3,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { PersistedLeague, TournamentDocument } from '../../domain/models';
+import { formatPlayerWithArchetype, PersistedLeague, TournamentDocument } from '../../domain/models';
 import { ArchetypeShare, buildTournamentSummary, TournamentSummary } from '../../domain/tournament-summary';
 import { logBoundaryError } from '../../shared/app-logger';
 import { I18nService } from '../../i18n/i18n.service';
@@ -33,12 +33,12 @@ import { I18nService } from '../../i18n/i18n.service';
           @if (page() === 'standings') {
             <section class="result-panel result-standings" [attr.aria-label]="i18n.t('result.standings')">
               <table>
-                <thead><tr><th>#</th><th>{{ i18n.t('common.player') }}</th><th>{{ i18n.t('result.archetype') }}</th><th>{{ i18n.t('common.record') }}</th></tr></thead>
+                <thead><tr><th>#</th><th>{{ i18n.t('common.player') }}</th><th>{{ i18n.t('common.record') }}</th></tr></thead>
                 <tbody>
                   @for (row of topStandingRows(); track row.playerName) {
-                    <tr><td class="rank">{{ row.rank }}</td><td><strong>{{ row.playerName }}</strong></td><td>{{ row.archetype }}</td><td>{{ row.record }}</td></tr>
+                    <tr><td class="rank">{{ row.rank }}</td><td><strong>{{ playerLabel(row.playerName, row.archetype) }}</strong></td><td>{{ row.record }}</td></tr>
                   } @empty {
-                    <tr><td colspan="4" class="empty">{{ i18n.t('result.noValidResults') }}</td></tr>
+                    <tr><td colspan="3" class="empty">{{ i18n.t('result.noValidResults') }}</td></tr>
                   }
                 </tbody>
               </table>
@@ -115,11 +115,13 @@ export class TournamentResultComponent {
 
   constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
 
+  playerLabel(playerName: string, archetype: string): string {
+    return formatPlayerWithArchetype(playerName, archetype);
+  }
+
   formatTournamentDate(value: string): string {
     if (!value) return this.i18n.t('common.noDate');
-    const parsed = parseDateInputValue(value);
-    if (!parsed) return value;
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
+    return this.i18n.formatDate(value, { dateStyle: 'long' });
   }
 
   async downloadResultImage(): Promise<void> {
@@ -175,13 +177,6 @@ interface MetagameBar {
   percentageValue: number;
   percentageLabel: string;
   ariaLabel: string;
-}
-
-function parseDateInputValue(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-  const [, year, month, day] = match;
-  return new Date(Number(year), Number(month) - 1, Number(day));
 }
 
 function buildMetagameBars(shares: ArchetypeShare[]): MetagameBar[] {

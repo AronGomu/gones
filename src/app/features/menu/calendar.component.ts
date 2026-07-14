@@ -156,7 +156,7 @@ export class CalendarComponent implements OnInit {
   readonly deletingEventId = signal('');
   readonly error = signal('');
   readonly visibleMonth = signal(startOfMonth(new Date()));
-  readonly monthLabel = computed(() => this.visibleMonth().toLocaleDateString(undefined, { month: 'long', year: 'numeric' }));
+  readonly monthLabel = computed(() => this.i18n.formatDate(this.visibleMonth(), { month: 'long', year: 'numeric' }));
   readonly upcomingEvents = computed(() => this.events().filter((event) => event.eventDate >= todayDateInputValue()));
   readonly monthDays = computed(() => buildMonthDays(this.visibleMonth(), this.events()));
   private loadRequest = 0;
@@ -321,12 +321,24 @@ export class CalendarComponent implements OnInit {
 
   normalizeSlugInput(value: string): string { return normalizeSlug(value); }
   eventLocation(event: CalendarEventDocument): string { return [event.address, event.city, event.country].filter(Boolean).join(', ') || event.location; }
-  dayLabel(day: CalendarDay): string { return this.i18n.t('calendar.dayLabel', { date: new Date(`${day.date}T00:00:00`).toLocaleDateString(this.i18n.locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), count: day.events.length, eventsWord: day.events.length === 1 ? this.i18n.t('calendar.eventWord') : this.i18n.t('calendar.eventsWord') }); }
-  addEventLabel(day: CalendarDay): string { return this.i18n.t('calendar.addEventLabel', { date: new Date(`${day.date}T00:00:00`).toLocaleDateString(this.i18n.locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }); }
+  dayLabel(day: CalendarDay): string {
+    return this.i18n.t('calendar.dayLabel', {
+      date: this.i18n.formatDate(day.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
+      count: day.events.length,
+      eventsWord: day.events.length === 1 ? this.i18n.t('calendar.eventWord') : this.i18n.t('calendar.eventsWord')
+    });
+  }
+  addEventLabel(day: CalendarDay): string {
+    return this.i18n.t('calendar.addEventLabel', {
+      date: this.i18n.formatDate(day.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    });
+  }
   editEventLabel(event: CalendarEventDocument): string { return this.i18n.t('calendar.editEventLabel', { title: event.title, date: event.eventDate, time: event.startTime ? this.i18n.t('calendar.editEventAt', { time: event.startTime }) : '' }); }
   downloadEventLabel(event: CalendarEventDocument): string { return this.i18n.t('calendar.downloadEventLabel', { title: event.title }); }
   deleteEventLabel(event: CalendarEventDocument): string { return this.i18n.t('calendar.deleteEventLabel', { title: event.title }); }
-  eventMonth(event: CalendarEventDocument): string { return monthShort(event.eventDate); }
+  eventMonth(event: CalendarEventDocument): string {
+    return this.i18n.formatDate(event.eventDate, { month: 'short' });
+  }
   eventDay(event: CalendarEventDocument): string { return String(new Date(`${event.eventDate}T00:00:00`).getDate()).padStart(2, '0'); }
   eventTime(event: CalendarEventDocument): string { return event.startTime ? `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : this.i18n.t('common.allDay'); }
 
@@ -366,4 +378,4 @@ function startOfMonth(date: Date): Date { return new Date(date.getFullYear(), da
 function addMonths(date: Date, count: number): Date { return new Date(date.getFullYear(), date.getMonth() + count, 1); }
 function toDateInputValue(date: Date): string { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
 function todayDateInputValue(): string { return toDateInputValue(new Date()); }
-function monthShort(date: string): string { return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { month: 'short' }); }
+

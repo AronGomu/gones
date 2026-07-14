@@ -6,7 +6,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { GonesData, GONES_DATA_VERSION, PersistedLeague } from '../../domain/models';
+import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { I18nService } from '../../i18n/i18n.service';
@@ -23,12 +23,46 @@ interface HighlightPart {
     <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="top" />
     <section class="page-heading"><div><p class="kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
     <div class="stat-grid" data-cy="player-stat-grid">
-      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.playedMatches') }}</mat-card-title><mat-card-content class="stat-number" data-cy="stat-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.byes') }}</mat-card-title><mat-card-content class="stat-number" data-cy="stat-byes">{{ stats().byeCount }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.matchWinRate') }}</mat-card-title><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="stat-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.gameWinRate') }}</mat-card-title><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="stat-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.nemesis') }}</mat-card-title><mat-card-content>@if (stats().nemesis; as nemesis) { <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" (click)="filterByExact(nemesis)">{{ nemesis }}</button> } @else { <span data-cy="stat-nemesis">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.rival') }}</mat-card-title><mat-card-content>@if (stats().rival; as rival) { <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival === stats().nemesis" [class.stat-filter-button--rival]="rival !== stats().nemesis" data-cy="stat-rival" (click)="filterByExact(rival)">{{ rival }}</button> } @else { <span data-cy="stat-rival">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card>
+      <div class="stat-grid__row stat-grid__row--numbers">
+        <div class="player-stat-cell">
+          <p class="player-stat-label">{{ i18n.t('player.playedMatches') }}</p>
+          <mat-card class="player-stat-card"><mat-card-content class="stat-number" data-cy="stat-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card>
+        </div>
+        <div class="player-stat-cell">
+          <p class="player-stat-label">{{ i18n.t('player.matchWinRate') }}</p>
+          <mat-card class="player-stat-card"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="stat-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card>
+        </div>
+        <div class="player-stat-cell">
+          <p class="player-stat-label">{{ i18n.t('player.gameWinRate') }}</p>
+          <mat-card class="player-stat-card"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="stat-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card>
+        </div>
+      </div>
+      <div class="stat-grid__row stat-grid__row--names">
+        <div class="player-stat-cell">
+          <p class="player-stat-label">{{ i18n.t('player.nemesis') }}</p>
+          <mat-card class="player-stat-card">
+            <mat-card-content class="player-stat-card__name">
+              @if (stats().nemesis; as nemesis) {
+                <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" [attr.title]="nemesis" [attr.aria-label]="nemesis" (click)="filterByExact(nemesis)">{{ nemesis }}</button>
+              } @else {
+                <span data-cy="stat-nemesis">{{ i18n.t('common.na') }}</span>
+              }
+            </mat-card-content>
+          </mat-card>
+        </div>
+        <div class="player-stat-cell">
+          <p class="player-stat-label">{{ i18n.t('player.rival') }}</p>
+          <mat-card class="player-stat-card">
+            <mat-card-content class="player-stat-card__name">
+              @if (stats().rival; as rival) {
+                <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival === stats().nemesis" [class.stat-filter-button--rival]="rival !== stats().nemesis" data-cy="stat-rival" [attr.title]="rival" [attr.aria-label]="rival" (click)="filterByExact(rival)">{{ rival }}</button>
+              } @else {
+                <span data-cy="stat-rival">{{ i18n.t('common.na') }}</span>
+              }
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
     </div>
     <section class="stack">
       <div class="matches-heading">
@@ -65,7 +99,7 @@ interface HighlightPart {
           <mat-card-title>
             <span class="match-card__line match-card__line--meta">
               <button type="button" class="match-filter-token match-card__date" data-cy="match-date" (click)="filterByExact(matchDateLabel(match), $event)">@for (part of highlightParts(matchDateReadable(match)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
-              <button type="button" class="match-filter-token match-card__league" data-cy="match-league" (click)="filterByExact(match.league.name, $event)">@for (part of highlightParts(match.league.name); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
+              <button type="button" class="match-filter-token match-card__league" data-cy="match-league" (click)="filterByExact(leagueDisplayName(match.league), $event)">@for (part of highlightParts(leagueDisplayName(match.league)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
               <button type="button" class="match-filter-token match-card__tournament" data-cy="match-tournament" (click)="filterByExact(match.tournament.name, $event)">@for (part of highlightParts(match.tournament.name); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
               <button type="button" class="match-filter-token match-card__round" data-cy="match-round" (click)="filterByExact(matchRoundLabel(match), $event)">@for (part of highlightParts(matchRoundLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
             </span>
@@ -100,15 +134,116 @@ interface HighlightPart {
     </footer>
   `,
   styles: [`
-    .stat-grid { margin-top: 1.1rem; margin-bottom: 1.35rem; }
-    .player-stat-card { display: flex; flex-direction: column; border: 1px solid #000; }
-    .player-stat-card mat-card-title { margin: .35rem .5rem 0; text-align: left; }
-    .player-stat-card mat-card-content { flex: 1; display: flex; align-items: center; justify-content: center; color: oklch(86% 0.16 82); font-size: clamp(1.65rem, 4vw, 2.35rem); font-weight: 900; line-height: 1.1; text-align: center; }
-    .player-stat-card mat-card-content.stat-number { font-size: clamp(2.4rem, 7vw, 4rem); }
+    .stat-grid {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1.1rem;
+      margin-bottom: 1.35rem;
+      width: 100%;
+      min-width: 0;
+    }
+    .stat-grid__row {
+      display: grid;
+      gap: 1rem;
+      width: 100%;
+      min-width: 0;
+      align-items: stretch;
+    }
+    .stat-grid__row--numbers {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .stat-grid__row--names {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .player-stat-cell {
+      display: grid;
+      grid-template-rows: auto var(--player-stat-card-height, 6rem);
+      gap: .45rem;
+      min-width: 0;
+    }
+    .player-stat-label {
+      margin: 0;
+      min-height: 1.2em;
+      color: var(--dim-ash);
+      font-size: .78rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+      line-height: 1.2;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .player-stat-card {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: stretch;
+      box-sizing: border-box;
+      width: 100%;
+      height: var(--player-stat-card-height, 6rem);
+      min-height: var(--player-stat-card-height, 6rem);
+      max-height: var(--player-stat-card-height, 6rem);
+      border: 1px solid #000;
+      overflow: hidden;
+    }
+    .player-stat-card mat-card-content {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      padding: .65rem .7rem;
+      color: oklch(86% 0.16 82);
+      font-size: clamp(1.65rem, 4vw, 2.35rem);
+      font-weight: 900;
+      line-height: 1.1;
+      text-align: center;
+      overflow: hidden;
+    }
+    .player-stat-card mat-card-content.player-stat-card__name { padding-inline: .75rem; }
+    .player-stat-card mat-card-content.stat-number { font-size: clamp(2.2rem, 6vw, 3.6rem); }
     .player-stat-card mat-card-content.stat-number--high { color: oklch(80% 0.15 145); }
     .player-stat-card mat-card-content.stat-number--low { color: oklch(78% 0.14 25); }
     .player-stat-card mat-card-content.stat-number--even { color: #fff; }
-    .stat-filter-button { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; line-height: inherit; padding: 0; text-align: center; }
+    .stat-filter-button {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      max-width: 100%;
+      min-width: 0;
+      max-height: 2.3em;
+      padding: 0;
+      font: inherit;
+      line-height: 1.15;
+      text-align: center;
+      white-space: normal;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    @media (max-width: 900px) {
+      .stat-grid__row--numbers {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+      }
+      .stat-grid__row--names {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+      }
+    }
+    @media (max-width: 640px) {
+      .stat-grid__row--numbers,
+      .stat-grid__row--names {
+        grid-template-columns: 1fr;
+      }
+    }
     .stat-filter-button:hover, .stat-filter-button:focus-visible { text-decoration: underline; text-underline-offset: .16em; outline: none; }
     .stat-filter-button--nemesis { color: oklch(78% 0.14 25); }
     .stat-filter-button--nemesis:hover, .stat-filter-button--nemesis:focus-visible { color: oklch(84% 0.15 25); }
@@ -221,13 +356,15 @@ export class PlayerDetailComponent {
   matchDateReadable(match: PlayerMatch): string {
     const raw = match.tournament.tournamentDate;
     if (!raw) return this.i18n.t('common.noDate');
-    const parsed = parseDateOnly(raw);
-    if (!parsed) return raw;
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
+    return this.i18n.formatDate(raw, { dateStyle: 'long' });
   }
 
   matchRoundLabel(match: PlayerMatch): string { return this.i18n.t('player.roundN', { n: match.roundIndex + 1 }); }
-  matchHeaderLabel(match: PlayerMatch): string { return `${this.matchDateLabel(match)} ${match.league.name} ${match.tournament.name} ${this.matchRoundLabel(match)}`; }
+  leagueDisplayName(league: { id: string; name: string }): string {
+    return league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name;
+  }
+
+  matchHeaderLabel(match: PlayerMatch): string { return `${this.matchDateLabel(match)} ${this.leagueDisplayName(match.league)} ${match.tournament.name} ${this.matchRoundLabel(match)}`; }
   matchWinningScore(match: PlayerMatch): string { return Math.max(match.ownScore, match.opponentScore).toString(); }
   matchLosingScore(match: PlayerMatch): string { return Math.min(match.ownScore, match.opponentScore).toString(); }
   matchScoreLabel(match: PlayerMatch): string { return `${this.matchWinningScore(match)}–${this.matchLosingScore(match)}`; }
@@ -271,12 +408,6 @@ export class PlayerDetailComponent {
       this.matchScoreLabel(match),
     ].join(' ');
   }
-}
-
-function parseDateOnly(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
 
 function orderMatches(matches: PlayerMatch[], newestFirst: boolean): PlayerMatch[] {

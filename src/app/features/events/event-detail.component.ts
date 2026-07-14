@@ -68,7 +68,9 @@ export class EventDetailComponent implements OnInit {
     }
   }
 
-  formatDate(value: string): string { return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
+  formatDate(value: string): string {
+    return this.i18n.formatDate(value, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  }
   eventTime(event: CalendarEventDocument): string { return event.startTime ? `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : this.i18n.t('common.allDay'); }
   eventLocation(event: CalendarEventDocument): string { return [event.address, event.city, event.country].filter(Boolean).join(', ') || event.location; }
 }

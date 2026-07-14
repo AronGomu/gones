@@ -204,7 +204,9 @@ export class AppComponent {
 
     const leagueId = decodeURIComponent(segments[1]);
     const league = await this.safeGetLeague(leagueId);
-    const leagueLabel = league?.name || this.i18n.t('crumb.league');
+    const leagueLabel = league
+      ? (league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name)
+      : this.i18n.t('crumb.league');
     if (segments[2] !== 'tournaments' || !segments[3]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel }];
 
     const tournamentId = decodeURIComponent(segments[3]);

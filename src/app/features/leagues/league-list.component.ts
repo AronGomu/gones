@@ -38,7 +38,7 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
         @for (league of filteredLeagues(); track league.id) {
           <a class="league-card" [routerLink]="['/leagues', league.id]" data-cy="league-list-item">
             <span class="status league-card-status" [class.completed]="league.status === 'completed'"><span class="status-dot" aria-hidden="true"></span>{{ league.status === 'completed' ? i18n.t('common.completed') : i18n.t('common.active') }}</span>
-            <h2>{{ league.name }}</h2>
+            <h2>{{ leagueDisplayName(league) }}</h2>
             <p>{{ leagueMeta(league) }}</p>
             <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.view') }}</span>
           </a>
@@ -64,7 +64,7 @@ export class LeagueListComponent {
     const search = this.showLeagueFilter() ? this.searchTerm.trim().toLowerCase() : '';
     return this.leagues()
       .filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID || league.tournaments.length > 0)
-      .filter((league) => !search || league.name.toLowerCase().includes(search));
+      .filter((league) => !search || this.leagueDisplayName(league).toLowerCase().includes(search) || league.name.toLowerCase().includes(search));
   });
 
   constructor(private readonly repo: LeagueRepository, private readonly router: Router, private readonly dialog: MatDialog) {
@@ -79,6 +79,10 @@ export class LeagueListComponent {
   }
 
   playerCount(league: PersistedLeague): number { return calculateLeagueResult(league).rows.length; }
+
+  leagueDisplayName(league: PersistedLeague): string {
+    return league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name;
+  }
 
   leagueMeta(league: PersistedLeague): string {
     const tournamentCount = league.tournaments.length;

@@ -5,7 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { createTournament, LeagueDocument, PersistedLeague } from '../../domain/models';
+import { createTournament, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate } from '../../domain/results';
 import { I18nService } from '../../i18n/i18n.service';
 import { RankingTableComponent } from '../../shared/ranking-table.component';
@@ -21,7 +21,8 @@ import { BackButtonComponent } from '../../shared/back-button.component';
     @if (league(); as saved) {
       <section class="page-heading">
         <div>
-          @if (titleEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('leagues.name') }}</mat-label><input #leagueNameInput data-cy="league-name-input" matInput [(ngModel)]="leagueNameDraft" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
+          @if (titleEditing() && !isPlaceholderLeague(saved)) { <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('leagues.name') }}</mat-label><input #leagueNameInput data-cy="league-name-input" matInput [(ngModel)]="leagueNameDraft" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
+          @else if (isPlaceholderLeague(saved)) { <h1 data-cy="placeholder-league-title">{{ leagueDisplayName(saved) }}</h1> }
           @else { <h1><button #leagueTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="i18n.t('leagues.editNameAria', { name: saved.name })">{{ saved.name }}</button></h1> }
           <p class="muted">{{ i18n.t('leagues.dateRange', { count: saved.tournaments.length, start: startDate(saved) || i18n.t('leagues.noStartDate'), end: endDate(saved) || i18n.t('leagues.noEndDate') }) }}</p>
         </div>
@@ -86,9 +87,17 @@ export class LeagueDetailComponent {
   startDate(league: LeagueDocument): string { return calculateLeagueStartDate(league); }
   endDate(league: LeagueDocument): string { return calculateLeagueEndDate(league); }
 
+  isPlaceholderLeague(league: PersistedLeague): boolean {
+    return league.id === PLACEHOLDER_LEAGUE_ID;
+  }
+
+  leagueDisplayName(league: PersistedLeague): string {
+    return league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name;
+  }
+
   startTitleEdit(): void {
     const saved = this.league();
-    if (!saved || this.saving()) return;
+    if (!saved || this.saving() || this.isPlaceholderLeague(saved)) return;
     this.leagueNameDraft = saved.name;
     this.titleEditing.set(true);
     this.focusLeagueNameInput();
@@ -144,19 +153,10 @@ export class LeagueDetailComponent {
 
   formatTournamentDate(value: string): string {
     if (!value) return this.i18n.t('leagues.noTournamentDate');
-    const date = this.parseDateOnly(value);
-    if (!date) return value;
-    return this.i18n.formatDate(date, { dateStyle: 'medium' });
+    return this.i18n.formatDate(value, { dateStyle: 'medium' });
   }
 
   private validLeagueName(value: string, fallback: string): string { return String(value ?? '').trim() || fallback; }
   private focusLeagueNameInput(): void { setTimeout(() => this.leagueNameInput?.nativeElement.focus()); }
   private focusLeagueTitleButton(): void { setTimeout(() => this.leagueTitleButton?.nativeElement.focus()); }
-
-  private parseDateOnly(value: string): Date | null {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    if (!match) return null;
-    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  }
-
 }

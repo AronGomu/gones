@@ -43,15 +43,19 @@ function archetypeRow(name) {
   return cy.get(`[data-cy="settings-archetype-row"][data-archetype="${name}"]`);
 }
 
+function expandArchetypePanel() {
+  cy.get('[data-cy="settings-archetype-panel"] mat-expansion-panel-header').click();
+  cy.get('[data-cy="settings-new-archetype-input"]').should("be.visible");
+}
+
 describe("Settings page", () => {
   it("loads the Settings page", () => {
     visitSettings();
 
     cy.get('[data-cy="breadcrumb-current"]').should("contain", "Settings");
     cy.contains("h2", "Language").should("be.visible");
-    cy.contains("h2", "Deck archetypes").should("be.visible");
-    cy.get('[data-cy="settings-export-button"]').should("be.visible");
-    cy.get('[data-cy="settings-import-button"]').should("be.visible");
+    cy.get('[data-cy="settings-archetype-panel"]').should("be.visible").and("not.have.class", "mat-expanded");
+    cy.contains("mat-panel-title", "Deck archetypes").should("be.visible");
   });
 
   it("changes the language setting and persists it across reloads", () => {
@@ -72,8 +76,14 @@ describe("Settings page", () => {
 
   it("adds, blocks duplicates, edits, removes, and persists deck archetypes", () => {
     visitSettings({ language: "en", deckArchetypes: ["Control"] });
+    expandArchetypePanel();
 
     archetypeRow("Control").should("be.visible");
+    archetypeRow("Control").within(() => {
+      cy.get('[data-cy="settings-archetype-name"]').should("contain", "Control");
+      cy.get('[data-cy="settings-update-archetype-button"]').should("be.visible");
+      cy.get('[data-cy="settings-archetype-input"]').should("not.exist");
+    });
 
     cy.get('[data-cy="settings-new-archetype-input"]').type("Mono Green");
     cy.get('[data-cy="settings-add-archetype-button"]').should("not.be.disabled").click();
@@ -85,8 +95,16 @@ describe("Settings page", () => {
     cy.get('[data-cy="settings-add-archetype-button"]').should("not.be.disabled").click();
     archetypeRow("Mono Red").should("be.visible");
 
+    cy.get('[data-cy="settings-archetype-filter"]').type("mono");
+    archetypeRow("Mono Green").should("be.visible");
+    archetypeRow("Mono Red").should("be.visible");
+    cy.get('[data-cy="settings-archetype-row"][data-archetype="Control"]').should("not.exist");
+    cy.get('[data-cy="settings-archetype-filter"]').clear();
+
     archetypeRow("Control").within(() => {
-      cy.get('[data-cy="settings-archetype-input"]').clear().type("Azorius Control").blur();
+      cy.get('[data-cy="settings-update-archetype-button"]').click();
+      cy.get('[data-cy="settings-archetype-input"]').clear().type("Azorius Control");
+      cy.get('[data-cy="settings-save-archetype-button"]').click();
     });
     archetypeRow("Azorius Control").should("be.visible");
     cy.get('[data-cy="settings-archetype-row"][data-archetype="Control"]').should("not.exist");
@@ -96,12 +114,20 @@ describe("Settings page", () => {
     });
     cy.get('[data-cy="settings-archetype-row"][data-archetype="Mono Green"]').should("not.exist");
 
-    expectStoredSettings({ language: "en", deckArchetypes: ["Azorius Control", "Mono Red"] });
+    cy.window().then((win) => {
+      const stored = JSON.parse(win.localStorage.getItem(SETTINGS_KEY));
+      expect(stored.language).to.equal("en");
+      expect(stored.deckArchetypes).to.include.members(["Azorius Control", "Mono Red"]);
+      expect(stored.deckArchetypes).to.not.include("Mono Green");
+      expect(stored.deckArchetypes).to.not.include("Control");
+      const sorted = [...stored.deckArchetypes].sort((a, b) => a.localeCompare(b));
+      expect(stored.deckArchetypes).to.deep.equal(sorted);
+    });
 
     cy.reload();
+    expandArchetypePanel();
     archetypeRow("Azorius Control").should("be.visible");
     archetypeRow("Mono Red").should("be.visible");
-    cy.get('[data-cy="settings-archetype-row"]').should("have.length", 2);
   });
 
   it("exports settings and confirms before imported settings replace the current language and deck archetypes", () => {

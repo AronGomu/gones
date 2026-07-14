@@ -11,7 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
+import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
 import { archetypeForPlayer, mergeImportedRoundArchetypes, setTournamentPlayerArchetype, tournamentPlayerArchetypeRows, validateTournamentPlayerArchetypes } from '../../domain/tournament-archetypes';
 import { calculateTournamentResult } from '../../domain/results';
@@ -38,7 +38,7 @@ import { I18nService } from '../../i18n/i18n.service';
             @if (titleOnlyEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('tournament.name') }}</mat-label><input #tournamentNameInput data-cy="tournament-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
             @else { <h1><button #tournamentTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="i18n.t('tournament.editNameAria', { name: t.name })">{{ t.name }}</button></h1> }
             <mat-form-field appearance="outline" class="tournament-date-field"><mat-label>{{ i18n.t('tournament.date') }}</mat-label><input matInput type="date" [(ngModel)]="t.tournamentDate"></mat-form-field>
-            <mat-form-field appearance="outline" class="tournament-league-field"><mat-label>{{ i18n.t('tournament.league') }}</mat-label><mat-select [ngModel]="leagueId()" (ngModelChange)="moveTournamentToLeague($event)">@for (leagueOption of leagues(); track leagueOption.id) { <mat-option [value]="leagueOption.id">{{ leagueOption.name }}</mat-option> }</mat-select></mat-form-field>
+            <mat-form-field appearance="outline" class="tournament-league-field"><mat-label>{{ i18n.t('tournament.league') }}</mat-label><mat-select [ngModel]="leagueId()" (ngModelChange)="moveTournamentToLeague($event)">@for (leagueOption of leagues(); track leagueOption.id) { <mat-option [value]="leagueOption.id">{{ leagueDisplayName(leagueOption) }}</mat-option> }</mat-select></mat-form-field>
           </div>
           @if (result().provisional || result().incomplete) {
             <div class="warning">
@@ -193,6 +193,8 @@ export class TournamentDetailComponent {
   readonly warningMessages = computed(() => this.tournament() ? this.warnings().map((warning) => tournamentWarningMessage(warning, this.tournament()!, this.i18n)) : []);
   readonly leagueId = signal('');
   private readonly tournamentId = signal('');
+  private archetypePersistTimer: ReturnType<typeof setTimeout> | null = null;
+  private archetypePersistQueued = false;
   readonly leagueBackLink = computed(() => ['/leagues', this.leagueId()]);
   get roundImportPlaceholder(): string { return this.i18n.t('tournament.roundImportPlaceholder'); }
 
@@ -290,6 +292,43 @@ export class TournamentDetailComponent {
   setArchetype(playerName: string, archetype: string): void {
     this.importErrors.set([]);
     this.updateTournament((tournament) => setTournamentPlayerArchetype(tournament, playerName, archetype));
+    this.scheduleArchetypePersist();
+  }
+
+  private scheduleArchetypePersist(): void {
+    if (this.archetypePersistTimer) clearTimeout(this.archetypePersistTimer);
+    this.archetypePersistTimer = setTimeout(() => {
+      this.archetypePersistTimer = null;
+      void this.persistArchetypesNow();
+    }, 250);
+  }
+
+  private async persistArchetypesNow(): Promise<void> {
+    const saved = this.league();
+    if (!saved) return;
+    if (this.saving()) {
+      this.archetypePersistQueued = true;
+      return;
+    }
+    this.saving.set(true);
+    this.archetypePersistQueued = false;
+    const draftAtSave = this.draft();
+    try {
+      const league = await this.repo.saveLeague(draftAtSave, saved.documentVersion);
+      this.league.set(league);
+      if (this.draft() === draftAtSave) this.dirty.set(false);
+      else {
+        this.dirty.set(true);
+        this.archetypePersistQueued = true;
+      }
+      this.error.set('');
+    } catch (error) {
+      logBoundaryError('tournament-detail.persistArchetypes', error, { leagueId: saved.id, tournamentId: this.tournamentId() });
+      this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? this.i18n.t('tournament.staleSave') : this.i18n.t('tournament.saveFailed'));
+    } finally {
+      this.saving.set(false);
+      if (this.archetypePersistQueued) void this.persistArchetypesNow();
+    }
   }
   hasValidRoundImport(text: string): boolean {
     const entries = importRoundEntries(text).entries;
@@ -304,6 +343,10 @@ export class TournamentDetailComponent {
   roundViewModels(tournament: TournamentDocument): Array<{ round: RoundDocument; number: number }> {
     return tournament.rounds.map((round, index) => ({ round, number: index + 1 })).reverse();
   }
+  leagueDisplayName(league: Pick<PersistedLeague, 'id' | 'name'>): string {
+    return league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name;
+  }
+
   async moveTournamentToLeague(targetLeagueId: string): Promise<void> {
     const saved = this.league();
     const tournament = this.tournament();
@@ -399,7 +442,10 @@ function tournamentWarningMessage(warning: TournamentWarning, tournament: Tourna
   if (warning.code === 'missingBye') return i18n.t('tournament.warnMissingBye', { round: roundNumber });
   if (warning.code === 'duplicateSameRoundPlayerName') return i18n.t('tournament.warnDuplicatePlayer', { round: roundNumber, player });
   if (warning.code === 'newPlayerAfterRoundOne') return i18n.t('tournament.warnNewPlayer', { round: roundNumber, player });
-  if (warning.code === 'missingDeckArchetype') return i18n.t('tournament.warnMissingArchetype', { player });
+  if (warning.code === 'missingDeckArchetype') {
+    const players = (warning.playerNames?.length ? warning.playerNames : player ? [player] : []).join(', ');
+    return i18n.t('tournament.warnMissingArchetype', { players });
+  }
   return i18n.t('tournament.warnRepeatedPairing');
 }
 

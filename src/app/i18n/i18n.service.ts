@@ -34,7 +34,11 @@ export class I18nService {
   formatDate(value: string | Date, options?: Intl.DateTimeFormatOptions): string {
     const date = typeof value === 'string' ? parseDateInput(value) ?? new Date(value) : value;
     if (Number.isNaN(date.getTime())) return typeof value === 'string' ? value : '';
-    return new Intl.DateTimeFormat(this.locale(), options).format(date);
+    return new Intl.DateTimeFormat(this.locale(), options ?? { dateStyle: 'medium' }).format(date);
+  }
+
+  formatDateTime(value: string | Date, options?: Intl.DateTimeFormatOptions): string {
+    return this.formatDate(value, options ?? { dateStyle: 'medium', timeStyle: 'short' });
   }
 
   checkpointLabel(label: string): string {

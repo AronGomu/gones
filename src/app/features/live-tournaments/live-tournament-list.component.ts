@@ -126,18 +126,10 @@ export class LiveTournamentListComponent {
   }
 
   formatDate(value: string): string {
-    const date = this.parseDateInput(value);
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date);
+    return this.i18n.formatDate(value, { dateStyle: 'medium' });
   }
 
   formatDateTime(value: string): string {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-  }
-
-  private parseDateInput(value: string): Date {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    if (!match) return new Date(value);
-    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return this.i18n.formatDateTime(value);
   }
 }
