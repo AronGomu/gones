@@ -1,7 +1,8 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
+import { I18nService } from '../i18n/i18n.service';
 import { DeckArchetypeSettingsService, fuzzyMatchIndices, normalizeArchetypeName } from './deck-archetype-settings.service';
 
 let nextDeckArchetypeInputId = 1;
@@ -14,7 +15,7 @@ let nextDeckArchetypeInputId = 1;
     <div class="deck-archetype-input">
       <input
         [attr.id]="inputId"
-        [attr.aria-label]="label"
+        [attr.aria-label]="label || i18n.t('archetype.label')"
         autocomplete="off"
         spellcheck="false"
         [disabled]="disabled"
@@ -34,14 +35,15 @@ let nextDeckArchetypeInputId = 1;
         }
       </mat-autocomplete>
       @if (canAddCurrentValue()) {
-        <button mat-stroked-button type="button" class="deck-archetype-input__add success-ghost-action" [disabled]="adding()" [attr.aria-label]="'Add ' + value + ' to archetype settings'" (click)="addCurrentValue()">Add</button>
+        <button mat-stroked-button type="button" class="deck-archetype-input__add success-ghost-action" [disabled]="adding()" [attr.aria-label]="i18n.t('archetype.addAria', { value })" (click)="addCurrentValue()">{{ i18n.t('archetype.add') }}</button>
       }
     </div>
   `
 })
 export class DeckArchetypeInputComponent {
+  readonly i18n = inject(I18nService);
   @Input() inputId = `deck-archetype-input-${nextDeckArchetypeInputId++}`;
-  @Input() label = 'Deck archetype';
+  @Input() label = '';
   @Input() value = '';
   @Input() disabled = false;
   @Output() readonly valueChange = new EventEmitter<string>();

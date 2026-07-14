@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, signal, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -10,63 +10,65 @@ import { LiveTournamentDocument, LiveTournamentStage } from '../../domain/live-t
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { I18nService } from '../../i18n/i18n.service';
 
 @Component({
   standalone: true,
   imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatProgressSpinnerModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
     <section class="page-heading live-tournament-heading running-tournament-heading">
       <div>
-        <h1>Running Tournaments</h1>
+        <h1>{{ i18n.t('liveList.title') }}</h1>
       </div>
     </section>
 
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else {
-      <section class="running-tournament-list" aria-label="Running tournaments">
+      <section class="running-tournament-list" [attr.aria-label]="i18n.t('liveList.aria')">
         @if (!runningTournaments().length) {
           <mat-card class="panel running-tournament-empty" data-cy="running-tournament-empty-state">
-            <mat-card-title>No running tournaments</mat-card-title>
-            <mat-card-content><p>No tournament is running on this device yet.</p></mat-card-content>
+            <mat-card-title>{{ i18n.t('liveList.emptyTitle') }}</mat-card-title>
+            <mat-card-content><p>{{ i18n.t('liveList.emptyBody') }}</p></mat-card-content>
           </mat-card>
         }
         @for (tournament of runningTournaments(); track tournament.id) {
-          <a class="panel running-tournament-card" [routerLink]="['/live-tournaments', tournament.id]" [attr.aria-label]="'Resume ' + (tournament.name || 'Live Tournament')" data-cy="running-tournament-card">
+          <a class="panel running-tournament-card" [routerLink]="['/live-tournaments', tournament.id]" [attr.aria-label]="i18n.t('liveList.resumeAria', { name: tournament.name || i18n.t('liveList.liveTournament') })" data-cy="running-tournament-card">
             <div class="running-tournament-card-header">
               <div class="running-tournament-title-row">
-                <h2>{{ tournament.name || 'Live Tournament' }}</h2>
+                <h2>{{ tournament.name || i18n.t('liveList.liveTournament') }}</h2>
                 <span class="running-tournament-league">{{ leagueName(tournament.leagueId) }}</span>
-                <span class="running-tournament-rounds">{{ tournament.roundCount }} Swiss rounds</span>
+                <span class="running-tournament-rounds">{{ i18n.t('liveList.swissRounds', { count: tournament.roundCount }) }}</span>
               </div>
               <span class="running-tournament-status" [ngClass]="statusClass(tournament.stage)">{{ statusLabel(tournament.stage, tournament.currentRoundNumber) }}</span>
             </div>
             <div class="running-tournament-card-content">
-              <dl class="running-tournament-meta" aria-label="Tournament details">
-                <div><dt>Date</dt><dd>{{ formatDate(tournament.tournamentDate) }}</dd></div>
-                <div><dt>Players</dt><dd>{{ tournament.players.length }}</dd></div>
-                <div><dt>Last saved</dt><dd>{{ formatDateTime(tournament.updatedAt) }}</dd></div>
+              <dl class="running-tournament-meta" [attr.aria-label]="i18n.t('liveList.detailsAria')">
+                <div><dt>{{ i18n.t('common.date') }}</dt><dd>{{ formatDate(tournament.tournamentDate) }}</dd></div>
+                <div><dt>{{ i18n.t('common.players') }}</dt><dd>{{ tournament.players.length }}</dd></div>
+                <div><dt>{{ i18n.t('liveList.lastSaved') }}</dt><dd>{{ formatDateTime(tournament.updatedAt) }}</dd></div>
               </dl>
             </div>
             <div class="running-tournament-actions">
-              <span class="running-tournament-resume" data-cy="resume-running-tournament">Resume</span>
+              <span class="running-tournament-resume" data-cy="resume-running-tournament">{{ i18n.t('liveList.resume') }}</span>
             </div>
           </a>
         }
 
         <button class="running-tournament-card running-tournament-create-card league-create-card" type="button" [disabled]="creating()" (click)="createTournament()" data-cy="create-running-tournament-card">
-          <h2>{{ creating() ? 'Creating…' : 'Create a new tournament' }}</h2>
-          <span class="card-view-action" aria-hidden="true">CREATE</span>
+          <h2>{{ creating() ? i18n.t('common.creating') : i18n.t('liveList.create') }}</h2>
+          <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
         </button>
       </section>
     }
 
-    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
 })
 export class LiveTournamentListComponent {
+  readonly i18n = inject(I18nService);
   readonly loading = signal(true);
   readonly creating = signal(false);
   readonly error = signal('');
@@ -85,7 +87,7 @@ export class LiveTournamentListComponent {
       this.error.set('');
     } catch (error) {
       logBoundaryError('live-tournament-list.load', error);
-      this.error.set('Could not load running tournaments from this device.');
+      this.error.set(this.i18n.t('liveList.loadFailed'));
     } finally {
       this.loading.set(false);
     }
@@ -99,22 +101,22 @@ export class LiveTournamentListComponent {
       await this.router.navigate(['/live-tournaments', tournament.id], { state: { editTitle: true } });
     } catch (error) {
       logBoundaryError('live-tournament-list.create', error);
-      this.error.set('Could not create a running tournament.');
+      this.error.set(this.i18n.t('liveList.createFailed'));
     } finally {
       this.creating.set(false);
     }
   }
 
   leagueName(leagueId: string): string {
-    if (!leagueId || leagueId === PLACEHOLDER_LEAGUE_ID) return 'Unassigned Tournaments';
-    return this.leagues().find((league) => league.id === leagueId)?.name ?? 'Unknown league';
+    if (!leagueId || leagueId === PLACEHOLDER_LEAGUE_ID) return this.i18n.t('liveList.unassigned');
+    return this.leagues().find((league) => league.id === leagueId)?.name ?? this.i18n.t('liveList.unknownLeague');
   }
 
   statusLabel(stage: LiveTournamentStage, currentRoundNumber: number): string {
-    if (stage === 'registration') return 'Registration';
-    if (stage === 'round') return `Round ${currentRoundNumber} running`;
-    if (stage === 'standings') return 'Running';
-    return 'Completed';
+    if (stage === 'registration') return this.i18n.t('liveList.statusRegistration');
+    if (stage === 'round') return this.i18n.t('liveList.statusRound', { n: currentRoundNumber });
+    if (stage === 'standings') return this.i18n.t('liveList.statusRunning');
+    return this.i18n.t('liveList.statusCompleted');
   }
 
   statusClass(stage: LiveTournamentStage): string {

@@ -1,48 +1,50 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { CalendarEventRepository } from '../../data/calendar-event-repository.service';
 import { CalendarEventDocument } from '../../domain/models';
 import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { I18nService } from '../../i18n/i18n.service';
 
 @Component({
   standalone: true,
   imports: [RouterLink, MatButtonModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/calendar']" label="Back to Events" position="top" />
+    <gones-back-button [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-    @if (loading()) { <section class="panel event-section" aria-live="polite" aria-busy="true"><p class="kicker">Loading</p><h1>Loading Event page…</h1></section> }
+    @if (loading()) { <section class="panel event-section" aria-live="polite" aria-busy="true"><p class="kicker">{{ i18n.t('common.loading') }}</p><h1>{{ i18n.t('event.loadingTitle') }}</h1></section> }
     @else if (event(); as eventPage) {
       <article class="event-page" aria-labelledby="event-title">
         <section class="event-hero panel">
-          <p class="kicker">Tournament event</p>
+          <p class="kicker">{{ i18n.t('event.tournamentEvent') }}</p>
           <h1 id="event-title">{{ eventPage.title }}</h1>
-          <dl class="event-facts" aria-label="Event facts">
-            <div><dt>Date</dt><dd>{{ formatDate(eventPage.eventDate) }}</dd></div>
-            <div><dt>Hours</dt><dd>{{ eventTime(eventPage) }}</dd></div>
-            @if (eventLocation(eventPage)) { <div><dt>Location</dt><dd>{{ eventLocation(eventPage) }}</dd></div> }
+          <dl class="event-facts" [attr.aria-label]="i18n.t('event.factsAria')">
+            <div><dt>{{ i18n.t('common.date') }}</dt><dd>{{ formatDate(eventPage.eventDate) }}</dd></div>
+            <div><dt>{{ i18n.t('common.hours') }}</dt><dd>{{ eventTime(eventPage) }}</dd></div>
+            @if (eventLocation(eventPage)) { <div><dt>{{ i18n.t('common.location') }}</dt><dd>{{ eventLocation(eventPage) }}</dd></div> }
           </dl>
           <div class="info-actions">
-            <a mat-stroked-button class="secondary-action" [routerLink]="['/calendar']">Edit in Calendar</a>
-            @if (eventPage.externalLink) { <a mat-stroked-button class="secondary-action" [href]="eventPage.externalLink" target="_blank" rel="noopener noreferrer">External link</a> }
+            <a mat-stroked-button class="secondary-action" [routerLink]="['/calendar']">{{ i18n.t('event.editInCalendar') }}</a>
+            @if (eventPage.externalLink) { <a mat-stroked-button class="secondary-action" [href]="eventPage.externalLink" target="_blank" rel="noopener noreferrer">{{ i18n.t('event.externalLink') }}</a> }
           </div>
         </section>
 
         <section class="event-section panel" aria-labelledby="event-description-title">
-          <div class="section-header"><div><p class="kicker">Description</p><h2 id="event-description-title">Event information</h2></div></div>
+          <div class="section-header"><div><p class="kicker">{{ i18n.t('common.description') }}</p><h2 id="event-description-title">{{ i18n.t('event.infoTitle') }}</h2></div></div>
           @if (eventPage.richDescriptionHtml) { <div class="rich-content" [innerHTML]="eventPage.richDescriptionHtml"></div> }
           @else if (eventPage.description) { <p class="event-description-fallback">{{ eventPage.description }}</p> }
-          @else { <p class="muted">No description has been published for this event yet.</p> }
+          @else { <p class="muted">{{ i18n.t('event.noDescription') }}</p> }
         </section>
       </article>
     } @else if (!error()) {
-      <section class="panel event-section"><p class="kicker">Event not found</p><h1>Event page missing.</h1><p class="muted">The requested Event page does not exist or was deleted.</p></section>
+      <section class="panel event-section"><p class="kicker">{{ i18n.t('event.notFoundKicker') }}</p><h1>{{ i18n.t('event.notFoundTitle') }}</h1><p class="muted">{{ i18n.t('event.notFoundBody') }}</p></section>
     }
-    <gones-back-button [link]="['/calendar']" label="Back to Events" position="bottom" />
+    <gones-back-button [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="bottom" />
   `
 })
 export class EventDetailComponent implements OnInit {
+  readonly i18n = inject(I18nService);
   readonly event = signal<CalendarEventDocument | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
@@ -60,13 +62,13 @@ export class EventDetailComponent implements OnInit {
       logBoundaryInfo('event-detail.load.success', { slug, found: Boolean(eventPage) });
     } catch (error) {
       logBoundaryError('event-detail.load', error, { slug });
-      this.error.set('Could not load this Event page.');
+      this.error.set(this.i18n.t('event.loadFailed'));
     } finally {
       this.loading.set(false);
     }
   }
 
   formatDate(value: string): string { return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
-  eventTime(event: CalendarEventDocument): string { return event.startTime ? `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : 'All day'; }
+  eventTime(event: CalendarEventDocument): string { return event.startTime ? `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : this.i18n.t('common.allDay'); }
   eventLocation(event: CalendarEventDocument): string { return [event.address, event.city, event.country].filter(Boolean).join(', ') || event.location; }
 }

@@ -1,7 +1,8 @@
 import { Location, NgTemplateOutlet } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { I18nService } from '../i18n/i18n.service';
 
 @Component({
   selector: 'gones-back-button',
@@ -9,7 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
   imports: [RouterLink, MatButtonModule, NgTemplateOutlet],
   template: `
     @if (position === 'bottom') {
-      <footer class="back-button-row back-button-row--bottom" aria-label="Page footer navigation">
+      <footer class="back-button-row back-button-row--bottom" [attr.aria-label]="i18n.t('nav.footerNav')">
         <ng-container *ngTemplateOutlet="backButton" />
       </footer>
     } @else {
@@ -20,22 +21,28 @@ import { MatButtonModule } from '@angular/material/button';
 
     <ng-template #backButton>
       @if (link) {
-        <a mat-stroked-button class="back-button secondary-action" [routerLink]="link" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ label }}</span></a>
+        <a mat-stroked-button class="back-button secondary-action" [routerLink]="link" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ displayLabel }}</span></a>
       } @else {
-        <button mat-stroked-button class="back-button secondary-action" type="button" (click)="goBack()" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ label }}</span></button>
+        <button mat-stroked-button class="back-button secondary-action" type="button" (click)="goBack()" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ displayLabel }}</span></button>
       }
     </ng-template>
   `
 })
 export class BackButtonComponent {
+  readonly i18n = inject(I18nService);
   @Input() link: string | unknown[] | null = null;
-  @Input() label = 'Back';
+  @Input() label = '';
   @Input() position: 'top' | 'bottom' = 'top';
 
   constructor(private readonly location: Location, private readonly router: Router) {}
 
+  get displayLabel(): string {
+    return this.label || this.i18n.t('nav.back');
+  }
+
   get accessibleLabel(): string {
-    return `${this.label} (${this.position} of page)`;
+    const position = this.position === 'bottom' ? this.i18n.t('nav.positionBottom') : this.i18n.t('nav.positionTop');
+    return this.i18n.t('nav.backPosition', { label: this.displayLabel, position });
   }
 
   goBack(): void {

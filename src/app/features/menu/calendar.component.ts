@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, HostListener, OnInit, ViewChild, computed, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, ViewChild, computed, signal, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -17,6 +17,7 @@ import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { saveTextFile } from '../../shared/save-text-file';
+import { I18nService } from '../../i18n/i18n.service';
 
 interface CalendarDay {
   date: string;
@@ -31,91 +32,91 @@ const COUNTRIES = ['France', 'Germany', 'Italy', 'Spain', 'United Kingdom', 'Uni
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatFormFieldModule, MatInputModule, MatMenuModule, MatSelectModule, MatTabsModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" label="Return to Menu" position="top" />
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     <section class="info-page calendar-page" aria-labelledby="calendar-title">
-      <h1 id="calendar-title" class="sr-only">Tournament events calendar</h1>
+      <h1 id="calendar-title" class="sr-only">{{ i18n.t('calendar.title') }}</h1>
 
-      <section class="calendar-toolbar" aria-label="Calendar navigation">
+      <section class="calendar-toolbar" [attr.aria-label]="i18n.t('calendar.navAria')">
         <div class="calendar-month-controls">
-          <button mat-stroked-button class="secondary-action" type="button" (click)="previousMonth()">Previous</button>
+          <button mat-stroked-button class="secondary-action" type="button" (click)="previousMonth()">{{ i18n.t('common.previous') }}</button>
           <h2>{{ monthLabel() }}</h2>
-          <button mat-stroked-button class="secondary-action" type="button" (click)="nextMonth()">Next</button>
+          <button mat-stroked-button class="secondary-action" type="button" (click)="nextMonth()">{{ i18n.t('common.next') }}</button>
         </div>
-        <button mat-stroked-button class="secondary-action calendar-download-button" type="button" [disabled]="!events().length" (click)="downloadAllEvents()">Download Calendar ICS</button>
+        <button mat-stroked-button class="secondary-action calendar-download-button" type="button" [disabled]="!events().length" (click)="downloadAllEvents()">{{ i18n.t('calendar.downloadIcs') }}</button>
       </section>
 
       <mat-tab-group class="calendar-tabs" mat-stretch-tabs="false" animationDuration="150ms">
-        <mat-tab label="Calendar">
-          <section class="classic-calendar" role="grid" aria-label="Monthly calendar">
-            <div class="classic-calendar__weekday" role="columnheader">Sun</div>
-            <div class="classic-calendar__weekday" role="columnheader">Mon</div>
-            <div class="classic-calendar__weekday" role="columnheader">Tue</div>
-            <div class="classic-calendar__weekday" role="columnheader">Wed</div>
-            <div class="classic-calendar__weekday" role="columnheader">Thu</div>
-            <div class="classic-calendar__weekday" role="columnheader">Fri</div>
-            <div class="classic-calendar__weekday" role="columnheader">Sat</div>
+        <mat-tab [label]="i18n.t('calendar.tabCalendar')">
+          <section class="classic-calendar" role="grid" [attr.aria-label]="i18n.t('calendar.monthAria')">
+            <div class="classic-calendar__weekday" role="columnheader">{{ i18n.t('calendar.weekday.sun') }}</div>
+            <div class="classic-calendar__weekday" role="columnheader">{{ i18n.t('calendar.weekday.mon') }}</div>
+            <div class="classic-calendar__weekday" role="columnheader">{{ i18n.t('calendar.weekday.tue') }}</div>
+            <div class="classic-calendar__weekday" role="columnheader">{{ i18n.t('calendar.weekday.wed') }}</div>
+            <div class="classic-calendar__weekday" role="columnheader">{{ i18n.t('calendar.weekday.thu') }}</div>
+            <div class="classic-calendar__weekday" role="columnheader">{{ i18n.t('calendar.weekday.fri') }}</div>
+            <div class="classic-calendar__weekday" role="columnheader">{{ i18n.t('calendar.weekday.sat') }}</div>
             @for (day of monthDays(); track day.date) {
               <article class="classic-calendar__day" role="gridcell" [attr.aria-label]="dayLabel(day)" [class.classic-calendar__day--muted]="!day.inMonth">
                 <button class="classic-calendar__day-add" type="button" [disabled]="saving()" [attr.aria-label]="addEventLabel(day)" (click)="startEventOnDate(day.date)"><time [attr.datetime]="day.date">{{ day.dayNumber }}</time></button>
                 @for (event of day.events; track event.id) {
-                  <button class="calendar-pill" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">{{ event.startTime || 'All day' }} {{ event.title }}</button>
+                  <button class="calendar-pill" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">{{ event.startTime || i18n.t('common.allDay') }} {{ event.title }}</button>
                 }
               </article>
             }
           </section>
         </mat-tab>
-        <mat-tab label="Upcoming tournaments">
-          <section class="calendar-board calendar-board--tab" aria-label="Upcoming events">
+        <mat-tab [label]="i18n.t('calendar.tabUpcoming')">
+          <section class="calendar-board calendar-board--tab" [attr.aria-label]="i18n.t('calendar.upcomingAria')">
             @if (upcomingEvents().length) {
               @for (event of upcomingEvents(); track event.id) {
                 <ng-container *ngTemplateOutlet="eventCard; context: { $implicit: event }" />
               }
             } @else if (loading()) {
-              <section class="calendar-empty-callout" aria-live="polite"><div><p class="kicker">Loading</p><h2>Loading event pages…</h2></div></section>
+              <section class="calendar-empty-callout" aria-live="polite"><div><p class="kicker">{{ i18n.t('common.loading') }}</p><h2>{{ i18n.t('calendar.loadingPages') }}</h2></div></section>
             } @else {
               <section class="calendar-empty-callout" aria-labelledby="calendar-empty-title">
-                <div><p class="kicker">No upcoming events</p><h2 id="calendar-empty-title">Create the first tournament event.</h2></div>
-                <p>Click any calendar day to prefill the event form with that date.</p>
+                <div><p class="kicker">{{ i18n.t('calendar.noUpcomingKicker') }}</p><h2 id="calendar-empty-title">{{ i18n.t('calendar.noUpcomingTitle') }}</h2></div>
+                <p>{{ i18n.t('calendar.noUpcomingHelp') }}</p>
               </section>
             }
           </section>
         </mat-tab>
       </mat-tab-group>
 
-      <section #calendarEditor class="calendar-editor panel" aria-label="Calendar editor" [attr.aria-busy]="saving()">
+      <section #calendarEditor class="calendar-editor panel" [attr.aria-label]="i18n.t('calendar.editorAria')" [attr.aria-busy]="saving()">
           <div class="section-header">
             <div>
-              <p class="kicker">{{ editingExisting() ? 'Edit event page' : 'Event page' }}</p>
+              <p class="kicker">{{ editingExisting() ? i18n.t('calendar.editEventPage') : i18n.t('calendar.eventPage') }}</p>
             </div>
-            @if (editingExisting()) { <a mat-stroked-button class="secondary-action" [routerLink]="['/events', draft().slug]">View Page</a> }
+            @if (editingExisting()) { <a mat-stroked-button class="secondary-action" [routerLink]="['/events', draft().slug]">{{ i18n.t('calendar.viewPage') }}</a> }
           </div>
           <form class="calendar-form event-form" (ngSubmit)="saveEvent()">
-            <mat-form-field appearance="outline"><mat-label>Event name</mat-label><input matInput name="title" required [ngModel]="draft().title" (ngModelChange)="updateTitle($event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Slug</mat-label><input matInput name="slug" required [ngModel]="draft().slug" (ngModelChange)="updateDraft('slug', normalizeSlugInput($event))" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Date</mat-label><input matInput name="eventDate" type="date" required [ngModel]="draft().eventDate" (ngModelChange)="updateDraft('eventDate', $event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Start time</mat-label><input matInput name="startTime" type="time" [ngModel]="draft().startTime" (ngModelChange)="updateDraft('startTime', $event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Estimated finish</mat-label><input matInput name="endTime" type="time" [ngModel]="draft().endTime" (ngModelChange)="updateDraft('endTime', $event)" [readonly]="saving()"></mat-form-field>
-            <mat-form-field appearance="outline"><mat-label>Country</mat-label><mat-select name="country" [ngModel]="draft().country" (ngModelChange)="updateCountry($event)" [disabled]="saving()"><mat-option value="">Select a country</mat-option><mat-option *ngFor="let country of countries" [value]="country">{{ country }}</mat-option></mat-select></mat-form-field>
-            <mat-form-field appearance="outline" class="calendar-form__double"><mat-label>City and address</mat-label><input matInput name="address" autocomplete="street-address" [disabled]="saving() || !draft().country.trim()" [ngModel]="draft().address" (ngModelChange)="updateCombinedAddress($event)"><mat-hint>Select a country first to enable address autocomplete.</mat-hint></mat-form-field>
-            <mat-form-field appearance="outline" class="calendar-form__wide"><mat-label>Plain summary for calendar export</mat-label><textarea matInput name="description" rows="3" [ngModel]="draft().description" (ngModelChange)="updateDraft('description', $event)" [readonly]="saving()"></textarea></mat-form-field>
-            <mat-form-field appearance="outline" class="calendar-form__wide"><mat-label>External link</mat-label><input matInput name="externalLink" type="url" [ngModel]="draft().externalLink" (ngModelChange)="updateDraft('externalLink', $event)" [readonly]="saving()"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>{{ i18n.t('calendar.eventName') }}</mat-label><input matInput name="title" required [ngModel]="draft().title" (ngModelChange)="updateTitle($event)" [readonly]="saving()"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>{{ i18n.t('calendar.slug') }}</mat-label><input matInput name="slug" required [ngModel]="draft().slug" (ngModelChange)="updateDraft('slug', normalizeSlugInput($event))" [readonly]="saving()"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>{{ i18n.t('common.date') }}</mat-label><input matInput name="eventDate" type="date" required [ngModel]="draft().eventDate" (ngModelChange)="updateDraft('eventDate', $event)" [readonly]="saving()"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>{{ i18n.t('calendar.startTime') }}</mat-label><input matInput name="startTime" type="time" [ngModel]="draft().startTime" (ngModelChange)="updateDraft('startTime', $event)" [readonly]="saving()"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>{{ i18n.t('calendar.endTime') }}</mat-label><input matInput name="endTime" type="time" [ngModel]="draft().endTime" (ngModelChange)="updateDraft('endTime', $event)" [readonly]="saving()"></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>{{ i18n.t('calendar.country') }}</mat-label><mat-select name="country" [ngModel]="draft().country" (ngModelChange)="updateCountry($event)" [disabled]="saving()"><mat-option value="">{{ i18n.t('calendar.selectCountry') }}</mat-option><mat-option *ngFor="let country of countries" [value]="country">{{ country }}</mat-option></mat-select></mat-form-field>
+            <mat-form-field appearance="outline" class="calendar-form__double"><mat-label>{{ i18n.t('calendar.address') }}</mat-label><input matInput name="address" autocomplete="street-address" [disabled]="saving() || !draft().country.trim()" [ngModel]="draft().address" (ngModelChange)="updateCombinedAddress($event)"><mat-hint>{{ i18n.t('calendar.addressHint') }}</mat-hint></mat-form-field>
+            <mat-form-field appearance="outline" class="calendar-form__wide"><mat-label>{{ i18n.t('calendar.plainSummary') }}</mat-label><textarea matInput name="description" rows="3" [ngModel]="draft().description" (ngModelChange)="updateDraft('description', $event)" [readonly]="saving()"></textarea></mat-form-field>
+            <mat-form-field appearance="outline" class="calendar-form__wide"><mat-label>{{ i18n.t('calendar.externalLink') }}</mat-label><input matInput name="externalLink" type="url" [ngModel]="draft().externalLink" (ngModelChange)="updateDraft('externalLink', $event)" [readonly]="saving()"></mat-form-field>
 
             <section class="calendar-form__wide rich-editor" aria-labelledby="rich-editor-title">
-              <div class="rich-editor__toolbar" aria-label="Rich description formatting controls">
-                <h3 id="rich-editor-title">Event Description</h3>
-                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatBlock('H2')">Header</button>
-                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatBlock('P')">Paragraph</button>
-                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('bold')">Bold</button>
-                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('italic')">Italic</button>
-                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('insertUnorderedList')">List</button>
-                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="insertImage()">Image URL</button>
+              <div class="rich-editor__toolbar" [attr.aria-label]="i18n.t('calendar.richToolbarAria')">
+                <h3 id="rich-editor-title">{{ i18n.t('calendar.richTitle') }}</h3>
+                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatBlock('H2')">{{ i18n.t('calendar.header') }}</button>
+                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatBlock('P')">{{ i18n.t('calendar.paragraph') }}</button>
+                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('bold')">{{ i18n.t('calendar.bold') }}</button>
+                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('italic')">{{ i18n.t('calendar.italic') }}</button>
+                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="formatText('insertUnorderedList')">{{ i18n.t('calendar.list') }}</button>
+                <button mat-stroked-button class="secondary-action" type="button" [disabled]="saving()" (click)="insertImage()">{{ i18n.t('calendar.imageUrl') }}</button>
               </div>
               <div #richEditor class="rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rich-editor-title" [attr.aria-disabled]="saving()" (input)="syncRichDescription()" (blur)="syncRichDescription()"></div>
             </section>
 
             <div class="actions calendar-form__wide">
-              <button mat-flat-button class="home-primary-action" type="submit" [disabled]="saving() || !draft().title.trim() || !draft().eventDate || !draft().slug.trim()">{{ saving() ? 'Saving…' : 'Save Event Ctrl+S' }}</button>
+              <button mat-flat-button class="home-primary-action" type="submit" [disabled]="saving() || !draft().title.trim() || !draft().eventDate || !draft().slug.trim()">{{ saving() ? i18n.t('common.saving') : i18n.t('calendar.saveEvent') }}</button>
             </div>
           </form>
       </section>
@@ -129,19 +130,20 @@ const COUNTRIES = ['France', 'Germany', 'Italy', 'Spain', 'United Kingdom', 'Uni
             @if (eventLocation(event)) { <p>{{ eventLocation(event) }}</p> }
             @if (event.description) { <small>{{ event.description }}</small> }
             <div class="calendar-event__actions">
-              <a mat-stroked-button class="secondary-action" [routerLink]="['/events', event.slug]">View Page</a>
-              <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">Edit</button>
-              <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="downloadEventLabel(event)" (click)="downloadEvent(event)">Add to Calendar</button>
-              <button mat-button color="warn" type="button" [disabled]="deletingEventId() === event.id" [attr.aria-label]="deleteEventLabel(event)" (click)="confirmDelete(event)">{{ deletingEventId() === event.id ? 'Deleting…' : 'Delete' }}</button>
+              <a mat-stroked-button class="secondary-action" [routerLink]="['/events', event.slug]">{{ i18n.t('calendar.viewPage') }}</a>
+              <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="editEventLabel(event)" (click)="editEvent(event)">{{ i18n.t('common.edit') }}</button>
+              <button mat-stroked-button class="secondary-action" type="button" [attr.aria-label]="downloadEventLabel(event)" (click)="downloadEvent(event)">{{ i18n.t('calendar.addToCalendar') }}</button>
+              <button mat-button color="warn" type="button" [disabled]="deletingEventId() === event.id" [attr.aria-label]="deleteEventLabel(event)" (click)="confirmDelete(event)">{{ deletingEventId() === event.id ? i18n.t('common.deleting') : i18n.t('common.delete') }}</button>
             </div>
           </div>
         </article>
       </ng-template>
     </section>
-    <gones-back-button [link]="['/']" label="Return to Menu" position="bottom" />
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
 })
 export class CalendarComponent implements OnInit {
+  readonly i18n = inject(I18nService);
   @ViewChild('richEditor') private richEditor?: ElementRef<HTMLElement>;
   @ViewChild('calendarEditor') private calendarEditor?: ElementRef<HTMLElement>;
 
@@ -182,7 +184,7 @@ export class CalendarComponent implements OnInit {
     } catch (error) {
       if (request === this.loadRequest) {
         logBoundaryError('calendar.load', error);
-        this.error.set('Could not load event pages.');
+        this.error.set(this.i18n.t('calendar.loadFailed'));
       }
     } finally {
       if (request === this.loadRequest) this.loading.set(false);
@@ -247,16 +249,16 @@ export class CalendarComponent implements OnInit {
       if (this.draft().id === savedDraft.id) this.resetDraft();
     } catch (error) {
       logBoundaryError('calendar.saveEvent', error, { eventId: savedDraft.id });
-      this.error.set('Could not save this event page.');
+      this.error.set(this.i18n.t('calendar.saveFailed'));
     } finally { this.saving.set(false); }
   }
 
   async confirmDelete(event: CalendarEventDocument): Promise<void> {
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete Event', message: `Delete ${event.title}? This removes the public Event page and downloadable calendar date.`, confirmLabel: 'Delete Event', destructive: true } }).afterClosed());
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('calendar.deleteTitle'), message: this.i18n.t('calendar.deleteMessage', { name: event.title }), confirmLabel: this.i18n.t('calendar.deleteConfirm'), destructive: true } }).afterClosed());
     if (!confirmed) return;
     this.deletingEventId.set(event.id);
     try { await this.repo.delete(event.id); await this.load(); logBoundaryInfo('calendar.deleteEvent.success', { eventId: event.id }); if (this.draft().id === event.id) this.resetDraft(); }
-    catch (error) { logBoundaryError('calendar.deleteEvent', error, { eventId: event.id }); this.error.set('Could not delete this event page.'); }
+    catch (error) { logBoundaryError('calendar.deleteEvent', error, { eventId: event.id }); this.error.set(this.i18n.t('calendar.deleteFailed')); }
     finally { this.deletingEventId.set(''); }
   }
 
@@ -273,17 +275,17 @@ export class CalendarComponent implements OnInit {
   }
 
   insertImage(): void {
-    const url = window.prompt('Image URL (https://...)');
+    const url = window.prompt(this.i18n.t('calendar.imagePrompt'));
     if (!url) return;
     try {
       const parsed = new URL(url);
       if (parsed.protocol !== 'https:') throw new Error('unsupportedImageUrl');
-      const alt = window.prompt('Image alt text') ?? '';
+      const alt = window.prompt(this.i18n.t('calendar.imageAltPrompt')) ?? '';
       this.focusEditor();
       document.execCommand('insertHTML', false, `<img src="${parsed.toString().replaceAll('"', '&quot;')}" alt="${alt.replaceAll('"', '&quot;')}" loading="lazy">`);
       this.syncRichDescription();
     } catch {
-      this.error.set('Use a valid https image URL.');
+      this.error.set(this.i18n.t('calendar.badImageUrl'));
     }
   }
 
@@ -302,7 +304,7 @@ export class CalendarComponent implements OnInit {
       logBoundaryInfo('calendar.downloadAllEvents.success', { eventCount: this.events().length, filename });
     } catch (error) {
       logBoundaryError('calendar.downloadAllEvents', error, { eventCount: this.events().length, filename });
-      this.error.set('Could not download the calendar file.');
+      this.error.set(this.i18n.t('calendar.downloadAllFailed'));
     }
   }
 
@@ -313,20 +315,20 @@ export class CalendarComponent implements OnInit {
       logBoundaryInfo('calendar.downloadEvent.success', { eventId: event.id, filename });
     } catch (error) {
       logBoundaryError('calendar.downloadEvent', error, { eventId: event.id, filename });
-      this.error.set('Could not download this event file.');
+      this.error.set(this.i18n.t('calendar.downloadOneFailed'));
     }
   }
 
   normalizeSlugInput(value: string): string { return normalizeSlug(value); }
   eventLocation(event: CalendarEventDocument): string { return [event.address, event.city, event.country].filter(Boolean).join(', ') || event.location; }
-  dayLabel(day: CalendarDay): string { return `${new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}: ${day.events.length} ${day.events.length === 1 ? 'event' : 'events'}`; }
-  addEventLabel(day: CalendarDay): string { return `Add event on ${new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`; }
-  editEventLabel(event: CalendarEventDocument): string { return `Edit event ${event.title} on ${event.eventDate}${event.startTime ? ` at ${event.startTime}` : ''}`; }
-  downloadEventLabel(event: CalendarEventDocument): string { return `Add ${event.title} to calendar`; }
-  deleteEventLabel(event: CalendarEventDocument): string { return `Delete event ${event.title}`; }
+  dayLabel(day: CalendarDay): string { return this.i18n.t('calendar.dayLabel', { date: new Date(`${day.date}T00:00:00`).toLocaleDateString(this.i18n.locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), count: day.events.length, eventsWord: day.events.length === 1 ? this.i18n.t('calendar.eventWord') : this.i18n.t('calendar.eventsWord') }); }
+  addEventLabel(day: CalendarDay): string { return this.i18n.t('calendar.addEventLabel', { date: new Date(`${day.date}T00:00:00`).toLocaleDateString(this.i18n.locale(), { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) }); }
+  editEventLabel(event: CalendarEventDocument): string { return this.i18n.t('calendar.editEventLabel', { title: event.title, date: event.eventDate, time: event.startTime ? this.i18n.t('calendar.editEventAt', { time: event.startTime }) : '' }); }
+  downloadEventLabel(event: CalendarEventDocument): string { return this.i18n.t('calendar.downloadEventLabel', { title: event.title }); }
+  deleteEventLabel(event: CalendarEventDocument): string { return this.i18n.t('calendar.deleteEventLabel', { title: event.title }); }
   eventMonth(event: CalendarEventDocument): string { return monthShort(event.eventDate); }
   eventDay(event: CalendarEventDocument): string { return String(new Date(`${event.eventDate}T00:00:00`).getDate()).padStart(2, '0'); }
-  eventTime(event: CalendarEventDocument): string { return event.startTime ? `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : 'All day'; }
+  eventTime(event: CalendarEventDocument): string { return event.startTime ? `${event.startTime}${event.endTime ? `–${event.endTime}` : ''}` : this.i18n.t('common.allDay'); }
 
   private setDraft(event: CalendarEventDocument): void {
     const normalized = normalizeCalendarEvent(event);

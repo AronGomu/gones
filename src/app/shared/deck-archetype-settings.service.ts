@@ -178,7 +178,7 @@ function loadDeckArchetypes(): string[] {
 function loadSettingsLanguage(): SettingsLanguage {
   const settings = parseStoredSettings();
   if (settings) return settings.language;
-  return normalizeSettingsLanguage(localStorage.getItem(SETTINGS_LANGUAGE_KEY)) ?? 'en';
+  return normalizeSettingsLanguage(localStorage.getItem(SETTINGS_LANGUAGE_KEY)) ?? 'fr';
 }
 
 function parseStoredSettings(): AppSettingsExport | null {

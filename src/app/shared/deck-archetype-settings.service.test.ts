@@ -49,8 +49,8 @@ describe('DeckArchetypeSettingsService', () => {
 
     await service.add('Fire Control');
 
-    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ language: 'en', deckArchetypes: ['Fire Control'] });
-    expect(service.exportSettings()).toEqual({ language: 'en', deckArchetypes: ['Fire Control'] });
+    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null')).toEqual({ language: 'fr', deckArchetypes: ['Fire Control'] });
+    expect(service.exportSettings()).toEqual({ language: 'fr', deckArchetypes: ['Fire Control'] });
   });
 
   it('normalizes imported settings before replacing existing archetypes', async () => {

@@ -62,12 +62,12 @@ describe("Settings page", () => {
 
     selectMatOption('[data-cy="settings-language-select"]', "Français");
 
-    cy.get('[data-cy="settings-language-status"]').should("contain", "Current language: Français");
+    cy.get('[data-cy="settings-language-status"]').should("contain", "Langue actuelle : Français");
     expectStoredSettings({ language: "fr", deckArchetypes: [] });
 
     cy.reload();
     cy.get('[data-cy="settings-language-select"]').should("contain", "Français");
-    cy.get('[data-cy="settings-language-status"]').should("contain", "Current language: Français");
+    cy.get('[data-cy="settings-language-status"]').should("contain", "Langue actuelle : Français");
   });
 
   it("adds, blocks duplicates, edits, removes, and persists deck archetypes", () => {
@@ -124,11 +124,11 @@ describe("Settings page", () => {
     cy.contains("mat-dialog-container", "Replace your current settings").should("be.visible");
     cy.contains("mat-dialog-container button", "Replace settings").click();
 
-    cy.get('[data-cy="settings-language-status"]').should("contain", "Current language: Français");
+    cy.get('[data-cy="settings-language-status"]').should("contain", "Langue actuelle : Français");
     archetypeRow("Imported Aggro").should("be.visible");
     archetypeRow("Imported Control").should("be.visible");
     cy.get('[data-cy="settings-archetype-row"][data-archetype="Old Control"]').should("not.exist");
-    cy.contains('[role="status"]', "Imported 2 deck archetypes and Français language.").should("be.visible");
+    cy.contains('[role="status"]', "2 archétypes et la langue Français importés.").should("be.visible");
     expectStoredSettings({ language: "fr", deckArchetypes: ["Imported Aggro", "Imported Control"] });
   });
 });

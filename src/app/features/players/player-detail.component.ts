@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, signal, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,6 +9,7 @@ import { LeagueRepository } from '../../data/league-repository.service';
 import { GonesData, GONES_DATA_VERSION, PersistedLeague } from '../../domain/models';
 import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { I18nService } from '../../i18n/i18n.service';
 
 interface HighlightPart {
   text: string;
@@ -19,34 +20,34 @@ interface HighlightPart {
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, BackButtonComponent],
   template: `
-    <gones-back-button label="Back to previous page" position="top" />
-    <section class="page-heading"><div><p class="kicker">Player Statistics</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
+    <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="top" />
+    <section class="page-heading"><div><p class="kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
     <div class="stat-grid" data-cy="player-stat-grid">
-      <mat-card class="player-stat-card"><mat-card-title>Played Matches</mat-card-title><mat-card-content class="stat-number" data-cy="stat-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>Byes</mat-card-title><mat-card-content class="stat-number" data-cy="stat-byes">{{ stats().byeCount }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>Match Win Rate</mat-card-title><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="stat-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>Game Win Rate</mat-card-title><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="stat-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>Nemesis</mat-card-title><mat-card-content>@if (stats().nemesis; as nemesis) { <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" (click)="filterByExact(nemesis)">{{ nemesis }}</button> } @else { <span data-cy="stat-nemesis">N/A</span> }</mat-card-content></mat-card>
-      <mat-card class="player-stat-card"><mat-card-title>Rival</mat-card-title><mat-card-content>@if (stats().rival; as rival) { <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival === stats().nemesis" [class.stat-filter-button--rival]="rival !== stats().nemesis" data-cy="stat-rival" (click)="filterByExact(rival)">{{ rival }}</button> } @else { <span data-cy="stat-rival">N/A</span> }</mat-card-content></mat-card>
+      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.playedMatches') }}</mat-card-title><mat-card-content class="stat-number" data-cy="stat-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card>
+      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.byes') }}</mat-card-title><mat-card-content class="stat-number" data-cy="stat-byes">{{ stats().byeCount }}</mat-card-content></mat-card>
+      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.matchWinRate') }}</mat-card-title><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="stat-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card>
+      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.gameWinRate') }}</mat-card-title><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="stat-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card>
+      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.nemesis') }}</mat-card-title><mat-card-content>@if (stats().nemesis; as nemesis) { <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" (click)="filterByExact(nemesis)">{{ nemesis }}</button> } @else { <span data-cy="stat-nemesis">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card>
+      <mat-card class="player-stat-card"><mat-card-title>{{ i18n.t('player.rival') }}</mat-card-title><mat-card-content>@if (stats().rival; as rival) { <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival === stats().nemesis" [class.stat-filter-button--rival]="rival !== stats().nemesis" data-cy="stat-rival" (click)="filterByExact(rival)">{{ rival }}</button> } @else { <span data-cy="stat-rival">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card>
     </div>
     <section class="stack">
       <div class="matches-heading">
-        <h2>Matches</h2>
+        <h2>{{ i18n.t('player.matches') }}</h2>
         <div class="match-filter-controls">
           <mat-form-field appearance="outline" class="match-filter" subscriptSizing="dynamic">
-            <input matInput data-cy="match-filter-input" placeholder="Filter matches" [value]="matchSearch()" (input)="matchSearch.set($any($event.target).value)" aria-label="Filter matches by any match text">
+            <input matInput data-cy="match-filter-input" [placeholder]="i18n.t('player.filterPlaceholder')" [value]="matchSearch()" (input)="matchSearch.set($any($event.target).value)" [attr.aria-label]="i18n.t('player.filterAria')">
           </mat-form-field>
           @if (matchSearch()) {
-            <button type="button" class="match-filter-clear" data-cy="match-filter-clear" (click)="clearMatchSearch()" aria-label="Clear match filter">Clear</button>
+            <button type="button" class="match-filter-clear" data-cy="match-filter-clear" (click)="clearMatchSearch()" [attr.aria-label]="i18n.t('player.clearFilterAria')">{{ i18n.t('common.clear') }}</button>
           }
         </div>
-        <button type="button" class="order-toggle" data-cy="match-order-toggle" (click)="invertMatchOrder()" [attr.aria-label]="newestFirst() ? 'Sort oldest first' : 'Sort newest first'">
+        <button type="button" class="order-toggle" data-cy="match-order-toggle" (click)="invertMatchOrder()" [attr.aria-label]="newestFirst() ? i18n.t('player.sortOldest') : i18n.t('player.sortNewest')">
           <span class="order-toggle__icon" aria-hidden="true">{{ newestFirst() ? '↓' : '↑' }}</span>
-          <span>{{ newestFirst() ? 'Newest first' : 'Oldest first' }}</span>
+          <span>{{ newestFirst() ? i18n.t('player.newestFirst') : i18n.t('player.oldestFirst') }}</span>
         </button>
-        <span class="match-count" data-cy="match-count" aria-live="polite">{{ filteredMatches().length }} {{ filteredMatches().length === 1 ? 'match' : 'matches' }} shown</span>
+        <span class="match-count" data-cy="match-count" aria-live="polite">{{ i18n.plural(filteredMatches().length, 'player.matchCountOne', 'player.matchCountMany') }}</span>
       </div>
-      @if (!filteredMatches().length) { <p class="muted" data-cy="no-matches">No Matches.</p> }
+      @if (!filteredMatches().length) { <p class="muted" data-cy="no-matches">{{ i18n.t('player.noMatches') }}</p> }
       @for (match of filteredMatches(); track match.tournament.id + match.roundIndex + match.opponentName) {
         <mat-card
           class="match-card"
@@ -94,8 +95,8 @@ interface HighlightPart {
       }
     </section>
     <footer class="live-tournament-footer player-detail-footer" data-cy="player-footer">
-      <gones-back-button label="Back to previous page" position="top" />
-      <button mat-stroked-button class="secondary-action live-scroll-top-button" type="button" data-cy="player-scroll-top-button" (click)="scrollToTop()" aria-label="Back to top">↑</button>
+      <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="top" />
+      <button mat-stroked-button class="secondary-action live-scroll-top-button" type="button" data-cy="player-scroll-top-button" (click)="scrollToTop()" [attr.aria-label]="i18n.t('live.backToTop')">↑</button>
     </footer>
   `,
   styles: [`
@@ -170,6 +171,7 @@ interface HighlightPart {
   `]
 })
 export class PlayerDetailComponent {
+  readonly i18n = inject(I18nService);
   readonly playerName = signal('');
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly matchSearch = signal('');
@@ -192,7 +194,7 @@ export class PlayerDetailComponent {
     void this.repo.listLeagues().then((leagues) => this.leagues.set(leagues));
   }
 
-  pct(value: number | null): string { return value == null ? 'N/A' : `${Math.round(value * 100)}%`; }
+  pct(value: number | null): string { return value == null ? this.i18n.t('common.na') : `${Math.round(value * 100)}%`; }
 
   winrateStatClass(value: number | null): string {
     if (value == null) return 'stat-number';
@@ -209,29 +211,29 @@ export class PlayerDetailComponent {
   }
 
   matchResultLabel(match: PlayerMatch): string {
-    if (match.kind === 'bye') return 'Victory';
+    if (match.kind === 'bye') return this.i18n.t('player.victory');
     const result = this.matchResult(match);
-    return result === 'win' ? 'Victory' : result === 'loss' ? 'Defeat' : 'Draw';
+    return result === 'win' ? this.i18n.t('player.victory') : result === 'loss' ? this.i18n.t('player.defeat') : this.i18n.t('player.draw');
   }
 
-  matchDateLabel(match: PlayerMatch): string { return match.tournament.tournamentDate || 'No date'; }
+  matchDateLabel(match: PlayerMatch): string { return match.tournament.tournamentDate || this.i18n.t('common.noDate'); }
 
   matchDateReadable(match: PlayerMatch): string {
     const raw = match.tournament.tournamentDate;
-    if (!raw) return 'No date';
+    if (!raw) return this.i18n.t('common.noDate');
     const parsed = parseDateOnly(raw);
     if (!parsed) return raw;
     return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
   }
 
-  matchRoundLabel(match: PlayerMatch): string { return `Round ${match.roundIndex + 1}`; }
+  matchRoundLabel(match: PlayerMatch): string { return this.i18n.t('player.roundN', { n: match.roundIndex + 1 }); }
   matchHeaderLabel(match: PlayerMatch): string { return `${this.matchDateLabel(match)} ${match.league.name} ${match.tournament.name} ${this.matchRoundLabel(match)}`; }
   matchWinningScore(match: PlayerMatch): string { return Math.max(match.ownScore, match.opponentScore).toString(); }
   matchLosingScore(match: PlayerMatch): string { return Math.min(match.ownScore, match.opponentScore).toString(); }
   matchScoreLabel(match: PlayerMatch): string { return `${this.matchWinningScore(match)}–${this.matchLosingScore(match)}`; }
 
   matchCardAriaLabel(match: PlayerMatch): string {
-    return `${this.matchResultLabel(match)} vs ${match.opponentName}, ${match.tournament.name}, ${this.matchRoundLabel(match)}. Open tournament round.`;
+    return this.i18n.t('player.matchCardAria', { result: this.matchResultLabel(match), opponent: match.opponentName, tournament: match.tournament.name, round: this.matchRoundLabel(match) });
   }
 
   opponentTone(name: string): 'nemesis' | 'rival' | null {

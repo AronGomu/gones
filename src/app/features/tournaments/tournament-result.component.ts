@@ -1,4 +1,4 @@
-import { Component, ElementRef, ViewChild, computed, signal } from '@angular/core';
+import { Component, ElementRef, ViewChild, computed, signal, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -6,6 +6,7 @@ import { LeagueRepository } from '../../data/league-repository.service';
 import { PersistedLeague, TournamentDocument } from '../../domain/models';
 import { ArchetypeShare, buildTournamentSummary, TournamentSummary } from '../../domain/tournament-summary';
 import { logBoundaryError } from '../../shared/app-logger';
+import { I18nService } from '../../i18n/i18n.service';
 
 @Component({
   standalone: true,
@@ -16,34 +17,34 @@ import { logBoundaryError } from '../../shared/app-logger';
       <section #resultSection class="tournament-result-page" [class.result-page--metagame]="page() === 'metagames'" data-cy="tournament-result-page">
         <section class="result-hero">
           <div class="result-title-block">
-            <h1><span>{{ league()?.name || 'Unknown league' }}</span><span>&nbsp;</span><span>{{ report.tournamentName }}</span><span class="result-page-separator" aria-hidden="true"> — </span><span class="result-page-label">{{ pageLabel() }}</span></h1>
+            <h1><span>{{ league()?.name || i18n.t('result.unknownLeague') }}</span><span>&nbsp;</span><span>{{ report.tournamentName }}</span><span class="result-page-separator" aria-hidden="true"> — </span><span class="result-page-label">{{ pageLabel() }}</span></h1>
             <p class="result-subtitle">{{ formatTournamentDate(report.tournamentDate) }}</p>
           </div>
           @if (page() === 'standings') {
-            <div class="result-counts" aria-label="Tournament statistics">
-              <div class="result-player-badge"><span>Players</span><strong>{{ report.stats.playerCount }}</strong></div>
-              <div class="result-player-badge"><span>Rounds</span><strong>{{ report.stats.roundCount }}</strong></div>
-              <div class="result-player-badge"><span>Matches</span><strong>{{ report.stats.matchCount }}</strong></div>
+            <div class="result-counts" [attr.aria-label]="i18n.t('result.statsAria')">
+              <div class="result-player-badge"><span>{{ i18n.t('common.players') }}</span><strong>{{ report.stats.playerCount }}</strong></div>
+              <div class="result-player-badge"><span>{{ i18n.t('common.rounds') }}</span><strong>{{ report.stats.roundCount }}</strong></div>
+              <div class="result-player-badge"><span>{{ i18n.t('common.matches') }}</span><strong>{{ report.stats.matchCount }}</strong></div>
             </div>
           }
         </section>
 
         <section class="result-page-body">
           @if (page() === 'standings') {
-            <section class="result-panel result-standings" aria-label="Standings">
+            <section class="result-panel result-standings" [attr.aria-label]="i18n.t('result.standings')">
               <table>
-                <thead><tr><th>#</th><th>Player</th><th>Archetype</th><th>Record</th></tr></thead>
+                <thead><tr><th>#</th><th>{{ i18n.t('common.player') }}</th><th>{{ i18n.t('result.archetype') }}</th><th>{{ i18n.t('common.record') }}</th></tr></thead>
                 <tbody>
                   @for (row of topStandingRows(); track row.playerName) {
                     <tr><td class="rank">{{ row.rank }}</td><td><strong>{{ row.playerName }}</strong></td><td>{{ row.archetype }}</td><td>{{ row.record }}</td></tr>
                   } @empty {
-                    <tr><td colspan="4" class="empty">No valid results yet.</td></tr>
+                    <tr><td colspan="4" class="empty">{{ i18n.t('result.noValidResults') }}</td></tr>
                   }
                 </tbody>
               </table>
             </section>
           } @else {
-            <section class="result-panel result-metagame" aria-label="Metagame">
+            <section class="result-panel result-metagame" [attr.aria-label]="i18n.t('result.metagame')">
               @if (metagameBars().length) {
                 <div
                   class="metagame-bar-columns"
@@ -51,7 +52,7 @@ import { logBoundaryError } from '../../shared/app-logger';
                   [class.metagame-bar-columns--comfortable]="metagameBars().length > 8 && metagameBars().length <= 18"
                   [class.metagame-bar-columns--dense]="metagameBars().length > 18"
                   role="list"
-                  aria-label="Metagame archetype share bars"
+                  [attr.aria-label]="i18n.t('result.metagameBarsAria')"
                 >
                   @for (column of metagameColumns(); track $index) {
                     <div class="metagame-bar-column">
@@ -69,32 +70,33 @@ import { logBoundaryError } from '../../shared/app-logger';
                   }
                 </div>
               } @else {
-                <p class="empty">No archetype data yet.</p>
+                <p class="empty">{{ i18n.t('result.noArchetypeData') }}</p>
               }
-              <div class="result-player-badge metagame-player-badge"><span>Players</span><strong>{{ report.stats.playerCount }}</strong></div>
+              <div class="result-player-badge metagame-player-badge"><span>{{ i18n.t('common.players') }}</span><strong>{{ report.stats.playerCount }}</strong></div>
             </section>
           }
         </section>
       </section>
     } @else if (!loading()) {
-      <mat-card class="panel"><mat-card-title>Tournament result not found</mat-card-title><mat-card-content><p>The requested Tournament result does not exist or was deleted.</p></mat-card-content></mat-card>
+      <mat-card class="panel"><mat-card-title>{{ i18n.t('result.notFoundTitle') }}</mat-card-title><mat-card-content><p>{{ i18n.t('result.notFoundBody') }}</p></mat-card-content></mat-card>
     }
     @if (!loading() && leagueId()) {
-      <footer class="back-button-row back-button-row--bottom result-footer" aria-label="Result page navigation">
-        <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId()]">Back to Tournament</a>
+      <footer class="back-button-row back-button-row--bottom result-footer" [attr.aria-label]="i18n.t('result.navAria')">
+        <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId()]">{{ i18n.t('nav.backToTournament') }}</a>
         @if (page() === 'standings') {
-          <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId(), 'result', 'metagames']">See Archetype Share</a>
+          <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId(), 'result', 'metagames']">{{ i18n.t('result.seeArchetypeShare') }}</a>
         } @else {
-          <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId(), 'result']">See Standings</a>
+          <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId(), 'result']">{{ i18n.t('result.seeStandings') }}</a>
         }
         <span class="result-footer__spacer"></span>
-        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadResultImage()">Download Image</button>
-        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadAllResultImages()">Download All</button>
+        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadResultImage()">{{ i18n.t('result.downloadImage') }}</button>
+        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadAllResultImages()">{{ i18n.t('result.downloadAll') }}</button>
       </footer>
     }
   `
 })
 export class TournamentResultComponent {
+  readonly i18n = inject(I18nService);
   @ViewChild('resultSection') private resultSection?: ElementRef<HTMLElement>;
 
   readonly loading = signal(true);
@@ -106,7 +108,7 @@ export class TournamentResultComponent {
   readonly tournament = computed(() => this.league()?.tournaments.find((item) => item.id === this.tournamentId()) ?? null);
   readonly summary = computed<TournamentSummary | null>(() => this.tournament() ? buildTournamentSummary(this.tournament() as TournamentDocument) : null);
   readonly page = signal<'standings' | 'metagames'>('standings');
-  readonly pageLabel = computed(() => this.page() === 'metagames' ? 'Metagame' : 'Standings');
+  readonly pageLabel = computed(() => this.page() === 'metagames' ? this.i18n.t('result.metagame') : this.i18n.t('result.standings'));
   readonly topStandingRows = computed(() => this.summary()?.topRows.slice(0, 8) ?? []);
   readonly metagameBars = computed(() => buildMetagameBars(this.summary()?.archetypeShares.slice(0, 30) ?? []));
   readonly metagameColumns = computed(() => splitMetagameBars(this.metagameBars()));
@@ -114,7 +116,7 @@ export class TournamentResultComponent {
   constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
 
   formatTournamentDate(value: string): string {
-    if (!value) return 'No date';
+    if (!value) return this.i18n.t('common.noDate');
     const parsed = parseDateInputValue(value);
     if (!parsed) return value;
     return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
@@ -127,7 +129,7 @@ export class TournamentResultComponent {
       const blob = await captureElementAsPng(this.resultSection.nativeElement);
       downloadBlob(blob, `${this.resultFilenameBase()}-${this.page()}.png`);
     }
-    catch (error) { logBoundaryError('tournament-result.downloadImage', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId(), page: this.page() }); this.error.set('Could not download this Result image.'); }
+    catch (error) { logBoundaryError('tournament-result.downloadImage', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId(), page: this.page() }); this.error.set(this.i18n.t('result.downloadImageFailed')); }
     finally { this.downloading.set(false); }
   }
 
@@ -145,7 +147,7 @@ export class TournamentResultComponent {
       }
       downloadBlob(createZip(files), `${this.resultFilenameBase()}-results.zip`);
     }
-    catch (error) { logBoundaryError('tournament-result.downloadAllImages', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() }); this.error.set('Could not download all Result images.'); }
+    catch (error) { logBoundaryError('tournament-result.downloadAllImages', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() }); this.error.set(this.i18n.t('result.downloadAllFailed')); }
     finally { this.page.set(originalPage); this.downloading.set(false); }
   }
 
@@ -160,7 +162,7 @@ export class TournamentResultComponent {
     this.tournamentId.set(tournamentId);
     this.page.set(this.router.url.endsWith('/metagames') ? 'metagames' : 'standings');
     try { this.league.set(await this.repo.getLeague(leagueId)); }
-    catch (error) { logBoundaryError('tournament-result.load', error, { leagueId, tournamentId }); this.error.set('Could not load this Tournament result.'); }
+    catch (error) { logBoundaryError('tournament-result.load', error, { leagueId, tournamentId }); this.error.set(this.i18n.t('result.loadFailed')); }
     finally { this.loading.set(false); }
   }
 

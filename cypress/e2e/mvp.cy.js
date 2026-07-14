@@ -1,12 +1,18 @@
+function seedEnglishLanguage(win) {
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.language', 'en');
+  win.localStorage.setItem('gones.settings.deckArchetypes', '[]');
+}
+
 describe("Gones Angular MVP", () => {
   it("hides login from the home navbar", () => {
-    cy.visit("/");
+    cy.visit("/", { onBeforeLoad: seedEnglishLanguage });
     cy.get(".app-toolbar").should("not.contain.text", "Login");
   });
 
   it("opens the association About page from the menu", () => {
     cy.viewport(375, 812);
-    cy.visit("/");
+    cy.visit("/", { onBeforeLoad: seedEnglishLanguage });
     cy.get('[data-cy="menu-about-link"]').should("have.attr", "href", "/about").click();
     cy.location("pathname").should("eq", "/about");
     cy.contains("h1", "Le Legacy se joue à Lyon.").should("not.be.focused").and("have.class", "is-visible").and(($title) => {
@@ -70,7 +76,7 @@ describe("Gones Angular MVP", () => {
 
     for (const [width, height, label] of [[768, 1024, "tablet"], [1280, 800, "desktop"], [1920, 1080, "ultrawide"]]) {
       cy.viewport(width, height);
-      cy.visit("/about");
+      cy.visit("/about", { onBeforeLoad: seedEnglishLanguage });
       cy.document().should((doc) => {
         expect(doc.documentElement.scrollWidth, `${label} page width`).to.be.at.most(doc.documentElement.clientWidth);
       });
@@ -96,7 +102,7 @@ describe("Gones Angular MVP", () => {
     });
 
     cy.then(() => emulateReducedMotion("reduce"));
-    cy.visit("/about");
+    cy.visit("/about", { onBeforeLoad: seedEnglishLanguage });
     cy.get(".about-route").should("have.class", "about-motion-ready");
     cy.document().should((doc) => {
       expect(getComputedStyle(doc.documentElement).scrollBehavior).to.eq("auto");
@@ -113,7 +119,7 @@ describe("Gones Angular MVP", () => {
   });
 
   it("imports a League from the header", () => {
-    cy.visit("/leagues");
+    cy.visit("/leagues", { onBeforeLoad: seedEnglishLanguage });
     cy.contains("button", "Sign in locally").should("not.exist");
     cy.contains(".app-toolbar", "Import").should("exist");
     cy.get('[data-cy="header-import-input"]').selectFile({
@@ -160,8 +166,7 @@ describe("Gones Angular MVP", () => {
       }]
     };
 
-    cy.visit("/leagues/ranking-toggle-league", {
-      onBeforeLoad(win) {
+    cy.visit("/leagues/ranking-toggle-league", { onBeforeLoad(win) { seedEnglishLanguage(win);
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({ version: 1, leagues: [league] }));
       }
     });
@@ -173,7 +178,7 @@ describe("Gones Angular MVP", () => {
     cy.contains('[data-cy="ranking-table"] tr', "Alice").should("have.attr", "role", "link").click();
     cy.location("pathname").should("eq", "/players/Alice");
 
-    cy.visit("/leagues/ranking-toggle-league/tournaments/ranking-toggle-tournament");
+    cy.visit("/leagues/ranking-toggle-league/tournaments/ranking-toggle-tournament", { onBeforeLoad: seedEnglishLanguage });
     cy.get('[data-cy="ranking-table-toggle"]').should("be.visible").and("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking").click();
     cy.get('[data-cy="ranking-table-toggle"]').should("contain", "▸").and("have.attr", "aria-label", "Expand Ranking").and("have.attr", "aria-expanded", "false");
     cy.get('[data-cy="ranking-table-toggle"]').click().should("contain", "▾").and("have.attr", "aria-label", "Collapse Ranking");
@@ -181,8 +186,7 @@ describe("Gones Angular MVP", () => {
   });
 
   it("shows Tournaments as clickable responsive cards", () => {
-    cy.visit("/leagues/table-league", {
-      onBeforeLoad(win) {
+    cy.visit("/leagues/table-league", { onBeforeLoad(win) { seedEnglishLanguage(win);
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
           version: 1,
           leagues: [{
@@ -206,15 +210,14 @@ describe("Gones Angular MVP", () => {
   });
 
   it("shows read-only League controls without login", () => {
-    cy.visit("/leagues/demo-league");
+    cy.visit("/leagues/demo-league", { onBeforeLoad: seedEnglishLanguage });
     cy.contains("Edit source data").should("not.exist");
     cy.get('[data-cy="league-name-input"]').should("not.exist");
     cy.contains("Export League").should("exist");
   });
 
   it.skip("opens Tournament source data as editable and imports headerless CSV rows", () => {
-    cy.visit("/leagues/editable-tournament-league/tournaments/editable-tournament", {
-      onBeforeLoad(win) {
+    cy.visit("/leagues/editable-tournament-league/tournaments/editable-tournament", { onBeforeLoad(win) { seedEnglishLanguage(win);
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
           version: 1,
           leagues: [{
@@ -239,8 +242,7 @@ describe("Gones Angular MVP", () => {
   });
 
   it("shows editable Player Archetype inputs tied to players while Round panels stay collapsed", () => {
-    cy.visit("/leagues/archetype-panel-league/tournaments/archetype-panel-tournament", {
-      onBeforeLoad(win) {
+    cy.visit("/leagues/archetype-panel-league/tournaments/archetype-panel-tournament", { onBeforeLoad(win) { seedEnglishLanguage(win);
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
           version: 1,
           leagues: [{
@@ -281,8 +283,7 @@ describe("Gones Angular MVP", () => {
 
   it("opens a Tournament Result page that fits in one full-HD viewport", () => {
     cy.viewport(1920, 1080);
-    cy.visit("/leagues/result-page-league/tournaments/result-page-tournament", {
-      onBeforeLoad(win) {
+    cy.visit("/leagues/result-page-league/tournaments/result-page-tournament", { onBeforeLoad(win) { seedEnglishLanguage(win);
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({
           version: 1,
           leagues: [{
@@ -327,8 +328,8 @@ describe("Gones Angular MVP", () => {
   });
 
   it("shows Player Statistics route with history back buttons", () => {
-    cy.visit("/leagues");
-    cy.visit("/players/Alice");
+    cy.visit("/leagues", { onBeforeLoad: seedEnglishLanguage });
+    cy.visit("/players/Alice", { onBeforeLoad: seedEnglishLanguage });
     cy.contains("h1", "Alice");
     cy.get("button.back-button").should("have.length", 2);
     cy.contains("Played Matches");
@@ -369,8 +370,7 @@ describe("Gones Angular MVP", () => {
       }]
     };
 
-    cy.visit("/players/Alice", {
-      onBeforeLoad(win) {
+    cy.visit("/players/Alice", { onBeforeLoad(win) { seedEnglishLanguage(win);
         win.localStorage.setItem("gones.frontend.backend.v1", JSON.stringify({ version: 1, leagues: [league] }));
       }
     });

@@ -16,6 +16,9 @@ const tournamentName = "Cypress Live Lifecycle";
 function seedEmptyRunningTournamentState(win) {
   win.localStorage.setItem(LEAGUE_STORE_KEY, JSON.stringify({ version: 1, leagues: [presetLeague] }));
   win.localStorage.setItem(LIVE_TOURNAMENT_STORE_KEY, JSON.stringify({ version: 1, tournaments: [], deletedTournamentIds: [] }));
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.language', 'en');
+  win.localStorage.setItem('gones.settings.deckArchetypes', '[]');
 }
 
 function todayInputValue() {

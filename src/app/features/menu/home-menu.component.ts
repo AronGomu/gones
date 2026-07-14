@@ -1,34 +1,35 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { LiveTournamentDocument } from '../../domain/live-tournament';
+import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
 
 @Component({
   standalone: true,
   imports: [RouterLink],
   template: `
-    <section class="home-landing" aria-label="Gones main menu">
-      <nav class="home-destinations" aria-label="Main menu">
+    <section class="home-landing" [attr.aria-label]="i18n.t('home.aria')">
+      <nav class="home-destinations" [attr.aria-label]="i18n.t('home.navAria')">
         <a class="home-destination home-destination--leagues" [class.home-destination--running-active]="hasActiveRunningTournament()" routerLink="/live-tournaments" data-cy="menu-running-tournaments-card">
-          <strong>Running Tournaments</strong>
-          <p>Resume a saved live tournament, create a new running tournament, or delete old local drafts from one place.</p>
+          <strong>{{ i18n.t('home.runningTournaments') }}</strong>
+          <p>{{ i18n.t('home.runningTournamentsDesc') }}</p>
         </a>
         <a class="home-destination home-destination--leagues" routerLink="/leagues">
-          <strong>Leagues</strong>
-          <p>Create leagues, open tournaments, enter rounds, import results, and review standings.</p>
+          <strong>{{ i18n.t('home.leagues') }}</strong>
+          <p>{{ i18n.t('home.leaguesDesc') }}</p>
         </a>
         <a class="home-destination home-destination--calendar" routerLink="/calendar">
-          <strong>Calendar</strong>
-          <p>Upcoming tournaments, league nights, special formats, and future organized play.</p>
+          <strong>{{ i18n.t('home.calendar') }}</strong>
+          <p>{{ i18n.t('home.calendarDesc') }}</p>
         </a>
         <a class="home-destination home-destination--settings" routerLink="/settings" data-cy="menu-settings-link">
-          <strong>Settings</strong>
-          <p>Manage archetype labels, import tools, and local app configuration.</p>
+          <strong>{{ i18n.t('home.settings') }}</strong>
+          <p>{{ i18n.t('home.settingsDesc') }}</p>
         </a>
         <a class="home-destination home-destination--about" routerLink="/about" data-cy="menu-about-link" lang="fr">
-          <strong>À propos</strong>
-          <p>Découvrez l’association lyonnaise, ses tournois Legacy, l’équipe et les grands rendez-vous Fire & Ice.</p>
+          <strong>{{ i18n.t('home.about') }}</strong>
+          <p>{{ i18n.t('home.aboutDesc') }}</p>
         </a>
       </nav>
 
@@ -36,6 +37,7 @@ import { logBoundaryError } from '../../shared/app-logger';
   `
 })
 export class HomeMenuComponent {
+  readonly i18n = inject(I18nService);
   readonly liveTournaments = signal<LiveTournamentDocument[]>([]);
   readonly hasActiveRunningTournament = computed(() => this.liveTournaments().some((tournament) => tournament.stage !== 'completed'));
 

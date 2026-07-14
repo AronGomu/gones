@@ -13,6 +13,7 @@ import { exportFullData, exportLeague, leagueExportFilename } from './domain/exp
 import { CalendarEventDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { DeckArchetypeSettingsService, parseAppSettings } from './shared/deck-archetype-settings.service';
+import { I18nService } from './i18n/i18n.service';
 import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
 
@@ -34,47 +35,47 @@ interface HeaderTournament {
   template: `
     @if (!isResultPage()) {
       <mat-toolbar class="app-toolbar">
-        <a class="brand" routerLink="/" aria-label="Gones home"><img src="assets/gones_logo.png" alt="Gones"></a>
+        <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')"><img src="assets/gones_logo.png" alt="Gones"></a>
         <span class="spacer"></span>
         @if (showLiveTournamentActions()) {
           <div class="header-actions live-tournament-header-actions">
-            <button mat-stroked-button class="secondary-action" type="button" data-cy="live-tournament-advanced-settings-button" (click)="openLiveTournamentAdvancedSettings()">Advanced Settings</button>
+            <button mat-stroked-button class="secondary-action" type="button" data-cy="live-tournament-advanced-settings-button" (click)="openLiveTournamentAdvancedSettings()">{{ i18n.t('header.advancedSettings') }}</button>
           </div>
         } @else if (showHeaderImport()) {
           <div class="header-actions">
-            <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? 'Importing…' : 'Import' }}</button>
+            <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
             <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
-            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">Full Data Export</button>
+            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">{{ i18n.t('header.fullDataExport') }}</button>
           </div>
         } @else if (headerTournament(); as item) {
           <div class="header-actions tournament-header-actions">
-            <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="'View result page for ' + item.tournament.name">View Result</a>
-            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" aria-label="Tournament actions" [disabled]="deletingTournament()">⋮</button>
+            <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
+            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
             <mat-menu #tournamentActionsMenu="matMenu">
-              <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? 'Deleting Tournament…' : 'Delete Tournament' }}</button>
+              <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? i18n.t('header.deletingTournament') : i18n.t('header.deleteTournament') }}</button>
             </mat-menu>
           </div>
         } @else if (headerLeague(); as league) {
           <div class="header-actions league-header-actions">
-            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadLeagueExport(league)">Export League</button>
-            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" aria-label="League actions">⋮</button>
+            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadLeagueExport(league)">{{ i18n.t('header.exportLeague') }}</button>
+            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" [attr.aria-label]="i18n.t('header.leagueActions')">⋮</button>
             <mat-menu #leagueActionsMenu="matMenu">
-              <button mat-menu-item class="destructive-menu-item" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? 'Placeholder League cannot be deleted' : 'Delete League' }}</button>
+              <button mat-menu-item class="destructive-menu-item" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? i18n.t('header.placeholderLeagueLocked') : i18n.t('header.deleteLeague') }}</button>
             </mat-menu>
           </div>
         } @else if (showSettingsActions()) {
-          <div class="header-actions settings-header-actions" aria-label="Settings import and export actions">
-            <button mat-stroked-button class="secondary-action" type="button" data-cy="settings-export-button" [disabled]="settingsImporting()" (click)="downloadSettingsExport()">Export Settings</button>
-            <button mat-flat-button class="home-primary-action" type="button" data-cy="settings-import-button" [disabled]="settingsImporting()" (click)="openSettingsImportPicker()">{{ settingsImporting() ? 'Importing…' : 'Import Settings' }}</button>
+          <div class="header-actions settings-header-actions" [attr.aria-label]="i18n.t('header.settingsActionsAria')">
+            <button mat-stroked-button class="secondary-action" type="button" data-cy="settings-export-button" [disabled]="settingsImporting()" (click)="downloadSettingsExport()">{{ i18n.t('header.exportSettings') }}</button>
+            <button mat-flat-button class="home-primary-action" type="button" data-cy="settings-import-button" [disabled]="settingsImporting()" (click)="openSettingsImportPicker()">{{ settingsImporting() ? i18n.t('common.importing') : i18n.t('header.importSettings') }}</button>
             <input #settingsImportInput class="toolbar-import-input" data-cy="settings-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="settingsImporting()" (change)="importSettings($event)">
           </div>
         } @else if (showHomeActions()) {
           <div class="header-actions home-header-actions">
-            <a mat-stroked-button class="secondary-action" routerLink="/settings" data-cy="menu-settings-link">Settings</a>
+            <a mat-stroked-button class="secondary-action" routerLink="/settings" data-cy="menu-settings-link">{{ i18n.t('header.settings') }}</a>
           </div>
         }
       </mat-toolbar>
-      <nav class="breadcrumb-shell breadcrumb-shell--header" aria-label="Breadcrumb">
+      <nav class="breadcrumb-shell breadcrumb-shell--header" [attr.aria-label]="i18n.t('nav.breadcrumb')">
         <ol class="breadcrumbs" data-cy="breadcrumbs">
           @for (item of breadcrumbs(); track item.label + $index) {
             <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
@@ -91,6 +92,7 @@ interface HeaderTournament {
   `
 })
 export class AppComponent {
+  readonly i18n = inject(I18nService);
   @ViewChild('headerImportInput') private headerImportInput?: ElementRef<HTMLInputElement>;
   @ViewChild('settingsImportInput') private settingsImportInput?: ElementRef<HTMLInputElement>;
 
@@ -114,7 +116,7 @@ export class AppComponent {
   readonly showHomeActions = signal(this.pathOnly(this.router.url) === '/');
   readonly headerLeague = signal<PersistedLeague | null>(null);
   readonly headerTournament = signal<HeaderTournament | null>(null);
-  readonly breadcrumbs = signal<BreadcrumbItem[]>([{ label: 'Menu' }]);
+  readonly breadcrumbs = signal<BreadcrumbItem[]>([]);
   private routeStateRequest = 0;
 
   constructor() {
@@ -152,7 +154,7 @@ export class AppComponent {
     const detail = event instanceof CustomEvent ? event.detail as { liveTournamentId?: string; name?: string } : {};
     const segments = this.pathOnly(this.router.url).split('/').filter(Boolean);
     if (segments[0] === 'live-tournaments' && segments[1] && segments[1] === detail.liveTournamentId && detail.name) {
-      this.breadcrumbs.set([{ label: 'Menu', link: ['/'] }, { label: 'Running Tournaments', link: ['/live-tournaments'] }, { label: `${detail.name} (live)` }]);
+      this.breadcrumbs.set([{ label: this.i18n.t('nav.menu'), link: ['/'] }, { label: this.i18n.t('crumb.runningTournaments'), link: ['/live-tournaments'] }, { label: this.i18n.t('crumb.liveSuffix', { name: detail.name }) }]);
       return;
     }
     void this.updateRouteState(this.router.url);
@@ -178,34 +180,37 @@ export class AppComponent {
   }
 
   private async buildBreadcrumbs(path: string): Promise<BreadcrumbItem[]> {
+    const menu = this.i18n.t('nav.menu');
     const segments = path.split('/').filter(Boolean);
-    if (!segments.length) return [{ label: 'Menu' }];
-    if (segments[0] === 'about') return [{ label: 'Menu', link: ['/'] }, { label: 'À propos', lang: 'fr' }];
-    if (segments[0] === 'calendar') return [{ label: 'Menu', link: ['/'] }, { label: 'Calendar' }];
+    if (!segments.length) return [{ label: menu }];
+    if (segments[0] === 'about') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.about'), lang: 'fr' }];
+    if (segments[0] === 'calendar') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar') }];
     if (segments[0] === 'events') {
       const eventPage = segments[1] ? await this.safeGetEvent(decodeURIComponent(segments[1])) : null;
-      return [{ label: 'Menu', link: ['/'] }, { label: 'Calendar', link: ['/calendar'] }, { label: eventPage?.title || 'Event' }];
+      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: eventPage?.title || this.i18n.t('crumb.event') }];
     }
-    if (segments[0] === 'settings') return [{ label: 'Menu', link: ['/'] }, { label: 'Settings' }];
-    if (segments[0] === 'players') return [{ label: 'Menu', link: ['/'] }, { label: 'Player' }];
+    if (segments[0] === 'settings') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.settings') }];
+    if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.player') }];
     if (segments[0] === 'live-tournaments') {
-      if (!segments[1]) return [{ label: 'Menu', link: ['/'] }, { label: 'Running Tournaments' }];
+      if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.runningTournaments') }];
       const liveTournament = segments[1] === 'new' ? null : await this.safeGetLiveTournament(decodeURIComponent(segments[1]));
-      const label = segments[1] === 'new' ? 'New Tournament' : `${liveTournament?.name || 'Live Tournament'} (live)`;
-      return [{ label: 'Menu', link: ['/'] }, { label: 'Running Tournaments', link: ['/live-tournaments'] }, { label }];
+      const label = segments[1] === 'new'
+        ? this.i18n.t('crumb.newTournament')
+        : this.i18n.t('crumb.liveSuffix', { name: liveTournament?.name || this.i18n.t('crumb.liveTournament') });
+      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.runningTournaments'), link: ['/live-tournaments'] }, { label }];
     }
-    if (segments[0] !== 'leagues') return [{ label: 'Menu', link: ['/'] }, { label: 'Not Found' }];
-    if (!segments[1]) return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues' }];
+    if (segments[0] !== 'leagues') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('nav.notFound') }];
+    if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues') }];
 
     const leagueId = decodeURIComponent(segments[1]);
     const league = await this.safeGetLeague(leagueId);
-    const leagueLabel = league?.name || 'League';
-    if (segments[2] !== 'tournaments' || !segments[3]) return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel }];
+    const leagueLabel = league?.name || this.i18n.t('crumb.league');
+    if (segments[2] !== 'tournaments' || !segments[3]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel }];
 
     const tournamentId = decodeURIComponent(segments[3]);
-    const tournamentLabel = league?.tournaments.find((item) => item.id === tournamentId)?.name || 'Tournament';
-    if (segments[4] === 'result') return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel, link: ['/leagues', leagueId, 'tournaments', tournamentId] }, { label: 'Result' }];
-    return [{ label: 'Menu', link: ['/'] }, { label: 'Leagues', link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel }];
+    const tournamentLabel = league?.tournaments.find((item) => item.id === tournamentId)?.name || this.i18n.t('crumb.tournament');
+    if (segments[4] === 'result') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel, link: ['/leagues', leagueId, 'tournaments', tournamentId] }, { label: this.i18n.t('crumb.result') }];
+    return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel }];
   }
 
   private async safeGetLeague(leagueId: string): Promise<PersistedLeague | null> {
@@ -235,12 +240,12 @@ export class AppComponent {
     const settings = this.settings.exportSettings();
     try {
       saveJsonFile(settings, `gones-settings-${new Date().toISOString().slice(0, 10)}.json`);
-      this.settingsMessage.set('Settings exported.');
+      this.settingsMessage.set(this.i18n.t('msg.settingsExported'));
       this.importError.set('');
       logBoundaryInfo('app-header.exportSettings', { language: settings.language, deckArchetypes: settings.deckArchetypes.length });
     } catch (error) {
       logBoundaryError('app-header.exportSettings', error, { language: settings.language, deckArchetypes: settings.deckArchetypes.length });
-      this.importError.set('Could not export settings.');
+      this.importError.set(this.i18n.t('msg.settingsExportFailed'));
       this.settingsMessage.set('');
     }
   }
@@ -254,32 +259,36 @@ export class AppComponent {
     try {
       const parsed = parseAppSettings(JSON.parse(await file.text()));
       if (!parsed) {
-        this.importError.set('Choose a valid Gones settings JSON file.');
+        this.importError.set(this.i18n.t('msg.settingsImportInvalid'));
         this.settingsMessage.set('');
         return;
       }
 
       const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
         data: {
-          title: 'Import settings',
-          message: `Replace your current settings with ${parsed.deckArchetypes.length} imported deck archetype${parsed.deckArchetypes.length === 1 ? '' : 's'} and ${parsed.language === 'fr' ? 'French' : 'English'} language? This cannot be undone.`,
-          confirmLabel: 'Replace settings',
+          title: this.i18n.t('dialog.importSettingsTitle'),
+          message: this.i18n.t('dialog.importSettingsMessage', {
+            count: parsed.deckArchetypes.length,
+            plural: parsed.deckArchetypes.length === 1 ? '' : 's',
+            language: this.i18n.languageWord(parsed.language)
+          }),
+          confirmLabel: this.i18n.t('dialog.replaceSettings'),
           destructive: true
         }
       }).afterClosed());
       if (!confirmed) {
-        this.settingsMessage.set('Settings import canceled.');
+        this.settingsMessage.set(this.i18n.t('msg.settingsImportCanceled'));
         this.importError.set('');
         return;
       }
 
       await this.settings.replaceSettings(parsed);
-      this.settingsMessage.set(`Imported ${parsed.deckArchetypes.length} deck archetype${parsed.deckArchetypes.length === 1 ? '' : 's'} and ${parsed.language === 'fr' ? 'Français' : 'English'} language.`);
+      this.settingsMessage.set(this.i18n.t('msg.settingsImported', { count: parsed.deckArchetypes.length, plural: parsed.deckArchetypes.length === 1 ? '' : 's', language: this.i18n.languageLabel(parsed.language) }));
       this.importError.set('');
       logBoundaryInfo('app-header.importSettings', { fileName: file.name, language: parsed.language, deckArchetypes: parsed.deckArchetypes.length });
     } catch (error) {
       logBoundaryError('app-header.importSettings', error, { fileName: file.name });
-      this.importError.set(error instanceof SyntaxError ? 'That settings file is not valid JSON.' : 'Could not import settings. Use a valid Gones settings JSON file.');
+      this.importError.set(error instanceof SyntaxError ? this.i18n.t('msg.settingsImportBadJson') : this.i18n.t('msg.settingsImportFailed'));
       this.settingsMessage.set('');
     } finally {
       this.settingsImporting.set(false);
@@ -297,7 +306,7 @@ export class AppComponent {
 
   async deleteLeague(league: PersistedLeague): Promise<void> {
     if (this.isPlaceholderLeague(league)) return;
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete League', message: `Delete ${league.name}? This permanently deletes its Tournaments, rounds, and Player Statistics source data.`, confirmLabel: 'Delete League', destructive: true } }).afterClosed());
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('dialog.deleteLeagueTitle'), message: this.i18n.t('dialog.deleteLeagueMessage', { name: league.name }), confirmLabel: this.i18n.t('dialog.deleteLeagueTitle'), destructive: true } }).afterClosed());
     if (!confirmed) return;
     await this.repo.deleteLeague(league.id);
     this.headerLeague.set(null);
@@ -306,7 +315,7 @@ export class AppComponent {
 
   async deleteTournament({ league, tournament }: HeaderTournament): Promise<void> {
     if (this.deletingTournament()) return;
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: 'Delete Tournament', message: `Delete ${tournament.name}? This permanently deletes its rounds and Player Statistics source data.`, confirmLabel: 'Delete Tournament', destructive: true } }).afterClosed());
+    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('dialog.deleteTournamentTitle'), message: this.i18n.t('dialog.deleteTournamentMessage', { name: tournament.name }), confirmLabel: this.i18n.t('dialog.deleteTournamentTitle'), destructive: true } }).afterClosed());
     if (!confirmed) return;
     this.deletingTournament.set(true);
     this.importError.set('');
@@ -317,7 +326,7 @@ export class AppComponent {
       await this.router.navigate(['/leagues', league.id]);
     } catch (error) {
       logBoundaryError('app-header.deleteTournament', error, { leagueId: league.id, tournamentId: tournament.id });
-      this.importError.set(error instanceof Error && error.message === 'staleLeagueDocument' ? 'This League changed since you opened it. Reload the latest saved data before deleting this Tournament.' : 'Could not delete this Tournament.');
+      this.importError.set(error instanceof Error && error.message === 'staleLeagueDocument' ? this.i18n.t('msg.staleLeagueDeleteTournament') : this.i18n.t('msg.deleteTournamentFailed'));
     } finally {
       this.deletingTournament.set(false);
     }
@@ -338,7 +347,7 @@ export class AppComponent {
       await this.router.navigate(firstImportedLeagueId ? ['/leagues', firstImportedLeagueId] : result.importedCalendarEventIds.length ? ['/calendar'] : ['/leagues']);
     } catch (error) {
       logBoundaryError('app-header.importLeague', error, { fileName: file.name });
-      this.importError.set(importErrorMessage(error));
+      this.importError.set(importErrorMessage(error, this.i18n));
     } finally {
       this.importing.set(false);
       input.value = '';
@@ -346,13 +355,13 @@ export class AppComponent {
   }
 }
 
-function importErrorMessage(error: unknown): string {
-  if (error instanceof DOMException && error.name === 'QuotaExceededError') return 'Browser storage is full. Export a backup or clear space, then try again.';
+function importErrorMessage(error: unknown, i18n: I18nService): string {
+  if (error instanceof DOMException && error.name === 'QuotaExceededError') return i18n.t('msg.importQuota');
   if (error instanceof Error) {
-    if (error.message === 'gonesImportFileTooLarge') return 'That Gones Export is too large to import in the browser.';
-    if (error.message === 'gonesImportTooManyLeagues') return 'That Full Data Export contains too many Leagues for browser import.';
-    if (error.message === 'unsupportedGonesExport' || error.message === 'wrongExportKind') return 'That file is not a supported Gones Export.';
+    if (error.message === 'gonesImportFileTooLarge') return i18n.t('msg.importTooLarge');
+    if (error.message === 'gonesImportTooManyLeagues') return i18n.t('msg.importTooManyLeagues');
+    if (error.message === 'unsupportedGonesExport' || error.message === 'wrongExportKind') return i18n.t('msg.importUnsupported');
   }
-  if (error instanceof SyntaxError) return 'That file is not valid JSON.';
-  return 'Could not import that Gones Export. Please try again.';
+  if (error instanceof SyntaxError) return i18n.t('msg.importBadJson');
+  return i18n.t('msg.importFailed');
 }
