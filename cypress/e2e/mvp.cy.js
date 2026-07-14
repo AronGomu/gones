@@ -1,4 +1,9 @@
 describe("Gones Angular MVP", () => {
+  it("hides login from the home navbar", () => {
+    cy.visit("/");
+    cy.get(".app-toolbar").should("not.contain.text", "Login");
+  });
+
   it("opens the association About page from the menu", () => {
     cy.viewport(375, 812);
     cy.visit("/");

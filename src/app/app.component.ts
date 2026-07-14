@@ -70,7 +70,6 @@ interface HeaderTournament {
           </div>
         } @else if (showHomeActions()) {
           <div class="header-actions home-header-actions">
-            <button mat-stroked-button class="secondary-action" type="button" disabled>Login</button>
             <a mat-stroked-button class="secondary-action" routerLink="/settings" data-cy="menu-settings-link">Settings</a>
           </div>
         }
