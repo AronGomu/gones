@@ -102,16 +102,16 @@ export class AppComponent {
   private readonly settings = inject(DeckArchetypeSettingsService);
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
-  readonly isResultPage = computed(() => this.currentUrl().split('?')[0].split('/').includes('result'));
+  readonly isResultPage = computed(() => this.pathOnly(this.currentUrl()).split('/').includes('result'));
   readonly importing = signal(false);
   readonly settingsImporting = signal(false);
   readonly deletingTournament = signal(false);
   readonly importError = signal('');
   readonly settingsMessage = signal('');
-  readonly showHeaderImport = signal(this.router.url.split('?')[0] === '/leagues');
-  readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.router.url.split('?')[0]));
-  readonly showSettingsActions = signal(this.router.url.split('?')[0] === '/settings');
-  readonly showHomeActions = signal(this.router.url.split('?')[0] === '/');
+  readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues');
+  readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
+  readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
+  readonly showHomeActions = signal(this.pathOnly(this.router.url) === '/');
   readonly headerLeague = signal<PersistedLeague | null>(null);
   readonly headerTournament = signal<HeaderTournament | null>(null);
   readonly breadcrumbs = signal<BreadcrumbItem[]>([{ label: 'Menu' }]);
@@ -125,10 +125,14 @@ export class AppComponent {
     });
   }
 
+  private pathOnly(url: string): string {
+    return url.split(/[?#]/)[0] || '/';
+  }
+
   private async updateRouteState(url: string): Promise<void> {
     const request = ++this.routeStateRequest;
     this.currentUrl.set(url);
-    const path = url.split('?')[0];
+    const path = this.pathOnly(url);
     this.showHeaderImport.set(path === '/leagues');
     this.showLiveTournamentActions.set(this.isLiveTournamentRunnerPath(path));
     this.showSettingsActions.set(path === '/settings');
@@ -146,7 +150,7 @@ export class AppComponent {
 
   private handleLiveTournamentUpdated(event: Event): void {
     const detail = event instanceof CustomEvent ? event.detail as { liveTournamentId?: string; name?: string } : {};
-    const segments = this.router.url.split('?')[0].split('/').filter(Boolean);
+    const segments = this.pathOnly(this.router.url).split('/').filter(Boolean);
     if (segments[0] === 'live-tournaments' && segments[1] && segments[1] === detail.liveTournamentId && detail.name) {
       this.breadcrumbs.set([{ label: 'Menu', link: ['/'] }, { label: 'Running Tournaments', link: ['/live-tournaments'] }, { label: `${detail.name} (live)` }]);
       return;

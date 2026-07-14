@@ -20,6 +20,7 @@ describe("Gones Angular MVP", () => {
     });
     cy.contains("a", "Rencontrer l’équipe").click();
     cy.location("hash").should("eq", "#equipe");
+    cy.get('[data-cy="breadcrumb-current"]').should("contain", "À propos");
     cy.get("#equipe").should("be.focused").and(($team) => {
       expect($team[0].getBoundingClientRect().top).to.be.within(100, 160);
     });
