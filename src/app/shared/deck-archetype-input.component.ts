@@ -34,8 +34,8 @@ let nextDeckArchetypeInputId = 1;
           </mat-option>
         }
       </mat-autocomplete>
-      @if (canAddCurrentValue()) {
-        <button mat-stroked-button type="button" class="deck-archetype-input__add success-ghost-action" [disabled]="adding()" [attr.aria-label]="i18n.t('archetype.addAria', { value })" (click)="addCurrentValue()">{{ i18n.t('archetype.add') }}</button>
+      @if (allowAdd && canAddCurrentValue()) {
+        <button mat-flat-button type="button" class="deck-archetype-input__add create-action-button" data-cy="deck-archetype-save-button" [disabled]="adding()" [attr.aria-label]="i18n.t('archetype.addAria', { value })" (click)="addCurrentValue()">{{ i18n.t('archetype.add') }}</button>
       }
     </div>
   `
@@ -46,6 +46,8 @@ export class DeckArchetypeInputComponent {
   @Input() label = '';
   @Input() value = '';
   @Input() disabled = false;
+  /** When false, hide save/add-to-catalog button (link-only mode). */
+  @Input() allowAdd = true;
   @Output() readonly valueChange = new EventEmitter<string>();
 
   readonly adding = signal(false);

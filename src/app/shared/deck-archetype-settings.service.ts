@@ -1,4 +1,5 @@
 import { computed, Injectable, signal } from '@angular/core';
+import { PRESET_LEGACY_ARCHETYPES } from '../config/legacy-archetype-presets';
 
 const SETTINGS_KEY = 'gones.settings';
 const SETTINGS_LANGUAGE_KEY = 'gones.settings.language';
@@ -19,15 +20,22 @@ interface FuzzyMatch {
 
 @Injectable({ providedIn: 'root' })
 export class DeckArchetypeSettingsService {
-  private readonly archetypesSignal = signal(loadDeckArchetypes());
-  private readonly languageSignal = signal(loadSettingsLanguage());
+  private readonly archetypesSignal = signal<string[]>([]);
+  private readonly languageSignal = signal<SettingsLanguage>('fr');
   readonly archetypes = computed(() => this.archetypesSignal());
   readonly language = computed(() => this.languageSignal());
 
   constructor() {
+    this.bootstrapFromStorage();
     window.addEventListener('storage', (event) => {
       if (event.key === SETTINGS_KEY || event.key === SETTINGS_LANGUAGE_KEY || event.key === DECK_ARCHETYPES_KEY) this.refreshFromStorage();
     });
+  }
+
+  /** Re-read storage and ensure bundled Legacy presets are present. */
+  bootstrapFromStorage(): void {
+    this.languageSignal.set(loadSettingsLanguage());
+    this.archetypesSignal.set(loadDeckArchetypes());
   }
 
   has(name: string): boolean {
@@ -48,8 +56,10 @@ export class DeckArchetypeSettingsService {
     if (!settings) return false;
 
     return this.runExclusive(() => {
-      writeSettings(settings.deckArchetypes, settings.language);
-      this.archetypesSignal.set(settings.deckArchetypes);
+      // Import/replace is authoritative for that moment; next bootstrap still re-applies baseline presets.
+      const next = uniqueArchetypes([...PRESET_LEGACY_ARCHETYPES, ...settings.deckArchetypes]);
+      writeSettings(next, settings.language);
+      this.archetypesSignal.set(next);
       this.languageSignal.set(settings.language);
       return true;
     });
@@ -164,11 +174,32 @@ export function fuzzyMatchIndices(archetype: string, query: string): number[] {
 }
 
 function loadDeckArchetypes(): string[] {
+  const language = loadSettingsLanguage();
+  const existing = readStoredArchetypes() ?? [];
+  // Baseline pack is always part of the catalog (custom names kept on top).
+  const merged = uniqueArchetypes([...PRESET_LEGACY_ARCHETYPES, ...existing]);
+  if (merged.length !== existing.length || !listsEqual(existing, merged)) {
+    writeSettings(merged, language);
+  }
+  return merged;
+}
+
+function listsEqual(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index++) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+function readStoredArchetypes(): string[] | null {
   const settings = parseStoredSettings();
   if (settings) return settings.deckArchetypes;
 
+  const legacyRaw = localStorage.getItem(DECK_ARCHETYPES_KEY);
+  if (legacyRaw == null) return null;
   try {
-    const parsed = JSON.parse(localStorage.getItem(DECK_ARCHETYPES_KEY) ?? '[]') as unknown;
+    const parsed = JSON.parse(legacyRaw) as unknown;
     return Array.isArray(parsed) ? uniqueArchetypes(parsed.map((item) => String(item ?? ''))) : [];
   } catch {
     return [];

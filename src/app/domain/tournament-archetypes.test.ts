@@ -45,4 +45,22 @@ describe('tournament player archetypes', () => {
       { playerName: 'Bob', archetype: '' }
     ]);
   });
+
+  it('stores empty string when saving No archetype placeholder', () => {
+    const tournament = setTournamentPlayerArchetype(createTournament(), 'Alice', 'No archetype');
+    expect(tournament.playerArchetypes).toEqual([{ playerName: 'Alice', archetype: '' }]);
+  });
+
+  it('clears No Archetype labels on tournament load/import normalization', () => {
+    const tournament = createTournament({
+      playerArchetypes: [{ playerName: 'Alice', archetype: 'No Archetype' }, { playerName: 'Bob', archetype: 'Fire' }],
+      rounds: [{ entries: [createMatchRoundEntry({ player1Name: 'Alice', player1DeckArchetype: 'No archetype', player2Name: 'Bob', player2DeckArchetype: 'Fire' })] }]
+    });
+    expect(tournament.playerArchetypes).toEqual([
+      { playerName: 'Alice', archetype: '' },
+      { playerName: 'Bob', archetype: 'Fire' }
+    ]);
+    const match = tournament.rounds[0].entries[0];
+    expect(match).toMatchObject({ player1DeckArchetype: '', player2DeckArchetype: 'Fire' });
+  });
 });

@@ -1,4 +1,4 @@
-import { trimPlayerName } from './models';
+import { normalizeDeckArchetype, trimPlayerName } from './models';
 import type { PlayerArchetypeDocument, RoundEntry, TournamentDocument } from './models';
 import { validateRoundEntry } from './validation';
 
@@ -144,7 +144,7 @@ function entryArchetypeCandidates(entry: RoundEntry): PlayerArchetypeDocument[] 
 }
 
 function normalizeArchetype(value: unknown): string {
-  return String(value ?? '').trim();
+  return normalizeDeckArchetype(value);
 }
 
 function dedupeConflicts(conflicts: ArchetypeConflict[]): ArchetypeConflict[] {
