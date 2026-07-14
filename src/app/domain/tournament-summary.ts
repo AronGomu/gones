@@ -45,7 +45,7 @@ export function buildTournamentSummary(tournament: TournamentDocument, now = new
     generatedAt: now.toISOString(),
     status: result.provisional ? 'Provisional' : result.incomplete ? 'Incomplete' : 'Final',
     topRows,
-    archetypeShares: calculateArchetypeShares(facts.archetypesByPlayer),
+    archetypeShares: calculateArchetypeShares(facts.archetypesByPlayer, facts.stats.playerCount),
     stats: facts.stats
   };
 }
@@ -71,17 +71,21 @@ function collectTournamentSummaryFacts(tournament: TournamentDocument, playerCou
   return { archetypesByPlayer, stats };
 }
 
-function calculateArchetypeShares(archetypesByPlayer: Map<string, string>): ArchetypeShare[] {
+function calculateArchetypeShares(archetypesByPlayer: Map<string, string>, totalPlayerCount: number): ArchetypeShare[] {
   const archetypeCounts = new Map<string, number>();
   for (const archetype of archetypesByPlayer.values()) {
     const normalizedArchetype = archetype.trim();
     if (isMissingArchetype(normalizedArchetype)) continue;
     archetypeCounts.set(normalizedArchetype, (archetypeCounts.get(normalizedArchetype) ?? 0) + 1);
   }
-  const total = [...archetypeCounts.values()].reduce((sum, count) => sum + count, 0);
-  if (!total) return [];
+  if (!archetypeCounts.size || totalPlayerCount <= 0) return [];
   return [...archetypeCounts.entries()]
-    .map(([archetype, playerCount]) => ({ archetype, playerCount, totalPlayerCount: total, percentage: playerCount / total }))
+    .map(([archetype, playerCount]) => ({
+      archetype,
+      playerCount,
+      totalPlayerCount,
+      percentage: playerCount / totalPlayerCount
+    }))
     .sort((left, right) => right.playerCount - left.playerCount || left.archetype.localeCompare(right.archetype));
 }
 

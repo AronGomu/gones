@@ -1,0 +1,109 @@
+import { LeagueDocument, RoundEntry, TournamentDocument, trimPlayerName } from './models';
+import { LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument } from './live-tournament';
+
+export function playerNameKey(name: string): string {
+  return trimPlayerName(name).toLocaleLowerCase();
+}
+
+export function samePlayerName(left: string, right: string): boolean {
+  const a = playerNameKey(left);
+  const b = playerNameKey(right);
+  return Boolean(a) && a === b;
+}
+
+/** Rename (or merge into) a player across league round entries + archetype rows. Rounds are source of truth. */
+export function renamePlayerInLeague(league: LeagueDocument, fromName: string, toName: string): LeagueDocument {
+  const from = trimPlayerName(fromName);
+  const to = trimPlayerName(toName);
+  if (!from || !to || samePlayerName(from, to) && from === to) return league;
+  return {
+    ...league,
+    tournaments: league.tournaments.map((tournament) => renamePlayerInTournament(tournament, from, to))
+  };
+}
+
+export function renamePlayerInTournament(tournament: TournamentDocument, fromName: string, toName: string): TournamentDocument {
+  const from = trimPlayerName(fromName);
+  const to = trimPlayerName(toName);
+  if (!from || !to) return tournament;
+  return {
+    ...tournament,
+    rounds: tournament.rounds.map((round) => ({
+      ...round,
+      entries: round.entries.map((entry) => renamePlayerInRoundEntry(entry, from, to))
+    })),
+    playerArchetypes: renamePlayerArchetypes(tournament.playerArchetypes ?? [], from, to)
+  };
+}
+
+export function renamePlayerInRoundEntry(entry: RoundEntry, fromName: string, toName: string): RoundEntry {
+  const from = trimPlayerName(fromName);
+  const to = trimPlayerName(toName);
+  if (entry.kind === 'match') {
+    return {
+      ...entry,
+      player1Name: samePlayerName(entry.player1Name, from) ? to : entry.player1Name,
+      player2Name: samePlayerName(entry.player2Name, from) ? to : entry.player2Name
+    };
+  }
+  if (entry.kind === 'bye') {
+    return { ...entry, playerName: samePlayerName(entry.playerName, from) ? to : entry.playerName };
+  }
+  return {
+    ...entry,
+    player: samePlayerName(entry.player, from) ? to : entry.player,
+    opponent: samePlayerName(entry.opponent, from) ? to : entry.opponent
+  };
+}
+
+export function renamePlayerInLiveTournament(live: LiveTournamentDocument, fromName: string, toName: string): LiveTournamentDocument {
+  const from = trimPlayerName(fromName);
+  const to = trimPlayerName(toName);
+  if (!from || !to) return live;
+  return {
+    ...live,
+    players: live.players.map((player) => renameLivePlayer(player, from, to)),
+    rounds: live.rounds.map((round) => renameLiveRound(round, from, to)),
+    firstRoundPlayerOrder: live.firstRoundPlayerOrder ?? []
+  };
+}
+
+function renameLivePlayer(player: LiveTournamentPlayerDocument, from: string, to: string): LiveTournamentPlayerDocument {
+  return samePlayerName(player.name, from) ? { ...player, name: to } : player;
+}
+
+function renameLiveRound(round: LiveTournamentRoundDocument, from: string, to: string): LiveTournamentRoundDocument {
+  return {
+    ...round,
+    entries: round.entries.map((item) => ({
+      ...item,
+      entry: renamePlayerInRoundEntry(item.entry, from, to)
+    }))
+  };
+}
+
+function renamePlayerArchetypes(
+  rows: { playerName: string; archetype: string }[],
+  from: string,
+  to: string
+): { playerName: string; archetype: string }[] {
+  const displayByKey = new Map<string, string>();
+  const archetypeByKey = new Map<string, string>();
+
+  for (const row of rows) {
+    const original = trimPlayerName(row.playerName);
+    if (!original) continue;
+    const name = samePlayerName(original, from) ? to : original;
+    const key = playerNameKey(name);
+    displayByKey.set(key, key === playerNameKey(to) ? to : name);
+    const archetype = String(row.archetype ?? '').trim();
+    const existing = archetypeByKey.get(key) ?? '';
+    // Keep existing non-empty archetype on merge; otherwise take the incoming one.
+    if (!existing && archetype) archetypeByKey.set(key, archetype);
+    else if (!archetypeByKey.has(key)) archetypeByKey.set(key, archetype);
+  }
+
+  return [...displayByKey.entries()]
+    .map(([key, playerName]) => ({ playerName, archetype: archetypeByKey.get(key) ?? '' }))
+    .sort((left, right) => left.playerName.localeCompare(right.playerName));
+}

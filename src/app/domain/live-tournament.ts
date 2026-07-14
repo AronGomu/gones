@@ -47,7 +47,10 @@ export interface LiveTournamentDocument {
   roundCount: number;
   customRoundCount: boolean;
   paidTrackingEnabled: boolean;
+  /** Seed for first-round shuffle. Kept when round 1 is canceled so re-launch can reuse it. */
   pairingSeed: number;
+  /** Player ids in first-round pairing order (pairs 0-1, 2-3, …; last alone = bye). Kept on cancel. */
+  firstRoundPlayerOrder: string[];
   stage: LiveTournamentStage;
   currentRoundNumber: number;
   players: LiveTournamentPlayerDocument[];
@@ -82,7 +85,7 @@ export interface LiveStandingRow {
 type MutableLiveStandingRecord = Omit<LiveStandingRow, 'rank' | 'gameWinPercentage' | 'opponentsMatchWinPercentage' | 'opponentsGameWinPercentage'>;
 
 export function createLiveTournament(
-  { id, name = 'Live Tournament', leagueId = '', tournamentDate = todayDateInputValue(), type = 'swiss', roundCount = 3, customRoundCount = false, paidTrackingEnabled = true, pairingSeed = 0, stage = 'registration', currentRoundNumber = 0, players = [], rounds = [], checkpoints = [], finalizedTournamentId, documentVersion = 1, createdAt = new Date().toISOString(), updatedAt = createdAt }: Partial<LiveTournamentDocument> = {},
+  { id, name = 'Live Tournament', leagueId = '', tournamentDate = todayDateInputValue(), type = 'swiss', roundCount = 3, customRoundCount = false, paidTrackingEnabled = true, pairingSeed = 0, firstRoundPlayerOrder = [], stage = 'registration', currentRoundNumber = 0, players = [], rounds = [], checkpoints = [], finalizedTournamentId, documentVersion = 1, createdAt = new Date().toISOString(), updatedAt = createdAt }: Partial<LiveTournamentDocument> = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): LiveTournamentDocument {
   return {
@@ -95,6 +98,7 @@ export function createLiveTournament(
     customRoundCount: Boolean(customRoundCount),
     paidTrackingEnabled: paidTrackingEnabled !== false,
     pairingSeed: toNonNegativeInteger(pairingSeed),
+    firstRoundPlayerOrder: normalizePlayerIdList(firstRoundPlayerOrder),
     stage,
     currentRoundNumber: toNonNegativeInteger(currentRoundNumber),
     players: normalizeLivePlayers(players, { idFactory }),
@@ -301,18 +305,47 @@ function compareLiveStandingRows(a: LiveStandingRow, b: LiveStandingRow): number
   return b.points - a.points || b.opponentsMatchWinPercentage - a.opponentsMatchWinPercentage || b.gameWinPercentage - a.gameWinPercentage || b.opponentsGameWinPercentage - a.opponentsGameWinPercentage || b.matchWins - a.matchWins || a.playerName.localeCompare(b.playerName);
 }
 
-export function generateNextSwissRound(tournament: LiveTournamentDocument, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): LiveTournamentDocument {
+export function generateNextSwissRound(
+  tournament: LiveTournamentDocument,
+  { idFactory = defaultIdFactory, randomSeed = createPairingSeed }: { idFactory?: IdFactory; randomSeed?: () => number } = {}
+): LiveTournamentDocument {
   const nextRoundNumber = tournament.rounds.filter((round) => round.validated).length + 1;
   if (nextRoundNumber > tournament.roundCount) return tournament;
+  if (nextRoundNumber === 1) {
+    const firstRound = buildFirstRoundPairings(tournament, { idFactory, randomSeed });
+    const nextRound = normalizeLiveRound({ roundNumber: 1, entries: firstRound.entries, validated: false }, 1, { idFactory });
+    return touch({
+      ...tournament,
+      pairingSeed: firstRound.pairingSeed,
+      firstRoundPlayerOrder: firstRound.firstRoundPlayerOrder,
+      stage: 'round',
+      currentRoundNumber: 1,
+      rounds: [nextRound]
+    });
+  }
   const entries = generateSwissPairings(tournament, nextRoundNumber, { idFactory });
   const nextRound = normalizeLiveRound({ roundNumber: nextRoundNumber, entries, validated: false }, nextRoundNumber, { idFactory });
   const checkpointed = tournament.stage === 'standings' ? withCheckpoint(tournament, `Standing ${tournament.currentRoundNumber}`, { idFactory }) : tournament;
   return touch({ ...checkpointed, stage: 'round', currentRoundNumber: nextRoundNumber, rounds: [...checkpointed.rounds.filter((round) => round.validated), nextRound] });
 }
 
-export function regenerateCurrentSwissRound(tournament: LiveTournamentDocument, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): LiveTournamentDocument {
+export function regenerateCurrentSwissRound(
+  tournament: LiveTournamentDocument,
+  { idFactory = defaultIdFactory, randomSeed = createPairingSeed }: { idFactory?: IdFactory; randomSeed?: () => number } = {}
+): LiveTournamentDocument {
   const round = currentLiveRound(tournament);
   if (!round || round.validated) return tournament;
+  if (round.roundNumber === 1) {
+    // Explicit re-roll: new seed + clear locked order, then full random first round.
+    const reseeded = { ...tournament, pairingSeed: 0, firstRoundPlayerOrder: [] as string[] };
+    const firstRound = buildFirstRoundPairings(reseeded, { idFactory, randomSeed });
+    return touch({
+      ...tournament,
+      pairingSeed: firstRound.pairingSeed,
+      firstRoundPlayerOrder: firstRound.firstRoundPlayerOrder,
+      rounds: tournament.rounds.map((item) => item.id === round.id ? normalizeLiveRound({ ...round, entries: firstRound.entries }, 1, { idFactory }) : item)
+    });
+  }
   const seededTournament = { ...tournament, pairingSeed: tournament.pairingSeed + 1 };
   const entries = generateSwissPairings(seededTournament, round.roundNumber, { idFactory });
   return touch({ ...seededTournament, rounds: tournament.rounds.map((item) => item.id === round.id ? normalizeLiveRound({ ...round, entries }, round.roundNumber, { idFactory }) : item) });
@@ -322,6 +355,7 @@ export function cancelCurrentSwissRound(tournament: LiveTournamentDocument): Liv
   const round = currentLiveRound(tournament);
   if (!round || round.validated) return tournament;
   const validatedRounds = tournament.rounds.filter((item) => item.validated);
+  // Keep pairingSeed + firstRoundPlayerOrder so a re-launch reuses the first-round generation.
   return touch({ ...tournament, stage: validatedRounds.length ? 'standings' : 'registration', currentRoundNumber: validatedRounds.at(-1)?.roundNumber ?? 0, rounds: validatedRounds });
 }
 
@@ -394,7 +428,6 @@ function generateSwissPairings(tournament: LiveTournamentDocument, roundNumber: 
   const standings = calculateLiveStandings(tournament);
   const activeIds = new Set(activeLivePlayers(tournament).map((player) => player.id));
   const players = standings.filter((row) => activeIds.has(row.playerId));
-  rotateFirstRoundPlayers(players, roundNumber, tournament.pairingSeed);
   const entries: LiveTournamentRoundEntryDocument[] = [];
   let table = 1;
 
@@ -414,10 +447,143 @@ function generateSwissPairings(tournament: LiveTournamentDocument, roundNumber: 
   return entries.sort((left, right) => Number(left.entry.table || 0) - Number(right.entry.table || 0));
 }
 
-function rotateFirstRoundPlayers(players: LiveStandingRow[], roundNumber: number, pairingSeed: number): void {
-  if (roundNumber !== 1 || players.length < 2 || pairingSeed <= 0) return;
-  const steps = pairingSeed % players.length;
-  players.push(...players.splice(0, steps));
+function buildFirstRoundPairings(
+  tournament: LiveTournamentDocument,
+  { idFactory, randomSeed }: { idFactory: IdFactory; randomSeed: () => number }
+): { entries: LiveTournamentRoundEntryDocument[]; pairingSeed: number; firstRoundPlayerOrder: string[] } {
+  const active = activeLivePlayers(tournament);
+  const activeById = new Map(active.map((player) => [player.id, player]));
+  const lockedOrder = normalizePlayerIdList(tournament.firstRoundPlayerOrder).filter((id) => activeById.has(id));
+  const lockedSet = new Set(lockedOrder);
+  const newcomers = active.filter((player) => !lockedSet.has(player.id));
+
+  // Fresh launch (or no locked cohort yet): randomize everyone with a new/non-zero seed.
+  if (!tournament.pairingSeed || lockedOrder.length === 0) {
+    const pairingSeed = tournament.pairingSeed || randomSeed();
+    const firstRoundPlayerOrder = seededShuffle(active.map((player) => player.id), pairingSeed);
+    return {
+      pairingSeed,
+      firstRoundPlayerOrder,
+      entries: entriesFromPlayerOrder(firstRoundPlayerOrder, activeById, { idFactory })
+    };
+  }
+
+  const pairingSeed = tournament.pairingSeed;
+
+  // Same roster re-launch after cancel: rebuild exact prior order.
+  if (!newcomers.length) {
+    return {
+      pairingSeed,
+      firstRoundPlayerOrder: lockedOrder,
+      entries: entriesFromPlayerOrder(lockedOrder, activeById, { idFactory })
+    };
+  }
+
+  // One new player: play previous bye if any, otherwise take the bye. Never reshuffle locked pairings.
+  if (newcomers.length === 1) {
+    const newPlayerId = newcomers[0].id;
+    let nextOrder: string[];
+    if (lockedOrder.length % 2 === 1) {
+      const byePlayerId = lockedOrder[lockedOrder.length - 1];
+      nextOrder = [...lockedOrder.slice(0, -1), byePlayerId, newPlayerId];
+    } else {
+      nextOrder = [...lockedOrder, newPlayerId];
+    }
+    return {
+      pairingSeed,
+      firstRoundPlayerOrder: nextOrder,
+      entries: entriesFromPlayerOrder(nextOrder, activeById, { idFactory })
+    };
+  }
+
+  // Multiple new players: keep locked pairings/bye intact; only pair newcomers among themselves.
+  const newOrder = seededShuffle(newcomers.map((player) => player.id), mixSeed(pairingSeed, newcomers.length));
+  const lockedEntries = entriesFromPlayerOrder(lockedOrder, activeById, { idFactory });
+  const newEntries = entriesFromPlayerOrder(newOrder, activeById, { idFactory, tableOffset: lockedEntries.length });
+  return {
+    pairingSeed,
+    firstRoundPlayerOrder: [...lockedOrder, ...newOrder],
+    entries: [...lockedEntries, ...newEntries].sort((left, right) => Number(left.entry.table || 0) - Number(right.entry.table || 0))
+  };
+}
+
+function entriesFromPlayerOrder(
+  order: string[],
+  activeById: Map<string, LiveTournamentPlayerDocument>,
+  { idFactory, tableOffset = 0 }: { idFactory: IdFactory; tableOffset?: number }
+): LiveTournamentRoundEntryDocument[] {
+  const ids = order.filter((id) => activeById.has(id));
+  const entries: LiveTournamentRoundEntryDocument[] = [];
+  let table = tableOffset + 1;
+  let byeId: string | null = null;
+  if (ids.length % 2 === 1) byeId = ids.pop() ?? null;
+
+  while (ids.length >= 2) {
+    const player1 = activeById.get(ids.shift()!)!;
+    const player2 = activeById.get(ids.shift()!)!;
+    entries.push({
+      entry: createMatchRoundEntry({
+        table: String(table++),
+        player1Name: player1.name,
+        player2Name: player2.name,
+        player1Score: 0,
+        player2Score: 0
+      }, { idFactory }),
+      resultEntered: false
+    });
+  }
+
+  if (byeId) {
+    const byePlayer = activeById.get(byeId)!;
+    entries.push({
+      entry: createByeRoundEntry({ table: String(table), playerName: byePlayer.name }, { idFactory }),
+      resultEntered: true
+    });
+  }
+
+  return entries;
+}
+
+function createPairingSeed(): number {
+  const bytes = new Uint32Array(1);
+  globalThis.crypto?.getRandomValues?.(bytes);
+  const value = bytes[0] || Math.floor(Math.random() * 0xffffffff);
+  return (value >>> 0) || 1;
+}
+
+function mixSeed(seed: number, salt: number): number {
+  return ((seed >>> 0) ^ Math.imul(salt + 1, 0x9e3779b9)) >>> 0 || 1;
+}
+
+/** Deterministic Fisher–Yates using mulberry32. */
+export function seededShuffle<T>(items: readonly T[], seed: number): T[] {
+  const arr = [...items];
+  let state = (seed >>> 0) || 1;
+  const next = (): number => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let index = arr.length - 1; index > 0; index--) {
+    const swapWith = Math.floor(next() * (index + 1));
+    [arr[index], arr[swapWith]] = [arr[swapWith], arr[index]];
+  }
+  return arr;
+}
+
+function normalizePlayerIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = String(item ?? '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
 }
 
 function findOpponentIndex(playerName: string, candidates: LiveStandingRow[], tournament: LiveTournamentDocument): number {

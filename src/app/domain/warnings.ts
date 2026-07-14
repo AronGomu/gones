@@ -1,10 +1,13 @@
-import { RoundEntry, TournamentDocument, trimPlayerName } from './models';
+import { RoundEntry, TournamentDocument } from './models';
+import { archetypeForPlayer } from './tournament-archetypes';
 import { validateRoundEntry } from './validation';
 
 export interface TournamentWarning {
   code: 'missingBye' | 'duplicateSameRoundPlayerName' | 'repeatedPairing' | 'newPlayerAfterRoundOne' | 'missingDeckArchetype';
   roundId?: string;
   playerName?: string;
+  /** All players missing a deck archetype (single combined warning). */
+  playerNames?: string[];
   entryIds?: string[];
 }
 
@@ -42,8 +45,9 @@ export function getTournamentWarnings(tournament: TournamentDocument): Tournamen
   for (const entryIds of pairings.values()) {
     if (entryIds.length > 1) warnings.push({ code: 'repeatedPairing', entryIds });
   }
-  for (const playerName of [...missingArchetypePlayers].sort((left, right) => left.localeCompare(right))) {
-    warnings.push({ code: 'missingDeckArchetype', playerName });
+  if (missingArchetypePlayers.size) {
+    const playerNames = [...missingArchetypePlayers].sort((left, right) => left.localeCompare(right));
+    warnings.push({ code: 'missingDeckArchetype', playerNames, playerName: playerNames[0] });
   }
   return warnings;
 }
@@ -74,6 +78,5 @@ function recordSeen(map: Map<string, string[]>, playerName: string, entryId: str
 }
 
 function playerArchetype(tournament: TournamentDocument, playerName: string): string {
-  const normalizedPlayerName = trimPlayerName(playerName);
-  return String((tournament.playerArchetypes ?? []).find((row) => trimPlayerName(row.playerName) === normalizedPlayerName)?.archetype ?? '').trim();
+  return archetypeForPlayer(tournament, playerName).trim();
 }

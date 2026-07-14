@@ -1,4 +1,4 @@
-import { GonesData, LeagueDocument, MatchRoundEntry, TournamentDocument } from './models';
+import { GonesData, LeagueDocument, MatchRoundEntry, TournamentDocument, trimPlayerName } from './models';
 import { validateRoundEntry } from './validation';
 
 export interface PlayerMatch {
@@ -81,4 +81,67 @@ function topName(map: Map<string, number>, tieBreak: 'name' | 'last'): string | 
 
 function includesNormalized(value: string, search: string): boolean {
   return value.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
+}
+
+/** Unique player names seen across league tournament rounds + archetype rosters. */
+export function collectKnownPlayerNames(leagues: readonly LeagueDocument[]): string[] {
+  const names = new Set<string>();
+  for (const league of leagues ?? []) {
+    for (const tournament of league.tournaments ?? []) {
+      for (const row of tournament.playerArchetypes ?? []) {
+        const name = trimPlayerName(row.playerName);
+        if (name) names.add(name);
+      }
+      for (const round of tournament.rounds ?? []) {
+        for (const entry of round.entries ?? []) {
+          if (entry.kind === 'match') {
+            const player1 = trimPlayerName(entry.player1Name);
+            const player2 = trimPlayerName(entry.player2Name);
+            if (player1) names.add(player1);
+            if (player2) names.add(player2);
+          } else if (entry.kind === 'bye') {
+            const player = trimPlayerName(entry.playerName);
+            if (player) names.add(player);
+          }
+        }
+      }
+    }
+  }
+  return [...names].sort((left, right) => left.localeCompare(right));
+}
+
+/** Fuzzy-ish player name suggestions (prefix / includes / subsequence), excluding reserved names. Empty query → full list. */
+export function suggestPlayerNames(names: readonly string[], query: string, options: { exclude?: readonly string[]; limit?: number } = {}): string[] {
+  const excluded = new Set((options.exclude ?? []).map((name) => trimPlayerName(name).toLocaleLowerCase()).filter(Boolean));
+  const available = names.filter((name) => !excluded.has(trimPlayerName(name).toLocaleLowerCase()));
+  const normalizedQuery = trimPlayerName(query).toLocaleLowerCase();
+  // Empty input: show every known player (not just first page / A-names).
+  if (!normalizedQuery) return options.limit == null ? available : available.slice(0, options.limit);
+
+  const ranked = available
+    .map((name) => ({ name, score: playerNameMatchScore(name, normalizedQuery) }))
+    .filter((item) => item.score !== Number.POSITIVE_INFINITY)
+    .sort((left, right) => left.score - right.score || left.name.localeCompare(right.name))
+    .map((item) => item.name);
+  return options.limit == null ? ranked : ranked.slice(0, options.limit);
+}
+
+function playerNameMatchScore(name: string, normalizedQuery: string): number {
+  const candidate = trimPlayerName(name).toLocaleLowerCase();
+  if (!candidate) return Number.POSITIVE_INFINITY;
+  if (candidate === normalizedQuery) return 0;
+  if (candidate.startsWith(normalizedQuery)) return 10 + candidate.length - normalizedQuery.length;
+  const includesIndex = candidate.indexOf(normalizedQuery);
+  if (includesIndex !== -1) return 30 + includesIndex;
+
+  let queryIndex = 0;
+  let firstMatch = -1;
+  let gaps = 0;
+  for (let candidateIndex = 0; candidateIndex < candidate.length && queryIndex < normalizedQuery.length; candidateIndex++) {
+    if (candidate[candidateIndex] !== normalizedQuery[queryIndex]) continue;
+    if (firstMatch === -1) firstMatch = candidateIndex;
+    gaps += candidateIndex - queryIndex;
+    queryIndex++;
+  }
+  return queryIndex === normalizedQuery.length ? 60 + firstMatch + gaps : Number.POSITIVE_INFINITY;
 }

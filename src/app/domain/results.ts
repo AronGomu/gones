@@ -1,9 +1,12 @@
 import { LeagueDocument, MatchRoundEntry, RoundEntry, TournamentDocument } from './models';
+import { tournamentPlayerArchetypeRows } from './tournament-archetypes';
 import { validateRoundEntry } from './validation';
 
 export interface RankingRow {
   rank: number;
   playerName: string;
+  /** Tournament-level deck archetype when known; empty for league aggregates / missing. */
+  archetype?: string;
   points: number;
   matchWins: number;
   matchDraws: number;
@@ -22,7 +25,11 @@ interface MutableRankingRecord extends Omit<RankingRow, 'rank' | 'gameWinPercent
 
 export function calculateTournamentResult(tournament: TournamentDocument) {
   const entries = collectTournamentEntries(tournament);
-  const rows = calculateRows(entries.map((ref) => ref.entry));
+  const archetypes = new Map(tournamentPlayerArchetypeRows(tournament).map((row) => [row.playerName, row.archetype]));
+  const rows = calculateRows(entries.map((ref) => ref.entry)).map((row) => ({
+    ...row,
+    archetype: archetypes.get(row.playerName) ?? ''
+  }));
   const hasInvalid = entries.some(({ entry }) => !validateRoundEntry(entry).valid);
   const incomplete = !tournament.rounds?.length || hasInvalid;
   return { scope: 'tournament' as const, incomplete, provisional: incomplete && rows.length > 0, rows };

@@ -49,7 +49,7 @@ describe('tournament summary', () => {
     expect(summary.topRows).toHaveLength(12);
   });
 
-  it('excludes missing archetype labels from metagame shares', () => {
+  it('bases metagame share percent and ratio on all players, including missing archetypes', () => {
     const tournament = createTournament({
       rounds: [{ entries: [
         { kind: 'match', id: 'm1', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Unknown' },
@@ -58,8 +58,9 @@ describe('tournament summary', () => {
       ] }]
     });
 
+    expect(buildTournamentSummary(tournament).stats.playerCount).toBe(6);
     expect(buildTournamentSummary(tournament).archetypeShares).toEqual([
-      { archetype: 'Fire', playerCount: 2, totalPlayerCount: 2, percentage: 1 }
+      { archetype: 'Fire', playerCount: 2, totalPlayerCount: 6, percentage: 2 / 6 }
     ]);
   });
 

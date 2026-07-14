@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { APP_BACKEND, ApplicationBackend } from '../backend/application-backend';
-import { createPlaceholderLeague, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../domain/models';
+import { createPlaceholderLeague, isUnassignedLeagueName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../domain/models';
 
 @Injectable({ providedIn: 'root' })
 export class LeagueRepository {
@@ -19,10 +19,21 @@ export class LeagueRepository {
   }
 
   async createLeague(name: string): Promise<PersistedLeague> {
+    // Translated unassigned labels must resolve to the single placeholder league id, never a new row.
+    if (isUnassignedLeagueName(name)) return this.ensurePlaceholderLeague();
     return this.backend.createLeague(name);
   }
 
   async insertLeague(league: LeagueDocument): Promise<PersistedLeague> {
+    if (league.id === PLACEHOLDER_LEAGUE_ID || isUnassignedLeagueName(league.name)) {
+      const existing = await this.ensurePlaceholderLeague();
+      if (!league.tournaments?.length) return existing;
+      const mergedTournaments = [
+        ...existing.tournaments.filter((item) => !league.tournaments.some((incoming) => incoming.id === item.id)),
+        ...league.tournaments.map((tournament) => ({ ...tournament, leagueId: PLACEHOLDER_LEAGUE_ID }))
+      ];
+      return this.backend.saveLeague({ ...existing, tournaments: mergedTournaments }, existing.documentVersion);
+    }
     return this.backend.insertLeague(league);
   }
 
