@@ -36,6 +36,11 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options) : D
 
     private void IncrementVersions()
     {
+        if (ChangeTracker.Entries<AuditRecord>().Any(entry => entry.State is EntityState.Modified or EntityState.Deleted))
+        {
+            throw new InvalidOperationException("Audit records are append-only.");
+        }
+
         foreach (var entry in ChangeTracker.Entries<VersionedEntity>())
         {
             if (entry.State == EntityState.Added)

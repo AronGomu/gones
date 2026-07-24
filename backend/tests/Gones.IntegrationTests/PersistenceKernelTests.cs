@@ -69,6 +69,71 @@ public sealed class PersistenceKernelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Audit_records_reject_ef_and_raw_sql_mutation()
+    {
+        await using var db = CreateContext();
+        await db.Database.MigrateAsync();
+        var audit = new AuditRecord
+        {
+            Action = "test",
+            EntityType = "fixture",
+            EntityId = Guid.NewGuid().ToString("D"),
+            RedactedDiff = "{}",
+            OccurredAt = SystemClock.Instance.GetCurrentInstant()
+        };
+        db.AuditRecords.Add(audit);
+        await db.SaveChangesAsync();
+
+        db.Entry(audit).State = EntityState.Modified;
+        var efError = await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        Assert.Equal("Audit records are append-only.", efError.Message);
+        db.Entry(audit).State = EntityState.Unchanged;
+        db.Entry(audit).State = EntityState.Deleted;
+        var efDeleteError = await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        Assert.Equal("Audit records are append-only.", efDeleteError.Message);
+        db.Entry(audit).State = EntityState.Unchanged;
+
+        var rawUpdateError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync("UPDATE audit_records SET action = 'changed' WHERE id = {0}", audit.Id));
+        Assert.Equal("55000", rawUpdateError.SqlState);
+        var rawError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync("DELETE FROM audit_records WHERE id = {0}", audit.Id));
+        Assert.Equal("55000", rawError.SqlState);
+        var truncateError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync("TRUNCATE audit_records"));
+        Assert.Equal("55000", truncateError.SqlState);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            DO $$ BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gones_app_test') THEN
+                    CREATE ROLE gones_app_test LOGIN PASSWORD 'gones_app_test';
+                END IF;
+            END $$;
+            GRANT USAGE ON SCHEMA public TO gones_app_test;
+            GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON audit_records TO gones_app_test;
+            REVOKE UPDATE, DELETE, TRUNCATE ON audit_records FROM gones_app_test;
+            """);
+        var appConnectionString = new NpgsqlConnectionStringBuilder(postgres.GetConnectionString())
+        {
+            Username = "gones_app_test",
+            Password = "gones_app_test"
+        }.ConnectionString;
+        await using var appConnection = new NpgsqlConnection(appConnectionString);
+        await appConnection.OpenAsync();
+        await using (var appInsert = new NpgsqlCommand("INSERT INTO audit_records (id, version, action, entity_type, entity_id, redacted_diff, occurred_at) VALUES (gen_random_uuid(), 1, 'app-test', 'fixture', 'fixture', '{}', now())", appConnection))
+        {
+            Assert.Equal(1, await appInsert.ExecuteNonQueryAsync());
+        }
+        await AssertAppRoleDenied("UPDATE audit_records SET action = 'changed'");
+        await AssertAppRoleDenied("DELETE FROM audit_records");
+        await AssertAppRoleDenied("TRUNCATE audit_records");
+
+        async Task AssertAppRoleDenied(string sql)
+        {
+            await using var command = new NpgsqlCommand(sql, appConnection);
+            var permissionError = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteNonQueryAsync());
+            Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, permissionError.SqlState);
+        }
+    }
+
+    [Fact]
     public async Task Idempotency_scope_and_key_are_unique()
     {
         await using var db = CreateContext();
