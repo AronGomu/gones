@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gones Calendar — Design Round 2</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111113;
+      --panel: #18181b;
+      --raised: #222226;
+      --border: #38383d;
+      --text: #e8e5df;
+      --muted: #aaa49b;
+      --quiet: #74747d;
+      --red: #e01222;
+      --red-hot: #ff2638;
+      --red-deep: #4a070d;
+      --green: #2fbf68;
+      --green-deep: #173e28;
+      --blue: #68a7ff;
+      --amber: #e0a923;
+      --max: 1180px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 8% 0%, rgba(224,18,34,.11), transparent 29rem), var(--bg);
+      color: var(--text);
+      font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, textarea { font: inherit; }
+    code { padding: .1rem .35rem; border: 1px solid var(--border); border-radius: 3px; background: #0d0d0f; color: #f2dfe0; }
+    .shell { width: min(var(--max), calc(100% - 30px)); margin-inline: auto; }
+    .hero { padding: 52px 0 32px; border-bottom: 1px solid var(--border); }
+    .kicker { margin: 0 0 8px; color: var(--red-hot); font-size: .78rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    h1, h2, h3 { margin-top: 0; line-height: 1.12; }
+    h1 { max-width: 900px; margin-bottom: 16px; font-size: clamp(2.3rem, 6vw, 4.3rem); letter-spacing: -.045em; }
+    h2 { margin-bottom: 10px; font-size: clamp(1.55rem, 3vw, 2.15rem); }
+    h3 { margin-bottom: 7px; font-size: 1.08rem; }
+    p { margin-top: 0; }
+    .lede { max-width: 800px; color: var(--muted); font-size: 1.08rem; }
+    .no-assume { display: inline-flex; gap: 9px; align-items: center; margin-top: 9px; padding: 9px 12px; border: 1px solid #744048; border-radius: 4px; background: rgba(74,7,13,.48); color: #ffd8db; font-weight: 750; }
+    .no-assume::before { content: "∅"; color: var(--red-hot); }
+
+    .status { position: sticky; z-index: 20; top: 0; border-bottom: 1px solid var(--border); background: rgba(17,17,19,.95); backdrop-filter: blur(14px); }
+    .status .shell { display: flex; gap: 16px; align-items: center; justify-content: space-between; min-height: 58px; }
+    .status-copy { color: var(--muted); }
+    .status-copy strong { color: var(--text); }
+    .meter { width: min(360px, 40vw); height: 8px; overflow: hidden; border: 1px solid var(--border); border-radius: 2px; background: #09090a; }
+    .meter span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--red), var(--green)); transition: width .2s ease; }
+
+    main { padding: 34px 0 70px; }
+    .section { margin-bottom: 42px; }
+    .panel { border: 1px solid var(--border); border-radius: 6px; background: var(--panel); box-shadow: 0 24px 80px rgba(0,0,0,.17); }
+    .pad { padding: clamp(18px, 4vw, 28px); }
+    .muted { color: var(--muted); }
+
+    .settled-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .settled { padding: 18px; border: 1px solid #285f40; border-top: 3px solid var(--green); border-radius: 4px; background: rgba(23,62,40,.23); }
+    .settled .tag { color: #a8efc4; font-size: .7rem; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+    .settled h3 { margin: 8px 0 6px; }
+    .settled p { margin: 0; color: var(--muted); font-size: .9rem; }
+    .interpretation { margin-top: 14px; padding: 15px 17px; border-left: 4px solid var(--blue); background: rgba(104,167,255,.06); color: var(--muted); }
+    .interpretation strong { color: #b8d4ff; }
+
+    .tree-wrap { overflow-x: auto; padding: 24px; }
+    .tree-wrap svg { display: block; min-width: 1000px; width: 100%; height: auto; }
+    .edge { fill: none; stroke: #55555d; stroke-width: 2; }
+    .edge.open { stroke: var(--red); stroke-width: 3; }
+    .node rect { rx: 5; fill: var(--raised); stroke: var(--border); stroke-width: 2; }
+    .node text { fill: var(--text); font-size: 13px; font-weight: 760; }
+    .node.root rect { fill: var(--red-deep); stroke: var(--red); }
+    .node.open rect { fill: #2b171a; stroke: var(--red-hot); }
+    .node.locked rect { fill: #151517; stroke: #46464d; stroke-dasharray: 6 5; }
+    .node.locked text { fill: #8e8990; }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 13px; color: var(--muted); font-size: .88rem; }
+    .legend span { display: inline-flex; gap: 7px; align-items: center; }
+    .legend i { width: 14px; height: 14px; border: 2px solid var(--red-hot); border-radius: 2px; background: #2b171a; }
+    .legend .locked i { border-color: #55555d; border-style: dashed; background: #151517; }
+
+    .round-head { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; margin-bottom: 18px; }
+    .round-badge { min-width: 88px; padding: 8px 10px; border: 1px solid var(--red); border-radius: 3px; background: var(--red-deep); color: #ffdfe1; text-align: center; font-size: .77rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .question { margin-bottom: 20px; overflow: hidden; }
+    .question-head { display: grid; grid-template-columns: 46px 1fr; gap: 15px; padding: 22px 24px 16px; }
+    .number { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid var(--red); border-radius: 3px; background: var(--red-deep); font-weight: 850; }
+    .question-head p { margin: 7px 0 0; color: var(--muted); }
+    fieldset { min-width: 0; margin: 0; padding: 0 24px 24px; border: 0; }
+    legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .options { display: grid; gap: 10px; }
+    .option { display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: start; padding: 15px 16px; border: 1px solid var(--border); border-radius: 4px; background: #141416; cursor: pointer; transition: border-color .15s, transform .15s, background .15s; }
+    .option:hover { border-color: #66666e; transform: translateY(-1px); }
+    .option:has(input:checked) { border-color: var(--green); background: rgba(23,62,40,.38); }
+    .option input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--green); }
+    .option-title { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-weight: 780; }
+    .option p { margin: 5px 0 0; color: var(--muted); font-size: .93rem; }
+    .rec { padding: 2px 7px; border: 1px solid #287a4b; border-radius: 2px; background: var(--green-deep); color: #a8efc4; font-size: .68rem; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    textarea { width: 100%; min-height: 78px; margin-top: 10px; padding: 11px 12px; resize: vertical; border: 1px solid var(--border); border-radius: 3px; background: #0e0e10; color: var(--text); }
+    textarea:focus, button:focus-visible, input:focus-visible { outline: 2px solid var(--red-hot); outline-offset: 2px; }
+    .impact { margin: 0 24px 22px; padding: 11px 13px; border-left: 3px solid var(--blue); background: rgba(104,167,255,.06); color: var(--muted); font-size: .89rem; }
+    .impact strong { color: #b8d4ff; }
+
+    .locked-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .locked-card { padding: 17px; border: 1px dashed #494950; border-radius: 4px; background: #141416; }
+    .locked-card .tag { color: var(--quiet); font-size: .7rem; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+    .locked-card h3 { margin: 7px 0; }
+    .locked-card p { margin: 0; color: var(--muted); font-size: .89rem; }
+
+    .tools { padding: 24px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 17px 0; }
+    .button { min-height: 42px; padding: 10px 15px; border: 1px solid #7f151e; border-radius: 3px; background: var(--red); color: white; cursor: pointer; font-weight: 780; }
+    .button:hover { background: var(--red-hot); }
+    .button.secondary { border-color: var(--border); background: var(--raised); color: var(--text); }
+    .button.secondary:hover { border-color: #66666e; background: #2a2a2f; }
+    .notice { min-height: 24px; color: #a8efc4; font-size: .9rem; }
+    .summary { min-height: 330px; white-space: pre-wrap; font: .86rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .stop { margin-top: 16px; padding: 16px 18px; border: 1px solid #744048; background: rgba(74,7,13,.31); }
+    .stop strong { color: #ffd8db; }
+    footer { padding: 24px 0 42px; border-top: 1px solid var(--border); color: var(--quiet); font-size: .85rem; }
+
+    @media (max-width: 820px) {
+      .settled-grid, .locked-grid { grid-template-columns: 1fr; }
+      .meter { width: 34vw; }
+    }
+    @media (max-width: 600px) {
+      .shell { width: min(100% - 20px, var(--max)); }
+      .hero { padding-top: 34px; }
+      .status .shell { min-height: 68px; }
+      .question-head { grid-template-columns: 40px 1fr; padding: 18px 15px 14px; }
+      fieldset { padding: 0 15px 18px; }
+      .impact { margin: 0 15px 18px; }
+      .option { padding: 13px 11px; }
+    }
+    @media print {
+      body { background: white; color: #111; }
+      .status, .actions, footer { display: none; }
+      .panel, .settled, .option, .locked-card { background: white; box-shadow: none; break-inside: avoid; }
+      .muted, .question-head p, .option p, .impact, .settled p, .locked-card p { color: #444; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="shell">
+      <p class="kicker">Design tree · Round 2</p>
+      <h1>Gones Calendar boundaries</h1>
+      <p class="lede">Round 1 fixed product, scope, authority, backend family, persistence direction, identity separation, delete/auth posture, migration intent, and settings separation. Round 2 resolves choices now unblocked.</p>
+      <span class="no-assume">No option preselected. Recommendations are proposals, not answers.</span>
+    </div>
+  </header>
+
+  <div class="status" role="status" aria-live="polite">
+    <div class="shell">
+      <div class="status-copy"><strong id="answered-count">0 of 14</strong> Round 2 decisions answered</div>
+      <div class="meter" aria-hidden="true"><span id="meter-fill"></span></div>
+    </div>
+  </div>
+
+  <main class="shell">
+    <section class="section" aria-labelledby="settled-title">
+      <p class="kicker">Settled foundation</p>
+      <h2 id="settled-title">Answers carried forward</h2>
+      <div class="settled-grid">
+        <article class="settled"><span class="tag">Settled</span><h3>One Gones product</h3><p>“MTG Winds” discarded. Entire docs 00–09 integrate as Gones Calendar.</p></article>
+        <article class="settled"><span class="tag">Settled</span><h3>ASP.NET + PostgreSQL</h3><p>ASP.NET Core backend; PostgreSQL canonical persistence; production-ready V1.</p></article>
+        <article class="settled"><span class="tag">Settled</span><h3>Bounded Tournament models</h3><p>Current CalendarEvent is replaced by scheduled Tournament. Existing Result Tournament stays independent in V1.</p></article>
+        <article class="settled"><span class="tag">Settled</span><h3>Current domains preserved</h3><p>League + Live Tournament data models remain authoritative.</p></article>
+        <article class="settled"><span class="tag">Settled</span><h3>Identity separated</h3><p>User remains independent from tournament Player Name in V1.</p></article>
+        <article class="settled"><span class="tag">Settled</span><h3>New architecture wins</h3><p>Calendar, Settings, Admin use new authz, soft-delete, audit, API, migration architecture.</p></article>
+      </div>
+      <div class="interpretation"><strong>Timezone interpretation:</strong> backend stores UTC instants plus universal IANA timezone IDs. Exact viewer-vs-venue display remains open below. <strong>“Agree all others” interpretation:</strong> explicit conflict-ledger recommendations accepted; entries that offered unresolved alternatives remain questions.</div>
+    </section>
+
+    <section class="section" aria-labelledby="tree-title">
+      <p class="kicker">Dependency graph</p>
+      <h2 id="tree-title">Round 2 frontier</h2>
+      <p class="muted">Red nodes: answer now. Dashed nodes: require Round 2 answers or unavailable vendor facts.</p>
+      <div class="panel tree-wrap">
+        <svg viewBox="0 0 1120 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Round 2 decision graph from settled foundation to backend, domain, migration, identity, settings, and release decisions, then locked API, handoff, provider, deployment, and acceptance decisions.">
+          <path class="edge open" d="M560 66V105H92M560 105H1028M92 105V145M248 105V145M404 105V145M560 105V145M716 105V145M872 105V145M1028 105V145"/>
+          <g class="node root"><rect x="400" y="20" width="320" height="46"/><text x="560" y="48" text-anchor="middle">Round 1 foundation settled</text></g>
+          <g class="node open"><rect x="22" y="145" width="140" height="54"/><text x="92" y="168" text-anchor="middle"><tspan x="92">Backend</tspan><tspan x="92" dy="17">Q1–Q2</tspan></text></g>
+          <g class="node open"><rect x="178" y="145" width="140" height="54"/><text x="248" y="168" text-anchor="middle"><tspan x="248">Model links</tspan><tspan x="248" dy="17">Q3</tspan></text></g>
+          <g class="node open"><rect x="334" y="145" width="140" height="54"/><text x="404" y="168" text-anchor="middle"><tspan x="404">Time model</tspan><tspan x="404" dy="17">Q4–Q5</tspan></text></g>
+          <g class="node open"><rect x="490" y="145" width="140" height="54"/><text x="560" y="168" text-anchor="middle"><tspan x="560">Migration</tspan><tspan x="560" dy="17">Q6–Q7</tspan></text></g>
+          <g class="node open"><rect x="646" y="145" width="140" height="54"/><text x="716" y="168" text-anchor="middle"><tspan x="716">Identity/org</tspan><tspan x="716" dy="17">Q8–Q11</tspan></text></g>
+          <g class="node open"><rect x="802" y="145" width="140" height="54"/><text x="872" y="168" text-anchor="middle"><tspan x="872">Settings</tspan><tspan x="872" dy="17">Q12</tspan></text></g>
+          <g class="node open"><rect x="958" y="145" width="140" height="54"/><text x="1028" y="168" text-anchor="middle"><tspan x="1028">CRUD/release</tspan><tspan x="1028" dy="17">Q13–Q14</tspan></text></g>
+
+          <path class="edge" d="M92 199V265H248M248 199V265M404 199V265H560M560 199V265M716 199V265H872M872 199V265M1028 199V265"/>
+          <path class="edge" d="M170 265V318M326 265V318M482 265V318M638 265V318M794 265V318M950 265V318"/>
+          <g class="node locked"><rect x="100" y="318" width="140" height="52"/><text x="170" y="340" text-anchor="middle"><tspan x="170">League/live</tspan><tspan x="170" dy="17">API + authz</tspan></text></g>
+          <g class="node locked"><rect x="256" y="318" width="140" height="52"/><text x="326" y="340" text-anchor="middle"><tspan x="326">Scheduled→live</tspan><tspan x="326" dy="17">handoff</tspan></text></g>
+          <g class="node locked"><rect x="412" y="318" width="140" height="52"/><text x="482" y="340" text-anchor="middle"><tspan x="482">Calendar DTO +</tspan><tspan x="482" dy="17">ICS contract</tspan></text></g>
+          <g class="node locked"><rect x="568" y="318" width="140" height="52"/><text x="638" y="340" text-anchor="middle"><tspan x="638">Import map +</tspan><tspan x="638" dy="17">cutover</tspan></text></g>
+          <g class="node locked"><rect x="724" y="318" width="140" height="52"/><text x="794" y="340" text-anchor="middle"><tspan x="794">Registration +</tspan><tspan x="794" dy="17">participant DTO</tspan></text></g>
+          <g class="node locked"><rect x="880" y="318" width="140" height="52"/><text x="950" y="340" text-anchor="middle"><tspan x="950">Feature slices +</tspan><tspan x="950" dy="17">route gates</tspan></text></g>
+
+          <path class="edge" d="M170 370V430H950M326 370V430M482 370V430M638 370V430M794 370V430M950 370V430"/>
+          <path class="edge" d="M266 430V482M462 430V482M658 430V482M854 430V482"/>
+          <g class="node locked"><rect x="186" y="482" width="160" height="52"/><text x="266" y="504" text-anchor="middle"><tspan x="266">Email + job</tspan><tspan x="266" dy="17">provider facts</tspan></text></g>
+          <g class="node locked"><rect x="382" y="482" width="160" height="52"/><text x="462" y="504" text-anchor="middle"><tspan x="462">Deploy + DB</tspan><tspan x="462" dy="17">provider facts</tspan></text></g>
+          <g class="node locked"><rect x="578" y="482" width="160" height="52"/><text x="658" y="504" text-anchor="middle"><tspan x="658">Notification</tspan><tspan x="658" dy="17">schedule</tspan></text></g>
+          <g class="node locked"><rect x="774" y="482" width="160" height="52"/><text x="854" y="504" text-anchor="middle"><tspan x="854">Final acceptance</tspan><tspan x="854" dy="17">confirmation</tspan></text></g>
+        </svg>
+      </div>
+      <div class="legend"><span><i></i> Open frontier</span><span class="locked"><i></i> Later round</span></div>
+    </section>
+
+    <section class="section" aria-labelledby="questions-title">
+      <div class="round-head"><span class="round-badge">Round 2</span><div><p class="kicker">Current frontier</p><h2 id="questions-title">Choose one answer per decision</h2><p class="muted">Custom notes can constrain any choice. Recommendations stay unselected.</p></div></div>
+      <form id="questionnaire" novalidate>
+
+        <article class="question panel" data-question="q1">
+          <div class="question-head"><span class="number">1</span><div><h3>Where should ASP.NET backend live?</h3><p>Angular already owns root <code>src/</code>. Backend layout must avoid mixed project conventions.</p></div></div>
+          <fieldset><legend>Backend repository topology</legend><div class="options">
+            <label class="option"><input type="radio" name="q1" value="backend-monorepo"><span><span class="option-title">Monorepo under <code>backend/</code> <span class="rec">Recommended</span></span><p><code>backend/Gones.sln</code>, <code>backend/src/Gones.Api|Application|Domain|Infrastructure|SharedKernel</code>, <code>backend/tests/*</code>. Angular remains root <code>src/</code>.</p></span></label>
+            <label class="option"><input type="radio" name="q1" value="server-monorepo"><span><span class="option-title">Monorepo under <code>server/</code></span><p>Same project split; directory named <code>server</code>.</p></span></label>
+            <label class="option"><input type="radio" name="q1" value="separate-repo"><span><span class="option-title">Separate backend repository</span><p>Independent release/history; cross-repo contract + coordinated CI required.</p></span></label>
+            <label class="option"><input type="radio" name="q1" value="custom"><span><span class="option-title">Custom layout</span></span></label>
+          </div><textarea name="q1_notes" aria-label="Question 1 notes" placeholder="Layout constraints…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> project names, CI paths, Docker contexts, migration commands, test layout.</p>
+        </article>
+
+        <article class="question panel" data-question="q2">
+          <div class="question-head"><span class="number">2</span><div><h3>Which existing domains move to PostgreSQL in V1?</h3><p>“PostgreSQL prevails” settles Calendar. Current League/live storage scope still needs explicit ruling.</p></div></div>
+          <fieldset><legend>Persistence cutover scope</legend><div class="options">
+            <label class="option"><input type="radio" name="q2" value="all-server"><span><span class="option-title">Calendar + League + Live + server-owned settings <span class="rec">Recommended</span></span><p>All shared prod data persists through ASP.NET/PostgreSQL. Existing League/live model semantics stay unchanged. Browser storage becomes migration/dev cache only.</p></span></label>
+            <label class="option"><input type="radio" name="q2" value="calendar-league"><span><span class="option-title">Calendar + League server; Live remains browser-local</span><p>Live drafts stay device-specific in V1; finalized Result Tournaments save to server League.</p></span></label>
+            <label class="option"><input type="radio" name="q2" value="calendar-only"><span><span class="option-title">Only Calendar/auth/admin server-backed</span><p>League + Live remain localStorage despite unified prod app.</p></span></label>
+            <label class="option"><input type="radio" name="q2" value="custom"><span><span class="option-title">Custom persistence boundary</span></span></label>
+          </div><textarea name="q2_notes" aria-label="Question 2 notes" placeholder="Data that must remain local or become shared…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> League/live REST API, authz, local migration scope, offline behavior, concurrency model.</p>
+        </article>
+
+        <article class="question panel" data-question="q3">
+          <div class="question-head"><span class="number">3</span><div><h3>May Scheduled Tournament link to Live/Result models in V1?</h3><p>Result Tournament remains independent. Independence can still permit trace links without shared lifecycle.</p></div></div>
+          <fieldset><legend>Tournament relation policy</legend><div class="options">
+            <label class="option"><input type="radio" name="q3" value="optional-links"><span><span class="option-title">Optional explicit links; models remain independent <span class="rec">Recommended</span></span><p>Organizer may create Live Tournament from Scheduled Tournament. Store origin IDs. Live finalization may record Result Tournament ID. No shared status or mandatory 1:1 relation.</p></span></label>
+            <label class="option"><input type="radio" name="q3" value="no-links"><span><span class="option-title">No Scheduled↔Live↔Result links in V1</span><p>Calendar ends at registration/event info. Organizer manually creates Live Tournament separately.</p></span></label>
+            <label class="option"><input type="radio" name="q3" value="mandatory-live"><span><span class="option-title">Every started Scheduled Tournament creates one Live Tournament</span><p>Still separate models, but enforced lifecycle relation.</p></span></label>
+            <label class="option"><input type="radio" name="q3" value="custom"><span><span class="option-title">Custom relation</span></span></label>
+          </div><textarea name="q3_notes" aria-label="Question 3 notes" placeholder="Allowed links, cardinality, handoff constraints…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> link columns, start-live action, roster handoff, League selection, navigation, audit trace.</p>
+        </article>
+
+        <article class="question panel" data-question="q4">
+          <div class="question-head"><span class="number">4</span><div><h3>Which timezone should users see first?</h3><p>Backend stores UTC instant + event IANA timezone. Viewer may be in another zone.</p></div></div>
+          <fieldset><legend>Timezone presentation</legend><div class="options">
+            <label class="option"><input type="radio" name="q4" value="viewer-primary"><span><span class="option-title">Viewer-local primary; venue-local secondary <span class="rec">Recommended from your answer</span></span><p>Show converted viewer time first. If zones differ, also show venue time + zone label to prevent travel mistakes.</p></span></label>
+            <label class="option"><input type="radio" name="q4" value="venue-primary"><span><span class="option-title">Venue-local primary; viewer-local secondary</span><p>Event's local wall time leads; viewer conversion appears when different.</p></span></label>
+            <label class="option"><input type="radio" name="q4" value="viewer-only"><span><span class="option-title">Viewer-local only</span><p>Simpler UI; hides venue wall time.</p></span></label>
+            <label class="option"><input type="radio" name="q4" value="custom"><span><span class="option-title">Custom display</span></span></label>
+          </div><textarea name="q4_notes" aria-label="Question 4 notes" placeholder="Account timezone vs browser timezone, labels…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> DTO fields, Angular date pipe/Intl use, calendar grouping, email/ICS display.</p>
+        </article>
+
+        <article class="question panel" data-question="q5">
+          <div class="question-head"><span class="number">5</span><div><h3>Should Scheduled Tournament support all-day records?</h3><p>Old Calendar events may omit time. Docs require StartsAt instant.</p></div></div>
+          <fieldset><legend>All-day policy</legend><div class="options">
+            <label class="option"><input type="radio" name="q5" value="explicit-all-day"><span><span class="option-title">Add explicit all-day mode <span class="rec">Recommended</span></span><p>Store local event date + IANA timezone + <code>IsAllDay</code>; no fabricated hour. Timed events still store UTC starts/ends.</p></span></label>
+            <label class="option"><input type="radio" name="q5" value="time-required"><span><span class="option-title">Time required for every Scheduled Tournament</span><p>Legacy blank-time events fail migration until organizer supplies time.</p></span></label>
+            <label class="option"><input type="radio" name="q5" value="default-time"><span><span class="option-title">Apply migration default time</span><p>Convert blank-time events to configured local hour.</p></span></label>
+            <label class="option"><input type="radio" name="q5" value="custom"><span><span class="option-title">Custom all-day policy</span></span></label>
+          </div><textarea name="q5_notes" aria-label="Question 5 notes" placeholder="Default hour or all-day constraints…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> DB constraints, migration, ICS generation, reminder timing.</p>
+        </article>
+
+        <article class="question panel" data-question="q6">
+          <div class="question-head"><span class="number">6</span><div><h3>How should legacy CalendarEvent conversion fill new mandatory fields?</h3><p>Legacy records lack org, actor, timezone, format, status, structured address, capacity.</p></div></div>
+          <fieldset><legend>Migration mapping policy</legend><div class="options">
+            <label class="option"><input type="radio" name="q6" value="parameterized"><span><span class="option-title">Parameterized safe defaults + review report <span class="rec">Recommended</span></span><p>Script requires target Organization ID, migration Actor ID, default IANA timezone. Set Format=Legacy; derive status from date; preserve slug/rich body/generic website; report ambiguous address/time rows.</p></span></label>
+            <label class="option"><input type="radio" name="q6" value="mapping-file"><span><span class="option-title">Explicit mapping file per event</span><p>No inferred org/time/status/address. Operator supplies full JSON/CSV mapping before import.</p></span></label>
+            <label class="option"><input type="radio" name="q6" value="system-defaults"><span><span class="option-title">Global system Organization + UTC defaults</span><p>Fast migration; higher risk of wrong venue time/ownership.</p></span></label>
+            <label class="option"><input type="radio" name="q6" value="custom"><span><span class="option-title">Custom mapping policy</span></span></label>
+          </div><textarea name="q6_notes" aria-label="Question 6 notes" placeholder="Default org/timezone/status/address rules…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> converter schema, validation report, transaction rules, manual remediation UI.</p>
+        </article>
+
+        <article class="question panel" data-question="q7">
+          <div class="question-head"><span class="number">7</span><div><h3>How should migration script be delivered?</h3><p>Browser localStorage cannot be read by backend automatically. Existing user first exports Gones JSON.</p></div></div>
+          <fieldset><legend>Migration execution surface</legend><div class="options">
+            <label class="option"><input type="radio" name="q7" value="cli"><span><span class="option-title">Offline .NET CLI only <span class="rec">Recommended</span></span><p>Reads Gones export v1–v3, dry-runs, emits report, imports transactionally/idempotently with admin credentials. No public upload attack surface.</p></span></label>
+            <label class="option"><input type="radio" name="q7" value="admin-upload"><span><span class="option-title">Admin upload UI/API</span><p>Admin uploads legacy export in app; server validates + imports via background job.</p></span></label>
+            <label class="option"><input type="radio" name="q7" value="both"><span><span class="option-title">CLI + Admin upload</span><p>Same converter library exposed through both surfaces.</p></span></label>
+            <label class="option"><input type="radio" name="q7" value="custom"><span><span class="option-title">Custom delivery</span></span></label>
+          </div><textarea name="q7_notes" aria-label="Question 7 notes" placeholder="Operator workflow, supported files, cutover…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> converter packaging, authz, file limits, idempotency keys, operational runbook.</p>
+        </article>
+
+        <article class="question panel" data-question="q8">
+          <div class="question-head"><span class="number">8</span><div><h3>Whom may Organizer register manually in Calendar?</h3><p>Docs registration requires UserId. Current live roster accepts arbitrary Player Name; those identities stay independent.</p></div></div>
+          <fieldset><legend>Manual registration identity</legend><div class="options">
+            <label class="option"><input type="radio" name="q8" value="existing-user"><span><span class="option-title">Existing verified User only <span class="rec">Recommended</span></span><p>Organizer searches users and creates registration. Non-account guests may still be added directly to independent Live roster, not Calendar registration.</p></span></label>
+            <label class="option"><input type="radio" name="q8" value="guest-registration"><span><span class="option-title">Allow guest Calendar registration</span><p>Add GuestRegistration identity with email/name, separate from User and Player Name.</p></span></label>
+            <label class="option"><input type="radio" name="q8" value="invite-placeholder"><span><span class="option-title">Create invite placeholder</span><p>Organizer adds email; recipient claims registration after account creation/verification.</p></span></label>
+            <label class="option"><input type="radio" name="q8" value="custom"><span><span class="option-title">Custom identity rule</span></span></label>
+          </div><textarea name="q8_notes" aria-label="Question 8 notes" placeholder="Guest/invite/account constraints…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> Registration schema, user search, privacy DTO, email flow, roster handoff.</p>
+        </article>
+
+        <article class="question panel" data-question="q9">
+          <div class="question-head"><span class="number">9</span><div><h3>How should SPA auth tokens be transported?</h3><p>Docs require JWT Authorization header. Production security needs refresh-token handling absent from docs.</p></div></div>
+          <fieldset><legend>Session/token strategy</legend><div class="options">
+            <label class="option"><input type="radio" name="q9" value="memory-cookie"><span><span class="option-title">Short access JWT in memory + rotating HttpOnly refresh cookie <span class="rec">Recommended</span></span><p>Angular sends access JWT via Authorization header. Refresh cookie is Secure, HttpOnly, scoped, rotated, revocable. Page reload refreshes session.</p></span></label>
+            <label class="option"><input type="radio" name="q9" value="cookie-session"><span><span class="option-title">HttpOnly secure auth cookies only</span><p>Strong browser storage posture; diverges from documented Authorization-header interceptor and needs CSRF controls.</p></span></label>
+            <label class="option"><input type="radio" name="q9" value="local-storage"><span><span class="option-title">Access + refresh JWT in localStorage</span><p>Simpler; XSS can steal long-lived tokens. Not recommended for prod-ready V1.</p></span></label>
+            <label class="option"><input type="radio" name="q9" value="custom"><span><span class="option-title">Custom auth transport</span></span></label>
+          </div><textarea name="q9_notes" aria-label="Question 9 notes" placeholder="Cookie/domain/session constraints…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> auth endpoints, interceptor, CORS/CSRF, logout, refresh schema, OAuth callback flow.</p>
+        </article>
+
+        <article class="question panel" data-question="q10">
+          <div class="question-head"><span class="number">10</span><div><h3>How is first Admin created?</h3><p>Admin can create Organizations and assign roles. System needs secure initial bootstrap.</p></div></div>
+          <fieldset><legend>Admin bootstrap</legend><div class="options">
+            <label class="option"><input type="radio" name="q10" value="bootstrap-cli"><span><span class="option-title">One-time CLI using configured email <span class="rec">Recommended</span></span><p>Operator registers/verifies account, runs idempotent promote command. Command audited; disabled from public API.</p></span></label>
+            <label class="option"><input type="radio" name="q10" value="first-user"><span><span class="option-title">First registered User becomes Admin</span><p>Easy but unsafe if public registration opens before controlled bootstrap.</p></span></label>
+            <label class="option"><input type="radio" name="q10" value="seed-account"><span><span class="option-title">Seed fixed Admin account</span><p>Requires secure initial secret rotation; risky automation.</p></span></label>
+            <label class="option"><input type="radio" name="q10" value="custom"><span><span class="option-title">Custom bootstrap</span></span></label>
+          </div><textarea name="q10_notes" aria-label="Question 10 notes" placeholder="Ops/bootstrap constraints…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> admin CLI, initial deploy runbook, role audit, org bootstrap.</p>
+        </article>
+
+        <article class="question panel" data-question="q11">
+          <div class="question-head"><span class="number">11</span><div><h3>How many Owners may Organization have in V1?</h3><p>Docs define Owner membership but defer multi-owner organizations.</p></div></div>
+          <fieldset><legend>Organization ownership cardinality</legend><div class="options">
+            <label class="option"><input type="radio" name="q11" value="single-owner"><span><span class="option-title">Exactly one Owner; many Organizers <span class="rec">Recommended</span></span><p>Atomic ownership transfer; cannot remove last Owner. Admin can recover ownership.</p></span></label>
+            <label class="option"><input type="radio" name="q11" value="multi-owner"><span><span class="option-title">One or more Owners</span><p>Support multiple owners in V1; protect last owner.</p></span></label>
+            <label class="option"><input type="radio" name="q11" value="admin-owned"><span><span class="option-title">No operational Owner role</span><p>Admin controls org; all members are Organizer.</p></span></label>
+            <label class="option"><input type="radio" name="q11" value="custom"><span><span class="option-title">Custom ownership</span></span></label>
+          </div><textarea name="q11_notes" aria-label="Question 11 notes" placeholder="Transfer/recovery rules…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> membership constraints, endpoints, ownership transfer, authz tests.</p>
+        </article>
+
+        <article class="question panel" data-question="q12">
+          <div class="question-head"><span class="number">12</span><div><h3>How should independent V1 settings surfaces be scoped?</h3><p>Language, User profile/privacy, Deck Archetypes, Player Name maintenance, Organizer notifications are distinct.</p></div></div>
+          <fieldset><legend>Settings scope/access</legend><div class="options">
+            <label class="option"><input type="radio" name="q12" value="split-recommended"><span><span class="option-title">Browser language; User profile; Admin catalog; Organizer maintenance <span class="rec">Recommended</span></span><p>Language remains local with optional account sync. User edits own profile/privacy. Admin manages global Deck Archetypes. Organizer/Admin correct Player Names. Organizer sets org notification prefs.</p></span></label>
+            <label class="option"><input type="radio" name="q12" value="organizer-catalog"><span><span class="option-title">Organizer manages Deck Archetypes too</span><p>Same split, but Organizer may modify global catalog.</p></span></label>
+            <label class="option"><input type="radio" name="q12" value="admin-maintenance"><span><span class="option-title">Admin-only catalog + Player Name maintenance</span><p>Organizer cannot alter global names/archetypes.</p></span></label>
+            <label class="option"><input type="radio" name="q12" value="custom"><span><span class="option-title">Custom settings split</span></span></label>
+          </div><textarea name="q12_notes" aria-label="Question 12 notes" placeholder="Settings ownership/access rules…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> route map, server tables, browser migration, role guards, audit events.</p>
+        </article>
+
+        <article class="question panel" data-question="q13">
+          <div class="question-head"><span class="number">13</span><div><h3>How should mandatory preview/publish work without server drafts?</h3><p>Docs say Tournament does not exist until confirmation. Preview still needs authoritative server validation.</p></div></div>
+          <fieldset><legend>Preview protocol</legend><div class="options">
+            <label class="option"><input type="radio" name="q13" value="server-preview"><span><span class="option-title">Server preview endpoint + signed/hash-bound publish <span class="rec">Recommended</span></span><p><code>POST /api/tournaments/preview</code> validates/normalizes DTO and returns preview DTO + short-lived token/hash. Publish must match previewed payload.</p></span></label>
+            <label class="option"><input type="radio" name="q13" value="client-preview"><span><span class="option-title">Client-only preview; server validates on publish</span><p>Simpler. Preview may differ from server normalization/errors at final submit.</p></span></label>
+            <label class="option"><input type="radio" name="q13" value="server-draft"><span><span class="option-title">Persist server Draft</span><p>Add Draft status despite docs saying record created only after confirmation.</p></span></label>
+            <label class="option"><input type="radio" name="q13" value="custom"><span><span class="option-title">Custom preview flow</span></span></label>
+          </div><textarea name="q13_notes" aria-label="Question 13 notes" placeholder="Preview expiry, edit preview behavior…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> create/update commands, confirmation UX, concurrency, API DTOs.</p>
+        </article>
+
+        <article class="question panel" data-question="q14">
+          <div class="question-head"><span class="number">14</span><div><h3>How should hidden vertical slices be gated?</h3><p>Incomplete V1 must merge/test without exposing incoherent routes.</p></div></div>
+          <fieldset><legend>Feature exposure gate</legend><div class="options">
+            <label class="option"><input type="radio" name="q14" value="env-flag"><span><span class="option-title">Build/runtime environment flag <span class="rec">Recommended</span></span><p>Calendar V1 routes/nav absent unless enabled. Backend endpoints deploy auth-gated throughout. Production flag turns on only after final release gate.</p></span></label>
+            <label class="option"><input type="radio" name="q14" value="server-flag"><span><span class="option-title">Server-managed feature flag</span><p>Runtime activation without frontend rebuild; adds config service/cache/failure semantics.</p></span></label>
+            <label class="option"><input type="radio" name="q14" value="branch-only"><span><span class="option-title">Long-lived branch only</span><p>No flags; feature merges at big cutover, conflicting with incremental integration goal.</p></span></label>
+            <label class="option"><input type="radio" name="q14" value="custom"><span><span class="option-title">Custom release gate</span></span></label>
+          </div><textarea name="q14_notes" aria-label="Question 14 notes" placeholder="Environment/rollout constraints…"></textarea></fieldset>
+          <p class="impact"><strong>Unlocks:</strong> route config, CI matrix, staging exposure, prod activation/rollback.</p>
+        </article>
+      </form>
+    </section>
+
+    <section class="section" aria-labelledby="later-title">
+      <p class="kicker">Later frontier</p>
+      <h2 id="later-title">Questions blocked until Round 2 settles</h2>
+      <div class="locked-grid">
+        <article class="locked-card"><span class="tag">Locked by Q2</span><h3>League/live API + authz</h3><p>Resource routes, aggregate DTOs, shared Organizer writes, offline mode, optimistic concurrency.</p></article>
+        <article class="locked-card"><span class="tag">Locked by Q3 + Q8</span><h3>Scheduled→Live handoff</h3><p>Which registered User field becomes Player Name, League selection, sync direction, late changes.</p></article>
+        <article class="locked-card"><span class="tag">Locked by Q4 + Q5</span><h3>Calendar/ICS DTO</h3><p>Start/end grouping, all-day reminders, timezone labels, ICS UTC/TZID output.</p></article>
+        <article class="locked-card"><span class="tag">Locked by Q6 + Q7</span><h3>Converter contract</h3><p>CLI args, mappings, v1–v3 compatibility, dry-run report, partial failure policy, redirects.</p></article>
+        <article class="locked-card"><span class="tag">Locked by Q9–Q11</span><h3>Auth/org endpoints</h3><p>Refresh/logout, OAuth linking, role claims, owner transfer, admin recovery.</p></article>
+        <article class="locked-card"><span class="tag">Facts pending</span><h3>Email/deploy providers</h3><p>Provider pricing/regions/limits must be researched. Search unavailable in current env; no vendor guessed.</p></article>
+        <article class="locked-card"><span class="tag">Locked by providers</span><h3>Reminder + worker ops</h3><p>Send hour, monthly anchor, retry/dead-letter, advisory lock, alerting, retention.</p></article>
+        <article class="locked-card"><span class="tag">Final round</span><h3>Acceptance confirmation</h3><p>Complete design tree, conflict disposition, slice plan, test/security/deploy gates, explicit go-ahead.</p></article>
+      </div>
+    </section>
+
+    <section class="section panel tools" aria-labelledby="export-title">
+      <p class="kicker">Round handoff</p>
+      <h2 id="export-title">Export Round 2 answers</h2>
+      <p class="muted">Answers auto-save in this browser. Generate summary, copy, paste into chat.</p>
+      <div class="actions">
+        <button class="button" type="button" id="generate">Generate summary</button>
+        <button class="button secondary" type="button" id="copy">Copy summary</button>
+        <button class="button secondary" type="button" id="download">Download JSON</button>
+        <button class="button secondary" type="button" id="reset">Clear answers</button>
+      </div>
+      <p class="notice" id="notice" role="status" aria-live="polite"></p>
+      <textarea class="summary" id="summary" readonly aria-label="Generated Round 2 answer summary" placeholder="Answer all 14 decisions, then generate summary."></textarea>
+      <div class="stop"><strong>Stop point:</strong> no implementation authorized. Round 2 answers unlock next frontier. Coding starts only after final shared-understanding confirmation.</div>
+    </section>
+  </main>
+
+  <footer><div class="shell">Gones Calendar design tree · Round 2 · Standalone HTML, no network dependencies.</div></footer>
+
+  <script>
+    (() => {
+      const form = document.getElementById('questionnaire');
+      const summary = document.getElementById('summary');
+      const notice = document.getElementById('notice');
+      const count = document.getElementById('answered-count');
+      const meter = document.getElementById('meter-fill');
+      const storageKey = 'gones.calendar.design-round-2';
+      const labels = {
+        q1: 'Backend repository topology', q2: 'Persistence cutover scope', q3: 'Tournament relation policy',
+        q4: 'Timezone presentation', q5: 'All-day policy', q6: 'Migration mapping policy',
+        q7: 'Migration execution surface', q8: 'Manual registration identity', q9: 'Session/token strategy',
+        q10: 'Admin bootstrap', q11: 'Organization ownership cardinality', q12: 'Settings scope/access',
+        q13: 'Preview protocol', q14: 'Feature exposure gate'
+      };
+      const valueLabels = {
+        q1: { 'backend-monorepo': 'Monorepo under backend/', 'server-monorepo': 'Monorepo under server/', 'separate-repo': 'Separate backend repository', custom: 'Custom layout' },
+        q2: { 'all-server': 'Calendar + League + Live + server-owned settings in PostgreSQL', 'calendar-league': 'Calendar + League server; Live browser-local', 'calendar-only': 'Only Calendar/auth/admin server-backed', custom: 'Custom persistence boundary' },
+        q3: { 'optional-links': 'Optional explicit links; models remain independent', 'no-links': 'No Scheduled↔Live↔Result links in V1', 'mandatory-live': 'Every started Scheduled Tournament creates one Live Tournament', custom: 'Custom relation' },
+        q4: { 'viewer-primary': 'Viewer-local primary; venue-local secondary', 'venue-primary': 'Venue-local primary; viewer-local secondary', 'viewer-only': 'Viewer-local only', custom: 'Custom display' },
+        q5: { 'explicit-all-day': 'Explicit all-day mode', 'time-required': 'Time required for every Scheduled Tournament', 'default-time': 'Apply migration default time', custom: 'Custom all-day policy' },
+        q6: { parameterized: 'Parameterized safe defaults + review report', 'mapping-file': 'Explicit mapping file per event', 'system-defaults': 'Global system Organization + UTC defaults', custom: 'Custom mapping policy' },
+        q7: { cli: 'Offline .NET CLI only', 'admin-upload': 'Admin upload UI/API', both: 'CLI + Admin upload', custom: 'Custom delivery' },
+        q8: { 'existing-user': 'Existing verified User only', 'guest-registration': 'Allow guest Calendar registration', 'invite-placeholder': 'Create invite placeholder', custom: 'Custom identity rule' },
+        q9: { 'memory-cookie': 'Short access JWT in memory + rotating HttpOnly refresh cookie', 'cookie-session': 'HttpOnly secure auth cookies only', 'local-storage': 'Access + refresh JWT in localStorage', custom: 'Custom auth transport' },
+        q10: { 'bootstrap-cli': 'One-time CLI using configured email', 'first-user': 'First registered User becomes Admin', 'seed-account': 'Seed fixed Admin account', custom: 'Custom bootstrap' },
+        q11: { 'single-owner': 'Exactly one Owner; many Organizers', 'multi-owner': 'One or more Owners', 'admin-owned': 'No operational Owner role', custom: 'Custom ownership' },
+        q12: { 'split-recommended': 'Browser language; User profile; Admin catalog; Organizer maintenance', 'organizer-catalog': 'Organizer manages Deck Archetypes too', 'admin-maintenance': 'Admin-only catalog + Player Name maintenance', custom: 'Custom settings split' },
+        q13: { 'server-preview': 'Server preview endpoint + hash-bound publish', 'client-preview': 'Client-only preview; server validates on publish', 'server-draft': 'Persist server Draft', custom: 'Custom preview flow' },
+        q14: { 'env-flag': 'Build/runtime environment flag', 'server-flag': 'Server-managed feature flag', 'branch-only': 'Long-lived branch only', custom: 'Custom release gate' }
+      };
+
+      function collect() {
+        const data = { round: 2, generatedAt: new Date().toISOString(), answers: {} };
+        for (const key of Object.keys(labels)) {
+          const selected = form.querySelector(`input[name="${key}"]:checked`);
+          const notes = form.elements[`${key}_notes`].value.trim();
+          data.answers[key] = { value: selected?.value ?? '', label: selected ? valueLabels[key][selected.value] : '', notes };
+        }
+        return data;
+      }
+      function updateProgress(data) {
+        const answered = Object.values(data.answers).filter((answer) => answer.value).length;
+        count.textContent = `${answered} of 14`;
+        meter.style.width = `${answered / 14 * 100}%`;
+      }
+      function save() {
+        const data = collect();
+        try { localStorage.setItem(storageKey, JSON.stringify(data)); } catch {}
+        updateProgress(data);
+      }
+      function restore() {
+        try {
+          const data = JSON.parse(localStorage.getItem(storageKey) || 'null');
+          if (!data?.answers) return;
+          for (const key of Object.keys(labels)) {
+            const answer = data.answers[key];
+            if (!answer) continue;
+            const radio = [...form.querySelectorAll(`input[name="${key}"]`)].find((item) => item.value === answer.value);
+            if (radio) radio.checked = true;
+            form.elements[`${key}_notes`].value = answer.notes || '';
+          }
+        } catch {}
+        updateProgress(collect());
+      }
+      function render(data) {
+        const missing = Object.entries(data.answers).filter(([, answer]) => !answer.value).map(([key]) => key.toUpperCase());
+        const lines = [
+          '# Gones Calendar — Design Round 2', '',
+          ...Object.entries(data.answers).flatMap(([key, answer]) => [
+            `${key.toUpperCase()}. ${labels[key]}: ${answer.label || '[UNANSWERED]'}`,
+            ...(answer.notes ? [`   Notes: ${answer.notes.replace(/\n/g, '\n   ')}`] : []), ''
+          ]),
+          `Frontier status: ${missing.length ? `Incomplete — missing ${missing.join(', ')}` : 'Complete — recompute Round 3 frontier.'}`,
+          'No implementation authorized. Await later frontier rounds + final shared-understanding confirmation.'
+        ];
+        summary.value = lines.join('\n');
+        notice.textContent = missing.length ? `Missing: ${missing.join(', ')}` : 'Round 2 complete. Copy summary into chat.';
+        return data;
+      }
+
+      form.addEventListener('input', save);
+      document.getElementById('generate').addEventListener('click', () => render(collect()));
+      document.getElementById('copy').addEventListener('click', async () => {
+        if (!summary.value) render(collect());
+        try { await navigator.clipboard.writeText(summary.value); notice.textContent = 'Summary copied.'; }
+        catch { summary.focus(); summary.select(); notice.textContent = 'Clipboard unavailable. Summary selected; copy manually.'; }
+      });
+      document.getElementById('download').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(collect(), null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'gones-calendar-design-round-2.json';
+        anchor.click();
+        URL.revokeObjectURL(url);
+        notice.textContent = 'JSON downloaded.';
+      });
+      document.getElementById('reset').addEventListener('click', () => {
+        form.reset();
+        for (const area of form.querySelectorAll('textarea')) area.value = '';
+        try { localStorage.removeItem(storageKey); } catch {}
+        summary.value = '';
+        notice.textContent = 'Answers cleared.';
+        updateProgress(collect());
+      });
+      restore();
+    })();
+  </script>
+</body>
+</html>

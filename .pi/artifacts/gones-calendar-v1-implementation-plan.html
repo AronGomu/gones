@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="artifact-kind" content="markdown">
+<meta name="artifact-generated" content="1784887311003">
+<meta name="artifact-project" content="C:\Users\Natha\coding\gones">
+<title>Gones Calendar V1 Implementation Plan</title>
+<style data-base>:root { color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1c1c1a;
+  --muted: #6b6862;
+  --border: #e7e5e0;
+  --code-bg: #f7f6f4;
+  --accent: #b95730;
+  --add-bg: #e9f7ee;
+  --add-word-bg: #c8ecd3;
+  --add-fg: #1a7f37;
+  --del-bg: #feeff1;
+  --del-word-bg: #f8d2d7;
+  --del-fg: #c93c4c;
+  --hl-comment: #6e7781;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-title: #8250df;
+  --hl-type: #953800;
+  --hl-attr: #0550ae;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #171614;
+  --fg: #e6e3de;
+  --muted: #94918a;
+  --border: #2e2d29;
+  --code-bg: #201f1c;
+  --accent: #d67858;
+  --add-bg: #1d2a20;
+  --add-word-bg: #2b4232;
+  --add-fg: #85c793;
+  --del-bg: #2e1c1e;
+  --del-word-bg: #4a292c;
+  --del-fg: #e28a91;
+  --hl-comment: #8b949e;
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-title: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-attr: #79c0ff;
+} }
+
+* { box-sizing: border-box; }
+html { font-size: 15px; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+article { max-width: 860px; margin: 0 auto; padding: 2.75rem 1.5rem 4rem; }
+h1, h2, h3, h4 { line-height: 1.3; letter-spacing: -0.01em; color: var(--fg); }
+h1 { font-size: 1.45rem; font-weight: 650; margin: 0 0 1rem; }
+h2 { font-size: 1.15rem; font-weight: 650; margin: 2.2em 0 .7em; padding-bottom: .35em; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1rem; font-weight: 600; margin: 1.8em 0 .5em; }
+h4 { font-size: .9rem; font-weight: 600; margin: 1.5em 0 .4em; }
+p { margin: .8em 0; }
+a { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); text-underline-offset: 2px; }
+a:hover { text-decoration-color: var(--accent); }
+strong { font-weight: 600; }
+ul, ol { margin: .8em 0; padding-left: 1.5em; }
+li { margin: .3em 0; }
+li > ul, li > ol { margin: .2em 0; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2.5em 0; }
+img, svg, video { max-width: 100%; }
+::selection { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+
+blockquote {
+  margin: 1.2em 0;
+  padding: .1em 1.1em;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--muted);
+}
+blockquote > :first-child { margin-top: .4em; }
+blockquote > :last-child { margin-bottom: .4em; }
+
+table { border-collapse: collapse; width: 100%; margin: 1.2em 0; font-size: .9rem; }
+th {
+  text-align: left; font-weight: 600; font-size: .74rem;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  padding: .5em .75em; border-bottom: 1px solid var(--border);
+}
+td { padding: .55em .75em; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+
+code, kbd, samp { font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace; }
+code { font-size: .85em; background: var(--code-bg); padding: .15em .4em; border-radius: 4px; }
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1em 1.2em;
+  overflow-x: auto;
+  font-size: .82rem;
+  line-height: 1.55;
+  margin: 1.2em 0;
+}
+pre code { background: transparent; padding: 0; font-size: inherit; }
+
+input[type="checkbox"] { accent-color: var(--accent); margin-right: .4em; }
+
+
+.artifact-header {
+  display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap;
+  margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);
+}
+.artifact-header h1 { margin: 0; }
+.artifact-badge {
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace; font-size: .66rem; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 999px; padding: .2em .7em; white-space: nowrap;
+}
+.artifact-meta { margin-left: auto; color: var(--muted); font-size: .72rem; font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace; }
+.artifact-footer {
+  margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: .72rem; font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+}
+.artifact-mermaid { text-align: center; margin: 1.5rem 0; }
+</style>
+<style data-hljs>
+.hljs { color: var(--fg); background: transparent; }
+.hljs-comment, .hljs-quote { color: var(--hl-comment); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-deletion { color: var(--hl-keyword); }
+.hljs-string, .hljs-regexp, .hljs-addition { color: var(--hl-string); }
+.hljs-number, .hljs-symbol, .hljs-bullet, .hljs-meta, .hljs-link { color: var(--hl-number); }
+.hljs-title, .hljs-section, .hljs-function .hljs-title { color: var(--hl-title); }
+.hljs-type, .hljs-class .hljs-title, .hljs-built_in { color: var(--hl-type); }
+.hljs-variable, .hljs-template-variable, .hljs-attr, .hljs-attribute, .hljs-property { color: var(--hl-attr); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+</style>
+</head>
+<body>
+<article>
+<header class="artifact-header">
+<h1>Gones Calendar V1 Implementation Plan</h1>
+<span class="artifact-badge">markdown</span>
+<span class="artifact-meta">2026-07-24 10:01:51</span>
+</header>
+<h1>Gones Calendar V1 — Full Implementation Plan</h1>
+<p>Status: implementation plan only. No feature code changed.</p>
+<p>Following commits in dependency order yields backend-backed, locally verified, platform-agnostic Gones Calendar V1 release candidate while preserving League, Result Tournament, Live Tournament contracts. Live hosting + public cutover remain deferred.</p>
+<h2>1. Locked scope + assumptions</h2>
+<p>All questionnaire recommendations are accepted, except earlier explicit overrides remain authoritative:</p>
+<ul>
+<li>Product name: <strong>Gones Calendar</strong>. No MTG Winds branding.</li>
+<li>Monorepo backend: <code>backend/</code>, ASP.NET Core .NET 10, EF Core, PostgreSQL, modular vertical slices.</li>
+<li>PostgreSQL canonical for Scheduled Tournament, League, Live Tournament, auth, orgs, registrations, server config.</li>
+<li>Existing League/Result/Live data shapes stay exact. Scheduled, Result, Live Tournaments stay independent; no V1 links.</li>
+<li>Scheduled Tournament requires start time. No all-day mode.</li>
+<li>UTC instant + IANA zone storage. Venue-local date/time primary; viewer-local secondary.</li>
+<li>Auth: ASP.NET Core Identity with <code>Guid</code> IDs, separate profile, Google/Facebook adapters, explicit provider linking. Automated tests use local fake OAuth/OIDC providers; real-provider validation is deferred.</li>
+<li>Session: 15m memory access JWT; rotating HttpOnly refresh cookie; 7d inactivity; 30d absolute expiry; token-family reuse revokes family.</li>
+<li>Public reads + PII-free exports. Global Organizer/Admin writes League/Live. Org membership controls Calendar writes. Admin bypasses both axes.</li>
+<li>Exactly one org Owner; many Organizers. Admin creates orgs + grants global Organizer role.</li>
+<li>Calendar/list URL query is canonical; browser stores last view/filter. Upcoming/ongoing first; past toggle; page size 20.</li>
+<li>Public profile defaults private except Username. Store optional birth year, not full DOB/current-age integer.</li>
+<li>Username display preserved; Unicode normalization + case-folded unique key; 3–30 chars.</li>
+<li>Preview is server-normalized + hash-bound. Publish accepts unchanged hash only.</li>
+<li>Registration retry creates new immutable attempt row. One active attempt enforced by partial unique DB index.</li>
+<li>Organizer manual registration: existing verified User only. Participant display uses current profile.</li>
+<li>Notifications: provider-neutral transport with Brevo HTTP adapter; source-controlled HTML/text templates; recipient profile locale, French fallback. Automated tests use fake HTTP/webhook servers; live sender validation is deferred.</li>
+<li>Reminder instant: 10:00 venue time. &gt;1 month = event day-of-month; final month = Saturdays; final J-2/J-1; past instants never sent.</li>
+<li>Worker: separate <code>Gones.Worker</code>, min replica 1; outbox + scheduler; PostgreSQL advisory-lock leader.</li>
+<li>Brevo transient retry: 1m, 5m, 30m, 2h, 12h; permanent failures dead-letter immediately; webhook replay deduped.</li>
+<li>Public Export v4: League/Result source + public Scheduled Tournament data only. No PII, auth, registration, block, audit, token, notification, Live draft, private config.</li>
+<li>Private migration bundle: League/Result, old Calendar, Live drafts, Deck Archetype catalog. Browser language remains local.</li>
+<li>Migration CLI: dry-run first; missing required mapping blocks whole import; override map required; final import is atomic.</li>
+<li>Offline: cached public reads with stale marker. All writes require online API. No queued writes.</li>
+<li>Hosting, domain, DNS, CDN, managed DB, object storage, IaC vendor remain deferred. Backend ships vendor-neutral OCI images for API, Worker, Migrator, backup/restore.</li>
+<li>Runtime contract: Linux container, standard env/file secret injection, PostgreSQL connection string, HTTP forwarded-header config, OTLP endpoint, stdout/stderr structured logs. No cloud SDK/runtime dependency.</li>
+<li>Backup now: portable encrypted <code>pg_dump</code> artifact to mounted storage + tested restore container. Managed PITR, remote retention, RPO/RTO evidence remain deferred.</li>
+<li>Hidden slices use build/runtime flags. Local release rehearsal proves server authority; public cutover + irreversible first-server-write barrier remain deferred.</li>
+<li>Relational entities use UUID PKs. Legacy League/Live aggregate envelopes use UUID surrogate PK + unique string <code>DocumentId</code>, preserving exact IDs such as <code>placeholder-league</code>.</li>
+</ul>
+<p>Final-policy defaults accepted by “all decisions and future”:</p>
+<ul>
+<li>Rich content: plain summary ≤50 chars + optional server-sanitized HTML body. Allow <code>p</code>, <code>br</code>, <code>strong</code>, <code>em</code>, <code>ul</code>, <code>ol</code>, <code>li</code>, <code>h2</code>, <code>h3</code>, HTTPS <code>a</code>; reject images, style, script, event attrs, non-HTTPS URLs. CSP forbids inline script/object/frame.</li>
+<li>Audit: append-only, no delete endpoint, indefinite security/admin retention per architecture docs; store IDs/action/redacted field diff, never tokens/password/email bodies/raw rich HTML. App emits retention-ready structured logs; host retention policy remains deferred. Notification delivery metadata: 1y. Email bodies: never persisted.</li>
+<li>Account closure: Admin-assisted disable + PII anonymization. Preserve opaque User ID, non-PII audit, registration status, unrelated Player Names/results. Revoke sessions/external identities. Self-service closure deferred.</li>
+<li>Rate limits: auth register/login/resend/reset 5/15m per IP + account; refresh 30/15m/session; public reads 120/min/IP; authenticated writes 30/min/User; registration 10/min/User; export 10/hour/User/IP; Admin 60/min/User. ASP.NET limits are mandatory; deployment-edge/global limits remain deferred.</li>
+<li>Recovery now: deterministic dump/restore scripts + local restore rehearsal. Live RPO/RTO, managed PITR, region-loss exercises remain deferred.</li>
+</ul>
+<h3>Explicitly deferred live infrastructure</h3>
+<ul>
+<li>Domain purchase/registrar, public DNS, CDN/static host.</li>
+<li>Backend runtime vendor, managed PostgreSQL, managed secrets, registry, remote backup storage, IaC.</li>
+<li>Real Google/Facebook callback registration + provider smoke tests.</li>
+<li>Real Brevo sender/domain DNS, API key, webhook endpoint + deliverability tests.</li>
+<li>Public Staging/Production envs, live migration, public cutover, soak, rollback exercise.</li>
+</ul>
+<p>Deferred items do not block code-level V1. Fake providers, Testcontainers, Compose, security tests, migration rehearsal remain mandatory.</p>
+<h2>2. TDD + commit contract</h2>
+<p>Every <code>Cxx</code> section below equals one commit.</p>
+<p>Within each commit:</p>
+<ol>
+<li>Add smallest failing test/contract first (<strong>RED</strong>).</li>
+<li>Run targeted test; record expected failure reason.</li>
+<li>Implement minimum production code (<strong>GREEN</strong>).</li>
+<li>Add boundary/integration/E2E coverage. Any route/DTO change regenerates OpenAPI + TS client in same commit after rebase.</li>
+<li>Refactor only changed slice while tests stay green.</li>
+<li>Run full gate.</li>
+<li>Start full app; run smoke path.</li>
+<li>Commit only green tree.</li>
+</ol>
+<p>Tests + impl land in same commit. Intermediate RED state is not committed.</p>
+<h3>Standard gates</h3>
+<p><code>G-FE</code>:</p>
+<pre><code class="hljs language-bash">npm run lint
+npm run typecheck
+npm run <span class="hljs-built_in">test</span>
+npm run build</code></pre><p><code>G-BE</code> after C02:</p>
+<pre><code class="hljs language-bash">dotnet <span class="hljs-built_in">test</span> backend/Gones.sln --configuration Release</code></pre><p><code>G-CONTRACT</code> after C04:</p>
+<pre><code class="hljs language-bash">npm run api:generate
+npm run api:check</code></pre><p><code>G-FULL</code> after C05:</p>
+<pre><code class="hljs language-bash">npm run lint
+npm run typecheck
+npm run <span class="hljs-built_in">test</span>
+dotnet <span class="hljs-built_in">test</span> backend/Gones.sln --configuration Release
+npm run api:check
+npm run build
+npm run e2e:ci</code></pre><p><code>G-RUN</code> after C05:</p>
+<pre><code class="hljs language-bash">docker compose up -d --build
+npm run smoke
+<span class="hljs-comment"># Manually open app + API health/Swagger during local implementation.</span>
+docker compose down -v</code></pre><p>Each commit checklist ends with <code>G-FULL</code> + <code>G-RUN</code>. Before gate exists, run all available predecessor gates + equivalent manual smoke.</p>
+<h3>Test layers</h3>
+<ul>
+<li>C# unit: pure domain, validators, schedule math, auth policy helpers, serializers.</li>
+<li>C# integration: <code>WebApplicationFactory</code> + real PostgreSQL Testcontainer; no EF InMemory provider.</li>
+<li>Contract: generated OpenAPI snapshot/client drift check.</li>
+<li>Angular unit: services, guards, interceptors, URL state, adapters, date presentation.</li>
+<li>Cypress: browser role/CRUD/failure workflows at 375×812 + desktop.</li>
+<li>Ops: OCI/container contract, container health, migration/restore scripts, SBOM/signature/scans, secret scans.</li>
+</ul>
+<h2>3. Commit dependency graph</h2>
+<div class="artifact-mermaid"><pre class="mermaid">flowchart TD
+  C01[C01 Test spine] --&gt; C02[C02 PostgreSQL kernel]
+  C02 --&gt; C03[C03 API boundary/security]
+  C03 --&gt; C04[C04 OpenAPI TS client]
+  C02 --&gt; C05[C05 Compose + CI + flags]
+  C04 --&gt; C05
+
+  C05 --&gt; C06[C06 Outbox + templates]
+  C06 --&gt; C07[C07 Telemetry + health]
+  C02 --&gt; C08[C08 Local auth + profile]
+  C03 --&gt; C08
+  C05 --&gt; C08
+  C08 --&gt; C09[C09 Refresh sessions]
+  C06 --&gt; C10[C10 Verify/reset/email change]
+  C09 --&gt; C10
+  C10 --&gt; C11[C11 OAuth + linking]
+  C04 --&gt; C12[C12 Angular auth/profile]
+  C10 --&gt; C12
+  C11 --&gt; C12
+
+  C09 --&gt; C13[C13 Admin bootstrap + catalogs]
+  C10 --&gt; C13
+  C13 --&gt; C14[C14 Orgs + memberships]
+  C12 --&gt; C15[C15 Admin/org UI]
+  C14 --&gt; C15
+
+  C02 --&gt; C16[C16 Scheduled Tournament domain]
+  C14 --&gt; C16
+  C03 --&gt; C17[C17 Public Tournament API]
+  C16 --&gt; C17
+  C04 --&gt; C18[C18 Public Calendar UI]
+  C17 --&gt; C18
+  C16 --&gt; C19[C19 Preview + publish API]
+  C12 --&gt; C20[C20 Organizer create UI]
+  C18 --&gt; C20
+  C19 --&gt; C20
+  C06 --&gt; C21[C21 Lifecycle API]
+  C14 --&gt; C21
+  C16 --&gt; C21
+  C20 --&gt; C22[C22 Organizer lifecycle UI]
+  C21 --&gt; C22
+
+  C09 --&gt; C23[C23 Self-registration API]
+  C17 --&gt; C23
+  C21 --&gt; C23
+  C14 --&gt; C23
+  C16 --&gt; C23
+  C06 --&gt; C23
+  C18 --&gt; C24[C24 Registration UI]
+  C12 --&gt; C24
+  C23 --&gt; C24
+  C14 --&gt; C25[C25 Organizer participants API]
+  C23 --&gt; C25
+  C06 --&gt; C25
+  C15 --&gt; C26[C26 Participant mgmt UI]
+  C22 --&gt; C26
+  C25 --&gt; C26
+  C21 --&gt; C27[C27 Scheduler]
+  C23 --&gt; C27
+  C06 --&gt; C27
+  C15 --&gt; C28[C28 Brevo delivery ops UI]
+  C27 --&gt; C28
+
+  C05 --&gt; C29[C29 C# League parity]
+  C02 --&gt; C30[C30 League JSONB + reads]
+  C03 --&gt; C30
+  C04 --&gt; C30
+  C05 --&gt; C30
+  C29 --&gt; C30
+  C09 --&gt; C31[C31 League commands]
+  C30 --&gt; C31
+  C04 --&gt; C32[C32 Angular League cutover]
+  C12 --&gt; C32
+  C31 --&gt; C32
+  C02 --&gt; C33[C33 Live parity + reads]
+  C03 --&gt; C33
+  C04 --&gt; C33
+  C05 --&gt; C33
+  C29 --&gt; C33
+  C09 --&gt; C34[C34 Live commands + finalize]
+  C30 --&gt; C34
+  C31 --&gt; C34
+  C33 --&gt; C34
+  C04 --&gt; C35[C35 Angular Live cutover]
+  C12 --&gt; C35
+  C34 --&gt; C35
+  C13 --&gt; C36[C36 Server settings + maintenance]
+  C15 --&gt; C36
+  C31 --&gt; C36
+  C34 --&gt; C36
+
+  C17 --&gt; C37[C37 Export v4 + private bundle]
+  C30 --&gt; C37
+  C33 --&gt; C37
+  C36 --&gt; C37
+  C16 --&gt; C38[C38 Atomic migration CLI]
+  C30 --&gt; C38
+  C33 --&gt; C38
+  C36 --&gt; C38
+  C37 --&gt; C38
+  C18 --&gt; C39[C39 Offline public cache]
+  C24 --&gt; C39
+  C32 --&gt; C39
+  C35 --&gt; C39
+
+  C07 --&gt; C41[C41 Platform-agnostic OCI runtime]
+  C28 --&gt; C41
+  C35 --&gt; C41
+  C26 --&gt; C40[C40 Security/a11y/perf gate]
+  C28 --&gt; C40
+  C36 --&gt; C40
+  C39 --&gt; C40
+  C38 --&gt; C42[C42 Freeze legacy/server boundary]
+  C40 --&gt; C42
+  C41 --&gt; C42
+  C42 --&gt; C43[C43 Local release rehearsal]
+  C43 --&gt; C44[C44 V1 release candidate]</pre></div><h2>4. Parallel-agent lanes</h2>
+<table>
+<thead>
+<tr>
+<th>Lane</th>
+<th>Primary ownership</th>
+<th>Commits</th>
+<th>May run parallel with</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A — Platform</td>
+<td>solution, DB kernel, API boundaries, email, telemetry</td>
+<td>C01–C07</td>
+<td>After C05: B, C, D</td>
+</tr>
+<tr>
+<td>B — Identity/Admin</td>
+<td>auth, sessions, OAuth, orgs, Admin</td>
+<td>C08–C15</td>
+<td>D parity; C Calendar after C14</td>
+</tr>
+<tr>
+<td>C — Calendar</td>
+<td>Scheduled Tournament, registration, notification domain</td>
+<td>C16–C28</td>
+<td>D existing-domain lane</td>
+</tr>
+<tr>
+<td>D — Existing domains</td>
+<td>parity, League, Live, server settings</td>
+<td>C29–C36</td>
+<td>B + C</td>
+</tr>
+<tr>
+<td>E — Migration/Offline</td>
+<td>exports, CLI, service worker</td>
+<td>C37–C39</td>
+<td>F packaging after stable contracts</td>
+</tr>
+<tr>
+<td>F — Quality/Ops</td>
+<td>hardening, OCI packaging, local rehearsal, RC</td>
+<td>C40–C44</td>
+<td>C41 can begin after C07, then rebase final image refs</td>
+</tr>
+</tbody></table>
+<p>Parallel rules:</p>
+<ul>
+<li>One agent owns each worktree/commit. Never share dirty tree.</li>
+<li>PostgreSQL migration files form serialized lane. Parallel schema agent rebases, deletes its generated migration, regenerates after latest migration merge.</li>
+<li>Generated TS client is serialized output. Every API-producing commit regenerates OpenAPI/client after rebasing; one named agent owns generated-file conflict resolution per merge batch.</li>
+<li><code>src/app/app.routes.ts</code>, <code>src/app/app.component.ts</code>, <code>src/app/i18n/messages.ts</code>, <code>backend/.../Program.cs</code> are merge hotspots. Foundation must use feature registration/extensions; UI agents rebase before touching hotspots.</li>
+<li>Every parallel branch starts from all declared deps. Commit graph, not commit number, controls readiness.</li>
+<li>Merge only after branch <code>G-FULL</code>; rerun <code>G-FULL</code> after each merge batch.</li>
+</ul>
+<hr>
+<h2>C01 — <code>chore: establish backend test spine</code></h2>
+<p><strong>Deps:</strong> none. <strong>Lane:</strong> A. <strong>Runnable:</strong> current Angular app unchanged; API/Worker/CLI skeletons compile.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: add architecture/smoke tests expecting <code>Gones.Api</code>, <code>Gones.Worker</code>, <code>Gones.Migrator</code> entrypoints + <code>/health/live</code> 200.</li>
+<li><input disabled="" type="checkbox"> Add <code>backend/Gones.sln</code>, projects: <code>Gones.Api</code>, <code>Gones.Application</code>, <code>Gones.Domain</code>, <code>Gones.Infrastructure</code>, <code>Gones.Worker</code>, <code>Gones.Migrator</code>.</li>
+<li><input disabled="" type="checkbox"> Add test projects: <code>Gones.UnitTests</code>, <code>Gones.IntegrationTests</code>, <code>Gones.ArchitectureTests</code>.</li>
+<li><input disabled="" type="checkbox"> Install/configure Angular ESLint; make <code>lint</code> real lint, add separate <code>typecheck</code>; fail on generated/source lint errors.</li>
+<li><input disabled="" type="checkbox"> Pin .NET SDK via <code>global.json</code>; centralize nullable, warnings-as-errors, analyzers, package versions.</li>
+<li><input disabled="" type="checkbox"> Enforce dependency direction: Domain → none; Application → Domain; Infrastructure → Application/Domain; hosts → Application/Infrastructure.</li>
+<li><input disabled="" type="checkbox"> Implement liveness endpoint with no DB dependency; Worker/CLI <code>--help</code> exit 0.</li>
+<li><input disabled="" type="checkbox"> Add <code>npm</code> wrappers for backend build/test without changing current FE runtime.</li>
+<li><input disabled="" type="checkbox"> GREEN: run architecture/smoke tests, then <code>G-FE</code>; start Angular + API and verify both respond.</li>
+</ul>
+<h2>C02 — <code>feat: add PostgreSQL persistence kernel</code></h2>
+<p><strong>Deps:</strong> C01. <strong>Lane:</strong> A. <strong>Runnable:</strong> Angular local mode; DB tests use PostgreSQL Testcontainers; API runs against one-off local PostgreSQL.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Testcontainer tests for migration-from-empty, UUID key, UTC clock, transaction rollback, optimistic version increment.</li>
+<li><input disabled="" type="checkbox"> Add Npgsql/EF Core + NodaTime packages after license/advisory review; record decision in dependency ledger.</li>
+<li><input disabled="" type="checkbox"> Implement <code>GonesDbContext</code>, snake_case naming, <code>IClock</code>, UTC/NodaTime mappings, assembly-scanned entity configs.</li>
+<li><input disabled="" type="checkbox"> Add shared persistence records: schema version, idempotency record, audit record, outbox record; feature entities arrive later.</li>
+<li><input disabled="" type="checkbox"> Add bigint <code>Version</code> concurrency convention + strong ETag encode/decode helper. Use UUID PKs except legacy aggregate envelopes, which use UUID surrogate PK + unique string Document ID.</li>
+<li><input disabled="" type="checkbox"> Create initial EF migration; verify migrate, rollback, migrate cycle against PostgreSQL.</li>
+<li><input disabled="" type="checkbox"> Add <code>/health/ready</code> DB check while <code>/health/live</code> stays DB-independent.</li>
+<li><input disabled="" type="checkbox"> GREEN: targeted integration tests; <code>G-FE</code> + <code>G-BE</code>; run API against local PostgreSQL.</li>
+</ul>
+<h2>C03 — <code>feat: standardize API validation authorization and failures</code></h2>
+<p><strong>Deps:</strong> C02. <strong>Lane:</strong> A. <strong>Runnable:</strong> API exposes documented failure/security behavior; no feature routes yet.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: API tests for malformed JSON, validation failure, missing auth 401, wrong role 403, missing resource 404, stale ETag 412, conflict 409, correlation ID.</li>
+<li><input disabled="" type="checkbox"> Implement RFC 7807 Problem Details with stable <code>code</code>, safe <code>message</code>, validation field map, trace ID; never leak exception/SQL.</li>
+<li><input disabled="" type="checkbox"> Add endpoint-filter validation, cancellation propagation, request-size caps, JSON limits, UTC serialization.</li>
+<li><input disabled="" type="checkbox"> Add auth policy names for User, global Organizer, Admin, org member, org Owner; handlers initially deny without claims.</li>
+<li><input disabled="" type="checkbox"> Add exact-origin credentialed CORS config; reject wildcard+credentials.</li>
+<li><input disabled="" type="checkbox"> Add secure headers/API cache defaults; protect Swagger outside Development via Admin policy/config.</li>
+<li><input disabled="" type="checkbox"> Add structured boundary logging with PII redaction tests.</li>
+<li><input disabled="" type="checkbox"> Enforce append-only audit twice: EF change guard + PostgreSQL app-role/trigger denial for <code>UPDATE</code>/<code>DELETE</code>; migration role alone owns schema. Add raw-SQL rejection tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: API contract tests; <code>G-FE</code> + <code>G-BE</code>; smoke <code>/health/live</code>, Problem Details, Swagger Development path.</li>
+</ul>
+<h2>C04 — <code>chore: generate Angular REST client from OpenAPI</code></h2>
+<p><strong>Deps:</strong> C03. <strong>Lane:</strong> A. <strong>Runnable:</strong> Angular remains local adapter; generated client compiles unused.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: add CI test failing when generated client differs from committed OpenAPI artifact.</li>
+<li><input disabled="" type="checkbox"> Pin OpenAPI/NSwag tools; generate deterministic <code>backend/openapi/gones.json</code> from API.</li>
+<li><input disabled="" type="checkbox"> Generate Angular HttpClient DTO/client under <code>src/app/api/generated/</code>; mark generated code read-only.</li>
+<li><input disabled="" type="checkbox"> Add <code>npm run api:generate</code> + <code>api:check</code>; normalize timestamps/newlines for stable output.</li>
+<li><input disabled="" type="checkbox"> Add hand-written API boundary layer for base URL, credentials, access token, ETag, Idempotency-Key, Problem Details mapping.</li>
+<li><input disabled="" type="checkbox"> Add unit tests for URL join, cookie credentials, JWT header omission/presence, ETag forwarding, generated-client compile.</li>
+<li><input disabled="" type="checkbox"> Document producer-first contract workflow: endpoint test → OpenAPI → generated client → adapter test.</li>
+<li><input disabled="" type="checkbox"> GREEN: <code>G-CONTRACT</code>, <code>G-FE</code>, <code>G-BE</code>; Angular starts unchanged.</li>
+</ul>
+<h2>C05 — <code>chore: add full-stack Compose feature flags and CI</code></h2>
+<p><strong>Deps:</strong> C02, C04. <strong>Lane:</strong> A. <strong>Runnable:</strong> one command starts FE/API/Worker/PostgreSQL; server feature flags off by default.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: smoke script expects FE, API liveness/readiness, Worker heartbeat, PostgreSQL migration completion.</li>
+<li><input disabled="" type="checkbox"> Add multi-stage API/Worker/Migrator Dockerfiles, non-root users, read-only runtime FS where possible, health checks.</li>
+<li><input disabled="" type="checkbox"> Add <code>compose.yaml</code> with PostgreSQL, one-shot Migrator, API, Worker, Angular development/release profiles; no committed secrets.</li>
+<li><input disabled="" type="checkbox"> Add typed vendor-neutral config validation. Missing required runtime secret/provider/origin fails startup; safe local fake-provider defaults only.</li>
+<li><input disabled="" type="checkbox"> Add build + runtime flags: <code>apiBackend</code>, <code>calendarV1</code>, <code>authV1</code>, <code>leagueServer</code>, <code>liveServer</code>, <code>adminV1</code>; all false in legacy static mode.</li>
+<li><input disabled="" type="checkbox"> Rename future <code>NestApiBackend</code> intent to ASP.NET adapter without activating it; preserve local adapter.</li>
+<li><input disabled="" type="checkbox"> Add <code>e2e:ci</code>, <code>smoke</code>, deterministic seed/reset scripts; CI services + backend/contract/Cypress jobs.</li>
+<li><input disabled="" type="checkbox"> GREEN: <code>G-FULL</code>, <code>G-RUN</code>; verify current public app behavior unchanged with flags off.</li>
+</ul>
+<h2>C06 — <code>feat: add transactional outbox and source-controlled email templates</code></h2>
+<p><strong>Deps:</strong> C02, C03, C05. <strong>Lane:</strong> A. <strong>Runnable:</strong> Worker drains fake/local outbox; API does not send email inline.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: unit tests for template locale fallback/HTML encoding; integration tests for same-transaction outbox, lease, retry, dedupe, crash recovery.</li>
+<li><input disabled="" type="checkbox"> Implement <code>NotificationOutbox</code> state machine: Pending, Sending lease, Sent, DeadLetter; unique dedupe key; attempt timestamps.</li>
+<li><input disabled="" type="checkbox"> Add typed <code>.html</code> + <code>.txt</code> templates for verify, reset, registration, unregistration, major update, cancellation, reminder, organizer notices in <code>fr</code> + <code>en</code>.</li>
+<li><input disabled="" type="checkbox"> Implement template renderer with strict typed models, HTML encoding, HTTPS links, subject length limits; never persist rendered body.</li>
+<li><input disabled="" type="checkbox"> Add <code>IEmailTransport</code>; Development file/sink transport with token-safe preview; no recipient/content logs.</li>
+<li><input disabled="" type="checkbox"> Implement Worker poll loop with bounded batch, <code>SKIP LOCKED</code>, cancellation, lease recovery, exponential retry policy hooks.</li>
+<li><input disabled="" type="checkbox"> Scrub recipient, token, template model, rendered payload after terminal delivery/dead-letter retention handoff; keep User/Tournament IDs + safe status only. Add clock-driven scrub tests.</li>
+<li><input disabled="" type="checkbox"> Add outbox health/lag metrics + readiness behavior; email provider outage must not fail API write transaction after commit.</li>
+<li><input disabled="" type="checkbox"> GREEN: targeted Worker/API tests; <code>G-FULL</code>, <code>G-RUN</code>; enqueue test mail, observe fake delivery once.</li>
+</ul>
+<h2>C07 — <code>feat: add OpenTelemetry observability and operational health</code></h2>
+<p><strong>Deps:</strong> C05, C06. <strong>Lane:</strong> A. <strong>Runnable:</strong> local traces/metrics/logs visible; health endpoints distinguish live/ready/degraded.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests assert trace/correlation propagation API→DB→outbox→Worker; log sink rejects token/email/body fields.</li>
+<li><input disabled="" type="checkbox"> Add OpenTelemetry ASP.NET/HttpClient/Npgsql/runtime instrumentation + vendor-neutral OTLP exporter/console config.</li>
+<li><input disabled="" type="checkbox"> Define currently implementable spans/metrics: req latency/error, DB latency/failure, outbox lag/dead letters, Worker heartbeat. C08 adds auth signals; C27 adds scheduler signals; C28 adds Brevo signals; C38 adds migration signals.</li>
+<li><input disabled="" type="checkbox"> Add health checks: PostgreSQL, Worker heartbeat, outbox backlog. Provider/scheduler checks land with their owning slices.</li>
+<li><input disabled="" type="checkbox"> Add redaction processor + structured event IDs; hash rate-limit keys, never log raw IP/email/token/content.</li>
+<li><input disabled="" type="checkbox"> Add local OTLP/console profile + sample dashboard/alert query docs.</li>
+<li><input disabled="" type="checkbox"> GREEN: telemetry tests; <code>G-FULL</code>, <code>G-RUN</code>; inspect one correlated request + outbox delivery.</li>
+</ul>
+<h2>C08 — <code>feat: implement local identity and private-by-default profile</code></h2>
+<p><strong>Deps:</strong> C02, C03, C05. <strong>Lane:</strong> B. <strong>Runnable:</strong> hidden auth API supports register/login/profile; current FE remains anonymous.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: domain tests for Username normalization/collision, profile defaults, birth-year range, password policy, lockout; API tests for register/login/profile authz.</li>
+<li><input disabled="" type="checkbox"> Configure ASP.NET Core Identity with <code>Guid</code>; minimum 12/max 128, no composition; 5 failures → 15m lock; common-password service boundary.</li>
+<li><input disabled="" type="checkbox"> Add <code>UserProfile</code>: display Username + normalized key, first/last name, optional location/birth year, five public flags false, PreferredLanguage default <code>fr</code>, timestamps.</li>
+<li><input disabled="" type="checkbox"> Enforce normalized Username + normalized email unique DB indexes; test concurrent duplicate registration.</li>
+<li><input disabled="" type="checkbox"> Implement <code>POST /api/auth/register</code>, <code>POST /api/auth/login</code>, <code>GET/PATCH /api/users/me</code>; access JWT contains immutable ID/global role/security stamp only.</li>
+<li><input disabled="" type="checkbox"> Require current password for sensitive local-profile changes where applicable; generic login failure prevents enumeration.</li>
+<li><input disabled="" type="checkbox"> Audit register/login success/failure/profile changes with redacted diffs; add auth success/rejection/lockout metrics without email/IP labels.</li>
+<li><input disabled="" type="checkbox"> GREEN: auth unit/integration tests; <code>G-FULL</code>, <code>G-RUN</code>; register/login/profile via Swagger.</li>
+</ul>
+<h2>C09 — <code>feat: implement rotating refresh sessions and revocation</code></h2>
+<p><strong>Deps:</strong> C08. <strong>Lane:</strong> B. <strong>Runnable:</strong> hidden auth flow survives access-token expiry securely.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests for 15m access, 7d idle, 30d absolute, rotation, parallel refresh race, replay-family revocation, logout, logout-all, password/security-stamp revocation.</li>
+<li><input disabled="" type="checkbox"> Add hashed refresh-token/session-family records with device label, created/last-used/idle/absolute expiry, revoked/replaced IDs.</li>
+<li><input disabled="" type="checkbox"> Implement <code>POST /api/auth/refresh</code>, <code>/logout</code>, <code>/logout-all</code>; rotate atomically under transaction.</li>
+<li><input disabled="" type="checkbox"> Set refresh cookie <code>Secure</code>, <code>HttpOnly</code>, <code>SameSite=Lax</code>, narrow Path, explicit host/domain strategy; clear exact cookie on logout.</li>
+<li><input disabled="" type="checkbox"> Bind refresh to session/user/security stamp; never store/return plaintext token except cookie issuance.</li>
+<li><input disabled="" type="checkbox"> Add <code>GET /api/users/me/sessions</code>, <code>DELETE /api/users/me/sessions/{id}</code> without raw token/IP disclosure.</li>
+<li><input disabled="" type="checkbox"> Audit session creation/revocation/replay; emit abuse metric.</li>
+<li><input disabled="" type="checkbox"> GREEN: concurrency/integration tests; <code>G-FULL</code>, <code>G-RUN</code>; expire test JWT, refresh once, replay old token → family revoked.</li>
+</ul>
+<h2>C10 — <code>feat: implement email verification recovery and email change</code></h2>
+<p><strong>Deps:</strong> C06, C09. <strong>Lane:</strong> B. <strong>Runnable:</strong> local account lifecycle complete behind flags.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests for 24h verification expiry, newest-token behavior, rate-limited resend, generic forgot response, single-use reset, email-change re-verification, session revocation.</li>
+<li><input disabled="" type="checkbox"> Implement register→verification outbox transaction; verification tokens contain purpose/security stamp and expire 24h.</li>
+<li><input disabled="" type="checkbox"> Add verify/resend endpoints; resend invalidates superseded token generation without account enumeration.</li>
+<li><input disabled="" type="checkbox"> Add forgot/reset password endpoints; generic response; single-use expiring token; revoke all refresh families after reset.</li>
+<li><input disabled="" type="checkbox"> Implement email change request/confirm; normalized uniqueness checked before commit; <code>EmailVerified=false</code> until confirmation.</li>
+<li><input disabled="" type="checkbox"> Add <code>UserEmailHistory</code> with protected access, 2y address retention then redaction job; audit stores only changed-field names/User ID.</li>
+<li><input disabled="" type="checkbox"> Add auth endpoint rate policies + tests for IP/account keying and <code>Retry-After</code>.</li>
+<li><input disabled="" type="checkbox"> GREEN: auth/email tests; <code>G-FULL</code>, <code>G-RUN</code>; complete verify/reset/change using local sink links.</li>
+</ul>
+<h2>C11 — <code>feat: implement Google Facebook OAuth and explicit linking</code></h2>
+<p><strong>Deps:</strong> C09, C10. <strong>Lane:</strong> B. <strong>Runnable:</strong> OAuth callbacks work in local fake-provider tests; local auth unaffected.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: callback tests for state/correlation failure, new provider account, incomplete profile, existing-email refusal, authenticated link/unlink, last-login-method guard.</li>
+<li><input disabled="" type="checkbox"> Configure Google/Facebook handlers through env/file-mounted secrets only; exact callback origins remain runtime config.</li>
+<li><input disabled="" type="checkbox"> Add external identity records/provider unique index; persist provider ID + provider email metadata, never provider tokens unless required.</li>
+<li><input disabled="" type="checkbox"> Implement OAuth start/callback with short one-time completion ticket for mandatory email/Username/first/last fields. Accept provider email as verified only when provider supplies a verified claim; otherwise collect email + complete Gones verification before registration.</li>
+<li><input disabled="" type="checkbox"> Refuse auto-link when email exists; return safe instruction to sign in then link. Test missing, unverified, colliding, changed provider email.</li>
+<li><input disabled="" type="checkbox"> Implement authenticated link/unlink endpoints; re-auth required; prevent unlinking final login method.</li>
+<li><input disabled="" type="checkbox"> Revoke sessions when security-sensitive identity linkage changes; audit provider only, no provider token/email.</li>
+<li><input disabled="" type="checkbox"> GREEN: local fake-provider integration tests; <code>G-FULL</code>, <code>G-RUN</code>; run OAuth completion/link flows without external network. Real providers deferred.</li>
+</ul>
+<h2>C12 — <code>feat: add Angular auth session and profile UX</code></h2>
+<p><strong>Deps:</strong> C04, C05, C10, C11. <strong>Lane:</strong> B/E. <strong>Runnable:</strong> <code>authV1</code> enables complete login/register/profile UI; disabled path unchanged.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Angular tests for in-memory token, one-flight refresh, failed refresh logout, route guards, verified-email registration gate, Problem Details mapping.</li>
+<li><input disabled="" type="checkbox"> Implement <code>AuthService</code>, app bootstrap refresh, access-token interceptor, 401 single refresh+single replay, no local/session-storage token.</li>
+<li><input disabled="" type="checkbox"> Add <code>/login</code>, <code>/register</code>, <code>/auth/complete-profile</code>, <code>/verify-email</code>, <code>/forgot-password</code>, <code>/reset-password</code>, <code>/profile</code>, <code>/profile/sessions</code>.</li>
+<li><input disabled="" type="checkbox"> Add Google/Facebook buttons, explicit-link account settings, logout/logout-all/session revoke.</li>
+<li><input disabled="" type="checkbox"> Add permanent unverified-email banner + resend state. Forms expose field errors, pending lock, retry, generic auth failures.</li>
+<li><input disabled="" type="checkbox"> Add profile/privacy/birth-year/language controls; all optional-public toggles default off; email change explains re-verification.</li>
+<li><input disabled="" type="checkbox"> Add User/Organizer/Admin guards as UX only; server remains authority. Add EN/FR strings + mobile/a11y assertions.</li>
+<li><input disabled="" type="checkbox"> GREEN: service tests + Cypress local auth/profile/session flows; <code>G-FULL</code>, <code>G-RUN</code> with <code>authV1=true</code>.</li>
+</ul>
+<h2>C13 — <code>feat: add Admin bootstrap global roles and reference catalogs</code></h2>
+<p><strong>Deps:</strong> C09, C10. <strong>Lane:</strong> B. <strong>Runnable:</strong> one-time CLI creates first Admin; public Format query works.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests for bootstrap idempotency/wrong config, last Admin protection, role escalation denial, Format uniqueness/order/soft delete.</li>
+<li><input disabled="" type="checkbox"> Add global roles User/Organizer/Admin; role policy stays independent from org membership.</li>
+<li><input disabled="" type="checkbox"> Implement <code>Gones.Migrator admin bootstrap --email</code> requiring existing verified account + configured matching bootstrap email; consume one-time marker.</li>
+<li><input disabled="" type="checkbox"> Add Admin user list/search/page + grant/revoke global Organizer/Admin commands; prevent self/last-Admin lockout. Role change rotates security version, revokes refresh families, rejects stale privileged JWTs; test revoke during active session.</li>
+<li><input disabled="" type="checkbox"> Add Tournament Format catalog seeded Legacy; Admin CRUD supports Vintage/Pauper/Modern/Premodern later; slug unique/soft delete.</li>
+<li><input disabled="" type="checkbox"> Add public active Format endpoint; Scheduled Tournament may reference many Formats; V1 creation validator requires Legacy.</li>
+<li><input disabled="" type="checkbox"> Audit all role/catalog/bootstrap actions with redacted diffs.</li>
+<li><input disabled="" type="checkbox"> GREEN: unit/integration/CLI tests; <code>G-FULL</code>, <code>G-RUN</code>; bootstrap Admin twice → one success, one safe no-op.</li>
+</ul>
+<h2>C14 — <code>feat: add organizations ownership and notification settings</code></h2>
+<p><strong>Deps:</strong> C13. <strong>Lane:</strong> B. <strong>Runnable:</strong> Admin/org membership API complete behind <code>adminV1</code>.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests for unique org name, exactly one Owner, owner transfer transaction, org-scoped Organizer authz, Admin bypass, soft delete, block-scope prerequisites.</li>
+<li><input disabled="" type="checkbox"> Add Organization, OrganizationMember, OrganizationNotificationSettings entities/config/indexes; one Owner enforced by transaction + DB constraint strategy.</li>
+<li><input disabled="" type="checkbox"> Implement public paged org list/detail + authorized <code>/api/users/me/organizations</code>; expose no private membership/email data.</li>
+<li><input disabled="" type="checkbox"> Implement Admin org create/update/delete/restore; creation requires verified Owner User. Delete returns 409 while dependency blockers exist; C21/C23 add Tournament/registration blockers as those schemas arrive.</li>
+<li><input disabled="" type="checkbox"> Implement Owner/Admin member add/remove/role/transfer commands; cannot remove/demote sole Owner without atomic transfer.</li>
+<li><input disabled="" type="checkbox"> Add Organizer notification flags <code>NotifyOnRegistration</code>/<code>NotifyOnUnregistration</code> per org.</li>
+<li><input disabled="" type="checkbox"> Add org auth resource loader that returns indistinguishable 404/403 per policy, preventing IDOR.</li>
+<li><input disabled="" type="checkbox"> GREEN: authz/concurrency/API tests; <code>G-FULL</code>, <code>G-RUN</code>; create org, add Organizer, transfer Owner, reject cross-org write.</li>
+</ul>
+<h2>C15 — <code>feat: add Admin organization user audit and closure UI</code></h2>
+<p><strong>Deps:</strong> C12, C14. <strong>Lane:</strong> B/E. <strong>Runnable:</strong> <code>adminV1</code> enables complete Admin/org UI.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Cypress role matrix for Admin pages, org Owner pages, cross-org URL tamper, last-owner guard, account-disable impact.</li>
+<li><input disabled="" type="checkbox"> Add <code>/organizations</code>, <code>/organizations/:id</code>, <code>/organizer/organizations</code>, <code>/admin</code>, <code>/admin/users</code>, <code>/admin/organizations</code>, <code>/admin/audit</code>.</li>
+<li><input disabled="" type="checkbox"> Implement paged/filter states in URL; loading/empty/error/retry; confirmation dialogs for role/org destructive changes.</li>
+<li><input disabled="" type="checkbox"> Add Admin audit query with action/entity/actor/date filters; show redacted diffs only; no audit mutation UI/API.</li>
+<li><input disabled="" type="checkbox"> Implement Admin-assisted account disable/anonymize command: require atomic Owner-transfer map for every solely owned org, revoke sessions, unlink providers, replace PII/Username with opaque values, retain immutable ID/relations.</li>
+<li><input disabled="" type="checkbox"> Add UI confirmation requiring typed Username + impact/ownership-transfer summary; exclude current/last Admin unless replacement exists. Test multi-org + concurrent Owner change.</li>
+<li><input disabled="" type="checkbox"> Add EN/FR strings, keyboard/focus/mobile tests; hide controls by role without treating hiding as authz.</li>
+<li><input disabled="" type="checkbox"> GREEN: Angular/Cypress/Admin API tests; <code>G-FULL</code>, <code>G-RUN</code> under User/Organizer/Owner/Admin personas.</li>
+</ul>
+<h2>C16 — <code>feat: model Scheduled Tournament lifecycle and safe content</code></h2>
+<p><strong>Deps:</strong> C02, C14. <strong>Lane:</strong> C. <strong>Runnable:</strong> no routes yet; domain/schema fully tested.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: domain tests for required title/address/start/zone/Legacy format, end≥start, DST gap/overlap, lifecycle transitions, edit/delete/restore deadlines, major-change classification, sanitizer.</li>
+<li><input disabled="" type="checkbox"> Add ScheduledTournament relational entity + formats join: org, slug, summary, sanitized body, address fields, starts/ends UTC, IANA zone, capacity, status, creator, deleted metadata, Version.</li>
+<li><input disabled="" type="checkbox"> Define status transitions Published→InProgress→Completed or Cancelled; derive missing end as venue-local end-of-day, converted safely through DST.</li>
+<li><input disabled="" type="checkbox"> Enforce no all-day/no external registration URL/no cross-links to Result/Live.</li>
+<li><input disabled="" type="checkbox"> Implement allowlist sanitizer; reject unsupported markup/URL instead of trusting Angular; store canonical sanitized HTML.</li>
+<li><input disabled="" type="checkbox"> Add indexes for venue-local start projection, UTC start, status, city/country/org/formats, normalized search; no unbounded list query.</li>
+<li><input disabled="" type="checkbox"> Add EF migration + existing-data-safe defaults only for empty new table.</li>
+<li><input disabled="" type="checkbox"> GREEN: domain + PostgreSQL constraint tests; <code>G-FULL</code>, <code>G-RUN</code>.</li>
+</ul>
+<h2>C17 — <code>feat: expose public Tournament organization and participant-safe reads</code></h2>
+<p><strong>Deps:</strong> C03, C16. <strong>Lane:</strong> C. <strong>Runnable:</strong> public API works; old Calendar still visible until flag.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: API tests for combined filters, pagination 20, upcoming default, past toggle, cancelled/completed visibility, deleted invisibility, venue date boundaries, public DTO privacy.</li>
+<li><input disabled="" type="checkbox"> Implement <code>GET /api/tournaments</code> with <code>from/to/city/country/organization/format/status/search/page/pageSize</code>; cap page size; stable start+ID sort.</li>
+<li><input disabled="" type="checkbox"> Implement <code>GET /api/tournaments/{slug}</code> and public organizations/formats composition; ETag/cache headers.</li>
+<li><input disabled="" type="checkbox"> Project venue-local date/time + IANA zone; return UTC instants for viewer conversion; never use server local zone.</li>
+<li><input disabled="" type="checkbox"> Add public participant projection endpoint shell: current Username + opted-in profile fields only; active registrations only once C23 exists.</li>
+<li><input disabled="" type="checkbox"> Add ICS endpoint/file builder from canonical UTC/zone; cancelled status represented; HTML body excluded/safely textified.</li>
+<li><input disabled="" type="checkbox"> Update OpenAPI + regenerate generated client; add query-plan/index regression tests for representative filters.</li>
+<li><input disabled="" type="checkbox"> GREEN: public API/contract tests; <code>G-FULL</code>, <code>G-RUN</code>; curl public list/detail/ICS anonymously.</li>
+</ul>
+<h2>C18 — <code>feat: replace public Calendar list and detail UI</code></h2>
+<p><strong>Deps:</strong> C04, C17. <strong>Lane:</strong> C/E. <strong>Runnable:</strong> <code>calendarV1</code> switches public routes; old Calendar remains fallback.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Angular tests for venue-date grouping, viewer secondary date, URL filters, local view preference, past toggle, cancelled badge, stale ETag cache response.</li>
+<li><input disabled="" type="checkbox"> Replace flag-on <code>/calendar</code> with month calendar default + list tab; route query owns month/filter/page/view.</li>
+<li><input disabled="" type="checkbox"> Add <code>/calendar/tournaments/:slug</code>; remove flag-on use of <code>/events/:slug</code>; preserve temporary redirect mapping during cutover.</li>
+<li><input disabled="" type="checkbox"> Render venue-local primary with explicit IANA/short zone; viewer-local secondary only when different; group by venue date.</li>
+<li><input disabled="" type="checkbox"> Add upcoming/ongoing default, past filter, status/city/country/org/format/search filters, backend paging, deep-link restoration.</li>
+<li><input disabled="" type="checkbox"> Add loading skeleton, empty state, retryable error, cached-stale/offline banner, cancelled/completed status text, ICS actions.</li>
+<li><input disabled="" type="checkbox"> Render sanitized body in isolated component with safe external-link attrs; no client sanitizer as server substitute.</li>
+<li><input disabled="" type="checkbox"> GREEN: Angular + Cypress public Calendar/list/detail/mobile tests; <code>G-FULL</code>, <code>G-RUN</code> with flag off/on.</li>
+</ul>
+<h2>C19 — <code>feat: implement server preview and hash-bound publication</code></h2>
+<p><strong>Deps:</strong> C16. <strong>Lane:</strong> C. <strong>Runnable:</strong> Organizer can preview/publish through API; no UI yet.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: API tests for org authz, server normalization, invalid zone/DST, changed-payload hash mismatch, expiry/replay, idempotent publish, concurrent duplicate slug.</li>
+<li><input disabled="" type="checkbox"> Implement <code>POST /api/tournaments/preview</code>; validate/sanitize/normalize; return render DTO + opaque short-lived hash ticket bound to User/org/payload.</li>
+<li><input disabled="" type="checkbox"> Keep preview stateless or store only ticket hash/expiry; never create Tournament/draft row.</li>
+<li><input disabled="" type="checkbox"> Implement <code>POST /api/tournaments</code> requiring preview ticket + identical canonical payload + Idempotency-Key.</li>
+<li><input disabled="" type="checkbox"> In one transaction create Published Tournament, audit event, idempotency result; return 201 + Location + ETag.</li>
+<li><input disabled="" type="checkbox"> Generate deterministic unique slug under DB constraint/retry.</li>
+<li><input disabled="" type="checkbox"> Update OpenAPI/generated client; add authz + replay threat tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: preview/publish integration tests; <code>G-FULL</code>, <code>G-RUN</code>; preview, mutate payload → reject; publish original once.</li>
+</ul>
+<h2>C20 — <code>feat: add Organizer Tournament create preview publish UX</code></h2>
+<p><strong>Deps:</strong> C12, C18, C19. <strong>Lane:</strong> C/E. <strong>Runnable:</strong> flag-on Organizer can publish Scheduled Tournament end-to-end.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Cypress tests for role guard, org picker scope, required start/zone, server errors, preview parity, back-edit invalidating ticket, double-submit idempotency.</li>
+<li><input disabled="" type="checkbox"> Add <code>/organizer/tournaments/new</code> reactive form; 44px controls; address, summary/body, start/end, IANA zone, capacity, formats.</li>
+<li><input disabled="" type="checkbox"> Default zone from browser only as editable suggestion; never infer persisted zone silently.</li>
+<li><input disabled="" type="checkbox"> Call preview API; render same detail component/DTO as public page.</li>
+<li><input disabled="" type="checkbox"> Back preserves form but discards ticket after any edit; Publish disabled/pending; Idempotency-Key stable per submit attempt.</li>
+<li><input disabled="" type="checkbox"> On success route to public detail; on 401/403/409/validation/network show actionable recovery without duplicate create.</li>
+<li><input disabled="" type="checkbox"> Add EN/FR copy, keyboard path, initial focus, error associations, mobile tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: Angular/Cypress create-preview-publish tests; <code>G-FULL</code>, <code>G-RUN</code> as Organizer + cross-org attacker.</li>
+</ul>
+<h2>C21 — <code>feat: implement Tournament edit cancel delete restore lifecycle</code></h2>
+<p><strong>Deps:</strong> C06, C14, C16. <strong>Lane:</strong> C. <strong>Runnable:</strong> lifecycle API complete.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests for If-Match required/stale 412, pre/post-start edit/delete rules, Admin restore deadline, cancel anytime, major/minor diff, lifecycle event atomicity, concurrent actions.</li>
+<li><input disabled="" type="checkbox"> Implement intent endpoints: authorized paged Organizer Tournament list, Admin deleted list, update details, cancel, soft delete, Admin restore. No generic entity PUT.</li>
+<li><input disabled="" type="checkbox"> Require If-Match on mutations; increment Version; include fresh ETag. Idempotency-Key on cancel/delete retries.</li>
+<li><input disabled="" type="checkbox"> Limit Organizer to member org; Admin bypass; only Admin restores; hide soft-deleted public rows. Update DTO excludes immutable OrganizationId/creator/status/slug; mass-assignment/cross-org reassignment tests must fail.</li>
+<li><input disabled="" type="checkbox"> Classify date/address as major. Persist recipient-independent lifecycle event marker atomically; C23 wires active-registration recipient mail after registration schema exists. Minor title/summary edit creates no notification marker.</li>
+<li><input disabled="" type="checkbox"> Date change recalculates future reminder plan marker; past reminder history remains immutable. Extend org-delete blocker: 409 while any nonterminal Tournament depends on org.</li>
+<li><input disabled="" type="checkbox"> Audit before/after allowed field diff; rich body diff records changed marker only.</li>
+<li><input disabled="" type="checkbox"> GREEN: lifecycle/domain/API concurrency tests; <code>G-FULL</code>, <code>G-RUN</code>; exercise each state + stale client.</li>
+</ul>
+<h2>C22 — <code>feat: add Organizer Tournament management UX</code></h2>
+<p><strong>Deps:</strong> C20, C21. <strong>Lane:</strong> C/E. <strong>Runnable:</strong> Organizer/Admin Calendar management complete except participants.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Cypress tests for my-org list, edit cutoff, ETag stale recovery, major-change confirmation, cancel/delete confirmations, Admin restore.</li>
+<li><input disabled="" type="checkbox"> Add <code>/organizer/tournaments</code>, <code>/organizer/tournaments/:id/edit</code>, Admin deleted-Tournaments view.</li>
+<li><input disabled="" type="checkbox"> Reuse create form + public detail renderer; hydrate canonical DTO; send If-Match.</li>
+<li><input disabled="" type="checkbox"> Add explicit major-change confirmation listing date/address changes; cancel/delete confirmations explain participant mail and reminder stop.</li>
+<li><input disabled="" type="checkbox"> On 412 preserve local draft, fetch latest, show compare/reload path; never silently last-write-win.</li>
+<li><input disabled="" type="checkbox"> Hide forbidden actions by lifecycle/role; keep server rejection handling.</li>
+<li><input disabled="" type="checkbox"> Add loading/empty/error/success, pending submit locks, focus return, EN/FR/mobile tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: Angular/Cypress lifecycle tests; <code>G-FULL</code>, <code>G-RUN</code> Organizer/Admin/stale-tab flows.</li>
+</ul>
+<h2>C23 — <code>feat: implement race-safe self-registration</code></h2>
+<p><strong>Deps:</strong> C06, C09, C14, C16, C17, C21. <strong>Lane:</strong> C. <strong>Runnable:</strong> verified User can register/unregister via API.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: domain/API tests for unverified, blocked, full, duplicate, cancelled, deleted, started, cross-race final slot, unregister cutoff, retry-after-cancel new row.</li>
+<li><input disabled="" type="checkbox"> Add registration attempt entity/status/history actors/timestamps; partial unique index on active <code>(TournamentId, UserId)</code>.</li>
+<li><input disabled="" type="checkbox"> Implement register command with Idempotency-Key; serializable transaction/row lock guards capacity under concurrent requests.</li>
+<li><input disabled="" type="checkbox"> Validate Published/not deleted/not started/verified/not org-blocked/capacity; map errors to stable codes/statuses.</li>
+<li><input disabled="" type="checkbox"> Implement self-unregister before start; mutate active attempt to CancelledByUser; future reminders stop by query semantics. Add paged <code>GET /api/users/me/registrations</code> with current + immutable attempt history.</li>
+<li><input disabled="" type="checkbox"> Re-register creates new row; old attempt immutable. Public participant projection uses current profile, not snapshots. Extend org-delete blocker: 409 while any active registration exists.</li>
+<li><input disabled="" type="checkbox"> Enqueue participant confirmation/unregistration + optional Organizer notice atomically; audit actions.</li>
+<li><input disabled="" type="checkbox"> Extend C21 date/address/cancel/delete lifecycle txns to enqueue active-participant update/cancellation messages; test zero registrations, many registrations, rollback, dedupe.</li>
+<li><input disabled="" type="checkbox"> GREEN: high-concurrency PostgreSQL tests + API tests; <code>G-FULL</code>, <code>G-RUN</code>; race two Users for final slot → one success.</li>
+</ul>
+<h2>C24 — <code>feat: add public participants registration and My Registrations UX</code></h2>
+<p><strong>Deps:</strong> C12, C18, C23. <strong>Lane:</strong> C/E. <strong>Runnable:</strong> User registration journey complete.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Angular/Cypress tests for Visitor login prompt, unverified banner, full/blocked/started errors, double click, unregister confirmation, re-register, public privacy.</li>
+<li><input disabled="" type="checkbox"> Add register/cancel action to Tournament detail with server-derived capability/reason DTO.</li>
+<li><input disabled="" type="checkbox"> Add public participant list: Username always; optional fields only when current privacy permits; no public email by default.</li>
+<li><input disabled="" type="checkbox"> Add <code>/registrations</code> showing upcoming/history attempts, statuses, event venue times, retryable loading errors.</li>
+<li><input disabled="" type="checkbox"> Keep Idempotency-Key stable through network retry; disable pending controls; refresh capacity/participant state after success.</li>
+<li><input disabled="" type="checkbox"> Add offline write rejection copy; no queued mutation/optimistic capacity decrement.</li>
+<li><input disabled="" type="checkbox"> Add EN/FR, screen-reader status, focus, 375px tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: service/unit/Cypress flows; <code>G-FULL</code>, <code>G-RUN</code> Visitor/unverified/verified/blocked/full personas.</li>
+</ul>
+<h2>C25 — <code>feat: add Organizer participant blocking and CSV APIs</code></h2>
+<p><strong>Deps:</strong> C06, C14, C23. <strong>Lane:</strong> C. <strong>Runnable:</strong> Organizer participant operations complete through API.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: authz tests for cross-org IDOR; verified-existing-User lookup; manual add/remove deadlines; block expiry; CSV formula injection; export audit.</li>
+<li><input disabled="" type="checkbox"> Add org-scoped blocked-user entity with reason/actor/expiry + active unique constraint; block/unblock/list commands.</li>
+<li><input disabled="" type="checkbox"> Add privacy-limited User lookup for exact Username/email available only to authorized org Organizer/Admin.</li>
+<li><input disabled="" type="checkbox"> Implement manual register existing verified User; same capacity/block/duplicate txn rules; actor fields identify Organizer.</li>
+<li><input disabled="" type="checkbox"> Implement remove before start → RemovedByOrganizer + participant email; block does not silently remove existing registration unless explicit combined action.</li>
+<li><input disabled="" type="checkbox"> Add paged participant private DTO/query with current Username/first/last/email/registeredAt for authorized org only.</li>
+<li><input disabled="" type="checkbox"> Add streaming UTF-8 CSV export with fixed cols, RFC 4180 quoting, spreadsheet-formula neutralization, bounded row count; audit export metadata only.</li>
+<li><input disabled="" type="checkbox"> GREEN: authz/concurrency/CSV tests; <code>G-FULL</code>, <code>G-RUN</code>; verify public/private DTO separation.</li>
+</ul>
+<h2>C26 — <code>feat: add Organizer participant management UX</code></h2>
+<p><strong>Deps:</strong> C15, C22, C25. <strong>Lane:</strong> C/E. <strong>Runnable:</strong> complete participant mgmt UI.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Cypress tests for lookup/manual add, capacity race error, remove, block/unblock/expiry, CSV, private-field access, cross-org URL.</li>
+<li><input disabled="" type="checkbox"> Add <code>/organizer/tournaments/:id/participants</code> paged table/cards with Username/legal name/email/date/status.</li>
+<li><input disabled="" type="checkbox"> Add verified-User search/selection; no free-form PII/manual guest creation.</li>
+<li><input disabled="" type="checkbox"> Add remove/block/unblock dialogs; show scope + expiry; separate “remove and block” composed action executes explicit commands.</li>
+<li><input disabled="" type="checkbox"> Add CSV download via authenticated response; preserve filename/content type; display audit-confirmed success only after response.</li>
+<li><input disabled="" type="checkbox"> Add org notification preference UI for registration/unregistration notices.</li>
+<li><input disabled="" type="checkbox"> Add loading/empty/error/pending locks, EN/FR, mobile card layout, keyboard/focus tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: Angular/Cypress Organizer flows; <code>G-FULL</code>, <code>G-RUN</code> own-org + cross-org tests.</li>
+</ul>
+<h2>C27 — <code>feat: schedule reminders and automatic Tournament statuses</code></h2>
+<p><strong>Deps:</strong> C06, C21, C23. <strong>Lane:</strong> C. <strong>Runnable:</strong> Worker handles reminders/status exactly once.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: clock-driven tests for monthly anchor/day truncation, last-month Saturdays, J-2/J-1, DST gap/overlap, schedule overlap, late registration, changed date, cancel/delete/unregister, downtime, worker restart, multi-zone 10:00 precision.</li>
+<li><input disabled="" type="checkbox"> Implement pure NodaTime planner using venue zone and 10:00 local; materialize future UTC ScheduledNotification rows with deterministic type/instant/dedupe key.</li>
+<li><input disabled="" type="checkbox"> Daily planner acquires PostgreSQL advisory lock and refreshes future rows; frequent dispatcher polls due rows at ≤1m cadence. Extra replicas remain horizontally safe.</li>
+<li><input disabled="" type="checkbox"> Query active registrations + eligible Tournaments; dispatch only still-eligible due rows. Planner never creates past reminders; dispatcher marks reminders missed during downtime instead of sending late.</li>
+<li><input disabled="" type="checkbox"> Poll lifecycle transitions at ≤1m cadence: Published→InProgress at start; →Completed at explicit end or venue-local end-of-day; Cancelled/Deleted unchanged.</li>
+<li><input disabled="" type="checkbox"> Major date update cancels only unsent future schedule rows, then replans; sent/missed history immutable; new future instants enqueue once.</li>
+<li><input disabled="" type="checkbox"> Add NotificationHistory only on successful delivery; unique DB dedupe key prevents duplicate app intent under planner/dispatcher retry.</li>
+<li><input disabled="" type="checkbox"> GREEN: unit + multi-worker PostgreSQL tests; <code>G-FULL</code>, <code>G-RUN</code>; advance fake clock across complete lifecycle.</li>
+</ul>
+<h2>C28 — <code>feat: integrate Brevo delivery webhooks and dead-letter operations</code></h2>
+<p><strong>Deps:</strong> C15, C27. <strong>Lane:</strong> A/C. <strong>Runnable:</strong> real transport configurable; Admin can inspect safe delivery metadata.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: Brevo HTTP fixture tests for success/transient/permanent/lost-response crashes; webhook malformed/auth/replay tests; retry clock/dead-letter tests.</li>
+<li><input disabled="" type="checkbox"> Implement Brevo REST transport via typed <code>HttpClient</code>; send stable provider idempotency key/custom correlation on every retry; store provider message ID + status only; timeout/circuit/bounded concurrency. If provider idempotency window expires with uncertain outcome, hold for webhook/operator reconciliation instead of blind resend.</li>
+<li><input disabled="" type="checkbox"> Apply retries 1m/5m/30m/2h/12h; hard bounce/invalid/blocked permanent; max attempts dead-letter.</li>
+<li><input disabled="" type="checkbox"> Implement HTTPS webhook endpoint using rotated random path token redacted from logs, strict schema/size/rate checks, replay key uniqueness.</li>
+<li><input disabled="" type="checkbox"> Map sent/delivered/deferred/soft/hard bounce/spam/invalid/blocked/error events without trusting recipient/content fields.</li>
+<li><input disabled="" type="checkbox"> Add Admin notification-history/dead-letter pages; retry action creates audited new attempt only for transient/operator-approved case. Test crash after provider acceptance before DB commit → no second accepted message.</li>
+<li><input disabled="" type="checkbox"> Add 1y delivery-metadata cleanup + terminal payload scrub verification; configure safe aggregate metrics before deletion.</li>
+<li><input disabled="" type="checkbox"> Emit vendor-neutral metrics/health signals for dead letter, bounce spike, scheduler lag, provider latency; document future sender/domain verification.</li>
+<li><input disabled="" type="checkbox"> GREEN: provider/Worker/webhook/Cypress Admin tests; <code>G-FULL</code>, <code>G-RUN</code> using local fake server only. Live Brevo deferred.</li>
+</ul>
+<h2>C29 — <code>feat: port League domain rules with golden parity fixtures</code></h2>
+<p><strong>Deps:</strong> C05. <strong>Lane:</strong> D. <strong>Runnable:</strong> no cutover; C# parity lib tested against current TS.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: export language-neutral JSON fixtures from TS for normalization, import, invalid entries, warnings, Tournament/League results, tiebreakers, player stats, rename, placeholder rules.</li>
+<li><input disabled="" type="checkbox"> Freeze fixture provenance/version; test TS regenerates same expected outputs before port.</li>
+<li><input disabled="" type="checkbox"> Port exact League/Tournament/Round/Entry/PlayerArchetype DTO shape + normalization to C#; preserve order/case/trim semantics.</li>
+<li><input disabled="" type="checkbox"> Port Round CSV adapter, invalid-row preservation, warnings, scoring, byes, provisional results, OMW/GW/OGW precision/floors.</li>
+<li><input disabled="" type="checkbox"> Port Player Statistics/nemesis/rival/filters + Player Name rename semantics.</li>
+<li><input disabled="" type="checkbox"> Run C# fixture consumer against every TS expected output; prohibit C#-specific JSON drift.</li>
+<li><input disabled="" type="checkbox"> Add property tests for score/result invariants + serializer round-trip.</li>
+<li><input disabled="" type="checkbox"> GREEN: TS + C# parity tests; <code>G-FULL</code>, <code>G-RUN</code>; no runtime flag changes.</li>
+</ul>
+<h2>C30 — <code>feat: persist and expose versioned League aggregates</code></h2>
+<p><strong>Deps:</strong> C02, C03, C04, C05, C29. <strong>Lane:</strong> D. <strong>Runnable:</strong> hidden public League API reads PostgreSQL; old FE local mode remains.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: PostgreSQL tests for exact JSONB round-trip, indexed metadata, placeholder uniqueness, soft tombstone, version/ETag, public PII-free export.</li>
+<li><input disabled="" type="checkbox"> Add LeagueAggregate envelope: UUID surrogate PK + unique string <code>DocumentId</code>, name/status/updated/version/deleted metadata + canonical JSONB document; preserve fixed <code>placeholder-league</code> DocumentId exactly.</li>
+<li><input disabled="" type="checkbox"> Seed single fixed placeholder aggregate server-side; no translated duplicate creation.</li>
+<li><input disabled="" type="checkbox"> Implement public paged <code>GET /api/leagues</code>, <code>GET /api/leagues/{id}</code>, nested Result Tournament/result/player-stat queries using official C# calc.</li>
+<li><input disabled="" type="checkbox"> Implement public League Export + full existing-source projection; derived results/warnings never persisted/exported.</li>
+<li><input disabled="" type="checkbox"> Add bounded JSON/document/request sizes + query indexes; reject malformed aggregate at boundary.</li>
+<li><input disabled="" type="checkbox"> Return ETag from Version; cache public reads safely.</li>
+<li><input disabled="" type="checkbox"> GREEN: parity/persistence/public API tests; regenerate client; <code>G-FULL</code>, <code>G-RUN</code> seeded League reads.</li>
+</ul>
+<h2>C31 — <code>feat: replace whole-League PUT with intent command endpoints</code></h2>
+<p><strong>Deps:</strong> C09, C30. <strong>Lane:</strong> D. <strong>Runnable:</strong> Organizer/Admin can mutate League API; local FE still default.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: role tests + one test per current CRUD surface: create/rename/status/delete, Result Tournament create/edit/delete/move, Round add/delete/import/replace, entry add/edit/delete, archetype update, rename Player Name, restore.</li>
+<li><input disabled="" type="checkbox"> Define intent routes/DTOs from current UI actions; every mutation requires If-Match except create/import with Idempotency-Key.</li>
+<li><input disabled="" type="checkbox"> Load aggregate, execute C# command rules, validate, save JSONB with <code>WHERE Version=expected</code>, return 412 on stale.</li>
+<li><input disabled="" type="checkbox"> Make cross-League move atomic in one DB tx; C34 owns Live finalization + Result insertion after Live persistence exists.</li>
+<li><input disabled="" type="checkbox"> Keep League Restore Organizer/Admin; Full Restore Admin only; create new IDs/names; tombstoned IDs never silently reused.</li>
+<li><input disabled="" type="checkbox"> Add audit action metadata without full aggregate/Player Name payload; public reads/exports remain anonymous.</li>
+<li><input disabled="" type="checkbox"> Add command-level OpenAPI + regenerate generated client; delete/restore storage envelope preserves current visible semantics.</li>
+<li><input disabled="" type="checkbox"> GREEN: command/authz/concurrency/parity tests; <code>G-FULL</code>, <code>G-RUN</code>; replay/stale/cross-role smoke.</li>
+</ul>
+<h2>C32 — <code>feat: cut Angular League and Result flows to server commands</code></h2>
+<p><strong>Deps:</strong> C04, C12, C31. <strong>Lane:</strong> D/E. <strong>Runnable:</strong> <code>leagueServer</code> switches all League/Result CRUD; local fallback remains flag-off.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: adapter tests map each existing UI action to exact generated command + If-Match; Cypress preserves every current League/Result workflow.</li>
+<li><input disabled="" type="checkbox"> Expand <code>ApplicationBackend</code> into intent-specific ports; implement ASP.NET adapter; stop flag-on whole-document <code>saveLeague</code>.</li>
+<li><input disabled="" type="checkbox"> Refactor League/detail/Tournament/Settings rename/import UI to call command methods; server response replaces local aggregate.</li>
+<li><input disabled="" type="checkbox"> Preserve current routes, output, placeholder, export, warnings, imports, stale-save UX, EN/FR strings.</li>
+<li><input disabled="" type="checkbox"> Add access UX: public read/export; User sees read-only; Organizer/Admin controls; 401 refresh; 403 explicit.</li>
+<li><input disabled="" type="checkbox"> Add command pending locks/idempotency; 412 compare/reload; no optimistic source mutation before response.</li>
+<li><input disabled="" type="checkbox"> Update Cypress matrix for create→round import→edit→result→player stats→export/restore→delete.</li>
+<li><input disabled="" type="checkbox"> GREEN: all old/new tests; <code>G-FULL</code>, <code>G-RUN</code> flag off/on with API DB.</li>
+</ul>
+<h2>C33 — <code>feat: persist Live Tournament aggregates with C# parity reads</code></h2>
+<p><strong>Deps:</strong> C02, C03, C04, C05, C29. <strong>Lane:</strong> D. <strong>Runnable:</strong> hidden Live read API uses PostgreSQL; local Live remains default.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: golden fixtures for registration, rounds, pairing seed/order, scores, standings, checkpoints, restore, completion; JSONB round-trip/version/tombstone tests.</li>
+<li><input disabled="" type="checkbox"> Port exact Live document/normalizers/calculations to C#; consume TS golden fixtures.</li>
+<li><input disabled="" type="checkbox"> Add LiveAggregate envelope: UUID surrogate PK + unique string <code>DocumentId</code>, indexed name/date/stage/updated/version/deleted + canonical JSONB; preserve existing string IDs exactly.</li>
+<li><input disabled="" type="checkbox"> Implement public/authorized list/get DTO policy: public if current app exposes; mutation details restricted as decided by existing UX/security review.</li>
+<li><input disabled="" type="checkbox"> Return ETag; enforce bounded player/round/checkpoint/document sizes; preserve max 80 checkpoints.</li>
+<li><input disabled="" type="checkbox"> Add Organizer/Admin auth policy for shared Live writes; User/Visitor read policy matches locked public-read decision.</li>
+<li><input disabled="" type="checkbox"> Regenerate OpenAPI/client + add DTO parity tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: TS/C# parity + persistence/API tests; <code>G-FULL</code>, <code>G-RUN</code> seeded Live read.</li>
+</ul>
+<h2>C34 — <code>feat: implement Live intent commands and atomic finalization</code></h2>
+<p><strong>Deps:</strong> C09, C30, C31, C33. <strong>Lane:</strong> D. <strong>Runnable:</strong> complete Live API behind flag.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: command tests for create/settings/player add/edit/drop/paid, start/cancel round, score, validate, checkpoint/restore, standings, finalize, delete, stale/retry.</li>
+<li><input disabled="" type="checkbox"> Implement intent endpoints requiring If-Match; create/finalize use Idempotency-Key.</li>
+<li><input disabled="" type="checkbox"> Execute exact C# Live rules; persist one JSONB aggregate version per accepted command.</li>
+<li><input disabled="" type="checkbox"> Finalize in one DB tx: mark Live completed/finalized ID, insert Result Tournament in target League aggregate, tombstone active Live view; retries return same result.</li>
+<li><input disabled="" type="checkbox"> Serialize concurrent score/round actions with version predicate; return 412 + latest ETag metadata.</li>
+<li><input disabled="" type="checkbox"> Audit action/IDs only; never duplicate full players/scores in audit JSON.</li>
+<li><input disabled="" type="checkbox"> Regenerate command OpenAPI/client; stress same-round concurrent score writes.</li>
+<li><input disabled="" type="checkbox"> GREEN: parity/command/concurrency tests; <code>G-FULL</code>, <code>G-RUN</code>; full Live lifecycle via API.</li>
+</ul>
+<h2>C35 — <code>feat: cut Angular Live Tournament flows to server commands</code></h2>
+<p><strong>Deps:</strong> C04, C12, C34. <strong>Lane:</strong> D/E. <strong>Runnable:</strong> <code>liveServer</code> switches Live workflows; local fallback flag-off.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: adapter mapping tests + existing running-tournament Cypress lifecycle under API mode.</li>
+<li><input disabled="" type="checkbox"> Replace flag-on <code>LiveTournamentRepository</code> local writes with generated command adapter + ETag state.</li>
+<li><input disabled="" type="checkbox"> Refactor autosave into explicit debounced intent commands; abort stale requests; latest response guard prevents older response overwrite.</li>
+<li><input disabled="" type="checkbox"> Replace client compensating finalization with atomic server finalize result/navigation.</li>
+<li><input disabled="" type="checkbox"> Preserve current pairing/checkpoint/advanced settings/standings UX + route shape.</li>
+<li><input disabled="" type="checkbox"> Add online-required errors, pending lock, 412 reload/reapply UX; no queued writes.</li>
+<li><input disabled="" type="checkbox"> Run existing Live lifecycle at phone/desktop; add User read-only + Organizer/Admin mutation role tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: all Live/unit/Cypress tests; <code>G-FULL</code>, <code>G-RUN</code> flag off/on.</li>
+</ul>
+<h2>C36 — <code>feat: move catalogs and Player Name maintenance to server settings</code></h2>
+<p><strong>Deps:</strong> C13, C15, C31, C34. <strong>Lane:</strong> D/E. <strong>Runnable:</strong> language local; profile/org/admin settings separated.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests for Admin-only global Deck Archetype CRUD, case/space uniqueness, Organizer Player Name correction, cross-doc atomicity, org notification prefs.</li>
+<li><input disabled="" type="checkbox"> Add global DeckArchetype catalog seeded bundled Legacy presets; soft delete prevents new selection but preserves historical labels.</li>
+<li><input disabled="" type="checkbox"> Implement Admin catalog CRUD/import; no Organizer global catalog mutation.</li>
+<li><input disabled="" type="checkbox"> Implement Organizer/Admin Player Name search + rename command over authorized shared League source; exact case-sensitive source semantics; preview affected count before commit.</li>
+<li><input disabled="" type="checkbox"> Keep browser language local; optionally sync PreferredLanguage only on profile mutation. Never overwrite browser choice during anonymous use.</li>
+<li><input disabled="" type="checkbox"> Refactor Settings page into Browser Language, Profile link, Admin Catalog, Organizer Maintenance, Org Notification sections by capability.</li>
+<li><input disabled="" type="checkbox"> Remove flag-on local Deck Archetype mutation authority; keep local read only for migration exporter until future public cutover + soak.</li>
+<li><input disabled="" type="checkbox"> GREEN: API/Angular/Cypress settings tests; <code>G-FULL</code>, <code>G-RUN</code> each role/language.</li>
+</ul>
+<h2>C37 — <code>feat: define public Export v4 and private migration bundle</code></h2>
+<p><strong>Deps:</strong> C17, C30, C33, C36. <strong>Lane:</strong> E. <strong>Runnable:</strong> pre-cutover app can download migration bundle; public v4 remains safe.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: schema/snapshot tests for v4 allowlist + explicit secret/PII denylist; v1–v3 compatibility tests; private bundle round-trip fixtures.</li>
+<li><input disabled="" type="checkbox"> Increment <code>GONES_DATA_VERSION</code> to 4; define versioned JSON Schemas + max sizes/counts/checksums.</li>
+<li><input disabled="" type="checkbox"> Public League/Full Export v4 includes League/Result source + public Scheduled fields; excludes Live drafts, Users, PII, memberships, registrations, blocks, audit, tokens, outbox/history.</li>
+<li><input disabled="" type="checkbox"> Private migration bundle reads legacy browser stores: <code>gones.frontend.backend.v1</code>, <code>gones.live-tournaments.v1</code>, <code>gones.settings*</code>; includes Live drafts + Deck Archetypes, excludes language/auth. Include stable per-browser <code>sourceInstanceId</code>, store hashes, export time.</li>
+<li><input disabled="" type="checkbox"> Add migration-bundle download UI with warning, file hash, source-instance ID, counts, app/data versions; no browser→server upload. Test origin-scoped <code>localStorage</code> behavior locally; future cutover runbook must deploy exporter on every legacy origin + inventory every known device/browser.</li>
+<li><input disabled="" type="checkbox"> Preserve v1–v3 League Restore parser; v4 restore uses server endpoints/auth rules; malformed/unsupported rejects before mutation.</li>
+<li><input disabled="" type="checkbox"> Add automated grep/fixture assertion proving fake email/token/password never appears in either exported artifact.</li>
+<li><input disabled="" type="checkbox"> GREEN: export/restore/schema/Cypress download tests; <code>G-FULL</code>, <code>G-RUN</code>; inspect v4 + private fixture.</li>
+</ul>
+<h2>C38 — <code>feat: add dry-run-first atomic migration CLI</code></h2>
+<p><strong>Deps:</strong> C16, C30, C33, C36, C37. <strong>Lane:</strong> E. <strong>Runnable:</strong> CLI can safely migrate fixture DB; app unchanged until flags.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: CLI tests for bad checksum/schema, missing time/address/org/zone/Format map, duplicate/conflicting source-instance data, unsupported version, dry-run no-write, all-or-none rollback, rerun idempotency.</li>
+<li><input disabled="" type="checkbox"> Implement <code>Gones.Migrator import --bundle &lt;file&gt;... --mapping --manifest --dry-run</code> parsing one/many private bundles with bounded streaming JSON + schema validation.</li>
+<li><input disabled="" type="checkbox"> Manifest inventories source-instance IDs/hashes + authoritative-device/reconciliation decisions. Block unknown duplicates/conflicts until operator resolves by explicit map.</li>
+<li><input disabled="" type="checkbox"> Mapping file supplies org/Owner, mandatory start time, IANA zone, address/country, Format IDs (Legacy default only when explicitly mapped), status policy for each legacy Calendar event; no silent global default.</li>
+<li><input disabled="" type="checkbox"> Produce human + JSON review report: input counts, source instances, mappings, sanitation changes, collisions, hashes, target DB identity, dropped/converted <code>externalLink</code>, removed image/unsafe HTML details.</li>
+<li><input disabled="" type="checkbox"> Block import on every error/unmapped required field. Warnings require explicit <code>--accept-report-hash</code> from unchanged dry run.</li>
+<li><input disabled="" type="checkbox"> Final import runs serializable single tx: League/Result JSONB, Scheduled Tournament, Live drafts, Deck catalog; audit migration batch; no auth/profile fabrication except configured Owner reference.</li>
+<li><input disabled="" type="checkbox"> Store migration batch hash/idempotency record; rerun returns existing result; changed bundle requires new dry run. Add migration duration/result/count metrics with bundle hash truncated/redacted.</li>
+<li><input disabled="" type="checkbox"> Add post-import verifier comparing source/target counts, canonical hashes, sampled derived result parity.</li>
+<li><input disabled="" type="checkbox"> GREEN: CLI/Testcontainer/property tests; <code>G-FULL</code>, <code>G-RUN</code>; migrate fixture, force failure, prove zero partial rows.</li>
+</ul>
+<h2>C39 — <code>feat: cache public reads and reject offline writes</code></h2>
+<p><strong>Deps:</strong> C18, C24, C32, C35. <strong>Lane:</strong> E. <strong>Runnable:</strong> installable PWA gives explicit stale public data, never local mutations.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: service-worker tests for public GET allowlist, private/auth exclusion, stale indicator, mutation network failure, cache-user separation.</li>
+<li><input disabled="" type="checkbox"> Configure Angular SW data groups only for anonymous public Calendar/org/League/result GETs with bounded freshness/max entries.</li>
+<li><input disabled="" type="checkbox"> Never cache auth/profile/Admin/private participant responses, refresh responses, mutation responses, or Authorization-keyed requests.</li>
+<li><input disabled="" type="checkbox"> Add online/offline service + stale timestamp/banner; cached page labels itself stale and disables every write.</li>
+<li><input disabled="" type="checkbox"> Fail writes immediately with stable online-required UI; no Background Sync, local queue, optimistic source authority.</li>
+<li><input disabled="" type="checkbox"> Ensure logout clears any user-scoped app memory; service-worker update cannot expose previous private response.</li>
+<li><input disabled="" type="checkbox"> Add Cypress offline public-read + registration/edit rejection tests.</li>
+<li><input disabled="" type="checkbox"> GREEN: SW/unit/Cypress tests; <code>G-FULL</code>, release-mode <code>G-RUN</code>; load public page, disconnect, reload stale, verify writes blocked.</li>
+</ul>
+<h2>C40 — <code>fix: close security accessibility performance and resilience gates</code></h2>
+<p><strong>Deps:</strong> C26, C28, C36, C39. <strong>Lane:</strong> F. <strong>Runnable:</strong> complete V1 passes local release-candidate quality gates.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: add abuse/E2E suites for IDOR, mass assignment, stale writes, duplicate submits, XSS payloads, CSV injection, open redirects, OAuth CSRF, refresh replay, webhook replay, oversized input.</li>
+<li><input disabled="" type="checkbox"> Apply exact ASP.NET endpoint rate policies from locked defaults; test 429 + <code>Retry-After</code>; hash limiter keys. Document future ingress/global limiter requirement without vendor config.</li>
+<li><input disabled="" type="checkbox"> Add CSP/Permissions-Policy/referrer/HSTS/header tests; sanitizer migration report; external links <code>noopener noreferrer</code>; no remote images.</li>
+<li><input disabled="" type="checkbox"> Add DB query-count/time budgets, pagination caps, indexes, bounded Worker batches; eliminate N+1/unbounded lists/request waterfalls.</li>
+<li><input disabled="" type="checkbox"> Add <code>axe-core</code> Cypress scans + keyboard/focus tests for dialogs/forms/calendar/nav; fix labels, names, contrast, live regions, 375px overflow.</li>
+<li><input disabled="" type="checkbox"> Add route error boundaries, retries, loading/empty/error consistency, pending locks, stale-response guards.</li>
+<li><input disabled="" type="checkbox"> Run dependency advisory/license/install-script audit + secret literal/env-client-bundle scan; pin accepted deps.</li>
+<li><input disabled="" type="checkbox"> GREEN: all abuse/a11y/perf/resilience suites; <code>G-FULL</code>, <code>G-RUN</code>; retain reports as CI artifacts.</li>
+</ul>
+<h2>C41 — <code>ops: harden platform-agnostic OCI runtime artifacts</code></h2>
+<p><strong>Deps:</strong> C07, C28, C35. <strong>Lane:</strong> F. <strong>Runnable:</strong> release-mode API/Worker/Migrator/backup containers run locally with no cloud dependency.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: image contract tests expect Linux OCI images, non-root UID, read-only-compatible FS, health endpoints, graceful SIGTERM, env/file secret injection, zero cloud SDK requirement.</li>
+<li><input disabled="" type="checkbox"> Harden multi-stage API/Worker/Migrator Dockerfiles; add separate backup/restore image with pinned PostgreSQL client.</li>
+<li><input disabled="" type="checkbox"> Define vendor-neutral runtime config: PostgreSQL DSN, allowed origins, forwarded proxies, secret file paths, OTLP endpoint, stdout JSON, Worker replica/lease settings.</li>
+<li><input disabled="" type="checkbox"> Add release-test Compose profile proving API/Worker/Migrator/PostgreSQL startup ordering, migration idempotency, health, restart, graceful shutdown. Include fake OAuth/OIDC, fake Brevo/webhook fixture, local TLS reverse proxy/test cert, readiness, blocked external egress.</li>
+<li><input disabled="" type="checkbox"> Add encrypted <code>pg_dump</code>/restore commands writing only to mounted paths; verify wrong key/corrupt dump fails safely; remote storage/retention deferred.</li>
+<li><input disabled="" type="checkbox"> Add registry-neutral CI build: amd64 image build, immutable digests, SBOM, checksums, Trivy/Gitleaks scans, Cosign signing hook for future OIDC registry.</li>
+<li><input disabled="" type="checkbox"> Document generic host requirements: TLS reverse proxy, persistent PostgreSQL, secret injection, singleton/advisory-lock Worker, migration job, backup scheduler, OTLP collector, log retention.</li>
+<li><input disabled="" type="checkbox"> GREEN: image contract + backup/restore tests, <code>G-FULL</code>, release-mode <code>G-RUN</code>; scan all local images with zero unresolved critical finding.</li>
+</ul>
+<h2>C42 — <code>chore: enforce explicit legacy versus server data authority</code></h2>
+<p><strong>Deps:</strong> C38, C40, C41. <strong>Lane:</strong> F/E. <strong>Runnable:</strong> server mode has one DB authority; existing static deployment can remain explicit legacy mode until future hosting/cutover.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: tests assert server mode never reads/writes canonical <code>localStorage</code>; missing API config fails closed; legacy mode cannot call server mutation routes.</li>
+<li><input disabled="" type="checkbox"> Replace implicit fallback with typed <code>dataMode: legacy-browser | server</code>; no automatic mode switching after startup.</li>
+<li><input disabled="" type="checkbox"> In server mode remove old CalendarEvent/whole-document League/Live mutation paths from dependency injection + route exposure; retain browser language/view/filter/cache only.</li>
+<li><input disabled="" type="checkbox"> Keep legacy mode frozen for current static deployment + migration-bundle export; prohibit new Calendar V1/auth/admin capabilities there.</li>
+<li><input disabled="" type="checkbox"> Keep cutover bundle UI/runtime reader, schemas, offline Migrator CLI until future public cutover + soak explicitly authorizes removal.</li>
+<li><input disabled="" type="checkbox"> Set local release Compose to mandatory server mode; missing API URL/flags fails startup instead of falling back.</li>
+<li><input disabled="" type="checkbox"> Update ADRs/README/DEPLOYMENT/CONTEXT with platform-neutral authority boundary + deferred domain/CDN/provider/live-cutover work.</li>
+<li><input disabled="" type="checkbox"> GREEN: <code>G-FULL</code>, release-mode <code>G-RUN</code>, clean server-profile E2E, upgraded legacy-profile export E2E.</li>
+</ul>
+<h2>C43 — <code>test: run local migration restore and release rehearsal</code></h2>
+<p><strong>Deps:</strong> C42. <strong>Lane:</strong> F. <strong>Runnable:</strong> clean isolated Compose env proves every code-level V1 journey without live infra.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED: acceptance matrix initially marks each docs 00–09 capability unproved; create executable local test reference for every non-deferred row.</li>
+<li><input disabled="" type="checkbox"> Start clean isolated release-test Compose project with PostgreSQL, fake OAuth/OIDC, fake Brevo/webhook, local TLS proxy, blocked external egress; run migrations.</li>
+<li><input disabled="" type="checkbox"> Register configured bootstrap User, verify through local email sink, then run Admin bootstrap CLI; prove second bootstrap is safe no-op.</li>
+<li><input disabled="" type="checkbox"> Seed multiple browser-origin fixtures, export bundle set, dry-run, approve report hash, import, verify counts/canonical hashes/C#↔TS parity.</li>
+<li><input disabled="" type="checkbox"> Run role E2E: Visitor; local User; fake-OAuth User; Organizer; Owner; Admin. No external OAuth request.</li>
+<li><input disabled="" type="checkbox"> Run reminder clock simulation + fake Brevo HTTP/webhook retry/dead-letter; prove cancellation/date change/unregister stop/replan. No external email.</li>
+<li><input disabled="" type="checkbox"> Create encrypted dump, destroy DB volume, restore into clean DB, rerun smoke/parity. Record local duration only; no live RPO/RTO claim.</li>
+<li><input disabled="" type="checkbox"> Write/update README, OpenAPI use, local env, generic container deployment contract, rollback principles, secret rotation, webhook, backup/restore, migration operator docs; mark live steps deferred.</li>
+<li><input disabled="" type="checkbox"> GREEN: non-deferred acceptance matrix 100%, <code>G-FULL</code>, local release smoke/DAST/a11y; retain rehearsal reports.</li>
+</ul>
+<h2>C44 — <code>release: assemble platform-agnostic Gones Calendar V1 candidate</code></h2>
+<p><strong>Deps:</strong> C43. <strong>Lane:</strong> F. <strong>Runnable:</strong> terminal immutable local release candidate runs from artifacts on clean machine/Compose env.</p>
+<ul>
+<li><input disabled="" type="checkbox"> RED/probe: release preflight fails on image digest, migration, OpenAPI, config schema, health, backup, fake-provider, authority-mode, or feature-flag mismatch; it requires no public domain/cloud credentials.</li>
+<li><input disabled="" type="checkbox"> Build final API/Worker/Migrator/backup OCI images once; record immutable digests, SBOM, checksums, scan reports, final source SHA.</li>
+<li><input disabled="" type="checkbox"> Build final Angular release artifact with runtime API/data-mode config injection; do not bind artifact to one CDN/domain.</li>
+<li><input disabled="" type="checkbox"> Start clean env from final artifacts, migrate DB, register+verify bootstrap User through local sink, bootstrap Admin, enable every server feature flag.</li>
+<li><input disabled="" type="checkbox"> Run exact private-bundle migration rehearsal + verifier against clean DB; keep legacy origin simulation local.</li>
+<li><input disabled="" type="checkbox"> Run complete synthetic role journeys using local auth, fake OAuth, fake Brevo, local TLS webhook, Worker leader, logs/metrics.</li>
+<li><input disabled="" type="checkbox"> Produce release notes + deferred-live-infra checklist; never claim real OAuth/email/deliverability/public cutover validation.</li>
+<li><input disabled="" type="checkbox"> GREEN: <code>G-FULL</code>, final release <code>G-RUN</code>, restore smoke, digest verification on exact terminal candidate SHA.</li>
+</ul>
+<hr>
+<h2>5. Final V1 acceptance checklist</h2>
+<h3>Product</h3>
+<ul>
+<li><input disabled="" type="checkbox"> Public Calendar default, list, filters, past/cancelled/completed visibility, venue/viewer zones, ICS.</li>
+<li><input disabled="" type="checkbox"> Local auth complete. Google/Facebook adapters, callback/linking/security contracts pass local fake-provider tests; live-provider smoke deferred.</li>
+<li><input disabled="" type="checkbox"> Organizer create→preview→publish→edit/cancel/delete; Admin restore.</li>
+<li><input disabled="" type="checkbox"> Verified User register/unregister/re-register; capacity/block/concurrency correct.</li>
+<li><input disabled="" type="checkbox"> Organizer manual registration, removal, block, private participant view, CSV.</li>
+<li><input disabled="" type="checkbox"> Monthly/Saturday/J-2/J-1 reminders, major-update/cancel/registration messages, retry/dead letter/history pass fake transport/webhook tests; live delivery deferred.</li>
+<li><input disabled="" type="checkbox"> Admin Users/roles/orgs/formats/archetypes/audit/account closure.</li>
+<li><input disabled="" type="checkbox"> Existing League/Result/Live behavior matches TS golden fixtures under PostgreSQL/API.</li>
+<li><input disabled="" type="checkbox"> Public Export v4 safe; private migration bundle + atomic CLI verified.</li>
+<li><input disabled="" type="checkbox"> Offline public stale reads work; all writes reject offline.</li>
+</ul>
+<h3>Engineering</h3>
+<ul>
+<li><input disabled="" type="checkbox"> Every mutation validated/authenticated/authorized server-side.</li>
+<li><input disabled="" type="checkbox"> ETag/If-Match + Idempotency-Key cover stale/retry paths.</li>
+<li><input disabled="" type="checkbox"> DB constraints cover uniqueness, active registration, ownership, FK, capacity transaction logic.</li>
+<li><input disabled="" type="checkbox"> No PII/secrets in public DTO/export/log/audit/email-body storage.</li>
+<li><input disabled="" type="checkbox"> OpenAPI generated client drift check green.</li>
+<li><input disabled="" type="checkbox"> Unit/integration/contract/Cypress/a11y/security/perf suites green.</li>
+<li><input disabled="" type="checkbox"> Angular release artifact + API/Worker/Migrator/backup OCI images build reproducibly; full app healthy from clean clone.</li>
+</ul>
+<h3>Portable operations</h3>
+<ul>
+<li><input disabled="" type="checkbox"> API/Worker/Migrator/backup OCI images require no cloud SDK/runtime.</li>
+<li><input disabled="" type="checkbox"> Runtime config uses env/file secrets, PostgreSQL DSN, forwarded-header config, OTLP, stdout JSON.</li>
+<li><input disabled="" type="checkbox"> Encrypted dump→destroy→restore rehearsal succeeds from mounted artifacts.</li>
+<li><input disabled="" type="checkbox"> OTel correlation trace spans API→DB→Worker→fake provider through local collector.</li>
+<li><input disabled="" type="checkbox"> Container health, restart, graceful shutdown, migration idempotency, backup failure paths tested.</li>
+<li><input disabled="" type="checkbox"> Generic deploy/rollback/secret rotation/webhook/migration/backup docs complete; live-host checklist explicitly deferred.</li>
+<li><input disabled="" type="checkbox"> Server mode has no browser canonical-data fallback; legacy mode remains explicit until future public cutover.</li>
+</ul>
+<p><strong>Definition of done:</strong> C01–C44 merged in DAG order; every commit green+runnable; non-deferred acceptance checklist complete; clean local release rehearsal green; immutable platform-agnostic release artifacts produced. Domain/CDN/live providers/public deployment remain separate future work.</p>
+
+<footer class="artifact-footer">source: C:\Users\Natha\coding\gones</footer>
+</article>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var mode = "auto";
+  function init() {
+    try {
+      var dark = mode === "dark" || (mode === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      var css = getComputedStyle(document.documentElement);
+      var t = function (name) { return css.getPropertyValue(name).trim(); };
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "base",
+        themeVariables: {
+          darkMode: dark,
+          background: t("--bg"),
+          mainBkg: t("--code-bg"),
+          primaryColor: t("--code-bg"),
+          primaryTextColor: t("--fg"),
+          primaryBorderColor: t("--border"),
+          secondaryColor: t("--code-bg"),
+          tertiaryColor: t("--bg"),
+          lineColor: t("--muted"),
+          textColor: t("--fg"),
+          noteBkgColor: t("--code-bg"),
+          noteTextColor: t("--fg"),
+          noteBorderColor: t("--border"),
+          edgeLabelBackground: t("--code-bg"),
+          clusterBkg: t("--bg"),
+          clusterBorder: t("--border"),
+          actorLineColor: t("--muted"),
+          signalTextColor: t("--fg"),
+          labelTextColor: t("--fg"),
+          fontFamily: getComputedStyle(document.body).fontFamily
+        }
+      });
+      mermaid.run({ querySelector: "pre.mermaid" });
+    } catch (e) { console.warn("mermaid init failed", e); }
+  }
+  if (typeof mermaid !== "undefined") init();
+  else window.addEventListener("load", init);
+})();
+</script>
+
+<script>
+(function () {
+  var slug = "gones-calendar-v1-implementation-plan";
+  var es = new EventSource("/events");
+  es.addEventListener("reload", function (e) {
+    try { if (e.data === slug || e.data === "*") location.reload(); } catch (_) {}
+  });
+})();
+</script>
+</body>
+</html>
