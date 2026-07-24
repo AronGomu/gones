@@ -2,6 +2,8 @@
 /out
 /dist
 /.angular
+**/bin/
+**/obj/
 /cypress/screenshots
 /cypress/videos
 .env

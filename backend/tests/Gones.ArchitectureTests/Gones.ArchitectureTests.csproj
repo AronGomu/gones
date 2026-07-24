@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Gones.Domain\Gones.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Gones.Application\Gones.Application.csproj" />
+    <ProjectReference Include="..\..\src\Gones.Infrastructure\Gones.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Gones.Api\Gones.Api.csproj" />
+    <ProjectReference Include="..\..\src\Gones.Worker\Gones.Worker.csproj" />
+    <ProjectReference Include="..\..\src\Gones.Migrator\Gones.Migrator.csproj" />
+  </ItemGroup>
+
+</Project>
