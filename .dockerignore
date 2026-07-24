@@ -1,0 +1,12 @@
+.git
+.github
+.agentsystem
+.pi
+node_modules
+dist
+.angular
+**/bin
+**/obj
+cypress/screenshots
+cypress/videos
+.env*

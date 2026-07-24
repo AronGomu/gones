@@ -6,13 +6,13 @@ import { CalendarEventDocument, LeagueDocument, PersistedLeague } from '../domai
 import type { ApplicationBackend } from './application-backend';
 
 /**
- * Future Nest.js adapter for the same frontend backend bridge used by the local
+ * Future ASP.NET API adapter for the same frontend backend bridge used by the local
  * browser implementation. The MVP UI is frontend-only and no longer exposes
  * login, authentication, or role-management behavior.
  */
 @Injectable({ providedIn: 'root' })
-export class NestApiBackend implements ApplicationBackend {
-  readonly mode = 'nest-api' as const;
+export class AspNetApiBackend implements ApplicationBackend {
+  readonly mode = 'aspnet-api' as const;
   readonly configured = Boolean(environment.apiBaseUrl);
 
   constructor(private readonly http: HttpClient) {}

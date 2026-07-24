@@ -15,7 +15,11 @@
     "backend:build": "dotnet build backend/Gones.sln --configuration Release",
     "backend:test": "dotnet test backend/Gones.sln --configuration Release",
     "api:generate": "node scripts/generate-api.mjs",
-    "api:check": "node scripts/generate-api.mjs --check"
+    "api:check": "node scripts/generate-api.mjs --check",
+    "smoke": "node scripts/smoke-full-stack.mjs",
+    "e2e:ci": "node scripts/full-stack-ci.mjs",
+    "db:reset": "node scripts/reset-local-stack.mjs",
+    "db:seed": "node scripts/seed-local.mjs"
   },
   "devDependencies": {
     "@angular/build": "^21.2.19",

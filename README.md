@@ -7,7 +7,7 @@ Gones is an Angular single-page PWA for consulting tournament League results, ex
 - Angular standalone components, Angular Router, Signals, zoneless change detection
 - Angular Material UI with Gones dark metal / blood-red theme tokens
 - Frontend-only backend bridge backed by browser `localStorage`
-- Future Nest.js adapter contract in `src/app/backend/`
+- Future ASP.NET adapter contract in `src/app/backend/`
 - Vitest for domain/unit tests
 - Cypress for browser flows
 - GitHub Pages static hosting through GitHub Actions
@@ -29,7 +29,7 @@ No external backend is required today. The current bridge implementation stores 
 - Admin and Organizer remain product design concepts for a later backend-backed version, but there is no login, authentication, or role-management UI in this frontend-only release.
 - Gones Export/Gones Restore remain the portability and backup mechanism.
 
-If you are cutting over from any previous hosted backend, export League/Full Data JSON from the old deployment before deploying this frontend-only build, then restore it in the new app. When a Nest.js backend is added later, implement/provide the `ApplicationBackend` bridge from `src/app/backend/application-backend.ts`; UI components and repositories should not need to call HTTP directly.
+If you are cutting over from any previous hosted backend, export League/Full Data JSON from the old deployment before deploying this frontend-only build, then restore it in the new app. When a ASP.NET backend is added later, implement/provide the `ApplicationBackend` bridge from `src/app/backend/application-backend.ts`; UI components and repositories should not need to call HTTP directly.
 
 ## Commands
 

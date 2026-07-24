@@ -1,6 +1,13 @@
 export const environment = {
   production: true,
-  backend: 'frontend-local' as 'frontend-local' | 'nest-api',
   apiBaseUrl: '',
+  features: {
+    apiBackend: false,
+    calendarV1: false,
+    authV1: false,
+    leagueServer: false,
+    liveServer: false,
+    adminV1: false
+  },
   appVersion: '0.1.0'
 } as const;

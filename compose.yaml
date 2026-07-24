@@ -1,0 +1,114 @@
+name: gones
+
+x-dotnet-runtime: &dotnet-runtime
+  restart: unless-stopped
+  read_only: true
+  tmpfs: ["/tmp:size=32m,mode=1777"]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: gones
+      POSTGRES_USER: gones_migration
+      POSTGRES_PASSWORD: local-migration-only
+    ports: ["127.0.0.1:5433:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./deploy/postgres/init-roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gones_migration -d gones"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrator:
+    build:
+      context: .
+      dockerfile: backend/src/Gones.Migrator/Dockerfile
+    command: ["database", "update"]
+    environment:
+      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_migration;Password=local-migration-only
+    depends_on:
+      postgres: { condition: service_healthy }
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+
+  permissions:
+    image: postgres:17-alpine
+    environment:
+      PGPASSWORD: local-migration-only
+    command:
+      - sh
+      - -ec
+      - |
+        psql -h postgres -U gones_migration -d gones -v ON_ERROR_STOP=1 <<'SQL'
+        GRANT USAGE ON SCHEMA public TO gones_app;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO gones_app;
+        GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO gones_app;
+        REVOKE UPDATE, DELETE, TRUNCATE ON audit_records FROM gones_app;
+        SQL
+    depends_on:
+      migrator: { condition: service_completed_successfully }
+    restart: "no"
+
+  api:
+    <<: *dotnet-runtime
+    build:
+      context: .
+      dockerfile: backend/src/Gones.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only
+      GONES_ALLOWED_ORIGINS: http://localhost:4200,http://127.0.0.1:4200,http://localhost:8081,http://127.0.0.1:8081
+    ports: ["127.0.0.1:5080:8080"]
+    depends_on:
+      permissions: { condition: service_completed_successfully }
+
+  worker:
+    <<: *dotnet-runtime
+    build:
+      context: .
+      dockerfile: backend/src/Gones.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Production
+    depends_on:
+      permissions: { condition: service_completed_successfully }
+
+  frontend-development:
+    build:
+      context: .
+      target: development
+    read_only: true
+    tmpfs:
+      - /app/.angular:size=32m
+      - /tmp:size=16m
+    ports: ["127.0.0.1:4200:4200"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      api: { condition: service_healthy }
+
+  frontend-release:
+    profiles: [release]
+    build:
+      context: .
+      target: release
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=16m
+      - /var/run:size=1m
+      - /tmp:size=8m
+    ports: ["127.0.0.1:8081:8080"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  postgres-data:

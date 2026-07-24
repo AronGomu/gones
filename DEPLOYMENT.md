@@ -10,7 +10,7 @@ The recommended host for this repository is **Cloudflare Pages**.
 - Production output directory: `dist/gones/browser`
 - Runtime backend today: browser `localStorage` through the frontend backend bridge
 - Required build-time config today: none
-- Future backend config: `API_BASE_URL` once the Nest.js adapter is enabled
+- Future backend config: `API_BASE_URL` once the ASP.NET adapter is enabled
 
 ## 1. Deploy with Cloudflare Pages
 
@@ -45,7 +45,7 @@ Open the deployed URL and check:
 4. No login, account menu, or role-management buttons are shown.
 5. Refreshing a nested route still loads the Angular app.
 
-Browser storage is per-device/per-browser. Use Gones Export/Gones Restore to move data between browsers until the Nest.js backend is introduced.
+Browser storage is per-device/per-browser. Use Gones Export/Gones Restore to move data between browsers until the ASP.NET backend is introduced.
 
 ## 3. If direct route refreshes 404
 
@@ -76,13 +76,13 @@ The built frontend will be in:
 dist/gones/browser
 ```
 
-## 5. Future Nest.js backend cutover
+## 5. Future ASP.NET backend cutover
 
 The frontend already talks through `ApplicationBackend` in `src/app/backend/application-backend.ts`.
 
-When the Nest.js API exists:
+When the ASP.NET API exists:
 
-1. Implement the API routes represented by `NestApiBackend` in `src/app/backend/nest-api-backend.service.ts`.
+1. Implement the API routes represented by `AspNetApiBackend` in `src/app/backend/aspnet-api-backend.service.ts`.
 2. Set `API_BASE_URL` / `environment.apiBaseUrl` for deployed builds.
-3. Provide the Nest adapter for `APP_BACKEND` instead of the local frontend adapter.
+3. Provide the ASP.NET adapter for `APP_BACKEND` instead of the local frontend adapter.
 4. Keep League export/restore available as the user-facing backup path.

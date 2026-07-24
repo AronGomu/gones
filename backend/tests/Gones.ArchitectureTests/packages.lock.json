@@ -465,7 +465,8 @@
         "type": "Project",
         "dependencies": {
           "Gones.Application": "[1.0.0, )",
-          "Gones.Infrastructure": "[1.0.0, )"
+          "Gones.Infrastructure": "[1.0.0, )",
+          "Microsoft.Extensions.Hosting": "[10.0.8, )"
         }
       },
       "gones.worker": {

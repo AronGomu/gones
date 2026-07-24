@@ -31,4 +31,4 @@ After deployment:
 - Browser storage is per-device/per-browser.
 - Ask users to export backups before clearing browser data.
 - Use Gones Restore to move data between browsers.
-- The future Nest.js API should implement the `ApplicationBackend` contract before becoming the production backend.
+- The future ASP.NET API should implement the `ApplicationBackend` contract before becoming the production backend.

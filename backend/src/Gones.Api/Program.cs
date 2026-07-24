@@ -2,6 +2,7 @@ using Gones.Api.Errors;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
+using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -9,6 +10,8 @@ using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 
 var builder = WebApplication.CreateBuilder(args);
+var runtimeConfiguration = GonesRuntimeConfiguration.Load(builder.Configuration, builder.Environment.IsDevelopment());
+builder.Services.AddSingleton(runtimeConfiguration);
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.AspNetCore.HttpLogging", LogLevel.Warning);
 builder.Services.ConfigureHttpJsonOptions(options =>
