@@ -6,3 +6,5 @@
 /cypress/videos
 .env
 .agentsystem/
+
+/.pi/artifacts/
