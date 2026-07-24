@@ -69,12 +69,14 @@ app.UseMiddleware<ApiRequestSizeMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapGet("/health/live", () => Results.Ok(new { status = "live" })).AllowAnonymous();
+app.MapGet("/health/live", () => new HealthStatusResponse("live")).Produces<HealthStatusResponse>().AllowAnonymous();
 app.MapHealthChecks("/health/ready").AllowAnonymous();
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 else if (builder.Configuration.GetValue<bool>("GONES_OPENAPI_ENABLED")) app.MapOpenApi().RequireAuthorization(AuthorizationPolicies.Admin);
 app.MapContractTestEndpoints();
 
 app.Run();
+
+public sealed record HealthStatusResponse(string Status);
 
 public partial class Program;

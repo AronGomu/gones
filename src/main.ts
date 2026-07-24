@@ -1,11 +1,13 @@
 import { ViewportScroller } from '@angular/common';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { enableProdMode, inject, provideAppInitializer, provideZonelessChangeDetection } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
 import { AppComponent } from './app/app.component';
+import { apiBoundaryInterceptor, normalizeApiBaseUrl } from './app/api/api-boundary';
+import { API_BASE_URL } from './app/api/generated/gones-api';
 import { routes } from './app/app.routes';
 import { environment } from './environments/environment';
 
@@ -16,7 +18,8 @@ if (environment.production) enableProdMode();
 bootstrapApplication(AppComponent, {
   providers: [
     provideZonelessChangeDetection(),
-    provideHttpClient(),
+    provideHttpClient(withInterceptors([apiBoundaryInterceptor])),
+    { provide: API_BASE_URL, useValue: normalizeApiBaseUrl(environment.apiBaseUrl) },
     provideAnimationsAsync(),
     provideAppInitializer(() => inject(ViewportScroller).setOffset(routeScrollOffset)),
     provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ anchorScrolling: 'enabled', scrollPositionRestoration: 'enabled' })),

@@ -10,10 +10,12 @@
     "build": "ng build",
     "build:pages": "ng build --base-href /gones/ && node scripts/prepare-github-pages.mjs",
     "lint": "ng lint",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json",
     "test": "vitest run",
     "backend:build": "dotnet build backend/Gones.sln --configuration Release",
-    "backend:test": "dotnet test backend/Gones.sln --configuration Release"
+    "backend:test": "dotnet test backend/Gones.sln --configuration Release",
+    "api:generate": "node scripts/generate-api.mjs",
+    "api:check": "node scripts/generate-api.mjs --check"
   },
   "devDependencies": {
     "@angular/build": "^21.2.19",
