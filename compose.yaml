@@ -68,6 +68,9 @@ services:
       GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only
       GONES_ALLOWED_ORIGINS: http://localhost:4200,http://127.0.0.1:4200,http://localhost:8081,http://127.0.0.1:8081
       GONES_ALLOW_TEST_NOTIFICATION: "true"
+      GONES_FEATURES__AUTH_V1: ${GONES_FEATURES__AUTH_V1:-false}
+      GONES_AUTH_PROVIDER: ${GONES_AUTH_PROVIDER:-Local}
+      GONES_AUTH_SIGNING_KEY: ${GONES_AUTH_SIGNING_KEY:-local-development-only-signing-key-change-me}
       GONES_OTEL_CONSOLE_EXPORTER: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports: ["127.0.0.1:5080:8080"]

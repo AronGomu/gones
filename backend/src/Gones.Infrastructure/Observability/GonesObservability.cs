@@ -81,6 +81,9 @@ public sealed class OperationalMetrics : IDisposable
     private readonly Histogram<double> requestDuration;
     private readonly Counter<long> requestErrors;
     private readonly Counter<long> workerHeartbeats;
+    private readonly Counter<long> authSuccesses;
+    private readonly Counter<long> authRejections;
+    private readonly Counter<long> authLockouts;
     private long outboxBacklog;
     private long outboxDeadLetters;
     private double outboxLagSeconds;
@@ -91,6 +94,9 @@ public sealed class OperationalMetrics : IDisposable
         requestDuration = meter.CreateHistogram<double>("gones.api.request.duration", "s");
         requestErrors = meter.CreateCounter<long>("gones.api.request.errors");
         workerHeartbeats = meter.CreateCounter<long>("gones.worker.heartbeats");
+        authSuccesses = meter.CreateCounter<long>("gones.auth.successes");
+        authRejections = meter.CreateCounter<long>("gones.auth.rejections");
+        authLockouts = meter.CreateCounter<long>("gones.auth.lockouts");
         meter.CreateObservableGauge("gones.outbox.backlog", () => Interlocked.Read(ref outboxBacklog));
         meter.CreateObservableGauge("gones.outbox.dead_letters", () => Interlocked.Read(ref outboxDeadLetters));
         meter.CreateObservableGauge("gones.outbox.lag", () => Volatile.Read(ref outboxLagSeconds), "s");
@@ -113,6 +119,9 @@ public sealed class OperationalMetrics : IDisposable
 
     public void RecordWorkerHeartbeat() => workerHeartbeats.Add(1);
     public void RecordWorkerHeartbeatAge(double ageSeconds) => Volatile.Write(ref workerHeartbeatAgeSeconds, Math.Max(0, ageSeconds));
+    public void RecordAuthSuccess(string operation) => authSuccesses.Add(1, new KeyValuePair<string, object?>("auth.operation", operation));
+    public void RecordAuthRejection(string operation) => authRejections.Add(1, new KeyValuePair<string, object?>("auth.operation", operation));
+    public void RecordAuthLockout() => authLockouts.Add(1);
     public void Dispose() => meter.Dispose();
 }
 

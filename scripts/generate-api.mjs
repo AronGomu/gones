@@ -21,7 +21,11 @@ const api = spawn('dotnet', ['run', '--project', join(backend, 'src', 'Gones.Api
     ...process.env,
     ASPNETCORE_ENVIRONMENT: 'Development',
     DOTNET_ENVIRONMENT: 'Development',
-    GONES_DB_CONNECTION: process.env.GONES_DB_CONNECTION ?? 'Host=127.0.0.1;Port=5432;Database=gones;Username=gones;Password=gones'
+    GONES_DB_CONNECTION: process.env.GONES_DB_CONNECTION ?? 'Host=127.0.0.1;Port=5432;Database=gones;Username=gones;Password=gones',
+    GONES_ALLOWED_ORIGINS: process.env.GONES_ALLOWED_ORIGINS ?? 'http://127.0.0.1:4200',
+    'GONES_FEATURES__AUTH_V1': 'true',
+    GONES_AUTH_PROVIDER: 'Local',
+    GONES_AUTH_SIGNING_KEY: 'x'.repeat(32)
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });

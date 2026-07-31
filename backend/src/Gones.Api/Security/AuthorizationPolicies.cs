@@ -1,8 +1,12 @@
 using System.Security.Claims;
+using System.Text;
 using System.Text.Encodings.Web;
+using Gones.Infrastructure.Configuration;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Gones.Api.Security;
 
@@ -14,10 +18,44 @@ public static class AuthorizationPolicies
     public const string OrganizationMember = "organization-member";
     public const string OrganizationOwner = "organization-owner";
 
-    public static IServiceCollection AddGonesAuthorization(this IServiceCollection services)
+    public const string JwtIssuer = "gones";
+    public const string JwtAudience = "gones-api";
+    public const string SecurityStampClaim = "security_stamp";
+
+    public static IServiceCollection AddGonesAuthorization(
+        this IServiceCollection services,
+        GonesRuntimeConfiguration runtimeConfiguration,
+        IConfiguration configuration)
     {
-        services.AddAuthentication(NoIdentityAuthenticationHandler.SchemeName)
-            .AddScheme<AuthenticationSchemeOptions, NoIdentityAuthenticationHandler>(NoIdentityAuthenticationHandler.SchemeName, _ => { });
+        if (runtimeConfiguration.Features.AuthV1)
+        {
+            var signingKey = configuration["GONES_AUTH_SIGNING_KEY"]
+                ?? throw new InvalidOperationException("GONES_AUTH_SIGNING_KEY is required when auth is enabled.");
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.MapInboundClaims = false;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = JwtIssuer,
+                        ValidateAudience = true,
+                        ValidAudience = JwtAudience,
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.FromSeconds(30),
+                        NameClaimType = "sub",
+                        RoleClaimType = "role"
+                    };
+                });
+        }
+        else
+        {
+            services.AddAuthentication(NoIdentityAuthenticationHandler.SchemeName)
+                .AddScheme<AuthenticationSchemeOptions, NoIdentityAuthenticationHandler>(NoIdentityAuthenticationHandler.SchemeName, _ => { });
+        }
+
         services.AddAuthorization(options =>
         {
             options.AddPolicy(User, policy => policy.RequireAuthenticatedUser());

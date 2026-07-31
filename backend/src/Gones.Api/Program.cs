@@ -1,10 +1,12 @@
 using Gones.Api.Errors;
 using Gones.Api.Health;
+using Gones.Api.Identity;
 using Gones.Api.Observability;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
@@ -36,7 +38,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.AddGonesAuthorization();
+builder.Services.AddGonesAuthorization(runtimeConfiguration, builder.Configuration);
 builder.Services.AddExactOriginCors(builder.Configuration);
 
 var healthChecks = builder.Services.AddHealthChecks();
@@ -49,6 +51,15 @@ else
 {
     builder.Services.AddGonesPersistence(connectionString);
     builder.Services.AddNotificationOutbox();
+    if (runtimeConfiguration.Features.AuthV1 && runtimeConfiguration.AuthProvider == GonesAuthProvider.Local)
+    {
+        builder.Services.AddGonesLocalIdentity();
+        builder.Services.AddScoped<AccessTokenIssuer>();
+        var authRateLimit = builder.Environment.IsEnvironment("Testing")
+            ? builder.Configuration.GetValue<int?>("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT") ?? AuthRateLimiting.PermitLimit
+            : AuthRateLimiting.PermitLimit;
+        builder.Services.AddGonesAuthRateLimiting(authRateLimit);
+    }
     var notificationHealthOptions = NotificationHealthOptions.Load(builder.Configuration);
     var workerHealthOptions = WorkerHealthOptions.Load(builder.Configuration);
     builder.Services.AddSingleton(notificationHealthOptions);
@@ -72,6 +83,7 @@ app.UseStatusCodePages(async statusContext =>
         StatusCodes.Status401Unauthorized => "unauthorized",
         StatusCodes.Status403Forbidden => "forbidden",
         StatusCodes.Status404NotFound => "not_found",
+        StatusCodes.Status429TooManyRequests => "rate_limited",
         _ => "request_failed"
     };
     var problem = new ProblemDetails
@@ -88,6 +100,7 @@ app.UseStatusCodePages(async statusContext =>
     await response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
 });
 app.UseMiddleware<ApiRequestSizeMiddleware>();
+if (runtimeConfiguration.Features.AuthV1 && runtimeConfiguration.AuthProvider == GonesAuthProvider.Local) app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -97,6 +110,10 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 else if (builder.Configuration.GetValue<bool>("GONES_OPENAPI_ENABLED")) app.MapOpenApi().RequireAuthorization(AuthorizationPolicies.Admin);
 app.MapContractTestEndpoints();
 app.MapOperationalProbeEndpoints();
+if (runtimeConfiguration.Features.AuthV1 && runtimeConfiguration.AuthProvider == GonesAuthProvider.Local)
+{
+    app.MapLocalIdentityEndpoints();
+}
 
 app.Run();
 

@@ -370,14 +370,14 @@ Parallel rules:
 
 **Deps:** C02, C03, C05. **Lane:** B. **Runnable:** hidden auth API supports register/login/profile; current FE remains anonymous.
 
-- [ ] RED: domain tests for Username normalization/collision, profile defaults, birth-year range, password policy, lockout; API tests for register/login/profile authz.
-- [ ] Configure ASP.NET Core Identity with `Guid`; minimum 12/max 128, no composition; 5 failures → 15m lock; common-password service boundary.
-- [ ] Add `UserProfile`: display Username + normalized key, first/last name, optional location/birth year, five public flags false, PreferredLanguage default `fr`, timestamps.
-- [ ] Enforce normalized Username + normalized email unique DB indexes; test concurrent duplicate registration.
-- [ ] Implement `POST /api/auth/register`, `POST /api/auth/login`, `GET/PATCH /api/users/me`; access JWT contains immutable ID/global role/security stamp only.
-- [ ] Require current password for sensitive local-profile changes where applicable; generic login failure prevents enumeration.
-- [ ] Audit register/login success/failure/profile changes with redacted diffs; add auth success/rejection/lockout metrics without email/IP labels.
-- [ ] GREEN: auth unit/integration tests; `G-FULL`, `G-RUN`; register/login/profile via Swagger.
+- [x] RED: domain tests for Username normalization/collision, profile defaults, birth-year range, password policy, lockout; API tests for register/login/profile authz.
+- [x] Configure ASP.NET Core Identity with `Guid`; minimum 12/max 128, no composition; 5 failures → 15m lock; common-password service boundary.
+- [x] Add `UserProfile`: display Username + normalized key, first/last name, optional location/birth year, five public flags false, PreferredLanguage default `fr`, timestamps.
+- [x] Enforce normalized Username + normalized email unique DB indexes; test concurrent duplicate registration.
+- [x] Implement `POST /api/auth/register`, `POST /api/auth/login`, `GET/PATCH /api/users/me`; access JWT contains immutable ID/global role/security stamp only.
+- [x] Require current password for sensitive local-profile changes where applicable; generic login failure prevents enumeration.
+- [x] Audit register/login success/failure/profile changes with redacted diffs; add auth success/rejection/lockout metrics without email/IP labels.
+- [x] GREEN: auth unit/integration tests; `G-FULL`, `G-RUN`; register/login/profile via Swagger.
 
 ## C09 — `feat: implement rotating refresh sessions and revocation`
 

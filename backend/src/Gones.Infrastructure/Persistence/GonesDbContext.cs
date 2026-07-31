@@ -1,10 +1,14 @@
+using Gones.Domain.Identity;
 using Gones.Domain.Notifications;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Gones.Infrastructure.Persistence;
 
-public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options) : DbContext(options)
+public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
+    : IdentityUserContext<ApplicationUser, Guid>(options)
 {
     public DbSet<SchemaVersion> SchemaVersions => Set<SchemaVersion>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
@@ -12,9 +16,11 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options) : D
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
     public DbSet<NotificationOutboxRecord> NotificationOutboxRecords => Set<NotificationOutboxRecord>();
     public DbSet<WorkerHeartbeatRecord> WorkerHeartbeats => Set<WorkerHeartbeatRecord>();
+    public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(GonesDbContext).Assembly);
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(type => typeof(VersionedEntity).IsAssignableFrom(type.ClrType)))
         {
