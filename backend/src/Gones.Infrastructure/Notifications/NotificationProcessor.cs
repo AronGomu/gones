@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Gones.Application.Notifications;
+using Gones.Infrastructure.Observability;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 
@@ -16,6 +18,7 @@ public sealed class NotificationProcessor(
 {
     public async Task<int> ProcessBatchAsync(CancellationToken cancellationToken)
     {
+        using var pollActivity = GonesTelemetry.Activities.StartActivity("notification.poll", ActivityKind.Internal);
         var records = await store.ClaimAsync(options.BatchSize, options.LeaseDuration, cancellationToken);
         if (records.Count == 0) return 0;
         metrics.RecordClaimed(records.Count);
@@ -24,6 +27,17 @@ public sealed class NotificationProcessor(
         {
             if (cancellationToken.IsCancellationRequested) break;
             var leaseToken = record.LeaseToken ?? throw new InvalidOperationException("notification_claim_missing_lease");
+            var parentContext = ActivityContext.TryParse(record.TraceParent, null, out var parsedParent) ? parsedParent : default;
+            using var deliveryActivity = GonesTelemetry.Activities.StartActivity("notification.process", ActivityKind.Consumer, parentContext);
+            deliveryActivity?.SetTag("messaging.system", "gones.notification_outbox");
+            deliveryActivity?.SetTag("messaging.operation.name", "process");
+            deliveryActivity?.SetTag("messaging.message.id", record.Id.ToString("D"));
+            deliveryActivity?.SetTag("gones.correlation_id", record.CorrelationId);
+            using var logScope = logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["CorrelationId"] = record.CorrelationId,
+                ["TraceId"] = deliveryActivity?.TraceId.ToString() ?? parentContext.TraceId.ToString()
+            });
             logger.LogInformation(NotificationLogEvents.Claimed, "Event={Event} OutboxId={OutboxId} Template={Template} Attempt={Attempt}", "notification.claimed", record.Id, record.TemplateKey, record.AttemptCount);
 
             try
@@ -58,6 +72,7 @@ public sealed class NotificationProcessor(
             }
             catch (Exception exception)
             {
+                deliveryActivity?.SetStatus(ActivityStatusCode.Error, "transport_unexpected");
                 logger.LogWarning(NotificationLogEvents.TransportFailed, "Event={Event} OutboxId={OutboxId} ExceptionType={ExceptionType}", "notification.transport.failed", record.Id, exception.GetType().Name);
                 await HandleFailureAsync(record, leaseToken, "transport_unexpected", isTransient: true, cancellationToken);
                 continue;
@@ -71,7 +86,8 @@ public sealed class NotificationProcessor(
             }
             catch (Exception exception)
             {
-                logger.LogError(NotificationLogEvents.AcknowledgementFailed, exception, "Event={Event} OutboxId={OutboxId} ExceptionType={ExceptionType}", "notification.acknowledgement.failed", record.Id, exception.GetType().Name);
+                deliveryActivity?.SetStatus(ActivityStatusCode.Error, "acknowledgement_failed");
+                logger.LogError(NotificationLogEvents.AcknowledgementFailed, "Event={Event} OutboxId={OutboxId} ExceptionType={ExceptionType}", "notification.acknowledgement.failed", record.Id, exception.GetType().Name);
                 throw;
             }
             metrics.RecordSent(completedAt - record.CreatedAt);
@@ -89,6 +105,7 @@ public sealed class NotificationProcessor(
         CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();
+        Activity.Current?.SetStatus(ActivityStatusCode.Error, errorCode);
         var retry = isTransient ? retryPolicy.Decide(record.AttemptCount) : new NotificationRetryDecision(false, Duration.Zero);
         if (retry.ShouldRetry)
         {

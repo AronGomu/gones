@@ -62,3 +62,12 @@ internal sealed class OutboxRecordConfiguration : VersionedEntityConfiguration<O
         builder.HasIndex(entity => new { entity.ProcessedAt, entity.OccurredAt });
     }
 }
+
+internal sealed class WorkerHeartbeatRecordConfiguration : IEntityTypeConfiguration<WorkerHeartbeatRecord>
+{
+    public void Configure(EntityTypeBuilder<WorkerHeartbeatRecord> builder)
+    {
+        builder.HasKey(entity => entity.WorkerId);
+        builder.Property(entity => entity.WorkerId).HasMaxLength(100);
+    }
+}

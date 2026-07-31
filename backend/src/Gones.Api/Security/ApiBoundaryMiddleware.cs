@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using Gones.Api.Errors;
+using Gones.Infrastructure.Observability;
 
 namespace Gones.Api.Security;
 
-public sealed class ApiBoundaryMiddleware(RequestDelegate next, ILogger<ApiBoundaryMiddleware> logger)
+public sealed class ApiBoundaryMiddleware(RequestDelegate next, ILogger<ApiBoundaryMiddleware> logger, OperationalMetrics metrics)
 {
     public const long MaxApiRequestBodySize = 1_048_576;
 
@@ -14,6 +15,8 @@ public sealed class ApiBoundaryMiddleware(RequestDelegate next, ILogger<ApiBound
                 ? parsed.ToString("D")
                 : Guid.NewGuid().ToString("D");
         context.TraceIdentifier = correlationId;
+        Activity.Current?.SetBaggage("gones.correlation_id", correlationId);
+        Activity.Current?.SetTag("gones.correlation_id", correlationId);
         context.Response.OnStarting(() =>
         {
             context.Response.Headers["X-Correlation-ID"] = correlationId;
@@ -33,10 +36,15 @@ public sealed class ApiBoundaryMiddleware(RequestDelegate next, ILogger<ApiBound
         }
         finally
         {
+            var route = context.GetEndpoint() is RouteEndpoint endpoint ? endpoint.RoutePattern.RawText ?? "(unnamed)" : "(unmatched)";
+            if (context.Response.StatusCode >= 500) Activity.Current?.SetStatus(ActivityStatusCode.Error);
+            metrics.RecordRequest(stopwatch.Elapsed.TotalSeconds, context.Response.StatusCode, context.Request.Method, route);
             logger.LogInformation(
-                "API boundary completed; Method={Method}; Path={Path}; StatusCode={StatusCode}; ElapsedMs={ElapsedMs}",
+                ApiLogEvents.RequestCompleted,
+                "API boundary completed; Event={Event}; Method={Method}; Route={Route}; StatusCode={StatusCode}; ElapsedMs={ElapsedMs}",
+                "api.request.completed",
                 context.Request.Method,
-                context.GetEndpoint() is RouteEndpoint route ? route.RoutePattern.RawText : "(unmatched)",
+                route,
                 context.Response.StatusCode,
                 stopwatch.Elapsed.TotalMilliseconds);
         }
@@ -80,6 +88,13 @@ public sealed class ApiRequestSizeMiddleware(RequestDelegate next)
             return count;
         }
     }
+}
+
+public static class ApiLogEvents
+{
+    public static readonly EventId RequestCompleted = new(5001, "ApiRequestCompleted");
+    public static readonly EventId RequestRejected = new(5002, "ApiRequestRejected");
+    public static readonly EventId UnhandledException = new(5003, "ApiUnhandledException");
 }
 
 public static class ApiBoundaryConfiguration

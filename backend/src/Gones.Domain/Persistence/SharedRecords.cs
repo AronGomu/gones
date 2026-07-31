@@ -42,3 +42,10 @@ public sealed class OutboxRecord : VersionedEntity
     public Instant? ProcessedAt { get; set; }
     public int AttemptCount { get; set; }
 }
+
+public sealed class WorkerHeartbeatRecord
+{
+    public const string NotificationWorkerId = "notification-worker";
+    public required string WorkerId { get; init; }
+    public required Instant LastSeenAt { get; set; }
+}

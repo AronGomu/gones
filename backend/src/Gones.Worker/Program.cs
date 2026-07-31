@@ -1,5 +1,6 @@
 using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Notifications;
+using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using Gones.Worker;
 
@@ -19,14 +20,16 @@ try
 catch (Exception exception)
 {
     using var loggerFactory = LoggerFactory.Create(logging => logging.AddSimpleConsole(options => options.SingleLine = true));
-    loggerFactory.CreateLogger("Gones.Worker.Startup").LogCritical(exception, "Worker runtime configuration invalid");
+    loggerFactory.CreateLogger("Gones.Worker.Startup").LogCritical("Worker runtime configuration invalid; ExceptionType={ExceptionType}", exception.GetType().Name);
     throw;
 }
 builder.Services.AddSingleton(runtimeConfiguration);
+builder.Services.AddGonesObservability(builder.Logging, builder.Configuration, "Gones.Worker");
 var connectionString = builder.Configuration[PersistenceServiceCollectionExtensions.ConnectionStringKey];
 if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("GONES_DB_CONNECTION is required.");
 builder.Services.AddGonesPersistence(connectionString);
 builder.Services.AddNotificationWorker(builder.Configuration);
+builder.Services.AddScoped<WorkerHeartbeatStore>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

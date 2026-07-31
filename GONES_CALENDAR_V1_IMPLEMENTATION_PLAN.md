@@ -358,13 +358,13 @@ Parallel rules:
 
 **Deps:** C05, C06. **Lane:** A. **Runnable:** local traces/metrics/logs visible; health endpoints distinguish live/ready/degraded.
 
-- [ ] RED: tests assert trace/correlation propagation API→DB→outbox→Worker; log sink rejects token/email/body fields.
-- [ ] Add OpenTelemetry ASP.NET/HttpClient/Npgsql/runtime instrumentation + vendor-neutral OTLP exporter/console config.
-- [ ] Define currently implementable spans/metrics: req latency/error, DB latency/failure, outbox lag/dead letters, Worker heartbeat. C08 adds auth signals; C27 adds scheduler signals; C28 adds Brevo signals; C38 adds migration signals.
-- [ ] Add health checks: PostgreSQL, Worker heartbeat, outbox backlog. Provider/scheduler checks land with their owning slices.
-- [ ] Add redaction processor + structured event IDs; hash rate-limit keys, never log raw IP/email/token/content.
-- [ ] Add local OTLP/console profile + sample dashboard/alert query docs.
-- [ ] GREEN: telemetry tests; `G-FULL`, `G-RUN`; inspect one correlated request + outbox delivery.
+- [x] RED: tests assert trace/correlation propagation API→DB→outbox→Worker; log sink rejects token/email/body fields.
+- [x] Add OpenTelemetry ASP.NET/HttpClient/Npgsql/runtime instrumentation + vendor-neutral OTLP exporter/console config.
+- [x] Define currently implementable spans/metrics: req latency/error, DB latency/failure, outbox lag/dead letters, Worker heartbeat. C08 adds auth signals; C27 adds scheduler signals; C28 adds Brevo signals; C38 adds migration signals.
+- [x] Add health checks: PostgreSQL, Worker heartbeat, outbox backlog. Provider/scheduler checks land with their owning slices.
+- [x] Add redaction processor + structured event IDs; hash rate-limit keys, never log raw IP/email/token/content.
+- [x] Add local OTLP/console profile + sample dashboard/alert query docs.
+- [x] GREEN: telemetry tests; `G-FULL`, `G-RUN`; inspect one correlated request + outbox delivery.
 
 ## C08 — `feat: implement local identity and private-by-default profile`
 

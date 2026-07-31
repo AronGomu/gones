@@ -22,7 +22,9 @@ public sealed class NotificationOutboxRecord : Persistence.VersionedEntity
         string templateModelJson,
         Guid? userId,
         Guid? tournamentId,
-        Instant createdAt)
+        Instant createdAt,
+        string? traceParent = null,
+        string? correlationId = null)
     {
         DedupeKey = dedupeKey;
         TemplateKey = templateKey;
@@ -33,6 +35,8 @@ public sealed class NotificationOutboxRecord : Persistence.VersionedEntity
         TournamentId = tournamentId;
         CreatedAt = createdAt;
         AvailableAt = createdAt;
+        TraceParent = traceParent;
+        CorrelationId = correlationId;
         Status = NotificationOutboxStatus.Pending;
     }
 
@@ -54,6 +58,8 @@ public sealed class NotificationOutboxRecord : Persistence.VersionedEntity
     public Instant? SentAt { get; private set; }
     public Instant? DeadLetteredAt { get; private set; }
     public Instant? ScrubbedAt { get; private set; }
+    public string? TraceParent { get; private init; }
+    public string? CorrelationId { get; private init; }
 
     public bool CanClaim(Instant now) =>
         Status == NotificationOutboxStatus.Pending && AvailableAt <= now

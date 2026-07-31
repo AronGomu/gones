@@ -1,3 +1,4 @@
+using Gones.Api.Security;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
@@ -17,8 +18,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             _ => (StatusCodes.Status500InternalServerError, "internal_error", "An unexpected error occurred.", null)
         };
 
-        if (status >= 500) logger.LogError("Unhandled API exception; ExceptionType={ExceptionType}; TraceId={TraceId}", exception.GetType().Name, context.TraceIdentifier);
-        else logger.LogInformation("API request rejected; Code={Code}; TraceId={TraceId}", code, context.TraceIdentifier);
+        if (status >= 500) logger.LogError(ApiLogEvents.UnhandledException, "Unhandled API exception; Event={Event}; ExceptionType={ExceptionType}; TraceId={TraceId}", "api.request.unhandled", exception.GetType().Name, context.TraceIdentifier);
+        else logger.LogInformation(ApiLogEvents.RequestRejected, "API request rejected; Event={Event}; Code={Code}; TraceId={TraceId}", "api.request.rejected", code, context.TraceIdentifier);
 
         var problem = new ProblemDetails
         {

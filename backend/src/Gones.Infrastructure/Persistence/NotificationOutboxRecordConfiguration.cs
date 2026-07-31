@@ -26,6 +26,8 @@ internal sealed class NotificationOutboxRecordConfiguration : VersionedEntityCon
         builder.Property(entity => entity.TemplateModelJson).HasColumnType("jsonb");
         builder.Property(entity => entity.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(entity => entity.LastErrorCode).HasMaxLength(100);
+        builder.Property(entity => entity.TraceParent).HasMaxLength(55);
+        builder.Property(entity => entity.CorrelationId).HasMaxLength(36);
         builder.HasIndex(entity => entity.DedupeKey).IsUnique();
         builder.HasIndex(entity => new { entity.Status, entity.AvailableAt, entity.CreatedAt });
         builder.HasIndex(entity => new { entity.Status, entity.LeaseExpiresAt });

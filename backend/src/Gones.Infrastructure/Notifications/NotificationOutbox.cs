@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Net.Mail;
 using Gones.Application.Notifications;
 using Gones.Domain.Notifications;
+using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using NodaTime;
 
@@ -17,6 +19,10 @@ public sealed class NotificationOutbox(GonesDbContext database, IClock clock) : 
         NotificationTemplateRenderer.ValidateModel(locale, request.Model);
         var templateKey = NotificationModelSerializer.TemplateKey(request.Model);
         var modelJson = NotificationModelSerializer.Serialize(request.Model);
+        using var enqueueActivity = GonesTelemetry.Activities.StartActivity("notification.enqueue", ActivityKind.Producer);
+        var traceCarrier = enqueueActivity ?? Activity.Current;
+        enqueueActivity?.SetTag("messaging.system", "gones.notification_outbox");
+        enqueueActivity?.SetTag("messaging.operation.name", "enqueue");
         var record = new NotificationOutboxRecord(
             dedupeKey,
             templateKey,
@@ -25,7 +31,9 @@ public sealed class NotificationOutbox(GonesDbContext database, IClock clock) : 
             modelJson,
             request.UserId,
             request.TournamentId,
-            clock.GetCurrentInstant());
+            clock.GetCurrentInstant(),
+            traceCarrier?.Id,
+            traceCarrier?.GetBaggageItem("gones.correlation_id"));
         database.NotificationOutboxRecords.Add(record);
         return record.Id;
     }

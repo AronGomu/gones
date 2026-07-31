@@ -67,6 +67,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only
       GONES_ALLOWED_ORIGINS: http://localhost:4200,http://127.0.0.1:4200,http://localhost:8081,http://127.0.0.1:8081
+      GONES_ALLOW_TEST_NOTIFICATION: "true"
+      GONES_OTEL_CONSOLE_EXPORTER: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports: ["127.0.0.1:5080:8080"]
     depends_on:
       permissions: { condition: service_completed_successfully }
@@ -82,8 +85,24 @@ services:
       GONES_EMAIL_TRANSPORT: File
       GONES_EMAIL_SINK_PATH: /tmp/gones-email-sink
       GONES_NOTIFICATION_POLL_MILLISECONDS: "500"
+      GONES_OTEL_CONSOLE_EXPORTER: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       permissions: { condition: service_completed_successfully }
+
+  otel-collector:
+    profiles: [observability]
+    image: otel/opentelemetry-collector-contrib:0.140.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./deploy/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
   frontend-development:
     build:

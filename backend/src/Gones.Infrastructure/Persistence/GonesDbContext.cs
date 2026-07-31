@@ -11,6 +11,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options) : D
     public DbSet<AuditRecord> AuditRecords => Set<AuditRecord>();
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
     public DbSet<NotificationOutboxRecord> NotificationOutboxRecords => Set<NotificationOutboxRecord>();
+    public DbSet<WorkerHeartbeatRecord> WorkerHeartbeats => Set<WorkerHeartbeatRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

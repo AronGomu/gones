@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Gones.Domain.Notifications;
 using Gones.Infrastructure.Notifications;
+using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -11,7 +12,8 @@ namespace Gones.Api.Health;
 public sealed class NotificationOutboxHealthCheck(
     GonesDbContext database,
     IClock clock,
-    NotificationHealthOptions options) : IHealthCheck
+    NotificationHealthOptions options,
+    OperationalMetrics? metrics = null) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
@@ -21,10 +23,12 @@ public sealed class NotificationOutboxHealthCheck(
         var oldest = await active.Select(item => (Instant?)item.CreatedAt).MinAsync(cancellationToken);
         var deadLetterCount = await database.NotificationOutboxRecords.LongCountAsync(item => item.Status == NotificationOutboxStatus.DeadLetter, cancellationToken);
         var lag = oldest is null ? Duration.Zero : clock.GetCurrentInstant() - oldest.Value;
+        var lagSeconds = Math.Max(0, lag.TotalSeconds);
+        metrics?.RecordOutboxSnapshot(backlogCount, lagSeconds, deadLetterCount);
         var data = new Dictionary<string, object>
         {
             ["backlogCount"] = backlogCount,
-            ["oldestLagSeconds"] = Math.Max(0, lag.TotalSeconds),
+            ["oldestLagSeconds"] = lagSeconds,
             ["deadLetterCount"] = deadLetterCount
         };
 

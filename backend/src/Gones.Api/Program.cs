@@ -1,20 +1,29 @@
 using Gones.Api.Errors;
 using Gones.Api.Health;
+using Gones.Api.Observability;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
 using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Notifications;
+using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 var runtimeConfiguration = GonesRuntimeConfiguration.Load(builder.Configuration, builder.Environment.IsDevelopment());
 builder.Services.AddSingleton(runtimeConfiguration);
+builder.Services.AddGonesObservability(builder.Logging, builder.Configuration, "Gones.Api");
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation(options =>
+        options.Filter = context => !context.Request.Path.StartsWithSegments("/health/live")))
+    .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation());
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.AspNetCore.HttpLogging", LogLevel.Warning);
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -39,9 +48,13 @@ if (string.IsNullOrWhiteSpace(connectionString))
 else
 {
     builder.Services.AddGonesPersistence(connectionString);
+    builder.Services.AddNotificationOutbox();
     var notificationHealthOptions = NotificationHealthOptions.Load(builder.Configuration);
+    var workerHealthOptions = WorkerHealthOptions.Load(builder.Configuration);
     builder.Services.AddSingleton(notificationHealthOptions);
+    builder.Services.AddSingleton(workerHealthOptions);
     healthChecks.AddDbContextCheck<GonesDbContext>("database");
+    healthChecks.AddCheck<WorkerHeartbeatHealthCheck>("workerHeartbeat");
     healthChecks.AddCheck<NotificationOutboxHealthCheck>("notificationOutbox");
 }
 
@@ -83,6 +96,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { ResponseWriter = R
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 else if (builder.Configuration.GetValue<bool>("GONES_OPENAPI_ENABLED")) app.MapOpenApi().RequireAuthorization(AuthorizationPolicies.Admin);
 app.MapContractTestEndpoints();
+app.MapOperationalProbeEndpoints();
 
 app.Run();
 
