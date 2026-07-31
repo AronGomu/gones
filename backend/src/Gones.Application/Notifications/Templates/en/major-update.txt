@@ -1,0 +1,4 @@
+Hello {{Username}},
+
+{{TournamentName}} changed: {{ChangeSummary}}
+{{TournamentUrl}}

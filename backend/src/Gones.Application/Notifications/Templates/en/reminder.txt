@@ -1,0 +1,4 @@
+Hello {{Username}},
+
+{{TournamentName}} starts {{StartsAt}}.
+{{TournamentUrl}}

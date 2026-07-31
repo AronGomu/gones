@@ -13,7 +13,7 @@ public sealed class DependencyDirectionTests
         var project = XDocument.Load(Path.Combine(BackendRoot(), projectPath));
         var actual = project
             .Descendants("ProjectReference")
-            .Select(element => Path.GetFileNameWithoutExtension(element.Attribute("Include")?.Value))
+            .Select(element => Path.GetFileNameWithoutExtension(element.Attribute("Include")?.Value.Replace('\\', Path.DirectorySeparatorChar)))
             .Order(StringComparer.Ordinal)
             .ToArray();
 

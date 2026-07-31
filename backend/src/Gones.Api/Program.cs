@@ -1,9 +1,12 @@
 using Gones.Api.Errors;
+using Gones.Api.Health;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NodaTime;
@@ -36,7 +39,10 @@ if (string.IsNullOrWhiteSpace(connectionString))
 else
 {
     builder.Services.AddGonesPersistence(connectionString);
+    var notificationHealthOptions = NotificationHealthOptions.Load(builder.Configuration);
+    builder.Services.AddSingleton(notificationHealthOptions);
     healthChecks.AddDbContextCheck<GonesDbContext>("database");
+    healthChecks.AddCheck<NotificationOutboxHealthCheck>("notificationOutbox");
 }
 
 var app = builder.Build();
@@ -73,7 +79,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapGet("/health/live", () => new HealthStatusResponse("live")).Produces<HealthStatusResponse>().AllowAnonymous();
-app.MapHealthChecks("/health/ready").AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { ResponseWriter = ReadinessResponseWriter.WriteAsync }).AllowAnonymous();
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 else if (builder.Configuration.GetValue<bool>("GONES_OPENAPI_ENABLED")) app.MapOpenApi().RequireAuthorization(AuthorizationPolicies.Admin);
 app.MapContractTestEndpoints();

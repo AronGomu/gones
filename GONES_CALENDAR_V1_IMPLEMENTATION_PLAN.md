@@ -344,15 +344,15 @@ Parallel rules:
 
 **Deps:** C02, C03, C05. **Lane:** A. **Runnable:** Worker drains fake/local outbox; API does not send email inline.
 
-- [ ] RED: unit tests for template locale fallback/HTML encoding; integration tests for same-transaction outbox, lease, retry, dedupe, crash recovery.
-- [ ] Implement `NotificationOutbox` state machine: Pending, Sending lease, Sent, DeadLetter; unique dedupe key; attempt timestamps.
-- [ ] Add typed `.html` + `.txt` templates for verify, reset, registration, unregistration, major update, cancellation, reminder, organizer notices in `fr` + `en`.
-- [ ] Implement template renderer with strict typed models, HTML encoding, HTTPS links, subject length limits; never persist rendered body.
-- [ ] Add `IEmailTransport`; Development file/sink transport with token-safe preview; no recipient/content logs.
-- [ ] Implement Worker poll loop with bounded batch, `SKIP LOCKED`, cancellation, lease recovery, exponential retry policy hooks.
-- [ ] Scrub recipient, token, template model, rendered payload after terminal delivery/dead-letter retention handoff; keep User/Tournament IDs + safe status only. Add clock-driven scrub tests.
-- [ ] Add outbox health/lag metrics + readiness behavior; email provider outage must not fail API write transaction after commit.
-- [ ] GREEN: targeted Worker/API tests; `G-FULL`, `G-RUN`; enqueue test mail, observe fake delivery once.
+- [x] RED: unit tests for template locale fallback/HTML encoding; integration tests for same-transaction outbox, lease, retry, dedupe, crash recovery.
+- [x] Implement `NotificationOutbox` state machine: Pending, Sending lease, Sent, DeadLetter; unique dedupe key; attempt timestamps.
+- [x] Add typed `.html` + `.txt` templates for verify, reset, registration, unregistration, major update, cancellation, reminder, organizer notices in `fr` + `en`.
+- [x] Implement template renderer with strict typed models, HTML encoding, HTTPS links, subject length limits; never persist rendered body.
+- [x] Add `IEmailTransport`; Development file/sink transport with token-safe preview; no recipient/content logs.
+- [x] Implement Worker poll loop with bounded batch, `SKIP LOCKED`, cancellation, lease recovery, exponential retry policy hooks.
+- [x] Scrub recipient, token, template model, rendered payload after terminal delivery/dead-letter retention handoff; keep User/Tournament IDs + safe status only. Add clock-driven scrub tests.
+- [x] Add outbox health/lag metrics + readiness behavior; email provider outage must not fail API write transaction after commit.
+- [x] GREEN: targeted Worker/API tests; `G-FULL`, `G-RUN`; enqueue test mail, observe fake delivery once.
 
 ## C07 — `feat: add OpenTelemetry observability and operational health`
 

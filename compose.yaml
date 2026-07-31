@@ -31,6 +31,7 @@ services:
     command: ["database", "update"]
     environment:
       GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_migration;Password=local-migration-only
+      GONES_ALLOW_TEST_NOTIFICATION: "true"
     depends_on:
       postgres: { condition: service_healthy }
     read_only: true
@@ -77,6 +78,10 @@ services:
       dockerfile: backend/src/Gones.Worker/Dockerfile
     environment:
       DOTNET_ENVIRONMENT: Production
+      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only
+      GONES_EMAIL_TRANSPORT: File
+      GONES_EMAIL_SINK_PATH: /tmp/gones-email-sink
+      GONES_NOTIFICATION_POLL_MILLISECONDS: "500"
     depends_on:
       permissions: { condition: service_completed_successfully }
 

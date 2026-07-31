@@ -1,3 +1,4 @@
+using Gones.Domain.Notifications;
 using Gones.Domain.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options) : D
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<AuditRecord> AuditRecords => Set<AuditRecord>();
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
+    public DbSet<NotificationOutboxRecord> NotificationOutboxRecords => Set<NotificationOutboxRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

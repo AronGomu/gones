@@ -47,7 +47,11 @@
                 }
               ],
               "serviceWorker": "ngsw-config.json",
-              "optimization": true,
+              "optimization": {
+                "scripts": true,
+                "styles": true,
+                "fonts": false
+              },
               "outputHashing": "all",
               "sourceMap": false
             },

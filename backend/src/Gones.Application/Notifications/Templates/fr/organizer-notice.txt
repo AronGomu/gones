@@ -1,0 +1,6 @@
+Bonjour {{OrganizerName}},
+
+{{Notice}}
+Participant : {{ParticipantName}}
+Tournoi : {{TournamentName}}
+{{TournamentUrl}}

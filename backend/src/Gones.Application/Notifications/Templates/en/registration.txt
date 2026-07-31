@@ -1,0 +1,4 @@
+Hello {{Username}},
+
+Your registration for {{TournamentName}} is confirmed.
+{{TournamentUrl}}

@@ -1,4 +1,6 @@
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.Notifications;
+using Gones.Infrastructure.Persistence;
 using Gones.Worker;
 
 if (args.Contains("--help", StringComparer.Ordinal))
@@ -8,6 +10,7 @@ if (args.Contains("--help", StringComparer.Ordinal))
 }
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 GonesRuntimeConfiguration runtimeConfiguration;
 try
 {
@@ -20,6 +23,10 @@ catch (Exception exception)
     throw;
 }
 builder.Services.AddSingleton(runtimeConfiguration);
+var connectionString = builder.Configuration[PersistenceServiceCollectionExtensions.ConnectionStringKey];
+if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("GONES_DB_CONNECTION is required.");
+builder.Services.AddGonesPersistence(connectionString);
+builder.Services.AddNotificationWorker(builder.Configuration);
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

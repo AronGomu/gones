@@ -1,0 +1,4 @@
+Bonjour {{Username}},
+
+{{TournamentName}} a été annulé.
+{{TournamentUrl}}

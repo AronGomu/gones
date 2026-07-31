@@ -4,6 +4,11 @@
     <ProjectReference Include="..\Gones.Domain\Gones.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Notifications\Templates\**\*.html" />
+    <EmbeddedResource Include="Notifications\Templates\**\*.txt" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

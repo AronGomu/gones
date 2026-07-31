@@ -1,0 +1,4 @@
+Bonjour {{Username}},
+
+{{TournamentName}} commence {{StartsAt}}.
+{{TournamentUrl}}
