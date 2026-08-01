@@ -409,14 +409,14 @@ Parallel rules:
 
 **Deps:** C09, C10. **Lane:** B. **Runnable:** OAuth callbacks work in local fake-provider tests; local auth unaffected.
 
-- [ ] RED: callback tests for state/correlation failure, new provider account, incomplete profile, existing-email refusal, authenticated link/unlink, last-login-method guard.
-- [ ] Configure Google/Facebook handlers through env/file-mounted secrets only; exact callback origins remain runtime config.
-- [ ] Add external identity records/provider unique index; persist provider ID + provider email metadata, never provider tokens unless required.
-- [ ] Implement OAuth start/callback with short one-time completion ticket for mandatory email/Username/first/last fields. Accept provider email as verified only when provider supplies a verified claim; otherwise collect email + complete Gones verification before registration.
-- [ ] Refuse auto-link when email exists; return safe instruction to sign in then link. Test missing, unverified, colliding, changed provider email.
-- [ ] Implement authenticated link/unlink endpoints; re-auth required; prevent unlinking final login method.
-- [ ] Revoke sessions when security-sensitive identity linkage changes; audit provider only, no provider token/email.
-- [ ] GREEN: local fake-provider integration tests; `G-FULL`, `G-RUN`; run OAuth completion/link flows without external network. Real providers deferred.
+- [x] RED: callback tests for state/correlation failure, new provider account, incomplete profile, existing-email refusal, authenticated link/unlink, last-login-method guard.
+- [x] Configure Google/Facebook handlers through env/file-mounted secrets only; exact callback origins remain runtime config.
+- [x] Add external identity records/provider unique index; persist provider ID + provider email metadata, never provider tokens unless required.
+- [x] Implement OAuth start/callback with short one-time completion ticket for mandatory email/Username/first/last fields. Accept provider email as verified only when provider supplies a verified claim; otherwise collect email + complete Gones verification before registration.
+- [x] Refuse auto-link when email exists; return safe instruction to sign in then link. Test missing, unverified, colliding, changed provider email.
+- [x] Implement authenticated link/unlink endpoints; re-auth required; prevent unlinking final login method.
+- [x] Revoke sessions when security-sensitive identity linkage changes; audit provider only, no provider token/email.
+- [x] GREEN: local fake-provider integration tests; `G-FULL`, `G-RUN`; run OAuth completion/link flows without external network. Real providers deferred.
 
 ## C12 — `feat: add Angular auth session and profile UX`
 

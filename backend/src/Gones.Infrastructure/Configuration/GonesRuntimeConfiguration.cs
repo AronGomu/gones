@@ -51,7 +51,7 @@ public sealed record GonesRuntimeConfiguration(GonesFeatureFlags Features, Gones
             authProvider = parsedProvider;
             if (authProvider == GonesAuthProvider.Fake && !isDevelopment)
             {
-                throw new InvalidOperationException("Fake auth provider is allowed only in Development.");
+                throw new InvalidOperationException("Fake auth provider is allowed only in Development or Testing.");
             }
         }
 

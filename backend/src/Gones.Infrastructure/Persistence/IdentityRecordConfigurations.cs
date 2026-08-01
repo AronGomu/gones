@@ -70,6 +70,47 @@ internal sealed class UserEmailHistoryConfiguration : VersionedEntityConfigurati
     }
 }
 
+internal sealed class ExternalIdentityConfiguration : VersionedEntityConfiguration<ExternalIdentity>
+{
+    public override void Configure(EntityTypeBuilder<ExternalIdentity> builder)
+    {
+        base.Configure(builder);
+        builder.Property(identity => identity.Provider).HasMaxLength(20);
+        builder.Property(identity => identity.ProviderSubject).HasMaxLength(255);
+        builder.Property(identity => identity.ProviderEmail).HasMaxLength(254);
+        builder.HasIndex(identity => new { identity.Provider, identity.ProviderSubject }).IsUnique();
+        builder.HasIndex(identity => new { identity.UserId, identity.Provider }).IsUnique();
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(identity => identity.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class OAuthAttemptConfiguration : VersionedEntityConfiguration<OAuthAttempt>
+{
+    public override void Configure(EntityTypeBuilder<OAuthAttempt> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("oauth_attempts");
+        builder.Property(attempt => attempt.Provider).HasMaxLength(20);
+        builder.Property(attempt => attempt.Purpose).HasConversion<string>().HasMaxLength(20);
+        builder.Property(attempt => attempt.Status).HasConversion<string>().HasMaxLength(30);
+        builder.Property(attempt => attempt.StateHash).HasMaxLength(64).IsFixedLength();
+        builder.Property(attempt => attempt.CorrelationHash).HasMaxLength(64).IsFixedLength();
+        builder.Property(attempt => attempt.CompletionHash).HasMaxLength(64).IsFixedLength();
+        builder.Property(attempt => attempt.EmailVerificationHash).HasMaxLength(64).IsFixedLength();
+        builder.Property(attempt => attempt.ProviderSubject).HasMaxLength(255);
+        builder.Property(attempt => attempt.ProviderEmail).HasMaxLength(254);
+        builder.Property(attempt => attempt.ProposedEmail).HasMaxLength(254);
+        builder.Property(attempt => attempt.ProposedUsername).HasMaxLength(120);
+        builder.Property(attempt => attempt.ProposedFirstName).HasMaxLength(100);
+        builder.Property(attempt => attempt.ProposedLastName).HasMaxLength(100);
+        builder.HasIndex(attempt => attempt.StateHash).IsUnique();
+        builder.HasIndex(attempt => attempt.CompletionHash).IsUnique();
+        builder.HasIndex(attempt => attempt.EmailVerificationHash).IsUnique();
+        builder.HasIndex(attempt => attempt.ExpiresAt);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 internal sealed class UserProfileConfiguration : VersionedEntityConfiguration<UserProfile>
 {
     public override void Configure(EntityTypeBuilder<UserProfile> builder)

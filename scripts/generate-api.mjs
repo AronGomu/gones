@@ -8,6 +8,7 @@ const backend = join(root, 'backend');
 const snapshot = join(backend, 'openapi', 'gones.json');
 const generated = join(root, 'src', 'app', 'api', 'generated', 'gones-api.ts');
 const check = process.argv.includes('--check');
+const normalizeGenerated = value => value.replaceAll('\r\n', '\n').replace(/[ \t]+$/gm, '');
 const listenUrl = 'http://127.0.0.1:0';
 const temp = mkdtempSync(join(tmpdir(), 'gones-api-'));
 const tempSnapshot = join(temp, 'gones.json');
@@ -62,10 +63,10 @@ try {
 
   const files = [[snapshot, tempSnapshot], [generated, tempGenerated]];
   if (check) {
-    const changed = files.filter(([committed, candidate]) => readFileSync(committed, 'utf8').replaceAll('\r\n', '\n') !== readFileSync(candidate, 'utf8').replaceAll('\r\n', '\n'));
+    const changed = files.filter(([committed, candidate]) => normalizeGenerated(readFileSync(committed, 'utf8')) !== normalizeGenerated(readFileSync(candidate, 'utf8')));
     if (changed.length) throw new Error(`Generated API contract stale: ${changed.map(([path]) => path.replace(`${root}\\`, '')).join(', ')}. Run npm run api:generate.`);
   } else {
-    for (const [destination, source] of files) writeFileSync(destination, readFileSync(source, 'utf8').replaceAll('\r\n', '\n'));
+    for (const [destination, source] of files) writeFileSync(destination, normalizeGenerated(readFileSync(source, 'utf8')));
   }
 } finally {
   api.kill();

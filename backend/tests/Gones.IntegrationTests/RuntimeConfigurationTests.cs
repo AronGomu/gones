@@ -1,4 +1,5 @@
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.Identity;
 using Microsoft.Extensions.Configuration;
 
 namespace Gones.IntegrationTests;
@@ -120,6 +121,70 @@ public sealed class RuntimeConfigurationTests
         }), false);
 
         Assert.Equal(expected, runtime.AuthProvider);
+    }
+
+    [Fact]
+    public void External_OAuth_requires_exact_callback_origin_and_env_or_file_secrets()
+    {
+        var secretFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(secretFile, "google-file-secret\n");
+            var values = new Dictionary<string, string?>
+            {
+                ["GONES_FEATURES:AUTH_V1"] = "true",
+                ["GONES_DB_CONNECTION"] = "Host=db",
+                ["GONES_ALLOWED_ORIGINS"] = "https://app.example",
+                ["GONES_AUTH_SIGNING_KEY"] = new string('x', 32),
+                ["GONES_AUTH_PROVIDER"] = "External",
+                ["GONES_OAUTH_CALLBACK_ORIGIN"] = "https://oauth.example",
+                ["GONES_GOOGLE_CLIENT_ID"] = "google-client",
+                ["GONES_GOOGLE_CLIENT_SECRET_FILE"] = secretFile,
+                ["GONES_FACEBOOK_CLIENT_ID"] = "facebook-client",
+                ["GONES_FACEBOOK_CLIENT_SECRET"] = "facebook-env-secret"
+            };
+            var configuration = Build(values);
+            var runtime = GonesRuntimeConfiguration.Load(configuration, false);
+
+            var options = ExternalOAuthOptions.Load(configuration, runtime);
+
+            Assert.Equal("google-file-secret", options.Providers["google"].ClientSecret);
+            Assert.Equal("facebook-env-secret", options.Providers["facebook"].ClientSecret);
+            Assert.DoesNotContain("secret", options.ToString(), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("https://oauth.example/api/auth/oauth/google/callback", options.CallbackUri("google").ToString());
+
+            values["GONES_OAUTH_CALLBACK_ORIGIN"] = "https://oauth.example/base";
+            Assert.Throws<InvalidOperationException>(() => ExternalOAuthOptions.Load(Build(values), runtime));
+        }
+        finally
+        {
+            File.Delete(secretFile);
+        }
+    }
+
+    [Fact]
+    public void External_OAuth_fails_closed_when_provider_secret_is_missing_or_ambiguous()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["GONES_FEATURES:AUTH_V1"] = "true",
+            ["GONES_DB_CONNECTION"] = "Host=db",
+            ["GONES_ALLOWED_ORIGINS"] = "https://app.example",
+            ["GONES_AUTH_SIGNING_KEY"] = new string('x', 32),
+            ["GONES_AUTH_PROVIDER"] = "External",
+            ["GONES_OAUTH_CALLBACK_ORIGIN"] = "https://oauth.example",
+            ["GONES_GOOGLE_CLIENT_ID"] = "google-client",
+            ["GONES_FACEBOOK_CLIENT_ID"] = "facebook-client",
+            ["GONES_FACEBOOK_CLIENT_SECRET"] = "facebook-secret"
+        };
+        var configuration = Build(values);
+        var runtime = GonesRuntimeConfiguration.Load(configuration, false);
+
+        Assert.Throws<InvalidOperationException>(() => ExternalOAuthOptions.Load(configuration, runtime));
+
+        values["GONES_GOOGLE_CLIENT_SECRET"] = "direct-secret";
+        values["GONES_GOOGLE_CLIENT_SECRET_FILE"] = "/run/secrets/google";
+        Assert.Throws<InvalidOperationException>(() => ExternalOAuthOptions.Load(Build(values), runtime));
     }
 
     private static IConfiguration Build(Dictionary<string, string?> values) =>

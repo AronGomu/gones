@@ -131,11 +131,17 @@ internal sealed class RefreshSessionService(
     public async Task RevokeAllForPasswordResetAsync(Guid userId, CancellationToken cancellationToken)
     {
         if (database.Database.CurrentTransaction is null) throw new InvalidOperationException("Password reset revocation requires an existing transaction.");
-        var sessions = await database.RefreshSessions
-            .FromSqlInterpolated($"SELECT * FROM refresh_sessions WHERE user_id = {userId} AND revoked_at IS NULL FOR UPDATE")
-            .ToListAsync(cancellationToken);
+        var sessions = await LockActiveSessionsAsync(userId, cancellationToken);
         var now = clock.GetCurrentInstant();
         foreach (var session in sessions) session.Revoke(now, RefreshSessionRevocationReason.PasswordReset);
+    }
+
+    public async Task RevokeAllForIdentityChangeAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (database.Database.CurrentTransaction is null) throw new InvalidOperationException("External identity revocation requires an existing transaction.");
+        var active = await LockActiveSessionsAsync(userId, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        foreach (var session in active) session.Revoke(now, RefreshSessionRevocationReason.ExternalIdentityChanged);
     }
 
     public async Task<IReadOnlyList<RefreshSession>> ListAsync(Guid userId, string securityStamp, CancellationToken cancellationToken)
@@ -173,6 +179,11 @@ internal sealed class RefreshSessionService(
         await transaction.CommitAsync(cancellationToken);
         return true;
     }
+
+    private Task<List<RefreshSession>> LockActiveSessionsAsync(Guid userId, CancellationToken cancellationToken) =>
+        database.RefreshSessions
+            .FromSqlInterpolated($"SELECT * FROM refresh_sessions WHERE user_id = {userId} AND revoked_at IS NULL FOR UPDATE")
+            .ToListAsync(cancellationToken);
 
     private Task<RefreshToken?> LockTokenAsync(string tokenHash, CancellationToken cancellationToken) =>
         database.RefreshTokens

@@ -20,3 +20,9 @@ public sealed class ResourceNotFoundException() : ApiException("not_found", "Res
 public sealed class ConcurrencyConflictException() : ApiException("stale_version", "Resource changed since it was read.", StatusCodes.Status412PreconditionFailed);
 public sealed class ResourceConflictException() : ApiException("conflict", "Request conflicts with current resource state.", StatusCodes.Status409Conflict);
 public sealed class RequestBodyTooLargeException() : ApiException("request_too_large", "Request body exceeds the allowed size.", StatusCodes.Status413PayloadTooLarge);
+public sealed class InvalidOAuthStateException() : ApiException("invalid_oauth_state", "OAuth request is invalid or expired.", StatusCodes.Status400BadRequest);
+public sealed class InvalidOAuthTicketException() : ApiException("invalid_oauth_ticket", "OAuth completion link is invalid or expired.", StatusCodes.Status400BadRequest);
+public sealed class OAuthProviderRejectedException() : ApiException("oauth_provider_rejected", "OAuth provider response could not be accepted.", StatusCodes.Status400BadRequest);
+public sealed class OAuthProviderUnavailableException() : ApiException("oauth_provider_unavailable", "OAuth provider is unavailable.", StatusCodes.Status404NotFound);
+public sealed class ExistingEmailRequiresLinkException() : ApiException("existing_email_requires_link", "Sign in with your existing account, then link this provider from account settings.", StatusCodes.Status409Conflict);
+public sealed class LastLoginMethodException() : ApiException("last_login_method", "Final login method cannot be removed.", StatusCodes.Status409Conflict);

@@ -83,6 +83,33 @@ export interface IClient {
      * @return OK
      */
     emailHistory(): Observable<UserEmailHistoryResponse[]>;
+    startGET(provider: string): Observable<void>;
+    /**
+     * @param code (optional)
+     * @param state (optional)
+     * @return OK
+     */
+    callback(provider: string, code: string | undefined, state: string | undefined): Observable<OAuthFlowResponse>;
+    /**
+     * @return OK
+     */
+    complete(body: CompleteOAuthRequest): Observable<OAuthFlowResponse>;
+    /**
+     * @return OK
+     */
+    verifyEmail2(body: VerifyOAuthEmailRequest): Observable<OAuthFlowResponse>;
+    /**
+     * @return OK
+     */
+    externalIdentitiesAll(): Observable<ExternalIdentityResponse[]>;
+    /**
+     * @return OK
+     */
+    startPOST(provider: string, body: LinkExternalIdentityRequest): Observable<OAuthStartResponse>;
+    /**
+     * @return No Content
+     */
+    externalIdentities(provider: string, body: UnlinkExternalIdentityRequest): Observable<void>;
 }
 
 @Injectable({
@@ -1106,12 +1133,478 @@ export class Client implements IClient {
         }
         return _observableOf(null as any);
     }
+
+    startGET(provider: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/auth/oauth/{provider}/start";
+        if (provider === undefined || provider === null)
+            throw new globalThis.Error("The parameter 'provider' must be defined.");
+        url_ = url_.replace("{provider}", encodeURIComponent("" + provider));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processStartGET(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processStartGET(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processStartGET(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 302) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Found", status, _responseText, _headers);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param code (optional)
+     * @param state (optional)
+     * @return OK
+     */
+    callback(provider: string, code: string | undefined, state: string | undefined): Observable<OAuthFlowResponse> {
+        let url_ = this.baseUrl + "/api/auth/oauth/{provider}/callback?";
+        if (provider === undefined || provider === null)
+            throw new globalThis.Error("The parameter 'provider' must be defined.");
+        url_ = url_.replace("{provider}", encodeURIComponent("" + provider));
+        if (code === null)
+            throw new globalThis.Error("The parameter 'code' cannot be null.");
+        else if (code !== undefined)
+            url_ += "code=" + encodeURIComponent("" + code) + "&";
+        if (state === null)
+            throw new globalThis.Error("The parameter 'state' cannot be null.");
+        else if (state !== undefined)
+            url_ += "state=" + encodeURIComponent("" + state) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCallback(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCallback(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OAuthFlowResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OAuthFlowResponse>;
+        }));
+    }
+
+    protected processCallback(response: HttpResponseBase): Observable<OAuthFlowResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OAuthFlowResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("No Content", status, _responseText, _headers);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    complete(body: CompleteOAuthRequest): Observable<OAuthFlowResponse> {
+        let url_ = this.baseUrl + "/api/auth/oauth/complete";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processComplete(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processComplete(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OAuthFlowResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OAuthFlowResponse>;
+        }));
+    }
+
+    protected processComplete(response: HttpResponseBase): Observable<OAuthFlowResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OAuthFlowResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 202) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result202: any = null;
+            result202 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OAuthFlowResponse;
+            return _observableOf(result202);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    verifyEmail2(body: VerifyOAuthEmailRequest): Observable<OAuthFlowResponse> {
+        let url_ = this.baseUrl + "/api/auth/oauth/verify-email";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processVerifyEmail2(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processVerifyEmail2(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OAuthFlowResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OAuthFlowResponse>;
+        }));
+    }
+
+    protected processVerifyEmail2(response: HttpResponseBase): Observable<OAuthFlowResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OAuthFlowResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    externalIdentitiesAll(): Observable<ExternalIdentityResponse[]> {
+        let url_ = this.baseUrl + "/api/users/me/external-identities";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processExternalIdentitiesAll(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processExternalIdentitiesAll(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ExternalIdentityResponse[]>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ExternalIdentityResponse[]>;
+        }));
+    }
+
+    protected processExternalIdentitiesAll(response: HttpResponseBase): Observable<ExternalIdentityResponse[]> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ExternalIdentityResponse[];
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    startPOST(provider: string, body: LinkExternalIdentityRequest): Observable<OAuthStartResponse> {
+        let url_ = this.baseUrl + "/api/users/me/external-identities/{provider}/start";
+        if (provider === undefined || provider === null)
+            throw new globalThis.Error("The parameter 'provider' must be defined.");
+        url_ = url_.replace("{provider}", encodeURIComponent("" + provider));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processStartPOST(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processStartPOST(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OAuthStartResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OAuthStartResponse>;
+        }));
+    }
+
+    protected processStartPOST(response: HttpResponseBase): Observable<OAuthStartResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OAuthStartResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    externalIdentities(provider: string, body: UnlinkExternalIdentityRequest): Observable<void> {
+        let url_ = this.baseUrl + "/api/users/me/external-identities/{provider}";
+        if (provider === undefined || provider === null)
+            throw new globalThis.Error("The parameter 'provider' must be defined.");
+        url_ = url_.replace("{provider}", encodeURIComponent("" + provider));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processExternalIdentities(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processExternalIdentities(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processExternalIdentities(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
 }
 
 export interface AccessTokenResponse {
     accessToken: string;
     expiresAt: Instant;
     tokenType: string;
+
+    [key: string]: any;
+}
+
+export interface CompleteOAuthRequest {
+    completionTicket: string;
+    email: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    deviceLabel: string | undefined;
 
     [key: string]: any;
 }
@@ -1127,6 +1620,16 @@ export interface EmailChangeRequest {
     newEmail: string;
     currentPassword: string;
     rateLimitAccount?: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface ExternalIdentityResponse {
+    provider: string;
+    providerEmail: string | undefined;
+    providerEmailVerified: boolean;
+    createdAt: Instant;
+    updatedAt: Instant;
 
     [key: string]: any;
 }
@@ -1148,11 +1651,37 @@ export interface Instant {
     [key: string]: any;
 }
 
+export interface LinkExternalIdentityRequest {
+    currentPassword: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface LoginRequest {
     email: string;
     password: string;
     deviceLabel: string | undefined;
     rateLimitAccount?: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface OAuthFlowResponse {
+    status: string;
+    accessToken: string | undefined;
+    expiresAt: Instant | undefined;
+    tokenType: string | undefined;
+    completionTicket: string | undefined;
+    email: string | undefined;
+    emailVerified: boolean;
+    firstName: string | undefined;
+    lastName: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface OAuthStartResponse {
+    authorizationUrl: string;
 
     [key: string]: any;
 }
@@ -1219,6 +1748,12 @@ export interface TokenRequest {
     [key: string]: any;
 }
 
+export interface UnlinkExternalIdentityRequest {
+    currentPassword: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface UserEmailHistoryResponse {
     id: string;
     email: string | undefined;
@@ -1247,6 +1782,13 @@ export interface UserProfileResponse {
     isPreferredLanguagePublic: boolean;
     createdAt: Instant;
     updatedAt: Instant;
+
+    [key: string]: any;
+}
+
+export interface VerifyOAuthEmailRequest {
+    token: string;
+    deviceLabel: string | undefined;
 
     [key: string]: any;
 }

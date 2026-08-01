@@ -19,7 +19,9 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
-var runtimeConfiguration = GonesRuntimeConfiguration.Load(builder.Configuration, builder.Environment.IsDevelopment());
+var runtimeConfiguration = GonesRuntimeConfiguration.Load(
+    builder.Configuration,
+    builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"));
 builder.Services.AddSingleton(runtimeConfiguration);
 builder.Services.AddGonesObservability(builder.Logging, builder.Configuration, "Gones.Api");
 builder.Services.AddOpenTelemetry()
@@ -51,10 +53,15 @@ else
 {
     builder.Services.AddGonesPersistence(connectionString);
     builder.Services.AddNotificationOutbox();
-    if (runtimeConfiguration.Features.AuthV1 && runtimeConfiguration.AuthProvider == GonesAuthProvider.Local)
+    if (runtimeConfiguration.Features.AuthV1)
     {
         builder.Services.AddGonesLocalIdentity();
         builder.Services.AddSingleton(AccountLifecycleOptions.Load(builder.Configuration));
+        builder.Services.AddSingleton(ExternalOAuthOptions.Load(builder.Configuration, runtimeConfiguration));
+        builder.Services.AddSingleton<FakeOAuthCodeStore>();
+        builder.Services.AddHttpClient(nameof(ExternalOAuthClient));
+        builder.Services.AddScoped<IExternalOAuthClient, ExternalOAuthClient>();
+        builder.Services.AddScoped<ExternalOAuthService>();
         builder.Services.AddScoped<AccountLifecycleService>();
         builder.Services.AddScoped<AccessTokenIssuer>();
         builder.Services.AddScoped<RefreshSessionService>();
@@ -103,7 +110,7 @@ app.UseStatusCodePages(async statusContext =>
     await response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
 });
 app.UseMiddleware<ApiRequestSizeMiddleware>();
-if (runtimeConfiguration.Features.AuthV1 && runtimeConfiguration.AuthProvider == GonesAuthProvider.Local) app.UseRateLimiter();
+if (runtimeConfiguration.Features.AuthV1) app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -113,9 +120,15 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 else if (builder.Configuration.GetValue<bool>("GONES_OPENAPI_ENABLED")) app.MapOpenApi().RequireAuthorization(AuthorizationPolicies.Admin);
 app.MapContractTestEndpoints();
 app.MapOperationalProbeEndpoints();
-if (runtimeConfiguration.Features.AuthV1 && runtimeConfiguration.AuthProvider == GonesAuthProvider.Local)
+if (runtimeConfiguration.Features.AuthV1)
 {
     app.MapLocalIdentityEndpoints();
+    app.MapExternalOAuthEndpoints();
+    if (runtimeConfiguration.AuthProvider == GonesAuthProvider.Fake
+        && (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing")))
+    {
+        app.MapFakeOAuthProviderEndpoints();
+    }
 }
 
 app.Run();
