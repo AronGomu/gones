@@ -396,14 +396,14 @@ Parallel rules:
 
 **Deps:** C06, C09. **Lane:** B. **Runnable:** local account lifecycle complete behind flags.
 
-- [ ] RED: tests for 24h verification expiry, newest-token behavior, rate-limited resend, generic forgot response, single-use reset, email-change re-verification, session revocation.
-- [ ] Implement register→verification outbox transaction; verification tokens contain purpose/security stamp and expire 24h.
-- [ ] Add verify/resend endpoints; resend invalidates superseded token generation without account enumeration.
-- [ ] Add forgot/reset password endpoints; generic response; single-use expiring token; revoke all refresh families after reset.
-- [ ] Implement email change request/confirm; normalized uniqueness checked before commit; `EmailVerified=false` until confirmation.
-- [ ] Add `UserEmailHistory` with protected access, 2y address retention then redaction job; audit stores only changed-field names/User ID.
-- [ ] Add auth endpoint rate policies + tests for IP/account keying and `Retry-After`.
-- [ ] GREEN: auth/email tests; `G-FULL`, `G-RUN`; complete verify/reset/change using local sink links.
+- [x] RED: tests for 24h verification expiry, newest-token behavior, rate-limited resend, generic forgot response, single-use reset, email-change re-verification, session revocation.
+- [x] Implement register→verification outbox transaction; verification tokens contain purpose/security stamp and expire 24h.
+- [x] Add verify/resend endpoints; resend invalidates superseded token generation without account enumeration.
+- [x] Add forgot/reset password endpoints; generic response; single-use expiring token; revoke all refresh families after reset.
+- [x] Implement email change request/confirm; normalized uniqueness checked before commit; `EmailVerified=false` until confirmation.
+- [x] Add `UserEmailHistory` with protected access, 2y address retention then redaction job; audit stores only changed-field names/User ID.
+- [x] Add auth endpoint rate policies + tests for IP/account keying and `Retry-After`.
+- [x] GREEN: auth/email tests; `G-FULL`, `G-RUN`; complete verify/reset/change using local sink links.
 
 ## C11 — `feat: implement Google Facebook OAuth and explicit linking`
 

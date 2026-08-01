@@ -40,6 +40,36 @@ internal sealed class RefreshTokenConfiguration : VersionedEntityConfiguration<R
     }
 }
 
+internal sealed class AccountActionTokenConfiguration : VersionedEntityConfiguration<AccountActionToken>
+{
+    public override void Configure(EntityTypeBuilder<AccountActionToken> builder)
+    {
+        base.Configure(builder);
+        builder.Property(token => token.Purpose).HasConversion<string>().HasMaxLength(30);
+        builder.Property(token => token.TokenHash).HasMaxLength(64).IsFixedLength();
+        builder.Property(token => token.SecurityStamp).HasMaxLength(256);
+        builder.Property(token => token.TargetEmail).HasMaxLength(254);
+        builder.Property(token => token.NormalizedTargetEmail).HasMaxLength(254);
+        builder.HasIndex(token => token.TokenHash).IsUnique();
+        builder.HasIndex(token => new { token.UserId, token.Purpose })
+            .IsUnique()
+            .HasFilter("consumed_at IS NULL AND superseded_at IS NULL");
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(token => token.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class UserEmailHistoryConfiguration : VersionedEntityConfiguration<UserEmailHistory>
+{
+    public override void Configure(EntityTypeBuilder<UserEmailHistory> builder)
+    {
+        base.Configure(builder);
+        builder.Property(history => history.Email).HasMaxLength(254);
+        builder.HasIndex(history => new { history.UserId, history.RecordedAt });
+        builder.HasIndex(history => new { history.RedactedAt, history.RetainUntil });
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(history => history.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
 internal sealed class UserProfileConfiguration : VersionedEntityConfiguration<UserProfile>
 {
     public override void Configure(EntityTypeBuilder<UserProfile> builder)

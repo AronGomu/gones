@@ -128,6 +128,16 @@ internal sealed class RefreshSessionService(
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task RevokeAllForPasswordResetAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (database.Database.CurrentTransaction is null) throw new InvalidOperationException("Password reset revocation requires an existing transaction.");
+        var sessions = await database.RefreshSessions
+            .FromSqlInterpolated($"SELECT * FROM refresh_sessions WHERE user_id = {userId} AND revoked_at IS NULL FOR UPDATE")
+            .ToListAsync(cancellationToken);
+        var now = clock.GetCurrentInstant();
+        foreach (var session in sessions) session.Revoke(now, RefreshSessionRevocationReason.PasswordReset);
+    }
+
     public async Task<IReadOnlyList<RefreshSession>> ListAsync(Guid userId, string securityStamp, CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();

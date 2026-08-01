@@ -37,6 +37,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
             builder.UseSetting("GONES_FEATURES:AUTH_V1", "true");
             builder.UseSetting("GONES_AUTH_PROVIDER", "Local");
             builder.UseSetting("GONES_AUTH_SIGNING_KEY", SigningKey);
+            builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", "https://app.example");
             builder.UseSetting("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT", "1000");
         });
         client = factory.CreateClient();
@@ -212,6 +213,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
             builder.UseSetting("GONES_FEATURES:AUTH_V1", "true");
             builder.UseSetting("GONES_AUTH_PROVIDER", "Local");
             builder.UseSetting("GONES_AUTH_SIGNING_KEY", SigningKey);
+            builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", "https://app.example");
         });
         using var limitedClient = limitedFactory.CreateClient();
         var email = $"limited-{Guid.NewGuid():N}@example.test";
@@ -518,6 +520,234 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Registration_atomically_creates_24_hour_verification_and_outbox()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"verify-register-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Verify{suffix[..8]}", "valid-password-value");
+        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+
+        await using var database = CreateContext();
+        var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
+        var token = await database.AccountActionTokens.SingleAsync(item => item.UserId == user.Id && item.Purpose == AccountActionPurpose.VerifyEmail);
+        var outbox = await database.NotificationOutboxRecords.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(token.CreatedAt + Duration.FromHours(24), token.ExpiresAt);
+        Assert.Equal(64, token.TokenHash.Length);
+        Assert.Equal(user.SecurityStamp, token.SecurityStamp);
+        Assert.Equal("verify-email", outbox.TemplateKey);
+        Assert.DoesNotContain(token.TokenHash, outbox.TemplateModelJson!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Verification_rejects_expired_and_superseded_tokens_then_accepts_latest_once()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"verify-latest-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Latest{suffix[..8]}", "valid-password-value");
+        var firstToken = await LatestActionTokenAsync(email);
+
+        using var resend = await Client.PostAsJsonAsync("/api/auth/resend-verification", new { email });
+        Assert.Equal(HttpStatusCode.Accepted, resend.StatusCode);
+        var latestToken = await LatestActionTokenAsync(email);
+        Assert.NotEqual(firstToken, latestToken);
+
+        using var superseded = await Client.PostAsJsonAsync("/api/auth/verify-email", new { token = firstToken });
+        Assert.Equal(HttpStatusCode.BadRequest, superseded.StatusCode);
+        using var accepted = await Client.PostAsJsonAsync("/api/auth/verify-email", new { token = latestToken });
+        Assert.Equal(HttpStatusCode.NoContent, accepted.StatusCode);
+        using var replay = await Client.PostAsJsonAsync("/api/auth/verify-email", new { token = latestToken });
+        Assert.Equal(HttpStatusCode.BadRequest, replay.StatusCode);
+
+        var expiredEmail = $"verify-expired-{suffix}@example.test";
+        using var expiredRegistration = await RegisterAsync(expiredEmail, $"Expired{suffix[..8]}", "valid-password-value");
+        var expiredToken = await LatestActionTokenAsync(expiredEmail);
+        await using (var database = CreateContext())
+        {
+            var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(expiredToken)));
+            await database.AccountActionTokens.Where(item => item.TokenHash == hash)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ExpiresAt, SystemClock.Instance.GetCurrentInstant()));
+        }
+        using var expired = await Client.PostAsJsonAsync("/api/auth/verify-email", new { token = expiredToken });
+        Assert.Equal(HttpStatusCode.BadRequest, expired.StatusCode);
+    }
+
+    [Fact]
+    public async Task Forgot_response_is_generic_and_reset_is_single_use_and_revokes_sessions()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"reset-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Reset{suffix[..8]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Reset session");
+
+        using var known = await Client.PostAsJsonAsync("/api/auth/forgot-password", new { email });
+        using var unknown = await Client.PostAsJsonAsync("/api/auth/forgot-password", new { email = $"missing-{suffix}@example.test" });
+        Assert.Equal(HttpStatusCode.Accepted, known.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, unknown.StatusCode);
+        Assert.Equal(await known.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
+
+        var resetToken = await LatestActionTokenAsync(email);
+        using var reset = await Client.PostAsJsonAsync("/api/auth/reset-password", new { token = resetToken, password = "new-valid-password-value" });
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+        using var replay = await Client.PostAsJsonAsync("/api/auth/reset-password", new { token = resetToken, password = "another-valid-password" });
+        Assert.Equal(HttpStatusCode.BadRequest, replay.StatusCode);
+        using var revoked = await RefreshAsync(login.Cookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, revoked.StatusCode);
+        _ = await LoginAsync(email, "new-valid-password-value");
+
+        await using var database = CreateContext();
+        Assert.Contains(RefreshSessionRevocationReason.PasswordReset,
+            await database.RefreshSessions.Where(item => item.UserId == login.UserId).Select(item => item.RevocationReason).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Email_change_requires_password_reverifies_and_records_protected_history()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"change-old-{suffix}@example.test";
+        var newEmail = $"change-new-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Change{suffix[..8]}", "valid-password-value");
+        var accessToken = await LoginAsync(email, "valid-password-value");
+        var initialVerification = await LatestActionTokenAsync(email);
+        using var verified = await Client.PostAsJsonAsync("/api/auth/verify-email", new { token = initialVerification });
+        Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+
+        using var requested = await SendAuthorizedAsync(HttpMethod.Post, "/api/users/me/email-change", accessToken,
+            new { newEmail, currentPassword = "valid-password-value" });
+        Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
+        await using (var database = CreateContext())
+        {
+            Assert.False(await database.Users.Where(item => item.NormalizedEmail == email.ToUpperInvariant()).Select(item => item.EmailConfirmed).SingleAsync());
+        }
+
+        var changeToken = await LatestActionTokenAsync(newEmail);
+        using var confirmed = await Client.PostAsJsonAsync("/api/auth/confirm-email-change", new { token = changeToken });
+        Assert.Equal(HttpStatusCode.NoContent, confirmed.StatusCode);
+        _ = await LoginAsync(newEmail, "valid-password-value");
+
+        using var unauthorized = await Client.GetAsync("/api/users/me/email-history");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+        using var history = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/email-history", accessToken);
+        Assert.Equal(HttpStatusCode.OK, history.StatusCode);
+        var items = await history.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(email, items[0].GetProperty("email").GetString());
+
+        await using var auditDatabase = CreateContext();
+        var auditText = string.Join('\n', await auditDatabase.AuditRecords
+            .Where(item => item.Action.StartsWith("auth.email"))
+            .Select(item => item.RedactedDiff)
+            .ToListAsync());
+        Assert.DoesNotContain(email, auditText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(newEmail, auditText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Pending_email_change_cannot_be_reverified_by_old_or_resent_link()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"change-pending-{suffix}@example.test";
+        var targetEmail = $"change-pending-target-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Pending{suffix[..8]}", "valid-password-value");
+        var oldVerificationToken = await LatestActionTokenAsync(email);
+        var accessToken = await LoginAsync(email, "valid-password-value");
+
+        using var requested = await SendAuthorizedAsync(HttpMethod.Post, "/api/users/me/email-change", accessToken,
+            new { newEmail = targetEmail, currentPassword = "valid-password-value" });
+        Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
+        using var oldVerification = await Client.PostAsJsonAsync("/api/auth/verify-email", new { token = oldVerificationToken });
+        Assert.Equal(HttpStatusCode.BadRequest, oldVerification.StatusCode);
+        using var resend = await Client.PostAsJsonAsync("/api/auth/resend-verification", new { email });
+        Assert.Equal(HttpStatusCode.Accepted, resend.StatusCode);
+
+        await using var database = CreateContext();
+        var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
+        Assert.False(user.EmailConfirmed);
+        Assert.False(await database.AccountActionTokens.AnyAsync(item => item.UserId == user.Id
+            && item.Purpose == AccountActionPurpose.VerifyEmail
+            && item.ConsumedAt == null
+            && item.SupersededAt == null));
+    }
+
+    [Fact]
+    public async Task Email_change_confirmation_rechecks_normalized_uniqueness_before_commit()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var ownerEmail = $"change-owner-{suffix}@example.test";
+        var targetEmail = $"change-target-{suffix}@example.test";
+        using var ownerRegistration = await RegisterAsync(ownerEmail, $"Owner{suffix[..8]}", "valid-password-value");
+        var ownerToken = await LoginAsync(ownerEmail, "valid-password-value");
+        using var requested = await SendAuthorizedAsync(HttpMethod.Post, "/api/users/me/email-change", ownerToken,
+            new { newEmail = targetEmail.ToUpperInvariant(), currentPassword = "valid-password-value" });
+        Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
+        var changeToken = await LatestActionTokenAsync(targetEmail.ToUpperInvariant());
+
+        using var collision = await RegisterAsync(targetEmail, $"Collision{suffix[..8]}", "another-valid-password");
+        Assert.Equal(HttpStatusCode.Created, collision.StatusCode);
+        using var confirmation = await Client.PostAsJsonAsync("/api/auth/confirm-email-change", new { token = changeToken });
+        Assert.Equal(HttpStatusCode.Conflict, confirmation.StatusCode);
+
+        await using var database = CreateContext();
+        Assert.True(await database.Users.AnyAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant()));
+        Assert.Equal(1, await database.Users.CountAsync(item => item.NormalizedEmail == targetEmail.ToUpperInvariant()));
+    }
+
+    [Fact]
+    public async Task Resend_rate_limit_is_account_keyed_and_returns_retry_after()
+    {
+        await using var limitedFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("GONES_DB_CONNECTION", postgres.GetConnectionString());
+            builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
+            builder.UseSetting("GONES_FEATURES:AUTH_V1", "true");
+            builder.UseSetting("GONES_AUTH_PROVIDER", "Local");
+            builder.UseSetting("GONES_AUTH_SIGNING_KEY", SigningKey);
+            builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", "https://app.example");
+            builder.UseSetting("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT", "2");
+        });
+        using var limitedClient = limitedFactory.CreateClient();
+        var first = $"rate-first-{Guid.NewGuid():N}@example.test";
+        var second = $"rate-second-{Guid.NewGuid():N}@example.test";
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var accepted = await limitedClient.PostAsJsonAsync("/api/auth/resend-verification", new { email = first });
+            Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
+        }
+        using var rejected = await limitedClient.PostAsJsonAsync("/api/auth/resend-verification", new { email = first });
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+        Assert.True(rejected.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+
+        using var otherAccount = await limitedClient.PostAsJsonAsync("/api/auth/resend-verification", new { email = second });
+        Assert.Equal(HttpStatusCode.TooManyRequests, otherAccount.StatusCode); // shared IP partition is independent from account partition
+    }
+
+    [Fact]
+    public async Task Email_history_redaction_is_bounded_and_idempotent()
+    {
+        var now = SystemClock.Instance.GetCurrentInstant();
+        await using (var database = CreateContext())
+        {
+            var users = await database.Users.Take(1).ToListAsync();
+            if (users.Count == 0)
+            {
+                var suffix = Guid.NewGuid().ToString("N");
+                using var registration = await RegisterAsync($"retention-{suffix}@example.test", $"Retention{suffix[..8]}", "valid-password-value");
+                users = await database.Users.Take(1).ToListAsync();
+            }
+            for (var index = 0; index < UserEmailHistoryRedactor.BatchSize + 1; index++)
+            {
+                database.UserEmailHistories.Add(UserEmailHistory.Create(users[0].Id, $"old-{index}@example.test", now - Duration.FromDays(800)));
+            }
+            await database.SaveChangesAsync();
+        }
+
+        await using var firstDatabase = CreateContext();
+        var firstRedactor = new UserEmailHistoryRedactor(firstDatabase, SystemClock.Instance);
+        Assert.Equal(UserEmailHistoryRedactor.BatchSize, await firstRedactor.RedactBatchAsync(CancellationToken.None));
+        Assert.Equal(1, await firstRedactor.RedactBatchAsync(CancellationToken.None));
+        Assert.Equal(0, await firstRedactor.RedactBatchAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Database_has_unique_normalized_username_and_email_indexes()
     {
         await using var database = CreateContext();
@@ -525,6 +755,19 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
 
         Assert.Contains(indexDefinitions, value => value.Contains("UNIQUE", StringComparison.Ordinal) && value.Contains("normalized_email", StringComparison.Ordinal));
         Assert.Contains(indexDefinitions, value => value.Contains("UNIQUE", StringComparison.Ordinal) && value.Contains("normalized_username", StringComparison.Ordinal));
+    }
+
+    private async Task<string> LatestActionTokenAsync(string recipient)
+    {
+        await using var database = CreateContext();
+        var modelJson = await database.NotificationOutboxRecords
+            .Where(item => item.Recipient == recipient)
+            .OrderByDescending(item => item.CreatedAt)
+            .Select(item => item.TemplateModelJson)
+            .FirstAsync();
+        using var model = JsonDocument.Parse(modelJson ?? throw new InvalidOperationException("Action notification was scrubbed."));
+        var actionUrl = new Uri(model.RootElement.GetProperty("actionUrl").GetString()!);
+        return System.Web.HttpUtility.ParseQueryString(actionUrl.Query)["token"]!;
     }
 
     private HttpClient Client => client ?? throw new InvalidOperationException("Test client is not initialized.");

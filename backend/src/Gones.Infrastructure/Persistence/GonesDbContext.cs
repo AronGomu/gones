@@ -19,6 +19,8 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AccountActionToken> AccountActionTokens => Set<AccountActionToken>();
+    public DbSet<UserEmailHistory> UserEmailHistories => Set<UserEmailHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

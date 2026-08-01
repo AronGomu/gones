@@ -54,6 +54,8 @@ else
     if (runtimeConfiguration.Features.AuthV1 && runtimeConfiguration.AuthProvider == GonesAuthProvider.Local)
     {
         builder.Services.AddGonesLocalIdentity();
+        builder.Services.AddSingleton(AccountLifecycleOptions.Load(builder.Configuration));
+        builder.Services.AddScoped<AccountLifecycleService>();
         builder.Services.AddScoped<AccessTokenIssuer>();
         builder.Services.AddScoped<RefreshSessionService>();
         var authRateLimit = builder.Environment.IsEnvironment("Testing")

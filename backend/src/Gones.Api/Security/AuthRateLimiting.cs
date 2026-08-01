@@ -29,9 +29,7 @@ public static class AuthRateLimiting
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>
             {
-                var operation = context.HttpContext.Request.Path.Value?.EndsWith("/register", StringComparison.Ordinal) == true
-                    ? "register"
-                    : "login";
+                var operation = Operation(context.HttpContext.Request.Path);
                 context.HttpContext.RequestServices.GetRequiredService<OperationalMetrics>().RecordAuthRejection(operation);
                 await WriteRateLimitAuditAsync(context.HttpContext.RequestServices, operation, cancellationToken);
                 if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
@@ -45,6 +43,10 @@ public static class AuthRateLimiting
         });
         return services;
     }
+
+    internal static string Operation(PathString path) =>
+        path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Replace("-", "_", StringComparison.Ordinal)
+        ?? "auth";
 
     internal static FixedWindowRateLimiterOptions NewWindowOptions(int permitLimit) => new()
     {
@@ -96,13 +98,12 @@ public sealed class AuthAccountRateLimitFilter(AuthAccountRateLimiter limiter, O
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var request = context.Arguments.OfType<IAuthRateLimitRequest>().Single();
-        var operation = context.HttpContext.Request.Path.Value?.EndsWith("/register", StringComparison.Ordinal) == true
-            ? "register"
-            : "login";
+        var operation = AuthRateLimiting.Operation(context.HttpContext.Request.Path);
         if (!await limiter.TryAcquireAsync(operation, request.RateLimitAccount, context.HttpContext.RequestAborted))
         {
             metrics.RecordAuthRejection(operation);
             await AuthRateLimiting.WriteRateLimitAuditAsync(context.HttpContext.RequestServices, operation, context.HttpContext.RequestAborted);
+            context.HttpContext.Response.Headers.RetryAfter = ((int)AuthRateLimiting.Window.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
             throw new RateLimitExceededException();
         }
         return await next(context);

@@ -61,12 +61,14 @@ internal static class LocalIdentityEndpoints
         users.MapDelete("/me/sessions/{id:guid}", DeleteSessionAsync)
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound);
+        auth.MapAccountLifecycleEndpoints(users);
     }
 
     private static async Task<IResult> RegisterAsync(
         RegisterRequest request,
         UserManager<ApplicationUser> userManager,
         GonesDbContext database,
+        AccountLifecycleService lifecycle,
         IClock clock,
         OperationalMetrics metrics,
         CancellationToken cancellationToken)
@@ -104,8 +106,9 @@ internal static class LocalIdentityEndpoints
             }
 
             database.UserProfiles.Add(profile);
+            await lifecycle.IssueAsync(user, AccountActionPurpose.VerifyEmail, profile.Username, profile.PreferredLanguage, null, cancellationToken);
             database.AuditRecords.Add(NewAudit(user.Id, "auth.register.succeeded", "user", user.Id.ToString("D"),
-                "{\"fields\":[\"username\",\"email\",\"firstName\",\"lastName\"]}", clock));
+                "{\"fields\":[\"username\",\"email\",\"firstName\",\"lastName\",\"verificationGeneration\"]}", clock));
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             metrics.RecordAuthSuccess("register");
@@ -358,6 +361,7 @@ internal static class LocalIdentityEndpoints
     private static UserProfileResponse ToResponse(ApplicationUser user, UserProfile profile) => new(
         user.Id,
         user.Email ?? string.Empty,
+        user.EmailConfirmed,
         user.GlobalRole,
         profile.Username,
         profile.FirstName,
@@ -443,6 +447,7 @@ internal sealed record PatchUserProfileRequest(
 internal sealed record UserProfileResponse(
     Guid Id,
     string Email,
+    bool EmailVerified,
     string GlobalRole,
     string Username,
     string FirstName,

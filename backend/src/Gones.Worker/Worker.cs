@@ -1,3 +1,4 @@
+using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 
@@ -13,6 +14,7 @@ public sealed class Worker(
     {
         logger.LogInformation(WorkerLogEvents.Started, "Event={Event}", "worker.started");
         var nextHeartbeat = DateTimeOffset.MinValue;
+        var nextEmailHistoryRedaction = DateTimeOffset.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
             var now = DateTimeOffset.UtcNow;
@@ -29,6 +31,24 @@ public sealed class Worker(
                     nextHeartbeat = now.AddSeconds(15);
                 }
                 processed = await scope.ServiceProvider.GetRequiredService<NotificationProcessor>().ProcessBatchAsync(stoppingToken);
+                if (now >= nextEmailHistoryRedaction)
+                {
+                    try
+                    {
+                        var redacted = await scope.ServiceProvider.GetRequiredService<UserEmailHistoryRedactor>().RedactBatchAsync(stoppingToken);
+                        logger.LogInformation(WorkerLogEvents.EmailHistoryRedacted, "Event={Event}; Count={Count}", "identity.email_history.redacted", redacted);
+                        nextEmailHistoryRedaction = redacted >= UserEmailHistoryRedactor.BatchSize ? now : now.AddHours(24);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogError(WorkerLogEvents.EmailHistoryRedactionFailed, "Event={Event}; ExceptionType={ExceptionType}", "identity.email_history.redaction_failed", exception.GetType().Name);
+                        nextEmailHistoryRedaction = now.AddHours(1);
+                    }
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -57,4 +77,6 @@ public static class WorkerLogEvents
     public static readonly EventId Started = new(7001, "WorkerStarted");
     public static readonly EventId Heartbeat = new(7002, "WorkerHeartbeat");
     public static readonly EventId PollFailed = new(7003, "WorkerPollFailed");
+    public static readonly EventId EmailHistoryRedacted = new(7004, "EmailHistoryRedacted");
+    public static readonly EventId EmailHistoryRedactionFailed = new(7005, "EmailHistoryRedactionFailed");
 }

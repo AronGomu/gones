@@ -1,4 +1,5 @@
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
@@ -30,6 +31,7 @@ if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationExcep
 builder.Services.AddGonesPersistence(connectionString);
 builder.Services.AddNotificationWorker(builder.Configuration);
 builder.Services.AddScoped<WorkerHeartbeatStore>();
+builder.Services.AddScoped<UserEmailHistoryRedactor>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

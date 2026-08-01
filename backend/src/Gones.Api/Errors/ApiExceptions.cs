@@ -14,6 +14,7 @@ public sealed class ApiValidationException(IReadOnlyDictionary<string, string[]>
 }
 
 public sealed class AuthenticationFailedException() : ApiException("invalid_credentials", "Credentials are invalid.", StatusCodes.Status401Unauthorized);
+public sealed class InvalidAccountActionTokenException() : ApiException("invalid_account_action", "Account action link is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class RateLimitExceededException() : ApiException("rate_limited", "Too many requests. Try again later.", StatusCodes.Status429TooManyRequests);
 public sealed class ResourceNotFoundException() : ApiException("not_found", "Resource not found.", StatusCodes.Status404NotFound);
 public sealed class ConcurrencyConflictException() : ApiException("stale_version", "Resource changed since it was read.", StatusCodes.Status412PreconditionFailed);

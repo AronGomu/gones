@@ -21,7 +21,8 @@ public static class NotificationServiceCollectionExtensions
         services.AddSingleton<NotificationTemplateRenderer>();
         services.AddSingleton<INotificationRetryPolicy>(DefaultNotificationRetryPolicy.Instance);
         services.AddSingleton<NotificationMetrics>();
-        services.AddSingleton<IEmailTransport>(provider => new FileEmailTransport(options.SinkPath, provider.GetRequiredService<IClock>()));
+        var includeActionLinks = configuration.GetValue<bool>("GONES_EMAIL_SINK_INCLUDE_ACTION_LINKS");
+        services.AddSingleton<IEmailTransport>(provider => new FileEmailTransport(options.SinkPath, provider.GetRequiredService<IClock>(), includeActionLinks));
         services.AddScoped<NotificationOutboxStore>();
         services.AddScoped<NotificationProcessor>();
         return services;

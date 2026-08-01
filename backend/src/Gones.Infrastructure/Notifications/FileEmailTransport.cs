@@ -6,7 +6,7 @@ using NodaTime;
 
 namespace Gones.Infrastructure.Notifications;
 
-public sealed class FileEmailTransport(string sinkPath, IClock clock) : IEmailTransport
+public sealed class FileEmailTransport(string sinkPath, IClock clock, bool includeActionLinks = false) : IEmailTransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
 
@@ -24,8 +24,8 @@ public sealed class FileEmailTransport(string sinkPath, IClock clock) : IEmailTr
             email.TemplateKey,
             MaskRecipient(email.Recipient),
             email.Content.Subject,
-            email.Content.SafePreviewHtmlBody,
-            email.Content.SafePreviewTextBody,
+            includeActionLinks ? email.Content.HtmlBody : email.Content.SafePreviewHtmlBody,
+            includeActionLinks ? email.Content.TextBody : email.Content.SafePreviewTextBody,
             clock.GetCurrentInstant().ToString());
         try
         {
