@@ -448,14 +448,14 @@ Parallel rules:
 
 **Deps:** C13. **Lane:** B. **Runnable:** Admin/org membership API complete behind `adminV1`.
 
-- [ ] RED: tests for unique org name, exactly one Owner, owner transfer transaction, org-scoped Organizer authz, Admin bypass, soft delete, block-scope prerequisites.
-- [ ] Add Organization, OrganizationMember, OrganizationNotificationSettings entities/config/indexes; one Owner enforced by transaction + DB constraint strategy.
-- [ ] Implement public paged org list/detail + authorized `/api/users/me/organizations`; expose no private membership/email data.
-- [ ] Implement Admin org create/update/delete/restore; creation requires verified Owner User. Delete returns 409 while dependency blockers exist; C21/C23 add Tournament/registration blockers as those schemas arrive.
-- [ ] Implement Owner/Admin member add/remove/role/transfer commands; cannot remove/demote sole Owner without atomic transfer.
-- [ ] Add Organizer notification flags `NotifyOnRegistration`/`NotifyOnUnregistration` per org.
-- [ ] Add org auth resource loader that returns indistinguishable 404/403 per policy, preventing IDOR.
-- [ ] GREEN: authz/concurrency/API tests; `G-FULL`, `G-RUN`; create org, add Organizer, transfer Owner, reject cross-org write.
+- [x] RED: tests for unique org name, exactly one Owner, owner transfer transaction, org-scoped Organizer authz, Admin bypass, soft delete, block-scope prerequisites.
+- [x] Add Organization, OrganizationMember, OrganizationNotificationSettings entities/config/indexes; one Owner enforced by transaction + DB constraint strategy.
+- [x] Implement public paged org list/detail + authorized `/api/users/me/organizations`; expose no private membership/email data.
+- [x] Implement Admin org create/update/delete/restore; creation requires verified Owner User. Delete returns 409 while dependency blockers exist; C21/C23 add Tournament/registration blockers as those schemas arrive.
+- [x] Implement Owner/Admin member add/remove/role/transfer commands; cannot remove/demote sole Owner without atomic transfer.
+- [x] Add Organizer notification flags `NotifyOnRegistration`/`NotifyOnUnregistration` per org.
+- [x] Add org auth resource loader that returns indistinguishable 404/403 per policy, preventing IDOR.
+- [x] GREEN: authz/concurrency/API tests; `G-FULL`, `G-RUN`; create org, add Organizer, transfer Owner, reject cross-org write.
 
 ## C15 — `feat: add Admin organization user audit and closure UI`
 

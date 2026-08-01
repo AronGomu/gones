@@ -3,6 +3,7 @@ using Gones.Api.Errors;
 using Gones.Api.Health;
 using Gones.Api.Identity;
 using Gones.Api.Observability;
+using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
@@ -70,6 +71,8 @@ else
         {
             builder.Services.AddScoped<AdminRoleService>();
             builder.Services.AddScoped<AdminCatalogService>();
+            builder.Services.AddScoped<OrganizationAccessService>();
+            builder.Services.AddScoped<OrganizationService>();
         }
         var configuredAuthRateLimit = builder.Configuration["GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT"];
         var authRateLimit = int.TryParse(configuredAuthRateLimit, out var parsedAuthRateLimit) && parsedAuthRateLimit > 0
@@ -144,6 +147,8 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 if (runtimeConfiguration.Features.AdminV1)
 {
     app.MapAdminEndpoints();
+    app.MapOrganizationEndpoints();
+    app.MapAdminOrganizationEndpoints();
 }
 
 app.Run();

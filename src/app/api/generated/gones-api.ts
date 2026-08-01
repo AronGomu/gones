@@ -24,6 +24,17 @@ export interface IClient {
      */
     formatsAll(): Observable<PublicFormatResponse[]>;
     /**
+     * @param search (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    organizationsGET(search: string | undefined, page: number | undefined, pageSize: number | undefined): Observable<OrganizationListResponse>;
+    /**
+     * @return OK
+     */
+    organizationsGET2(organizationId: string): Observable<PublicOrganizationResponse>;
+    /**
      * @return Created
      */
     register(body: RegisterRequest): Observable<UserProfileResponse>;
@@ -145,6 +156,62 @@ export interface IClient {
      * @return No Content
      */
     formatsDELETE(formatId: string): Observable<void>;
+    /**
+     * @return OK
+     */
+    organizationsAll(): Observable<MyOrganizationResponse[]>;
+    /**
+     * @return OK
+     */
+    membersAll(organizationId: string): Observable<OrganizationMemberResponse[]>;
+    /**
+     * @return Created
+     */
+    membersPOST(organizationId: string, body: AddOrganizationMemberRequest): Observable<OrganizationMemberResponse>;
+    /**
+     * @return No Content
+     */
+    membersDELETE(organizationId: string, userId: string): Observable<void>;
+    /**
+     * @return No Content
+     */
+    role(organizationId: string, userId: string, body: ChangeOrganizationMemberRoleRequest): Observable<void>;
+    /**
+     * @return No Content
+     */
+    transferOwnership(organizationId: string, body: TransferOrganizationOwnershipRequest): Observable<void>;
+    /**
+     * @return OK
+     */
+    notificationSettingsGET(organizationId: string): Observable<OrganizationNotificationSettingsResponse>;
+    /**
+     * @return OK
+     */
+    notificationSettingsPUT(organizationId: string, body: UpdateOrganizationNotificationSettingsRequest): Observable<OrganizationNotificationSettingsResponse>;
+    /**
+     * @param search (optional)
+     * @param includeDeleted (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    organizationsGET3(search: string | undefined, includeDeleted: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<AdminOrganizationListResponse>;
+    /**
+     * @return Created
+     */
+    organizationsPOST(body: CreateOrganizationRequest): Observable<AdminOrganizationResponse>;
+    /**
+     * @return OK
+     */
+    organizationsPUT(organizationId: string, body: UpdateOrganizationRequest): Observable<AdminOrganizationResponse>;
+    /**
+     * @return No Content
+     */
+    organizationsDELETE(organizationId: string): Observable<void>;
+    /**
+     * @return No Content
+     */
+    restore(organizationId: string): Observable<void>;
 }
 
 @Injectable({
@@ -251,6 +318,136 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicFormatResponse[];
             return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param search (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    organizationsGET(search: string | undefined, page: number | undefined, pageSize: number | undefined): Observable<OrganizationListResponse> {
+        let url_ = this.baseUrl + "/api/organizations?";
+        if (search === null)
+            throw new globalThis.Error("The parameter 'search' cannot be null.");
+        else if (search !== undefined)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processOrganizationsGET(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processOrganizationsGET(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationListResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationListResponse>;
+        }));
+    }
+
+    protected processOrganizationsGET(response: HttpResponseBase): Observable<OrganizationListResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationListResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    organizationsGET2(organizationId: string): Observable<PublicOrganizationResponse> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processOrganizationsGET2(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processOrganizationsGET2(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PublicOrganizationResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PublicOrganizationResponse>;
+        }));
+    }
+
+    protected processOrganizationsGET2(response: HttpResponseBase): Observable<PublicOrganizationResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicOrganizationResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -2127,12 +2324,872 @@ export class Client implements IClient {
         }
         return _observableOf(null as any);
     }
+
+    /**
+     * @return OK
+     */
+    organizationsAll(): Observable<MyOrganizationResponse[]> {
+        let url_ = this.baseUrl + "/api/users/me/organizations";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processOrganizationsAll(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processOrganizationsAll(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<MyOrganizationResponse[]>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<MyOrganizationResponse[]>;
+        }));
+    }
+
+    protected processOrganizationsAll(response: HttpResponseBase): Observable<MyOrganizationResponse[]> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as MyOrganizationResponse[];
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    membersAll(organizationId: string): Observable<OrganizationMemberResponse[]> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/members";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processMembersAll(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processMembersAll(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationMemberResponse[]>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationMemberResponse[]>;
+        }));
+    }
+
+    protected processMembersAll(response: HttpResponseBase): Observable<OrganizationMemberResponse[]> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationMemberResponse[];
+            return _observableOf(result200);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    membersPOST(organizationId: string, body: AddOrganizationMemberRequest): Observable<OrganizationMemberResponse> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/members";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processMembersPOST(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processMembersPOST(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationMemberResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationMemberResponse>;
+        }));
+    }
+
+    protected processMembersPOST(response: HttpResponseBase): Observable<OrganizationMemberResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationMemberResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    membersDELETE(organizationId: string, userId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/members/{userId}";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        if (userId === undefined || userId === null)
+            throw new globalThis.Error("The parameter 'userId' must be defined.");
+        url_ = url_.replace("{userId}", encodeURIComponent("" + userId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processMembersDELETE(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processMembersDELETE(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processMembersDELETE(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    role(organizationId: string, userId: string, body: ChangeOrganizationMemberRoleRequest): Observable<void> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/members/{userId}/role";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        if (userId === undefined || userId === null)
+            throw new globalThis.Error("The parameter 'userId' must be defined.");
+        url_ = url_.replace("{userId}", encodeURIComponent("" + userId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+            })
+        };
+
+        return this.http.request("put", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRole(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRole(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processRole(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    transferOwnership(organizationId: string, body: TransferOrganizationOwnershipRequest): Observable<void> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/transfer-ownership";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processTransferOwnership(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processTransferOwnership(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processTransferOwnership(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    notificationSettingsGET(organizationId: string): Observable<OrganizationNotificationSettingsResponse> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/notification-settings";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processNotificationSettingsGET(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processNotificationSettingsGET(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationNotificationSettingsResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationNotificationSettingsResponse>;
+        }));
+    }
+
+    protected processNotificationSettingsGET(response: HttpResponseBase): Observable<OrganizationNotificationSettingsResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationNotificationSettingsResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    notificationSettingsPUT(organizationId: string, body: UpdateOrganizationNotificationSettingsRequest): Observable<OrganizationNotificationSettingsResponse> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/notification-settings";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("put", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processNotificationSettingsPUT(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processNotificationSettingsPUT(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationNotificationSettingsResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationNotificationSettingsResponse>;
+        }));
+    }
+
+    protected processNotificationSettingsPUT(response: HttpResponseBase): Observable<OrganizationNotificationSettingsResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationNotificationSettingsResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param search (optional)
+     * @param includeDeleted (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    organizationsGET3(search: string | undefined, includeDeleted: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<AdminOrganizationListResponse> {
+        let url_ = this.baseUrl + "/api/admin/organizations?";
+        if (search === null)
+            throw new globalThis.Error("The parameter 'search' cannot be null.");
+        else if (search !== undefined)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (includeDeleted === null)
+            throw new globalThis.Error("The parameter 'includeDeleted' cannot be null.");
+        else if (includeDeleted !== undefined)
+            url_ += "includeDeleted=" + encodeURIComponent("" + includeDeleted) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processOrganizationsGET3(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processOrganizationsGET3(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminOrganizationListResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminOrganizationListResponse>;
+        }));
+    }
+
+    protected processOrganizationsGET3(response: HttpResponseBase): Observable<AdminOrganizationListResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminOrganizationListResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    organizationsPOST(body: CreateOrganizationRequest): Observable<AdminOrganizationResponse> {
+        let url_ = this.baseUrl + "/api/admin/organizations";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processOrganizationsPOST(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processOrganizationsPOST(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminOrganizationResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminOrganizationResponse>;
+        }));
+    }
+
+    protected processOrganizationsPOST(response: HttpResponseBase): Observable<AdminOrganizationResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminOrganizationResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    organizationsPUT(organizationId: string, body: UpdateOrganizationRequest): Observable<AdminOrganizationResponse> {
+        let url_ = this.baseUrl + "/api/admin/organizations/{organizationId}";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("put", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processOrganizationsPUT(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processOrganizationsPUT(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminOrganizationResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminOrganizationResponse>;
+        }));
+    }
+
+    protected processOrganizationsPUT(response: HttpResponseBase): Observable<AdminOrganizationResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminOrganizationResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    organizationsDELETE(organizationId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/admin/organizations/{organizationId}";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processOrganizationsDELETE(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processOrganizationsDELETE(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processOrganizationsDELETE(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    restore(organizationId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/admin/organizations/{organizationId}/restore";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRestore(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRestore(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processRestore(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
 }
 
 export interface AccessTokenResponse {
     accessToken: string;
     expiresAt: Instant;
     tokenType: string;
+
+    [key: string]: any;
+}
+
+export interface AddOrganizationMemberRequest {
+    userId: string;
+    role: string;
 
     [key: string]: any;
 }
@@ -2145,6 +3202,29 @@ export interface AdminFormatResponse {
     deletedAt: Instant | undefined;
     createdAt: Instant;
     updatedAt: Instant;
+
+    [key: string]: any;
+}
+
+export interface AdminOrganizationListResponse {
+    items: AdminOrganizationResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface AdminOrganizationResponse {
+    id: string;
+    name: string;
+    description: string | undefined;
+    website: string | undefined;
+    contactEmail: string | undefined;
+    deletedAt: Instant | undefined;
+    createdAt: Instant;
+    updatedAt: Instant;
+    version: number;
 
     [key: string]: any;
 }
@@ -2171,6 +3251,12 @@ export interface AdminUserSummaryResponse {
     [key: string]: any;
 }
 
+export interface ChangeOrganizationMemberRoleRequest {
+    role: string;
+
+    [key: string]: any;
+}
+
 export interface CompleteOAuthRequest {
     completionTicket: string;
     email: string;
@@ -2178,6 +3264,16 @@ export interface CompleteOAuthRequest {
     firstName: string;
     lastName: string;
     deviceLabel: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface CreateOrganizationRequest {
+    name: string;
+    description: string | undefined;
+    website: string | undefined;
+    contactEmail: string | undefined;
+    ownerUserId: string;
 
     [key: string]: any;
 }
@@ -2239,6 +3335,18 @@ export interface LoginRequest {
     [key: string]: any;
 }
 
+export interface MyOrganizationResponse {
+    id: string;
+    name: string;
+    description: string | undefined;
+    website: string | undefined;
+    contactEmail: string | undefined;
+    role: string;
+    createdAt: Instant;
+
+    [key: string]: any;
+}
+
 export interface OAuthFlowResponse {
     status: string;
     accessToken: string | undefined;
@@ -2255,6 +3363,33 @@ export interface OAuthFlowResponse {
 
 export interface OAuthStartResponse {
     authorizationUrl: string;
+
+    [key: string]: any;
+}
+
+export interface OrganizationListResponse {
+    items: PublicOrganizationResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface OrganizationMemberResponse {
+    userId: string;
+    username: string;
+    role: string;
+    createdAt: Instant;
+
+    [key: string]: any;
+}
+
+export interface OrganizationNotificationSettingsResponse {
+    organizationId: string;
+    notifyOnRegistration: boolean;
+    notifyOnUnregistration: boolean;
+    updatedAt: Instant;
 
     [key: string]: any;
 }
@@ -2295,6 +3430,17 @@ export interface PublicFormatResponse {
     [key: string]: any;
 }
 
+export interface PublicOrganizationResponse {
+    id: string;
+    name: string;
+    description: string | undefined;
+    website: string | undefined;
+    contactEmail: string | undefined;
+    createdAt: Instant;
+
+    [key: string]: any;
+}
+
 export interface RefreshSessionResponse {
     id: string;
     deviceLabel: string;
@@ -2330,8 +3476,30 @@ export interface TokenRequest {
     [key: string]: any;
 }
 
+export interface TransferOrganizationOwnershipRequest {
+    newOwnerUserId: string;
+
+    [key: string]: any;
+}
+
 export interface UnlinkExternalIdentityRequest {
     currentPassword: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface UpdateOrganizationNotificationSettingsRequest {
+    notifyOnRegistration: boolean;
+    notifyOnUnregistration: boolean;
+
+    [key: string]: any;
+}
+
+export interface UpdateOrganizationRequest {
+    name: string;
+    description: string | undefined;
+    website: string | undefined;
+    contactEmail: string | undefined;
 
     [key: string]: any;
 }

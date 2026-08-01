@@ -1,6 +1,7 @@
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
 using Gones.Domain.Notifications;
+using Gones.Domain.Organizations;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -26,6 +27,9 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<OAuthAttempt> OAuthAttempts => Set<OAuthAttempt>();
     public DbSet<TournamentFormat> TournamentFormats => Set<TournamentFormat>();
     public DbSet<SystemMarker> SystemMarkers => Set<SystemMarker>();
+    public DbSet<Organization> Organizations => Set<Organization>();
+    public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();
+    public DbSet<OrganizationNotificationSettings> OrganizationNotificationSettings => Set<OrganizationNotificationSettings>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
