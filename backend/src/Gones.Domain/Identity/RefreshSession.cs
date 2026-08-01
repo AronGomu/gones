@@ -12,7 +12,8 @@ public enum RefreshSessionRevocationReason
     Expired,
     SecurityStampChanged,
     PasswordReset,
-    ExternalIdentityChanged
+    ExternalIdentityChanged,
+    RoleChanged
 }
 
 public sealed class RefreshSession : VersionedEntity

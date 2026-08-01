@@ -1,3 +1,4 @@
+using Gones.Api.Admin;
 using Gones.Api.Errors;
 using Gones.Api.Health;
 using Gones.Api.Identity;
@@ -65,6 +66,11 @@ else
         builder.Services.AddScoped<AccountLifecycleService>();
         builder.Services.AddScoped<AccessTokenIssuer>();
         builder.Services.AddScoped<RefreshSessionService>();
+        if (runtimeConfiguration.Features.AdminV1)
+        {
+            builder.Services.AddScoped<AdminRoleService>();
+            builder.Services.AddScoped<AdminCatalogService>();
+        }
         var configuredAuthRateLimit = builder.Configuration["GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT"];
         var authRateLimit = int.TryParse(configuredAuthRateLimit, out var parsedAuthRateLimit) && parsedAuthRateLimit > 0
             ? parsedAuthRateLimit
@@ -130,6 +136,14 @@ if (runtimeConfiguration.Features.AuthV1)
     {
         app.MapFakeOAuthProviderEndpoints();
     }
+}
+if (!string.IsNullOrWhiteSpace(connectionString))
+{
+    app.MapPublicCatalogEndpoints();
+}
+if (runtimeConfiguration.Features.AdminV1)
+{
+    app.MapAdminEndpoints();
 }
 
 app.Run();

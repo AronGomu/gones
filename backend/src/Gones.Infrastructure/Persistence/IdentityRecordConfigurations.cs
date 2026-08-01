@@ -11,6 +11,11 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
     {
         builder.Property(user => user.GlobalRole).HasMaxLength(20);
         builder.HasIndex(user => user.NormalizedEmail).IsUnique();
+        builder.HasIndex(user => user.GlobalRole);
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("ck_asp_net_users_global_role", "global_role IN ('User', 'Organizer', 'Admin')");
+        });
     }
 }
 

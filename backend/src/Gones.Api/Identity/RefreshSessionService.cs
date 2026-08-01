@@ -144,6 +144,16 @@ internal sealed class RefreshSessionService(
         foreach (var session in active) session.Revoke(now, RefreshSessionRevocationReason.ExternalIdentityChanged);
     }
 
+    public async Task RevokeAllForRoleChangeAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (database.Database.CurrentTransaction is null) throw new InvalidOperationException("Role change revocation requires an existing transaction.");
+        var active = await LockActiveSessionsAsync(userId, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        foreach (var session in active) session.Revoke(now, RefreshSessionRevocationReason.RoleChanged);
+        database.AuditRecords.Add(NewAudit(userId, "auth.sessions.revoked_role_change", "user", userId,
+            $"{{\"count\":{active.Count}}}", now));
+    }
+
     public async Task<IReadOnlyList<RefreshSession>> ListAsync(Guid userId, string securityStamp, CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();

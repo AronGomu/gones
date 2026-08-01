@@ -1,3 +1,4 @@
+using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
 using Gones.Domain.Notifications;
 using Gones.Domain.Persistence;
@@ -23,6 +24,8 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<UserEmailHistory> UserEmailHistories => Set<UserEmailHistory>();
     public DbSet<ExternalIdentity> ExternalIdentities => Set<ExternalIdentity>();
     public DbSet<OAuthAttempt> OAuthAttempts => Set<OAuthAttempt>();
+    public DbSet<TournamentFormat> TournamentFormats => Set<TournamentFormat>();
+    public DbSet<SystemMarker> SystemMarkers => Set<SystemMarker>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

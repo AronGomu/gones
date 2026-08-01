@@ -25,6 +25,7 @@ const api = spawn('dotnet', ['run', '--project', join(backend, 'src', 'Gones.Api
     GONES_DB_CONNECTION: process.env.GONES_DB_CONNECTION ?? 'Host=127.0.0.1;Port=5432;Database=gones;Username=gones;Password=gones',
     GONES_ALLOWED_ORIGINS: process.env.GONES_ALLOWED_ORIGINS ?? 'http://127.0.0.1:4200',
     'GONES_FEATURES__AUTH_V1': 'true',
+    'GONES_FEATURES__ADMIN_V1': 'true',
     GONES_AUTH_PROVIDER: 'Local',
     GONES_AUTH_SIGNING_KEY: 'x'.repeat(32),
     GONES_PUBLIC_APP_ORIGIN: 'https://app.example'

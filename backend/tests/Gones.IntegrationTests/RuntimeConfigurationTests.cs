@@ -20,7 +20,6 @@ public sealed class RuntimeConfigurationTests
     [InlineData("AUTH_V1", 2)]
     [InlineData("LEAGUE_SERVER", 3)]
     [InlineData("LIVE_SERVER", 4)]
-    [InlineData("ADMIN_V1", 5)]
     public void Every_feature_key_maps_to_typed_flag(string key, int expectedIndex)
     {
         var values = new Dictionary<string, string?>
@@ -37,6 +36,30 @@ public sealed class RuntimeConfigurationTests
         var expected = new bool[6];
         expected[expectedIndex] = true;
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Admin_v1_requires_auth_v1_and_maps_flag()
+    {
+        Assert.Throws<InvalidOperationException>(() => GonesRuntimeConfiguration.Load(Build(new()
+        {
+            ["GONES_FEATURES:ADMIN_V1"] = "true",
+            ["GONES_DB_CONNECTION"] = "Host=db",
+            ["GONES_ALLOWED_ORIGINS"] = "https://app.example"
+        }), false));
+
+        var flags = GonesRuntimeConfiguration.Load(Build(new()
+        {
+            ["GONES_FEATURES:ADMIN_V1"] = "true",
+            ["GONES_FEATURES:AUTH_V1"] = "true",
+            ["GONES_DB_CONNECTION"] = "Host=db",
+            ["GONES_ALLOWED_ORIGINS"] = "https://app.example",
+            ["GONES_AUTH_SIGNING_KEY"] = new string('x', 32),
+            ["GONES_AUTH_PROVIDER"] = "Local"
+        }), false).Features;
+
+        Assert.True(flags.AdminV1);
+        Assert.True(flags.AuthV1);
     }
 
     [Fact]

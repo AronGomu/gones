@@ -1,20 +1,65 @@
 using Gones.Application.Notifications;
+using Gones.Domain.Catalog;
+using Gones.Domain.Identity;
+using Gones.Domain.Persistence;
+using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NodaTime;
 
 if (args.Contains("--help", StringComparer.Ordinal))
 {
-    Console.WriteLine("Gones.Migrator\n\nUsage: dotnet Gones.Migrator.dll database update\n       dotnet Gones.Migrator.dll database seed\n       dotnet Gones.Migrator.dll notifications enqueue-test\n       dotnet Gones.Migrator.dll [--help]");
+    Console.WriteLine("""
+        Gones.Migrator
+
+        Usage: dotnet Gones.Migrator.dll database update
+               dotnet Gones.Migrator.dll database seed
+               dotnet Gones.Migrator.dll admin bootstrap --email <email>
+               dotnet Gones.Migrator.dll notifications enqueue-test
+               dotnet Gones.Migrator.dll [--help]
+        """);
     return;
 }
 
 var databaseCommand = args.Length == 2 && args[0] == "database" && args[1] is "update" or "seed" ? args[1] : null;
 var notificationCommand = args.Length == 2 && args[0] == "notifications" && args[1] == "enqueue-test" ? args[1] : null;
-if (databaseCommand is null && notificationCommand is null)
+string? bootstrapEmail = null;
+if (args.Length >= 2 && args[0] == "admin" && args[1] == "bootstrap")
+{
+    for (var index = 2; index < args.Length; index++)
+    {
+        if (args[index] == "--email")
+        {
+            if (index + 1 >= args.Length)
+            {
+                Console.Error.WriteLine("admin bootstrap requires --email <value>.");
+                Environment.ExitCode = 2;
+                return;
+            }
+
+            bootstrapEmail = args[++index];
+        }
+        else
+        {
+            Console.Error.WriteLine($"Unknown admin bootstrap argument: {args[index]}");
+            Environment.ExitCode = 2;
+            return;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(bootstrapEmail))
+    {
+        Console.Error.WriteLine("admin bootstrap requires --email <value>.");
+        Environment.ExitCode = 2;
+        return;
+    }
+}
+
+if (databaseCommand is null && notificationCommand is null && bootstrapEmail is null)
 {
     Console.Error.WriteLine("No migration command supplied. Use --help for usage.");
     Environment.ExitCode = 2;
@@ -30,6 +75,7 @@ var connectionString = builder.Configuration[PersistenceServiceCollectionExtensi
 if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("GONES_DB_CONNECTION is required.");
 builder.Services.AddGonesPersistence(connectionString);
 builder.Services.AddNotificationOutbox();
+builder.Services.AddScoped<AdminBootstrapService>();
 using var host = builder.Build();
 using var scope = host.Services.CreateScope();
 var database = scope.ServiceProvider.GetRequiredService<GonesDbContext>();
@@ -37,12 +83,30 @@ await database.Database.MigrateAsync();
 
 if (databaseCommand == "seed")
 {
+    await SeedReferenceDataAsync(database);
     await database.Database.ExecuteSqlRawAsync("""
         INSERT INTO audit_records (id, version, action, entity_type, entity_id, redacted_diff, occurred_at)
         VALUES ('00000000-0000-0000-0000-000000000005', 1, 'local_seed', 'system', 'local', '{{}}', '2026-01-01T00:00:00Z')
         ON CONFLICT (id) DO NOTHING;
         """);
     Console.WriteLine("Gones deterministic local seed complete.");
+}
+else if (bootstrapEmail is not null)
+{
+    var bootstrap = scope.ServiceProvider.GetRequiredService<AdminBootstrapService>();
+    try
+    {
+        var decision = await bootstrap.BootstrapAsync(
+            bootstrapEmail,
+            builder.Configuration[AdminBootstrapPolicy.BootstrapEmailKey]);
+        Console.WriteLine(decision.Message);
+        Environment.ExitCode = decision.ExitCode;
+    }
+    catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
+    {
+        Console.Error.WriteLine(exception.Message);
+        Environment.ExitCode = 1;
+    }
 }
 else if (notificationCommand == "enqueue-test")
 {
@@ -66,7 +130,27 @@ else if (notificationCommand == "enqueue-test")
 }
 else
 {
+    await SeedReferenceDataAsync(database);
     Console.WriteLine("Gones database migrations complete.");
+}
+
+static async Task SeedReferenceDataAsync(GonesDbContext database)
+{
+    var clock = SystemClock.Instance;
+    var now = clock.GetCurrentInstant();
+    if (!await database.TournamentFormats.AnyAsync(format => format.Slug == TournamentFormat.LegacySlug))
+    {
+        database.TournamentFormats.Add(TournamentFormat.CreateLegacy(now));
+        database.AuditRecords.Add(new AuditRecord
+        {
+            Action = "catalog.format.seeded",
+            EntityType = "tournament_format",
+            EntityId = TournamentFormat.LegacySlug,
+            RedactedDiff = """{"slug":"legacy","name":"Legacy"}""",
+            OccurredAt = now
+        });
+        await database.SaveChangesAsync();
+    }
 }
 
 public partial class Program;

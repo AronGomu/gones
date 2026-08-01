@@ -1,10 +1,14 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
+using Gones.Domain.Identity;
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -48,6 +52,10 @@ public static class AuthorizationPolicies
                         NameClaimType = "sub",
                         RoleClaimType = "role"
                     };
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnTokenValidated = ValidateSecurityStampAndRoleAsync
+                    };
                 });
         }
         else
@@ -65,6 +73,53 @@ public static class AuthorizationPolicies
             options.AddPolicy(OrganizationOwner, policy => policy.Requirements.Add(new UnavailableResourceAuthorizationRequirement()));
         });
         return services;
+    }
+
+    private static async Task ValidateSecurityStampAndRoleAsync(TokenValidatedContext context)
+    {
+        var principal = context.Principal;
+        if (principal is null)
+        {
+            context.Fail("missing_principal");
+            return;
+        }
+
+        var subject = principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(subject, out var userId))
+        {
+            context.Fail("invalid_subject");
+            return;
+        }
+
+        var stampClaim = principal.FindFirstValue(SecurityStampClaim);
+        var roleClaim = principal.FindFirstValue("role") ?? principal.FindFirstValue(ClaimTypes.Role);
+        if (string.IsNullOrWhiteSpace(stampClaim) || string.IsNullOrWhiteSpace(roleClaim))
+        {
+            context.Fail("missing_security_claims");
+            return;
+        }
+
+        var database = context.HttpContext.RequestServices.GetRequiredService<GonesDbContext>();
+        var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == userId, context.HttpContext.RequestAborted);
+        if (user is null || string.IsNullOrWhiteSpace(user.SecurityStamp))
+        {
+            context.Fail("unknown_user");
+            return;
+        }
+
+        if (!FixedTimeEquals(user.SecurityStamp, stampClaim)
+            || !string.Equals(user.GlobalRole, roleClaim, StringComparison.Ordinal))
+        {
+            context.Fail("stale_security_version");
+        }
+    }
+
+    private static bool FixedTimeEquals(string left, string right)
+    {
+        var leftBytes = Encoding.UTF8.GetBytes(left);
+        var rightBytes = Encoding.UTF8.GetBytes(right);
+        return leftBytes.Length == rightBytes.Length
+            && CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
     }
 }
 

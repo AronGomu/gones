@@ -39,6 +39,11 @@ public sealed record GonesRuntimeConfiguration(GonesFeatureFlags Features, Gones
         }
 
         GonesAuthProvider? authProvider = null;
+        if (flags.AdminV1 && !flags.AuthV1)
+        {
+            throw new InvalidOperationException("GONES_FEATURES:ADMIN_V1 requires GONES_FEATURES:AUTH_V1.");
+        }
+
         if (flags.AuthV1)
         {
             var signingKey = Require(configuration, "GONES_AUTH_SIGNING_KEY");

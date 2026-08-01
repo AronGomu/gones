@@ -435,14 +435,14 @@ Parallel rules:
 
 **Deps:** C09, C10. **Lane:** B. **Runnable:** one-time CLI creates first Admin; public Format query works.
 
-- [ ] RED: tests for bootstrap idempotency/wrong config, last Admin protection, role escalation denial, Format uniqueness/order/soft delete.
-- [ ] Add global roles User/Organizer/Admin; role policy stays independent from org membership.
-- [ ] Implement `Gones.Migrator admin bootstrap --email` requiring existing verified account + configured matching bootstrap email; consume one-time marker.
-- [ ] Add Admin user list/search/page + grant/revoke global Organizer/Admin commands; prevent self/last-Admin lockout. Role change rotates security version, revokes refresh families, rejects stale privileged JWTs; test revoke during active session.
-- [ ] Add Tournament Format catalog seeded Legacy; Admin CRUD supports Vintage/Pauper/Modern/Premodern later; slug unique/soft delete.
-- [ ] Add public active Format endpoint; Scheduled Tournament may reference many Formats; V1 creation validator requires Legacy.
-- [ ] Audit all role/catalog/bootstrap actions with redacted diffs.
-- [ ] GREEN: unit/integration/CLI tests; `G-FULL`, `G-RUN`; bootstrap Admin twice → one success, one safe no-op.
+- [x] RED: tests for bootstrap idempotency/wrong config, last Admin protection, role escalation denial, Format uniqueness/order/soft delete.
+- [x] Add global roles User/Organizer/Admin; role policy stays independent from org membership.
+- [x] Implement `Gones.Migrator admin bootstrap --email` requiring existing verified account + configured matching bootstrap email; consume one-time marker.
+- [x] Add Admin user list/search/page + grant/revoke global Organizer/Admin commands; prevent self/last-Admin lockout. Role change rotates security version, revokes refresh families, rejects stale privileged JWTs; test revoke during active session.
+- [x] Add Tournament Format catalog seeded Legacy; Admin CRUD supports Vintage/Pauper/Modern/Premodern later; slug unique/soft delete.
+- [x] Add public active Format endpoint; Scheduled Tournament may reference many Formats; V1 creation validator requires Legacy.
+- [x] Audit all role/catalog/bootstrap actions with redacted diffs.
+- [x] GREEN: unit/integration/CLI tests; `G-FULL`, `G-RUN`; bootstrap Admin twice → one success, one safe no-op.
 
 ## C14 — `feat: add organizations ownership and notification settings`
 

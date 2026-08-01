@@ -27,7 +27,7 @@ const outputs = commands.map(args => spawnSync('docker', args, { encoding: 'utf8
 for (const result of outputs) if (result.status !== 0) throw new Error(`${result.stdout}\n${result.stderr}`);
 if (!outputs[0].stdout.includes('migrator')) throw new Error('Migrator completion missing.');
 if (!outputs[1].stdout.includes('Gones Worker heartbeat')) throw new Error('Worker heartbeat missing.');
-const expectedMigrations = ['20260724111457_InitialPersistence', '20260724112436_AppendOnlyAuditGuard', '20260731205826_AddNotificationOutbox', '20260731220244_AddObservabilityState', '20260731224550_AddLocalIdentity', '20260801091711_AddRefreshSessions', '20260801105351_AddAccountLifecycle', '20260801114004_AddExternalOAuth'];
+const expectedMigrations = ['20260724111457_InitialPersistence', '20260724112436_AppendOnlyAuditGuard', '20260731205826_AddNotificationOutbox', '20260731220244_AddObservabilityState', '20260731224550_AddLocalIdentity', '20260801091711_AddRefreshSessions', '20260801105351_AddAccountLifecycle', '20260801114004_AddExternalOAuth', '20260801152724_AddAdminBootstrapAndFormats'];
 const actualMigrations = outputs[2].stdout.trim().split(/\r?\n/).filter(Boolean);
 if (JSON.stringify(actualMigrations) !== JSON.stringify(expectedMigrations)) {
   throw new Error(`PostgreSQL migrations differ. Expected ${expectedMigrations.join(', ')}; got ${actualMigrations.join(', ')}`);
