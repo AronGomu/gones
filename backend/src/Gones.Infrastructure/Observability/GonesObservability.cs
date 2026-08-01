@@ -84,6 +84,7 @@ public sealed class OperationalMetrics : IDisposable
     private readonly Counter<long> authSuccesses;
     private readonly Counter<long> authRejections;
     private readonly Counter<long> authLockouts;
+    private readonly Counter<long> authAbuse;
     private long outboxBacklog;
     private long outboxDeadLetters;
     private double outboxLagSeconds;
@@ -97,6 +98,7 @@ public sealed class OperationalMetrics : IDisposable
         authSuccesses = meter.CreateCounter<long>("gones.auth.successes");
         authRejections = meter.CreateCounter<long>("gones.auth.rejections");
         authLockouts = meter.CreateCounter<long>("gones.auth.lockouts");
+        authAbuse = meter.CreateCounter<long>("gones.auth.abuse");
         meter.CreateObservableGauge("gones.outbox.backlog", () => Interlocked.Read(ref outboxBacklog));
         meter.CreateObservableGauge("gones.outbox.dead_letters", () => Interlocked.Read(ref outboxDeadLetters));
         meter.CreateObservableGauge("gones.outbox.lag", () => Volatile.Read(ref outboxLagSeconds), "s");
@@ -122,6 +124,7 @@ public sealed class OperationalMetrics : IDisposable
     public void RecordAuthSuccess(string operation) => authSuccesses.Add(1, new KeyValuePair<string, object?>("auth.operation", operation));
     public void RecordAuthRejection(string operation) => authRejections.Add(1, new KeyValuePair<string, object?>("auth.operation", operation));
     public void RecordAuthLockout() => authLockouts.Add(1);
+    public void RecordAuthAbuse(string reason) => authAbuse.Add(1, new KeyValuePair<string, object?>("auth.reason", reason));
     public void Dispose() => meter.Dispose();
 }
 

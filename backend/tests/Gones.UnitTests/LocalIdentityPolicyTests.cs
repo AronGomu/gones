@@ -76,6 +76,30 @@ public sealed class LocalIdentityPolicyTests
             || tag.Key.Contains("ip", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void Refresh_abuse_metric_uses_only_low_cardinality_reason()
+    {
+        var measurements = new List<IReadOnlyList<KeyValuePair<string, object?>>>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, activeListener) =>
+        {
+            if (instrument.Meter.Name == GonesTelemetry.OperationalMeterName && instrument.Name == "gones.auth.abuse")
+            {
+                activeListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) => measurements.Add(tags.ToArray()));
+        listener.Start();
+        using var metrics = new OperationalMetrics();
+
+        metrics.RecordAuthAbuse("refresh_replay");
+
+        var tags = Assert.Single(measurements);
+        var tag = Assert.Single(tags);
+        Assert.Equal("auth.reason", tag.Key);
+        Assert.Equal("refresh_replay", tag.Value);
+    }
+
     private sealed class AlwaysCommonPasswordService : ICommonPasswordService
     {
         public ValueTask<bool> IsCommonAsync(string password, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);

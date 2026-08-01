@@ -55,6 +55,7 @@ else
     {
         builder.Services.AddGonesLocalIdentity();
         builder.Services.AddScoped<AccessTokenIssuer>();
+        builder.Services.AddScoped<RefreshSessionService>();
         var authRateLimit = builder.Environment.IsEnvironment("Testing")
             ? builder.Configuration.GetValue<int?>("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT") ?? AuthRateLimiting.PermitLimit
             : AuthRateLimiting.PermitLimit;

@@ -1,14 +1,19 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Gones.Api.Security;
+using Gones.Domain.Identity;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using NodaTime;
 using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
@@ -287,6 +292,232 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Login_issues_fifteen_minute_access_and_host_only_secure_refresh_cookie()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"session-cookie-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Cookie{suffix[..8]}", "valid-password-value");
+
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Firefox on Linux");
+        using var payload = DecodeJwtPayload(login.AccessToken);
+        var issuedAt = payload.RootElement.GetProperty("iat").GetInt64();
+        var expiresAt = payload.RootElement.GetProperty("exp").GetInt64();
+
+        Assert.Equal(AccessTokenIssuer.Lifetime.TotalSeconds, expiresAt - issuedAt);
+        Assert.Contains("secure", login.SetCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("httponly", login.SetCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=lax", login.SetCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("path=/api/auth", login.SetCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("domain=", login.SetCookie, StringComparison.OrdinalIgnoreCase);
+
+        await using var database = CreateContext();
+        var session = await database.RefreshSessions.SingleAsync(item => item.UserId == login.UserId);
+        var storedToken = await database.RefreshTokens.SingleAsync(item => item.SessionId == session.Id);
+        var rawToken = login.Cookie[(login.Cookie.IndexOf('=') + 1)..];
+        var expectedHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
+        Assert.Equal("Firefox on Linux", session.DeviceLabel);
+        Assert.Equal(session.CreatedAt + Duration.FromDays(7), session.IdleExpiresAt);
+        Assert.Equal(session.CreatedAt + Duration.FromDays(30), session.AbsoluteExpiresAt);
+        Assert.Equal(expectedHash, storedToken.TokenHash);
+        Assert.DoesNotContain(rawToken, storedToken.TokenHash, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Refresh_rotates_once_and_old_token_replay_revokes_family()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"rotation-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Rotate{suffix[..8]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Rotation test");
+
+        using var rotated = await RefreshAsync(login.Cookie);
+        Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
+        var replacementCookie = CookieFrom(rotated);
+        Assert.NotEqual(login.Cookie, replacementCookie);
+
+        using var replay = await RefreshAsync(login.Cookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
+        using var familyRejected = await RefreshAsync(replacementCookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, familyRejected.StatusCode);
+
+        await using var database = CreateContext();
+        var session = await database.RefreshSessions.SingleAsync(item => item.UserId == login.UserId);
+        var tokens = await database.RefreshTokens.Where(item => item.SessionId == session.Id).OrderBy(item => item.CreatedAt).ToListAsync();
+        Assert.Equal(RefreshSessionRevocationReason.Replay, session.RevocationReason);
+        Assert.Equal(2, tokens.Count);
+        Assert.Equal(tokens[1].Id, tokens[0].ReplacedById);
+        Assert.True(await database.AuditRecords.AnyAsync(item => item.Action == "auth.session.replay" && item.EntityId == session.Id.ToString("D")));
+    }
+
+    [Fact]
+    public async Task Parallel_refresh_allows_one_rotation_then_replay_revokes_winning_family()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"parallel-refresh-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Parallel{suffix[..8]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Parallel test");
+
+        var attempts = await Task.WhenAll(RefreshAsync(login.Cookie), RefreshAsync(login.Cookie));
+        try
+        {
+            Assert.Equal(1, attempts.Count(item => item.StatusCode == HttpStatusCode.OK));
+            Assert.Equal(1, attempts.Count(item => item.StatusCode == HttpStatusCode.Unauthorized));
+            var winningCookie = CookieFrom(attempts.Single(item => item.StatusCode == HttpStatusCode.OK));
+            using var rejected = await RefreshAsync(winningCookie);
+            Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
+        }
+        finally
+        {
+            foreach (var attempt in attempts) attempt.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Logout_clears_exact_cookie_and_revokes_current_family()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"logout-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Logout{suffix[..8]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Logout test");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/logout");
+        request.Headers.Add("Cookie", login.Cookie);
+
+        using var logout = await Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
+        var cleared = logout.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("gones_refresh=", StringComparison.Ordinal));
+        Assert.Contains("path=/api/auth", cleared, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("secure", cleared, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("httponly", cleared, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=lax", cleared, StringComparison.OrdinalIgnoreCase);
+        using var rejected = await RefreshAsync(login.Cookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
+    }
+
+    [Fact]
+    public async Task Logout_all_revokes_every_family_and_session_list_discloses_no_token_or_ip()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"logout-all-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"All{suffix[..8]}", "valid-password-value");
+        var first = await LoginWithSessionAsync(email, "valid-password-value", "Laptop");
+        var second = await LoginWithSessionAsync(email, "valid-password-value", "Phone");
+
+        using var before = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/sessions", first.AccessToken);
+        var beforeJson = await before.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+        Assert.Contains("Laptop", beforeJson, StringComparison.Ordinal);
+        Assert.Contains("Phone", beforeJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("token", beforeJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ip", beforeJson, StringComparison.OrdinalIgnoreCase);
+
+        using var logoutAll = await SendAuthorizedAsync(HttpMethod.Post, "/api/auth/logout-all", first.AccessToken);
+        Assert.Equal(HttpStatusCode.NoContent, logoutAll.StatusCode);
+        using var firstRejected = await RefreshAsync(first.Cookie);
+        using var secondRejected = await RefreshAsync(second.Cookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, firstRejected.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, secondRejected.StatusCode);
+    }
+
+    [Fact]
+    public async Task User_can_revoke_one_owned_session_without_revoking_another()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"single-revoke-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Single{suffix[..8]}", "valid-password-value");
+        var laptop = await LoginWithSessionAsync(email, "valid-password-value", "Laptop revoke");
+        var phone = await LoginWithSessionAsync(email, "valid-password-value", "Phone keep");
+        using var sessions = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/sessions", laptop.AccessToken);
+        var sessionList = await sessions.Content.ReadFromJsonAsync<JsonElement>();
+        var laptopId = sessionList.EnumerateArray().Single(item => item.GetProperty("deviceLabel").GetString() == "Laptop revoke").GetProperty("id").GetGuid();
+
+        using var revoked = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/users/me/sessions/{laptopId}", laptop.AccessToken);
+        using var laptopRejected = await RefreshAsync(laptop.Cookie);
+        using var phoneAccepted = await RefreshAsync(phone.Cookie);
+
+        Assert.Equal(HttpStatusCode.NoContent, revoked.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, laptopRejected.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, phoneAccepted.StatusCode);
+    }
+
+    [Fact]
+    public async Task Session_revocation_racing_refresh_never_leaves_a_usable_family()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"revoke-race-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Race{suffix[..8]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Revocation race");
+        await using var database = CreateContext();
+        var sessionId = await database.RefreshSessions.Where(item => item.UserId == login.UserId).Select(item => item.Id).SingleAsync();
+
+        var attempts = await Task.WhenAll(
+            SendAuthorizedAsync(HttpMethod.Delete, $"/api/users/me/sessions/{sessionId}", login.AccessToken),
+            RefreshAsync(login.Cookie));
+        try
+        {
+            Assert.Equal(HttpStatusCode.NoContent, attempts[0].StatusCode);
+            Assert.Contains(attempts[1].StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.Unauthorized });
+            if (attempts[1].StatusCode == HttpStatusCode.OK)
+            {
+                using var successorRejected = await RefreshAsync(CookieFrom(attempts[1]));
+                Assert.Equal(HttpStatusCode.Unauthorized, successorRejected.StatusCode);
+            }
+        }
+        finally
+        {
+            foreach (var attempt in attempts) attempt.Dispose();
+        }
+
+        database.ChangeTracker.Clear();
+        Assert.NotNull((await database.RefreshSessions.SingleAsync(item => item.Id == sessionId)).RevokedAt);
+    }
+
+    [Fact]
+    public async Task Password_security_stamp_change_revokes_refresh_family()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"password-revoke-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Password{suffix[..8]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Password change");
+        using (var scope = factory!.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await users.FindByIdAsync(login.UserId.ToString("D"));
+            Assert.NotNull(user);
+            var changed = await users.ChangePasswordAsync(user!, "valid-password-value", "new-valid-password-value");
+            Assert.True(changed.Succeeded);
+        }
+
+        using var rejected = await RefreshAsync(login.Cookie);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
+        await using var database = CreateContext();
+        var session = await database.RefreshSessions.SingleAsync(item => item.UserId == login.UserId);
+        Assert.Equal(RefreshSessionRevocationReason.SecurityStampChanged, session.RevocationReason);
+    }
+
+    [Fact]
+    public async Task Idle_expiry_rejects_refresh_and_revokes_family()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"idle-expiry-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Idle{suffix[..8]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Idle expiry");
+        await using (var database = CreateContext())
+        {
+            await database.RefreshSessions.Where(item => item.UserId == login.UserId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.IdleExpiresAt, SystemClock.Instance.GetCurrentInstant() - Duration.FromMinutes(1)));
+        }
+
+        using var rejected = await RefreshAsync(login.Cookie);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
+        await using var verification = CreateContext();
+        Assert.Equal(RefreshSessionRevocationReason.Expired,
+            await verification.RefreshSessions.Where(item => item.UserId == login.UserId).Select(item => item.RevocationReason).SingleAsync());
+    }
+
+    [Fact]
     public async Task Database_has_unique_normalized_username_and_email_indexes()
     {
         await using var database = CreateContext();
@@ -307,13 +538,30 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         lastName = "Martin"
     });
 
-    private async Task<string> LoginAsync(string email, string password)
+    private async Task<string> LoginAsync(string email, string password) =>
+        (await LoginWithSessionAsync(email, password, null)).AccessToken;
+
+    private async Task<LoginSessionResult> LoginWithSessionAsync(string email, string password, string? deviceLabel)
     {
-        using var response = await Client.PostAsJsonAsync("/api/auth/login", new { email, password });
+        using var response = await Client.PostAsJsonAsync("/api/auth/login", new { email, password, deviceLabel });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return body.GetProperty("accessToken").GetString() ?? throw new InvalidOperationException("No access token returned.");
+        var accessToken = body.GetProperty("accessToken").GetString() ?? throw new InvalidOperationException("No access token returned.");
+        using var payload = DecodeJwtPayload(accessToken);
+        var userId = payload.RootElement.GetProperty("sub").GetGuid();
+        var setCookie = response.Headers.GetValues("Set-Cookie").Single(value => value.StartsWith("gones_refresh=", StringComparison.Ordinal));
+        return new LoginSessionResult(userId, accessToken, setCookie.Split(';', 2)[0], setCookie);
     }
+
+    private Task<HttpResponseMessage> RefreshAsync(string cookie)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        request.Headers.Add("Cookie", cookie);
+        return Client.SendAsync(request);
+    }
+
+    private static string CookieFrom(HttpResponseMessage response) => response.Headers.GetValues("Set-Cookie")
+        .Single(value => value.StartsWith("gones_refresh=", StringComparison.Ordinal)).Split(';', 2)[0];
 
     private async Task<HttpResponseMessage> SendAuthorizedAsync(HttpMethod method, string path, string token, object? body = null)
     {
@@ -363,6 +611,8 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var options = new DbContextOptionsBuilder<GonesDbContext>().ConfigureGones(postgres.GetConnectionString()).Options;
         return new GonesDbContext(options);
     }
+
+    private sealed record LoginSessionResult(Guid UserId, string AccessToken, string Cookie, string SetCookie);
 
     private static async Task<IReadOnlyList<string>> SqlListAsync(GonesDbContext database, string sql)
     {

@@ -137,6 +137,79 @@
         }
       }
     },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": [
+          "LocalIdentityEndpoints"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "LocalIdentityEndpoints"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/auth/logout-all": {
+      "post": {
+        "tags": [
+          "LocalIdentityEndpoints"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users/me": {
       "get": {
         "tags": [
@@ -202,6 +275,61 @@
           }
         }
       }
+    },
+    "/api/users/me/sessions": {
+      "get": {
+        "tags": [
+          "LocalIdentityEndpoints"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RefreshSessionResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/me/sessions/{id}": {
+      "delete": {
+        "tags": [
+          "LocalIdentityEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -240,7 +368,8 @@
       "LoginRequest": {
         "required": [
           "email",
-          "password"
+          "password",
+          "deviceLabel"
         ],
         "type": "object",
         "properties": {
@@ -253,6 +382,14 @@
             "maxLength": 128,
             "minLength": 0,
             "type": "string"
+          },
+          "deviceLabel": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "rateLimitAccount": {
             "type": [
@@ -373,6 +510,38 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "RefreshSessionResponse": {
+        "required": [
+          "id",
+          "deviceLabel",
+          "createdAt",
+          "lastUsedAt",
+          "idleExpiresAt",
+          "absoluteExpiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceLabel": {
+            "type": "string"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "lastUsedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "idleExpiresAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "absoluteExpiresAt": {
+            "$ref": "#/components/schemas/Instant"
           }
         }
       },

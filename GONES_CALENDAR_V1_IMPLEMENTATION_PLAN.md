@@ -383,14 +383,14 @@ Parallel rules:
 
 **Deps:** C08. **Lane:** B. **Runnable:** hidden auth flow survives access-token expiry securely.
 
-- [ ] RED: tests for 15m access, 7d idle, 30d absolute, rotation, parallel refresh race, replay-family revocation, logout, logout-all, password/security-stamp revocation.
-- [ ] Add hashed refresh-token/session-family records with device label, created/last-used/idle/absolute expiry, revoked/replaced IDs.
-- [ ] Implement `POST /api/auth/refresh`, `/logout`, `/logout-all`; rotate atomically under transaction.
-- [ ] Set refresh cookie `Secure`, `HttpOnly`, `SameSite=Lax`, narrow Path, explicit host/domain strategy; clear exact cookie on logout.
-- [ ] Bind refresh to session/user/security stamp; never store/return plaintext token except cookie issuance.
-- [ ] Add `GET /api/users/me/sessions`, `DELETE /api/users/me/sessions/{id}` without raw token/IP disclosure.
-- [ ] Audit session creation/revocation/replay; emit abuse metric.
-- [ ] GREEN: concurrency/integration tests; `G-FULL`, `G-RUN`; expire test JWT, refresh once, replay old token → family revoked.
+- [x] RED: tests for 15m access, 7d idle, 30d absolute, rotation, parallel refresh race, replay-family revocation, logout, logout-all, password/security-stamp revocation.
+- [x] Add hashed refresh-token/session-family records with device label, created/last-used/idle/absolute expiry, revoked/replaced IDs.
+- [x] Implement `POST /api/auth/refresh`, `/logout`, `/logout-all`; rotate atomically under transaction.
+- [x] Set refresh cookie `Secure`, `HttpOnly`, `SameSite=Lax`, narrow Path, explicit host/domain strategy; clear exact cookie on logout.
+- [x] Bind refresh to session/user/security stamp; never store/return plaintext token except cookie issuance.
+- [x] Add `GET /api/users/me/sessions`, `DELETE /api/users/me/sessions/{id}` without raw token/IP disclosure.
+- [x] Audit session creation/revocation/replay; emit abuse metric.
+- [x] GREEN: concurrency/integration tests; `G-FULL`, `G-RUN`; expire test JWT, refresh once, replay old token → family revoked.
 
 ## C10 — `feat: implement email verification recovery and email change`
 

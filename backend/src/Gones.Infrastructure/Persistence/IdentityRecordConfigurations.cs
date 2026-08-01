@@ -14,6 +14,32 @@ internal sealed class ApplicationUserConfiguration : IEntityTypeConfiguration<Ap
     }
 }
 
+internal sealed class RefreshSessionConfiguration : VersionedEntityConfiguration<RefreshSession>
+{
+    public override void Configure(EntityTypeBuilder<RefreshSession> builder)
+    {
+        base.Configure(builder);
+        builder.Property(session => session.SecurityStamp).HasMaxLength(256);
+        builder.Property(session => session.DeviceLabel).HasMaxLength(RefreshSession.MaximumDeviceLabelLength);
+        builder.Property(session => session.RevocationReason).HasConversion<string>().HasMaxLength(40);
+        builder.HasIndex(session => new { session.UserId, session.RevokedAt });
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(session => session.UserId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class RefreshTokenConfiguration : VersionedEntityConfiguration<RefreshToken>
+{
+    public override void Configure(EntityTypeBuilder<RefreshToken> builder)
+    {
+        base.Configure(builder);
+        builder.Property(token => token.TokenHash).HasMaxLength(64).IsFixedLength();
+        builder.HasIndex(token => token.TokenHash).IsUnique();
+        builder.HasIndex(token => token.SessionId);
+        builder.HasOne<RefreshSession>().WithMany().HasForeignKey(token => token.SessionId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<RefreshToken>().WithOne().HasForeignKey<RefreshToken>(token => token.ReplacedById).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 internal sealed class UserProfileConfiguration : VersionedEntityConfiguration<UserProfile>
 {
     public override void Configure(EntityTypeBuilder<UserProfile> builder)

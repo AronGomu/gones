@@ -17,6 +17,8 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<NotificationOutboxRecord> NotificationOutboxRecords => Set<NotificationOutboxRecord>();
     public DbSet<WorkerHeartbeatRecord> WorkerHeartbeats => Set<WorkerHeartbeatRecord>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

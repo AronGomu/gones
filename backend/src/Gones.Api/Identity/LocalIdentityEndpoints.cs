@@ -39,6 +39,16 @@ internal static class LocalIdentityEndpoints
             .Produces<AccessTokenResponse>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        auth.MapPost("/refresh", RefreshAsync)
+            .RequireRateLimiting(AuthRateLimiting.IpPolicy)
+            .Produces<AccessTokenResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        auth.MapPost("/logout", LogoutAsync).Produces(StatusCodes.Status204NoContent);
+        auth.MapPost("/logout-all", LogoutAllAsync)
+            .RequireAuthorization(AuthorizationPolicies.User)
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         var users = app.MapGroup("/api/users").RequireAuthorization(AuthorizationPolicies.User);
         users.MapGet("/me", GetProfileAsync).Produces<UserProfileResponse>();
@@ -47,6 +57,10 @@ internal static class LocalIdentityEndpoints
             .Produces<UserProfileResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
+        users.MapGet("/me/sessions", GetSessionsAsync).Produces<IReadOnlyList<RefreshSessionResponse>>();
+        users.MapDelete("/me/sessions/{id:guid}", DeleteSessionAsync)
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     private static async Task<IResult> RegisterAsync(
@@ -109,8 +123,10 @@ internal static class LocalIdentityEndpoints
 
     private static async Task<IResult> LoginAsync(
         LoginRequest request,
+        HttpContext httpContext,
         UserManager<ApplicationUser> userManager,
         GonesDbContext database,
+        RefreshSessionService sessionService,
         AccessTokenIssuer tokenIssuer,
         IClock clock,
         OperationalMetrics metrics,
@@ -139,10 +155,51 @@ internal static class LocalIdentityEndpoints
 
         var reset = await userManager.ResetAccessFailedCountAsync(user!);
         if (!reset.Succeeded) throw new InvalidOperationException("Failed access count could not be reset.");
-        await WriteAuditAsync(database, user!.Id, "auth.login.succeeded", "user", "{\"outcome\":\"succeeded\"}", clock, cancellationToken);
+        var issuedSession = await sessionService.CreateAsync(user!, NormalizeDeviceLabel(request.DeviceLabel), cancellationToken);
         metrics.RecordAuthSuccess("login");
-        var token = tokenIssuer.Issue(user);
+        var token = tokenIssuer.Issue(user!);
+        RefreshCookie.Issue(httpContext.Response, issuedSession.PlaintextToken, issuedSession.Session.AbsoluteExpiresAt, clock.GetCurrentInstant());
         return Results.Ok(new AccessTokenResponse(token.Value, token.ExpiresAt, "Bearer"));
+    }
+
+    private static async Task<IResult> RefreshAsync(
+        HttpContext httpContext,
+        RefreshSessionService sessionService,
+        AccessTokenIssuer tokenIssuer,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var attempt = await sessionService.RotateAsync(httpContext.Request.Cookies[RefreshCookie.Name], cancellationToken);
+        if (!attempt.IsSuccess)
+        {
+            RefreshCookie.Clear(httpContext.Response);
+            throw new AuthenticationFailedException();
+        }
+
+        var token = tokenIssuer.Issue(attempt.User!);
+        RefreshCookie.Issue(httpContext.Response, attempt.PlaintextToken!, attempt.Session!.AbsoluteExpiresAt, clock.GetCurrentInstant());
+        return Results.Ok(new AccessTokenResponse(token.Value, token.ExpiresAt, "Bearer"));
+    }
+
+    private static async Task<IResult> LogoutAsync(
+        HttpContext httpContext,
+        RefreshSessionService sessionService,
+        CancellationToken cancellationToken)
+    {
+        await sessionService.RevokeCurrentAsync(httpContext.Request.Cookies[RefreshCookie.Name], cancellationToken);
+        RefreshCookie.Clear(httpContext.Response);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> LogoutAllAsync(
+        HttpContext httpContext,
+        ClaimsPrincipal principal,
+        RefreshSessionService sessionService,
+        CancellationToken cancellationToken)
+    {
+        await sessionService.RevokeAllAsync(CurrentUserId(principal), cancellationToken);
+        RefreshCookie.Clear(httpContext.Response);
+        return Results.NoContent();
     }
 
     private static async Task RejectLoginAsync(
@@ -170,6 +227,34 @@ internal static class LocalIdentityEndpoints
         var profile = await database.UserProfiles.AsNoTracking().SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         return Results.Ok(ToResponse(user, profile));
+    }
+
+    private static async Task<IResult> GetSessionsAsync(
+        ClaimsPrincipal principal,
+        UserManager<ApplicationUser> userManager,
+        RefreshSessionService sessionService,
+        CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId(principal);
+        var user = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
+        var sessions = await sessionService.ListAsync(userId, user.SecurityStamp ?? string.Empty, cancellationToken);
+        return Results.Ok(sessions.Select(session => new RefreshSessionResponse(
+            session.Id,
+            session.DeviceLabel,
+            session.CreatedAt,
+            session.LastUsedAt,
+            session.IdleExpiresAt,
+            session.AbsoluteExpiresAt)));
+    }
+
+    private static async Task<IResult> DeleteSessionAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        RefreshSessionService sessionService,
+        CancellationToken cancellationToken)
+    {
+        if (!await sessionService.RevokeAsync(CurrentUserId(principal), id, cancellationToken)) throw new ResourceNotFoundException();
+        return Results.NoContent();
     }
 
     private static async Task<IResult> PatchProfileAsync(
@@ -311,6 +396,8 @@ internal static class LocalIdentityEndpoints
         await database.SaveChangesAsync(cancellationToken);
     }
 
+    private static string NormalizeDeviceLabel(string? value) => string.IsNullOrWhiteSpace(value) ? "Unknown device" : value.Trim();
+
     private static ApiValidationException IdentityValidation(IEnumerable<IdentityError> errors)
     {
         var messages = errors.Select(error => error.Description).Distinct(StringComparer.Ordinal).ToArray();
@@ -333,7 +420,8 @@ internal sealed record RegisterRequest(
 
 internal sealed record LoginRequest(
     [property: Required, EmailAddress, StringLength(254)] string Email,
-    [property: Required, StringLength(128)] string Password) : IAuthRateLimitRequest
+    [property: Required, StringLength(128)] string Password,
+    [property: StringLength(RefreshSession.MaximumDeviceLabelLength)] string? DeviceLabel) : IAuthRateLimitRequest
 {
     public string RateLimitAccount => Email;
 }
@@ -371,3 +459,11 @@ internal sealed record UserProfileResponse(
     Instant UpdatedAt);
 
 internal sealed record AccessTokenResponse(string AccessToken, Instant ExpiresAt, string TokenType);
+
+internal sealed record RefreshSessionResponse(
+    Guid Id,
+    string DeviceLabel,
+    Instant CreatedAt,
+    Instant LastUsedAt,
+    Instant IdleExpiresAt,
+    Instant AbsoluteExpiresAt);
