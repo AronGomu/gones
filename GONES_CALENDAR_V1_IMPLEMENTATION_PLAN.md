@@ -422,14 +422,14 @@ Parallel rules:
 
 **Deps:** C04, C05, C10, C11. **Lane:** B/E. **Runnable:** `authV1` enables complete login/register/profile UI; disabled path unchanged.
 
-- [ ] RED: Angular tests for in-memory token, one-flight refresh, failed refresh logout, route guards, verified-email registration gate, Problem Details mapping.
-- [ ] Implement `AuthService`, app bootstrap refresh, access-token interceptor, 401 single refresh+single replay, no local/session-storage token.
-- [ ] Add `/login`, `/register`, `/auth/complete-profile`, `/verify-email`, `/forgot-password`, `/reset-password`, `/profile`, `/profile/sessions`.
-- [ ] Add Google/Facebook buttons, explicit-link account settings, logout/logout-all/session revoke.
-- [ ] Add permanent unverified-email banner + resend state. Forms expose field errors, pending lock, retry, generic auth failures.
-- [ ] Add profile/privacy/birth-year/language controls; all optional-public toggles default off; email change explains re-verification.
-- [ ] Add User/Organizer/Admin guards as UX only; server remains authority. Add EN/FR strings + mobile/a11y assertions.
-- [ ] GREEN: service tests + Cypress local auth/profile/session flows; `G-FULL`, `G-RUN` with `authV1=true`.
+- [x] RED: Angular tests for in-memory token, one-flight refresh, failed refresh logout, route guards, verified-email registration gate, Problem Details mapping.
+- [x] Implement `AuthService`, app bootstrap refresh, access-token interceptor, 401 single refresh+single replay, no local/session-storage token.
+- [x] Add `/login`, `/register`, `/auth/complete-profile`, `/verify-email`, `/forgot-password`, `/reset-password`, `/profile`, `/profile/sessions`.
+- [x] Add Google/Facebook buttons, explicit-link account settings, logout/logout-all/session revoke.
+- [x] Add permanent unverified-email banner + resend state. Forms expose field errors, pending lock, retry, generic auth failures.
+- [x] Add profile/privacy/birth-year/language controls; all optional-public toggles default off; email change explains re-verification.
+- [x] Add User/Organizer/Admin guards as UX only; server remains authority. Add EN/FR strings + mobile/a11y assertions.
+- [x] GREEN: service tests + Cypress local auth/profile/session flows; `G-FULL`, `G-RUN` with `authV1=true`.
 
 ## C13 — `feat: add Admin bootstrap global roles and reference catalogs`
 

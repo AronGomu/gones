@@ -65,6 +65,66 @@ public sealed class OAuthApiTests : IAsyncLifetime
         Assert.Equal("invalid_oauth_state", await ProblemCodeAsync(replay));
     }
 
+    [Fact]
+    public async Task Browser_callback_redirects_to_fixed_profile_path_with_fresh_session()
+    {
+        var started = await StartAsync("google", "complete", NewSubject(), $"browser-{Guid.NewGuid():N}@example.test");
+
+        using var callback = await SendNavigationWithCookieAsync(started.CallbackPath, started.Cookie);
+
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        Assert.Equal("https://app.example/profile", callback.Headers.Location?.ToString());
+        Assert.DoesNotContain("accessToken", callback.Headers.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
+        using var refreshed = await RefreshAsync(CookieFrom(callback, "gones_refresh"));
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+    }
+
+    [Fact]
+    public async Task Browser_incomplete_callback_redirects_with_only_opaque_completion_ticket()
+    {
+        var email = $"browser-incomplete-{Guid.NewGuid():N}@example.test";
+        var started = await StartAsync("facebook", "incomplete", NewSubject(), email);
+
+        using var callback = await SendNavigationWithCookieAsync(started.CallbackPath, started.Cookie, addHostileRedirectHeaders: true);
+
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        var location = Assert.IsType<Uri>(callback.Headers.Location);
+        Assert.Equal("app.example", location.Host);
+        Assert.Equal("/auth/complete-profile", location.AbsolutePath);
+        var query = System.Web.HttpUtility.ParseQueryString(location.Query);
+        Assert.False(string.IsNullOrWhiteSpace(query["ticket"]));
+        Assert.Single(query.AllKeys);
+        Assert.DoesNotContain(email, location.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("facebook", location.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("accessToken", location.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("http://app.example")]
+    [InlineData("https://app.example/path")]
+    public async Task Missing_or_invalid_public_origin_fails_closed(string? publicOrigin)
+    {
+        await using var invalidFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("GONES_DB_CONNECTION", postgres.GetConnectionString());
+            builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
+            builder.UseSetting("GONES_FEATURES:AUTH_V1", "true");
+            builder.UseSetting("GONES_AUTH_PROVIDER", "Fake");
+            builder.UseSetting("GONES_AUTH_SIGNING_KEY", SigningKey);
+            builder.UseSetting("GONES_OAUTH_CALLBACK_ORIGIN", "https://oauth.example");
+            if (publicOrigin is not null) builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", publicOrigin);
+        });
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(async () =>
+        {
+            using var invalidClient = invalidFactory.CreateClient();
+            using var response = await invalidClient.GetAsync("/health/live");
+        });
+        Assert.Contains("GONES_PUBLIC_APP_ORIGIN must be an HTTPS origin", exception.ToString(), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("google")]
     [InlineData("facebook")]
@@ -196,6 +256,28 @@ public sealed class OAuthApiTests : IAsyncLifetime
             Assert.DoesNotContain(email, audit, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("token", audit, StringComparison.OrdinalIgnoreCase);
         });
+    }
+
+    [Fact]
+    public async Task Browser_link_callback_redirects_to_profile_with_replacement_session()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"browser-link-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Browser{suffix[..8]}");
+        var login = await LoginAsync(email);
+        using var linkStart = await SendAuthorizedFakeAsync(HttpMethod.Post, "/api/users/me/external-identities/google/start", login.AccessToken,
+            new { currentPassword = "valid-password-value" }, "complete", $"browser-linked-{suffix}", email);
+        var startBody = await linkStart.Content.ReadFromJsonAsync<JsonElement>();
+        var callbackPath = await AuthorizeAsync(new Uri(startBody.GetProperty("authorizationUrl").GetString()!));
+
+        using var linked = await SendNavigationWithCookieAsync(callbackPath, CookieFrom(linkStart));
+
+        Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
+        Assert.Equal("https://app.example/profile", linked.Headers.Location?.ToString());
+        using var oldRefresh = await RefreshAsync(login.Cookie);
+        using var replacementRefresh = await RefreshAsync(CookieFrom(linked, "gones_refresh"));
+        Assert.Equal(HttpStatusCode.Unauthorized, oldRefresh.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, replacementRefresh.StatusCode);
     }
 
     [Fact]
@@ -335,7 +417,28 @@ public sealed class OAuthApiTests : IAsyncLifetime
         return await Client.SendAsync(request);
     }
 
-    private static string CookieFrom(HttpResponseMessage response) => response.Headers.GetValues("Set-Cookie").Single().Split(';', 2)[0];
+    private async Task<HttpResponseMessage> SendNavigationWithCookieAsync(string path, string cookie, bool addHostileRedirectHeaders = false)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.Add("Cookie", cookie);
+        request.Headers.Add("Sec-Fetch-Mode", "navigate");
+        request.Headers.Add("Sec-Fetch-Dest", "document");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/html"));
+        if (addHostileRedirectHeaders)
+        {
+            request.Headers.Referrer = new Uri("https://evil.example/redirect");
+            request.Headers.Add("Origin", "https://evil.example");
+            request.Headers.Add("X-Forwarded-Host", "evil.example");
+        }
+        return await Client.SendAsync(request);
+    }
+
+    private static string CookieFrom(HttpResponseMessage response, string? name = null)
+    {
+        var values = response.Headers.GetValues("Set-Cookie");
+        var value = name is null ? values.Single() : values.Single(item => item.StartsWith($"{name}=", StringComparison.Ordinal));
+        return value.Split(';', 2)[0];
+    }
 
     private async Task<string> LatestOAuthVerificationTokenAsync(string recipient)
     {

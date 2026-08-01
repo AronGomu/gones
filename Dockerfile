@@ -4,14 +4,22 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM dependencies AS development
+ARG GONES_FRONTEND_AUTH_V1=false
+ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
 COPY --chown=node:node . .
+RUN sed -i "s/authV1: false/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.ts \
+    && sed -i "s|apiBaseUrl: ''|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.ts
 USER node
 EXPOSE 4200
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 FROM dependencies AS build
+ARG GONES_FRONTEND_AUTH_V1=false
+ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
 COPY . .
-RUN npm run build
+RUN sed -i "s/authV1: false/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.prod.ts \
+    && sed -i "s|apiBaseUrl: ''|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.prod.ts \
+    && npm run build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS release
 RUN rm -rf /etc/nginx/templates

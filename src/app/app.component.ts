@@ -16,6 +16,7 @@ import { DeckArchetypeSettingsService, parseAppSettings } from './shared/deck-ar
 import { I18nService } from './i18n/i18n.service';
 import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
+import { AuthService } from './auth/auth.service';
 
 interface BreadcrumbItem {
   label: string;
@@ -37,6 +38,16 @@ interface HeaderTournament {
       <mat-toolbar class="app-toolbar">
         <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')"><img src="assets/gones_logo.png" alt="Gones"></a>
         <span class="spacer"></span>
+        @if (auth.enabled) {
+          <div class="auth-toolbar-actions">
+            @if (auth.profile(); as profile) {
+              <a mat-stroked-button routerLink="/profile" data-cy="profile-link">{{ profile.username }}</a>
+              <button mat-button type="button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
+            } @else {
+              <a mat-stroked-button routerLink="/login" data-cy="login-link">{{ i18n.t('auth.signIn') }}</a>
+            }
+          </div>
+        }
         @if (showLiveTournamentActions()) {
           <div class="header-actions live-tournament-header-actions">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="live-tournament-advanced-settings-button" (click)="openLiveTournamentAdvancedSettings()">{{ i18n.t('header.advancedSettings') }}</button>
@@ -82,6 +93,13 @@ interface HeaderTournament {
         </ol>
       </nav>
     }
+    @if (auth.enabled && auth.profile() && !auth.profile()!.emailVerified) {
+      <aside class="warning app-banner verification-banner" role="status" aria-live="polite" data-cy="unverified-banner">
+        <span>{{ i18n.t('auth.unverifiedBanner') }}</span>
+        <button mat-stroked-button type="button" [disabled]="resendPending()" (click)="resendBanner()">{{ resendPending() ? i18n.t('auth.resending') : i18n.t('auth.resendVerification') }}</button>
+        @if (resendStatus()) { <span>{{ resendStatus() }}</span> }
+      </aside>
+    }
     @if (importError()) { <p class="error app-banner" role="alert">{{ importError() }}</p> }
     @if (settingsMessage()) { <p class="settings-saved app-banner" role="status">{{ settingsMessage() }}</p> }
     <main class="app-main"><router-outlet /></main>
@@ -94,6 +112,7 @@ export class AppComponent {
 
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
+  readonly auth = inject(AuthService);
   private readonly repo = inject(LeagueRepository);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly calendarRepo = inject(CalendarEventRepository);
@@ -106,6 +125,8 @@ export class AppComponent {
   readonly deletingTournament = signal(false);
   readonly importError = signal('');
   readonly settingsMessage = signal('');
+  readonly resendPending = signal(false);
+  readonly resendStatus = signal('');
   readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
@@ -142,6 +163,25 @@ export class AppComponent {
 
   openLiveTournamentAdvancedSettings(): void {
     window.dispatchEvent(new CustomEvent('gones-open-live-tournament-advanced-settings'));
+  }
+
+  async logout(): Promise<void> {
+    await this.auth.logout();
+    await this.router.navigate(['/login']);
+  }
+
+  async resendBanner(): Promise<void> {
+    const email = this.auth.profile()?.email;
+    if (!email || this.resendPending()) return;
+    this.resendPending.set(true);
+    try {
+      await this.auth.resendVerification({ email });
+      this.resendStatus.set(this.i18n.t('auth.resendStatus'));
+    } catch {
+      this.resendStatus.set(this.i18n.t('auth.genericError'));
+    } finally {
+      this.resendPending.set(false);
+    }
   }
 
   private handleLiveTournamentUpdated(event: Event): void {
@@ -184,6 +224,7 @@ export class AppComponent {
       return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: eventPage?.title || this.i18n.t('crumb.event') }];
     }
     if (segments[0] === 'settings') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.settings') }];
+    if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth', 'profile'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('auth.account') }];
     if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.player') }];
     if (segments[0] === 'live-tournaments') {
       if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.runningTournaments') }];

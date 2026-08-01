@@ -105,11 +105,21 @@ internal static class ExternalOAuthEndpoints
         ExternalOAuthService service,
         AccessTokenIssuer tokenIssuer,
         RefreshSessionService sessions,
+        AccountLifecycleOptions lifecycleOptions,
         CancellationToken cancellationToken)
     {
         provider = NormalizeProvider(provider);
         var result = await service.CallbackAsync(provider, state, OAuthCorrelationCookie.Read(context.Request), code, cancellationToken);
         OAuthCorrelationCookie.Clear(context.Response);
+        if (IsBrowserNavigation(context.Request))
+        {
+            if (result.User is not null)
+            {
+                await IssueBrowserSessionAsync(result.User, result.DeviceLabel, context, sessions, cancellationToken);
+                return Results.Redirect(AppUri(lifecycleOptions.PublicOrigin, "/profile").ToString());
+            }
+            return Results.Redirect(AppUri(lifecycleOptions.PublicOrigin, "/auth/complete-profile", "ticket", result.CompletionTicket!).ToString());
+        }
         if (result.Linked) return Results.NoContent();
         if (result.User is not null) return await AuthenticatedAsync(result.User, result.DeviceLabel, context, sessions, tokenIssuer, cancellationToken);
         return Results.Ok(new OAuthFlowResponse(
@@ -160,11 +170,31 @@ internal static class ExternalOAuthEndpoints
         AccessTokenIssuer tokenIssuer,
         CancellationToken cancellationToken)
     {
-        var session = await sessions.CreateAsync(user, NormalizeDeviceLabel(deviceLabel), cancellationToken);
+        await IssueBrowserSessionAsync(user, deviceLabel, context, sessions, cancellationToken);
         var token = tokenIssuer.Issue(user);
-        RefreshCookie.Issue(context.Response, session.PlaintextToken, session.Session.AbsoluteExpiresAt, SystemClock.Instance.GetCurrentInstant());
         return Results.Ok(new OAuthFlowResponse("authenticated", token.Value, token.ExpiresAt, "Bearer", null, null, false, null, null));
     }
+
+    private static async Task IssueBrowserSessionAsync(
+        ApplicationUser user,
+        string? deviceLabel,
+        HttpContext context,
+        RefreshSessionService sessions,
+        CancellationToken cancellationToken)
+    {
+        var session = await sessions.CreateAsync(user, NormalizeDeviceLabel(deviceLabel), cancellationToken);
+        RefreshCookie.Issue(context.Response, session.PlaintextToken, session.Session.AbsoluteExpiresAt, SystemClock.Instance.GetCurrentInstant());
+    }
+
+    private static bool IsBrowserNavigation(HttpRequest request) =>
+        request.Headers["Sec-Fetch-Mode"].Any(value => string.Equals(value, "navigate", StringComparison.OrdinalIgnoreCase))
+        && request.Headers["Sec-Fetch-Dest"].Any(value => string.Equals(value, "document", StringComparison.OrdinalIgnoreCase))
+        && request.GetTypedHeaders().Accept?.Any(value => value is not null && string.Equals(value.MediaType.ToString(), "text/html", StringComparison.OrdinalIgnoreCase)) == true;
+
+    private static Uri AppUri(Uri origin, string path) => new(origin, path);
+
+    private static Uri AppUri(Uri origin, string path, string queryName, string queryValue) =>
+        new(QueryHelpers.AddQueryString(new Uri(origin, path).ToString(), queryName, queryValue));
 
     private static async Task<IResult> ListAsync(
         ClaimsPrincipal principal,
@@ -306,6 +336,7 @@ internal sealed class ExternalOAuthService(
         {
             if (existingIdentity is not null) throw new ResourceConflictException();
             var userId = attempt.UserId!.Value;
+            var user = await database.Users.SingleAsync(item => item.Id == userId, cancellationToken);
             if (await database.ExternalIdentities.AnyAsync(item => item.UserId == userId && item.Provider == provider, cancellationToken)) throw new ResourceConflictException();
             database.ExternalIdentities.Add(ExternalIdentity.Create(userId, provider, profile.Subject, profile.Email, profile.EmailVerified, now));
             database.OAuthAttempts.Remove(attempt);
@@ -314,7 +345,7 @@ internal sealed class ExternalOAuthService(
             try { await database.SaveChangesAsync(cancellationToken); }
             catch (DbUpdateException) { throw new ResourceConflictException(); }
             await transaction.CommitAsync(cancellationToken);
-            return OAuthCallbackResult.LinkedIdentity;
+            return OAuthCallbackResult.LinkedIdentity(user);
         }
 
         if (existingIdentity is not null)
@@ -575,7 +606,7 @@ internal sealed record OAuthCallbackResult(
     string? LastName,
     string? DeviceLabel)
 {
-    public static OAuthCallbackResult LinkedIdentity { get; } = new(true, null, null, null, false, null, null, null);
+    public static OAuthCallbackResult LinkedIdentity(ApplicationUser user) => new(true, user, null, null, false, null, null, null);
     public static OAuthCallbackResult Authenticated(ApplicationUser user) => new(false, user, null, null, false, null, null, null);
     public static OAuthCallbackResult Completion(string ticket, ExternalProviderProfile profile) =>
         new(false, null, ticket, profile.Email, profile.EmailVerified, profile.FirstName, profile.LastName, null);

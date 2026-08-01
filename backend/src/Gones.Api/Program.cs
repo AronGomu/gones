@@ -65,8 +65,9 @@ else
         builder.Services.AddScoped<AccountLifecycleService>();
         builder.Services.AddScoped<AccessTokenIssuer>();
         builder.Services.AddScoped<RefreshSessionService>();
-        var authRateLimit = builder.Environment.IsEnvironment("Testing")
-            ? builder.Configuration.GetValue<int?>("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT") ?? AuthRateLimiting.PermitLimit
+        var configuredAuthRateLimit = builder.Configuration["GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT"];
+        var authRateLimit = int.TryParse(configuredAuthRateLimit, out var parsedAuthRateLimit) && parsedAuthRateLimit > 0
+            ? parsedAuthRateLimit
             : AuthRateLimiting.PermitLimit;
         builder.Services.AddGonesAuthRateLimiting(authRateLimit);
     }

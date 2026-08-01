@@ -19,7 +19,8 @@ internal sealed record AccountLifecycleOptions(Uri PublicOrigin)
             || origin.Scheme != Uri.UriSchemeHttps
             || !string.IsNullOrEmpty(origin.UserInfo)
             || !string.IsNullOrEmpty(origin.Query)
-            || !string.IsNullOrEmpty(origin.Fragment))
+            || !string.IsNullOrEmpty(origin.Fragment)
+            || origin.AbsolutePath != "/")
         {
             throw new InvalidOperationException("GONES_PUBLIC_APP_ORIGIN must be an HTTPS origin.");
         }
