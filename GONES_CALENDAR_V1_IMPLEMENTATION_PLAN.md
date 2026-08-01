@@ -277,68 +277,68 @@ Parallel rules:
 
 **Deps:** none. **Lane:** A. **Runnable:** current Angular app unchanged; API/Worker/CLI skeletons compile.
 
-- [ ] RED: add architecture/smoke tests expecting `Gones.Api`, `Gones.Worker`, `Gones.Migrator` entrypoints + `/health/live` 200.
-- [ ] Add `backend/Gones.sln`, projects: `Gones.Api`, `Gones.Application`, `Gones.Domain`, `Gones.Infrastructure`, `Gones.Worker`, `Gones.Migrator`.
-- [ ] Add test projects: `Gones.UnitTests`, `Gones.IntegrationTests`, `Gones.ArchitectureTests`.
-- [ ] Install/configure Angular ESLint; make `lint` real lint, add separate `typecheck`; fail on generated/source lint errors.
-- [ ] Pin .NET SDK via `global.json`; centralize nullable, warnings-as-errors, analyzers, package versions.
-- [ ] Enforce dependency direction: Domain → none; Application → Domain; Infrastructure → Application/Domain; hosts → Application/Infrastructure.
-- [ ] Implement liveness endpoint with no DB dependency; Worker/CLI `--help` exit 0.
-- [ ] Add `npm` wrappers for backend build/test without changing current FE runtime.
-- [ ] GREEN: run architecture/smoke tests, then `G-FE`; start Angular + API and verify both respond.
+- [x] RED: add architecture/smoke tests expecting `Gones.Api`, `Gones.Worker`, `Gones.Migrator` entrypoints + `/health/live` 200.
+- [x] Add `backend/Gones.sln`, projects: `Gones.Api`, `Gones.Application`, `Gones.Domain`, `Gones.Infrastructure`, `Gones.Worker`, `Gones.Migrator`.
+- [x] Add test projects: `Gones.UnitTests`, `Gones.IntegrationTests`, `Gones.ArchitectureTests`.
+- [x] Install/configure Angular ESLint; make `lint` real lint, add separate `typecheck`; fail on generated/source lint errors.
+- [x] Pin .NET SDK via `global.json`; centralize nullable, warnings-as-errors, analyzers, package versions.
+- [x] Enforce dependency direction: Domain → none; Application → Domain; Infrastructure → Application/Domain; hosts → Application/Infrastructure.
+- [x] Implement liveness endpoint with no DB dependency; Worker/CLI `--help` exit 0.
+- [x] Add `npm` wrappers for backend build/test without changing current FE runtime.
+- [x] GREEN: run architecture/smoke tests, then `G-FE`; start Angular + API and verify both respond.
 
 ## C02 — `feat: add PostgreSQL persistence kernel`
 
 **Deps:** C01. **Lane:** A. **Runnable:** Angular local mode; DB tests use PostgreSQL Testcontainers; API runs against one-off local PostgreSQL.
 
-- [ ] RED: Testcontainer tests for migration-from-empty, UUID key, UTC clock, transaction rollback, optimistic version increment.
-- [ ] Add Npgsql/EF Core + NodaTime packages after license/advisory review; record decision in dependency ledger.
-- [ ] Implement `GonesDbContext`, snake_case naming, `IClock`, UTC/NodaTime mappings, assembly-scanned entity configs.
-- [ ] Add shared persistence records: schema version, idempotency record, audit record, outbox record; feature entities arrive later.
-- [ ] Add bigint `Version` concurrency convention + strong ETag encode/decode helper. Use UUID PKs except legacy aggregate envelopes, which use UUID surrogate PK + unique string Document ID.
-- [ ] Create initial EF migration; verify migrate, rollback, migrate cycle against PostgreSQL.
-- [ ] Add `/health/ready` DB check while `/health/live` stays DB-independent.
-- [ ] GREEN: targeted integration tests; `G-FE` + `G-BE`; run API against local PostgreSQL.
+- [x] RED: Testcontainer tests for migration-from-empty, UUID key, UTC clock, transaction rollback, optimistic version increment.
+- [x] Add Npgsql/EF Core + NodaTime packages after license/advisory review; record decision in dependency ledger.
+- [x] Implement `GonesDbContext`, snake_case naming, `IClock`, UTC/NodaTime mappings, assembly-scanned entity configs.
+- [x] Add shared persistence records: schema version, idempotency record, audit record, outbox record; feature entities arrive later.
+- [x] Add bigint `Version` concurrency convention + strong ETag encode/decode helper. Use UUID PKs except legacy aggregate envelopes, which use UUID surrogate PK + unique string Document ID.
+- [x] Create initial EF migration; verify migrate, rollback, migrate cycle against PostgreSQL.
+- [x] Add `/health/ready` DB check while `/health/live` stays DB-independent.
+- [x] GREEN: targeted integration tests; `G-FE` + `G-BE`; run API against local PostgreSQL.
 
 ## C03 — `feat: standardize API validation authorization and failures`
 
 **Deps:** C02. **Lane:** A. **Runnable:** API exposes documented failure/security behavior; no feature routes yet.
 
-- [ ] RED: API tests for malformed JSON, validation failure, missing auth 401, wrong role 403, missing resource 404, stale ETag 412, conflict 409, correlation ID.
-- [ ] Implement RFC 7807 Problem Details with stable `code`, safe `message`, validation field map, trace ID; never leak exception/SQL.
-- [ ] Add endpoint-filter validation, cancellation propagation, request-size caps, JSON limits, UTC serialization.
-- [ ] Add auth policy names for User, global Organizer, Admin, org member, org Owner; handlers initially deny without claims.
-- [ ] Add exact-origin credentialed CORS config; reject wildcard+credentials.
-- [ ] Add secure headers/API cache defaults; protect Swagger outside Development via Admin policy/config.
-- [ ] Add structured boundary logging with PII redaction tests.
-- [ ] Enforce append-only audit twice: EF change guard + PostgreSQL app-role/trigger denial for `UPDATE`/`DELETE`; migration role alone owns schema. Add raw-SQL rejection tests.
-- [ ] GREEN: API contract tests; `G-FE` + `G-BE`; smoke `/health/live`, Problem Details, Swagger Development path.
+- [x] RED: API tests for malformed JSON, validation failure, missing auth 401, wrong role 403, missing resource 404, stale ETag 412, conflict 409, correlation ID.
+- [x] Implement RFC 7807 Problem Details with stable `code`, safe `message`, validation field map, trace ID; never leak exception/SQL.
+- [x] Add endpoint-filter validation, cancellation propagation, request-size caps, JSON limits, UTC serialization.
+- [x] Add auth policy names for User, global Organizer, Admin, org member, org Owner; handlers initially deny without claims.
+- [x] Add exact-origin credentialed CORS config; reject wildcard+credentials.
+- [x] Add secure headers/API cache defaults; protect Swagger outside Development via Admin policy/config.
+- [x] Add structured boundary logging with PII redaction tests.
+- [x] Enforce append-only audit twice: EF change guard + PostgreSQL app-role/trigger denial for `UPDATE`/`DELETE`; migration role alone owns schema. Add raw-SQL rejection tests.
+- [x] GREEN: API contract tests; `G-FE` + `G-BE`; smoke `/health/live`, Problem Details, Swagger Development path.
 
 ## C04 — `chore: generate Angular REST client from OpenAPI`
 
 **Deps:** C03. **Lane:** A. **Runnable:** Angular remains local adapter; generated client compiles unused.
 
-- [ ] RED: add CI test failing when generated client differs from committed OpenAPI artifact.
-- [ ] Pin OpenAPI/NSwag tools; generate deterministic `backend/openapi/gones.json` from API.
-- [ ] Generate Angular HttpClient DTO/client under `src/app/api/generated/`; mark generated code read-only.
-- [ ] Add `npm run api:generate` + `api:check`; normalize timestamps/newlines for stable output.
-- [ ] Add hand-written API boundary layer for base URL, credentials, access token, ETag, Idempotency-Key, Problem Details mapping.
-- [ ] Add unit tests for URL join, cookie credentials, JWT header omission/presence, ETag forwarding, generated-client compile.
-- [ ] Document producer-first contract workflow: endpoint test → OpenAPI → generated client → adapter test.
-- [ ] GREEN: `G-CONTRACT`, `G-FE`, `G-BE`; Angular starts unchanged.
+- [x] RED: add CI test failing when generated client differs from committed OpenAPI artifact.
+- [x] Pin OpenAPI/NSwag tools; generate deterministic `backend/openapi/gones.json` from API.
+- [x] Generate Angular HttpClient DTO/client under `src/app/api/generated/`; mark generated code read-only.
+- [x] Add `npm run api:generate` + `api:check`; normalize timestamps/newlines for stable output.
+- [x] Add hand-written API boundary layer for base URL, credentials, access token, ETag, Idempotency-Key, Problem Details mapping.
+- [x] Add unit tests for URL join, cookie credentials, JWT header omission/presence, ETag forwarding, generated-client compile.
+- [x] Document producer-first contract workflow: endpoint test → OpenAPI → generated client → adapter test.
+- [x] GREEN: `G-CONTRACT`, `G-FE`, `G-BE`; Angular starts unchanged.
 
 ## C05 — `chore: add full-stack Compose feature flags and CI`
 
 **Deps:** C02, C04. **Lane:** A. **Runnable:** one command starts FE/API/Worker/PostgreSQL; server feature flags off by default.
 
-- [ ] RED: smoke script expects FE, API liveness/readiness, Worker heartbeat, PostgreSQL migration completion.
-- [ ] Add multi-stage API/Worker/Migrator Dockerfiles, non-root users, read-only runtime FS where possible, health checks.
-- [ ] Add `compose.yaml` with PostgreSQL, one-shot Migrator, API, Worker, Angular development/release profiles; no committed secrets.
-- [ ] Add typed vendor-neutral config validation. Missing required runtime secret/provider/origin fails startup; safe local fake-provider defaults only.
-- [ ] Add build + runtime flags: `apiBackend`, `calendarV1`, `authV1`, `leagueServer`, `liveServer`, `adminV1`; all false in legacy static mode.
-- [ ] Rename future `NestApiBackend` intent to ASP.NET adapter without activating it; preserve local adapter.
-- [ ] Add `e2e:ci`, `smoke`, deterministic seed/reset scripts; CI services + backend/contract/Cypress jobs.
-- [ ] GREEN: `G-FULL`, `G-RUN`; verify current public app behavior unchanged with flags off.
+- [x] RED: smoke script expects FE, API liveness/readiness, Worker heartbeat, PostgreSQL migration completion.
+- [x] Add multi-stage API/Worker/Migrator Dockerfiles, non-root users, read-only runtime FS where possible, health checks.
+- [x] Add `compose.yaml` with PostgreSQL, one-shot Migrator, API, Worker, Angular development/release profiles; no committed secrets.
+- [x] Add typed vendor-neutral config validation. Missing required runtime secret/provider/origin fails startup; safe local fake-provider defaults only.
+- [x] Add build + runtime flags: `apiBackend`, `calendarV1`, `authV1`, `leagueServer`, `liveServer`, `adminV1`; all false in legacy static mode.
+- [x] Rename future `NestApiBackend` intent to ASP.NET adapter without activating it; preserve local adapter.
+- [x] Add `e2e:ci`, `smoke`, deterministic seed/reset scripts; CI services + backend/contract/Cypress jobs.
+- [x] GREEN: `G-FULL`, `G-RUN`; verify current public app behavior unchanged with flags off.
 
 ## C06 — `feat: add transactional outbox and source-controlled email templates`
 
