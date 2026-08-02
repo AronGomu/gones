@@ -677,14 +677,16 @@ Evidence: 6 focused PostgreSQL/public API tests cover semantic-exact JSONB sourc
 
 **Deps:** C09, C30. **Lane:** D. **Runnable:** Organizer/Admin can mutate League API; local FE still default.
 
-- [ ] RED: role tests + one test per current CRUD surface: create/rename/status/delete, Result Tournament create/edit/delete/move, Round add/delete/import/replace, entry add/edit/delete, archetype update, rename Player Name, restore.
-- [ ] Define intent routes/DTOs from current UI actions; every mutation requires If-Match except create/import with Idempotency-Key.
-- [ ] Load aggregate, execute C# command rules, validate, save JSONB with `WHERE Version=expected`, return 412 on stale.
-- [ ] Make cross-League move atomic in one DB tx; C34 owns Live finalization + Result insertion after Live persistence exists.
-- [ ] Keep League Restore Organizer/Admin; Full Restore Admin only; create new IDs/names; tombstoned IDs never silently reused.
-- [ ] Add audit action metadata without full aggregate/Player Name payload; public reads/exports remain anonymous.
-- [ ] Add command-level OpenAPI + regenerate generated client; delete/restore storage envelope preserves current visible semantics.
-- [ ] GREEN: command/authz/concurrency/parity tests; `G-FULL`, `G-RUN`; replay/stale/cross-role smoke.
+- [x] RED: role tests + one test per current CRUD surface: create/rename/status/delete, Result Tournament create/edit/delete/move, Round add/delete/import/replace, entry add/edit/delete, archetype update, rename Player Name, restore.
+- [x] Define intent routes/DTOs from current UI actions; every mutation requires If-Match except create/import with Idempotency-Key.
+- [x] Load aggregate, execute C# command rules, validate, save JSONB with `WHERE Version=expected`, return 412 on stale.
+- [x] Make cross-League move atomic in one DB tx; C34 owns Live finalization + Result insertion after Live persistence exists.
+- [x] Keep League Restore Organizer/Admin; Full Restore Admin only; create new IDs/names; tombstoned IDs never silently reused.
+- [x] Add audit action metadata without full aggregate/Player Name payload; public reads/exports remain anonymous.
+- [x] Add command-level OpenAPI + regenerate generated client; delete/restore storage envelope preserves current visible semantics.
+- [x] GREEN: command/authz/concurrency/parity tests; `G-FULL`, `G-RUN`; replay/stale/cross-role smoke.
+
+Evidence: 7 focused PostgreSQL API tests cover Visitor/User/Organizer/Admin roles, every listed League/Result/Round/Entry/archetype/Player Name/restore command, idempotent replay/conflict, concurrent stale 412, atomic cross-League move, remapped restore IDs/names, tombstone visibility, and redacted audit metadata. EF evidence emits version-predicated JSONB updates for both move rows in one transaction. G-FULL passes lint/typecheck/120 TS tests/API drift/build/E2E plus 149 C# unit and 11 architecture tests; integration is 207/209 in parallel with two RootlessKit bind-only failures, each isolated unique test 1/1 pass. G-RUN Compose build + development smoke + app/API health pass; generated runtime OpenAPI and Angular client contain named C31 command operations. Live finalization remains C34.
 
 ## C32 — `feat: cut Angular League and Result flows to server commands`
 

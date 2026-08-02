@@ -16,11 +16,11 @@ public sealed class LeagueAggregate : VersionedEntity
     public const int MaximumEntries = 100_000;
 
     public required string DocumentId { get; init; }
-    public required string Name { get; init; }
-    public required string Status { get; init; }
+    public string Name { get; private set; } = null!;
+    public string Status { get; private set; } = null!;
     public Instant UpdatedAt { get; private set; }
     public Instant? DeletedAt { get; private set; }
-    public required string CanonicalDocument { get; init; }
+    public string CanonicalDocument { get; private set; } = null!;
 
     public static LeagueAggregate Create(LeagueDocument document, Instant now)
     {
@@ -70,8 +70,20 @@ public sealed class LeagueAggregate : VersionedEntity
         return LeagueJson.Deserialize<LeagueDocument>(document.CanonicalDocument);
     }
 
+    public void Apply(LeagueDocument document, Instant now)
+    {
+        if (DeletedAt is not null) throw new InvalidOperationException("Deleted League aggregate cannot be changed.");
+        if (document.Id != DocumentId) throw new ArgumentException("League document ID cannot change.", nameof(document));
+        ValidateDocument(document);
+        Name = document.Name;
+        Status = document.Status;
+        CanonicalDocument = SerializeBounded(document);
+        UpdatedAt = now;
+    }
+
     public void SoftDelete(Instant now)
     {
+        if (DocumentId == LeagueNormalizer.PlaceholderLeagueId) throw new InvalidOperationException("Placeholder League cannot be deleted.");
         if (DeletedAt is not null) throw new InvalidOperationException("League aggregate is already deleted.");
         DeletedAt = now;
         UpdatedAt = now;

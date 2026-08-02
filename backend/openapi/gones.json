@@ -121,6 +121,43 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "CreateLeague",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeagueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/leagues/{id}": {
@@ -168,6 +205,41 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "DeleteLeague",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueDeleteResponse"
                 }
               }
             }
@@ -260,6 +332,102 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "EditResultTournament",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditResultTournamentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "DeleteResultTournament",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
                 }
               }
             }
@@ -1795,6 +1963,814 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/name": {
+      "patch": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "RenameLeague",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameLeagueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/status": {
+      "patch": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "ChangeLeagueStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeLeagueStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "CreateResultTournament",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateResultTournamentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/move": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "MoveResultTournament",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Target-If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveResultTournamentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveTournamentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/rounds": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "AddResultRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}": {
+      "delete": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "DeleteResultRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/import": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "ImportResultRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRoundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/replace": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "ReplaceResultRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceRoundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "AddResultEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoundEntry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries/{entryId}": {
+      "patch": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "EditResultEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoundEntry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "DeleteResultEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/archetypes/{playerName}": {
+      "patch": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "UpdateResultPlayerArchetype",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlayerArchetypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/players/rename": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "RenameLeaguePlayerName",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenamePlayerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/restore": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "RestoreLeague",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeagueRestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/restore-full": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "RestoreFullLeagueData",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FullDataRestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FullRestoreResponse"
                 }
               }
             }
@@ -5204,6 +6180,17 @@
           }
         }
       },
+      "ChangeLeagueStatusRequest": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      },
       "ChangeOrganizationMemberRoleRequest": {
         "required": [
           "role"
@@ -5261,6 +6248,17 @@
           }
         }
       },
+      "CreateLeagueRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "CreateOrganizationRequest": {
         "required": [
           "name",
@@ -5306,6 +6304,21 @@
           }
         }
       },
+      "CreateResultTournamentRequest": {
+        "required": [
+          "name",
+          "tournamentDate"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "tournamentDate": {
+            "type": "string"
+          }
+        }
+      },
       "DeleteTournamentRequest": {
         "required": [
           "reason"
@@ -5341,6 +6354,21 @@
             "items": {
               "$ref": "#/components/schemas/OwnershipTransferBody"
             }
+          }
+        }
+      },
+      "EditResultTournamentRequest": {
+        "required": [
+          "name",
+          "tournamentDate"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "tournamentDate": {
+            "type": "string"
           }
         }
       },
@@ -5418,6 +6446,47 @@
           }
         }
       },
+      "FullDataRestoreRequest": {
+        "required": [
+          "kind",
+          "gonesDataVersion",
+          "leagues"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "gonesDataVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeagueDocument"
+            }
+          }
+        }
+      },
+      "FullRestoreResponse": {
+        "required": [
+          "leagues"
+        ],
+        "type": "object",
+        "properties": {
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeagueCommandResponse"
+            }
+          }
+        }
+      },
       "GenericAccountActionResponse": {
         "required": [
           "message"
@@ -5440,7 +6509,89 @@
           }
         }
       },
+      "ImportRoundRequest": {
+        "required": [
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      },
       "Instant": {},
+      "LeagueCommandResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "tournaments",
+          "documentVersion",
+          "updatedAt",
+          "eTag"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tournaments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TournamentDocument"
+            }
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "eTag": {
+            "type": "string"
+          }
+        }
+      },
+      "LeagueDeleteResponse": {
+        "required": [
+          "id",
+          "deleted",
+          "documentVersion",
+          "eTag"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "eTag": {
+            "type": "string"
+          }
+        }
+      },
       "LeagueDocument": {
         "required": [
           "id",
@@ -5493,6 +6644,30 @@
           },
           "exportedAt": {
             "$ref": "#/components/schemas/Instant"
+          },
+          "league": {
+            "$ref": "#/components/schemas/LeagueDocument"
+          }
+        }
+      },
+      "LeagueRestoreRequest": {
+        "required": [
+          "kind",
+          "gonesDataVersion",
+          "league"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "gonesDataVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "league": {
             "$ref": "#/components/schemas/LeagueDocument"
@@ -5580,6 +6755,32 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "MoveResultTournamentRequest": {
+        "required": [
+          "targetLeagueId"
+        ],
+        "type": "object",
+        "properties": {
+          "targetLeagueId": {
+            "type": "string"
+          }
+        }
+      },
+      "MoveTournamentResponse": {
+        "required": [
+          "source",
+          "target"
+        ],
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/LeagueCommandResponse"
+          },
+          "target": {
+            "$ref": "#/components/schemas/LeagueCommandResponse"
           }
         }
       },
@@ -7087,6 +8288,46 @@
           }
         }
       },
+      "RenameLeagueRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "RenamePlayerRequest": {
+        "required": [
+          "fromName",
+          "toName"
+        ],
+        "type": "object",
+        "properties": {
+          "fromName": {
+            "type": "string"
+          },
+          "toName": {
+            "type": "string"
+          }
+        }
+      },
+      "ReplaceRoundRequest": {
+        "required": [
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundEntry"
+            }
+          }
+        }
+      },
       "ResetPasswordRequest": {
         "required": [
           "token",
@@ -8064,6 +9305,17 @@
           }
         }
       },
+      "UpdatePlayerArchetypeRequest": {
+        "required": [
+          "archetype"
+        ],
+        "type": "object",
+        "properties": {
+          "archetype": {
+            "type": "string"
+          }
+        }
+      },
       "UpdateTournamentDetailsRequest": {
         "required": [
           "title",
@@ -8336,6 +9588,9 @@
     },
     {
       "name": "PublicLeagueEndpoints"
+    },
+    {
+      "name": "LeagueCommandEndpoints"
     },
     {
       "name": "PublicTournamentEndpoints"
