@@ -1,3 +1,4 @@
+using Gones.Infrastructure.Calendar;
 using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
@@ -30,6 +31,7 @@ var connectionString = builder.Configuration[PersistenceServiceCollectionExtensi
 if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("GONES_DB_CONNECTION is required.");
 builder.Services.AddGonesPersistence(connectionString);
 builder.Services.AddNotificationWorker(builder.Configuration);
+builder.Services.AddTournamentScheduler(builder.Configuration);
 builder.Services.AddScoped<WorkerHeartbeatStore>();
 builder.Services.AddScoped<UserEmailHistoryRedactor>();
 builder.Services.AddHostedService<Worker>();

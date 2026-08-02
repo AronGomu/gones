@@ -618,14 +618,14 @@ Parallel rules:
 
 **Deps:** C06, C21, C23. **Lane:** C. **Runnable:** Worker handles reminders/status exactly once.
 
-- [ ] RED: clock-driven tests for monthly anchor/day truncation, last-month Saturdays, J-2/J-1, DST gap/overlap, schedule overlap, late registration, changed date, cancel/delete/unregister, downtime, worker restart, multi-zone 10:00 precision.
-- [ ] Implement pure NodaTime planner using venue zone and 10:00 local; materialize future UTC ScheduledNotification rows with deterministic type/instant/dedupe key.
-- [ ] Daily planner acquires PostgreSQL advisory lock and refreshes future rows; frequent dispatcher polls due rows at ≤1m cadence. Extra replicas remain horizontally safe.
-- [ ] Query active registrations + eligible Tournaments; dispatch only still-eligible due rows. Planner never creates past reminders; dispatcher marks reminders missed during downtime instead of sending late.
-- [ ] Poll lifecycle transitions at ≤1m cadence: Published→InProgress at start; →Completed at explicit end or venue-local end-of-day; Cancelled/Deleted unchanged.
-- [ ] Major date update cancels only unsent future schedule rows, then replans; sent/missed history immutable; new future instants enqueue once.
-- [ ] Add NotificationHistory only on successful delivery; unique DB dedupe key prevents duplicate app intent under planner/dispatcher retry.
-- [ ] GREEN: unit + multi-worker PostgreSQL tests; `G-FULL`, `G-RUN`; advance fake clock across complete lifecycle.
+- [x] RED: clock-driven tests for monthly anchor/day truncation, last-month Saturdays, J-2/J-1, DST gap/overlap, schedule overlap, late registration, changed date, cancel/delete/unregister, downtime, worker restart, multi-zone 10:00 precision.
+- [x] Implement pure NodaTime planner using venue zone and 10:00 local; materialize future UTC ScheduledNotification rows with deterministic type/instant/dedupe key.
+- [x] Daily planner acquires PostgreSQL advisory lock and refreshes future rows; frequent dispatcher polls due rows at ≤1m cadence. Extra replicas remain horizontally safe.
+- [x] Query active registrations + eligible Tournaments; dispatch only still-eligible due rows. Planner never creates past reminders; dispatcher marks reminders missed during downtime instead of sending late.
+- [x] Poll lifecycle transitions at ≤1m cadence: Published→InProgress at start; →Completed at explicit end or venue-local end-of-day; Cancelled/Deleted unchanged.
+- [x] Major date update cancels only unsent future schedule rows, then replans; sent/missed history immutable; new future instants enqueue once.
+- [x] Add NotificationHistory only on successful delivery; unique DB dedupe key prevents duplicate app intent under planner/dispatcher retry.
+- [x] GREEN: unit + multi-worker PostgreSQL tests; `G-FULL`, `G-RUN`; advance fake clock across complete lifecycle.
 
 ## C28 — `feat: integrate Brevo delivery webhooks and dead-letter operations`
 

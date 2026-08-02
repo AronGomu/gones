@@ -1,3 +1,4 @@
+using Gones.Domain.Calendar;
 using Gones.Domain.Notifications;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,18 @@ public sealed class NotificationOutboxStore(GonesDbContext database, IClock cloc
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return records;
+    }
+
+    public void RecordSuccessful(NotificationOutboxRecord record, Instant sentAt)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        database.NotificationHistory.Add(NotificationHistory.Successful(
+            record.Id,
+            record.TemplateKey,
+            record.DedupeKey,
+            record.UserId,
+            record.TournamentId,
+            sentAt));
     }
 
     public Task SaveAsync(CancellationToken cancellationToken) => database.SaveChangesAsync(cancellationToken);

@@ -49,6 +49,14 @@ public sealed class TournamentLifecycleEvent
     public TournamentLifecycleEventType EventType { get; private init; }
     public TournamentReminderPlanAction ReminderPlanAction { get; private init; }
     public Instant OccurredAt { get; private init; }
+    public Instant? ReminderPlanProcessedAt { get; private set; }
+
+    public void MarkReminderPlanProcessed(Instant now)
+    {
+        if (ReminderPlanProcessedAt is not null) return;
+        if (now < OccurredAt) throw new ArgumentOutOfRangeException(nameof(now));
+        ReminderPlanProcessedAt = now;
+    }
 
     public static TournamentLifecycleEvent Create(
         Guid tournamentId,

@@ -156,10 +156,11 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
         Assert.Null(notification.Recipient);
         Assert.Null(notification.TemplateModelJson);
         Assert.NotNull(notification.ScrubbedAt);
+        Assert.False(await verify.NotificationHistory.AnyAsync(item => item.OutboxId == id));
     }
 
     [Fact]
-    public async Task Successful_delivery_is_sent_once_and_scrubs_payload()
+    public async Task Successful_delivery_is_sent_once_scrubs_payload_and_writes_one_history_row()
     {
         var id = await EnqueueAsync($"sent-{Guid.NewGuid():N}");
         var transport = new FakeTransport();
@@ -174,6 +175,10 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
         Assert.Null(notification.Recipient);
         Assert.Null(notification.TemplateModelJson);
         Assert.NotNull(notification.ScrubbedAt);
+        var history = await verify.NotificationHistory.SingleAsync(item => item.OutboxId == id);
+        Assert.Equal(notification.DedupeKey, history.DedupeKey);
+        Assert.Equal(notification.TemplateKey, history.TemplateKey);
+        Assert.Equal(notification.SentAt, history.SentAt);
     }
 
     [Fact]
@@ -221,6 +226,7 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
                 var recovered = Assert.Single(await store.ClaimAsync(1, Duration.FromMinutes(2), CancellationToken.None));
                 await transport.SendAsync(ToEmail(recovered), CancellationToken.None);
                 recovered.MarkSent(recovered.LeaseToken!.Value, clock.GetCurrentInstant());
+                store.RecordSuccessful(recovered, clock.GetCurrentInstant());
                 await store.SaveAsync(CancellationToken.None);
             }
 

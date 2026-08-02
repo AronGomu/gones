@@ -1,5 +1,6 @@
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
+using Gones.Domain.Notifications;
 using Gones.Domain.Organizations;
 using Gones.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +31,8 @@ internal sealed class ScheduledTournamentConfiguration : VersionedEntityConfigur
         builder.HasIndex(tournament => new { tournament.VenueStartDate, tournament.VenueStartTime, tournament.Id });
         builder.HasIndex(tournament => tournament.StartsAtUtc);
         builder.HasIndex(tournament => tournament.Status);
+        builder.HasIndex(tournament => new { tournament.Status, tournament.StartsAtUtc });
+        builder.HasIndex(tournament => new { tournament.Status, tournament.EndsAtUtc });
         builder.HasIndex(tournament => new { tournament.City, tournament.Country });
         builder.HasIndex(tournament => tournament.OrganizationId);
         builder.HasIndex(tournament => tournament.NormalizedSearchText);
@@ -97,7 +100,7 @@ internal sealed class TournamentLifecycleEventConfiguration : IEntityTypeConfigu
         builder.Property(item => item.EventType).HasConversion<string>().HasMaxLength(40);
         builder.Property(item => item.ReminderPlanAction).HasConversion<string>().HasMaxLength(40);
         builder.HasIndex(item => new { item.TournamentId, item.OccurredAt });
-        builder.HasIndex(item => new { item.ReminderPlanAction, item.OccurredAt });
+        builder.HasIndex(item => new { item.ReminderPlanAction, item.ReminderPlanProcessedAt, item.OccurredAt });
         builder.HasOne<ScheduledTournament>().WithMany().HasForeignKey(item => item.TournamentId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
         builder.ToTable(table =>
@@ -105,5 +108,47 @@ internal sealed class TournamentLifecycleEventConfiguration : IEntityTypeConfigu
             table.HasCheckConstraint("ck_tournament_lifecycle_event_type", "event_type IN ('MajorDetailsUpdated', 'Cancelled', 'Deleted', 'Restored')");
             table.HasCheckConstraint("ck_tournament_lifecycle_reminder_action", "reminder_plan_action IN ('None', 'RecalculateFuture', 'CancelFuture')");
         });
+    }
+}
+
+internal sealed class ScheduledNotificationConfiguration : IEntityTypeConfiguration<ScheduledNotification>
+{
+    public void Configure(EntityTypeBuilder<ScheduledNotification> builder)
+    {
+        builder.ToTable("scheduled_notifications");
+        builder.HasKey(item => item.Id);
+        builder.Property(item => item.Type).HasConversion<string>().HasMaxLength(20);
+        builder.Property(item => item.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(item => item.DedupeKey).HasMaxLength(ScheduledNotification.MaximumDedupeKeyLength);
+        builder.HasIndex(item => item.DedupeKey).IsUnique();
+        builder.HasIndex(item => new { item.Status, item.ScheduledAtUtc, item.Id });
+        builder.HasIndex(item => new { item.TournamentId, item.RegistrationAttemptId, item.Status });
+        builder.HasOne<ScheduledTournament>().WithMany().HasForeignKey(item => item.TournamentId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<TournamentRegistrationAttempt>().WithMany().HasForeignKey(item => item.RegistrationAttemptId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<NotificationOutboxRecord>().WithMany().HasForeignKey(item => item.OutboxId).OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("ck_scheduled_notification_status", "status IN ('Planned', 'Enqueued', 'Missed', 'Cancelled')");
+            table.HasCheckConstraint("ck_scheduled_notification_type", "type IN ('Monthly', 'Saturday', 'DayTwo', 'DayOne')");
+            table.HasCheckConstraint("ck_scheduled_notification_outbox", "(status = 'Enqueued' AND outbox_id IS NOT NULL) OR (status <> 'Enqueued' AND outbox_id IS NULL)");
+        });
+    }
+}
+
+internal sealed class NotificationHistoryConfiguration : IEntityTypeConfiguration<NotificationHistory>
+{
+    public void Configure(EntityTypeBuilder<NotificationHistory> builder)
+    {
+        builder.ToTable("notification_history");
+        builder.HasKey(item => item.Id);
+        builder.Property(item => item.TemplateKey).HasMaxLength(NotificationHistory.MaximumTemplateKeyLength);
+        builder.Property(item => item.DedupeKey).HasMaxLength(NotificationHistory.MaximumDedupeKeyLength);
+        builder.HasIndex(item => item.OutboxId).IsUnique();
+        builder.HasIndex(item => new { item.TournamentId, item.SentAt });
+        builder.HasIndex(item => new { item.UserId, item.SentAt });
+        builder.HasOne<NotificationOutboxRecord>().WithMany().HasForeignKey(item => item.OutboxId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ScheduledTournament>().WithMany().HasForeignKey(item => item.TournamentId).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -37,6 +37,8 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<ScheduledTournamentFormat> ScheduledTournamentFormats => Set<ScheduledTournamentFormat>();
     public DbSet<TournamentLifecycleEvent> TournamentLifecycleEvents => Set<TournamentLifecycleEvent>();
     public DbSet<TournamentRegistrationAttempt> TournamentRegistrationAttempts => Set<TournamentRegistrationAttempt>();
+    public DbSet<ScheduledNotification> ScheduledNotifications => Set<ScheduledNotification>();
+    public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

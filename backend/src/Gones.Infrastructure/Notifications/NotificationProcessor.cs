@@ -80,6 +80,7 @@ public sealed class NotificationProcessor(
 
             var completedAt = clock.GetCurrentInstant();
             record.MarkSent(leaseToken, completedAt);
+            store.RecordSuccessful(record, completedAt);
             try
             {
                 await store.SaveAsync(cancellationToken);
