@@ -154,6 +154,61 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Capability_is_authenticated_server_derived_and_keeps_public_detail_anonymous()
+    {
+        var tournament = await CreateTournamentAsync("Capability Cup", 2);
+
+        using var anonymous = await Client.GetAsync($"/api/tournaments/{tournament.Id:D}/registration-capability");
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+
+        using var available = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registration-capability", seed.User.Id);
+        Assert.Equal(HttpStatusCode.OK, available.StatusCode);
+        var availableBody = await available.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(availableBody.GetProperty("canRegister").GetBoolean());
+        Assert.False(availableBody.GetProperty("canUnregister").GetBoolean());
+        Assert.Equal("available", availableBody.GetProperty("reason").GetString());
+        Assert.Equal(0, availableBody.GetProperty("activeParticipantCount").GetInt32());
+        Assert.Equal(2, availableBody.GetProperty("capacity").GetInt32());
+        Assert.DoesNotContain("public", available.Headers.CacheControl?.ToString() ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        using var unverified = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registration-capability", seed.Unverified.Id);
+        Assert.Equal("email_verification_required", (await unverified.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("reason").GetString());
+        await using (var database = CreateContext())
+        {
+            database.OrganizationBlockedUsers.Add(OrganizationBlockedUser.Block(seed.Organization.Id, seed.Blocked.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+        using var blocked = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registration-capability", seed.Blocked.Id);
+        Assert.Equal("registration_blocked", (await blocked.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("reason").GetString());
+
+        using var registered = await RegisterAsync(tournament.Id, seed.User.Id, "capability-register");
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+        using var current = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registration-capability", seed.User.Id);
+        var currentBody = await current.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(currentBody.GetProperty("canRegister").GetBoolean());
+        Assert.True(currentBody.GetProperty("canUnregister").GetBoolean());
+        Assert.Equal("registered", currentBody.GetProperty("reason").GetString());
+        Assert.Equal(1, currentBody.GetProperty("activeParticipantCount").GetInt32());
+
+        await using (var database = CreateContext())
+        {
+            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(tournament.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+        using var full = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registration-capability", seed.Organizer.Id);
+        Assert.Equal("tournament_full", (await full.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("reason").GetString());
+        clock.Set(tournament.StartsAtUtc);
+        using var started = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registration-capability", seed.Organizer.Id);
+        Assert.Equal("registration_closed", (await started.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("reason").GetString());
+
+        using var publicDetail = await Client.GetAsync($"/api/tournaments/{tournament.Slug}");
+        var publicJson = await publicDetail.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("canRegister", publicJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("canUnregister", publicJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("reason", publicJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Unregister_closes_at_start()
     {
         var tournament = await CreateTournamentAsync("Cutoff Cup", 10);

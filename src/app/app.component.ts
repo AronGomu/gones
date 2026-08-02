@@ -227,6 +227,7 @@ export class AppComponent {
       return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: eventPage?.title || this.i18n.t('crumb.event') }];
     }
     if (segments[0] === 'settings') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.settings') }];
+    if (segments[0] === 'registrations') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('registration.myRegistrations') }];
     if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth', 'profile'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('auth.account') }];
     if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.player') }];
     if (segments[0] === 'live-tournaments') {

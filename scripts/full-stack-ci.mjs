@@ -71,6 +71,10 @@ try {
     if (calendarBrowser.status !== 0) process.exitCode = calendarBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const registrationBrowser = runCypress('cypress/e2e/tournament-registration.cy.js');
+    if (registrationBrowser.status !== 0) process.exitCode = registrationBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const browser = runCypress('cypress/e2e/auth-profile.cy.js');
     if (browser.status !== 0) process.exitCode = browser.status ?? 1;
   }

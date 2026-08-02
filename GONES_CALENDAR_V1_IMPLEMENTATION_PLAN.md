@@ -579,14 +579,14 @@ Parallel rules:
 
 **Deps:** C12, C18, C23. **Lane:** C/E. **Runnable:** User registration journey complete.
 
-- [ ] RED: Angular/Cypress tests for Visitor login prompt, unverified banner, full/blocked/started errors, double click, unregister confirmation, re-register, public privacy.
-- [ ] Add register/cancel action to Tournament detail with server-derived capability/reason DTO.
-- [ ] Add public participant list: Username always; optional fields only when current privacy permits; no public email by default.
-- [ ] Add `/registrations` showing upcoming/history attempts, statuses, event venue times, retryable loading errors.
-- [ ] Keep Idempotency-Key stable through network retry; disable pending controls; refresh capacity/participant state after success.
-- [ ] Add offline write rejection copy; no queued mutation/optimistic capacity decrement.
-- [ ] Add EN/FR, screen-reader status, focus, 375px tests.
-- [ ] GREEN: service/unit/Cypress flows; `G-FULL`, `G-RUN` Visitor/unverified/verified/blocked/full personas.
+- [x] RED: Angular/Cypress tests for Visitor login prompt, unverified banner, full/blocked/started errors, double click, unregister confirmation, re-register, public privacy.
+- [x] Add register/cancel action to Tournament detail with server-derived capability/reason DTO.
+- [x] Add public participant list: Username always; optional fields only when current privacy permits; no public email by default.
+- [x] Add `/registrations` showing upcoming/history attempts, statuses, event venue times, retryable loading errors.
+- [x] Keep Idempotency-Key stable through network retry; disable pending controls; refresh capacity/participant state after success.
+- [x] Add offline write rejection copy; no queued mutation/optimistic capacity decrement.
+- [x] Add EN/FR, screen-reader status, focus, 375px tests.
+- [x] GREEN: service/unit/Cypress flows; `G-FULL`, `G-RUN` Visitor/unverified/verified/blocked/full personas.
 
 ## C25 — `feat: add Organizer participant blocking and CSV APIs`
 

@@ -2079,6 +2079,47 @@
         }
       }
     },
+    "/api/tournaments/{tournamentId}/registration-capability": {
+      "get": {
+        "tags": [
+          "TournamentRegistrationEndpoints"
+        ],
+        "operationId": "GetTournamentRegistrationCapability",
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentRegistrationCapabilityResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users/me/registrations": {
       "get": {
         "tags": [
@@ -5518,6 +5559,44 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "TournamentRegistrationCapabilityResponse": {
+        "required": [
+          "canRegister",
+          "canUnregister",
+          "reason",
+          "activeParticipantCount",
+          "capacity"
+        ],
+        "type": "object",
+        "properties": {
+          "canRegister": {
+            "type": "boolean"
+          },
+          "canUnregister": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "activeParticipantCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "capacity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

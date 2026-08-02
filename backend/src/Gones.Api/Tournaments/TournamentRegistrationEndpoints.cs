@@ -44,6 +44,10 @@ internal static class TournamentRegistrationEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
+        users.MapGet("/tournaments/{tournamentId:guid}/registration-capability", GetCapabilityAsync)
+            .WithName("GetTournamentRegistrationCapability")
+            .Produces<TournamentRegistrationCapabilityResponse>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
         users.MapGet("/users/me/registrations", ListMineAsync)
             .WithName("ListMyTournamentRegistrations")
             .Produces<TournamentRegistrationListResponse>();
@@ -74,6 +78,16 @@ internal static class TournamentRegistrationEndpoints
             tournamentId,
             OrganizationPrincipal.UserId(principal),
             RequireIdempotencyKey(idempotencyKey),
+            cancellationToken));
+
+    private static async Task<IResult> GetCapabilityAsync(
+        Guid tournamentId,
+        ClaimsPrincipal principal,
+        TournamentRegistrationService registrations,
+        CancellationToken cancellationToken) =>
+        Results.Ok(await registrations.GetCapabilityAsync(
+            tournamentId,
+            OrganizationPrincipal.UserId(principal),
             cancellationToken));
 
     private static async Task<IResult> ListMineAsync(
@@ -124,6 +138,69 @@ internal sealed class TournamentRegistrationService(
         string idempotencyKey,
         CancellationToken cancellationToken) =>
         ExecuteSerializableAsync(() => UnregisterOnceAsync(tournamentId, userId, idempotencyKey, cancellationToken), cancellationToken);
+
+    public async Task<TournamentRegistrationCapabilityResponse> GetCapabilityAsync(
+        Guid tournamentId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var tournament = await database.ScheduledTournaments.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == tournamentId && item.DeletedAt == null, cancellationToken)
+            ?? throw new ResourceNotFoundException();
+        if (!await database.Organizations.AsNoTracking().AnyAsync(
+                item => item.Id == tournament.OrganizationId && item.DeletedAt == null,
+                cancellationToken))
+        {
+            throw new ResourceNotFoundException();
+        }
+
+        var activeParticipantCount = await database.TournamentRegistrationAttempts.AsNoTracking().CountAsync(
+            item => item.TournamentId == tournamentId && item.Status == TournamentRegistrationStatus.Confirmed,
+            cancellationToken);
+        var hasActiveRegistration = await database.TournamentRegistrationAttempts.AsNoTracking().AnyAsync(
+            item => item.TournamentId == tournamentId
+                && item.UserId == userId
+                && item.Status == TournamentRegistrationStatus.Confirmed,
+            cancellationToken);
+        var now = clock.GetCurrentInstant();
+        if (hasActiveRegistration)
+        {
+            var canUnregister = now < tournament.StartsAtUtc;
+            return Capability(false, canUnregister, canUnregister ? "registered" : "unregistration_closed");
+        }
+        if (tournament.Status == ScheduledTournamentStatus.InProgress || now >= tournament.StartsAtUtc)
+        {
+            return Capability(false, false, "registration_closed");
+        }
+        if (tournament.Status != ScheduledTournamentStatus.Published)
+        {
+            return Capability(false, false, "tournament_not_open");
+        }
+
+        var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == userId, cancellationToken)
+            ?? throw new ResourceNotFoundException();
+        if (!user.EmailConfirmed) return Capability(false, false, "email_verification_required");
+        if (!await database.UserProfiles.AsNoTracking().AnyAsync(item => item.UserId == userId && item.ClosedAt == null, cancellationToken))
+        {
+            throw new ResourceNotFoundException();
+        }
+        if (await database.OrganizationBlockedUsers.AsNoTracking().AnyAsync(block =>
+                block.OrganizationId == tournament.OrganizationId
+                && block.UserId == userId
+                && block.IsActive
+                && (block.ExpiresAt == null || block.ExpiresAt > now), cancellationToken))
+        {
+            return Capability(false, false, "registration_blocked");
+        }
+        if (tournament.Capacity is int capacity && activeParticipantCount >= capacity)
+        {
+            return Capability(false, false, "tournament_full");
+        }
+        return Capability(true, false, "available");
+
+        TournamentRegistrationCapabilityResponse Capability(bool canRegister, bool canUnregister, string reason) =>
+            new(canRegister, canUnregister, reason, activeParticipantCount, tournament.Capacity);
+    }
 
     public async Task<TournamentRegistrationListResponse> ListMineAsync(
         Guid userId,
@@ -390,6 +467,13 @@ internal sealed class TournamentRegistrationService(
         Guid TournamentId,
         TournamentRegistrationMutationResponse Response);
 }
+
+internal sealed record TournamentRegistrationCapabilityResponse(
+    bool CanRegister,
+    bool CanUnregister,
+    string Reason,
+    int ActiveParticipantCount,
+    int? Capacity);
 
 internal sealed class TournamentRegistrationNotificationService(
     GonesDbContext database,
