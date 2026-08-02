@@ -474,14 +474,14 @@ Parallel rules:
 
 **Deps:** C02, C14. **Lane:** C. **Runnable:** no routes yet; domain/schema fully tested.
 
-- [ ] RED: domain tests for required title/address/start/zone/Legacy format, end≥start, DST gap/overlap, lifecycle transitions, edit/delete/restore deadlines, major-change classification, sanitizer.
-- [ ] Add ScheduledTournament relational entity + formats join: org, slug, summary, sanitized body, address fields, starts/ends UTC, IANA zone, capacity, status, creator, deleted metadata, Version.
-- [ ] Define status transitions Published→InProgress→Completed or Cancelled; derive missing end as venue-local end-of-day, converted safely through DST.
-- [ ] Enforce no all-day/no external registration URL/no cross-links to Result/Live.
-- [ ] Implement allowlist sanitizer; reject unsupported markup/URL instead of trusting Angular; store canonical sanitized HTML.
-- [ ] Add indexes for venue-local start projection, UTC start, status, city/country/org/formats, normalized search; no unbounded list query.
-- [ ] Add EF migration + existing-data-safe defaults only for empty new table.
-- [ ] GREEN: domain + PostgreSQL constraint tests; `G-FULL`, `G-RUN`.
+- [x] RED: domain tests for required title/address/start/zone/Legacy format, end≥start, DST gap/overlap, lifecycle transitions, edit/delete/restore deadlines, major-change classification, sanitizer.
+- [x] Add ScheduledTournament relational entity + formats join: org, slug, summary, sanitized body, address fields, starts/ends UTC, IANA zone, capacity, status, creator, deleted metadata, Version.
+- [x] Define status transitions Published→InProgress→Completed or Cancelled; derive missing end as venue-local end-of-day, converted safely through DST.
+- [x] Enforce no all-day/no external registration URL/no cross-links to Result/Live.
+- [x] Implement allowlist sanitizer; reject unsupported markup/URL instead of trusting Angular; store canonical sanitized HTML.
+- [x] Add indexes for venue-local start projection, UTC start, status, city/country/org/formats, normalized search; no unbounded list query.
+- [x] Add EF migration + existing-data-safe defaults only for empty new table.
+- [x] GREEN: domain + PostgreSQL constraint tests; `G-FULL`, `G-RUN`.
 
 ## C17 — `feat: expose public Tournament organization and participant-safe reads`
 
