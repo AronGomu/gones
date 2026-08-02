@@ -83,6 +83,10 @@ try {
     if (organizerTournamentBrowser.status !== 0) process.exitCode = organizerTournamentBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const organizerTournamentManagementBrowser = runCypress('cypress/e2e/organizer-tournament-management.cy.js');
+    if (organizerTournamentManagementBrowser.status !== 0) process.exitCode = organizerTournamentManagementBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const seed = spawnSync(process.execPath, ['scripts/seed-local.mjs'], { stdio: 'inherit' });
       if (seed.status !== 0) {

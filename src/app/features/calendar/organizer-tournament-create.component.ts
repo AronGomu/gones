@@ -1,24 +1,28 @@
-import { AfterViewInit, Component, ElementRef, OnInit, ViewChild, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { Client, MyOrganizationResponse, PublicFormatResponse, TournamentPreviewRenderResponse } from '../../api/generated/gones-api';
+import { Client, MyOrganizationResponse, PublicFormatResponse, TournamentManagementResponse, TournamentPreviewRenderResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { TournamentDetailViewComponent } from './tournament-detail-view.component';
 import { PreviewPublicationState, browserTimeZoneSuggestion, tournamentPayload } from './organizer-tournament-create';
+import { changedTournamentFields, majorTournamentChanges, managementToDetail, managementToDraft, tournamentUpdatePayload } from './tournament-management';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'refresh-preview' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
 
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, TournamentDetailViewComponent],
+  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatDialogModule, TournamentDetailViewComponent],
   template: `
-    <section class="organizer-tournament-create stack" data-cy="organizer-tournament-create" aria-labelledby="organizer-tournament-title">
+    <section class="organizer-tournament-create stack" [attr.data-cy]="editMode ? 'organizer-tournament-edit' : 'organizer-tournament-create'" aria-labelledby="organizer-tournament-title">
       <header class="page-heading">
-        <div><p class="kicker">{{ i18n.t('tournamentCreate.kicker') }}</p><h1 id="organizer-tournament-title">{{ editing() ? i18n.t('tournamentCreate.title') : i18n.t('tournamentCreate.previewTitle') }}</h1></div>
+        <div><p class="kicker">{{ i18n.t('tournamentCreate.kicker') }}</p><h1 id="organizer-tournament-title">{{ editMode ? i18n.t('tournamentManage.editTitle') : editing() ? i18n.t('tournamentCreate.title') : i18n.t('tournamentCreate.previewTitle') }}</h1></div>
+        @if (editMode) { <a mat-stroked-button routerLink="/organizer/tournaments">{{ i18n.t('tournamentManage.backToList') }}</a> }
       </header>
 
       @if (loadingReferences()) { <p role="status">{{ i18n.t('tournamentCreate.loadingReferences') }}</p> }
@@ -27,8 +31,9 @@ interface RecoveryError { message: string; action: RecoveryAction; }
       }
 
       @if (editing()) {
-        <form class="panel tournament-create-form" [formGroup]="form" (ngSubmit)="requestPreview()" novalidate>
+        <form class="panel tournament-create-form" [formGroup]="form" (ngSubmit)="editMode ? saveEdit() : requestPreview()" novalidate [attr.aria-busy]="formPending()">
           <p class="muted tournament-create-help">{{ i18n.t('tournamentCreate.zoneHelp') }}</p>
+          <fieldset class="tournament-form-lock" [disabled]="formPending()">
           <div class="tournament-create-grid">
             <div class="tournament-create-field tournament-create-wide">
               <label for="tournament-title-input">{{ i18n.t('tournamentCreate.name') }}</label>
@@ -55,7 +60,7 @@ interface RecoveryError { message: string; action: RecoveryAction; }
             </div>
             <div class="tournament-create-field tournament-create-double">
               <label for="tournament-street">{{ i18n.t('tournamentCreate.street') }}</label>
-              <input id="tournament-street" data-cy="tournament-street" formControlName="streetAddress" autocomplete="street-address" [attr.aria-invalid]="fieldError('streetAddress') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'tournament-street-error' : null" />
+              <input #streetInput id="tournament-street" data-cy="tournament-street" formControlName="streetAddress" autocomplete="street-address" [attr.aria-invalid]="fieldError('streetAddress') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'tournament-street-error' : null" />
               @if (fieldError('streetAddress'); as message) { <p id="tournament-street-error" class="field-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field">
@@ -102,6 +107,17 @@ interface RecoveryError { message: string; action: RecoveryAction; }
               @if (fieldError('formatIds'); as message) { <p id="tournament-formats-error" class="field-error">{{ message }}</p> }
             </div>
           </div>
+          </fieldset>
+          @if (staleTournament(); as latest) {
+            <div class="warning stack" role="alert" data-cy="tournament-stale">
+              <strong>{{ i18n.t('tournamentManage.staleTitle') }}</strong>
+              <p>{{ i18n.t('tournamentManage.staleBody', { title: latest.title }) }}</p>
+              @if (staleChanges().length) { <ul>@for (change of staleChanges(); track change) { <li>{{ change }}</li> }</ul> }
+              <p>{{ i18n.t('tournamentManage.draftPreserved') }}</p>
+              <button mat-stroked-button type="button" data-cy="tournament-reload-latest" (click)="reloadLatest()">{{ i18n.t('tournamentManage.reloadLatest') }}</button>
+            </div>
+          }
+          @if (success()) { <p role="status" class="success" data-cy="tournament-edit-success">{{ success() }}</p> }
           @if (submitError(); as error) {
             <div class="error tournament-create-recovery" role="alert" data-cy="tournament-submit-error">
               <span>{{ error.message }}</span>
@@ -110,8 +126,11 @@ interface RecoveryError { message: string; action: RecoveryAction; }
               @if (error.action === 'retry') { <button mat-stroked-button type="submit">{{ i18n.t('common.retry') }}</button> }
             </div>
           }
-          <div class="actions"><button mat-flat-button class="home-primary-action" type="submit" data-cy="tournament-preview-submit" [disabled]="previewing() || loadingReferences() || !organizations().length">{{ previewing() ? i18n.t('tournamentCreate.previewing') : i18n.t('tournamentCreate.preview') }}</button></div>
+          <div class="actions"><button #saveButton mat-flat-button class="home-primary-action" type="submit" [attr.data-cy]="editMode ? 'tournament-save' : 'tournament-preview-submit'" [disabled]="formPending() || loadingReferences() || !organizations().length">{{ editMode ? (saving() ? i18n.t('tournamentManage.saving') : i18n.t('common.save')) : (previewing() ? i18n.t('tournamentCreate.previewing') : i18n.t('tournamentCreate.preview')) }}</button></div>
         </form>
+        @if (editMode && currentRender(); as rendered) {
+          <section class="stack" aria-labelledby="current-tournament-title"><h2 id="current-tournament-title">{{ i18n.t('tournamentManage.currentPublicDetails') }}</h2><gones-tournament-detail-view [tournament]="rendered" /></section>
+        }
       } @else if (preview(); as currentPreview) {
         <p class="warning" role="status">{{ i18n.t('tournamentCreate.previewNotice') }}</p>
         <gones-tournament-detail-view [tournament]="currentPreview" />
@@ -135,9 +154,15 @@ interface RecoveryError { message: string; action: RecoveryAction; }
 export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit {
   readonly i18n = inject(I18nService);
   private readonly client = inject(Client);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
   private readonly state = new PreviewPublicationState();
+  private readonly tournamentId = this.route.snapshot.paramMap.get('id');
+  readonly editMode = Boolean(this.tournamentId);
   @ViewChild('titleInput') private titleInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('streetInput') private streetInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('saveButton') private saveButton?: ElementRef<HTMLButtonElement>;
 
   readonly organizations = signal<MyOrganizationResponse[]>([]);
   readonly formats = signal<PublicFormatResponse[]>([]);
@@ -147,9 +172,16 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
   readonly preview = signal<TournamentPreviewRenderResponse | null>(null);
   readonly previewing = signal(false);
   readonly publishing = signal(false);
+  readonly saving = signal(false);
   readonly fieldErrors = signal<Record<string, string>>({});
   readonly submitError = signal<RecoveryError | null>(null);
   readonly publishError = signal<RecoveryError | null>(null);
+  readonly baseTournament = signal<TournamentManagementResponse | null>(null);
+  readonly staleTournament = signal<TournamentManagementResponse | null>(null);
+  readonly staleChanges = signal<string[]>([]);
+  readonly currentRender = signal<TournamentPreviewRenderResponse | null>(null);
+  readonly success = signal('');
+  readonly formPending = computed(() => this.previewing() || this.saving());
 
   readonly form = new FormGroup({
     organizationId: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -171,6 +203,7 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
     this.form.valueChanges.subscribe(() => {
       this.fieldErrors.set({});
       this.submitError.set(null);
+      this.success.set('');
       if (this.state.preview) {
         this.state.invalidate();
         this.preview.set(null);
@@ -187,20 +220,33 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
     this.referenceError.set('');
     this.submitError.set(null);
     try {
-      const [organizations, formats] = await Promise.all([
-        firstValueFrom(this.client.organizationsAll()),
-        firstValueFrom(this.client.formatsAll())
-      ]);
-      this.organizations.set(organizations);
+      const formats = await firstValueFrom(this.client.formatsAll());
       this.formats.set(formats);
-      if (!organizations.some(item => item.id === this.form.controls.organizationId.value)) {
-        this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
+      if (this.editMode) {
+        const tournament = await this.findTournament(this.tournamentId!);
+        this.organizations.set([{
+          id: tournament.organizationId,
+          name: tournament.organizationName,
+          description: undefined,
+          website: undefined,
+          contactEmail: undefined,
+          role: 'Organizer',
+          createdAt: tournament.startsAtUtc
+        }]);
+        this.form.controls.organizationId.disable({ emitEvent: false });
+        this.applyCanonical(tournament);
+      } else {
+        const organizations = await firstValueFrom(this.client.organizationsAll());
+        this.organizations.set(organizations);
+        if (!organizations.some(item => item.id === this.form.controls.organizationId.value)) {
+          this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
+        }
+        if (!organizations.length) this.referenceError.set(this.i18n.t('tournamentCreate.noOrganizations'));
       }
-      if (!organizations.length) this.referenceError.set(this.i18n.t('tournamentCreate.noOrganizations'));
     } catch {
       this.organizations.set([]);
       this.formats.set([]);
-      this.referenceError.set(this.i18n.t('tournamentCreate.referencesFailed'));
+      this.referenceError.set(this.editMode ? this.i18n.t('tournamentManage.loadFailed') : this.i18n.t('tournamentCreate.referencesFailed'));
     } finally {
       this.loadingReferences.set(false);
     }
@@ -263,6 +309,61 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
     }
   }
 
+  async saveEdit(): Promise<void> {
+    this.form.markAllAsTouched();
+    this.fieldErrors.set({});
+    this.submitError.set(null);
+    this.success.set('');
+    const base = this.baseTournament();
+    if (!this.tournamentId || !base || this.form.invalid || this.saving()) return;
+    const draft = this.form.getRawValue();
+    const major = majorTournamentChanges(base, draft, field => this.i18n.t(`tournamentManage.major.${field}`));
+    if (major.length) {
+      const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+        data: {
+          title: this.i18n.t('tournamentManage.majorTitle'),
+          message: this.i18n.t('tournamentManage.majorBody') + '\n\n' + major.map(change => `• ${change}`).join('\n'),
+          confirmLabel: this.i18n.t('tournamentManage.saveChanges')
+        }
+      }).afterClosed());
+      if (!confirmed) return;
+    }
+
+    this.saving.set(true);
+    try {
+      const response = await firstValueFrom(this.client.updateTournamentDetails(
+        this.tournamentId,
+        base.eTag,
+        tournamentUpdatePayload(draft)
+      ));
+      this.applyCanonical(response);
+      this.staleTournament.set(null);
+      this.staleChanges.set([]);
+      this.success.set(this.i18n.t('tournamentManage.saved'));
+      queueMicrotask(() => this.saveButton?.nativeElement.focus());
+    } catch (error) {
+      this.applyFieldErrors(error);
+      if (error instanceof ApiProblemError && error.status === 412) {
+        await this.loadStaleTournament(base);
+      } else {
+        this.submitError.set({ message: this.managementError(error), action: 'retry' });
+      }
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  reloadLatest(): void {
+    const latest = this.staleTournament();
+    if (!latest) return;
+    this.applyCanonical(latest);
+    this.staleTournament.set(null);
+    this.staleChanges.set([]);
+    this.submitError.set(null);
+    this.success.set(this.i18n.t('tournamentManage.reloaded'));
+    queueMicrotask(() => this.streetInput?.nativeElement.focus());
+  }
+
   fieldError(name: keyof typeof this.form.controls): string {
     const serverError = this.fieldErrors()[name];
     if (serverError) return serverError;
@@ -271,6 +372,43 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
     if (control.errors['required']) return this.i18n.t('tournamentCreate.required');
     if (control.errors['maxlength']) return this.i18n.t('tournamentCreate.summaryTooLong');
     return this.i18n.t('tournamentCreate.invalid');
+  }
+
+  private async findTournament(id: string): Promise<TournamentManagementResponse> {
+    let page = 1;
+    while (true) {
+      const response = await firstValueFrom(this.client.listOrganizerTournaments(page, 100));
+      const found = response.items.find(item => item.id === id);
+      if (found) return found;
+      if (page * response.pageSize >= response.totalCount) throw new Error('Tournament not found.');
+      page += 1;
+    }
+  }
+
+  private applyCanonical(tournament: TournamentManagementResponse): void {
+    this.baseTournament.set(tournament);
+    this.form.patchValue(managementToDraft(tournament), { emitEvent: false });
+    this.currentRender.set(managementToDetail(tournament, this.formats()));
+  }
+
+  private async loadStaleTournament(base: TournamentManagementResponse): Promise<void> {
+    try {
+      const latest = await this.findTournament(base.id);
+      this.staleTournament.set(latest);
+      this.staleChanges.set(changedTournamentFields(base, latest, field => this.i18n.t('tournamentManage.serverChanged', { field: this.i18n.t(`tournamentManage.field.${field}`) })));
+    } catch {
+      this.submitError.set({ message: this.i18n.t('tournamentManage.latestLoadFailed'), action: 'retry' });
+    }
+  }
+
+  private managementError(error: unknown): string {
+    if (error instanceof ApiProblemError) {
+      if (error.status === 401) return this.i18n.t('tournamentCreate.unauthorized');
+      if (error.status === 403 || error.status === 404) return this.i18n.t('tournamentManage.forbidden');
+      if (error.status === 409) return this.i18n.t('tournamentManage.cutoffRejected');
+      if (error.problem.errors) return this.i18n.t('tournamentCreate.validationFailed');
+    }
+    return this.i18n.t('tournamentManage.actionFailed');
   }
 
   private applyFieldErrors(error: unknown): void {

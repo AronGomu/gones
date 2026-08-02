@@ -552,14 +552,14 @@ Parallel rules:
 
 **Deps:** C20, C21. **Lane:** C/E. **Runnable:** Organizer/Admin Calendar management complete except participants.
 
-- [ ] RED: Cypress tests for my-org list, edit cutoff, ETag stale recovery, major-change confirmation, cancel/delete confirmations, Admin restore.
-- [ ] Add `/organizer/tournaments`, `/organizer/tournaments/:id/edit`, Admin deleted-Tournaments view.
-- [ ] Reuse create form + public detail renderer; hydrate canonical DTO; send If-Match.
-- [ ] Add explicit major-change confirmation listing date/address changes; cancel/delete confirmations explain participant mail and reminder stop.
-- [ ] On 412 preserve local draft, fetch latest, show compare/reload path; never silently last-write-win.
-- [ ] Hide forbidden actions by lifecycle/role; keep server rejection handling.
-- [ ] Add loading/empty/error/success, pending submit locks, focus return, EN/FR/mobile tests.
-- [ ] GREEN: Angular/Cypress lifecycle tests; `G-FULL`, `G-RUN` Organizer/Admin/stale-tab flows.
+- [x] RED: Cypress tests for my-org list, edit cutoff, ETag stale recovery, major-change confirmation, cancel/delete confirmations, Admin restore.
+- [x] Add `/organizer/tournaments`, `/organizer/tournaments/:id/edit`, Admin deleted-Tournaments view.
+- [x] Reuse create form + public detail renderer; hydrate canonical DTO; send If-Match.
+- [x] Add explicit major-change confirmation listing date/address changes; cancel/delete confirmations explain participant mail and reminder stop.
+- [x] On 412 preserve local draft, fetch latest, show compare/reload path; never silently last-write-win.
+- [x] Hide forbidden actions by lifecycle/role; keep server rejection handling.
+- [x] Add loading/empty/error/success, pending submit locks, focus return, EN/FR/mobile tests.
+- [x] GREEN: Angular/Cypress lifecycle tests; `G-FULL`, `G-RUN` Organizer/Admin/stale-tab flows.
 
 ## C23 — `feat: implement race-safe self-registration`
 

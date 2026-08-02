@@ -41,7 +41,9 @@ export const routes: Routes = [
   { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
   ...(environment.features.authV1 ? authRoutes : []),
   ...(environment.features.authV1 && environment.features.calendarV1 ? [
-    { path: 'organizer/tournaments/new', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) }
+    { path: 'organizer/tournaments', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-list.component').then((m) => m.OrganizerTournamentListComponent) },
+    { path: 'organizer/tournaments/new', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) },
+    { path: 'organizer/tournaments/:id/edit', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) }
   ] : []),
   ...(environment.features.adminV1 ? [
     { path: 'organizations', loadComponent: () => import('./features/admin/organization-list.component').then((m) => m.OrganizationListComponent) },
@@ -50,7 +52,8 @@ export const routes: Routes = [
     { path: 'admin', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-home.component').then((m) => m.AdminHomeComponent) },
     { path: 'admin/users', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-users.component').then((m) => m.AdminUsersComponent) },
     { path: 'admin/organizations', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-organizations.component').then((m) => m.AdminOrganizationsComponent) },
-    { path: 'admin/audit', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-audit.component').then((m) => m.AdminAuditComponent) }
+    { path: 'admin/audit', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-audit.component').then((m) => m.AdminAuditComponent) },
+    { path: 'admin/tournaments/deleted', canActivate: [adminGuard], loadComponent: () => import('./features/calendar/admin-deleted-tournaments.component').then((m) => m.AdminDeletedTournamentsComponent) }
   ] : []),
   { path: '**', loadComponent: () => import('./shared/not-found.component').then((m) => m.NotFoundComponent) }
 ];

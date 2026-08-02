@@ -1133,9 +1133,11 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .public-tournament-card .calendar-event__actions > * { width: 100%; }
 }
 
-/* Organizer Tournament create */
-.organizer-tournament-create { width: min(100%, 64rem); margin-inline: auto; }
+/* Organizer Tournament create + management */
+.organizer-tournament-create, .tournament-management-page { width: min(100%, 64rem); margin-inline: auto; }
 .tournament-create-form { display: grid; gap: 1.25rem; padding: clamp(1rem, 3vw, 2rem); }
+.tournament-form-lock { min-width: 0; margin: 0; padding: 0; border: 0; }
+.tournament-form-lock:disabled { opacity: .72; }
 .tournament-create-help { margin: 0; line-height: 1.55; }
 .tournament-create-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; }
 .tournament-create-field { display: grid; gap: .4rem; min-width: 0; }
@@ -1157,4 +1159,15 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .tournament-create-grid { grid-template-columns: 1fr; }
   .tournament-create-wide, .tournament-create-double { grid-column: 1; }
   .tournament-preview-actions button { flex: 1 1 100%; }
+}
+.tournament-management-list { display: grid; gap: 1rem; }
+.tournament-management-row-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(12rem, auto); gap: 1rem; align-items: center; }
+.tournament-management-row h2 { margin: .25rem 0; overflow-wrap: anywhere; }
+.tournament-management-actions { justify-content: flex-end; }
+.tournament-management-empty { padding: clamp(1rem, 3vw, 2rem); }
+mat-dialog-content p { white-space: pre-line; }
+@media (max-width: 700px) {
+  .tournament-management-row-grid { grid-template-columns: 1fr; }
+  .tournament-management-actions { display: grid; grid-template-columns: 1fr; }
+  .tournament-management-actions > * { width: 100%; }
 }
