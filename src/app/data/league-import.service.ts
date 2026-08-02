@@ -14,6 +14,10 @@ export interface LeagueImportResult {
 const MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_FULL_DATA_LEAGUES = 100;
 
+function importKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `league-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LeagueImportService {
   constructor(private readonly repo: LeagueRepository, private readonly calendarRepo: CalendarEventRepository) {}
@@ -31,9 +35,14 @@ export class LeagueImportService {
       const importedLeagueIds: string[] = [];
       const importedCalendarEventIds: string[] = [];
       try {
-        for (const restoredLeague of restored.leagues) {
-          const persisted = await this.repo.insertLeague(restoredLeague);
-          importedLeagueIds.push(persisted.id);
+        if (this.repo.serverMode) {
+          const leagues = await this.repo.restoreFullLeagueData({ kind: 'fullData', gonesDataVersion: exportFile.gonesDataVersion, leagues: exportFile.leagues }, importKey());
+          importedLeagueIds.push(...leagues.map(league => league.id));
+        } else {
+          for (const restoredLeague of restored.leagues) {
+            const persisted = await this.repo.insertLeague(restoredLeague);
+            importedLeagueIds.push(persisted.id);
+          }
         }
         for (const event of restored.calendarEvents) {
           const persisted = await this.calendarRepo.save(event);
@@ -47,6 +56,10 @@ export class LeagueImportService {
       return { kind: 'fullData', importedLeagueIds, importedCalendarEventIds };
     }
 
+    if (this.repo.serverMode) {
+      const persisted = await this.repo.restoreLeague({ kind: 'league', gonesDataVersion: exportFile.gonesDataVersion, league: exportFile.league }, importKey());
+      return { kind: 'league', importedLeagueIds: [persisted.id], importedCalendarEventIds: [] };
+    }
     const existingLeagues = await this.repo.listLeagues();
     const restored = restoreLeague(parsed, { idFactory: defaultIdFactory, existingLeagues });
     const persisted = await this.repo.insertLeague(restored);

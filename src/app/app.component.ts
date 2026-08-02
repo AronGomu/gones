@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { CalendarEventRepository } from './data/calendar-event-repository.service';
+import { canManageLeagues, leagueCommandError } from './data/league-command-ux';
 import { LeagueRepository } from './data/league-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
@@ -17,6 +18,7 @@ import { I18nService } from './i18n/i18n.service';
 import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
 import { AuthService } from './auth/auth.service';
+import { ApiProblemError } from './api/api-boundary';
 
 interface BreadcrumbItem {
   label: string;
@@ -54,25 +56,31 @@ interface HeaderTournament {
           </div>
         } @else if (showHeaderImport()) {
           <div class="header-actions">
-            <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
-            <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
+            @if (canManageLeagueData()) {
+              <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
+              <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
+            }
             <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">{{ i18n.t('header.fullDataExport') }}</button>
           </div>
         } @else if (headerTournament(); as item) {
           <div class="header-actions tournament-header-actions">
             <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
-            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
-            <mat-menu #tournamentActionsMenu="matMenu">
-              <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? i18n.t('header.deletingTournament') : i18n.t('header.deleteTournament') }}</button>
-            </mat-menu>
+            @if (canManageLeagueData()) {
+              <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
+              <mat-menu #tournamentActionsMenu="matMenu">
+                <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? i18n.t('header.deletingTournament') : i18n.t('header.deleteTournament') }}</button>
+              </mat-menu>
+            }
           </div>
         } @else if (headerLeague(); as league) {
           <div class="header-actions league-header-actions">
             <button mat-stroked-button class="secondary-action" type="button" (click)="downloadLeagueExport(league)">{{ i18n.t('header.exportLeague') }}</button>
-            <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" [attr.aria-label]="i18n.t('header.leagueActions')">⋮</button>
-            <mat-menu #leagueActionsMenu="matMenu">
-              <button mat-menu-item class="destructive-menu-item" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? i18n.t('header.placeholderLeagueLocked') : i18n.t('header.deleteLeague') }}</button>
-            </mat-menu>
+            @if (canManageLeagueData()) {
+              <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" [attr.aria-label]="i18n.t('header.leagueActions')">⋮</button>
+              <mat-menu #leagueActionsMenu="matMenu">
+                <button mat-menu-item class="destructive-menu-item" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? i18n.t('header.placeholderLeagueLocked') : i18n.t('header.deleteLeague') }}</button>
+              </mat-menu>
+            }
           </div>
         } @else if (showSettingsActions()) {
           <div class="header-actions settings-header-actions" [attr.aria-label]="i18n.t('header.settingsActionsAria')">
@@ -127,6 +135,7 @@ export class AppComponent {
   readonly settingsMessage = signal('');
   readonly resendPending = signal(false);
   readonly resendStatus = signal('');
+  readonly canManageLeagueData = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
   readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
@@ -138,6 +147,7 @@ export class AppComponent {
   constructor() {
     void this.updateRouteState(this.router.url);
     window.addEventListener('gones-live-tournament-updated', (event) => this.handleLiveTournamentUpdated(event));
+    window.addEventListener('gones-league-updated', () => void this.updateRouteState(this.router.url));
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       void this.updateRouteState(event.urlAfterRedirects);
     });
@@ -270,7 +280,7 @@ export class AppComponent {
   }
 
   openImportPicker(): void {
-    if (!this.importing()) this.headerImportInput?.nativeElement.click();
+    if (this.canManageLeagueData() && !this.importing()) this.headerImportInput?.nativeElement.click();
   }
 
   openSettingsImportPicker(): void {
@@ -349,9 +359,15 @@ export class AppComponent {
     if (this.isPlaceholderLeague(league)) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('dialog.deleteLeagueTitle'), message: this.i18n.t('dialog.deleteLeagueMessage', { name: league.name }), confirmLabel: this.i18n.t('dialog.deleteLeagueTitle'), destructive: true } }).afterClosed());
     if (!confirmed) return;
-    await this.repo.deleteLeague(league.id);
-    this.headerLeague.set(null);
-    await this.router.navigate(['/leagues']);
+    try {
+      await this.repo.deleteLeague(league.id);
+      this.headerLeague.set(null);
+      await this.router.navigate(['/leagues']);
+    } catch (error) {
+      logBoundaryError('app-header.deleteLeague', error, { leagueId: league.id });
+      const kind = leagueCommandError(error);
+      this.importError.set(kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : kind === 'stale' ? this.i18n.t('leagues.staleDelete') : this.i18n.t('leagues.deleteFailed'));
+    }
   }
 
   async deleteTournament({ league, tournament }: HeaderTournament): Promise<void> {
@@ -361,13 +377,13 @@ export class AppComponent {
     this.deletingTournament.set(true);
     this.importError.set('');
     try {
-      const nextLeague = { ...league, tournaments: league.tournaments.filter((item) => item.id !== tournament.id) };
-      await this.repo.saveLeague(nextLeague, league.documentVersion);
+      await this.repo.deleteResultTournament(league, tournament.id);
       this.headerTournament.set(null);
       await this.router.navigate(['/leagues', league.id]);
     } catch (error) {
       logBoundaryError('app-header.deleteTournament', error, { leagueId: league.id, tournamentId: tournament.id });
-      this.importError.set(error instanceof Error && error.message === 'staleLeagueDocument' ? this.i18n.t('msg.staleLeagueDeleteTournament') : this.i18n.t('msg.deleteTournamentFailed'));
+      const kind = leagueCommandError(error);
+      this.importError.set(kind === 'stale' ? this.i18n.t('msg.staleLeagueDeleteTournament') : kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('msg.deleteTournamentFailed'));
     } finally {
       this.deletingTournament.set(false);
     }
@@ -397,6 +413,8 @@ export class AppComponent {
 }
 
 function importErrorMessage(error: unknown, i18n: I18nService): string {
+  if (error instanceof ApiProblemError && error.status === 403) return i18n.t('leagues.forbidden');
+  if (error instanceof ApiProblemError && error.status === 412) return i18n.t('leagues.staleDelete');
   if (error instanceof DOMException && error.name === 'QuotaExceededError') return i18n.t('msg.importQuota');
   if (error instanceof Error) {
     if (error.message === 'gonesImportFileTooLarge') return i18n.t('msg.importTooLarge');

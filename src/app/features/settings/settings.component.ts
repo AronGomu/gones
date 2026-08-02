@@ -8,6 +8,8 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { AuthService } from '../../auth/auth.service';
+import { canManageLeagues, leagueCommandError } from '../../data/league-command-ux';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { collectKnownPlayerNames } from '../../domain/player-stats';
@@ -185,14 +187,16 @@ import { saveJsonFile } from '../../shared/save-json-file';
                       >{{ i18n.t('common.save') }}</button>
                     } @else {
                       <span class="settings-archetype-name" data-cy="settings-player-name">{{ player }}</span>
-                      <button
-                        mat-stroked-button
-                        type="button"
-                        class="settings-archetype-row-action success-ghost-action"
-                        data-cy="settings-update-player-button"
-                        (click)="startPlayerEdit(player)"
-                        [disabled]="playerSaving()"
-                      >{{ i18n.t('common.update') }}</button>
+                      @if (canManageLeagueData()) {
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action success-ghost-action"
+                          data-cy="settings-update-player-button"
+                          (click)="startPlayerEdit(player)"
+                          [disabled]="playerSaving()"
+                        >{{ i18n.t('common.update') }}</button>
+                      }
                     }
                   </div>
                 }
@@ -202,6 +206,7 @@ import { saveJsonFile } from '../../shared/save-json-file';
             } @else {
               <p class="empty" data-cy="settings-empty-players">{{ i18n.t('settings.emptyPlayers') }}</p>
             }
+            @if (!canManageLeagueData() && leagueRepo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
             @if (playerMessage()) { <p class="settings-saved" role="status">{{ playerMessage() }}</p> }
           </mat-expansion-panel>
         </mat-card-content>
@@ -214,7 +219,8 @@ import { saveJsonFile } from '../../shared/save-json-file';
 export class SettingsComponent {
   readonly i18n = inject(I18nService);
   private readonly deckArchetypes = inject(DeckArchetypeSettingsService);
-  private readonly leagueRepo = inject(LeagueRepository);
+  readonly leagueRepo = inject(LeagueRepository);
+  private readonly auth = inject(AuthService);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly dialog = inject(MatDialog);
   readonly language = this.deckArchetypes.language;
@@ -240,6 +246,7 @@ export class SettingsComponent {
   readonly playerSaving = signal(false);
   readonly editingPlayer = signal<string | null>(null);
   readonly playerEdits = signal<Record<string, string>>({});
+  readonly canManageLeagueData = computed(() => canManageLeagues(this.leagueRepo.serverMode, this.auth.profile()?.globalRole));
   readonly filteredPlayers = computed(() => {
     const filter = playerNameKey(this.playerFilter());
     const list = this.players();
@@ -450,7 +457,7 @@ export class SettingsComponent {
   }
 
   async savePlayerEdit(player: string): Promise<void> {
-    if (this.playerSaving()) return;
+    if (!this.canManageLeagueData() || this.playerSaving()) return;
     const next = trimPlayerName(this.playerEditValue(player));
     if (!next) {
       this.playerMessage.set(this.i18n.t('settings.playerEnterName'));
@@ -491,7 +498,7 @@ export class SettingsComponent {
         : this.i18n.t('settings.playerRenamed', { from: player, to: targetName }));
     } catch (error) {
       logBoundaryError('settings.renamePlayer', error, { from: player, to: next });
-      this.playerMessage.set(this.i18n.t('settings.playerRenameFailed'));
+      this.playerMessage.set(leagueCommandError(error) === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('settings.playerRenameFailed'));
     } finally {
       this.playerSaving.set(false);
     }
@@ -526,7 +533,8 @@ export class SettingsComponent {
       if (nextLeague === league) continue;
       const changed = JSON.stringify(nextLeague.tournaments) !== JSON.stringify(league.tournaments);
       if (!changed) continue;
-      await this.leagueRepo.saveLeague(nextLeague, league.documentVersion);
+      if (this.leagueRepo.serverMode) await this.leagueRepo.renameLeaguePlayerName(league, from, to);
+      else await this.leagueRepo.saveLeague(nextLeague, league.documentVersion);
     }
 
     const lives = await this.liveRepo.list();

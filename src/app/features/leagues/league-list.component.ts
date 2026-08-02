@@ -8,6 +8,8 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../auth/auth.service';
+import { canManageLeagues, leagueCommandError } from '../../data/league-command-ux';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
@@ -43,10 +45,12 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
             <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.view') }}</span>
           </a>
         }
-        <button class="league-card league-create-card" type="button" (click)="createLeague()" data-cy="create-league-card">
-          <h2>{{ i18n.t('leagues.newLeague') }}</h2>
-          <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
-        </button>
+        @if (canManage()) {
+          <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="create-league-card">
+            <h2>{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
+            <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
+          </button>
+        } @else if (repo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       </div>
     }
 
@@ -58,6 +62,8 @@ export class LeagueListComponent {
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
+  readonly creating = signal(false);
+  readonly canManage = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
   searchTerm = '';
   readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {
@@ -67,7 +73,7 @@ export class LeagueListComponent {
       .filter((league) => !search || this.leagueDisplayName(league).toLowerCase().includes(search) || league.name.toLowerCase().includes(search));
   });
 
-  constructor(private readonly repo: LeagueRepository, private readonly router: Router, private readonly dialog: MatDialog) {
+  constructor(readonly repo: LeagueRepository, private readonly auth: AuthService, private readonly router: Router, private readonly dialog: MatDialog) {
     void this.load();
   }
 
@@ -95,9 +101,16 @@ export class LeagueListComponent {
 
   async createLeague(): Promise<void> {
     const name = await firstDialogValue(this.dialog.open(TextPromptDialogComponent, { data: { title: this.i18n.t('leagues.createTitle'), label: this.i18n.t('leagues.createLabel'), confirmLabel: this.i18n.t('leagues.createConfirm') } }).afterClosed());
-    if (!name) return;
-    const league = await this.repo.createLeague(name);
-    await this.router.navigate(['/leagues', league.id]);
+    if (!name || this.creating()) return;
+    this.creating.set(true);
+    try {
+      const league = await this.repo.createLeague(name);
+      this.error.set('');
+      await this.router.navigate(['/leagues', league.id]);
+    } catch (error) {
+      logBoundaryError('league-list.create', error);
+      this.error.set(leagueCommandError(error) === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('leagues.createFailed'));
+    } finally { this.creating.set(false); }
   }
 
 }

@@ -5,13 +5,15 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog } from '@angular/material/dialog';
-import { MatExpansionModule } from '@angular/material/expansion';
+import { MatExpansionModule, MatExpansionPanel } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
+import { AuthService } from '../../auth/auth.service';
+import { canManageLeagues, leagueCommandError } from '../../data/league-command-ux';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
+import { createByeRoundEntry, createMatchRoundEntry, getDefaultTournamentName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
 import { archetypeForPlayer, mergeImportedRoundArchetypes, setTournamentPlayerArchetype, tournamentPlayerArchetypeRows, validateTournamentPlayerArchetypes } from '../../domain/tournament-archetypes';
 import { calculateTournamentResult } from '../../domain/results';
@@ -36,9 +38,10 @@ import { I18nService } from '../../i18n/i18n.service';
           <p class="kicker">{{ i18n.t('tournament.kicker') }}</p>
           <div class="tournament-heading-fields">
             @if (titleOnlyEditing()) { <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('tournament.name') }}</mat-label><input #tournamentNameInput data-cy="tournament-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
-            @else { <h1><button #tournamentTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="i18n.t('tournament.editNameAria', { name: t.name })">{{ t.name }}</button></h1> }
-            <mat-form-field appearance="outline" class="tournament-date-field"><mat-label>{{ i18n.t('tournament.date') }}</mat-label><input matInput type="date" [(ngModel)]="t.tournamentDate"></mat-form-field>
-            <mat-form-field appearance="outline" class="tournament-league-field"><mat-label>{{ i18n.t('tournament.league') }}</mat-label><mat-select [ngModel]="leagueId()" (ngModelChange)="moveTournamentToLeague($event)">@for (leagueOption of leagues(); track leagueOption.id) { <mat-option [value]="leagueOption.id">{{ leagueDisplayName(leagueOption) }}</mat-option> }</mat-select></mat-form-field>
+            @else if (canManage()) { <h1><button #tournamentTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="i18n.t('tournament.editNameAria', { name: t.name })">{{ t.name }}</button></h1> }
+            @else { <h1>{{ t.name }}</h1> }
+            <mat-form-field appearance="outline" class="tournament-date-field"><mat-label>{{ i18n.t('tournament.date') }}</mat-label><input matInput type="date" [(ngModel)]="t.tournamentDate" [readonly]="!canManage()"></mat-form-field>
+            <mat-form-field appearance="outline" class="tournament-league-field"><mat-label>{{ i18n.t('tournament.league') }}</mat-label><mat-select [ngModel]="leagueId()" [disabled]="!canManage() || saving()" (ngModelChange)="moveTournamentToLeague($event)">@for (leagueOption of leagues(); track leagueOption.id) { <mat-option [value]="leagueOption.id">{{ leagueDisplayName(leagueOption) }}</mat-option> }</mat-select></mat-form-field>
           </div>
           @if (result().provisional || result().incomplete) {
             <div class="warning">
@@ -71,8 +74,8 @@ import { I18nService } from '../../i18n/i18n.service';
       }
       <section class="stack"><h2>{{ i18n.t('tournament.ranking') }}</h2><gones-ranking-table [rows]="result().rows" [emptyText]="i18n.t('tournament.emptyRanking')" /></section>
       <section class="stack tournament-rounds-section" (input)="syncPlayerArchetypesFromRoundEntries()">
-        <div class="rounds-section-actions"><button class="add-round-button create-action-button" mat-flat-button type="button" [attr.aria-label]="i18n.t('tournament.addRound')" (click)="addRound()"><span>{{ i18n.t('tournament.addRound') }}</span></button></div>
-        <mat-expansion-panel class="round-panel rounds-section-panel" [expanded]="roundsExpanded()" (opened)="roundsExpanded.set(true)" (closed)="roundsExpanded.set(false)">
+        @if (canManage()) { <div class="rounds-section-actions"><button class="add-round-button create-action-button" mat-flat-button type="button" [disabled]="saving()" [attr.aria-label]="i18n.t('tournament.addRound')" (click)="addRound()"><span>{{ i18n.t('tournament.addRound') }}</span></button></div> }
+        <mat-expansion-panel #roundsPanel class="round-panel rounds-section-panel">
           <mat-expansion-panel-header>
             <mat-panel-title class="round-panel-title">{{ i18n.t('tournament.rounds') }}</mat-panel-title>
             <mat-panel-description>{{ i18n.plural(t.rounds.length, 'tournament.roundCountOne', 'tournament.roundCountMany') }}</mat-panel-description>
@@ -82,14 +85,14 @@ import { I18nService } from '../../i18n/i18n.service';
               <mat-expansion-panel-header>
                 <mat-panel-title class="round-panel-title">{{ i18n.t('tournament.roundN', { n: roundView.number }) }}</mat-panel-title>
                 <mat-panel-description>{{ i18n.t('tournament.entriesCount', { count: roundView.round.entries.length }) }}</mat-panel-description>
-                <button class="round-menu-button" mat-icon-button [matMenuTriggerFor]="roundMenu" type="button" [attr.aria-label]="i18n.t('tournament.roundActions')" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋯</button>
+                @if (canManage()) { <button class="round-menu-button" mat-icon-button [matMenuTriggerFor]="roundMenu" type="button" [disabled]="saving()" [attr.aria-label]="i18n.t('tournament.roundActions')" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋯</button> }
               </mat-expansion-panel-header>
               <mat-menu #roundMenu="matMenu">
                 <button class="destructive-menu-item" mat-menu-item type="button" (click)="deleteRound(roundView.round)">{{ i18n.t('tournament.deleteRound') }}</button>
               </mat-menu>
               <div class="import-row">
-                <mat-form-field appearance="outline"><mat-label>{{ i18n.t('tournament.roundImport') }}</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field>
-                @if (hasValidRoundImport(importText.value)) { <button class="round-import-button create-action-button" mat-flat-button type="button" (click)="replaceRound(roundView.round, importText.value); importText.value = ''">{{ i18n.t('tournament.importRoundData') }}</button> }
+                <mat-form-field appearance="outline"><mat-label>{{ i18n.t('tournament.roundImport') }}</mat-label><textarea matInput #importText data-cy="round-import-input" rows="4" [readonly]="!canManage()" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field>
+                @if (canManage() && hasValidRoundImport(importText.value)) { <button class="round-import-button create-action-button" mat-flat-button type="button" [disabled]="saving()" (click)="replaceRound(roundView.round, importText.value); importText.value = ''">{{ i18n.t('tournament.importRoundData') }}</button> }
               </div>
               @if (roundView.round.entries.length) {
                 <div class="table-wrap round-entry-table-wrap">
@@ -108,27 +111,27 @@ import { I18nService } from '../../i18n/i18n.service';
                       @for (entry of roundView.round.entries; track entry.id; let entryIndex = $index) {
                         <tr [class.invalid]="entryInvalid(entry)" [class.is-warning]="entryHasWarning(roundView.round, entry)">
                           @if (entry.kind === 'match') {
-                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
-                            <td><input [(ngModel)]="entry.player1Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 name')"></td>
-                            <td class="round-entry-table__score"><input type="number" [(ngModel)]="entry.player1Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 score')"></td>
-                            <td><input [(ngModel)]="entry.player2Name" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2 name')"></td>
-                            <td class="round-entry-table__score"><input type="number" [(ngModel)]="entry.player2Score" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2 score')"></td>
-                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">{{ i18n.t('common.delete') }}</button></td>
+                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
+                            <td><input [(ngModel)]="entry.player1Name" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1')"></td>
+                            <td class="round-entry-table__score"><input type="number" [(ngModel)]="entry.player1Score" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 wins')"></td>
+                            <td><input [(ngModel)]="entry.player2Name" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 2')"></td>
+                            <td class="round-entry-table__score"><input type="number" [(ngModel)]="entry.player2Score" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'player 1 losses')"></td>
+                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [disabled]="!canManage() || saving()" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">{{ i18n.t('common.delete') }}</button></td>
                           } @else if (entry.kind === 'bye') {
-                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
-                            <td><input [(ngModel)]="entry.playerName" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'bye player')"></td>
+                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'table')"></td>
+                            <td><input [(ngModel)]="entry.playerName" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'bye player')"></td>
                             <td class="round-entry-table__empty"></td>
                             <td class="round-entry-table__empty"></td>
                             <td class="round-entry-table__empty"></td>
-                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">{{ i18n.t('common.delete') }}</button></td>
+                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [disabled]="!canManage() || saving()" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">{{ i18n.t('common.delete') }}</button></td>
                           }
                           @else {
-                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row table')"></td>
-                            <td><input [(ngModel)]="entry.rawText" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 1')"></td>
-                            <td class="round-entry-table__score"><input [(ngModel)]="entry.result" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 1 score')"></td>
-                            <td><input [(ngModel)]="entry.opponent" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 2')"></td>
+                            <td class="round-entry-table__compact"><input [(ngModel)]="entry.table" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row table')"></td>
+                            <td><input [(ngModel)]="entry.rawText" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 1')"></td>
+                            <td class="round-entry-table__score"><input [(ngModel)]="entry.result" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 1 score')"></td>
+                            <td><input [(ngModel)]="entry.opponent" [readonly]="!canManage()" [attr.aria-label]="roundEntryInputLabel(roundView.number, entryIndex, 'invalid row player 2')"></td>
                             <td class="round-entry-table__empty"></td>
-                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">{{ i18n.t('common.delete') }}</button></td>
+                            <td><button mat-stroked-button class="secondary-action danger-ghost-action" type="button" [disabled]="!canManage() || saving()" [attr.aria-label]="roundEntryDeleteLabel(roundView.number, entryIndex)" (click)="deleteEntry(roundView.round, entry.id)">{{ i18n.t('common.delete') }}</button></td>
                           }
                         </tr>
                       }
@@ -136,7 +139,7 @@ import { I18nService } from '../../i18n/i18n.service';
                   </table>
                 </div>
               }
-              <div class="round-entry-actions"><button mat-stroked-button type="button" (click)="addMatch(roundView.round)">{{ i18n.t('tournament.addMatch') }}</button><button mat-stroked-button type="button" (click)="addBye(roundView.round)">{{ i18n.t('tournament.addBye') }}</button></div>
+              @if (canManage()) { <div class="round-entry-actions"><button mat-stroked-button type="button" [disabled]="saving()" (click)="addMatch(roundView.round)">{{ i18n.t('tournament.addMatch') }}</button><button mat-stroked-button type="button" [disabled]="saving()" (click)="addBye(roundView.round)">{{ i18n.t('tournament.addBye') }}</button></div> }
             </mat-expansion-panel>
           }
         </mat-expansion-panel>
@@ -157,13 +160,16 @@ import { I18nService } from '../../i18n/i18n.service';
               @for (row of playerArchetypeRows(t); track row.playerName; let rowIndex = $index) {
                 <div class="player-archetype-row" data-cy="player-archetype-row">
                   <label class="player-archetype-row__player" [attr.for]="'player-archetype-' + rowIndex"><span class="sr-only">Deck archetype for </span>{{ row.playerName }}</label>
-                  <gones-deck-archetype-input [inputId]="'player-archetype-' + rowIndex" [label]="i18n.t('live.deckArchetypeFor', { name: row.playerName })" [value]="archetypeFor(t, row.playerName)" (valueChange)="setArchetype(row.playerName, $event)" />
+                  @if (canManage()) { <gones-deck-archetype-input [inputId]="'player-archetype-' + rowIndex" [label]="i18n.t('live.deckArchetypeFor', { name: row.playerName })" [value]="archetypeFor(t, row.playerName)" (valueChange)="setArchetype(row.playerName, $event)" /> }
+                  @else { <span>{{ archetypeFor(t, row.playerName) || i18n.t('tournament.noArchetype') }}</span> }
                 </div>
               }
             </div>
           } @else { <p class="empty">{{ i18n.t('tournament.noPlayersYet') }}</p> }
         </mat-expansion-panel>
       </section>
+      @if (!canManage() && repo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+      @if (stale()) { <button type="button" class="secondary-action" data-cy="tournament-reload" (click)="reloadLatest()">{{ i18n.t('leagues.reloadLatest') }}</button> }
     } @else if (!loading()) { <mat-card class="panel"><mat-card-title>{{ i18n.t('tournament.notFoundTitle') }}</mat-card-title><mat-card-content><p>{{ i18n.t('tournament.notFoundBody') }}</p></mat-card-content></mat-card> }
     @if (!loading()) { <gones-back-button [link]="leagueBackLink()" [label]="i18n.t('nav.backToLeague')" position="bottom" /> }
   `
@@ -172,6 +178,7 @@ export class TournamentDetailComponent {
   readonly i18n = inject(I18nService);
   @ViewChild('tournamentNameInput') private tournamentNameInput?: ElementRef<HTMLInputElement>;
   @ViewChild('tournamentTitleButton') private tournamentTitleButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('roundsPanel') private roundsPanel?: MatExpansionPanel;
 
   readonly league = signal<PersistedLeague | null>(null);
   readonly draft = signal<LeagueDocument>(null as unknown as LeagueDocument);
@@ -181,8 +188,9 @@ export class TournamentDetailComponent {
   readonly saving = signal(false);
   readonly dirty = signal(false);
   readonly error = signal('');
+  readonly stale = signal(false);
   readonly importErrors = signal<string[]>([]);
-  readonly roundsExpanded = signal(false);
+  readonly canManage = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
   readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);
@@ -194,11 +202,10 @@ export class TournamentDetailComponent {
   readonly leagueId = signal('');
   private readonly tournamentId = signal('');
   private archetypePersistTimer: ReturnType<typeof setTimeout> | null = null;
-  private archetypePersistQueued = false;
   readonly leagueBackLink = computed(() => ['/leagues', this.leagueId()]);
   get roundImportPlaceholder(): string { return this.i18n.t('tournament.roundImportPlaceholder'); }
 
-  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
+  constructor(readonly repo: LeagueRepository, private readonly auth: AuthService, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) { void this.load(); }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void { if (this.dirty()) event.preventDefault(); }
   @HostListener('document:keydown', ['$event']) handleShortcut(event: KeyboardEvent): void {
     if (!this.editing() || this.saving()) return;
@@ -238,7 +245,7 @@ export class TournamentDetailComponent {
     if (!Number.isInteger(roundNumber) || roundNumber < 1) return;
     const tournament = this.tournament();
     if (!tournament || roundNumber > (tournament.rounds?.length ?? 0)) return;
-    this.roundsExpanded.set(true);
+    if (this.roundsPanel) this.roundsPanel.expanded = true;
     this.setRoundExpanded(roundNumber, true);
     setTimeout(() => {
       document.getElementById(`tournament-round-${roundNumber}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -255,26 +262,43 @@ export class TournamentDetailComponent {
     this.editing.set(true);
     this.dirty.set(false);
   }
-  startTitleEdit(): void { if (!this.editing()) this.startEdit(); this.titleOnlyEditing.set(true); this.focusTournamentNameInput(); }
+  startTitleEdit(): void { if (!this.canManage()) return; if (!this.editing()) this.startEdit(); this.titleOnlyEditing.set(true); this.focusTournamentNameInput(); }
   cancelEdit(): void { this.startEdit(); this.focusTournamentTitleButton(); }
-  markDirty(): void { if (!this.saving()) this.dirty.set(true); }
-  addRound(): void {
-    this.roundsExpanded.set(true);
-    this.updateTournament((tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound()] }));
+  markDirty(): void { if (this.canManage() && !this.saving()) this.dirty.set(true); }
+  async addRound(): Promise<void> {
+    if (!this.canManage() || this.saving()) return;
+    this.saving.set(true);
+    if (this.roundsPanel) this.roundsPanel.expanded = true;
+    try {
+      const source = await this.persistDraftChanges();
+      const updated = await this.repo.addResultRound(source, this.tournamentId());
+      this.acceptLeague(updated);
+      if (this.roundsPanel) this.roundsPanel.expanded = true;
+      this.error.set('');
+      this.stale.set(false);
+    } catch (error) {
+      logBoundaryError('tournament-detail.addRound', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
+      this.applyCommandError(error, 'tournament.saveFailed');
+    } finally { this.saving.set(false); }
   }
-  addMatch(round: RoundDocument): void { this.updateRound(round.id, (item) => ({ ...item, entries: [...item.entries, createMatchRoundEntry({ table: String(item.entries.length + 1) })] })); }
-  addBye(round: RoundDocument): void { this.updateRound(round.id, (item) => ({ ...item, entries: [...item.entries, createByeRoundEntry({ table: String(item.entries.length + 1) })] })); }
-  replaceRound(round: RoundDocument, text: string): void {
+  async addMatch(round: RoundDocument): Promise<void> {
+    await this.runCommand(async league => this.repo.addResultEntry(league, this.tournamentId(), round.id, createMatchRoundEntry({ table: String(round.entries.length + 1) })));
+  }
+  async addBye(round: RoundDocument): Promise<void> {
+    await this.runCommand(async league => this.repo.addResultEntry(league, this.tournamentId(), round.id, createByeRoundEntry({ table: String(round.entries.length + 1) })));
+  }
+  async replaceRound(round: RoundDocument, text: string): Promise<void> {
     const imported = importRoundEntries(text);
-    this.updateTournament((tournament) => {
+    const tournament = this.tournament();
+    if (tournament) {
       const merged = mergeImportedRoundArchetypes(tournament, imported.entries);
       this.importErrors.set(merged.conflicts.map((conflict) => this.i18n.t('tournament.importConflictRow', {
         player: conflict.playerName,
         imported: conflict.importedArchetype || this.i18n.t('tournament.noArchetype'),
         existing: conflict.existingArchetype || this.i18n.t('tournament.noArchetype')
       })));
-      return { ...tournament, playerArchetypes: merged.playerArchetypes, rounds: tournament.rounds.map((item) => item.id === round.id ? { ...item, entries: merged.entries } : item) };
-    });
+    }
+    await this.runCommand(async league => this.repo.importResultRound(league, this.tournamentId(), round.id, text));
   }
   playerArchetypeRows(tournament: TournamentDocument) { return tournamentPlayerArchetypeRows(tournament); }
   archetypeFor(tournament: TournamentDocument, playerName: string): string { return archetypeForPlayer(tournament, playerName); }
@@ -290,45 +314,14 @@ export class TournamentDetailComponent {
     this.updateTournament((item) => ({ ...item, playerArchetypes: rows }));
   }
   setArchetype(playerName: string, archetype: string): void {
+    if (!this.canManage()) return;
     this.importErrors.set([]);
-    this.updateTournament((tournament) => setTournamentPlayerArchetype(tournament, playerName, archetype));
-    this.scheduleArchetypePersist();
-  }
-
-  private scheduleArchetypePersist(): void {
+    this.updateTournament(tournament => setTournamentPlayerArchetype(tournament, playerName, archetype));
     if (this.archetypePersistTimer) clearTimeout(this.archetypePersistTimer);
     this.archetypePersistTimer = setTimeout(() => {
       this.archetypePersistTimer = null;
-      void this.persistArchetypesNow();
+      void this.save({ restoreFocus: false });
     }, 250);
-  }
-
-  private async persistArchetypesNow(): Promise<void> {
-    const saved = this.league();
-    if (!saved) return;
-    if (this.saving()) {
-      this.archetypePersistQueued = true;
-      return;
-    }
-    this.saving.set(true);
-    this.archetypePersistQueued = false;
-    const draftAtSave = this.draft();
-    try {
-      const league = await this.repo.saveLeague(draftAtSave, saved.documentVersion);
-      this.league.set(league);
-      if (this.draft() === draftAtSave) this.dirty.set(false);
-      else {
-        this.dirty.set(true);
-        this.archetypePersistQueued = true;
-      }
-      this.error.set('');
-    } catch (error) {
-      logBoundaryError('tournament-detail.persistArchetypes', error, { leagueId: saved.id, tournamentId: this.tournamentId() });
-      this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? this.i18n.t('tournament.staleSave') : this.i18n.t('tournament.saveFailed'));
-    } finally {
-      this.saving.set(false);
-      if (this.archetypePersistQueued) void this.persistArchetypesNow();
-    }
   }
   hasValidRoundImport(text: string): boolean {
     const entries = importRoundEntries(text).entries;
@@ -350,7 +343,7 @@ export class TournamentDetailComponent {
   async moveTournamentToLeague(targetLeagueId: string): Promise<void> {
     const saved = this.league();
     const tournament = this.tournament();
-    if (!saved || !tournament || targetLeagueId === saved.id) return;
+    if (!saved || !tournament || !this.canManage() || targetLeagueId === saved.id) return;
     if (this.dirty()) { this.error.set(this.i18n.t('tournament.saveBeforeMove')); return; }
     this.saving.set(true);
     try {
@@ -359,7 +352,7 @@ export class TournamentDetailComponent {
       await this.router.navigate(['/leagues', result.toLeague.id, 'tournaments', tournament.id]);
     } catch (error) {
       logBoundaryError('tournament-detail.moveTournament', error, { leagueId: saved.id, tournamentId: tournament.id, targetLeagueId });
-      this.error.set(this.i18n.t('tournament.moveFailed'));
+      this.applyCommandError(error, 'tournament.moveFailed');
     } finally {
       this.saving.set(false);
     }
@@ -375,11 +368,11 @@ export class TournamentDetailComponent {
   }
   async deleteEntry(round: RoundDocument, entryId: string): Promise<void> {
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('tournament.deleteMatchTitle'), message: this.i18n.t('tournament.deleteMatchMessage'), confirmLabel: this.i18n.t('tournament.deleteMatchConfirm'), destructive: true } }).afterClosed());
-    if (confirmed) this.updateRound(round.id, (item) => ({ ...item, entries: item.entries.filter((entry) => entry.id !== entryId) }));
+    if (confirmed) await this.runCommand(async league => this.repo.deleteResultEntry(league, this.tournamentId(), round.id, entryId));
   }
   async deleteRound(round: RoundDocument): Promise<void> {
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('tournament.deleteRoundTitle'), message: this.i18n.t('tournament.deleteRoundMessage'), confirmLabel: this.i18n.t('tournament.deleteRoundConfirm'), destructive: true } }).afterClosed());
-    if (confirmed) this.updateTournament((tournament) => ({ ...tournament, rounds: tournament.rounds.filter((item) => item.id !== round.id) }));
+    if (confirmed) await this.runCommand(async league => this.repo.deleteResultRound(league, this.tournamentId(), round.id));
   }
 
   async saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): Promise<void> {
@@ -390,12 +383,88 @@ export class TournamentDetailComponent {
   }
 
   async save({ restoreFocus = true }: { restoreFocus?: boolean } = {}): Promise<void> {
-    const saved = this.league();
-    if (!saved || this.saving()) return;
+    if (!this.canManage() || this.saving()) return;
     this.saving.set(true);
-    try { const league = await this.repo.saveLeague(this.draft(), saved.documentVersion); this.league.set(league); this.startEdit(league); this.error.set(''); this.importErrors.set([]); if (restoreFocus) this.focusTournamentTitleButton(); }
-    catch (error) { logBoundaryError('tournament-detail.save', error, { leagueId: saved.id, tournamentId: this.tournamentId() }); this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? this.i18n.t('tournament.staleSave') : this.i18n.t('tournament.saveFailed')); }
-    finally { this.saving.set(false); }
+    try {
+      const league = await this.persistDraftChanges();
+      this.acceptLeague(league);
+      this.error.set('');
+      this.stale.set(false);
+      this.importErrors.set([]);
+      if (restoreFocus) this.focusTournamentTitleButton();
+    } catch (error) {
+      logBoundaryError('tournament-detail.save', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
+      this.applyCommandError(error, 'tournament.saveFailed');
+    } finally { this.saving.set(false); }
+  }
+
+  async reloadLatest(): Promise<void> {
+    const latest = await this.repo.getLeague(this.leagueId());
+    if (latest) this.acceptLeague(latest);
+    this.stale.set(false);
+    this.error.set('');
+  }
+
+  private async runCommand(command: (league: PersistedLeague) => Promise<PersistedLeague>): Promise<void> {
+    if (!this.canManage() || this.saving()) return;
+    this.saving.set(true);
+    try {
+      let league = await this.persistDraftChanges();
+      league = await command(league);
+      this.acceptLeague(league);
+      this.error.set('');
+      this.stale.set(false);
+    } catch (error) {
+      logBoundaryError('tournament-detail.command', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
+      this.applyCommandError(error, 'tournament.saveFailed');
+    } finally { this.saving.set(false); }
+  }
+
+  private async persistDraftChanges(): Promise<PersistedLeague> {
+    const source = this.league();
+    const draft = this.draft();
+    if (!source) throw new Error('leagueNotFound');
+    const sourceTournament = source.tournaments.find(item => item.id === this.tournamentId());
+    const draftTournament = draft.tournaments.find(item => item.id === this.tournamentId());
+    if (!sourceTournament || !draftTournament) throw new Error('tournamentNotFound');
+    let latest = source;
+    if (sourceTournament.name !== draftTournament.name || sourceTournament.tournamentDate !== draftTournament.tournamentDate) {
+      latest = await this.repo.editResultTournament(latest, draftTournament.id, String(draftTournament.name ?? '').trim() || getDefaultTournamentName(), draftTournament.tournamentDate);
+    }
+    for (const draftRound of draftTournament.rounds) {
+      const currentRound = latest.tournaments.find(item => item.id === draftTournament.id)?.rounds.find(item => item.id === draftRound.id);
+      if (!currentRound || JSON.stringify(currentRound.entries) === JSON.stringify(draftRound.entries)) continue;
+      const sameEntryIds = currentRound.entries.length === draftRound.entries.length && currentRound.entries.every((entry, index) => entry.id === draftRound.entries[index]?.id);
+      if (!sameEntryIds) {
+        latest = await this.repo.replaceResultRound(latest, draftTournament.id, draftRound.id, draftRound.entries);
+        continue;
+      }
+      for (const draftEntry of draftRound.entries) {
+        const currentEntry = latest.tournaments.find(item => item.id === draftTournament.id)?.rounds.find(item => item.id === draftRound.id)?.entries.find(item => item.id === draftEntry.id);
+        if (currentEntry && JSON.stringify(currentEntry) !== JSON.stringify(draftEntry)) {
+          latest = await this.repo.editResultEntry(latest, draftTournament.id, draftRound.id, draftEntry.id, draftEntry);
+        }
+      }
+    }
+    for (const row of draftTournament.playerArchetypes) {
+      const current = latest.tournaments.find(item => item.id === draftTournament.id)?.playerArchetypes.find(item => item.playerName === row.playerName)?.archetype ?? '';
+      if (current !== row.archetype) latest = await this.repo.updateResultPlayerArchetype(latest, draftTournament.id, row.playerName, row.archetype);
+    }
+    return latest;
+  }
+
+  private acceptLeague(league: PersistedLeague): void {
+    const reopenRounds = this.roundsPanel?.expanded ?? false;
+    this.league.set(league);
+    this.startEdit(league);
+    if (reopenRounds && this.roundsPanel) this.roundsPanel.expanded = true;
+    window.dispatchEvent(new CustomEvent('gones-league-updated', { detail: { leagueId: league.id } }));
+  }
+
+  private applyCommandError(error: unknown, fallback: 'tournament.moveFailed' | 'tournament.saveFailed'): void {
+    const kind = leagueCommandError(error);
+    this.stale.set(kind === 'stale');
+    this.error.set(kind === 'stale' ? this.i18n.t('tournament.staleSave') : kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t(fallback));
   }
 }
 

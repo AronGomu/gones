@@ -91,8 +91,13 @@ function saveTournamentDraft(expectedRoundCount = 4) {
   cy.get("h1 button.editable-title").should("be.visible");
 }
 
+let expectedRoundCount = 0;
 function addRound() {
+  expectedRoundCount += 1;
   cy.contains("button", "Add Round").click();
+  cy.contains("mat-panel-description", `${expectedRoundCount} round`).should("exist");
+  cy.contains("button", "Add Round").should("not.be.disabled");
+  cy.contains("mat-expansion-panel-header", "Rounds").should("have.attr", "aria-expanded", "true");
 }
 
 function roundPanel(roundName) {
@@ -100,6 +105,9 @@ function roundPanel(roundName) {
 }
 
 function expandRound(roundName) {
+  cy.contains("mat-expansion-panel-header", "Rounds").then(($header) => {
+    if ($header.attr("aria-expanded") !== "true") cy.wrap($header).click();
+  });
   roundPanel(roundName).find("mat-expansion-panel-header").then(($header) => {
     if ($header.attr("aria-expanded") !== "true") cy.wrap($header).click();
   });
@@ -127,6 +135,7 @@ function fillInput(roundNumber, entryNumber, field, value) {
 function addMatchWithForm(roundName, roundNumber, entryNumber, match) {
   expandRound(roundName);
   roundPanel(roundName).within(() => cy.contains("button", "Add Match").click());
+  inputFor(roundNumber, entryNumber, "player 1").should("exist");
   fillMatch(roundNumber, entryNumber, match);
 }
 
@@ -221,7 +230,7 @@ describe("League and archived tournament navigation", () => {
     expectRankingRow("Alice", { points: 3, record: "1-0-0" });
     expectRankingRow("Uma", { points: 3, record: "1-0-0(1 bye)" });
     cy.contains("Warnings:").should("be.visible");
-    cy.contains("Alice is missing a deck archetype.").should("be.visible");
+    cy.contains("No deck archetype for:").should("be.visible").and("contain", "Alice");
 
     addRound();
     importRound("Round 2", [

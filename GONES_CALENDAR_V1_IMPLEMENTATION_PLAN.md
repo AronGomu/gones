@@ -692,14 +692,16 @@ Evidence: 7 focused PostgreSQL API tests cover Visitor/User/Organizer/Admin role
 
 **Deps:** C04, C12, C31. **Lane:** D/E. **Runnable:** `leagueServer` switches all League/Result CRUD; local fallback remains flag-off.
 
-- [ ] RED: adapter tests map each existing UI action to exact generated command + If-Match; Cypress preserves every current League/Result workflow.
-- [ ] Expand `ApplicationBackend` into intent-specific ports; implement ASP.NET adapter; stop flag-on whole-document `saveLeague`.
-- [ ] Refactor League/detail/Tournament/Settings rename/import UI to call command methods; server response replaces local aggregate.
-- [ ] Preserve current routes, output, placeholder, export, warnings, imports, stale-save UX, EN/FR strings.
-- [ ] Add access UX: public read/export; User sees read-only; Organizer/Admin controls; 401 refresh; 403 explicit.
-- [ ] Add command pending locks/idempotency; 412 compare/reload; no optimistic source mutation before response.
-- [ ] Update Cypress matrix for create→round import→edit→result→player stats→export/restore→delete.
-- [ ] GREEN: all old/new tests; `G-FULL`, `G-RUN` flag off/on with API DB.
+- [x] RED: adapter tests map each existing UI action to exact generated command + If-Match; Cypress preserves every current League/Result workflow.
+- [x] Expand `ApplicationBackend` into intent-specific ports; implement ASP.NET adapter; stop flag-on whole-document `saveLeague`.
+- [x] Refactor League/detail/Tournament/Settings rename/import UI to call command methods; server response replaces local aggregate.
+- [x] Preserve current routes, output, placeholder, export, warnings, imports, stale-save UX, EN/FR strings.
+- [x] Add access UX: public read/export; User sees read-only; Organizer/Admin controls; 401 refresh; 403 explicit.
+- [x] Add command pending locks/idempotency; 412 compare/reload; no optimistic source mutation before response.
+- [x] Update Cypress matrix for create→round import→edit→result→player stats→export/restore→delete.
+- [x] GREEN: all old/new tests; `G-FULL`, `G-RUN` flag off/on with API DB.
+
+Evidence: Vitest adapter coverage maps all 19 C31 League/Result commands to generated client calls, exact strong `If-Match` values, and explicit restore idempotency keys; UX tests cover generated 403/412 errors. Existing flag-off Cypress League workflow remains green. New `league-server.cy.js` covers Organizer create→rename→Tournament→Round import→entry edit→result/stats→export/restore→Tournament/League delete plus public/User read-only, explicit 403, and stale 412 reload UX. G-FULL passes lint/typecheck/124 TS tests/API drift/build/release E2E plus 149 C# unit and 11 architecture tests; integration passes 208/209 in parallel with one RootlessKit bind-only failure whose affected fixture passes 3/3 isolated. G-RUN flag-off Compose smoke + public seeded League DB read passes; flag-on Compose/API DB smoke proves User 403, Organizer create→rename→Round import→delete, stale 412, and anonymous read/export. Server responses replace local aggregates only after success; `leagueServer=false` keeps local backend behavior.
 
 ## C33 — `feat: persist Live Tournament aggregates with C# parity reads`
 

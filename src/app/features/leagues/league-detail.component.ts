@@ -4,8 +4,10 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { AuthService } from '../../auth/auth.service';
+import { canManageLeagues, leagueCommandError } from '../../data/league-command-ux';
 import { LeagueRepository } from '../../data/league-repository.service';
-import { createTournament, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
+import { LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate } from '../../domain/results';
 import { I18nService } from '../../i18n/i18n.service';
 import { RankingTableComponent } from '../../shared/ranking-table.component';
@@ -23,7 +25,8 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         <div>
           @if (titleEditing() && !isPlaceholderLeague(saved)) { <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('leagues.name') }}</mat-label><input #leagueNameInput data-cy="league-name-input" matInput [(ngModel)]="leagueNameDraft" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
           @else if (isPlaceholderLeague(saved)) { <h1 data-cy="placeholder-league-title">{{ leagueDisplayName(saved) }}</h1> }
-          @else { <h1><button #leagueTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="i18n.t('leagues.editNameAria', { name: saved.name })">{{ saved.name }}</button></h1> }
+          @else if (canManage()) { <h1><button #leagueTitleButton class="editable-title" type="button" (click)="startTitleEdit()" [attr.aria-label]="i18n.t('leagues.editNameAria', { name: saved.name })">{{ saved.name }}</button></h1> }
+          @else { <h1>{{ saved.name }}</h1> }
           <p class="muted">{{ i18n.t('leagues.dateRange', { count: saved.tournaments.length, start: startDate(saved) || i18n.t('leagues.noStartDate'), end: endDate(saved) || i18n.t('leagues.noEndDate') }) }}</p>
         </div>
 
@@ -47,12 +50,16 @@ import { BackButtonComponent } from '../../shared/back-button.component';
               <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.view') }}</span>
             </a>
           }
-          <button class="league-card league-create-card tournament-add-card" type="button" (click)="createNewTournament()" [disabled]="saving()" data-cy="create-tournament-card">
-            <h2>{{ saving() ? i18n.t('common.creating') : i18n.t('leagues.addTournament') }}</h2>
-            <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
-          </button>
+          @if (canManage()) {
+            <button class="league-card league-create-card tournament-add-card" type="button" (click)="createNewTournament()" [disabled]="saving()" data-cy="create-tournament-card">
+              <h2>{{ saving() ? i18n.t('common.creating') : i18n.t('leagues.addTournament') }}</h2>
+              <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
+            </button>
+          }
         </div>
       </section>
+      @if (!canManage() && repo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+      @if (stale()) { <button type="button" class="secondary-action" data-cy="league-reload" (click)="load()">{{ i18n.t('leagues.reloadLatest') }}</button> }
 
     } @else if (!loading()) {
       <mat-card class="panel"><mat-card-title>{{ i18n.t('leagues.notFoundTitle') }}</mat-card-title><mat-card-content><p>{{ i18n.t('leagues.notFoundBody') }}</p></mat-card-content></mat-card>
@@ -70,16 +77,18 @@ export class LeagueDetailComponent {
   readonly saving = signal(false);
   readonly titleEditing = signal(false);
   readonly error = signal('');
+  readonly stale = signal(false);
+  readonly canManage = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
   leagueNameDraft = '';
   readonly result = computed(() => calculateLeagueResult(this.league()!));
   readonly sortedTournaments = computed(() => [...(this.league()?.tournaments ?? [])].sort((a, b) => (b.tournamentDate || '9999-12-31').localeCompare(a.tournamentDate || '9999-12-31') || b.name.localeCompare(a.name)));
 
-  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
+  constructor(readonly repo: LeagueRepository, private readonly auth: AuthService, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
 
   async load(): Promise<void> {
     this.loading.set(true);
     const id = this.route.snapshot.paramMap.get('leagueId') ?? '';
-    try { const league = await this.repo.getLeague(id); this.league.set(league); this.leagueNameDraft = league?.name ?? ''; this.titleEditing.set(false); }
+    try { const league = await this.repo.getLeague(id); this.league.set(league); this.leagueNameDraft = league?.name ?? ''; this.titleEditing.set(false); this.stale.set(false); this.error.set(''); }
     catch (error) { logBoundaryError('league-detail.load', error, { leagueId: id }); this.error.set(this.i18n.t('leagues.loadOneFailed')); }
     finally { this.loading.set(false); }
   }
@@ -97,7 +106,7 @@ export class LeagueDetailComponent {
 
   startTitleEdit(): void {
     const saved = this.league();
-    if (!saved || this.saving() || this.isPlaceholderLeague(saved)) return;
+    if (!saved || !this.canManage() || this.saving() || this.isPlaceholderLeague(saved)) return;
     this.leagueNameDraft = saved.name;
     this.titleEditing.set(true);
     this.focusLeagueNameInput();
@@ -116,16 +125,18 @@ export class LeagueDetailComponent {
 
     this.saving.set(true);
     try {
-      const updatedLeague = await this.repo.saveLeague({ ...saved, name }, saved.documentVersion);
+      const updatedLeague = await this.repo.renameLeague(saved, name);
       this.league.set(updatedLeague);
+      window.dispatchEvent(new CustomEvent('gones-league-updated', { detail: { leagueId: updatedLeague.id } }));
       this.leagueNameDraft = updatedLeague.name;
       this.titleEditing.set(false);
       this.error.set('');
       if (restoreFocus) this.focusLeagueTitleButton();
     } catch (error) {
       logBoundaryError('league-detail.renameLeague', error, { leagueId: saved.id });
-      this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? this.i18n.t('leagues.staleRename') : this.i18n.t('leagues.renameFailed'));
-      this.leagueNameDraft = saved.name;
+      const kind = leagueCommandError(error);
+      this.stale.set(kind === 'stale');
+      this.error.set(kind === 'stale' ? this.i18n.t('leagues.staleRename') : kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('leagues.renameFailed'));
       this.titleEditing.set(false);
     } finally {
       this.saving.set(false);
@@ -135,17 +146,19 @@ export class LeagueDetailComponent {
   async createNewTournament(): Promise<void> {
     const saved = this.league();
     if (!saved || this.saving()) return;
-    const tournament = createTournament({ leagueId: saved.id });
-    const nextLeague = { ...saved, tournaments: [...saved.tournaments, tournament] };
     this.saving.set(true);
     try {
-      const updatedLeague = await this.repo.saveLeague(nextLeague, saved.documentVersion);
+      const { league: updatedLeague, tournament } = await this.repo.createResultTournament(saved);
       this.league.set(updatedLeague);
+      window.dispatchEvent(new CustomEvent('gones-league-updated', { detail: { leagueId: updatedLeague.id } }));
       this.error.set('');
+      this.stale.set(false);
       await this.router.navigate(['/leagues', updatedLeague.id, 'tournaments', tournament.id]);
     } catch (error) {
       logBoundaryError('league-detail.createTournament', error, { leagueId: saved.id });
-      this.error.set(error instanceof Error && error.message === 'staleLeagueDocument' ? this.i18n.t('leagues.staleCreateTournament') : this.i18n.t('leagues.createTournamentFailed'));
+      const kind = leagueCommandError(error);
+      this.stale.set(kind === 'stale');
+      this.error.set(kind === 'stale' ? this.i18n.t('leagues.staleCreateTournament') : kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('leagues.createTournamentFailed'));
     } finally {
       this.saving.set(false);
     }

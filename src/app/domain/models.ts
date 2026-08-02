@@ -60,6 +60,7 @@ export interface LeagueDocument {
 export interface PersistedLeague extends LeagueDocument {
   documentVersion: number;
   updatedAt?: string;
+  eTag?: string;
 }
 
 export interface TournamentDocument {

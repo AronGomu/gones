@@ -681,6 +681,12 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .create-action-button .mdc-button__label { display: inline-flex; align-items: center; gap: .4rem; }
 .create-action-button__icon { display: inline-grid; place-items: center; width: 1.15rem !important; height: 1.15rem !important; font-size: 1.15rem; line-height: 1; overflow: hidden; }
 .rounds-section-panel .round-panel { margin-top: .75rem; }
+.rounds-section-panel .round-panel,
+.rounds-section-panel .mat-expansion-panel-content,
+.rounds-section-panel .mat-expansion-panel-body { visibility: visible !important; }
+.rounds-section-panel .mat-expansion-panel-content-wrapper { transition: none !important; }
+.rounds-section-panel.mat-expanded > .mat-expansion-panel-content-wrapper,
+.rounds-section-panel .round-panel.mat-expanded > .mat-expansion-panel-content-wrapper { grid-template-rows: 1fr !important; }
 .tournament-rounds-section { margin-top: 2rem; }
 .tournament-player-archetypes-section { margin-top: 2rem; }
 .mat-mdc-menu-panel { min-width: 12rem !important; padding: .35rem; border: 1px solid var(--soot); background: var(--raised-iron) !important; }
