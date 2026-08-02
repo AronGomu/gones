@@ -7,10 +7,12 @@ RUN npm ci
 FROM dependencies AS development
 ARG GONES_FRONTEND_AUTH_V1=false
 ARG GONES_FRONTEND_ADMIN_V1=false
+ARG GONES_FRONTEND_CALENDAR_V1=false
 ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
 COPY --chown=node:node . .
 RUN sed -i "s/authV1: false/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.ts \
     && sed -i "s/adminV1: false/adminV1: ${GONES_FRONTEND_ADMIN_V1}/" src/environments/environment.ts \
+    && sed -i "s/calendarV1: false/calendarV1: ${GONES_FRONTEND_CALENDAR_V1}/" src/environments/environment.ts \
     && sed -i "s|apiBaseUrl: ''|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.ts
 USER node
 EXPOSE 4200
@@ -19,10 +21,12 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 FROM dependencies AS build
 ARG GONES_FRONTEND_AUTH_V1=false
 ARG GONES_FRONTEND_ADMIN_V1=false
+ARG GONES_FRONTEND_CALENDAR_V1=false
 ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
 COPY . .
 RUN sed -i "s/authV1: false/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.prod.ts \
     && sed -i "s/adminV1: false/adminV1: ${GONES_FRONTEND_ADMIN_V1}/" src/environments/environment.prod.ts \
+    && sed -i "s/calendarV1: false/calendarV1: ${GONES_FRONTEND_CALENDAR_V1}/" src/environments/environment.prod.ts \
     && sed -i "s|apiBaseUrl: ''|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.prod.ts \
     && npm run build
 

@@ -5,11 +5,12 @@ const composeEnv = {
   ...process.env,
   GONES_FEATURES__AUTH_V1: 'true',
   GONES_FEATURES__ADMIN_V1: 'true',
+  GONES_FEATURES__CALENDAR_V1: 'true',
   GONES_AUTH_PROVIDER: 'Local',
   GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: '1000',
   GONES_FRONTEND_API_BASE_URL: 'http://127.0.0.1:5080'
 };
-const legacyComposeEnv = { ...composeEnv, GONES_FEATURES__AUTH_V1: 'false', GONES_FEATURES__ADMIN_V1: 'false' };
+const legacyComposeEnv = { ...composeEnv, GONES_FEATURES__AUTH_V1: 'false', GONES_FEATURES__ADMIN_V1: 'false', GONES_FEATURES__CALENDAR_V1: 'false' };
 
 function run(args, env = composeEnv, allowFailure = false) {
   const result = spawnSync('docker', ['compose', ...args], { stdio: 'inherit', env });
@@ -64,6 +65,10 @@ try {
         break;
       }
     }
+  }
+  if (!process.exitCode) {
+    const calendarBrowser = runCypress('cypress/e2e/public-calendar.cy.js');
+    if (calendarBrowser.status !== 0) process.exitCode = calendarBrowser.status ?? 1;
   }
   if (!process.exitCode) {
     const browser = runCypress('cypress/e2e/auth-profile.cy.js');

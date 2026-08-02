@@ -13,11 +13,22 @@ const authRoutes: Routes = [
   { path: 'profile/sessions', canActivate: [userGuard], loadComponent: () => import('./auth/sessions.component').then((m) => m.SessionsComponent) }
 ];
 
+export function calendarRoutes(enabled: boolean): Routes {
+  if (!enabled) return [
+    { path: 'calendar', loadComponent: () => import('./features/menu/calendar.component').then((m) => m.CalendarComponent) },
+    { path: 'events/:slug', loadComponent: () => import('./features/events/event-detail.component').then((m) => m.EventDetailComponent) }
+  ];
+  return [
+    { path: 'calendar', loadComponent: () => import('./features/calendar/public-calendar.component').then((m) => m.PublicCalendarComponent) },
+    { path: 'calendar/tournaments/:slug', loadComponent: () => import('./features/calendar/public-tournament-detail.component').then((m) => m.PublicTournamentDetailComponent) },
+    { path: 'events/:slug', redirectTo: ({ params }) => `/calendar/tournaments/${encodeURIComponent(String(params['slug'] ?? ''))}` }
+  ];
+}
+
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./features/menu/home-menu.component').then((m) => m.HomeMenuComponent) },
   { path: 'about', loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
-  { path: 'calendar', loadComponent: () => import('./features/menu/calendar.component').then((m) => m.CalendarComponent) },
-  { path: 'events/:slug', loadComponent: () => import('./features/events/event-detail.component').then((m) => m.EventDetailComponent) },
+  ...calendarRoutes(environment.features.calendarV1),
   { path: 'leagues', loadComponent: () => import('./features/leagues/league-list.component').then((m) => m.LeagueListComponent) },
   { path: 'live-tournaments', loadComponent: () => import('./features/live-tournaments/live-tournament-list.component').then((m) => m.LiveTournamentListComponent) },
   { path: 'live-tournaments/new', loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },

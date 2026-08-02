@@ -500,14 +500,14 @@ Parallel rules:
 
 **Deps:** C04, C17. **Lane:** C/E. **Runnable:** `calendarV1` switches public routes; old Calendar remains fallback.
 
-- [ ] RED: Angular tests for venue-date grouping, viewer secondary date, URL filters, local view preference, past toggle, cancelled badge, stale ETag cache response.
-- [ ] Replace flag-on `/calendar` with month calendar default + list tab; route query owns month/filter/page/view.
-- [ ] Add `/calendar/tournaments/:slug`; remove flag-on use of `/events/:slug`; preserve temporary redirect mapping during cutover.
-- [ ] Render venue-local primary with explicit IANA/short zone; viewer-local secondary only when different; group by venue date.
-- [ ] Add upcoming/ongoing default, past filter, status/city/country/org/format/search filters, backend paging, deep-link restoration.
-- [ ] Add loading skeleton, empty state, retryable error, cached-stale/offline banner, cancelled/completed status text, ICS actions.
-- [ ] Render sanitized body in isolated component with safe external-link attrs; no client sanitizer as server substitute.
-- [ ] GREEN: Angular + Cypress public Calendar/list/detail/mobile tests; `G-FULL`, `G-RUN` with flag off/on.
+- [x] RED: Angular tests for venue-date grouping, viewer secondary date, URL filters, local view preference, past toggle, cancelled badge, stale ETag cache response.
+- [x] Replace flag-on `/calendar` with month calendar default + list tab; route query owns month/filter/page/view.
+- [x] Add `/calendar/tournaments/:slug`; remove flag-on use of `/events/:slug`; preserve temporary redirect mapping during cutover.
+- [x] Render venue-local primary with explicit IANA/short zone; viewer-local secondary only when different; group by venue date.
+- [x] Add upcoming/ongoing default, past filter, status/city/country/org/format/search filters, backend paging, deep-link restoration.
+- [x] Add loading skeleton, empty state, retryable error, cached-stale/offline banner, cancelled/completed status text, ICS actions.
+- [x] Render sanitized body in isolated component with safe external-link attrs; no client sanitizer as server substitute.
+- [x] GREEN: Angular + Cypress public Calendar/list/detail/mobile tests; `G-FULL`, `G-RUN` with flag off/on.
 
 ## C19 — `feat: implement server preview and hash-bound publication`
 

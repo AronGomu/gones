@@ -218,7 +218,10 @@ export class AppComponent {
     const segments = path.split('/').filter(Boolean);
     if (!segments.length) return [{ label: menu }];
     if (segments[0] === 'about') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.about'), lang: 'fr' }];
-    if (segments[0] === 'calendar') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar') }];
+    if (segments[0] === 'calendar') {
+      if (segments[1] === 'tournaments' && segments[2]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: this.i18n.t('crumb.tournament') }];
+      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar') }];
+    }
     if (segments[0] === 'events') {
       const eventPage = segments[1] ? await this.safeGetEvent(decodeURIComponent(segments[1])) : null;
       return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: eventPage?.title || this.i18n.t('crumb.event') }];

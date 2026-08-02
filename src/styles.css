@@ -1084,3 +1084,51 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .session-card mat-card-content { align-items: stretch; flex-direction: column; }
   .session-card button { width: 100%; }
 }
+
+/* Public Calendar V1 */
+.public-calendar-page { gap: 1rem; }
+.public-calendar-page, .public-calendar-page * { min-width: 0; }
+.calendar-view-tabs { display: flex; flex-wrap: wrap; gap: .5rem; }
+.calendar-view-tabs button { min-height: 44px; }
+.calendar-view-tabs button[aria-pressed='true'] { border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 25%, var(--black-metal)); }
+.calendar-filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .75rem; align-items: end; padding: 1rem; }
+.calendar-filter-form label { display: grid; gap: .35rem; color: var(--dim-ash); font-size: .85rem; font-weight: 800; }
+.calendar-filter-form input:not([type='checkbox']), .calendar-filter-form select { width: 100%; min-height: 44px; padding: .55rem .65rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }
+.calendar-filter-form input:focus-visible, .calendar-filter-form select:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+.calendar-past-toggle { align-self: stretch; grid-template-columns: auto minmax(0, 1fr); }
+.calendar-offline-banner { margin: 0; }
+.calendar-state { display: grid; justify-items: start; gap: .75rem; padding: clamp(1rem, 3vw, 2rem); }
+.calendar-skeleton, .calendar-detail-skeleton { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }
+.calendar-skeleton div, .calendar-detail-skeleton div { min-height: 8rem; border: 1px solid var(--soot); background: linear-gradient(90deg, var(--iron), var(--forge), var(--iron)); background-size: 200% 100%; animation: calendar-skeleton 1.4s ease infinite; }
+@keyframes calendar-skeleton { to { background-position: -200% 0; } }
+.public-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--soot); background: var(--black-metal); }
+.public-month-day { min-height: 7rem; display: grid; align-content: start; gap: .35rem; padding: .55rem; border-top: 1px solid var(--soot); border-left: 1px solid var(--soot); background: var(--iron); overflow: hidden; }
+.public-month-day > time { font-weight: 900; }
+.public-month-day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
+.public-month-day .calendar-pill { display: block; text-decoration: none; white-space: normal; overflow-wrap: anywhere; }
+.calendar-pill--cancelled { border-color: oklch(66% .16 28); text-decoration: line-through; }
+.calendar-pill__status { display: block; color: var(--dim-ash); font-size: .65rem; text-transform: uppercase; }
+.calendar-pill--cancelled .calendar-pill__status { color: oklch(85% .12 30); }
+.public-calendar-list, .venue-date-group { display: grid; gap: .75rem; }
+.venue-date-group + .venue-date-group { margin-top: 1rem; }
+.venue-date-group > h2 { margin-top: .5rem; }
+.public-tournament-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1rem; }
+.public-tournament-card h3 { margin: .35rem 0; }
+.public-tournament-card p { margin: .25rem 0; }
+.viewer-date { color: var(--dim-ash) !important; font-size: .9rem; }
+.calendar-status--cancelled { color: oklch(85% .12 30); }
+.calendar-status--completed { color: var(--dim-ash); }
+.calendar-status--ongoing { color: oklch(82% .14 145); }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+.public-tournament-detail .calendar-status { justify-self: start; }
+.public-tournament-detail .rich-content a { overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .calendar-skeleton div, .calendar-detail-skeleton div { animation: none; } }
+@media (max-width: 600px) {
+  .calendar-view-tabs, .calendar-view-tabs button, .calendar-filter-form button { width: 100%; }
+  .calendar-filter-form { grid-template-columns: 1fr; }
+  .public-month-grid { grid-template-columns: 1fr; }
+  .public-month-grid .classic-calendar__weekday { display: none; }
+  .public-month-day { min-height: 3.5rem; border-left: 0; }
+  .public-tournament-card { grid-template-columns: 1fr; }
+  .public-tournament-card .calendar-event__actions > * { width: 100%; }
+}
