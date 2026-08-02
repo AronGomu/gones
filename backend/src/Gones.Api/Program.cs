@@ -2,6 +2,7 @@ using Gones.Api.Admin;
 using Gones.Api.Errors;
 using Gones.Api.Health;
 using Gones.Api.Identity;
+using Gones.Api.Leagues;
 using Gones.Api.Observability;
 using Gones.Api.Organizations;
 using Gones.Api.Notifications;
@@ -164,6 +165,7 @@ if (runtimeConfiguration.Features.AuthV1)
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
     app.MapPublicCatalogEndpoints();
+    app.MapPublicLeagueEndpoints();
     app.MapPublicTournamentEndpoints();
     app.MapTournamentPublicationEndpoints();
     app.MapTournamentLifecycleEndpoints();

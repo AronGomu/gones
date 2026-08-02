@@ -115,7 +115,7 @@ public static class ApiBoundaryConfiguration
 
         services.AddCors(options => options.AddPolicy(CorsPolicy, policy =>
         {
-            if (origins.Length > 0) policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithExposedHeaders("Content-Disposition");
+            if (origins.Length > 0) policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithExposedHeaders("Content-Disposition", "ETag");
         }));
         return services;
     }

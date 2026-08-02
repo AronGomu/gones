@@ -662,14 +662,16 @@ Evidence: frozen v1 manifest hashes 15 deterministic TS parity cases; TS regener
 
 **Deps:** C02, C03, C04, C05, C29. **Lane:** D. **Runnable:** hidden public League API reads PostgreSQL; old FE local mode remains.
 
-- [ ] RED: PostgreSQL tests for exact JSONB round-trip, indexed metadata, placeholder uniqueness, soft tombstone, version/ETag, public PII-free export.
-- [ ] Add LeagueAggregate envelope: UUID surrogate PK + unique string `DocumentId`, name/status/updated/version/deleted metadata + canonical JSONB document; preserve fixed `placeholder-league` DocumentId exactly.
-- [ ] Seed single fixed placeholder aggregate server-side; no translated duplicate creation.
-- [ ] Implement public paged `GET /api/leagues`, `GET /api/leagues/{id}`, nested Result Tournament/result/player-stat queries using official C# calc.
-- [ ] Implement public League Export + full existing-source projection; derived results/warnings never persisted/exported.
-- [ ] Add bounded JSON/document/request sizes + query indexes; reject malformed aggregate at boundary.
-- [ ] Return ETag from Version; cache public reads safely.
-- [ ] GREEN: parity/persistence/public API tests; regenerate client; `G-FULL`, `G-RUN` seeded League reads.
+- [x] RED: PostgreSQL tests for exact JSONB round-trip, indexed metadata, placeholder uniqueness, soft tombstone, version/ETag, public PII-free export.
+- [x] Add LeagueAggregate envelope: UUID surrogate PK + unique string `DocumentId`, name/status/updated/version/deleted metadata + canonical JSONB document; preserve fixed `placeholder-league` DocumentId exactly.
+- [x] Seed single fixed placeholder aggregate server-side; no translated duplicate creation.
+- [x] Implement public paged `GET /api/leagues`, `GET /api/leagues/{id}`, nested Result Tournament/result/player-stat queries using official C# calc.
+- [x] Implement public League Export + full existing-source projection; derived results/warnings never persisted/exported.
+- [x] Add bounded JSON/document/request sizes + query indexes; reject malformed aggregate at boundary.
+- [x] Return ETag from Version; cache public reads safely.
+- [x] GREEN: parity/persistence/public API tests; regenerate client; `G-FULL`, `G-RUN` seeded League reads.
+
+Evidence: 6 focused PostgreSQL/public API tests cover semantic-exact JSONB source round-trip, metadata indexes, fixed placeholder/translated-duplicate rejection, tombstone/version, bounded malformed documents/queries, official C# League/Tournament/Player Statistics derivation, ETag/304/cache, and source-only PII-free League Export. G-FULL passes lint/typecheck/120 TS tests/API drift/build/E2E plus 149 C# unit, 202 integration, and 11 architecture tests with all unique tests passing in parallel. G-RUN Compose build/development smoke and explicit seeded `placeholder-league` list/detail/304 reads pass; OpenAPI snapshot/generated Angular client updated.
 
 ## C31 — `feat: replace whole-League PUT with intent command endpoints`
 

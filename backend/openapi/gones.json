@@ -51,6 +51,388 @@
         }
       }
     },
+    "/api/leagues": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicLeagueListResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicLeagueDetailResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/result": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResult"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentDocument"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/tournaments/{tournamentId}/result": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentResult"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/players/{playerName}/statistics": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "opponentName",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerStatistics"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues/{id}/export": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueExportResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tournaments": {
       "get": {
         "tags": [
@@ -5059,6 +5441,98 @@
         }
       },
       "Instant": {},
+      "LeagueDocument": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "tournaments"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tournaments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TournamentDocument"
+            }
+          }
+        }
+      },
+      "LeagueExportResponse": {
+        "required": [
+          "kind",
+          "gonesDataVersion",
+          "gonesAppVersion",
+          "exportedAt",
+          "league"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "gonesDataVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "gonesAppVersion": {
+            "type": "string"
+          },
+          "exportedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "league": {
+            "$ref": "#/components/schemas/LeagueDocument"
+          }
+        }
+      },
+      "LeagueResult": {
+        "required": [
+          "scope",
+          "startDate",
+          "endDate",
+          "incomplete",
+          "provisional",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "incomplete": {
+            "type": "boolean"
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankingRow"
+            }
+          }
+        }
+      },
       "LinkExternalIdentityRequest": {
         "required": [
           "currentPassword"
@@ -5538,6 +6012,168 @@
           }
         }
       },
+      "PlayerArchetypeDocument": {
+        "required": [
+          "playerName",
+          "archetype"
+        ],
+        "type": "object",
+        "properties": {
+          "playerName": {
+            "type": "string"
+          },
+          "archetype": {
+            "type": "string"
+          }
+        }
+      },
+      "PlayerMatch": {
+        "required": [
+          "kind",
+          "league",
+          "tournament",
+          "roundIndex",
+          "opponentName",
+          "ownScore",
+          "opponentScore"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "league": {
+            "$ref": "#/components/schemas/LeagueDocument"
+          },
+          "tournament": {
+            "$ref": "#/components/schemas/TournamentDocument"
+          },
+          "roundIndex": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "opponentName": {
+            "type": "string"
+          },
+          "ownScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "opponentScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PlayerStatistics": {
+        "required": [
+          "playerName",
+          "playedMatchCount",
+          "byeCount",
+          "matchWins",
+          "gameWins",
+          "gameLosses",
+          "matchWinrate",
+          "gameWinrate",
+          "nemesis",
+          "rival",
+          "matches"
+        ],
+        "type": "object",
+        "properties": {
+          "playerName": {
+            "type": "string"
+          },
+          "playedMatchCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "byeCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchWins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "gameWins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "gameLosses": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchWinrate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "gameWinrate": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "nemesis": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "rival": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerMatch"
+            }
+          }
+        }
+      },
       "PrivateTournamentParticipantListResponse": {
         "required": [
           "items",
@@ -5685,6 +6321,118 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "PublicLeagueDetailResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "tournaments",
+          "documentVersion",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tournaments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TournamentDocument"
+            }
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
+      "PublicLeagueListResponse": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicLeagueSummaryResponse"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PublicLeagueSummaryResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "updatedAt",
+          "documentVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -6120,6 +6868,140 @@
           }
         }
       },
+      "RankingRow": {
+        "required": [
+          "playerName",
+          "points",
+          "matchWins",
+          "matchDraws",
+          "matchLosses",
+          "byes",
+          "playedMatchCount",
+          "matchAssignmentCount",
+          "gameWins",
+          "gameLosses",
+          "rank",
+          "gameWinPercentage",
+          "opponentsMatchWinPercentage",
+          "opponentsGameWinPercentage"
+        ],
+        "type": "object",
+        "properties": {
+          "playerName": {
+            "type": "string"
+          },
+          "points": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchWins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchDraws": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchLosses": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "byes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "playedMatchCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchAssignmentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "gameWins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "gameLosses": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "rank": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "gameWinPercentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "opponentsMatchWinPercentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "opponentsGameWinPercentage": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "archetype": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "RefreshSessionResponse": {
         "required": [
           "id",
@@ -6224,6 +7106,175 @@
           }
         }
       },
+      "RoundDocument": {
+        "required": [
+          "id",
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundEntry"
+            }
+          }
+        }
+      },
+      "RoundEntry": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/RoundEntryMatchRoundEntry"
+          },
+          {
+            "$ref": "#/components/schemas/RoundEntryByeRoundEntry"
+          },
+          {
+            "$ref": "#/components/schemas/RoundEntryInvalidRoundEntry"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "match": "#/components/schemas/RoundEntryMatchRoundEntry",
+            "bye": "#/components/schemas/RoundEntryByeRoundEntry",
+            "invalid": "#/components/schemas/RoundEntryInvalidRoundEntry"
+          }
+        }
+      },
+      "RoundEntryByeRoundEntry": {
+        "required": [
+          "playerName",
+          "deckArchetype",
+          "id",
+          "table"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "bye"
+            ],
+            "type": "string"
+          },
+          "playerName": {
+            "type": "string"
+          },
+          "deckArchetype": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        }
+      },
+      "RoundEntryInvalidRoundEntry": {
+        "required": [
+          "rawText",
+          "player",
+          "result",
+          "opponent",
+          "playerDecklist",
+          "opponentDecklist",
+          "id",
+          "table"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "invalid"
+            ],
+            "type": "string"
+          },
+          "rawText": {
+            "type": "string"
+          },
+          "player": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "opponent": {
+            "type": "string"
+          },
+          "playerDecklist": {
+            "type": "string"
+          },
+          "opponentDecklist": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        }
+      },
+      "RoundEntryMatchRoundEntry": {
+        "required": [
+          "player1Name",
+          "player2Name",
+          "player1Score",
+          "player2Score",
+          "player1DeckArchetype",
+          "player2DeckArchetype",
+          "id",
+          "table"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "match"
+            ],
+            "type": "string"
+          },
+          "player1Name": {
+            "type": "string"
+          },
+          "player2Name": {
+            "type": "string"
+          },
+          "player1Score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "player2Score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "player1DeckArchetype": {
+            "type": "string"
+          },
+          "player2DeckArchetype": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        }
+      },
       "Stream": {
         "type": "string",
         "format": "binary"
@@ -6238,6 +7289,43 @@
             "maxLength": 256,
             "minLength": 0,
             "type": "string"
+          }
+        }
+      },
+      "TournamentDocument": {
+        "required": [
+          "id",
+          "leagueId",
+          "name",
+          "tournamentDate",
+          "rounds",
+          "playerArchetypes"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "leagueId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tournamentDate": {
+            "type": "string"
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundDocument"
+            }
+          },
+          "playerArchetypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerArchetypeDocument"
+            }
           }
         }
       },
@@ -6867,6 +7955,32 @@
           }
         }
       },
+      "TournamentResult": {
+        "required": [
+          "scope",
+          "incomplete",
+          "provisional",
+          "rows"
+        ],
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string"
+          },
+          "incomplete": {
+            "type": "boolean"
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RankingRow"
+            }
+          }
+        }
+      },
       "TransferOrganizationOwnershipRequest": {
         "required": [
           "newOwnerUserId"
@@ -7219,6 +8333,9 @@
     },
     {
       "name": "AdminEndpoints"
+    },
+    {
+      "name": "PublicLeagueEndpoints"
     },
     {
       "name": "PublicTournamentEndpoints"

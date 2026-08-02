@@ -1,6 +1,7 @@
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
+using Gones.Domain.Leagues;
 using Gones.Domain.Notifications;
 using Gones.Domain.Organizations;
 using Gones.Domain.Persistence;
@@ -40,6 +41,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<TournamentRegistrationAttempt> TournamentRegistrationAttempts => Set<TournamentRegistrationAttempt>();
     public DbSet<ScheduledNotification> ScheduledNotifications => Set<ScheduledNotification>();
     public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();
+    public DbSet<LeagueAggregate> LeagueAggregates => Set<LeagueAggregate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

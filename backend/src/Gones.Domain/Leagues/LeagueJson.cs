@@ -19,6 +19,7 @@ public static class LeagueJson
 
     private static JsonSerializerOptions CreateOptions() => new(JsonSerializerDefaults.Web)
     {
+        AllowOutOfOrderMetadataProperties = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false

@@ -167,7 +167,7 @@ public sealed class ApiBoundaryTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
-    public async Task Cors_exposes_download_filename_header_to_allowed_frontend()
+    public async Task Cors_exposes_public_response_headers_to_allowed_frontend()
     {
         using var corsClient = factory.WithWebHostBuilder(builder =>
         {
@@ -179,7 +179,9 @@ public sealed class ApiBoundaryTests : IClassFixture<WebApplicationFactory<Progr
         using var response = await corsClient.SendAsync(request);
 
         Assert.Equal("https://app.example", response.Headers.GetValues("Access-Control-Allow-Origin").Single());
-        Assert.Contains("Content-Disposition", response.Headers.GetValues("Access-Control-Expose-Headers").Single(), StringComparison.OrdinalIgnoreCase);
+        var exposedHeaders = response.Headers.GetValues("Access-Control-Expose-Headers").Single();
+        Assert.Contains("Content-Disposition", exposedHeaders, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ETag", exposedHeaders, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
