@@ -526,14 +526,14 @@ Parallel rules:
 
 **Deps:** C12, C18, C19. **Lane:** C/E. **Runnable:** flag-on Organizer can publish Scheduled Tournament end-to-end.
 
-- [ ] RED: Cypress tests for role guard, org picker scope, required start/zone, server errors, preview parity, back-edit invalidating ticket, double-submit idempotency.
-- [ ] Add `/organizer/tournaments/new` reactive form; 44px controls; address, summary/body, start/end, IANA zone, capacity, formats.
-- [ ] Default zone from browser only as editable suggestion; never infer persisted zone silently.
-- [ ] Call preview API; render same detail component/DTO as public page.
-- [ ] Back preserves form but discards ticket after any edit; Publish disabled/pending; Idempotency-Key stable per submit attempt.
-- [ ] On success route to public detail; on 401/403/409/validation/network show actionable recovery without duplicate create.
-- [ ] Add EN/FR copy, keyboard path, initial focus, error associations, mobile tests.
-- [ ] GREEN: Angular/Cypress create-preview-publish tests; `G-FULL`, `G-RUN` as Organizer + cross-org attacker.
+- [x] RED: Cypress tests for role guard, org picker scope, required start/zone, server errors, preview parity, back-edit invalidating ticket, double-submit idempotency.
+- [x] Add `/organizer/tournaments/new` reactive form; 44px controls; address, summary/body, start/end, IANA zone, capacity, formats.
+- [x] Default zone from browser only as editable suggestion; never infer persisted zone silently.
+- [x] Call preview API; render same detail component/DTO as public page.
+- [x] Back preserves form but discards ticket after any edit; Publish disabled/pending; Idempotency-Key stable per submit attempt.
+- [x] On success route to public detail; on 401/403/409/validation/network show actionable recovery without duplicate create.
+- [x] Add EN/FR copy, keyboard path, initial focus, error associations, mobile tests.
+- [x] GREEN: Angular/Cypress create-preview-publish tests; `G-FULL`, `G-RUN` as Organizer + cross-org attacker.
 
 ## C21 — `feat: implement Tournament edit cancel delete restore lifecycle`
 

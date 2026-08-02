@@ -1132,3 +1132,29 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .public-tournament-card { grid-template-columns: 1fr; }
   .public-tournament-card .calendar-event__actions > * { width: 100%; }
 }
+
+/* Organizer Tournament create */
+.organizer-tournament-create { width: min(100%, 64rem); margin-inline: auto; }
+.tournament-create-form { display: grid; gap: 1.25rem; padding: clamp(1rem, 3vw, 2rem); }
+.tournament-create-help { margin: 0; line-height: 1.55; }
+.tournament-create-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.tournament-create-field { display: grid; gap: .4rem; min-width: 0; }
+.tournament-create-field label { color: var(--dim-ash); font-size: .88rem; font-weight: 800; }
+.tournament-create-field input, .tournament-create-field select, .tournament-create-field textarea {
+  width: 100%; min-height: 48px; padding: .7rem .8rem; border: 1px solid var(--steel); border-radius: 0;
+  background: var(--black-metal); color: var(--ash); font: inherit;
+}
+.tournament-create-field select[multiple] { min-height: 7rem; }
+.tournament-create-field textarea { resize: vertical; line-height: 1.5; }
+.tournament-create-field input:focus-visible, .tournament-create-field select:focus-visible, .tournament-create-field textarea:focus-visible { border-color: var(--hot-blood); outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+.tournament-create-field [aria-invalid='true'] { border-color: oklch(72% .16 55); }
+.tournament-create-field .muted { margin: 0; font-size: .82rem; line-height: 1.4; }
+.tournament-create-wide { grid-column: 1 / -1; }
+.tournament-create-double { grid-column: span 2; }
+.tournament-create-recovery { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+.tournament-preview-actions { position: sticky; bottom: .75rem; z-index: 5; padding: .75rem; border: 1px solid var(--soot); background: color-mix(in oklch, var(--black-metal) 94%, transparent); }
+@media (max-width: 700px) {
+  .tournament-create-grid { grid-template-columns: 1fr; }
+  .tournament-create-wide, .tournament-create-double { grid-column: 1; }
+  .tournament-preview-actions button { flex: 1 1 100%; }
+}

@@ -88,7 +88,7 @@ export function groupTournamentsByVenueDate(items: PublicTournamentView[]): Venu
 }
 
 export function tournamentDatePresentation(
-  tournament: PublicTournamentView,
+  tournament: Omit<PublicTournamentView, 'id'>,
   locale: string,
   viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 ): TournamentDatePresentation {

@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { environment } from '../environments/environment';
-import { adminGuard, userGuard } from './auth/auth.guards';
+import { adminGuard, organizerGuard, userGuard } from './auth/auth.guards';
 
 const authRoutes: Routes = [
   { path: 'login', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'login' } },
@@ -40,6 +40,9 @@ export const routes: Routes = [
   { path: 'players/:playerName', loadComponent: () => import('./features/players/player-detail.component').then((m) => m.PlayerDetailComponent) },
   { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
   ...(environment.features.authV1 ? authRoutes : []),
+  ...(environment.features.authV1 && environment.features.calendarV1 ? [
+    { path: 'organizer/tournaments/new', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) }
+  ] : []),
   ...(environment.features.adminV1 ? [
     { path: 'organizations', loadComponent: () => import('./features/admin/organization-list.component').then((m) => m.OrganizationListComponent) },
     { path: 'organizations/:id', loadComponent: () => import('./features/admin/organization-detail.component').then((m) => m.OrganizationDetailComponent) },
