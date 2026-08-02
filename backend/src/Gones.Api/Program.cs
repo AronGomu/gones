@@ -4,6 +4,7 @@ using Gones.Api.Health;
 using Gones.Api.Identity;
 using Gones.Api.Observability;
 using Gones.Api.Organizations;
+using Gones.Api.Notifications;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
@@ -45,6 +46,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddGonesAuthorization(runtimeConfiguration, builder.Configuration);
 builder.Services.AddExactOriginCors(builder.Configuration);
+var brevoWebhookOptions = BrevoWebhookOptions.TryLoad(builder.Configuration);
 
 var healthChecks = builder.Services.AddHealthChecks();
 var connectionString = builder.Configuration[PersistenceServiceCollectionExtensions.ConnectionStringKey];
@@ -56,6 +58,13 @@ else
 {
     builder.Services.AddGonesPersistence(connectionString);
     builder.Services.AddNotificationOutbox();
+    builder.Services.AddSingleton<NotificationMetrics>();
+    if (brevoWebhookOptions is not null)
+    {
+        builder.Services.AddSingleton(brevoWebhookOptions);
+        builder.Services.AddSingleton<BrevoWebhookRateGate>();
+        builder.Services.AddScoped<BrevoWebhookService>();
+    }
     builder.Services.AddScoped<OrganizationAccessService>();
     builder.Services.AddScoped<TournamentPublicationService>();
     builder.Services.AddScoped<TournamentLifecycleService>();
@@ -98,6 +107,7 @@ else
     healthChecks.AddDbContextCheck<GonesDbContext>("database");
     healthChecks.AddCheck<WorkerHeartbeatHealthCheck>("workerHeartbeat");
     healthChecks.AddCheck<NotificationOutboxHealthCheck>("notificationOutbox");
+    healthChecks.AddCheck<NotificationDeliveryHealthCheck>("notificationDelivery");
 }
 
 var app = builder.Build();
@@ -159,10 +169,12 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapTournamentLifecycleEndpoints();
     app.MapTournamentRegistrationEndpoints();
     app.MapOrganizerParticipantEndpoints();
+    if (brevoWebhookOptions is not null) app.MapBrevoWebhook(brevoWebhookOptions);
 }
 if (runtimeConfiguration.Features.AdminV1)
 {
     app.MapAdminEndpoints();
+    app.MapNotificationAdminEndpoints();
     app.MapOrganizationEndpoints();
     app.MapAdminOrganizationEndpoints();
 }

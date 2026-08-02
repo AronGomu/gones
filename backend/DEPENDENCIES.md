@@ -9,6 +9,7 @@ Review date: 2026-07-24
 | Microsoft.EntityFrameworkCore | 10.0.4 | ORM kernel | MIT | No known advisory |
 | Microsoft.EntityFrameworkCore.Design | 10.0.4 | Migration tooling | MIT | No known advisory |
 | Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore | 10.0.4 | DB readiness | MIT | No known advisory |
+| Microsoft.Extensions.Http | 10.0.0 | Typed/factory-managed Brevo HttpClient | MIT | No known advisory |
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 | PostgreSQL EF provider | PostgreSQL | No known advisory |
 | Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime | 10.0.3 | NodaTime PostgreSQL mapping | PostgreSQL | No known advisory |
 | Npgsql.OpenTelemetry | 10.0.3 | Npgsql trace instrumentation | PostgreSQL | No known advisory |

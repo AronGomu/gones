@@ -143,6 +143,105 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Lost_provider_response_is_held_for_reconciliation_without_blind_retry()
+    {
+        var id = await EnqueueAsync($"uncertain-{Guid.NewGuid():N}");
+        var transport = new FakeTransport { Error = new EmailTransportException("brevo_acceptance_uncertain", true, acceptanceUncertain: true) };
+
+        await ProcessOnceAsync(transport);
+        await ProcessOnceAsync(transport);
+
+        Assert.Equal(1, transport.SendCount);
+        await using var verify = CreateContext();
+        var record = await verify.NotificationOutboxRecords.SingleAsync(item => item.Id == id);
+        Assert.Equal(NotificationOutboxStatus.Reconciliation, record.Status);
+        Assert.NotNull(record.Recipient);
+        Assert.Equal("brevo_acceptance_uncertain", record.LastErrorCode);
+    }
+
+    [Fact]
+    public async Task Crash_after_provider_acceptance_reuses_idempotency_key_and_provider_accepts_once()
+    {
+        var id = await EnqueueAsync($"provider-crash-{Guid.NewGuid():N}");
+        var transport = new IdempotentTransport();
+        await using (var crashedDb = CreateContext())
+        {
+            var claimed = Assert.Single(await new NotificationOutboxStore(crashedDb, clock).ClaimAsync(1, Duration.FromMinutes(2), CancellationToken.None));
+            await transport.SendAsync(ToEmail(claimed), CancellationToken.None);
+        }
+
+        clock.Advance(Duration.FromMinutes(2));
+        await ProcessOnceAsync(transport);
+
+        Assert.Equal(2, transport.SendCount);
+        Assert.Equal(1, transport.AcceptedCount);
+        await using var verify = CreateContext();
+        Assert.Equal(NotificationOutboxStatus.Sent, (await verify.NotificationOutboxRecords.SingleAsync(item => item.Id == id)).Status);
+    }
+
+    [Fact]
+    public async Task Recovery_beyond_provider_idempotency_window_holds_for_operator_without_send()
+    {
+        var id = await EnqueueAsync($"provider-window-{Guid.NewGuid():N}");
+        var transport = new IdempotentTransport();
+        await using (var crashedDb = CreateContext())
+        {
+            var claimed = Assert.Single(await new NotificationOutboxStore(crashedDb, clock).ClaimAsync(1, Duration.FromMinutes(2), CancellationToken.None));
+            await transport.SendAsync(ToEmail(claimed), CancellationToken.None);
+        }
+
+        clock.Advance(Duration.FromHours(24));
+        await ProcessOnceAsync(transport);
+
+        Assert.Equal(1, transport.SendCount);
+        await using var verify = CreateContext();
+        Assert.Equal(NotificationOutboxStatus.Reconciliation, (await verify.NotificationOutboxRecords.SingleAsync(item => item.Id == id)).Status);
+    }
+
+    [Fact]
+    public async Task Known_transient_rejection_can_retry_after_provider_idempotency_window()
+    {
+        var id = await EnqueueAsync($"known-rejection-{Guid.NewGuid():N}");
+        await ProcessOnceAsync(new FakeTransport { Error = new EmailTransportException("provider_unavailable", true) });
+        clock.Advance(Duration.FromHours(24));
+        var recovered = new FakeTransport();
+
+        await ProcessOnceAsync(recovered);
+
+        Assert.Equal(1, recovered.SendCount);
+        await using var verify = CreateContext();
+        Assert.Equal(NotificationOutboxStatus.Sent, (await verify.NotificationOutboxRecords.SingleAsync(item => item.Id == id)).Status);
+    }
+
+    [Fact]
+    public async Task Five_transient_retries_follow_locked_clock_then_sixth_failure_dead_letters()
+    {
+        var id = await EnqueueAsync($"retry-clock-{Guid.NewGuid():N}");
+        var transport = new FakeTransport { Error = new EmailTransportException("provider_unavailable", true) };
+        var delays = new[]
+        {
+            Duration.FromMinutes(1),
+            Duration.FromMinutes(5),
+            Duration.FromMinutes(30),
+            Duration.FromHours(2),
+            Duration.FromHours(12)
+        };
+        foreach (var delay in delays)
+        {
+            await ProcessOnceAsync(transport);
+            clock.Advance(delay);
+        }
+        await ProcessOnceAsync(transport);
+
+        await using var verify = CreateContext();
+        var record = await verify.NotificationOutboxRecords.SingleAsync(item => item.Id == id);
+        Assert.Equal(6, record.AttemptCount);
+        Assert.Equal(NotificationOutboxStatus.DeadLetter, record.Status);
+        Assert.Null(record.Recipient);
+        Assert.Null(record.TemplateModelJson);
+    }
+
+    [Fact]
     public async Task Permanent_failure_dead_letters_and_scrubs_payload()
     {
         var id = await EnqueueAsync($"dead-{Guid.NewGuid():N}");
@@ -310,16 +409,30 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
         public void Advance(Duration duration) => current += duration;
     }
 
+    private sealed class IdempotentTransport : IEmailTransport
+    {
+        private readonly HashSet<string> accepted = new(StringComparer.Ordinal);
+        public int SendCount { get; private set; }
+        public int AcceptedCount => accepted.Count;
+
+        public Task<EmailTransportResult> SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
+        {
+            SendCount++;
+            accepted.Add(email.DedupeKey);
+            return Task.FromResult(new EmailTransportResult("provider-id"));
+        }
+    }
+
     private sealed class FakeTransport : IEmailTransport
     {
         public EmailTransportException? Error { get; init; }
         public int SendCount { get; private set; }
 
-        public Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
+        public Task<EmailTransportResult> SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
         {
             SendCount++;
             if (Error is not null) throw Error;
-            return Task.CompletedTask;
+            return Task.FromResult(new EmailTransportResult());
         }
     }
 }

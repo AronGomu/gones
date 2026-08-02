@@ -16,6 +16,7 @@ internal sealed class NotificationOutboxRecordConfiguration : VersionedEntityCon
                 (status = 'Pending' AND lease_token IS NULL AND lease_expires_at IS NULL AND sent_at IS NULL AND dead_lettered_at IS NULL AND scrubbed_at IS NULL AND recipient IS NOT NULL AND template_model_json IS NOT NULL)
                 OR (status = 'Sending' AND lease_token IS NOT NULL AND lease_expires_at IS NOT NULL AND sent_at IS NULL AND dead_lettered_at IS NULL AND scrubbed_at IS NULL AND recipient IS NOT NULL AND template_model_json IS NOT NULL)
                 OR (status = 'Sent' AND lease_token IS NULL AND lease_expires_at IS NULL AND sent_at IS NOT NULL AND dead_lettered_at IS NULL AND scrubbed_at IS NOT NULL AND recipient IS NULL AND template_model_json IS NULL)
+                OR (status = 'Reconciliation' AND lease_token IS NULL AND lease_expires_at IS NULL AND sent_at IS NULL AND dead_lettered_at IS NULL AND scrubbed_at IS NULL AND recipient IS NOT NULL AND template_model_json IS NOT NULL)
                 OR (status = 'DeadLetter' AND lease_token IS NULL AND lease_expires_at IS NULL AND sent_at IS NULL AND dead_lettered_at IS NOT NULL AND scrubbed_at IS NOT NULL AND recipient IS NULL AND template_model_json IS NULL)
                 """);
         });
@@ -26,13 +27,37 @@ internal sealed class NotificationOutboxRecordConfiguration : VersionedEntityCon
         builder.Property(entity => entity.TemplateModelJson).HasColumnType("jsonb");
         builder.Property(entity => entity.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(entity => entity.LastErrorCode).HasMaxLength(100);
+        builder.Property(entity => entity.ProviderMessageId).HasMaxLength(NotificationDeliveryEvent.MaximumProviderMessageIdLength);
+        builder.Property(entity => entity.DeliveryStatus).HasConversion<string>().HasMaxLength(30);
+        builder.Ignore(entity => entity.ProviderCorrelationId);
+        builder.Ignore(entity => entity.RecoveredFromExpiredLease);
         builder.Property(entity => entity.TraceParent).HasMaxLength(55);
         builder.Property(entity => entity.CorrelationId).HasMaxLength(36);
         builder.HasIndex(entity => entity.DedupeKey).IsUnique();
         builder.HasIndex(entity => new { entity.Status, entity.AvailableAt, entity.CreatedAt });
         builder.HasIndex(entity => new { entity.Status, entity.LeaseExpiresAt });
         builder.HasIndex(entity => new { entity.Status, entity.CreatedAt });
+        builder.HasIndex(entity => entity.CreatedAt);
         builder.HasIndex(entity => entity.UserId);
         builder.HasIndex(entity => entity.TournamentId);
+        builder.HasIndex(entity => entity.ProviderMessageId);
+        builder.HasIndex(entity => new { entity.Status, entity.LastProviderEventAt });
+        builder.HasIndex(entity => entity.LastProviderEventAt);
+    }
+}
+
+internal sealed class NotificationDeliveryEventConfiguration : IEntityTypeConfiguration<NotificationDeliveryEvent>
+{
+    public void Configure(EntityTypeBuilder<NotificationDeliveryEvent> builder)
+    {
+        builder.ToTable("notification_delivery_events");
+        builder.HasKey(entity => entity.Id);
+        builder.Property(entity => entity.ReplayKey).HasMaxLength(NotificationDeliveryEvent.MaximumReplayKeyLength);
+        builder.Property(entity => entity.ProviderMessageId).HasMaxLength(NotificationDeliveryEvent.MaximumProviderMessageIdLength);
+        builder.Property(entity => entity.Status).HasConversion<string>().HasMaxLength(30);
+        builder.HasIndex(entity => entity.ReplayKey).IsUnique();
+        builder.HasIndex(entity => entity.OutboxId);
+        builder.HasOne<NotificationOutboxRecord>().WithMany().HasForeignKey(entity => entity.OutboxId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(entity => entity.ReceivedAt);
     }
 }

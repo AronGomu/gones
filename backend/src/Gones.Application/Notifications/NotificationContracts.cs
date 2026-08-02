@@ -54,16 +54,23 @@ public interface INotificationOutbox
     Guid Enqueue(NotificationRequest request);
 }
 
+public sealed record EmailTransportResult(string? ProviderMessageId = null);
+
 public interface IEmailTransport
 {
-    Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken);
+    Task<EmailTransportResult> SendAsync(OutgoingEmail email, CancellationToken cancellationToken);
 }
 
-public sealed class EmailTransportException(string code, bool isTransient, Exception? innerException = null)
+public sealed class EmailTransportException(
+    string code,
+    bool isTransient,
+    Exception? innerException = null,
+    bool acceptanceUncertain = false)
     : Exception(code, innerException)
 {
     public string Code { get; } = NotificationErrorCode.Require(code);
     public bool IsTransient { get; } = isTransient;
+    public bool AcceptanceUncertain { get; } = acceptanceUncertain;
 }
 
 public sealed class NotificationTemplateException(string code) : Exception(code)

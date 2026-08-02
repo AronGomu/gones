@@ -7,6 +7,7 @@ public enum NotificationOutboxStatus
     Pending,
     Sending,
     Sent,
+    Reconciliation,
     DeadLetter
 }
 
@@ -58,8 +59,16 @@ public sealed class NotificationOutboxRecord : Persistence.VersionedEntity
     public Instant? SentAt { get; private set; }
     public Instant? DeadLetteredAt { get; private set; }
     public Instant? ScrubbedAt { get; private set; }
+    public Instant? ProviderFirstAttemptAt { get; private set; }
+    public string? ProviderMessageId { get; private set; }
+    public NotificationDeliveryStatus? DeliveryStatus { get; private set; }
+    public Instant? LastProviderEventAt { get; private set; }
+    public Instant? DeliveryMetadataScrubbedAt { get; private set; }
     public string? TraceParent { get; private init; }
     public string? CorrelationId { get; private init; }
+
+    public string ProviderCorrelationId => Id.ToString("N");
+    public bool RecoveredFromExpiredLease { get; private set; }
 
     public bool CanClaim(Instant now) =>
         Status == NotificationOutboxStatus.Pending && AvailableAt <= now
@@ -71,22 +80,97 @@ public sealed class NotificationOutboxRecord : Persistence.VersionedEntity
         if (!CanClaim(now)) throw new InvalidOperationException("notification_not_claimable");
 
         var leaseToken = Guid.NewGuid();
+        RecoveredFromExpiredLease = Status == NotificationOutboxStatus.Sending;
         Status = NotificationOutboxStatus.Sending;
         LeaseToken = leaseToken;
         LeaseExpiresAt = now + leaseDuration;
         LastAttemptAt = now;
+        ProviderFirstAttemptAt ??= now;
         AttemptCount++;
         return leaseToken;
     }
 
-    public void MarkSent(Guid leaseToken, Instant now)
+    public void MarkSent(Guid leaseToken, Instant now, string? providerMessageId = null)
     {
         EnsureLease(leaseToken);
         Status = NotificationOutboxStatus.Sent;
         SentAt = now;
+        ProviderMessageId = ValidateProviderMessageId(providerMessageId);
+        DeliveryStatus = NotificationDeliveryStatus.Sent;
+        LastProviderEventAt = now;
         LastErrorCode = null;
         ClearLease();
         Scrub(now);
+    }
+
+    public bool IsBeyondProviderIdempotencyWindow(Instant now, Duration window) =>
+        ProviderFirstAttemptAt is not null && now - ProviderFirstAttemptAt.Value >= window;
+
+    public void MarkReconciliation(Guid leaseToken, Instant now, string errorCode)
+    {
+        EnsureLease(leaseToken);
+        Status = NotificationOutboxStatus.Reconciliation;
+        LastErrorCode = NotificationErrorCode.Require(errorCode);
+        LastProviderEventAt = now;
+        ClearLease();
+    }
+
+    public void ApplyDeliveryEvent(string providerMessageId, NotificationDeliveryStatus deliveryStatus, Instant occurredAt, Instant receivedAt)
+    {
+        ProviderMessageId = ValidateProviderMessageId(providerMessageId);
+        DeliveryStatus = deliveryStatus;
+        LastProviderEventAt = occurredAt > receivedAt ? receivedAt : occurredAt;
+        if (Status is NotificationOutboxStatus.Sending or NotificationOutboxStatus.Reconciliation)
+        {
+            Status = NotificationOutboxStatus.Sent;
+            SentAt ??= receivedAt;
+            LastErrorCode = null;
+            ClearLease();
+            Scrub(receivedAt);
+        }
+    }
+
+    public NotificationOutboxRecord CreateOperatorRetry(Instant now)
+    {
+        if (Status != NotificationOutboxStatus.Reconciliation || Recipient is null || TemplateModelJson is null)
+        {
+            throw new InvalidOperationException("notification_retry_not_allowed");
+        }
+
+        var retry = new NotificationOutboxRecord(
+            $"operator-retry:{Id:N}:{Guid.NewGuid():N}",
+            TemplateKey,
+            Locale,
+            Recipient,
+            TemplateModelJson,
+            UserId,
+            TournamentId,
+            now,
+            TraceParent,
+            CorrelationId);
+        Status = NotificationOutboxStatus.DeadLetter;
+        DeadLetteredAt = now;
+        LastErrorCode = "operator_retry_created";
+        Scrub(now);
+        return retry;
+    }
+
+    public void ExpireReconciliation(Instant now)
+    {
+        if (Status != NotificationOutboxStatus.Reconciliation) return;
+        Status = NotificationOutboxStatus.DeadLetter;
+        DeadLetteredAt = now;
+        LastErrorCode = "reconciliation_expired";
+        Scrub(now);
+    }
+
+    public void ScrubDeliveryMetadata(Instant now)
+    {
+        ProviderFirstAttemptAt = null;
+        ProviderMessageId = null;
+        DeliveryStatus = null;
+        LastProviderEventAt = null;
+        DeliveryMetadataScrubbedAt = now;
     }
 
     public void MarkRetry(Guid leaseToken, Instant availableAt, string errorCode)
@@ -129,6 +213,14 @@ public sealed class NotificationOutboxRecord : Persistence.VersionedEntity
         ScrubbedAt = now;
     }
 
+    private static string? ValidateProviderMessageId(string? providerMessageId)
+    {
+        if (providerMessageId is null) return null;
+        var normalized = providerMessageId.Trim();
+        return normalized.Length is > 0 and <= NotificationDeliveryEvent.MaximumProviderMessageIdLength && !normalized.Any(char.IsControl)
+            ? normalized
+            : throw new ArgumentOutOfRangeException(nameof(providerMessageId));
+    }
 }
 
 public static class NotificationErrorCode

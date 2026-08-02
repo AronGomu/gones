@@ -19,6 +19,7 @@ public sealed class Worker(
         logger.LogInformation(WorkerLogEvents.Started, "Event={Event}", "worker.started");
         var nextHeartbeat = Instant.MinValue;
         var nextEmailHistoryRedaction = Instant.MinValue;
+        var nextDeliveryMetadataCleanup = Instant.MinValue;
         var nextDailyPlan = Instant.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -61,6 +62,24 @@ public sealed class Worker(
                 }
 
                 processed += await scope.ServiceProvider.GetRequiredService<NotificationProcessor>().ProcessBatchAsync(stoppingToken);
+                if (now >= nextDeliveryMetadataCleanup)
+                {
+                    try
+                    {
+                        var cleaned = await scope.ServiceProvider.GetRequiredService<NotificationDeliveryMetadataCleaner>().CleanBatchAsync(stoppingToken);
+                        logger.LogInformation(WorkerLogEvents.DeliveryMetadataCleaned, "Event={Event}; Count={Count}", "notification.delivery_metadata.cleaned", cleaned);
+                        nextDeliveryMetadataCleanup = cleaned >= NotificationDeliveryMetadataCleaner.BatchSize ? now : now + Duration.FromHours(24);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogError(WorkerLogEvents.DeliveryMetadataCleanupFailed, "Event={Event}; ExceptionType={ExceptionType}", "notification.delivery_metadata.cleanup_failed", exception.GetType().Name);
+                        nextDeliveryMetadataCleanup = now + Duration.FromHours(1);
+                    }
+                }
                 if (now >= nextEmailHistoryRedaction)
                 {
                     try
@@ -110,4 +129,6 @@ public static class WorkerLogEvents
     public static readonly EventId EmailHistoryRedacted = new(7004, "EmailHistoryRedacted");
     public static readonly EventId EmailHistoryRedactionFailed = new(7005, "EmailHistoryRedactionFailed");
     public static readonly EventId SchedulerFailed = new(7006, "SchedulerFailed");
+    public static readonly EventId DeliveryMetadataCleaned = new(7007, "DeliveryMetadataCleaned");
+    public static readonly EventId DeliveryMetadataCleanupFailed = new(7008, "DeliveryMetadataCleanupFailed");
 }

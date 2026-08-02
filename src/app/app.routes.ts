@@ -55,6 +55,8 @@ export const routes: Routes = [
     { path: 'admin/users', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-users.component').then((m) => m.AdminUsersComponent) },
     { path: 'admin/organizations', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-organizations.component').then((m) => m.AdminOrganizationsComponent) },
     { path: 'admin/audit', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-audit.component').then((m) => m.AdminAuditComponent) },
+    { path: 'admin/notifications/history', canActivate: [adminGuard], data: { mode: 'history' }, loadComponent: () => import('./features/admin/admin-notification-delivery.component').then((m) => m.AdminNotificationDeliveryComponent) },
+    { path: 'admin/notifications/dead-letters', canActivate: [adminGuard], data: { mode: 'dead-letters' }, loadComponent: () => import('./features/admin/admin-notification-delivery.component').then((m) => m.AdminNotificationDeliveryComponent) },
     { path: 'admin/tournaments/deleted', canActivate: [adminGuard], loadComponent: () => import('./features/calendar/admin-deleted-tournaments.component').then((m) => m.AdminDeletedTournamentsComponent) }
   ] : []),
   { path: '**', loadComponent: () => import('./shared/not-found.component').then((m) => m.NotFoundComponent) }

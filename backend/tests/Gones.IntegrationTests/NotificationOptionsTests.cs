@@ -24,6 +24,28 @@ public sealed class NotificationOptionsTests
     }
 
     [Fact]
+    public void Brevo_options_require_https_secret_and_bounded_concurrency()
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["GONES_BREVO_API_KEY"] = "test-key",
+            ["GONES_BREVO_API_BASE_URL"] = "https://api.brevo.test/v3/",
+            ["GONES_BREVO_SENDER_EMAIL"] = "sender@example.test",
+            ["GONES_BREVO_SENDER_NAME"] = "Gones",
+            ["GONES_BREVO_MAX_CONCURRENCY"] = "4"
+        };
+        var options = BrevoOptions.Load(Configuration(values));
+        Assert.Equal(4, options.MaximumConcurrency);
+        Assert.Equal(Duration.FromHours(24), options.IdempotencyWindow);
+
+        values["GONES_BREVO_API_BASE_URL"] = "http://api.brevo.test/v3/";
+        Assert.Throws<InvalidOperationException>(() => BrevoOptions.Load(Configuration(values)));
+        values["GONES_BREVO_API_BASE_URL"] = "https://api.brevo.test/v3/";
+        values["GONES_BREVO_API_KEY_FILE"] = "/tmp/also-configured";
+        Assert.Throws<InvalidOperationException>(() => BrevoOptions.Load(Configuration(values)));
+    }
+
+    [Fact]
     public void Send_timeout_must_be_shorter_than_lease()
     {
         var error = Assert.Throws<InvalidOperationException>(() => NotificationWorkerOptions.Validate(new NotificationWorkerOptions(

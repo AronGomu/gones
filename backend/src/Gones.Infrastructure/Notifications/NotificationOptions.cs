@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using Gones.Domain.Notifications;
 using Microsoft.Extensions.Configuration;
 using NodaTime;
 
@@ -11,19 +12,23 @@ public sealed record NotificationWorkerOptions(
     Duration SendTimeout,
     string SinkPath)
 {
+    public Duration ProviderIdempotencyWindow { get; init; } = Duration.FromHours(24);
     public static NotificationWorkerOptions Load(IConfiguration configuration)
     {
         var transport = configuration["GONES_EMAIL_TRANSPORT"];
-        if (!string.Equals(transport, "File", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(transport, "File", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(transport, "Brevo", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("GONES_EMAIL_TRANSPORT must be File until an external transport is configured.");
+            throw new InvalidOperationException("GONES_EMAIL_TRANSPORT must be File or Brevo.");
         }
 
         var sinkPath = configuration["GONES_EMAIL_SINK_PATH"];
-        if (string.IsNullOrWhiteSpace(sinkPath) || !Path.IsPathRooted(sinkPath))
+        if (string.Equals(transport, "File", StringComparison.OrdinalIgnoreCase)
+            && (string.IsNullOrWhiteSpace(sinkPath) || !Path.IsPathRooted(sinkPath)))
         {
-            throw new InvalidOperationException("GONES_EMAIL_SINK_PATH must be an absolute path.");
+            throw new InvalidOperationException("GONES_EMAIL_SINK_PATH must be an absolute path for File transport.");
         }
+        sinkPath ??= Path.GetTempPath();
 
         return Validate(new NotificationWorkerOptions(
             ReadInt(configuration, "GONES_NOTIFICATION_BATCH_SIZE", 25),
@@ -75,7 +80,11 @@ public sealed class NotificationMetrics : IDisposable
     private readonly Counter<long> sent;
     private readonly Counter<long> retried;
     private readonly Counter<long> deadLettered;
+    private readonly Counter<long> reconciliationHeld;
+    private readonly Counter<long> providerEvents;
+    private readonly Counter<long> metadataCleaned;
     private readonly Histogram<double> deliveryLag;
+    private readonly Histogram<double> providerLatency;
 
     public NotificationMetrics()
     {
@@ -83,7 +92,11 @@ public sealed class NotificationMetrics : IDisposable
         sent = meter.CreateCounter<long>("gones.notifications.sent");
         retried = meter.CreateCounter<long>("gones.notifications.retried");
         deadLettered = meter.CreateCounter<long>("gones.notifications.dead_lettered");
+        reconciliationHeld = meter.CreateCounter<long>("gones.notifications.reconciliation_held");
+        providerEvents = meter.CreateCounter<long>("gones.notifications.provider_events");
+        metadataCleaned = meter.CreateCounter<long>("gones.notifications.metadata_cleaned");
         deliveryLag = meter.CreateHistogram<double>("gones.notifications.delivery_lag", "s");
+        providerLatency = meter.CreateHistogram<double>("gones.notifications.provider_latency", "s");
     }
 
     public void RecordClaimed(int count) => claimed.Add(count);
@@ -94,5 +107,9 @@ public sealed class NotificationMetrics : IDisposable
     }
     public void RecordRetried() => retried.Add(1);
     public void RecordDeadLettered() => deadLettered.Add(1);
+    public void RecordReconciliationHeld() => reconciliationHeld.Add(1);
+    public void RecordProviderEvent(NotificationDeliveryStatus status) => providerEvents.Add(1, new KeyValuePair<string, object?>("status", status.ToString()));
+    public void RecordMetadataCleaned(NotificationDeliveryStatus status, int count) => metadataCleaned.Add(count, new KeyValuePair<string, object?>("status", status.ToString()));
+    public void RecordProviderLatency(Duration duration) => providerLatency.Record(Math.Max(0, duration.TotalSeconds));
     public void Dispose() => meter.Dispose();
 }

@@ -19,6 +19,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<ConsumedTournamentPreviewTicket> ConsumedTournamentPreviewTickets => Set<ConsumedTournamentPreviewTicket>();
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
     public DbSet<NotificationOutboxRecord> NotificationOutboxRecords => Set<NotificationOutboxRecord>();
+    public DbSet<NotificationDeliveryEvent> NotificationDeliveryEvents => Set<NotificationDeliveryEvent>();
     public DbSet<WorkerHeartbeatRecord> WorkerHeartbeats => Set<WorkerHeartbeatRecord>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();

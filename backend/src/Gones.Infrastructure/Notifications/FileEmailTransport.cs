@@ -10,13 +10,13 @@ public sealed class FileEmailTransport(string sinkPath, IClock clock, bool inclu
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
 
-    public async Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
+    public async Task<EmailTransportResult> SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(email);
         Directory.CreateDirectory(sinkPath);
         var fileName = $"{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(email.DedupeKey)))}.json";
         var destination = Path.Combine(sinkPath, fileName);
-        if (File.Exists(destination)) return;
+        if (File.Exists(destination)) return new EmailTransportResult();
 
         var temporary = Path.Combine(sinkPath, $".{fileName}.{Guid.NewGuid():N}.tmp");
         var preview = new FileEmailPreview(
@@ -56,6 +56,7 @@ public sealed class FileEmailTransport(string sinkPath, IClock clock, bool inclu
         {
             if (File.Exists(temporary)) File.Delete(temporary);
         }
+        return new EmailTransportResult();
     }
 
     private static string MaskRecipient(string recipient)

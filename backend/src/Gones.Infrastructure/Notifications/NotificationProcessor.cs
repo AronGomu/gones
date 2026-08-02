@@ -42,6 +42,14 @@ public sealed class NotificationProcessor(
 
             try
             {
+                if (record.RecoveredFromExpiredLease && record.IsBeyondProviderIdempotencyWindow(clock.GetCurrentInstant(), options.ProviderIdempotencyWindow))
+                {
+                    record.MarkReconciliation(leaseToken, clock.GetCurrentInstant(), "provider_idempotency_window_expired");
+                    await store.SaveAsync(cancellationToken);
+                    metrics.RecordReconciliationHeld();
+                    logger.LogWarning(NotificationLogEvents.ReconciliationHeld, "Event={Event} OutboxId={OutboxId} Attempt={Attempt} ErrorCode={ErrorCode}", "notification.reconciliation_held", record.Id, record.AttemptCount, "provider_idempotency_window_expired");
+                    continue;
+                }
                 var recipient = record.Recipient ?? throw new NotificationTemplateException("notification_recipient_missing");
                 var modelJson = record.TemplateModelJson ?? throw new NotificationTemplateException("notification_model_missing");
                 var model = NotificationModelSerializer.Deserialize(record.TemplateKey, modelJson);
@@ -49,7 +57,17 @@ public sealed class NotificationProcessor(
                 var email = new OutgoingEmail(record.Id, record.DedupeKey, record.TemplateKey, recipient, content);
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(options.SendTimeout.ToTimeSpan());
-                await transport.SendAsync(email, timeout.Token);
+                var providerStartedAt = Stopwatch.GetTimestamp();
+                EmailTransportResult result;
+                try
+                {
+                    result = await transport.SendAsync(email, timeout.Token);
+                }
+                finally
+                {
+                    metrics.RecordProviderLatency(Duration.FromTimeSpan(Stopwatch.GetElapsedTime(providerStartedAt)));
+                }
+                record.MarkSent(leaseToken, clock.GetCurrentInstant(), result.ProviderMessageId);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -57,12 +75,19 @@ public sealed class NotificationProcessor(
             }
             catch (OperationCanceledException)
             {
-                await HandleFailureAsync(record, leaseToken, "transport_timeout", isTransient: true, cancellationToken);
+                await HoldForReconciliationAsync(record, leaseToken, "transport_acceptance_uncertain", cancellationToken);
                 continue;
             }
             catch (EmailTransportException exception)
             {
-                await HandleFailureAsync(record, leaseToken, exception.Code, exception.IsTransient, cancellationToken);
+                if (exception.AcceptanceUncertain)
+                {
+                    await HoldForReconciliationAsync(record, leaseToken, exception.Code, cancellationToken);
+                }
+                else
+                {
+                    await HandleFailureAsync(record, leaseToken, exception.Code, exception.IsTransient, cancellationToken);
+                }
                 continue;
             }
             catch (NotificationTemplateException exception)
@@ -79,7 +104,6 @@ public sealed class NotificationProcessor(
             }
 
             var completedAt = clock.GetCurrentInstant();
-            record.MarkSent(leaseToken, completedAt);
             store.RecordSuccessful(record, completedAt);
             try
             {
@@ -96,6 +120,18 @@ public sealed class NotificationProcessor(
         }
 
         return records.Count;
+    }
+
+    private async Task HoldForReconciliationAsync(
+        Domain.Notifications.NotificationOutboxRecord record,
+        Guid leaseToken,
+        string errorCode,
+        CancellationToken cancellationToken)
+    {
+        record.MarkReconciliation(leaseToken, clock.GetCurrentInstant(), errorCode);
+        await store.SaveAsync(cancellationToken);
+        metrics.RecordReconciliationHeld();
+        logger.LogWarning(NotificationLogEvents.ReconciliationHeld, "Event={Event} OutboxId={OutboxId} Attempt={Attempt} ErrorCode={ErrorCode}", "notification.reconciliation_held", record.Id, record.AttemptCount, errorCode);
     }
 
     private async Task HandleFailureAsync(
@@ -132,4 +168,5 @@ public static class NotificationLogEvents
     public static readonly EventId DeadLettered = new(6004, "NotificationDeadLettered");
     public static readonly EventId TransportFailed = new(6005, "NotificationTransportFailed");
     public static readonly EventId AcknowledgementFailed = new(6006, "NotificationAcknowledgementFailed");
+    public static readonly EventId ReconciliationHeld = new(6007, "NotificationReconciliationHeld");
 }

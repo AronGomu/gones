@@ -631,15 +631,17 @@ Parallel rules:
 
 **Deps:** C15, C27. **Lane:** A/C. **Runnable:** real transport configurable; Admin can inspect safe delivery metadata.
 
-- [ ] RED: Brevo HTTP fixture tests for success/transient/permanent/lost-response crashes; webhook malformed/auth/replay tests; retry clock/dead-letter tests.
-- [ ] Implement Brevo REST transport via typed `HttpClient`; send stable provider idempotency key/custom correlation on every retry; store provider message ID + status only; timeout/circuit/bounded concurrency. If provider idempotency window expires with uncertain outcome, hold for webhook/operator reconciliation instead of blind resend.
-- [ ] Apply retries 1m/5m/30m/2h/12h; hard bounce/invalid/blocked permanent; max attempts dead-letter.
-- [ ] Implement HTTPS webhook endpoint using rotated random path token redacted from logs, strict schema/size/rate checks, replay key uniqueness.
-- [ ] Map sent/delivered/deferred/soft/hard bounce/spam/invalid/blocked/error events without trusting recipient/content fields.
-- [ ] Add Admin notification-history/dead-letter pages; retry action creates audited new attempt only for transient/operator-approved case. Test crash after provider acceptance before DB commit → no second accepted message.
-- [ ] Add 1y delivery-metadata cleanup + terminal payload scrub verification; configure safe aggregate metrics before deletion.
-- [ ] Emit vendor-neutral metrics/health signals for dead letter, bounce spike, scheduler lag, provider latency; document future sender/domain verification.
-- [ ] GREEN: provider/Worker/webhook/Cypress Admin tests; `G-FULL`, `G-RUN` using local fake server only. Live Brevo deferred.
+- [x] RED: Brevo HTTP fixture tests for success/transient/permanent/lost-response crashes; webhook malformed/auth/replay tests; retry clock/dead-letter tests.
+- [x] Implement Brevo REST transport via typed `HttpClient`; send stable provider idempotency key/custom correlation on every retry; store provider message ID + status only; timeout/circuit/bounded concurrency. If provider idempotency window expires with uncertain outcome, hold for webhook/operator reconciliation instead of blind resend.
+- [x] Apply retries 1m/5m/30m/2h/12h; hard bounce/invalid/blocked permanent; max attempts dead-letter.
+- [x] Implement HTTPS webhook endpoint using rotated random path token redacted from logs, strict schema/size/rate checks, replay key uniqueness.
+- [x] Map sent/delivered/deferred/soft/hard bounce/spam/invalid/blocked/error events without trusting recipient/content fields.
+- [x] Add Admin notification-history/dead-letter pages; retry action creates audited new attempt only for transient/operator-approved case. Test crash after provider acceptance before DB commit → no second accepted message.
+- [x] Add 1y delivery-metadata cleanup + terminal payload scrub verification; configure safe aggregate metrics before deletion.
+- [x] Emit vendor-neutral metrics/health signals for dead letter, bounce spike, scheduler lag, provider latency; document future sender/domain verification.
+- [x] GREEN: provider/Worker/webhook/Cypress Admin tests; `G-FULL`, `G-RUN` using local fake server only. Live Brevo deferred.
+
+Evidence: 19 Brevo unit + 20 focused Worker/webhook integration tests pass; Cypress Admin delivery 2/2 passes. G-FULL FE/contract/build/E2E pass; backend 192/196 parallel with four RootlessKit bind-only failures, each isolated unique test 1/1 pass. G-RUN + fake notification smoke + delivery readiness pass; no real Brevo network/credentials used.
 
 ## C29 — `feat: port League domain rules with golden parity fixtures`
 

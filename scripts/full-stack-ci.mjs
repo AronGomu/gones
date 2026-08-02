@@ -83,6 +83,10 @@ try {
     if (adminBrowser.status !== 0) process.exitCode = adminBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const notificationBrowser = runCypress('cypress/e2e/admin-notification-delivery.cy.js');
+    if (notificationBrowser.status !== 0) process.exitCode = notificationBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const organizerTournamentBrowser = runCypress('cypress/e2e/organizer-tournament-create.cy.js');
     if (organizerTournamentBrowser.status !== 0) process.exitCode = organizerTournamentBrowser.status ?? 1;
   }

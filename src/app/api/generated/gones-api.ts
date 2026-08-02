@@ -308,6 +308,24 @@ export interface IClient {
      */
     formatsDELETE(formatId: string): Observable<void>;
     /**
+     * @param status (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    history(status: string | undefined, page: number | undefined, pageSize: number | undefined): Observable<AdminNotificationListResponse>;
+    /**
+     * @param status (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    deadLetters(status: string | undefined, page: number | undefined, pageSize: number | undefined): Observable<AdminNotificationListResponse>;
+    /**
+     * @return Created
+     */
+    retry(outboxId: string, body: AdminNotificationRetryRequest): Observable<AdminNotificationRetryResponse>;
+    /**
      * @return OK
      */
     organizationsAll(): Observable<MyOrganizationResponse[]>;
@@ -4524,6 +4542,211 @@ export class Client implements IClient {
     }
 
     /**
+     * @param status (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    history(status: string | undefined, page: number | undefined, pageSize: number | undefined): Observable<AdminNotificationListResponse> {
+        let url_ = this.baseUrl + "/api/admin/notifications/history?";
+        if (status === null)
+            throw new globalThis.Error("The parameter 'status' cannot be null.");
+        else if (status !== undefined)
+            url_ += "status=" + encodeURIComponent("" + status) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processHistory(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processHistory(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminNotificationListResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminNotificationListResponse>;
+        }));
+    }
+
+    protected processHistory(response: HttpResponseBase): Observable<AdminNotificationListResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminNotificationListResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param status (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    deadLetters(status: string | undefined, page: number | undefined, pageSize: number | undefined): Observable<AdminNotificationListResponse> {
+        let url_ = this.baseUrl + "/api/admin/notifications/dead-letters?";
+        if (status === null)
+            throw new globalThis.Error("The parameter 'status' cannot be null.");
+        else if (status !== undefined)
+            url_ += "status=" + encodeURIComponent("" + status) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processDeadLetters(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processDeadLetters(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminNotificationListResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminNotificationListResponse>;
+        }));
+    }
+
+    protected processDeadLetters(response: HttpResponseBase): Observable<AdminNotificationListResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminNotificationListResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    retry(outboxId: string, body: AdminNotificationRetryRequest): Observable<AdminNotificationRetryResponse> {
+        let url_ = this.baseUrl + "/api/admin/notifications/dead-letters/{outboxId}/retry";
+        if (outboxId === undefined || outboxId === null)
+            throw new globalThis.Error("The parameter 'outboxId' must be defined.");
+        url_ = url_.replace("{outboxId}", encodeURIComponent("" + outboxId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRetry(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRetry(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminNotificationRetryResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminNotificationRetryResponse>;
+        }));
+    }
+
+    protected processRetry(response: HttpResponseBase): Observable<AdminNotificationRetryResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminNotificationRetryResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
      * @return OK
      */
     organizationsAll(): Observable<MyOrganizationResponse[]> {
@@ -5437,6 +5660,46 @@ export interface AdminFormatResponse {
     deletedAt: Instant | undefined;
     createdAt: Instant;
     updatedAt: Instant;
+
+    [key: string]: any;
+}
+
+export interface AdminNotificationListResponse {
+    items: AdminNotificationResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface AdminNotificationResponse {
+    id: string;
+    templateKey: string;
+    userId: string | undefined;
+    tournamentId: string | undefined;
+    status: string;
+    deliveryStatus: string | undefined;
+    providerMessageId: string | undefined;
+    attemptCount: number;
+    lastErrorCode: string | undefined;
+    createdAt: Instant;
+    lastAttemptAt: Instant | undefined;
+    sentAt: Instant | undefined;
+    deadLetteredAt: Instant | undefined;
+    canRetry: boolean;
+
+    [key: string]: any;
+}
+
+export interface AdminNotificationRetryRequest {
+    operatorApproved: boolean;
+
+    [key: string]: any;
+}
+
+export interface AdminNotificationRetryResponse {
+    attemptId: string;
 
     [key: string]: any;
 }

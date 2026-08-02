@@ -169,7 +169,7 @@ public sealed class TelemetryAndHealthTests : IAsyncLifetime
 
     private sealed class FakeTransport : IEmailTransport
     {
-        public Task SendAsync(OutgoingEmail email, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<EmailTransportResult> SendAsync(OutgoingEmail email, CancellationToken cancellationToken) => Task.FromResult(new EmailTransportResult());
     }
 
     private sealed class MutableClock(Instant current) : IClock
