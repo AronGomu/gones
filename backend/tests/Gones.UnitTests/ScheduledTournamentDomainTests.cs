@@ -71,24 +71,34 @@ public sealed class ScheduledTournamentDomainTests
     }
 
     [Fact]
-    public void Lifecycle_transitions_are_ordered_and_cancel_blocks_completed()
+    public void Lifecycle_transitions_are_ordered()
     {
         var tournament = Create();
         tournament.AdvanceLifecycle(tournament.StartsAtUtc);
         Assert.Equal(ScheduledTournamentStatus.InProgress, tournament.Status);
         tournament.AdvanceLifecycle(tournament.EndsAtUtc);
         Assert.Equal(ScheduledTournamentStatus.Completed, tournament.Status);
-        Assert.Throws<InvalidOperationException>(() => tournament.Cancel(Now));
     }
 
     [Fact]
-    public void Cancel_from_published_is_terminal_for_lifecycle()
+    public void Cancel_is_allowed_before_during_or_after_tournament()
     {
-        var tournament = Create();
-        tournament.Cancel(Now);
-        Assert.Equal(ScheduledTournamentStatus.Cancelled, tournament.Status);
-        tournament.AdvanceLifecycle(tournament.EndsAtUtc + Duration.FromDays(1));
-        Assert.Equal(ScheduledTournamentStatus.Cancelled, tournament.Status);
+        var published = Create();
+        published.Cancel(Now);
+        Assert.Equal(ScheduledTournamentStatus.Cancelled, published.Status);
+
+        var inProgress = Create();
+        inProgress.AdvanceLifecycle(inProgress.StartsAtUtc);
+        inProgress.Cancel(inProgress.StartsAtUtc);
+        Assert.Equal(ScheduledTournamentStatus.Cancelled, inProgress.Status);
+
+        var completed = Create();
+        completed.AdvanceLifecycle(completed.StartsAtUtc);
+        completed.AdvanceLifecycle(completed.EndsAtUtc);
+        completed.Cancel(completed.EndsAtUtc);
+        Assert.Equal(ScheduledTournamentStatus.Cancelled, completed.Status);
+        completed.AdvanceLifecycle(completed.EndsAtUtc + Duration.FromDays(1));
+        Assert.Equal(ScheduledTournamentStatus.Cancelled, completed.Status);
     }
 
     [Fact]
@@ -117,7 +127,9 @@ public sealed class ScheduledTournamentDomainTests
         var legacy = TournamentFormat.CreateLegacy(Now);
         var tournament = ScheduledTournament.Create(OrganizationId, UserId, Draft(), [legacy], Now);
         Assert.Equal(TournamentChangeSeverity.None, tournament.ClassifyChange(Draft(), [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Title = "Renamed Cup" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Summary = "Side events" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { BodyHtml = "<p>Changed</p>" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { StartsAtLocal = new LocalDateTime(2026, 8, 2, 11, 0) }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { City = "Paris" }, [legacy]));
     }

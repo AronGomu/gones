@@ -58,3 +58,23 @@ internal sealed class ScheduledTournamentFormatConfiguration : IEntityTypeConfig
         builder.HasOne<TournamentFormat>().WithMany().HasForeignKey(format => format.TournamentFormatId).OnDelete(DeleteBehavior.Restrict);
     }
 }
+
+internal sealed class TournamentLifecycleEventConfiguration : IEntityTypeConfiguration<TournamentLifecycleEvent>
+{
+    public void Configure(EntityTypeBuilder<TournamentLifecycleEvent> builder)
+    {
+        builder.ToTable("tournament_lifecycle_events");
+        builder.HasKey(item => item.Id);
+        builder.Property(item => item.EventType).HasConversion<string>().HasMaxLength(40);
+        builder.Property(item => item.ReminderPlanAction).HasConversion<string>().HasMaxLength(40);
+        builder.HasIndex(item => new { item.TournamentId, item.OccurredAt });
+        builder.HasIndex(item => new { item.ReminderPlanAction, item.OccurredAt });
+        builder.HasOne<ScheduledTournament>().WithMany().HasForeignKey(item => item.TournamentId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("ck_tournament_lifecycle_event_type", "event_type IN ('MajorDetailsUpdated', 'Cancelled', 'Deleted', 'Restored')");
+            table.HasCheckConstraint("ck_tournament_lifecycle_reminder_action", "reminder_plan_action IN ('None', 'RecalculateFuture', 'CancelFuture')");
+        });
+    }
+}

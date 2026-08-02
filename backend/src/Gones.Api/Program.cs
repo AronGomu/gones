@@ -58,6 +58,8 @@ else
     builder.Services.AddNotificationOutbox();
     builder.Services.AddScoped<OrganizationAccessService>();
     builder.Services.AddScoped<TournamentPublicationService>();
+    builder.Services.AddScoped<TournamentLifecycleService>();
+    builder.Services.AddScoped<IOrganizationDeleteDependency, TournamentOrganizationDeleteDependency>();
     builder.Services.AddSingleton<TournamentPreviewTicketService>();
     if (runtimeConfiguration.Features.AuthV1)
     {
@@ -149,6 +151,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapPublicCatalogEndpoints();
     app.MapPublicTournamentEndpoints();
     app.MapTournamentPublicationEndpoints();
+    app.MapTournamentLifecycleEndpoints();
 }
 if (runtimeConfiguration.Features.AdminV1)
 {

@@ -24,6 +24,52 @@ public enum TournamentChangeSeverity
     Major
 }
 
+public enum TournamentLifecycleEventType
+{
+    MajorDetailsUpdated,
+    Cancelled,
+    Deleted,
+    Restored
+}
+
+public enum TournamentReminderPlanAction
+{
+    None,
+    RecalculateFuture,
+    CancelFuture
+}
+
+public sealed class TournamentLifecycleEvent
+{
+    private TournamentLifecycleEvent() { }
+
+    public Guid Id { get; private init; } = Guid.NewGuid();
+    public Guid TournamentId { get; private init; }
+    public Guid ActorUserId { get; private init; }
+    public TournamentLifecycleEventType EventType { get; private init; }
+    public TournamentReminderPlanAction ReminderPlanAction { get; private init; }
+    public Instant OccurredAt { get; private init; }
+
+    public static TournamentLifecycleEvent Create(
+        Guid tournamentId,
+        Guid actorUserId,
+        TournamentLifecycleEventType eventType,
+        TournamentReminderPlanAction reminderPlanAction,
+        Instant occurredAt)
+    {
+        if (tournamentId == Guid.Empty) throw new ArgumentException("Tournament ID cannot be empty.", nameof(tournamentId));
+        if (actorUserId == Guid.Empty) throw new ArgumentException("Actor user ID cannot be empty.", nameof(actorUserId));
+        return new TournamentLifecycleEvent
+        {
+            TournamentId = tournamentId,
+            ActorUserId = actorUserId,
+            EventType = eventType,
+            ReminderPlanAction = reminderPlanAction,
+            OccurredAt = occurredAt
+        };
+    }
+}
+
 public sealed record ScheduledTournamentDraft(
     string Title,
     string Slug,
@@ -151,7 +197,6 @@ public sealed class ScheduledTournament : VersionedEntity
     public void Cancel(Instant now)
     {
         if (IsDeleted) throw new InvalidOperationException("Deleted tournament cannot be cancelled.");
-        if (Status == ScheduledTournamentStatus.Completed) throw new InvalidOperationException("Completed tournament cannot be cancelled.");
         if (Status == ScheduledTournamentStatus.Cancelled) return;
         Status = ScheduledTournamentStatus.Cancelled;
         UpdatedAt = now;

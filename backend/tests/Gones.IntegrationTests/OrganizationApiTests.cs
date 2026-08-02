@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Gones.Api.Organizations;
+using Gones.Domain.Calendar;
+using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
 using Gones.Infrastructure.Persistence;
@@ -233,6 +235,33 @@ public sealed class OrganizationApiTests : IAsyncLifetime
             ownerUserId = owner.Id
         });
         var orgId = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var now = NodaTime.SystemClock.Instance.GetCurrentInstant();
+        var legacy = await database.TournamentFormats.SingleAsync(item => item.Slug == TournamentFormat.LegacySlug);
+        var tournament = ScheduledTournament.Create(
+            orgId,
+            owner.Id,
+            new ScheduledTournamentDraft(
+                "Org Blocker Cup",
+                $"org-blocker-{Guid.NewGuid():N}",
+                null,
+                null,
+                "1 Main Street",
+                null,
+                "Lyon",
+                "France",
+                "Europe/Paris",
+                new NodaTime.LocalDateTime(2035, 1, 1, 10, 0),
+                new NodaTime.LocalDateTime(2035, 1, 1, 18, 0),
+                32),
+            [legacy],
+            now);
+        database.ScheduledTournaments.Add(tournament);
+        await database.SaveChangesAsync();
+
+        using var blockedByTournament = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/organizations/{orgId:D}", adminToken);
+        Assert.Equal(HttpStatusCode.Conflict, blockedByTournament.StatusCode);
+        tournament.Cancel(now);
+        await database.SaveChangesAsync();
 
         using var del = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/organizations/{orgId:D}", adminToken);
         Assert.Equal(HttpStatusCode.NoContent, del.StatusCode);

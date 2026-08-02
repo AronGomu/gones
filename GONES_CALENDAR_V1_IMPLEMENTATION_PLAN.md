@@ -539,14 +539,14 @@ Parallel rules:
 
 **Deps:** C06, C14, C16. **Lane:** C. **Runnable:** lifecycle API complete.
 
-- [ ] RED: tests for If-Match required/stale 412, pre/post-start edit/delete rules, Admin restore deadline, cancel anytime, major/minor diff, lifecycle event atomicity, concurrent actions.
-- [ ] Implement intent endpoints: authorized paged Organizer Tournament list, Admin deleted list, update details, cancel, soft delete, Admin restore. No generic entity PUT.
-- [ ] Require If-Match on mutations; increment Version; include fresh ETag. Idempotency-Key on cancel/delete retries.
-- [ ] Limit Organizer to member org; Admin bypass; only Admin restores; hide soft-deleted public rows. Update DTO excludes immutable OrganizationId/creator/status/slug; mass-assignment/cross-org reassignment tests must fail.
-- [ ] Classify date/address as major. Persist recipient-independent lifecycle event marker atomically; C23 wires active-registration recipient mail after registration schema exists. Minor title/summary edit creates no notification marker.
-- [ ] Date change recalculates future reminder plan marker; past reminder history remains immutable. Extend org-delete blocker: 409 while any nonterminal Tournament depends on org.
-- [ ] Audit before/after allowed field diff; rich body diff records changed marker only.
-- [ ] GREEN: lifecycle/domain/API concurrency tests; `G-FULL`, `G-RUN`; exercise each state + stale client.
+- [x] RED: tests for If-Match required/stale 412, pre/post-start edit/delete rules, Admin restore deadline, cancel anytime, major/minor diff, lifecycle event atomicity, concurrent actions.
+- [x] Implement intent endpoints: authorized paged Organizer Tournament list, Admin deleted list, update details, cancel, soft delete, Admin restore. No generic entity PUT.
+- [x] Require If-Match on mutations; increment Version; include fresh ETag. Idempotency-Key on cancel/delete retries.
+- [x] Limit Organizer to member org; Admin bypass; only Admin restores; hide soft-deleted public rows. Update DTO excludes immutable OrganizationId/creator/status/slug; mass-assignment/cross-org reassignment tests must fail.
+- [x] Classify date/address as major. Persist recipient-independent lifecycle event marker atomically; C23 wires active-registration recipient mail after registration schema exists. Minor title/summary edit creates no notification marker.
+- [x] Date change recalculates future reminder plan marker; past reminder history remains immutable. Extend org-delete blocker: 409 while any nonterminal Tournament depends on org.
+- [x] Audit before/after allowed field diff; rich body diff records changed marker only.
+- [x] GREEN: lifecycle/domain/API concurrency tests; `G-FULL`, `G-RUN`; exercise each state + stale client.
 
 ## C22 — `feat: add Organizer Tournament management UX`
 
