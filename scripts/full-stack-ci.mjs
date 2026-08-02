@@ -4,22 +4,43 @@ import { join } from 'node:path';
 const composeEnv = {
   ...process.env,
   GONES_FEATURES__AUTH_V1: 'true',
+  GONES_FEATURES__ADMIN_V1: 'true',
   GONES_AUTH_PROVIDER: 'Local',
   GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: '1000',
   GONES_FRONTEND_API_BASE_URL: 'http://127.0.0.1:5080'
 };
-const legacyComposeEnv = { ...composeEnv, GONES_FEATURES__AUTH_V1: 'false' };
+const legacyComposeEnv = { ...composeEnv, GONES_FEATURES__AUTH_V1: 'false', GONES_FEATURES__ADMIN_V1: 'false' };
 
 function run(args, env = composeEnv, allowFailure = false) {
   const result = spawnSync('docker', ['compose', ...args], { stdio: 'inherit', env });
   if (!allowFailure && result.status !== 0) process.exit(result.status ?? 1);
 }
 
+let cypressEnv;
+
+function getCypressEnv() {
+  if (cypressEnv) return cypressEnv;
+
+  cypressEnv = { ...process.env };
+  const result = spawnSync('nix', [
+    'eval',
+    '--raw',
+    '--impure',
+    '--expr',
+    'with import <nixpkgs> {}; lib.makeLibraryPath [ glib gtk3 nss nspr dbus atk at-spi2-atk at-spi2-core cups cairo pango libx11 libxcomposite libxdamage libxext libxfixes libxrandr mesa libgbm expat libxcb libxkbcommon systemd alsa-lib ]'
+  ], { encoding: 'utf8' });
+  const cypressLibs = result.status === 0 ? result.stdout.trim() : '';
+  if (cypressLibs) cypressEnv.LD_LIBRARY_PATH = `${cypressLibs}:${cypressEnv.LD_LIBRARY_PATH ?? ''}`;
+
+  return cypressEnv;
+}
+
 function runCypress(spec) {
-  const args = ['run', '--spec', spec, '--config', 'baseUrl=http://127.0.0.1:8081'];
+  const args = ['run', '--spec', spec, '--config', 'baseUrl=http://127.0.0.1:8081,screenshotOnRunFailure=false'];
+  const env = getCypressEnv();
   return process.env.GONES_CYPRESS_BIN
-    ? spawnSync(process.env.GONES_CYPRESS_BIN, args, { stdio: 'inherit' })
-    : spawnSync(process.execPath, [join('node_modules', 'cypress', 'bin', 'cypress'), ...args], { stdio: 'inherit' });
+    ? spawnSync(process.env.GONES_CYPRESS_BIN, args, { stdio: 'inherit', env })
+    : spawnSync(process.execPath, [join('node_modules', 'cypress', 'bin', 'cypress'), ...args], { stdio: 'inherit', env });
 }
 
 try {
@@ -47,6 +68,10 @@ try {
   if (!process.exitCode) {
     const browser = runCypress('cypress/e2e/auth-profile.cy.js');
     if (browser.status !== 0) process.exitCode = browser.status ?? 1;
+  }
+  if (!process.exitCode) {
+    const adminBrowser = runCypress('cypress/e2e/admin-orgs.cy.js');
+    if (adminBrowser.status !== 0) process.exitCode = adminBrowser.status ?? 1;
   }
   if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {

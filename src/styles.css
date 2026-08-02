@@ -1056,6 +1056,11 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .auth-form fieldset:disabled { opacity: .7; }
 .auth-form button[type='submit'] { margin-top: .5rem; }
 .auth-name-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.admin-page, .admin-page * { min-width: 0; }
+.admin-page .filter-bar { grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); align-items: end; }
+.admin-row-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 12rem) auto; gap: .75rem; align-items: center; }
+.redacted-diff { max-width: 100%; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .admin-row-grid { grid-template-columns: 1fr; } .redacted-diff { overflow-x: hidden; } }
 .auth-name-grid > div { display: grid; gap: .75rem; }
 .oauth-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .auth-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }

@@ -461,14 +461,14 @@ Parallel rules:
 
 **Deps:** C12, C14. **Lane:** B/E. **Runnable:** `adminV1` enables complete Admin/org UI.
 
-- [ ] RED: Cypress role matrix for Admin pages, org Owner pages, cross-org URL tamper, last-owner guard, account-disable impact.
-- [ ] Add `/organizations`, `/organizations/:id`, `/organizer/organizations`, `/admin`, `/admin/users`, `/admin/organizations`, `/admin/audit`.
-- [ ] Implement paged/filter states in URL; loading/empty/error/retry; confirmation dialogs for role/org destructive changes.
-- [ ] Add Admin audit query with action/entity/actor/date filters; show redacted diffs only; no audit mutation UI/API.
-- [ ] Implement Admin-assisted account disable/anonymize command: require atomic Owner-transfer map for every solely owned org, revoke sessions, unlink providers, replace PII/Username with opaque values, retain immutable ID/relations.
-- [ ] Add UI confirmation requiring typed Username + impact/ownership-transfer summary; exclude current/last Admin unless replacement exists. Test multi-org + concurrent Owner change.
-- [ ] Add EN/FR strings, keyboard/focus/mobile tests; hide controls by role without treating hiding as authz.
-- [ ] GREEN: Angular/Cypress/Admin API tests; `G-FULL`, `G-RUN` under User/Organizer/Owner/Admin personas.
+- [x] RED: Cypress role matrix for Admin pages, org Owner pages, cross-org URL tamper, last-owner guard, account-disable impact.
+- [x] Add `/organizations`, `/organizations/:id`, `/organizer/organizations`, `/admin`, `/admin/users`, `/admin/organizations`, `/admin/audit`.
+- [x] Implement paged/filter states in URL; loading/empty/error/retry; confirmation dialogs for role/org destructive changes.
+- [x] Add Admin audit query with action/entity/actor/date filters; show redacted diffs only; no audit mutation UI/API.
+- [x] Implement Admin-assisted account disable/anonymize command: require atomic Owner-transfer map for every solely owned org, revoke sessions, unlink providers, replace PII/Username with opaque values, retain immutable ID/relations.
+- [x] Add UI confirmation requiring typed Username + impact/ownership-transfer summary; exclude current/last Admin unless replacement exists. Test multi-org + concurrent Owner change.
+- [x] Add EN/FR strings, keyboard/focus/mobile tests; hide controls by role without treating hiding as authz.
+- [x] GREEN: Angular/Cypress/Admin API tests; `G-FULL`, `G-RUN` under User/Organizer/Owner/Admin personas.
 
 ## C16 — `feat: model Scheduled Tournament lifecycle and safe content`
 

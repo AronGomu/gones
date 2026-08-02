@@ -71,6 +71,7 @@ else
         {
             builder.Services.AddScoped<AdminRoleService>();
             builder.Services.AddScoped<AdminCatalogService>();
+            builder.Services.AddScoped<AdminAccountService>();
             builder.Services.AddScoped<OrganizationAccessService>();
             builder.Services.AddScoped<OrganizationService>();
         }

@@ -1151,6 +1151,149 @@
         }
       }
     },
+    "/api/admin/users/{userId}": {
+      "get": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{userId}/closure-impact": {
+      "get": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountClosureImpactResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/users/{userId}/disable": {
+      "post": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/users/{userId}/roles/{role}/grant": {
       "post": {
         "tags": [
@@ -1242,6 +1385,104 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/audit": {
+      "get": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAuditListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2141,6 +2382,149 @@
           }
         }
       },
+      "AdminAccountClosureImpactResponse": {
+        "required": [
+          "userId",
+          "username",
+          "email",
+          "globalRole",
+          "isClosed",
+          "isLastAdmin",
+          "isSelf",
+          "canClose",
+          "blockReason",
+          "soleOwnedOrganizations",
+          "otherMembershipOrganizationIds"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "globalRole": {
+            "type": "string"
+          },
+          "isClosed": {
+            "type": "boolean"
+          },
+          "isLastAdmin": {
+            "type": "boolean"
+          },
+          "isSelf": {
+            "type": "boolean"
+          },
+          "canClose": {
+            "type": "boolean"
+          },
+          "blockReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "soleOwnedOrganizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSoleOwnerOrganizationResponse"
+            }
+          },
+          "otherMembershipOrganizationIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "AdminAuditListResponse": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAuditRecordResponse"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "AdminAuditRecordResponse": {
+        "required": [
+          "id",
+          "actorId",
+          "action",
+          "entityType",
+          "entityId",
+          "redactedDiff",
+          "occurredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string"
+          },
+          "redactedDiff": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
       "AdminFormatResponse": {
         "required": [
           "id",
@@ -2295,6 +2679,96 @@
           }
         }
       },
+      "AdminSoleOwnerOrganizationResponse": {
+        "required": [
+          "organizationId",
+          "organizationName",
+          "suggestedNewOwnerUserId",
+          "suggestedNewOwnerUsername"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "suggestedNewOwnerUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "suggestedNewOwnerUsername": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AdminUserDetailResponse": {
+        "required": [
+          "id",
+          "email",
+          "emailVerified",
+          "globalRole",
+          "username",
+          "firstName",
+          "lastName",
+          "isClosed",
+          "closedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "globalRole": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "isClosed": {
+            "type": "boolean"
+          },
+          "closedAt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Instant"
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
       "AdminUserListResponse": {
         "required": [
           "items",
@@ -2345,6 +2819,7 @@
           "username",
           "firstName",
           "lastName",
+          "isClosed",
           "createdAt"
         ],
         "type": "object",
@@ -2370,6 +2845,9 @@
           },
           "lastName": {
             "type": "string"
+          },
+          "isClosed": {
+            "type": "boolean"
           },
           "createdAt": {
             "$ref": "#/components/schemas/Instant"
@@ -2475,6 +2953,29 @@
           "ownerUserId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "DisableUserRequest": {
+        "required": [
+          "confirmedUsername",
+          "ownershipTransfers"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmedUsername": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownershipTransfers": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/OwnershipTransferBody"
+            }
           }
         }
       },
@@ -2836,6 +3337,23 @@
           },
           "updatedAt": {
             "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
+      "OwnershipTransferBody": {
+        "required": [
+          "organizationId",
+          "newOwnerUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "newOwnerUserId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },

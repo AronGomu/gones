@@ -50,6 +50,9 @@ public sealed class UserProfile : VersionedEntity
     public bool IsPreferredLanguagePublic { get; private set; }
     public Instant CreatedAt { get; private init; }
     public Instant UpdatedAt { get; private set; }
+    public Instant? ClosedAt { get; private set; }
+
+    public bool IsClosed => ClosedAt is not null;
 
     public static UserProfile Create(Guid userId, string username, string firstName, string lastName, Instant now)
     {
@@ -101,6 +104,24 @@ public sealed class UserProfile : VersionedEntity
         IsLocationPublic = isLocationPublic;
         IsBirthYearPublic = isBirthYearPublic;
         IsPreferredLanguagePublic = isPreferredLanguagePublic;
+        UpdatedAt = now;
+    }
+
+    public void CloseAndAnonymize(string opaqueUsername, Instant now)
+    {
+        if (ClosedAt is not null) return;
+        Username = opaqueUsername;
+        NormalizedUsername = global::Gones.Domain.Identity.Username.Normalize(opaqueUsername);
+        FirstName = "Closed";
+        LastName = "User";
+        Location = null;
+        BirthYear = null;
+        IsFirstNamePublic = false;
+        IsLastNamePublic = false;
+        IsLocationPublic = false;
+        IsBirthYearPublic = false;
+        IsPreferredLanguagePublic = false;
+        ClosedAt = now;
         UpdatedAt = now;
     }
 

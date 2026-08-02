@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { environment } from '../environments/environment';
-import { userGuard } from './auth/auth.guards';
+import { adminGuard, userGuard } from './auth/auth.guards';
 
 const authRoutes: Routes = [
   { path: 'login', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'login' } },
@@ -29,5 +29,14 @@ export const routes: Routes = [
   { path: 'players/:playerName', loadComponent: () => import('./features/players/player-detail.component').then((m) => m.PlayerDetailComponent) },
   { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
   ...(environment.features.authV1 ? authRoutes : []),
+  ...(environment.features.adminV1 ? [
+    { path: 'organizations', loadComponent: () => import('./features/admin/organization-list.component').then((m) => m.OrganizationListComponent) },
+    { path: 'organizations/:id', loadComponent: () => import('./features/admin/organization-detail.component').then((m) => m.OrganizationDetailComponent) },
+    { path: 'organizer/organizations', canActivate: [userGuard], loadComponent: () => import('./features/admin/organizer-organizations.component').then((m) => m.OrganizerOrganizationsComponent) },
+    { path: 'admin', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-home.component').then((m) => m.AdminHomeComponent) },
+    { path: 'admin/users', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-users.component').then((m) => m.AdminUsersComponent) },
+    { path: 'admin/organizations', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-organizations.component').then((m) => m.AdminOrganizationsComponent) },
+    { path: 'admin/audit', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-audit.component').then((m) => m.AdminAuditComponent) }
+  ] : []),
   { path: '**', loadComponent: () => import('./shared/not-found.component').then((m) => m.NotFoundComponent) }
 ];
