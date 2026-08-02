@@ -220,6 +220,189 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Organizer_routes_hide_cross_org_resources_and_lookup_only_exact_verified_users()
+    {
+        var tournament = await CreateTournamentAsync("Private Cup", 10);
+        using var own = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registrations", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, own.StatusCode);
+        using var outsider = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registrations", seed.User.Id);
+        Assert.Equal(HttpStatusCode.NotFound, outsider.StatusCode);
+
+        using var exactUsername = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=CurrentUser", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, exactUsername.StatusCode);
+        var lookup = await exactUsername.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(seed.User.Id, lookup.GetProperty("userId").GetGuid());
+        Assert.Equal(seed.User.Email, lookup.GetProperty("email").GetString());
+        using var exactEmail = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?email={Uri.EscapeDataString(seed.User.Email!)}", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, exactEmail.StatusCode);
+        Assert.Equal(seed.User.Id, (await exactEmail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+        using var partial = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=Current", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, partial.StatusCode);
+        using var unverified = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?email={Uri.EscapeDataString(seed.Unverified.Email!)}", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, unverified.StatusCode);
+        using var unauthorizedLookup = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=CurrentUser", seed.User.Id);
+        Assert.Equal(HttpStatusCode.NotFound, unauthorizedLookup.StatusCode);
+        using var adminLookup = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=CurrentUser", seed.Registered.Id, roles: "Admin");
+        Assert.Equal(HttpStatusCode.OK, adminLookup.StatusCode);
+    }
+
+    [Fact]
+    public async Task Block_expiry_unblock_and_list_preserve_existing_registration()
+    {
+        var tournament = await CreateTournamentAsync("Block Cup", 10);
+        await using (var database = CreateContext())
+        {
+            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.User.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+
+        using var blocked = await SendJsonAsync(HttpMethod.Post, $"/api/organizations/{seed.Organization.Id:D}/blocked-users", seed.Organizer.Id, new
+        {
+            userId = seed.User.Id,
+            reason = "Repeated no-show",
+            expiresAt = (clock.GetCurrentInstant() + Duration.FromHours(1)).ToString()
+        });
+        Assert.Equal(HttpStatusCode.Created, blocked.StatusCode);
+        using var list = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/blocked-users", seed.Organizer.Id);
+        var listBody = await list.Content.ReadFromJsonAsync<JsonElement>();
+        var item = Assert.Single(listBody.GetProperty("items").EnumerateArray());
+        Assert.Equal("Repeated no-show", item.GetProperty("reason").GetString());
+        Assert.Equal(seed.Organizer.Id, item.GetProperty("blockedByUserId").GetGuid());
+
+        await using (var database = CreateContext())
+        {
+            Assert.Equal(TournamentRegistrationStatus.Confirmed, (await database.TournamentRegistrationAttempts.SingleAsync()).Status);
+        }
+
+        clock.Set(clock.GetCurrentInstant() + Duration.FromHours(2));
+        using var reblocked = await SendJsonAsync(HttpMethod.Post, $"/api/organizations/{seed.Organization.Id:D}/blocked-users", seed.Organizer.Id, new
+        {
+            userId = seed.User.Id,
+            reason = "New active block",
+            expiresAt = (Instant?)null
+        });
+        Assert.Equal(HttpStatusCode.Created, reblocked.StatusCode);
+        using var unblocked = await SendAsync(HttpMethod.Delete, $"/api/organizations/{seed.Organization.Id:D}/blocked-users/{seed.User.Id:D}", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NoContent, unblocked.StatusCode);
+        using var emptyList = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/blocked-users", seed.Organizer.Id);
+        Assert.Equal(0, (await emptyList.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("totalCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task Organizer_manual_registration_and_removal_record_actor_deadline_mail_and_private_projection()
+    {
+        var tournament = await CreateTournamentAsync("Managed Cup", 10);
+        using var added = await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/registrations/by-organizer", seed.Organizer.Id, new { userId = seed.User.Id });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var addedBody = await added.Content.ReadFromJsonAsync<JsonElement>();
+        var registrationId = addedBody.GetProperty("attemptId").GetGuid();
+        await AssertProblem(
+            await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/registrations/by-organizer", seed.Organizer.Id, new { userId = seed.User.Id }),
+            HttpStatusCode.Conflict,
+            "registration_already_active");
+        await AssertProblem(
+            await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/registrations/by-organizer", seed.Organizer.Id, new { userId = seed.Unverified.Id }),
+            HttpStatusCode.Forbidden,
+            "email_verification_required");
+        await using (var database = CreateContext())
+        {
+            database.OrganizationBlockedUsers.Add(OrganizationBlockedUser.Block(
+                seed.Organization.Id,
+                seed.Blocked.Id,
+                "Blocked by Organizer",
+                seed.Organizer.Id,
+                clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+        await AssertProblem(
+            await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/registrations/by-organizer", seed.Organizer.Id, new { userId = seed.Blocked.Id }),
+            HttpStatusCode.Forbidden,
+            "registration_blocked");
+
+        using var privateList = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registrations", seed.Organizer.Id);
+        var privateBody = await privateList.Content.ReadFromJsonAsync<JsonElement>();
+        var participant = Assert.Single(privateBody.GetProperty("items").EnumerateArray());
+        Assert.Equal(seed.User.Email, participant.GetProperty("email").GetString());
+        Assert.Equal("Current", participant.GetProperty("firstName").GetString());
+        Assert.Equal(seed.Organizer.Id, participant.GetProperty("registeredByUserId").GetGuid());
+
+        using var publicList = await Client.GetAsync($"/api/tournaments/{tournament.Slug}/participants");
+        var publicJson = await publicList.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(seed.User.Email!, publicJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("registeredAt", publicJson, StringComparison.Ordinal);
+
+        using var removed = await SendAsync(HttpMethod.Delete, $"/api/tournaments/{tournament.Id:D}/registrations/{registrationId:D}", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
+        await using (var database = CreateContext())
+        {
+            var attempt = await database.TournamentRegistrationAttempts.SingleAsync(item => item.Id == registrationId);
+            Assert.Equal(TournamentRegistrationStatus.RemovedByOrganizer, attempt.Status);
+            Assert.Equal(seed.Organizer.Id, attempt.RegisteredByUserId);
+            Assert.Equal(seed.Organizer.Id, attempt.StatusChangedByUserId);
+            Assert.Equal(2, await database.NotificationOutboxRecords.CountAsync(item => item.TournamentId == tournament.Id));
+        }
+
+        using var addedAgain = await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/registrations/by-organizer", seed.Organizer.Id, new { userId = seed.Registered.Id });
+        Assert.Equal(HttpStatusCode.Created, addedAgain.StatusCode);
+        var secondId = (await addedAgain.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("attemptId").GetGuid();
+        clock.Set(tournament.StartsAtUtc);
+        await AssertProblem(await SendAsync(HttpMethod.Delete, $"/api/tournaments/{tournament.Id:D}/registrations/{secondId:D}", seed.Organizer.Id), HttpStatusCode.Conflict, "unregistration_closed");
+    }
+
+    [Fact]
+    public async Task Organizer_csv_is_streamed_fixed_bounded_formula_safe_and_audited_without_pii()
+    {
+        var tournament = await CreateTournamentAsync("CSV Cup", 10);
+        await using (var database = CreateContext())
+        {
+            var profile = await database.UserProfiles.SingleAsync(item => item.UserId == seed.User.Id);
+            profile.Update("CurrentUser", "=HYPERLINK(\"https://bad.test\")", "Comma,\"Quote\"", "Lyon", 1990, "en", false, false, false, false, false, 2030, clock.GetCurrentInstant());
+            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.Organizer.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+
+        using var export = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registrations/export", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+        Assert.Equal("text/csv", export.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("attachment", export.Content.Headers.ContentDisposition?.ToString(), StringComparison.OrdinalIgnoreCase);
+        var csv = await export.Content.ReadAsStringAsync();
+        Assert.StartsWith("Username,FirstName,LastName,Email,RegisteredAt\r\n", csv, StringComparison.Ordinal);
+        Assert.Contains("\"'=HYPERLINK(\"\"https://bad.test\"\")\"", csv, StringComparison.Ordinal);
+        Assert.Contains("\"Comma,\"\"Quote\"\"\"", csv, StringComparison.Ordinal);
+
+        await using var verificationDatabase = CreateContext();
+        var audit = await verificationDatabase.AuditRecords.SingleAsync(item => item.Action == "tournament.participants.exported");
+        Assert.Contains("rowCount", audit.RedactedDiff, StringComparison.Ordinal);
+        Assert.Contains("columns", audit.RedactedDiff, StringComparison.Ordinal);
+        Assert.DoesNotContain(seed.User.Email!, audit.RedactedDiff, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("CurrentUser", audit.RedactedDiff, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Concurrent_organizer_manual_adds_for_final_slot_create_exactly_one_confirmed_attempt()
+    {
+        var tournament = await CreateTournamentAsync("Managed Final Slot", 1);
+        var racers = await AddUsersAsync(8);
+        using var start = new ManualResetEventSlim(false);
+        var tasks = racers.Select(user => Task.Run(async () =>
+        {
+            start.Wait();
+            return await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/registrations/by-organizer", seed.Organizer.Id, new { userId = user.Id });
+        })).ToArray();
+        start.Set();
+        var responses = await Task.WhenAll(tasks);
+        try
+        {
+            Assert.Single(responses, response => response.StatusCode == HttpStatusCode.Created);
+            Assert.Equal(responses.Length - 1, responses.Count(response => response.StatusCode == HttpStatusCode.Conflict));
+        }
+        finally
+        {
+            foreach (var response in responses) response.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task Concurrent_users_racing_for_final_slot_create_exactly_one_confirmed_attempt()
     {
         var tournament = await CreateTournamentAsync("Final Slot Cup", 1);
@@ -290,12 +473,23 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
     private Task<HttpResponseMessage> UnregisterAsync(Guid tournamentId, Guid userId, string key) =>
         SendAsync(HttpMethod.Delete, $"/api/tournaments/{tournamentId:D}/registrations", userId, key);
 
-    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, Guid userId, string? key = null)
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, Guid userId, string? key = null, string roles = "User")
     {
         var request = new HttpRequestMessage(method, url);
         request.Headers.Add("X-Test-User", userId.ToString("D"));
-        request.Headers.Add("X-Test-Roles", "User");
+        request.Headers.Add("X-Test-Roles", roles);
         if (key is not null) request.Headers.Add("Idempotency-Key", key);
+        return Client.SendAsync(request);
+    }
+
+    private Task<HttpResponseMessage> SendJsonAsync(HttpMethod method, string url, Guid userId, object body, string roles = "User")
+    {
+        var request = new HttpRequestMessage(method, url)
+        {
+            Content = JsonContent.Create(body)
+        };
+        request.Headers.Add("X-Test-User", userId.ToString("D"));
+        request.Headers.Add("X-Test-Roles", roles);
         return Client.SendAsync(request);
     }
 

@@ -119,6 +119,7 @@ internal static class TournamentRegistrationEndpoints
 internal sealed class TournamentRegistrationService(
     GonesDbContext database,
     TournamentRegistrationNotificationService notifications,
+    OrganizationAccessService organizationAccess,
     IClock clock)
 {
     private const int MaximumSerializableAttempts = 10;
@@ -130,7 +131,23 @@ internal sealed class TournamentRegistrationService(
         Guid userId,
         string idempotencyKey,
         CancellationToken cancellationToken) =>
-        ExecuteSerializableAsync(() => RegisterOnceAsync(tournamentId, userId, idempotencyKey, cancellationToken), cancellationToken);
+        ExecuteSerializableAsync(() => RegisterOnceAsync(tournamentId, userId, userId, idempotencyKey, false, false, cancellationToken), cancellationToken);
+
+    public Task<TournamentRegistrationMutationResponse> RegisterByOrganizerAsync(
+        Guid tournamentId,
+        Guid userId,
+        Guid actorUserId,
+        bool isAdmin,
+        CancellationToken cancellationToken) =>
+        ExecuteSerializableAsync(() => RegisterOnceAsync(tournamentId, userId, actorUserId, null, true, isAdmin, cancellationToken), cancellationToken);
+
+    public Task<TournamentRegistrationMutationResponse> RemoveByOrganizerAsync(
+        Guid tournamentId,
+        Guid registrationId,
+        Guid actorUserId,
+        bool isAdmin,
+        CancellationToken cancellationToken) =>
+        ExecuteSerializableAsync(() => RemoveByOrganizerOnceAsync(tournamentId, registrationId, actorUserId, isAdmin, cancellationToken), cancellationToken);
 
     public Task<TournamentRegistrationMutationResponse> UnregisterAsync(
         Guid tournamentId,
@@ -242,19 +259,29 @@ internal sealed class TournamentRegistrationService(
     private async Task<TournamentRegistrationMutationResponse> RegisterOnceAsync(
         Guid tournamentId,
         Guid userId,
-        string idempotencyKey,
+        Guid actorUserId,
+        string? idempotencyKey,
+        bool requireOrganizerAccess,
+        bool isAdmin,
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var tournament = await LockTournamentAsync(tournamentId, cancellationToken)
             ?? throw new ResourceNotFoundException();
+        if (requireOrganizerAccess)
+        {
+            _ = await organizationAccess.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
+        }
 
         var scope = $"tournament-registration:{userId:D}";
-        var replay = await ReplayAsync(scope, idempotencyKey, tournamentId, "register", cancellationToken);
-        if (replay is not null)
+        if (idempotencyKey is not null)
         {
-            await transaction.CommitAsync(cancellationToken);
-            return replay;
+            var replay = await ReplayAsync(scope, idempotencyKey, tournamentId, "register", cancellationToken);
+            if (replay is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+                return replay;
+            }
         }
 
         if (tournament.DeletedAt is not null) throw new ResourceNotFoundException();
@@ -297,18 +324,55 @@ internal sealed class TournamentRegistrationService(
             throw new TournamentFullException();
         }
 
-        var attempt = TournamentRegistrationAttempt.Register(tournament.Id, userId, userId, now);
+        var attempt = TournamentRegistrationAttempt.Register(tournament.Id, userId, actorUserId, now);
         database.TournamentRegistrationAttempts.Add(attempt);
         await notifications.EnqueueSelfRegistrationAsync(attempt, tournament, user, profile, registered: true, cancellationToken);
         database.AuditRecords.Add(NewAudit(
-            userId,
-            "tournament.registration.confirmed",
+            actorUserId,
+            requireOrganizerAccess ? "tournament.registration.confirmed_by_organizer" : "tournament.registration.confirmed",
             attempt.Id,
             JsonSerializer.Serialize(new { fields = new[] { "status" }, tournamentId = tournament.Id, userId }),
             now));
         MarkParticipantProjectionChanged(tournament);
         var response = ToMutation(attempt);
-        StoreIdempotency(scope, idempotencyKey, "register", tournament.Id, response, now, StatusCodes.Status201Created);
+        if (idempotencyKey is not null)
+        {
+            StoreIdempotency(scope, idempotencyKey, "register", tournament.Id, response, now, StatusCodes.Status201Created);
+        }
+        await SaveAndCommitAsync(transaction, cancellationToken);
+        return response;
+    }
+
+    private async Task<TournamentRegistrationMutationResponse> RemoveByOrganizerOnceAsync(
+        Guid tournamentId,
+        Guid registrationId,
+        Guid actorUserId,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var tournament = await LockTournamentAsync(tournamentId, cancellationToken)
+            ?? throw new ResourceNotFoundException();
+        if (tournament.DeletedAt is not null) throw new ResourceNotFoundException();
+        _ = await organizationAccess.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        if (now >= tournament.StartsAtUtc) throw new UnregistrationClosedException();
+        var attempt = await database.TournamentRegistrationAttempts
+            .FromSqlInterpolated($"SELECT * FROM tournament_registration_attempts WHERE id = {registrationId} AND tournament_id = {tournamentId} AND status = 'Confirmed' FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ActiveRegistrationNotFoundException();
+        var user = await database.Users.SingleAsync(item => item.Id == attempt.UserId, cancellationToken);
+        var profile = await database.UserProfiles.SingleAsync(item => item.UserId == attempt.UserId && item.ClosedAt == null, cancellationToken);
+        attempt.RemoveByOrganizer(actorUserId, now);
+        notifications.EnqueueOrganizerRemoval(attempt, tournament, user, profile);
+        database.AuditRecords.Add(NewAudit(
+            actorUserId,
+            "tournament.registration.removed_by_organizer",
+            attempt.Id,
+            JsonSerializer.Serialize(new { fields = new[] { "status" }, tournamentId, userId = attempt.UserId }),
+            now));
+        MarkParticipantProjectionChanged(tournament);
+        var response = ToMutation(attempt);
         await SaveAndCommitAsync(transaction, cancellationToken);
         return response;
     }
@@ -526,6 +590,21 @@ internal sealed class TournamentRegistrationNotificationService(
                 organizer.User.Id,
                 tournament.Id));
         }
+    }
+
+    public void EnqueueOrganizerRemoval(
+        TournamentRegistrationAttempt attempt,
+        ScheduledTournament tournament,
+        ApplicationUser user,
+        UserProfile profile)
+    {
+        outbox.Enqueue(new NotificationRequest(
+            RequiredEmail(user),
+            profile.PreferredLanguage,
+            $"registration:{attempt.Id:D}:removed-by-organizer:participant",
+            new UnregistrationTemplateModel(profile.Username, tournament.Title, TournamentUrl(tournament.Slug)),
+            user.Id,
+            tournament.Id));
     }
 
     public async Task EnqueueMajorUpdateAsync(

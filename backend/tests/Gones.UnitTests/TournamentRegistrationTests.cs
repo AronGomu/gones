@@ -1,4 +1,5 @@
 using Gones.Domain.Calendar;
+using Gones.Domain.Organizations;
 using NodaTime;
 
 namespace Gones.UnitTests;
@@ -34,5 +35,37 @@ public sealed class TournamentRegistrationTests
         Assert.Equal(UserId, attempt.RegisteredByUserId);
         Assert.Equal(Now, attempt.RegisteredAt);
         Assert.Equal(organizerId, attempt.StatusChangedByUserId);
+    }
+
+    [Fact]
+    public void Organizer_removal_is_distinct_terminal_status_with_actor_history()
+    {
+        var organizerId = Guid.NewGuid();
+        var attempt = TournamentRegistrationAttempt.Register(TournamentId, UserId, organizerId, Now);
+
+        attempt.RemoveByOrganizer(organizerId, Now + Duration.FromMinutes(1));
+
+        Assert.Equal(TournamentRegistrationStatus.RemovedByOrganizer, attempt.Status);
+        Assert.Equal(organizerId, attempt.RegisteredByUserId);
+        Assert.Equal(organizerId, attempt.StatusChangedByUserId);
+    }
+
+    [Fact]
+    public void Organization_block_tracks_reason_actor_expiry_then_explicit_unblock()
+    {
+        var organizationId = Guid.NewGuid();
+        var actorId = Guid.NewGuid();
+        var expiry = Now + Duration.FromDays(7);
+
+        var block = OrganizationBlockedUser.Block(organizationId, UserId, "Repeated no-show", actorId, Now, expiry);
+
+        Assert.True(block.AppliesAt(Now));
+        Assert.False(block.AppliesAt(expiry));
+        Assert.Equal("Repeated no-show", block.Reason);
+        Assert.Equal(actorId, block.BlockedByUserId);
+        block.Unblock(actorId, Now + Duration.FromDays(1));
+        Assert.False(block.IsActive);
+        Assert.Equal(actorId, block.UnblockedByUserId);
+        Assert.Equal(Now + Duration.FromDays(1), block.UnblockedAt);
     }
 }

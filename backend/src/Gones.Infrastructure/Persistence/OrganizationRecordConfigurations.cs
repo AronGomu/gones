@@ -49,6 +49,7 @@ internal sealed class OrganizationBlockedUserConfiguration : VersionedEntityConf
     {
         base.Configure(builder);
         builder.ToTable("organization_blocked_users");
+        builder.Property(block => block.Reason).HasMaxLength(OrganizationBlockedUser.MaximumReasonLength);
         builder.HasIndex(block => new { block.OrganizationId, block.UserId })
             .IsUnique()
             .HasFilter("is_active")
@@ -56,9 +57,15 @@ internal sealed class OrganizationBlockedUserConfiguration : VersionedEntityConf
         builder.HasIndex(block => new { block.OrganizationId, block.UserId, block.ExpiresAt });
         builder.HasOne<Organization>().WithMany().HasForeignKey(block => block.OrganizationId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(block => block.UserId).OnDelete(DeleteBehavior.Cascade);
-        builder.ToTable(table => table.HasCheckConstraint(
-            "ck_organization_block_expiry",
-            "expires_at IS NULL OR expires_at > blocked_at"));
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(block => block.BlockedByUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(block => block.UnblockedByUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("ck_organization_block_expiry", "expires_at IS NULL OR expires_at > blocked_at");
+            table.HasCheckConstraint(
+                "ck_organization_block_inactive_metadata",
+                "(is_active AND unblocked_by_user_id IS NULL AND unblocked_at IS NULL) OR (NOT is_active AND unblocked_by_user_id IS NOT NULL AND unblocked_at IS NOT NULL)");
+        });
     }
 }
 

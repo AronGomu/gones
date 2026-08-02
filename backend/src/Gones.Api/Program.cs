@@ -61,6 +61,7 @@ else
     builder.Services.AddScoped<TournamentLifecycleService>();
     builder.Services.AddScoped<TournamentRegistrationService>();
     builder.Services.AddScoped<TournamentRegistrationNotificationService>();
+    builder.Services.AddScoped<OrganizerParticipantService>();
     builder.Services.AddSingleton(TournamentRegistrationOptions.Load(builder.Configuration));
     builder.Services.AddScoped<IOrganizationDeleteDependency, TournamentOrganizationDeleteDependency>();
     builder.Services.AddScoped<IOrganizationDeleteDependency, RegistrationOrganizationDeleteDependency>();
@@ -157,6 +158,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapTournamentPublicationEndpoints();
     app.MapTournamentLifecycleEndpoints();
     app.MapTournamentRegistrationEndpoints();
+    app.MapOrganizerParticipantEndpoints();
 }
 if (runtimeConfiguration.Features.AdminV1)
 {

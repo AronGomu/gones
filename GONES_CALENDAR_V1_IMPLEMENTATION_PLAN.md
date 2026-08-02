@@ -592,14 +592,14 @@ Parallel rules:
 
 **Deps:** C06, C14, C23. **Lane:** C. **Runnable:** Organizer participant operations complete through API.
 
-- [ ] RED: authz tests for cross-org IDOR; verified-existing-User lookup; manual add/remove deadlines; block expiry; CSV formula injection; export audit.
-- [ ] Add org-scoped blocked-user entity with reason/actor/expiry + active unique constraint; block/unblock/list commands.
-- [ ] Add privacy-limited User lookup for exact Username/email available only to authorized org Organizer/Admin.
-- [ ] Implement manual register existing verified User; same capacity/block/duplicate txn rules; actor fields identify Organizer.
-- [ ] Implement remove before start → RemovedByOrganizer + participant email; block does not silently remove existing registration unless explicit combined action.
-- [ ] Add paged participant private DTO/query with current Username/first/last/email/registeredAt for authorized org only.
-- [ ] Add streaming UTF-8 CSV export with fixed cols, RFC 4180 quoting, spreadsheet-formula neutralization, bounded row count; audit export metadata only.
-- [ ] GREEN: authz/concurrency/CSV tests; `G-FULL`, `G-RUN`; verify public/private DTO separation.
+- [x] RED: authz tests for cross-org IDOR; verified-existing-User lookup; manual add/remove deadlines; block expiry; CSV formula injection; export audit.
+- [x] Add org-scoped blocked-user entity with reason/actor/expiry + active unique constraint; block/unblock/list commands.
+- [x] Add privacy-limited User lookup for exact Username/email available only to authorized org Organizer/Admin.
+- [x] Implement manual register existing verified User; same capacity/block/duplicate txn rules; actor fields identify Organizer.
+- [x] Implement remove before start → RemovedByOrganizer + participant email; block does not silently remove existing registration unless explicit combined action.
+- [x] Add paged participant private DTO/query with current Username/first/last/email/registeredAt for authorized org only.
+- [x] Add streaming UTF-8 CSV export with fixed cols, RFC 4180 quoting, spreadsheet-formula neutralization, bounded row count; audit export metadata only.
+- [x] GREEN: authz/concurrency/CSV tests; `G-FULL`, `G-RUN`; verify public/private DTO separation.
 
 ## C26 — `feat: add Organizer participant management UX`
 

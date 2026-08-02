@@ -37,3 +37,5 @@ public sealed class TournamentNotOpenException() : ApiException("tournament_not_
 public sealed class RegistrationClosedException() : ApiException("registration_closed", "Tournament registration has closed.", StatusCodes.Status409Conflict);
 public sealed class UnregistrationClosedException() : ApiException("unregistration_closed", "Tournament unregistration has closed.", StatusCodes.Status409Conflict);
 public sealed class ActiveRegistrationNotFoundException() : ApiException("registration_not_found", "Active registration was not found.", StatusCodes.Status404NotFound);
+public sealed class OrganizationBlockAlreadyActiveException() : ApiException("organization_block_already_active", "User already has an active organization block.", StatusCodes.Status409Conflict);
+public sealed class ExportRowLimitExceededException() : ApiException("export_row_limit_exceeded", "Participant export exceeds the maximum row count.", StatusCodes.Status409Conflict);

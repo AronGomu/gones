@@ -182,30 +182,72 @@ public sealed class OrganizationMember : VersionedEntity
 
 public sealed class OrganizationBlockedUser : VersionedEntity
 {
+    public const int MaximumReasonLength = 500;
+
     private OrganizationBlockedUser() { }
 
     public Guid OrganizationId { get; private init; }
     public Guid UserId { get; private init; }
+    public string Reason { get; private init; } = "Unspecified";
+    public Guid? BlockedByUserId { get; private init; }
     public bool IsActive { get; private set; }
     public Instant BlockedAt { get; private init; }
     public Instant? ExpiresAt { get; private init; }
+    public Guid? UnblockedByUserId { get; private set; }
+    public Instant? UnblockedAt { get; private set; }
 
-    public static OrganizationBlockedUser Block(Guid organizationId, Guid userId, Instant now, Instant? expiresAt = null)
+    public static OrganizationBlockedUser Block(
+        Guid organizationId,
+        Guid userId,
+        string reason,
+        Guid blockedByUserId,
+        Instant now,
+        Instant? expiresAt = null)
+    {
+        if (blockedByUserId == Guid.Empty) throw new ArgumentException("Actor ID cannot be empty.", nameof(blockedByUserId));
+        return Create(organizationId, userId, reason, blockedByUserId, now, expiresAt);
+    }
+
+    public static OrganizationBlockedUser Block(Guid organizationId, Guid userId, Instant now, Instant? expiresAt = null) =>
+        Create(organizationId, userId, "Unspecified", null, now, expiresAt);
+
+    public bool AppliesAt(Instant now) => IsActive && (ExpiresAt is null || ExpiresAt > now);
+
+    public void Unblock(Guid actorUserId, Instant now)
+    {
+        if (actorUserId == Guid.Empty) throw new ArgumentException("Actor ID cannot be empty.", nameof(actorUserId));
+        if (!IsActive) throw new InvalidOperationException("Block is already inactive.");
+        if (now < BlockedAt) throw new ArgumentOutOfRangeException(nameof(now));
+        IsActive = false;
+        UnblockedByUserId = actorUserId;
+        UnblockedAt = now;
+    }
+
+    private static OrganizationBlockedUser Create(
+        Guid organizationId,
+        Guid userId,
+        string reason,
+        Guid? blockedByUserId,
+        Instant now,
+        Instant? expiresAt)
     {
         if (organizationId == Guid.Empty) throw new ArgumentException("Organization ID cannot be empty.", nameof(organizationId));
         if (userId == Guid.Empty) throw new ArgumentException("User ID cannot be empty.", nameof(userId));
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        var trimmedReason = reason.Trim();
+        if (trimmedReason.Length > MaximumReasonLength) throw new ArgumentException($"Reason cannot exceed {MaximumReasonLength} characters.", nameof(reason));
         if (expiresAt <= now) throw new ArgumentOutOfRangeException(nameof(expiresAt), "Expiry must be after block time.");
         return new OrganizationBlockedUser
         {
             OrganizationId = organizationId,
             UserId = userId,
+            Reason = trimmedReason,
+            BlockedByUserId = blockedByUserId,
             IsActive = true,
             BlockedAt = now,
             ExpiresAt = expiresAt
         };
     }
-
-    public bool AppliesAt(Instant now) => IsActive && (ExpiresAt is null || ExpiresAt > now);
 }
 
 public sealed class OrganizationNotificationSettings : VersionedEntity

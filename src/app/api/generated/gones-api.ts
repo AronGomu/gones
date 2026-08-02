@@ -205,6 +205,12 @@ export interface IClient {
      */
     unregisterFromTournament(tournamentId: string, idempotency_Key: string | undefined): Observable<TournamentRegistrationMutationResponse>;
     /**
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    listPrivateTournamentParticipants(tournamentId: string, page: number | undefined, pageSize: number | undefined): Observable<PrivateTournamentParticipantListResponse>;
+    /**
      * @return OK
      */
     getTournamentRegistrationCapability(tournamentId: string): Observable<TournamentRegistrationCapabilityResponse>;
@@ -214,6 +220,38 @@ export interface IClient {
      * @return OK
      */
     listMyTournamentRegistrations(page: number | undefined, pageSize: number | undefined): Observable<TournamentRegistrationListResponse>;
+    /**
+     * @param username (optional)
+     * @param email (optional)
+     * @return OK
+     */
+    lookupOrganizationUser(organizationId: string, username: string | undefined, email: string | undefined): Observable<OrganizationUserLookupResponse>;
+    /**
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    listOrganizationBlockedUsers(organizationId: string, page: number | undefined, pageSize: number | undefined): Observable<OrganizationBlockedUserListResponse>;
+    /**
+     * @return Created
+     */
+    blockOrganizationUser(organizationId: string, body: BlockOrganizationUserRequest): Observable<OrganizationBlockedUserResponse>;
+    /**
+     * @return No Content
+     */
+    unblockOrganizationUser(organizationId: string, userId: string): Observable<void>;
+    /**
+     * @return Created
+     */
+    registerTournamentParticipantByOrganizer(tournamentId: string, body: RegisterByOrganizerRequest): Observable<TournamentRegistrationMutationResponse>;
+    /**
+     * @return OK
+     */
+    removeTournamentParticipantByOrganizer(tournamentId: string, registrationId: string): Observable<TournamentRegistrationMutationResponse>;
+    /**
+     * @return OK
+     */
+    exportTournamentParticipants(tournamentId: string): Observable<FileResponse>;
     /**
      * @param search (optional)
      * @param page (optional)
@@ -3049,6 +3087,75 @@ export class Client implements IClient {
     }
 
     /**
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    listPrivateTournamentParticipants(tournamentId: string, page: number | undefined, pageSize: number | undefined): Observable<PrivateTournamentParticipantListResponse> {
+        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations?";
+        if (tournamentId === undefined || tournamentId === null)
+            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
+        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processListPrivateTournamentParticipants(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processListPrivateTournamentParticipants(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PrivateTournamentParticipantListResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PrivateTournamentParticipantListResponse>;
+        }));
+    }
+
+    protected processListPrivateTournamentParticipants(response: HttpResponseBase): Observable<PrivateTournamentParticipantListResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PrivateTournamentParticipantListResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
      * @return OK
      */
     getTournamentRegistrationCapability(tournamentId: string): Observable<TournamentRegistrationCapabilityResponse> {
@@ -3158,6 +3265,515 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationListResponse;
             return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param username (optional)
+     * @param email (optional)
+     * @return OK
+     */
+    lookupOrganizationUser(organizationId: string, username: string | undefined, email: string | undefined): Observable<OrganizationUserLookupResponse> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/users/lookup?";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        if (username === null)
+            throw new globalThis.Error("The parameter 'username' cannot be null.");
+        else if (username !== undefined)
+            url_ += "username=" + encodeURIComponent("" + username) + "&";
+        if (email === null)
+            throw new globalThis.Error("The parameter 'email' cannot be null.");
+        else if (email !== undefined)
+            url_ += "email=" + encodeURIComponent("" + email) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processLookupOrganizationUser(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processLookupOrganizationUser(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationUserLookupResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationUserLookupResponse>;
+        }));
+    }
+
+    protected processLookupOrganizationUser(response: HttpResponseBase): Observable<OrganizationUserLookupResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationUserLookupResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @return OK
+     */
+    listOrganizationBlockedUsers(organizationId: string, page: number | undefined, pageSize: number | undefined): Observable<OrganizationBlockedUserListResponse> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/blocked-users?";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processListOrganizationBlockedUsers(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processListOrganizationBlockedUsers(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationBlockedUserListResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationBlockedUserListResponse>;
+        }));
+    }
+
+    protected processListOrganizationBlockedUsers(response: HttpResponseBase): Observable<OrganizationBlockedUserListResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationBlockedUserListResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    blockOrganizationUser(organizationId: string, body: BlockOrganizationUserRequest): Observable<OrganizationBlockedUserResponse> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/blocked-users";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processBlockOrganizationUser(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processBlockOrganizationUser(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<OrganizationBlockedUserResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<OrganizationBlockedUserResponse>;
+        }));
+    }
+
+    protected processBlockOrganizationUser(response: HttpResponseBase): Observable<OrganizationBlockedUserResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as OrganizationBlockedUserResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    unblockOrganizationUser(organizationId: string, userId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/organizations/{organizationId}/blocked-users/{userId}";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined.");
+        url_ = url_.replace("{organizationId}", encodeURIComponent("" + organizationId));
+        if (userId === undefined || userId === null)
+            throw new globalThis.Error("The parameter 'userId' must be defined.");
+        url_ = url_.replace("{userId}", encodeURIComponent("" + userId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processUnblockOrganizationUser(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processUnblockOrganizationUser(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processUnblockOrganizationUser(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    registerTournamentParticipantByOrganizer(tournamentId: string, body: RegisterByOrganizerRequest): Observable<TournamentRegistrationMutationResponse> {
+        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations/by-organizer";
+        if (tournamentId === undefined || tournamentId === null)
+            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
+        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRegisterTournamentParticipantByOrganizer(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRegisterTournamentParticipantByOrganizer(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<TournamentRegistrationMutationResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<TournamentRegistrationMutationResponse>;
+        }));
+    }
+
+    protected processRegisterTournamentParticipantByOrganizer(response: HttpResponseBase): Observable<TournamentRegistrationMutationResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationMutationResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result403: any = null;
+            result403 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Forbidden", status, _responseText, _headers, result403);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status === 429) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result429: any = null;
+            result429 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Too Many Requests", status, _responseText, _headers, result429);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    removeTournamentParticipantByOrganizer(tournamentId: string, registrationId: string): Observable<TournamentRegistrationMutationResponse> {
+        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations/{registrationId}";
+        if (tournamentId === undefined || tournamentId === null)
+            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
+        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+        if (registrationId === undefined || registrationId === null)
+            throw new globalThis.Error("The parameter 'registrationId' must be defined.");
+        url_ = url_.replace("{registrationId}", encodeURIComponent("" + registrationId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRemoveTournamentParticipantByOrganizer(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRemoveTournamentParticipantByOrganizer(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<TournamentRegistrationMutationResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<TournamentRegistrationMutationResponse>;
+        }));
+    }
+
+    protected processRemoveTournamentParticipantByOrganizer(response: HttpResponseBase): Observable<TournamentRegistrationMutationResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationMutationResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status === 429) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result429: any = null;
+            result429 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Too Many Requests", status, _responseText, _headers, result429);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    exportTournamentParticipants(tournamentId: string): Observable<FileResponse> {
+        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations/export";
+        if (tournamentId === undefined || tournamentId === null)
+            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
+        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "text/csv"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processExportTournamentParticipants(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processExportTournamentParticipants(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<FileResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<FileResponse>;
+        }));
+    }
+
+    protected processExportTournamentParticipants(response: HttpResponseBase): Observable<FileResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200 || status === 206) {
+            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
+            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
+            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
+            if (fileName) {
+                fileName = decodeURIComponent(fileName);
+            } else {
+                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
+                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
+            }
+            return _observableOf({ fileName: fileName, data: responseBlob as any, status: status, headers: _headers });
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status === 429) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result429: any = null;
+            result429 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Too Many Requests", status, _responseText, _headers, result429);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -4896,6 +5512,14 @@ export interface AdminUserSummaryResponse {
     [key: string]: any;
 }
 
+export interface BlockOrganizationUserRequest {
+    userId: string;
+    reason: string;
+    expiresAt: Instant | undefined;
+
+    [key: string]: any;
+}
+
 export interface ChangeOrganizationMemberRoleRequest {
     role: string;
 
@@ -5025,6 +5649,28 @@ export interface OAuthStartResponse {
     [key: string]: any;
 }
 
+export interface OrganizationBlockedUserListResponse {
+    items: OrganizationBlockedUserResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface OrganizationBlockedUserResponse {
+    blockId: string;
+    organizationId: string;
+    userId: string;
+    username: string;
+    reason: string;
+    blockedByUserId: string | undefined;
+    blockedAt: Instant;
+    expiresAt: Instant | undefined;
+
+    [key: string]: any;
+}
+
 export interface OrganizationListResponse {
     items: PublicOrganizationResponse[];
     page: number;
@@ -5052,6 +5698,16 @@ export interface OrganizationNotificationSettingsResponse {
     [key: string]: any;
 }
 
+export interface OrganizationUserLookupResponse {
+    userId: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+
+    [key: string]: any;
+}
+
 export interface OwnershipTransferBody {
     organizationId: string;
     newOwnerUserId: string;
@@ -5072,6 +5728,28 @@ export interface PatchUserProfileRequest {
     isBirthYearPublic: boolean;
     isPreferredLanguagePublic: boolean;
     currentPassword: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface PrivateTournamentParticipantListResponse {
+    items: PrivateTournamentParticipantResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface PrivateTournamentParticipantResponse {
+    attemptId: string;
+    userId: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    registeredAt: Instant;
+    registeredByUserId: string;
 
     [key: string]: any;
 }
@@ -5218,6 +5896,12 @@ export interface RefreshSessionResponse {
     lastUsedAt: Instant;
     idleExpiresAt: Instant;
     absoluteExpiresAt: Instant;
+
+    [key: string]: any;
+}
+
+export interface RegisterByOrganizerRequest {
+    userId: string;
 
     [key: string]: any;
 }
@@ -5488,6 +6172,13 @@ export interface VerifyOAuthEmailRequest {
     deviceLabel: string | undefined;
 
     [key: string]: any;
+}
+
+export interface FileResponse {
+    data: Blob;
+    status: number;
+    fileName?: string;
+    headers?: { [name: string]: any };
 }
 
 export class ApiException extends Error {

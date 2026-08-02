@@ -69,7 +69,7 @@ internal sealed class TournamentRegistrationAttemptConfiguration : VersionedEnti
         {
             table.HasCheckConstraint(
                 "ck_tournament_registration_status",
-                "status IN ('Confirmed', 'CancelledByUser', 'CancelledByTournament')");
+                "status IN ('Confirmed', 'CancelledByUser', 'CancelledByTournament', 'RemovedByOrganizer')");
             table.HasCheckConstraint(
                 "ck_tournament_registration_status_history",
                 "(status = 'Confirmed' AND status_changed_by_user_id IS NULL AND status_changed_at IS NULL) OR (status <> 'Confirmed' AND status_changed_by_user_id IS NOT NULL AND status_changed_at IS NOT NULL)");

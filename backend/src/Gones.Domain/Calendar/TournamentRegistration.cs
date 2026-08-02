@@ -7,7 +7,8 @@ public enum TournamentRegistrationStatus
 {
     Confirmed,
     CancelledByUser,
-    CancelledByTournament
+    CancelledByTournament,
+    RemovedByOrganizer
 }
 
 public sealed class TournamentRegistrationAttempt : VersionedEntity
@@ -48,6 +49,9 @@ public sealed class TournamentRegistrationAttempt : VersionedEntity
 
     public void CancelByTournament(Guid actorUserId, Instant now) =>
         Transition(TournamentRegistrationStatus.CancelledByTournament, actorUserId, now);
+
+    public void RemoveByOrganizer(Guid actorUserId, Instant now) =>
+        Transition(TournamentRegistrationStatus.RemovedByOrganizer, actorUserId, now);
 
     private void Transition(TournamentRegistrationStatus status, Guid actorUserId, Instant now)
     {

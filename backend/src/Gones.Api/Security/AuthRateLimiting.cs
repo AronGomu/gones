@@ -18,10 +18,13 @@ public static class AuthRateLimiting
 {
     public const string IpPolicy = "auth-ip";
     public const string RegistrationPolicy = "registration-user";
+    public const string ExportPolicy = "export-user-ip";
     public const int PermitLimit = 5;
     public const int RegistrationPermitLimit = 10;
+    public const int ExportPermitLimit = 10;
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
     public static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(1);
+    public static readonly TimeSpan ExportWindow = TimeSpan.FromHours(1);
 
     public static IServiceCollection AddGonesAuthRateLimiting(this IServiceCollection services, int permitLimit = PermitLimit)
     {
@@ -51,6 +54,15 @@ public static class AuthRateLimiting
                     PermitLimit = RegistrationPermitLimit,
                     QueueLimit = 0,
                     Window = RegistrationWindow
+                }));
+            options.AddPolicy(ExportPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                TelemetryRedaction.HashRateLimitKey($"export:{context.User.FindFirst("sub")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown"}:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}"),
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    AutoReplenishment = true,
+                    PermitLimit = ExportPermitLimit,
+                    QueueLimit = 0,
+                    Window = ExportWindow
                 }));
         });
         return services;
