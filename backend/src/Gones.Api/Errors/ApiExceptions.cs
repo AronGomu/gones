@@ -29,3 +29,11 @@ public sealed class LastLoginMethodException() : ApiException("last_login_method
 public sealed class InvalidTournamentPreviewTicketException() : ApiException("invalid_preview_ticket", "Tournament preview ticket is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class TournamentPreviewReplayException() : ApiException("preview_ticket_replayed", "Tournament preview ticket was already published.", StatusCodes.Status409Conflict);
 public sealed class IdempotencyConflictException() : ApiException("idempotency_conflict", "Idempotency key was already used for another request.", StatusCodes.Status409Conflict);
+public sealed class EmailVerificationRequiredException() : ApiException("email_verification_required", "Verified email is required to register.", StatusCodes.Status403Forbidden);
+public sealed class RegistrationBlockedException() : ApiException("registration_blocked", "Registration is blocked for this organization.", StatusCodes.Status403Forbidden);
+public sealed class RegistrationAlreadyActiveException() : ApiException("registration_already_active", "User already has an active registration for this Tournament.", StatusCodes.Status409Conflict);
+public sealed class TournamentFullException() : ApiException("tournament_full", "Tournament has no registration slots available.", StatusCodes.Status409Conflict);
+public sealed class TournamentNotOpenException() : ApiException("tournament_not_open", "Tournament is not open for registration.", StatusCodes.Status409Conflict);
+public sealed class RegistrationClosedException() : ApiException("registration_closed", "Tournament registration has closed.", StatusCodes.Status409Conflict);
+public sealed class UnregistrationClosedException() : ApiException("unregistration_closed", "Tournament unregistration has closed.", StatusCodes.Status409Conflict);
+public sealed class ActiveRegistrationNotFoundException() : ApiException("registration_not_found", "Active registration was not found.", StatusCodes.Status404NotFound);

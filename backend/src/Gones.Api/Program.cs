@@ -59,7 +59,11 @@ else
     builder.Services.AddScoped<OrganizationAccessService>();
     builder.Services.AddScoped<TournamentPublicationService>();
     builder.Services.AddScoped<TournamentLifecycleService>();
+    builder.Services.AddScoped<TournamentRegistrationService>();
+    builder.Services.AddScoped<TournamentRegistrationNotificationService>();
+    builder.Services.AddSingleton(TournamentRegistrationOptions.Load(builder.Configuration));
     builder.Services.AddScoped<IOrganizationDeleteDependency, TournamentOrganizationDeleteDependency>();
+    builder.Services.AddScoped<IOrganizationDeleteDependency, RegistrationOrganizationDeleteDependency>();
     builder.Services.AddSingleton<TournamentPreviewTicketService>();
     if (runtimeConfiguration.Features.AuthV1)
     {
@@ -126,8 +130,8 @@ app.UseStatusCodePages(async statusContext =>
     await response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
 });
 app.UseMiddleware<ApiRequestSizeMiddleware>();
-if (runtimeConfiguration.Features.AuthV1) app.UseRateLimiter();
 app.UseAuthentication();
+if (runtimeConfiguration.Features.AuthV1) app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapGet("/health/live", () => new HealthStatusResponse("live")).Produces<HealthStatusResponse>().AllowAnonymous();
@@ -152,6 +156,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapPublicTournamentEndpoints();
     app.MapTournamentPublicationEndpoints();
     app.MapTournamentLifecycleEndpoints();
+    app.MapTournamentRegistrationEndpoints();
 }
 if (runtimeConfiguration.Features.AdminV1)
 {

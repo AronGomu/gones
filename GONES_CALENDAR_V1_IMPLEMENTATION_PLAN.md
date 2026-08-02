@@ -565,15 +565,15 @@ Parallel rules:
 
 **Deps:** C06, C09, C14, C16, C17, C21. **Lane:** C. **Runnable:** verified User can register/unregister via API.
 
-- [ ] RED: domain/API tests for unverified, blocked, full, duplicate, cancelled, deleted, started, cross-race final slot, unregister cutoff, retry-after-cancel new row.
-- [ ] Add registration attempt entity/status/history actors/timestamps; partial unique index on active `(TournamentId, UserId)`.
-- [ ] Implement register command with Idempotency-Key; serializable transaction/row lock guards capacity under concurrent requests.
-- [ ] Validate Published/not deleted/not started/verified/not org-blocked/capacity; map errors to stable codes/statuses.
-- [ ] Implement self-unregister before start; mutate active attempt to CancelledByUser; future reminders stop by query semantics. Add paged `GET /api/users/me/registrations` with current + immutable attempt history.
-- [ ] Re-register creates new row; old attempt immutable. Public participant projection uses current profile, not snapshots. Extend org-delete blocker: 409 while any active registration exists.
-- [ ] Enqueue participant confirmation/unregistration + optional Organizer notice atomically; audit actions.
-- [ ] Extend C21 date/address/cancel/delete lifecycle txns to enqueue active-participant update/cancellation messages; test zero registrations, many registrations, rollback, dedupe.
-- [ ] GREEN: high-concurrency PostgreSQL tests + API tests; `G-FULL`, `G-RUN`; race two Users for final slot → one success.
+- [x] RED: domain/API tests for unverified, blocked, full, duplicate, cancelled, deleted, started, cross-race final slot, unregister cutoff, retry-after-cancel new row.
+- [x] Add registration attempt entity/status/history actors/timestamps; partial unique index on active `(TournamentId, UserId)`.
+- [x] Implement register command with Idempotency-Key; serializable transaction/row lock guards capacity under concurrent requests.
+- [x] Validate Published/not deleted/not started/verified/not org-blocked/capacity; map errors to stable codes/statuses.
+- [x] Implement self-unregister before start; mutate active attempt to CancelledByUser; future reminders stop by query semantics. Add paged `GET /api/users/me/registrations` with current + immutable attempt history.
+- [x] Re-register creates new row; old attempt immutable. Public participant projection uses current profile, not snapshots. Extend org-delete blocker: 409 while any active registration exists.
+- [x] Enqueue participant confirmation/unregistration + optional Organizer notice atomically; audit actions.
+- [x] Extend C21 date/address/cancel/delete lifecycle txns to enqueue active-participant update/cancellation messages; test zero registrations, many registrations, rollback, dedupe.
+- [x] GREEN: high-concurrency PostgreSQL tests + API tests; `G-FULL`, `G-RUN`; race two Users for final slot → one success.
 
 ## C24 — `feat: add public participants registration and My Registrations UX`
 

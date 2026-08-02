@@ -17,8 +17,11 @@ internal interface IAuthRateLimitRequest
 public static class AuthRateLimiting
 {
     public const string IpPolicy = "auth-ip";
+    public const string RegistrationPolicy = "registration-user";
     public const int PermitLimit = 5;
+    public const int RegistrationPermitLimit = 10;
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(1);
 
     public static IServiceCollection AddGonesAuthRateLimiting(this IServiceCollection services, int permitLimit = PermitLimit)
     {
@@ -40,6 +43,15 @@ public static class AuthRateLimiting
             options.AddPolicy(IpPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
                 TelemetryRedaction.HashRateLimitKey($"{context.Request.Path}:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}"),
                 _ => NewWindowOptions(permitLimit)));
+            options.AddPolicy(RegistrationPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                TelemetryRedaction.HashRateLimitKey($"registration:{context.User.FindFirst("sub")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown"}"),
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    AutoReplenishment = true,
+                    PermitLimit = RegistrationPermitLimit,
+                    QueueLimit = 0,
+                    Window = RegistrationWindow
+                }));
         });
         return services;
     }

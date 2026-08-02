@@ -43,6 +43,25 @@ internal sealed class OrganizationMemberConfiguration : VersionedEntityConfigura
     }
 }
 
+internal sealed class OrganizationBlockedUserConfiguration : VersionedEntityConfiguration<OrganizationBlockedUser>
+{
+    public override void Configure(EntityTypeBuilder<OrganizationBlockedUser> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("organization_blocked_users");
+        builder.HasIndex(block => new { block.OrganizationId, block.UserId })
+            .IsUnique()
+            .HasFilter("is_active")
+            .HasDatabaseName("ix_organization_blocked_users_active");
+        builder.HasIndex(block => new { block.OrganizationId, block.UserId, block.ExpiresAt });
+        builder.HasOne<Organization>().WithMany().HasForeignKey(block => block.OrganizationId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(block => block.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.ToTable(table => table.HasCheckConstraint(
+            "ck_organization_block_expiry",
+            "expires_at IS NULL OR expires_at > blocked_at"));
+    }
+}
+
 internal sealed class OrganizationNotificationSettingsConfiguration : VersionedEntityConfiguration<OrganizationNotificationSettings>
 {
     public override void Configure(EntityTypeBuilder<OrganizationNotificationSettings> builder)

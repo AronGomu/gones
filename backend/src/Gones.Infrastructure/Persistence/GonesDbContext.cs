@@ -31,10 +31,12 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<SystemMarker> SystemMarkers => Set<SystemMarker>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();
+    public DbSet<OrganizationBlockedUser> OrganizationBlockedUsers => Set<OrganizationBlockedUser>();
     public DbSet<OrganizationNotificationSettings> OrganizationNotificationSettings => Set<OrganizationNotificationSettings>();
     public DbSet<ScheduledTournament> ScheduledTournaments => Set<ScheduledTournament>();
     public DbSet<ScheduledTournamentFormat> ScheduledTournamentFormats => Set<ScheduledTournamentFormat>();
     public DbSet<TournamentLifecycleEvent> TournamentLifecycleEvents => Set<TournamentLifecycleEvent>();
+    public DbSet<TournamentRegistrationAttempt> TournamentRegistrationAttempts => Set<TournamentRegistrationAttempt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -200,6 +200,7 @@ internal static class TournamentLifecycleEndpoints
 internal sealed class TournamentLifecycleService(
     GonesDbContext database,
     OrganizationAccessService access,
+    TournamentRegistrationNotificationService registrationNotifications,
     IClock clock)
 {
     private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web);
@@ -265,12 +266,14 @@ internal sealed class TournamentLifecycleService(
             var reminderAction = before.ScheduleChanged(after)
                 ? TournamentReminderPlanAction.RecalculateFuture
                 : TournamentReminderPlanAction.None;
-            database.TournamentLifecycleEvents.Add(TournamentLifecycleEvent.Create(
+            var lifecycleEvent = TournamentLifecycleEvent.Create(
                 tournament.Id,
                 actorUserId,
                 TournamentLifecycleEventType.MajorDetailsUpdated,
                 reminderAction,
-                now));
+                now);
+            database.TournamentLifecycleEvents.Add(lifecycleEvent);
+            await registrationNotifications.EnqueueMajorUpdateAsync(tournament, lifecycleEvent.Id, cancellationToken);
         }
         ForceVersionMutation(tournament);
         await SaveAsync(transaction, cancellationToken);
@@ -401,7 +404,17 @@ internal sealed class TournamentLifecycleService(
         {
             throw new ResourceConflictException();
         }
-        database.TournamentLifecycleEvents.Add(TournamentLifecycleEvent.Create(tournament.Id, actorUserId, eventType, reminderAction, now));
+        var lifecycleEvent = TournamentLifecycleEvent.Create(tournament.Id, actorUserId, eventType, reminderAction, now);
+        database.TournamentLifecycleEvents.Add(lifecycleEvent);
+        if (eventType is TournamentLifecycleEventType.Cancelled or TournamentLifecycleEventType.Deleted)
+        {
+            await registrationNotifications.CancelActiveRegistrationsAsync(
+                tournament,
+                lifecycleEvent.Id,
+                actorUserId,
+                now,
+                cancellationToken);
+        }
         database.AuditRecords.Add(NewAudit(actorUserId, auditAction, tournament.Id,
             command == "delete"
                 ? "{\"fields\":[\"deletedAt\",\"deletedByUserId\",\"deletedReason\"]}"

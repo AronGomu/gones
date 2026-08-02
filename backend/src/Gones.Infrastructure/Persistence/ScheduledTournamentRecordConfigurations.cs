@@ -48,6 +48,35 @@ internal sealed class ScheduledTournamentConfiguration : VersionedEntityConfigur
     }
 }
 
+internal sealed class TournamentRegistrationAttemptConfiguration : VersionedEntityConfiguration<TournamentRegistrationAttempt>
+{
+    public override void Configure(EntityTypeBuilder<TournamentRegistrationAttempt> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("tournament_registration_attempts");
+        builder.Property(attempt => attempt.Status).HasConversion<string>().HasMaxLength(40);
+        builder.HasIndex(attempt => new { attempt.TournamentId, attempt.UserId })
+            .IsUnique()
+            .HasFilter("status = 'Confirmed'")
+            .HasDatabaseName("ix_tournament_registration_attempts_active");
+        builder.HasIndex(attempt => new { attempt.UserId, attempt.RegisteredAt, attempt.Id });
+        builder.HasIndex(attempt => new { attempt.TournamentId, attempt.Status });
+        builder.HasOne<ScheduledTournament>().WithMany().HasForeignKey(attempt => attempt.TournamentId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.RegisteredByUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.StatusChangedByUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "ck_tournament_registration_status",
+                "status IN ('Confirmed', 'CancelledByUser', 'CancelledByTournament')");
+            table.HasCheckConstraint(
+                "ck_tournament_registration_status_history",
+                "(status = 'Confirmed' AND status_changed_by_user_id IS NULL AND status_changed_at IS NULL) OR (status <> 'Confirmed' AND status_changed_by_user_id IS NOT NULL AND status_changed_at IS NOT NULL)");
+        });
+    }
+}
+
 internal sealed class ScheduledTournamentFormatConfiguration : IEntityTypeConfiguration<ScheduledTournamentFormat>
 {
     public void Configure(EntityTypeBuilder<ScheduledTournamentFormat> builder)

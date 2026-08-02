@@ -167,8 +167,24 @@ internal static partial class PublicTournamentEndpoints
         GonesDbContext database,
         CancellationToken cancellationToken)
     {
-        _ = await LoadDetailAsync(database, slug, cancellationToken);
-        return Results.Ok(new PublicTournamentParticipantListResponse([]));
+        var tournament = await LoadDetailAsync(database, slug, cancellationToken);
+        var participants = await (
+            from attempt in database.TournamentRegistrationAttempts.AsNoTracking()
+            join profile in database.UserProfiles.AsNoTracking() on attempt.UserId equals profile.UserId
+            where attempt.TournamentId == tournament.Id
+                && attempt.Status == TournamentRegistrationStatus.Confirmed
+                && profile.ClosedAt == null
+            orderby profile.NormalizedUsername, profile.UserId
+            select new PublicTournamentParticipantResponse(
+                profile.UserId,
+                profile.Username,
+                profile.IsFirstNamePublic ? profile.FirstName : null,
+                profile.IsLastNamePublic ? profile.LastName : null,
+                profile.IsLocationPublic ? profile.Location : null,
+                profile.IsBirthYearPublic ? profile.BirthYear : null,
+                profile.IsPreferredLanguagePublic ? profile.PreferredLanguage : null)
+        ).ToListAsync(cancellationToken);
+        return Results.Ok(new PublicTournamentParticipantListResponse(participants));
     }
 
     private static async Task<IResult> GetIcsAsync(

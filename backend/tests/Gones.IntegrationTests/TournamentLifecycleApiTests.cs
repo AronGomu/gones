@@ -42,6 +42,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
             builder.UseSetting("GONES_DB_CONNECTION", postgres.GetConnectionString());
             builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
             builder.UseSetting("GONES_AUTH_SIGNING_KEY", "c21-lifecycle-signing-key-with-more-than-32-characters");
+            builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", "https://app.example");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IClock>();
@@ -176,6 +177,137 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Lifecycle_participant_mail_handles_zero_many_rollback_and_idempotent_dedupe()
+    {
+        var zero = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Zero Mail Cup");
+        using var zeroUpdate = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/tournaments/{zero.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details("Zero Mail Cup") with { StreetAddress = "99 Zero Street" },
+            ifMatch: StrongETag.Encode(zero.Version));
+        Assert.Equal(HttpStatusCode.OK, zeroUpdate.StatusCode);
+        await using (var zeroDatabase = CreateContext())
+        {
+            Assert.Equal(0, await zeroDatabase.NotificationOutboxRecords.CountAsync(item => item.TournamentId == zero.Id));
+        }
+
+        var many = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Many Mail Cup");
+        await using (var database = CreateContext())
+        {
+            database.TournamentRegistrationAttempts.AddRange(
+                TournamentRegistrationAttempt.Register(many.Id, seed.Organizer.Id, seed.Organizer.Id, clock.GetCurrentInstant()),
+                TournamentRegistrationAttempt.Register(many.Id, seed.Outsider.Id, seed.Outsider.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+        using var manyUpdate = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/tournaments/{many.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details("Many Mail Cup") with
+            {
+                StreetAddress = "99 Many Street",
+                StartsAtLocal = "2035-03-05T10:00:00",
+                EndsAtLocal = "2035-03-05T18:00:00"
+            },
+            ifMatch: StrongETag.Encode(many.Version));
+        Assert.Equal(HttpStatusCode.OK, manyUpdate.StatusCode);
+        using var cancelled = await SendJsonAsync(
+            HttpMethod.Post,
+            $"/api/tournaments/{many.Id:D}/cancel",
+            seed.Organizer.Id,
+            "Organizer",
+            new { },
+            "many-cancel",
+            manyUpdate.Headers.ETag?.Tag);
+        Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+        using var cancelRetry = await SendJsonAsync(
+            HttpMethod.Post,
+            $"/api/tournaments/{many.Id:D}/cancel",
+            seed.Organizer.Id,
+            "Organizer",
+            new { },
+            "many-cancel",
+            manyUpdate.Headers.ETag?.Tag);
+        Assert.Equal(HttpStatusCode.OK, cancelRetry.StatusCode);
+
+        await using (var database = CreateContext())
+        {
+            Assert.Equal(4, await database.NotificationOutboxRecords.CountAsync(item => item.TournamentId == many.Id));
+            Assert.Equal(2, await database.TournamentRegistrationAttempts.CountAsync(item =>
+                item.TournamentId == many.Id && item.Status == TournamentRegistrationStatus.CancelledByTournament));
+        }
+
+        var deletedTournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Delete Mail Cup");
+        await using (var database = CreateContext())
+        {
+            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(
+                deletedTournament.Id,
+                seed.Organizer.Id,
+                seed.Organizer.Id,
+                clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+        using var deleted = await SendJsonAsync(
+            HttpMethod.Delete,
+            $"/api/tournaments/{deletedTournament.Id:D}",
+            seed.Organizer.Id,
+            "Organizer",
+            new { reason = "cancelled venue" },
+            "participant-delete",
+            StrongETag.Encode(deletedTournament.Version));
+        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+        using var deleteRetry = await SendJsonAsync(
+            HttpMethod.Delete,
+            $"/api/tournaments/{deletedTournament.Id:D}",
+            seed.Organizer.Id,
+            "Organizer",
+            new { reason = "cancelled venue" },
+            "participant-delete",
+            StrongETag.Encode(deletedTournament.Version));
+        Assert.Equal(HttpStatusCode.OK, deleteRetry.StatusCode);
+        await using (var database = CreateContext())
+        {
+            Assert.Equal(1, await database.NotificationOutboxRecords.CountAsync(item => item.TournamentId == deletedTournament.Id));
+            Assert.Equal(TournamentRegistrationStatus.CancelledByTournament, (await database.TournamentRegistrationAttempts.SingleAsync(item => item.TournamentId == deletedTournament.Id)).Status);
+        }
+
+        var rollback = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Rollback Mail Cup");
+        var invalidRecipient = User("InvalidRecipient", GlobalRoles.User);
+        invalidRecipient.Email = "not-an-email";
+        invalidRecipient.NormalizedEmail = "NOT-AN-EMAIL";
+        await using (var database = CreateContext())
+        {
+            database.Users.Add(invalidRecipient);
+            database.UserProfiles.Add(Profile(invalidRecipient.Id, "InvalidRecipient"));
+            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(
+                rollback.Id,
+                invalidRecipient.Id,
+                invalidRecipient.Id,
+                clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+        using var failedCancel = await SendJsonAsync(
+            HttpMethod.Post,
+            $"/api/tournaments/{rollback.Id:D}/cancel",
+            seed.Organizer.Id,
+            "Organizer",
+            new { },
+            "rollback-cancel",
+            StrongETag.Encode(rollback.Version));
+        Assert.Equal(HttpStatusCode.InternalServerError, failedCancel.StatusCode);
+        await using (var database = CreateContext())
+        {
+            Assert.Equal(ScheduledTournamentStatus.Published, (await database.ScheduledTournaments.SingleAsync(item => item.Id == rollback.Id)).Status);
+            Assert.Equal(TournamentRegistrationStatus.Confirmed, (await database.TournamentRegistrationAttempts.SingleAsync(item => item.TournamentId == rollback.Id)).Status);
+            Assert.Equal(0, await database.TournamentLifecycleEvents.CountAsync(item => item.TournamentId == rollback.Id));
+            Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync(item => item.TournamentId == rollback.Id));
+        }
+    }
+
+    [Fact]
     public async Task Concurrent_idempotent_cancel_replays_one_atomic_result()
     {
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Idempotent Race Cup");
@@ -266,6 +398,10 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         var beta = Organization.Create("Beta Club", null, null, null, Now);
         var legacy = await database.TournamentFormats.SingleOrDefaultAsync(item => item.Slug == TournamentFormat.LegacySlug) ?? TournamentFormat.CreateLegacy(Now);
         database.Users.AddRange(organizer, outsider, admin);
+        database.UserProfiles.AddRange(
+            Profile(organizer.Id, "Organizer"),
+            Profile(outsider.Id, "Outsider"),
+            Profile(admin.Id, "Admin"));
         database.Organizations.AddRange(alpha, beta);
         if (database.Entry(legacy).State == EntityState.Detached) database.TournamentFormats.Add(legacy);
         await database.SaveChangesAsync();
@@ -288,6 +424,9 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         user.AssignGlobalRole(role);
         return user;
     }
+
+    private static UserProfile Profile(Guid userId, string username) =>
+        UserProfile.Create(userId, username, username, "Participant", Now);
 
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>().ConfigureGones(postgres.GetConnectionString()).Options);
     private HttpClient Client => client ?? throw new InvalidOperationException("Client not initialized.");
