@@ -56,6 +56,9 @@ else
 {
     builder.Services.AddGonesPersistence(connectionString);
     builder.Services.AddNotificationOutbox();
+    builder.Services.AddScoped<OrganizationAccessService>();
+    builder.Services.AddScoped<TournamentPublicationService>();
+    builder.Services.AddSingleton<TournamentPreviewTicketService>();
     if (runtimeConfiguration.Features.AuthV1)
     {
         builder.Services.AddGonesLocalIdentity();
@@ -73,7 +76,6 @@ else
             builder.Services.AddScoped<AdminRoleService>();
             builder.Services.AddScoped<AdminCatalogService>();
             builder.Services.AddScoped<AdminAccountService>();
-            builder.Services.AddScoped<OrganizationAccessService>();
             builder.Services.AddScoped<OrganizationService>();
         }
         var configuredAuthRateLimit = builder.Configuration["GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT"];
@@ -146,6 +148,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 {
     app.MapPublicCatalogEndpoints();
     app.MapPublicTournamentEndpoints();
+    app.MapTournamentPublicationEndpoints();
 }
 if (runtimeConfiguration.Features.AdminV1)
 {

@@ -26,3 +26,6 @@ public sealed class OAuthProviderRejectedException() : ApiException("oauth_provi
 public sealed class OAuthProviderUnavailableException() : ApiException("oauth_provider_unavailable", "OAuth provider is unavailable.", StatusCodes.Status404NotFound);
 public sealed class ExistingEmailRequiresLinkException() : ApiException("existing_email_requires_link", "Sign in with your existing account, then link this provider from account settings.", StatusCodes.Status409Conflict);
 public sealed class LastLoginMethodException() : ApiException("last_login_method", "Final login method cannot be removed.", StatusCodes.Status409Conflict);
+public sealed class InvalidTournamentPreviewTicketException() : ApiException("invalid_preview_ticket", "Tournament preview ticket is invalid or expired.", StatusCodes.Status400BadRequest);
+public sealed class TournamentPreviewReplayException() : ApiException("preview_ticket_replayed", "Tournament preview ticket was already published.", StatusCodes.Status409Conflict);
+public sealed class IdempotencyConflictException() : ApiException("idempotency_conflict", "Idempotency key was already used for another request.", StatusCodes.Status409Conflict);

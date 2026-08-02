@@ -513,14 +513,14 @@ Parallel rules:
 
 **Deps:** C16. **Lane:** C. **Runnable:** Organizer can preview/publish through API; no UI yet.
 
-- [ ] RED: API tests for org authz, server normalization, invalid zone/DST, changed-payload hash mismatch, expiry/replay, idempotent publish, concurrent duplicate slug.
-- [ ] Implement `POST /api/tournaments/preview`; validate/sanitize/normalize; return render DTO + opaque short-lived hash ticket bound to User/org/payload.
-- [ ] Keep preview stateless or store only ticket hash/expiry; never create Tournament/draft row.
-- [ ] Implement `POST /api/tournaments` requiring preview ticket + identical canonical payload + Idempotency-Key.
-- [ ] In one transaction create Published Tournament, audit event, idempotency result; return 201 + Location + ETag.
-- [ ] Generate deterministic unique slug under DB constraint/retry.
-- [ ] Update OpenAPI/generated client; add authz + replay threat tests.
-- [ ] GREEN: preview/publish integration tests; `G-FULL`, `G-RUN`; preview, mutate payload → reject; publish original once.
+- [x] RED: API tests for org authz, server normalization, invalid zone/DST, changed-payload hash mismatch, expiry/replay, idempotent publish, concurrent duplicate slug.
+- [x] Implement `POST /api/tournaments/preview`; validate/sanitize/normalize; return render DTO + opaque short-lived hash ticket bound to User/org/payload.
+- [x] Keep preview stateless or store only ticket hash/expiry; never create Tournament/draft row.
+- [x] Implement `POST /api/tournaments` requiring preview ticket + identical canonical payload + Idempotency-Key.
+- [x] In one transaction create Published Tournament, audit event, idempotency result; return 201 + Location + ETag.
+- [x] Generate deterministic unique slug under DB constraint/retry.
+- [x] Update OpenAPI/generated client; add authz + replay threat tests.
+- [x] GREEN: preview/publish integration tests; `G-FULL`, `G-RUN`; preview, mutate payload → reject; publish original once.
 
 ## C20 — `feat: add Organizer Tournament create preview publish UX`
 

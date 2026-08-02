@@ -177,6 +177,93 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "TournamentPublicationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishTournamentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentPublishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/tournaments/{slug}": {
@@ -1322,6 +1409,75 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tournaments/preview": {
+      "post": {
+        "tags": [
+          "TournamentPublicationEndpoints"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TournamentPayloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentPreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4161,6 +4317,21 @@
           }
         }
       },
+      "PublishTournamentRequest": {
+        "required": [
+          "previewTicket",
+          "payload"
+        ],
+        "type": "object",
+        "properties": {
+          "previewTicket": {
+            "type": "string"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/TournamentPayloadRequest"
+          }
+        }
+      },
       "RefreshSessionResponse": {
         "required": [
           "id",
@@ -4262,6 +4433,222 @@
           "token": {
             "maxLength": 256,
             "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
+      "TournamentPayloadRequest": {
+        "required": [
+          "organizationId",
+          "title",
+          "summary",
+          "bodyHtml",
+          "streetAddress",
+          "postalCode",
+          "city",
+          "country",
+          "timeZoneId",
+          "startsAtLocal",
+          "endsAtLocal",
+          "capacity",
+          "formatIds"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "maxLength": 160,
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 50,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bodyHtml": {
+            "maxLength": 10000,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "streetAddress": {
+            "maxLength": 240,
+            "type": "string"
+          },
+          "postalCode": {
+            "maxLength": 32,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "city": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "country": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "timeZoneId": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "startsAtLocal": {
+            "type": "string"
+          },
+          "endsAtLocal": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "capacity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "formatIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "TournamentPreviewRenderResponse": {
+        "required": [
+          "title",
+          "slug",
+          "summary",
+          "bodyHtml",
+          "venue",
+          "timeZoneId",
+          "venueStartDate",
+          "venueStartTime",
+          "venueEndDate",
+          "venueEndTime",
+          "startsAtUtc",
+          "endsAtUtc",
+          "capacity",
+          "status",
+          "organization",
+          "formats"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bodyHtml": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "venue": {
+            "$ref": "#/components/schemas/PublicTournamentVenueResponse"
+          },
+          "timeZoneId": {
+            "type": "string"
+          },
+          "venueStartDate": {
+            "type": "string"
+          },
+          "venueStartTime": {
+            "type": "string"
+          },
+          "venueEndDate": {
+            "type": "string"
+          },
+          "venueEndTime": {
+            "type": "string"
+          },
+          "startsAtUtc": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "endsAtUtc": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "capacity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "type": "string"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/PublicTournamentOrganizationResponse"
+          },
+          "formats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicTournamentFormatResponse"
+            }
+          }
+        }
+      },
+      "TournamentPreviewResponse": {
+        "required": [
+          "render",
+          "previewTicket",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "render": {
+            "$ref": "#/components/schemas/TournamentPreviewRenderResponse"
+          },
+          "previewTicket": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
+      "TournamentPublishResponse": {
+        "required": [
+          "id",
+          "slug",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         }
@@ -4535,6 +4922,9 @@
     },
     {
       "name": "PublicTournamentEndpoints"
+    },
+    {
+      "name": "TournamentPublicationEndpoints"
     },
     {
       "name": "OrganizationEndpoints"
