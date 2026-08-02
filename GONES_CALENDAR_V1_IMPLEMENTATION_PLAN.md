@@ -487,14 +487,14 @@ Parallel rules:
 
 **Deps:** C03, C16. **Lane:** C. **Runnable:** public API works; old Calendar still visible until flag.
 
-- [ ] RED: API tests for combined filters, pagination 20, upcoming default, past toggle, cancelled/completed visibility, deleted invisibility, venue date boundaries, public DTO privacy.
-- [ ] Implement `GET /api/tournaments` with `from/to/city/country/organization/format/status/search/page/pageSize`; cap page size; stable start+ID sort.
-- [ ] Implement `GET /api/tournaments/{slug}` and public organizations/formats composition; ETag/cache headers.
-- [ ] Project venue-local date/time + IANA zone; return UTC instants for viewer conversion; never use server local zone.
-- [ ] Add public participant projection endpoint shell: current Username + opted-in profile fields only; active registrations only once C23 exists.
-- [ ] Add ICS endpoint/file builder from canonical UTC/zone; cancelled status represented; HTML body excluded/safely textified.
-- [ ] Update OpenAPI + regenerate generated client; add query-plan/index regression tests for representative filters.
-- [ ] GREEN: public API/contract tests; `G-FULL`, `G-RUN`; curl public list/detail/ICS anonymously.
+- [x] RED: API tests for combined filters, pagination 20, upcoming default, past toggle, cancelled/completed visibility, deleted invisibility, venue date boundaries, public DTO privacy.
+- [x] Implement `GET /api/tournaments` with `from/to/city/country/organization/format/status/search/page/pageSize`; cap page size; stable start+ID sort.
+- [x] Implement `GET /api/tournaments/{slug}` and public organizations/formats composition; ETag/cache headers.
+- [x] Project venue-local date/time + IANA zone; return UTC instants for viewer conversion; never use server local zone.
+- [x] Add public participant projection endpoint shell: current Username + opted-in profile fields only; active registrations only once C23 exists.
+- [x] Add ICS endpoint/file builder from canonical UTC/zone; cancelled status represented; HTML body excluded/safely textified.
+- [x] Update OpenAPI + regenerate generated client; add query-plan/index regression tests for representative filters.
+- [x] GREEN: public API/contract tests; `G-FULL`, `G-RUN`; curl public list/detail/ICS anonymously.
 
 ## C18 — `feat: replace public Calendar list and detail UI`
 

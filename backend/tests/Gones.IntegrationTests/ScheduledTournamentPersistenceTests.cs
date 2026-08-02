@@ -45,7 +45,7 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         await db.Database.MigrateAsync();
         var seed = await SeedAsync(db);
         db.ScheduledTournaments.Add(ScheduledTournament.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now));
-        db.ScheduledTournaments.Add(ScheduledTournament.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now));
+        db.ScheduledTournaments.Add(ScheduledTournament.Create(seed.SecondOrganization.Id, seed.User.Id, Draft(), [seed.Legacy], Now));
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
 
         db.ChangeTracker.Clear();
@@ -69,6 +69,7 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         Assert.Contains("ix_scheduled_tournaments_starts_at_utc", indexNames);
         Assert.Contains("ix_scheduled_tournaments_status", indexNames);
         Assert.Contains("ix_scheduled_tournaments_city_country", indexNames);
+        Assert.Contains("ix_scheduled_tournaments_slug", indexNames);
         Assert.Contains("ix_scheduled_tournaments_organization_id_slug", indexNames);
         Assert.Contains("ix_scheduled_tournament_formats_tournament_format_id", indexNames);
     }
@@ -111,13 +112,14 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
             ConcurrencyStamp = Guid.NewGuid().ToString("N")
         };
         var organization = Organization.Create($"Club {Guid.NewGuid():N}", null, null, null, Now);
+        var secondOrganization = Organization.Create($"Club {Guid.NewGuid():N}", null, null, null, Now);
         var legacy = await db.TournamentFormats.SingleOrDefaultAsync(format => format.Slug == TournamentFormat.LegacySlug)
             ?? TournamentFormat.CreateLegacy(Now);
         db.Users.Add(user);
-        db.Organizations.Add(organization);
+        db.Organizations.AddRange(organization, secondOrganization);
         if (db.Entry(legacy).State == EntityState.Detached) db.TournamentFormats.Add(legacy);
         await db.SaveChangesAsync();
-        return new SeedRows(user, organization, legacy);
+        return new SeedRows(user, organization, secondOrganization, legacy);
     }
 
     private GonesDbContext CreateContext()
@@ -144,5 +146,5 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
 
     private static readonly Instant Now = Instant.FromUtc(2026, 8, 1, 12, 0);
 
-    private sealed record SeedRows(ApplicationUser User, Organization Organization, TournamentFormat Legacy);
+    private sealed record SeedRows(ApplicationUser User, Organization Organization, Organization SecondOrganization, TournamentFormat Legacy);
 }

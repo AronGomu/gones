@@ -3,6 +3,7 @@ using System;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NodaTime;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Gones.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GonesDbContext))]
-    partial class GonesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260802120000_MakeScheduledTournamentSlugGlobal")]
+    partial class MakeScheduledTournamentSlugGlobal
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

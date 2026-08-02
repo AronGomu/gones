@@ -7,6 +7,7 @@ using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
+using Gones.Api.Tournaments;
 using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
@@ -144,6 +145,7 @@ if (runtimeConfiguration.Features.AuthV1)
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
     app.MapPublicCatalogEndpoints();
+    app.MapPublicTournamentEndpoints();
 }
 if (runtimeConfiguration.Features.AdminV1)
 {

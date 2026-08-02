@@ -24,7 +24,7 @@ public sealed class ApiBoundaryMiddleware(RequestDelegate next, ILogger<ApiBound
             context.Response.Headers["X-Frame-Options"] = "DENY";
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
             context.Response.Headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
-            if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
+            if (context.Request.Path.StartsWithSegments("/api") && string.IsNullOrWhiteSpace(context.Response.Headers.CacheControl)) context.Response.Headers.CacheControl = "no-store";
             return Task.CompletedTask;
         });
 

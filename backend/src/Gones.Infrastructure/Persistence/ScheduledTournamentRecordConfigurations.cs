@@ -25,7 +25,8 @@ internal sealed class ScheduledTournamentConfiguration : VersionedEntityConfigur
         builder.Property(tournament => tournament.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(tournament => tournament.DeletedReason).HasMaxLength(ScheduledTournament.MaximumDeletedReasonLength);
         builder.Property(tournament => tournament.NormalizedSearchText).HasMaxLength(ScheduledTournament.MaximumSearchTextLength);
-        builder.HasIndex(tournament => new { tournament.OrganizationId, tournament.Slug }).IsUnique();
+        builder.HasIndex(tournament => tournament.Slug).IsUnique();
+        builder.HasIndex(tournament => new { tournament.OrganizationId, tournament.Slug });
         builder.HasIndex(tournament => new { tournament.VenueStartDate, tournament.VenueStartTime, tournament.Id });
         builder.HasIndex(tournament => tournament.StartsAtUtc);
         builder.HasIndex(tournament => tournament.Status);
