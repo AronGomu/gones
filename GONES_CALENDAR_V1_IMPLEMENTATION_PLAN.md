@@ -647,14 +647,16 @@ Evidence: 19 Brevo unit + 20 focused Worker/webhook integration tests pass; Cypr
 
 **Deps:** C05. **Lane:** D. **Runnable:** no cutover; C# parity lib tested against current TS.
 
-- [ ] RED: export language-neutral JSON fixtures from TS for normalization, import, invalid entries, warnings, Tournament/League results, tiebreakers, player stats, rename, placeholder rules.
-- [ ] Freeze fixture provenance/version; test TS regenerates same expected outputs before port.
-- [ ] Port exact League/Tournament/Round/Entry/PlayerArchetype DTO shape + normalization to C#; preserve order/case/trim semantics.
-- [ ] Port Round CSV adapter, invalid-row preservation, warnings, scoring, byes, provisional results, OMW/GW/OGW precision/floors.
-- [ ] Port Player Statistics/nemesis/rival/filters + Player Name rename semantics.
-- [ ] Run C# fixture consumer against every TS expected output; prohibit C#-specific JSON drift.
-- [ ] Add property tests for score/result invariants + serializer round-trip.
-- [ ] GREEN: TS + C# parity tests; `G-FULL`, `G-RUN`; no runtime flag changes.
+- [x] RED: export language-neutral JSON fixtures from TS for normalization, import, invalid entries, warnings, Tournament/League results, tiebreakers, player stats, rename, placeholder rules.
+- [x] Freeze fixture provenance/version; test TS regenerates same expected outputs before port.
+- [x] Port exact League/Tournament/Round/Entry/PlayerArchetype DTO shape + normalization to C#; preserve order/case/trim semantics.
+- [x] Port Round CSV adapter, invalid-row preservation, warnings, scoring, byes, provisional results, OMW/GW/OGW precision/floors.
+- [x] Port Player Statistics/nemesis/rival/filters + Player Name rename semantics.
+- [x] Run C# fixture consumer against every TS expected output; prohibit C#-specific JSON drift.
+- [x] Add property tests for score/result invariants + serializer round-trip.
+- [x] GREEN: TS + C# parity tests; `G-FULL`, `G-RUN`; no runtime flag changes.
+
+Evidence: frozen v1 manifest hashes 15 deterministic TS parity cases; TS regeneration test passes byte-for-byte. C# fixture consumer, 250 generated score/result invariants, and 100 serializer round-trips pass. G-FULL lint/typecheck/120 TS tests/API drift/build/E2E pass; backend 149 unit + 11 architecture pass, 194/196 parallel integration with two RootlessKit bind-only failures each passing 1/1 isolated. G-RUN Compose build + development smoke + app/API/OpenAPI checks pass; no runtime flag or tracked config changes.
 
 ## C30 — `feat: persist and expose versioned League aggregates`
 

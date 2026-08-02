@@ -1,0 +1,122 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Gones.Domain.Leagues;
+
+public sealed record GonesData(int Version, IReadOnlyList<LeagueDocument> Leagues, IReadOnlyList<JsonElement> CalendarEvents);
+
+public sealed record LeagueDocument(
+    string Id,
+    string Name,
+    string Status,
+    IReadOnlyList<TournamentDocument> Tournaments);
+
+public sealed record TournamentDocument(
+    string Id,
+    string LeagueId,
+    string Name,
+    string TournamentDate,
+    IReadOnlyList<RoundDocument> Rounds,
+    IReadOnlyList<PlayerArchetypeDocument> PlayerArchetypes);
+
+public sealed record RoundDocument(string Id, IReadOnlyList<RoundEntry> Entries);
+
+public sealed record PlayerArchetypeDocument(string PlayerName, string Archetype);
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]
+[JsonDerivedType(typeof(MatchRoundEntry), "match")]
+[JsonDerivedType(typeof(ByeRoundEntry), "bye")]
+[JsonDerivedType(typeof(InvalidRoundEntry), "invalid")]
+public abstract record RoundEntry(string Id, string Table);
+
+public sealed record MatchRoundEntry(
+    string Id,
+    string Table,
+    string Player1Name,
+    string Player2Name,
+    int Player1Score,
+    int Player2Score,
+    string Player1DeckArchetype,
+    string Player2DeckArchetype) : RoundEntry(Id, Table);
+
+public sealed record ByeRoundEntry(
+    string Id,
+    string Table,
+    string PlayerName,
+    string DeckArchetype) : RoundEntry(Id, Table);
+
+public sealed record InvalidRoundEntry(
+    string Id,
+    string RawText,
+    string Table,
+    string Player,
+    string Result,
+    string Opponent,
+    string PlayerDecklist,
+    string OpponentDecklist) : RoundEntry(Id, Table);
+
+public sealed record ValidationResult(bool Valid, IReadOnlyList<string> Codes);
+
+public sealed record TournamentWarning(
+    string Code,
+    string? RoundId = null,
+    string? PlayerName = null,
+    IReadOnlyList<string>? PlayerNames = null,
+    IReadOnlyList<string>? EntryIds = null);
+
+public sealed record RankingRow(
+    string PlayerName,
+    int Points,
+    int MatchWins,
+    int MatchDraws,
+    int MatchLosses,
+    int Byes,
+    int PlayedMatchCount,
+    int MatchAssignmentCount,
+    int GameWins,
+    int GameLosses,
+    int Rank,
+    double GameWinPercentage,
+    double OpponentsMatchWinPercentage,
+    double OpponentsGameWinPercentage,
+    string? Archetype = null);
+
+public sealed record TournamentResult(
+    string Scope,
+    bool Incomplete,
+    bool Provisional,
+    IReadOnlyList<RankingRow> Rows);
+
+public sealed record LeagueResult(
+    string Scope,
+    string StartDate,
+    string EndDate,
+    bool Incomplete,
+    bool Provisional,
+    IReadOnlyList<RankingRow> Rows);
+
+public sealed record RoundImportResult(IReadOnlyList<RoundEntry> Entries);
+
+public sealed record PlayerStatisticsFilters(string? LeagueId = null, string? TournamentId = null, string? OpponentName = null);
+
+public sealed record PlayerMatch(
+    string Kind,
+    LeagueDocument League,
+    TournamentDocument Tournament,
+    int RoundIndex,
+    string OpponentName,
+    int OwnScore,
+    int OpponentScore);
+
+public sealed record PlayerStatistics(
+    string PlayerName,
+    int PlayedMatchCount,
+    int ByeCount,
+    int MatchWins,
+    int GameWins,
+    int GameLosses,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? MatchWinrate,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? GameWinrate,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Nemesis,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Rival,
+    IReadOnlyList<PlayerMatch> Matches);

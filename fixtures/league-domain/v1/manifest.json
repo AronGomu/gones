@@ -1,0 +1,39 @@
+{
+  "fixtureSet": "gones-league-domain-parity",
+  "fixtureVersion": 1,
+  "source": {
+    "language": "TypeScript",
+    "exporter": "src/app/domain/league-parity-fixtures.test.ts",
+    "sourceFiles": [
+      "src/app/domain/models.ts",
+      "src/app/domain/player-stats.ts",
+      "src/app/domain/results.ts",
+      "src/app/domain/round-import.ts",
+      "src/app/domain/rename-player.ts",
+      "src/app/domain/tournament-archetypes.ts",
+      "src/app/domain/validation.ts",
+      "src/app/domain/warnings.ts"
+    ],
+    "sourceRevision": "e930c8399ae3720049bc6e0169964c3d5c75c025",
+    "runtime": {
+      "node": "v24.18.0",
+      "icu": "78.3",
+      "typescript": "5.9.3",
+      "vitest": "4.1.7"
+    },
+    "sourceDataVersion": 3
+  },
+  "serialization": "JSON.stringify(value, null, 2) + LF",
+  "paritySha256": "be12c510ee59d557a0ceb74e191b58cf5b24cec8c7536bc6908627af093431dc",
+  "caseCounts": {
+    "normalization": 1,
+    "csvImports": 2,
+    "validations": 4,
+    "warnings": 1,
+    "tournamentResults": 1,
+    "leagueResults": 1,
+    "playerStatistics": 3,
+    "renames": 1,
+    "placeholders": 1
+  }
+}
