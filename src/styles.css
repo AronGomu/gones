@@ -1187,3 +1187,39 @@ mat-dialog-content p { white-space: pre-line; }
   .tournament-management-actions { display: grid; grid-template-columns: 1fr; }
   .tournament-management-actions > * { width: 100%; }
 }
+
+/* Organizer participant management */
+.participant-management-page { width: min(100%, 72rem); margin-inline: auto; }
+.participant-management-page, .participant-management-page * { min-width: 0; }
+.participant-lookup-form fieldset { grid-template-columns: minmax(9rem, .35fr) minmax(12rem, 1fr) auto; align-items: end; }
+.participant-lookup-form fieldset > label { grid-row: 1; }
+.participant-lookup-form fieldset > select, .participant-lookup-form fieldset > input, .participant-lookup-form fieldset > button { grid-row: 2; }
+.participant-selection { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem; border: 1px solid var(--soot); background: var(--black-metal); }
+.participant-selection > div { display: grid; gap: .25rem; }
+.participant-selection span { color: var(--dim-ash); overflow-wrap: anywhere; }
+.participant-table { width: 100%; min-width: 64rem; border-collapse: collapse; background: var(--iron); }
+.participant-table th, .participant-table td { padding: .7rem; border-bottom: 1px solid var(--soot); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.participant-table th { color: var(--dim-ash); font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+.participant-table tbody tr:nth-child(even) { background: color-mix(in oklch, var(--raised-iron) 52%, var(--iron)); }
+.participant-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.participant-actions button { min-width: 0; }
+.participant-card-list { display: none; }
+.participant-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: 0; }
+.participant-card dl div { display: grid; gap: .2rem; }
+.participant-card dt { color: var(--steel); font-size: .75rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.participant-card dd, .participant-card p { margin: 0; overflow-wrap: anywhere; }
+.participant-empty { padding: 1rem; }
+.participant-block-list { display: grid; gap: .75rem; }
+.participant-block-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; padding: .75rem; border-top: 1px solid var(--soot); }
+.participant-block-row p { margin: .25rem 0 0; overflow-wrap: anywhere; }
+mat-dialog-content input { width: 100%; min-height: 48px; padding: .7rem .8rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }
+mat-dialog-content input:focus-visible { border-color: var(--hot-blood); outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+@media (max-width: 700px) {
+  .participant-lookup-form fieldset { grid-template-columns: 1fr; }
+  .participant-lookup-form fieldset > label, .participant-lookup-form fieldset > select, .participant-lookup-form fieldset > input, .participant-lookup-form fieldset > button { grid-row: auto; }
+  .participant-selection, .participant-block-row { align-items: stretch; grid-template-columns: 1fr; flex-direction: column; }
+  .participant-selection button, .participant-actions button, .participant-block-row button { width: 100%; }
+  .participant-table-wrap { display: none; }
+  .participant-card-list { display: grid; gap: .75rem; }
+  .participant-actions { display: grid; grid-template-columns: 1fr; }
+}

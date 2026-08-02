@@ -167,6 +167,22 @@ public sealed class ApiBoundaryTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
+    public async Task Cors_exposes_download_filename_header_to_allowed_frontend()
+    {
+        using var corsClient = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
+        }).CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/health/live");
+        request.Headers.Add("Origin", "https://app.example");
+        using var response = await corsClient.SendAsync(request);
+
+        Assert.Equal("https://app.example", response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Contains("Content-Disposition", response.Headers.GetValues("Access-Control-Expose-Headers").Single(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task OpenApi_is_admin_protected_outside_development()
     {
         using var openApiClient = factory.WithWebHostBuilder(builder =>

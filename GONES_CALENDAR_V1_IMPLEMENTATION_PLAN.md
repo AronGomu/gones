@@ -605,14 +605,14 @@ Parallel rules:
 
 **Deps:** C15, C22, C25. **Lane:** C/E. **Runnable:** complete participant mgmt UI.
 
-- [ ] RED: Cypress tests for lookup/manual add, capacity race error, remove, block/unblock/expiry, CSV, private-field access, cross-org URL.
-- [ ] Add `/organizer/tournaments/:id/participants` paged table/cards with Username/legal name/email/date/status.
-- [ ] Add verified-User search/selection; no free-form PII/manual guest creation.
-- [ ] Add remove/block/unblock dialogs; show scope + expiry; separate “remove and block” composed action executes explicit commands.
-- [ ] Add CSV download via authenticated response; preserve filename/content type; display audit-confirmed success only after response.
-- [ ] Add org notification preference UI for registration/unregistration notices.
-- [ ] Add loading/empty/error/pending locks, EN/FR, mobile card layout, keyboard/focus tests.
-- [ ] GREEN: Angular/Cypress Organizer flows; `G-FULL`, `G-RUN` own-org + cross-org tests.
+- [x] RED: Cypress tests for lookup/manual add, capacity race error, remove, block/unblock/expiry, CSV, private-field access, cross-org URL.
+- [x] Add `/organizer/tournaments/:id/participants` paged table/cards with Username/legal name/email/date/status.
+- [x] Add verified-User search/selection; no free-form PII/manual guest creation.
+- [x] Add remove/block/unblock dialogs; show scope + expiry; separate “remove and block” composed action executes explicit commands.
+- [x] Add CSV download via authenticated response; preserve filename/content type; display audit-confirmed success only after response.
+- [x] Add org notification preference UI for registration/unregistration notices.
+- [x] Add loading/empty/error/pending locks, EN/FR, mobile card layout, keyboard/focus tests.
+- [x] GREEN: Angular/Cypress Organizer flows; `G-FULL`, `G-RUN` own-org + cross-org tests.
 
 ## C27 — `feat: schedule reminders and automatic Tournament statuses`
 

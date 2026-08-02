@@ -37,6 +37,7 @@ import { canCancelTournament, canEditTournament } from './tournament-management'
                   <span [class]="'calendar-status calendar-status--' + tournament.status.toLowerCase()">{{ tournament.status }}</span>
                   <div class="admin-actions tournament-management-actions">
                     <a mat-stroked-button [routerLink]="['/calendar/tournaments', tournament.slug]">{{ i18n.t('tournamentManage.publicView') }}</a>
+                    <a mat-stroked-button data-cy="tournament-participants" [routerLink]="['/organizer/tournaments', tournament.id, 'participants']">{{ i18n.t('registration.participants') }}</a>
                     @if (canEdit(tournament)) { <a mat-stroked-button data-cy="tournament-edit" [routerLink]="['/organizer/tournaments', tournament.id, 'edit']">{{ i18n.t('common.edit') }}</a> }
                     @if (canCancel(tournament)) { <button mat-stroked-button type="button" data-cy="tournament-cancel" [disabled]="!!pendingId()" (click)="cancel(tournament)">{{ pendingId() === tournament.id ? i18n.t('tournamentManage.cancelling') : i18n.t('tournamentManage.cancel') }}</button> }
                     @if (canEdit(tournament)) { <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="tournament-delete" [disabled]="!!pendingId()" (click)="delete(tournament)">{{ pendingId() === tournament.id ? i18n.t('common.deleting') : i18n.t('common.delete') }}</button> }
