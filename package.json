@@ -20,6 +20,7 @@
     "notification:smoke": "node scripts/smoke-notification.mjs",
     "scheduler:smoke": "node scripts/smoke-scheduler.mjs",
     "auth:smoke": "node scripts/smoke-account-lifecycle.mjs",
+    "migration:smoke": "node scripts/smoke-migration.mjs",
     "e2e:ci": "node scripts/full-stack-ci.mjs",
     "db:reset": "node scripts/reset-local-stack.mjs",
     "db:seed": "node scripts/seed-local.mjs"

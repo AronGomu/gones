@@ -774,16 +774,16 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 
 **Deps:** C16, C30, C33, C36, C37. **Lane:** E. **Runnable:** CLI can safely migrate fixture DB; app unchanged until flags.
 
-- [ ] RED: CLI tests for bad checksum/schema, missing time/address/org/zone/Format map, duplicate/conflicting source-instance data, unsupported version, dry-run no-write, all-or-none rollback, rerun idempotency.
-- [ ] Implement `Gones.Migrator import --bundle <file>... --mapping --manifest --dry-run` parsing one/many private bundles with bounded streaming JSON + schema validation.
-- [ ] Manifest inventories source-instance IDs/hashes + authoritative-device/reconciliation decisions. Block unknown duplicates/conflicts until operator resolves by explicit map.
-- [ ] Mapping file supplies org/Owner, mandatory start time, IANA zone, address/country, Format IDs (Legacy default only when explicitly mapped), status policy for each legacy Calendar event; no silent global default.
-- [ ] Produce human + JSON review report: input counts, source instances, mappings, sanitation changes, collisions, hashes, target DB identity, dropped/converted `externalLink`, removed image/unsafe HTML details.
-- [ ] Block import on every error/unmapped required field. Warnings require explicit `--accept-report-hash` from unchanged dry run.
-- [ ] Final import runs serializable single tx: League/Result JSONB, Scheduled Tournament, Live drafts, Deck catalog; audit migration batch; no auth/profile fabrication except configured Owner reference.
-- [ ] Store migration batch hash/idempotency record; rerun returns existing result; changed bundle requires new dry run. Add migration duration/result/count metrics with bundle hash truncated/redacted.
-- [ ] Add post-import verifier comparing source/target counts, canonical hashes, sampled derived result parity.
-- [ ] GREEN: CLI/Testcontainer/property tests; `G-FULL`, `G-RUN`; migrate fixture, force failure, prove zero partial rows.
+- [x] RED: CLI tests for bad checksum/schema, missing time/address/org/zone/Format map, duplicate/conflicting source-instance data, unsupported version, dry-run no-write, all-or-none rollback, rerun idempotency.
+- [x] Implement `Gones.Migrator import --bundle <file>... --mapping --manifest --dry-run` parsing one/many private bundles with bounded streaming JSON + schema validation.
+- [x] Manifest inventories source-instance IDs/hashes + authoritative-device/reconciliation decisions. Block unknown duplicates/conflicts until operator resolves by explicit map.
+- [x] Mapping file supplies org/Owner, mandatory start time, IANA zone, address/country, Format IDs (Legacy default only when explicitly mapped), status policy for each legacy Calendar event; no silent global default.
+- [x] Produce human + JSON review report: input counts, source instances, mappings, sanitation changes, collisions, hashes, target DB identity, dropped/converted `externalLink`, removed image/unsafe HTML details.
+- [x] Block import on every error/unmapped required field. Warnings require explicit `--accept-report-hash` from unchanged dry run.
+- [x] Final import runs serializable single tx: League/Result JSONB, Scheduled Tournament, Live drafts, Deck catalog; audit migration batch; no auth/profile fabrication except configured Owner reference.
+- [x] Store migration batch hash/idempotency record; rerun returns existing result; changed bundle requires new dry run. Add migration duration/result/count metrics with bundle hash truncated/redacted.
+- [x] Add post-import verifier comparing source/target counts, canonical hashes, sampled derived result parity.
+- [x] GREEN: CLI/Testcontainer/property tests; `G-FULL`, `G-RUN`; migrate fixture, force failure, prove zero partial rows.
 
 ## C39 — `feat: cache public reads and reject offline writes`
 

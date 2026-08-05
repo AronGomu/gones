@@ -1,3 +1,4 @@
+using Gones.Application.Migration;
 using Gones.Application.Notifications;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
@@ -5,6 +6,7 @@ using Gones.Domain.Leagues;
 using Gones.Domain.Live;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Identity;
+using Gones.Infrastructure.MigrationImport;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -22,13 +24,30 @@ if (args.Contains("--help", StringComparer.Ordinal))
                dotnet Gones.Migrator.dll database seed
                dotnet Gones.Migrator.dll admin bootstrap --email <email>
                dotnet Gones.Migrator.dll notifications enqueue-test
+               dotnet Gones.Migrator.dll import --bundle <file> [--bundle <file>...]
+                   --manifest <file> --mapping <file>
+                   [--dry-run] [--accept-report-hash <sha256:...>] [--report <file>]
                dotnet Gones.Migrator.dll [--help]
+
+        import is dry-run-first: run --dry-run, review the human/JSON report, then rerun
+        with --accept-report-hash <reportHash> from an unchanged dry run to execute the
+        single-transaction migration.
         """);
     return;
 }
 
 var databaseCommand = args.Length == 2 && args[0] == "database" && args[1] is "update" or "seed" ? args[1] : null;
 var notificationCommand = args.Length == 2 && args[0] == "notifications" && args[1] == "enqueue-test" ? args[1] : null;
+MigrationImportOptions? importOptions = null;
+if (args.Length >= 1 && args[0] == "import")
+{
+    if (!MigrationCliArguments.TryParse(args.Skip(1).ToArray(), out importOptions, out var importError))
+    {
+        Console.Error.WriteLine(importError);
+        Environment.ExitCode = 2;
+        return;
+    }
+}
 string? bootstrapEmail = null;
 if (args.Length >= 2 && args[0] == "admin" && args[1] == "bootstrap")
 {
@@ -61,7 +80,7 @@ if (args.Length >= 2 && args[0] == "admin" && args[1] == "bootstrap")
     }
 }
 
-if (databaseCommand is null && notificationCommand is null && bootstrapEmail is null)
+if (databaseCommand is null && notificationCommand is null && bootstrapEmail is null && importOptions is null)
 {
     Console.Error.WriteLine("No migration command supplied. Use --help for usage.");
     Environment.ExitCode = 2;
@@ -78,6 +97,7 @@ if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationExcep
 builder.Services.AddGonesPersistence(connectionString);
 builder.Services.AddNotificationOutbox();
 builder.Services.AddScoped<AdminBootstrapService>();
+builder.Services.AddScoped<MigrationImportService>();
 using var host = builder.Build();
 using var scope = host.Services.CreateScope();
 var database = scope.ServiceProvider.GetRequiredService<GonesDbContext>();
@@ -110,6 +130,51 @@ else if (bootstrapEmail is not null)
         Console.Error.WriteLine(exception.Message);
         Environment.ExitCode = 1;
     }
+}
+else if (importOptions is not null)
+{
+    var importService = scope.ServiceProvider.GetRequiredService<MigrationImportService>();
+    var faultInjection = builder.Configuration.GetValue<bool>("GONES_ALLOW_FAULT_INJECTION")
+        ? builder.Configuration["GONES_MIGRATION_FAULT"]
+        : null;
+    var outcome = await importService.RunAsync(importOptions, faultInjection);
+    if (outcome.Report is not null)
+    {
+        Console.WriteLine(outcome.Report.ToHumanSummary());
+        var reportJson = System.Text.Json.Nodes.JsonNode.Parse(outcome.Report.ToJson())!
+            .ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        if (!string.IsNullOrWhiteSpace(importOptions.ReportPath))
+        {
+            await File.WriteAllTextAsync(importOptions.ReportPath, reportJson);
+            Console.WriteLine($"JSON report written to {importOptions.ReportPath}");
+        }
+        else
+        {
+            Console.WriteLine("=== JSON report ===");
+            Console.WriteLine(reportJson);
+        }
+    }
+
+    if (outcome.AlreadyImported)
+    {
+        Console.WriteLine("Migration batch already imported; returning the stored result:");
+        Console.WriteLine(outcome.ResultJson);
+    }
+    else if (outcome.ResultJson is not null)
+    {
+        Console.WriteLine("Migration import result:");
+        Console.WriteLine(outcome.ResultJson);
+    }
+
+    if (outcome.Verification is not null)
+    {
+        Console.WriteLine(outcome.Verification.Passed
+            ? $"Post-import verification passed: {outcome.Verification.LeaguesVerified} Leagues, {outcome.Verification.ScheduledTournamentsVerified} Scheduled Tournaments, {outcome.Verification.LiveTournamentsVerified} Live drafts, {outcome.Verification.DeckArchetypesVerified} Deck Archetypes, {outcome.Verification.DerivedResultSamples} derived-result samples."
+            : $"Post-import verification FAILED: {string.Join("; ", outcome.Verification.Failures)}");
+    }
+
+    if (outcome.FailureMessage is not null) Console.Error.WriteLine(outcome.FailureMessage);
+    Environment.ExitCode = outcome.ExitCode;
 }
 else if (notificationCommand == "enqueue-test")
 {
