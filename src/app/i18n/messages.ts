@@ -70,6 +70,9 @@ const en = {
   'common.apply': 'Apply',
   'common.retry': 'Retry',
   'common.empty': 'Nothing to show.',
+  'routeError.title': 'This page could not be loaded',
+  'routeError.body': 'Something went wrong while opening this page. Retry, or go back to the home page.',
+  'routeError.home': 'Back to home',
 
   // Admin / organizations
   'admin.kicker': 'Administration',
@@ -1061,6 +1064,9 @@ const fr: Record<MessageKey, string> = {
   'common.apply': 'Appliquer',
   'common.retry': 'Réessayer',
   'common.empty': 'Rien à afficher.',
+  'routeError.title': 'Cette page n’a pas pu être chargée',
+  'routeError.body': 'Une erreur est survenue à l’ouverture de cette page. Réessayez ou revenez à l’accueil.',
+  'routeError.home': 'Retour à l’accueil',
 
   'admin.kicker': 'Administration',
   'admin.title': 'Console Admin',

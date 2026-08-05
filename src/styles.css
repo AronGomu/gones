@@ -1108,6 +1108,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .calendar-skeleton div, .calendar-detail-skeleton div { min-height: 8rem; border: 1px solid var(--soot); background: linear-gradient(90deg, var(--iron), var(--forge), var(--iron)); background-size: 200% 100%; animation: calendar-skeleton 1.4s ease infinite; }
 @keyframes calendar-skeleton { to { background-position: -200% 0; } }
 .public-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--soot); background: var(--black-metal); }
+/* ARIA grid rows: structural only, so the cells keep participating in the parent CSS grid. */
+.public-month-row { display: contents; }
 .public-month-day { min-height: 7rem; display: grid; align-content: start; gap: .35rem; padding: .55rem; border-top: 1px solid var(--soot); border-left: 1px solid var(--soot); background: var(--iron); overflow: hidden; }
 .public-month-day > time { font-weight: 900; }
 .public-month-day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
@@ -1149,7 +1151,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .calendar-view-tabs, .calendar-view-tabs button, .calendar-filter-form button { width: 100%; }
   .calendar-filter-form { grid-template-columns: 1fr; }
   .public-month-grid { grid-template-columns: 1fr; }
-  .public-month-grid .classic-calendar__weekday { display: none; }
+  /* Hide the whole header row, not its cells: an empty ARIA row is an a11y violation. */
+  .public-month-row--head { display: none; }
   .public-month-day { min-height: 3.5rem; border-left: 0; }
   .public-tournament-card, .registration-card { grid-template-columns: 1fr; }
   .public-tournament-card .calendar-event__actions > *, .registration-action > a, .registration-action > button { width: 100%; }

@@ -48,6 +48,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddGonesAuthorization(runtimeConfiguration, builder.Configuration);
 builder.Services.AddExactOriginCors(builder.Configuration);
+// Locked V1 endpoint rate policies are always installed: the global limiter must cover public reads
+// and authenticated writes even when the auth feature flag is off.
+builder.Services.AddGonesAuthRateLimiting(RateLimitSettings.Load(
+    builder.Configuration,
+    builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")));
 var brevoWebhookOptions = BrevoWebhookOptions.TryLoad(builder.Configuration);
 
 var healthChecks = builder.Services.AddHealthChecks();
@@ -99,11 +104,6 @@ else
             builder.Services.AddScoped<AdminAccountService>();
             builder.Services.AddScoped<OrganizationService>();
         }
-        var configuredAuthRateLimit = builder.Configuration["GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT"];
-        var authRateLimit = int.TryParse(configuredAuthRateLimit, out var parsedAuthRateLimit) && parsedAuthRateLimit > 0
-            ? parsedAuthRateLimit
-            : AuthRateLimiting.PermitLimit;
-        builder.Services.AddGonesAuthRateLimiting(authRateLimit);
     }
     var notificationHealthOptions = NotificationHealthOptions.Load(builder.Configuration);
     var workerHealthOptions = WorkerHealthOptions.Load(builder.Configuration);
@@ -147,7 +147,7 @@ app.UseStatusCodePages(async statusContext =>
 });
 app.UseMiddleware<ApiRequestSizeMiddleware>();
 app.UseAuthentication();
-if (runtimeConfiguration.Features.AuthV1) app.UseRateLimiter();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapGet("/health/live", () => new HealthStatusResponse("live")).Produces<HealthStatusResponse>().AllowAnonymous();

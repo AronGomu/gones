@@ -129,6 +129,14 @@ try {
     if (organizerParticipantsBrowser.status !== 0) process.exitCode = organizerParticipantsBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const abuseSurface = runCypress('cypress/e2e/abuse-surface.cy.js');
+    if (abuseSurface.status !== 0) process.exitCode = abuseSurface.status ?? 1;
+  }
+  if (!process.exitCode) {
+    const accessibility = runCypress('cypress/e2e/accessibility.cy.js');
+    if (accessibility.status !== 0) process.exitCode = accessibility.status ?? 1;
+  }
+  if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const seed = spawnSync(process.execPath, ['scripts/seed-local.mjs'], { stdio: 'inherit' });
       if (seed.status !== 0) {

@@ -39,8 +39,13 @@ RUN sed -i "s/authV1: false/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments
     && npm run build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine AS release
+ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
+USER root
 RUN rm -rf /etc/nginx/templates
 COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
+# Bake the exact API origin into connect-src; the container filesystem is read-only at runtime.
+RUN sed -i "s|__GONES_API_ORIGIN__|${GONES_FRONTEND_API_BASE_URL}|g" /etc/nginx/conf.d/default.conf
+USER 101
 COPY --from=build /app/dist/gones/browser /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --retries=6 CMD ["wget", "-q", "--spider", "http://127.0.0.1:8080/health"]

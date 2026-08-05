@@ -6,6 +6,7 @@ import { TournamentRegistrationHistoryResponse } from '../../api/generated/gones
 import { I18nService } from '../../i18n/i18n.service';
 import { partitionRegistrationAttempts, registrationVenueTime } from './my-registrations';
 import { TournamentRegistrationService } from './tournament-registration.service';
+import { LatestRequest } from '../../shared/async-guards';
 
 @Component({
   standalone: true,
@@ -51,22 +52,25 @@ export class MyRegistrationsComponent implements OnInit {
   readonly page = signal(1);
   readonly totalCount = signal(0);
   readonly pageSize = 20;
+  private readonly latest = new LatestRequest();
   readonly pageCount = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
   readonly groups = computed(() => partitionRegistrationAttempts(this.items()));
 
   ngOnInit(): void { void this.load(); }
 
   async load(): Promise<void> {
+    const request = this.latest.begin();
     this.loading.set(true);
     this.error.set(false);
     try {
       const response = await this.registrations.list(this.page(), this.pageSize);
+      if (!this.latest.isCurrent(request)) return;
       this.items.set(response.items);
       this.totalCount.set(response.totalCount);
     } catch {
-      this.error.set(true);
+      if (this.latest.isCurrent(request)) this.error.set(true);
     } finally {
-      this.loading.set(false);
+      if (this.latest.isCurrent(request)) this.loading.set(false);
     }
   }
 

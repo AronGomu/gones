@@ -68,14 +68,20 @@ const VIEW_KEY = 'gones.calendar-v1.view';
           </nav>
           @if (items().length) {
             <section class="public-month-grid" role="grid" [attr.aria-label]="i18n.t('calendar.monthAria')">
-              @for (weekday of weekdays; track weekday) { <div class="classic-calendar__weekday" role="columnheader">{{ weekday }}</div> }
-              @for (day of monthDays(); track day.date) {
-                <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth">
-                  <time [attr.datetime]="day.date">{{ day.day }}</time>
-                  @for (item of day.items; track item.id) {
-                    <a class="calendar-pill" [class.calendar-pill--cancelled]="status(item).className === 'cancelled'" [routerLink]="['/calendar/tournaments', item.slug]"><span>{{ item.venueStartTime.slice(0, 5) }}</span> {{ item.title }} @if (status(item).className === 'cancelled' || status(item).className === 'completed') { <strong class="calendar-pill__status">{{ status(item).label }}</strong> }</a>
+              <div class="public-month-row public-month-row--head" role="row">
+                @for (weekday of weekdays; track weekday) { <div class="classic-calendar__weekday" role="columnheader">{{ weekday }}</div> }
+              </div>
+              @for (week of monthWeeks(); track week[0].date) {
+                <div class="public-month-row" role="row">
+                  @for (day of week; track day.date) {
+                    <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth">
+                      <time [attr.datetime]="day.date">{{ day.day }}</time>
+                      @for (item of day.items; track item.id) {
+                        <a class="calendar-pill" [class.calendar-pill--cancelled]="status(item).className === 'cancelled'" [routerLink]="['/calendar/tournaments', item.slug]"><span>{{ item.venueStartTime.slice(0, 5) }}</span> {{ item.title }} @if (status(item).className === 'cancelled' || status(item).className === 'completed') { <strong class="calendar-pill__status">{{ status(item).label }}</strong> }</a>
+                      }
+                    </article>
                   }
-                </article>
+                </div>
               }
             </section>
           } @else { <ng-container *ngTemplateOutlet="emptyState" /> }
@@ -126,6 +132,8 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly totalPages = computed(() => Math.max(1, Math.ceil((this.result()?.totalCount ?? 0) / (this.result()?.pageSize ?? 20))));
   readonly monthLabel = computed(() => this.i18n.formatDate(`${this.query().month}-01`, { month: 'long', year: 'numeric' }));
   readonly monthDays = computed(() => buildMonthDays(this.query().month, this.groups()));
+  // ARIA requires grid > row > gridcell; the rows use `display: contents` so the CSS grid is unchanged.
+  readonly monthWeeks = computed(() => chunkIntoWeeks(this.monthDays()));
 
   ngOnInit(): void {
     this.subscription = this.route.queryParamMap.subscribe(params => {
@@ -178,6 +186,13 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   private preferredView(): CalendarView {
     try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'calendar'; } catch { return 'calendar'; }
   }
+}
+
+/** Splits the flat 42-cell month into the seven-day rows ARIA's grid pattern requires. */
+function chunkIntoWeeks(days: MonthDay[]): MonthDay[][] {
+  const weeks: MonthDay[][] = [];
+  for (let index = 0; index < days.length; index += 7) weeks.push(days.slice(index, index + 7));
+  return weeks;
 }
 
 function buildMonthDays(month: string, groups: VenueDateGroup[]): MonthDay[] {

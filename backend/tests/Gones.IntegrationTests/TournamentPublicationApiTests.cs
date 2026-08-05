@@ -199,6 +199,112 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Equal(new[] { "concurrent-cup", "concurrent-cup-2" }, slugs.Order(StringComparer.Ordinal).ToArray());
     }
 
+    [Fact]
+    public async Task Extra_request_fields_cannot_assign_server_controlled_state()
+    {
+        var payload = Payload(seed.Alpha.Id) with { Title = "Mass Assignment Cup" };
+        var ticket = await GetTicketAsync(seed.Organizer.Id, payload);
+        var attackerId = Guid.NewGuid();
+        var poisoned = new Dictionary<string, object?>
+        {
+            ["organizationId"] = payload.OrganizationId,
+            ["title"] = payload.Title,
+            ["summary"] = payload.Summary,
+            ["bodyHtml"] = payload.BodyHtml,
+            ["streetAddress"] = payload.StreetAddress,
+            ["postalCode"] = payload.PostalCode,
+            ["city"] = payload.City,
+            ["country"] = payload.Country,
+            ["timeZoneId"] = payload.TimeZoneId,
+            ["startsAtLocal"] = payload.StartsAtLocal,
+            ["endsAtLocal"] = payload.EndsAtLocal,
+            ["capacity"] = payload.Capacity,
+            ["formatIds"] = payload.FormatIds,
+            // Every key below is server-owned and must be ignored no matter what a client sends.
+            ["id"] = attackerId,
+            ["slug"] = "attacker-controlled-slug",
+            ["status"] = "Completed",
+            ["createdByUserId"] = attackerId,
+            ["deletedAt"] = "2030-01-01T00:00:00Z",
+            ["deletedByUserId"] = attackerId,
+            ["version"] = 999,
+            ["createdAt"] = "2000-01-01T00:00:00Z",
+            ["normalizedSearchText"] = "poison"
+        };
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            "/api/tournaments",
+            seed.Organizer.Id,
+            "Organizer",
+            new { previewTicket = ticket, payload = poisoned },
+            "mass-assignment");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var id = body.GetProperty("id").GetGuid();
+        Assert.NotEqual(attackerId, id);
+        Assert.Equal("mass-assignment-cup", body.GetProperty("slug").GetString());
+        Assert.Equal("Published", body.GetProperty("status").GetString());
+
+        await using var database = CreateContext();
+        var stored = await database.ScheduledTournaments.AsNoTracking().SingleAsync(entity => entity.Id == id);
+        Assert.Equal(seed.Organizer.Id, stored.CreatedByUserId);
+        Assert.Null(stored.DeletedAt);
+        Assert.Null(stored.DeletedByUserId);
+        Assert.Equal(1, stored.Version);
+        Assert.Equal("mass-assignment-cup", stored.Slug);
+        Assert.DoesNotContain("poison", stored.NormalizedSearchText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("<script>alert('xss')</script>")]
+    [InlineData("<p onclick=\"alert(1)\">hi</p>")]
+    [InlineData("<img src=x onerror=alert(1)>")]
+    [InlineData("<a href=\"javascript:alert(1)\">click</a>")]
+    [InlineData("<iframe src=\"https://evil.test\"></iframe>")]
+    [InlineData("<svg/onload=alert(1)>")]
+    [InlineData("<p style=\"background:url(javascript:alert(1))\">styled</p>")]
+    [InlineData("<a href=\"http://evil.test\" onmouseover=\"alert(1)\">link</a>")]
+    public async Task Body_html_xss_payloads_are_rejected_before_storage(string payloadHtml)
+    {
+        using var preview = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id) with { BodyHtml = payloadHtml });
+
+        Assert.Equal(HttpStatusCode.BadRequest, preview.StatusCode);
+        Assert.Equal("validation_failed", await ProblemCode(preview));
+        var problem = await preview.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("alert(1)", problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Text_fields_are_stored_escaped_and_never_rendered_as_markup()
+    {
+        var payload = Payload(seed.Alpha.Id) with
+        {
+            Title = "Cup <script>alert(1)</script>",
+            Summary = "Summary \"><img src=x onerror=alert(1)>",
+            BodyHtml = "<p>Safe <a href=\"https://example.test/rules\">rules</a></p>"
+        };
+        var ticket = await GetTicketAsync(seed.Organizer.Id, payload);
+        using var published = await PublishAsync(seed.Organizer.Id, "xss-text", ticket, payload);
+        Assert.Equal(HttpStatusCode.Created, published.StatusCode);
+        var slug = (await published.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString();
+
+        using var detail = await Client.GetAsync($"/api/tournaments/{slug}");
+        var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        var bodyHtml = body.GetProperty("bodyHtml").GetString()!;
+
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        // Title/summary are plain text fields; they must round-trip verbatim as data, never as markup,
+        // and the only HTML the API ever returns is the allowlisted sanitizer output.
+        Assert.Equal("Cup <script>alert(1)</script>", body.GetProperty("title").GetString());
+        Assert.DoesNotContain("<script", bodyHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onerror", bodyHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("href=\"https://example.test/rules\"", bodyHtml, StringComparison.Ordinal);
+        Assert.Equal("application/json", detail.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("nosniff", detail.Headers.GetValues("X-Content-Type-Options").Single());
+    }
+
     private async Task<HttpResponseMessage> PreviewAsync(Guid userId, TournamentPayload payload) =>
         await SendAsync(HttpMethod.Post, "/api/tournaments/preview", userId, "Organizer", payload);
 

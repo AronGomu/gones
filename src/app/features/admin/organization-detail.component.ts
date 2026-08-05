@@ -167,6 +167,7 @@ export class OrganizationDetailComponent {
   }
 
   private async mutate(action: () => Promise<void>): Promise<void> {
+    if (this.pending()) return;
     this.pending.set(true);
     this.status.set('');
     try {

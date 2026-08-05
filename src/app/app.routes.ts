@@ -59,5 +59,6 @@ export const routes: Routes = [
     { path: 'admin/notifications/dead-letters', canActivate: [adminGuard], data: { mode: 'dead-letters' }, loadComponent: () => import('./features/admin/admin-notification-delivery.component').then((m) => m.AdminNotificationDeliveryComponent) },
     { path: 'admin/tournaments/deleted', canActivate: [adminGuard], loadComponent: () => import('./features/calendar/admin-deleted-tournaments.component').then((m) => m.AdminDeletedTournamentsComponent) }
   ] : []),
+  { path: 'app-error', loadComponent: () => import('./shared/route-error-boundary').then((m) => m.RouteErrorComponent) },
   { path: '**', loadComponent: () => import('./shared/not-found.component').then((m) => m.NotFoundComponent) }
 ];

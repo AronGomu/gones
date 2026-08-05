@@ -1,9 +1,11 @@
 using System.Text;
 using Gones.Api.Errors;
+using Gones.Api.Identity;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
 using System.Threading.RateLimiting;
 
@@ -14,22 +16,107 @@ internal interface IAuthRateLimitRequest
     string RateLimitAccount { get; }
 }
 
+/// <summary>
+/// Locked V1 endpoint rate policies. Every limit below is enforced in-process by ASP.NET.
+/// Deployment-edge (ingress / CDN / global) limiters are a deferred requirement documented in
+/// <c>docs/adr/0017-application-rate-limits-with-deferred-edge-limiter.md</c>; no vendor configuration ships in V1.
+/// </summary>
+public sealed record RateLimitSettings(
+    int AuthPermitLimit,
+    int RefreshPermitLimit,
+    int PublicReadPermitLimit,
+    int WritePermitLimit,
+    int RegistrationPermitLimit,
+    int ExportPermitLimit,
+    int AdminPermitLimit)
+{
+    public const string AuthKey = "GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT";
+    public const string RefreshKey = "GONES_RATE_LIMIT_REFRESH_PERMIT_LIMIT";
+    public const string PublicReadKey = "GONES_RATE_LIMIT_PUBLIC_READ_PERMIT_LIMIT";
+    public const string WriteKey = "GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT";
+    public const string RegistrationKey = "GONES_RATE_LIMIT_REGISTRATION_PERMIT_LIMIT";
+    public const string ExportKey = "GONES_RATE_LIMIT_EXPORT_PERMIT_LIMIT";
+    public const string AdminKey = "GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT";
+
+    public static RateLimitSettings Defaults { get; } = new(
+        AuthRateLimiting.PermitLimit,
+        AuthRateLimiting.RefreshPermitLimit,
+        AuthRateLimiting.PublicReadPermitLimit,
+        AuthRateLimiting.WritePermitLimit,
+        AuthRateLimiting.RegistrationPermitLimit,
+        AuthRateLimiting.ExportPermitLimit,
+        AuthRateLimiting.AdminPermitLimit);
+
+    /// <summary>Volume-shaped buckets are relaxed for Development/Testing so local suites are not throttled; explicit configuration still wins.</summary>
+    public const int RelaxedPermitLimit = 1_000_000;
+
+    public static RateLimitSettings Load(IConfiguration configuration, bool relaxedDefaults = false)
+    {
+        var fallback = relaxedDefaults
+            ? Defaults with
+            {
+                RefreshPermitLimit = RelaxedPermitLimit,
+                PublicReadPermitLimit = RelaxedPermitLimit,
+                WritePermitLimit = RelaxedPermitLimit,
+                AdminPermitLimit = RelaxedPermitLimit
+            }
+            : Defaults;
+        return new RateLimitSettings(
+            Read(configuration, AuthKey, fallback.AuthPermitLimit),
+            Read(configuration, RefreshKey, fallback.RefreshPermitLimit),
+            Read(configuration, PublicReadKey, fallback.PublicReadPermitLimit),
+            Read(configuration, WriteKey, fallback.WritePermitLimit),
+            Read(configuration, RegistrationKey, fallback.RegistrationPermitLimit),
+            Read(configuration, ExportKey, fallback.ExportPermitLimit),
+            Read(configuration, AdminKey, fallback.AdminPermitLimit));
+    }
+
+    private static int Read(IConfiguration configuration, string key, int fallback) =>
+        int.TryParse(configuration[key], out var parsed) && parsed > 0 ? parsed : fallback;
+}
+
 public static class AuthRateLimiting
 {
     public const string IpPolicy = "auth-ip";
+    public const string RefreshPolicy = "refresh-session";
+    public const string PublicReadPolicy = "public-read-ip";
+    public const string WritePolicy = "write-user";
     public const string RegistrationPolicy = "registration-user";
     public const string ExportPolicy = "export-user-ip";
+    public const string AdminPolicy = "admin-user";
+
+    /// <summary>auth register/login/resend/reset: 5 per 15 minutes, per IP and per account.</summary>
     public const int PermitLimit = 5;
+    /// <summary>refresh: 30 per 15 minutes, per refresh session.</summary>
+    public const int RefreshPermitLimit = 30;
+    /// <summary>public reads: 120 per minute, per IP.</summary>
+    public const int PublicReadPermitLimit = 120;
+    /// <summary>authenticated writes: 30 per minute, per user.</summary>
+    public const int WritePermitLimit = 30;
+    /// <summary>tournament registration writes: 10 per minute, per user.</summary>
     public const int RegistrationPermitLimit = 10;
+    /// <summary>exports: 10 per hour, per user and IP.</summary>
     public const int ExportPermitLimit = 10;
+    /// <summary>admin surface: 60 per minute, per user.</summary>
+    public const int AdminPermitLimit = 60;
+
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan RefreshWindow = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan PublicReadWindow = TimeSpan.FromMinutes(1);
+    public static readonly TimeSpan WriteWindow = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan ExportWindow = TimeSpan.FromHours(1);
+    public static readonly TimeSpan AdminWindow = TimeSpan.FromMinutes(1);
 
-    public static IServiceCollection AddGonesAuthRateLimiting(this IServiceCollection services, int permitLimit = PermitLimit)
+    public static IServiceCollection AddGonesAuthRateLimiting(this IServiceCollection services, int permitLimit = PermitLimit) =>
+        services.AddGonesAuthRateLimiting(RateLimitSettings.Defaults with { AuthPermitLimit = permitLimit });
+
+    public static IServiceCollection AddGonesAuthRateLimiting(this IServiceCollection services, RateLimitSettings settings)
     {
-        if (permitLimit <= 0) throw new ArgumentOutOfRangeException(nameof(permitLimit));
-        services.AddSingleton(new AuthAccountRateLimiter(permitLimit));
+        ArgumentNullException.ThrowIfNull(settings);
+        if (settings.AuthPermitLimit <= 0) throw new ArgumentOutOfRangeException(nameof(settings));
+        services.AddSingleton(settings);
+        services.AddSingleton(new AuthAccountRateLimiter(settings.AuthPermitLimit));
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -38,51 +125,92 @@ public static class AuthRateLimiting
                 var operation = Operation(context.HttpContext.Request.Path);
                 context.HttpContext.RequestServices.GetRequiredService<OperationalMetrics>().RecordAuthRejection(operation);
                 await WriteRateLimitAuditAsync(context.HttpContext.RequestServices, operation, cancellationToken);
-                if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
-                {
-                    context.HttpContext.Response.Headers.RetryAfter = Math.Ceiling(retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                }
+                context.HttpContext.Response.Headers.RetryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
+                    ? Math.Max(1, Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : ((int)Window.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
             };
+
+            // Global limiter: covers every /api surface without per-endpoint opt-in, so a new route
+            // cannot silently ship unlimited. Endpoint policies below stack on top of it.
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                if (!context.Request.Path.StartsWithSegments("/api")) return RateLimitPartition.GetNoLimiter("unlimited");
+                var isRead = HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method);
+                var user = UserKey(context);
+                if (context.Request.Path.StartsWithSegments("/api/admin") && user is not null)
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        TelemetryRedaction.HashRateLimitKey($"admin:{user}"),
+                        _ => NewWindowOptions(settings.AdminPermitLimit, AdminWindow));
+                }
+
+                if (isRead && user is null)
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        TelemetryRedaction.HashRateLimitKey($"public-read:{ClientKey(context)}"),
+                        _ => NewWindowOptions(settings.PublicReadPermitLimit, PublicReadWindow));
+                }
+
+                if (!isRead && user is not null)
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        TelemetryRedaction.HashRateLimitKey($"write:{user}"),
+                        _ => NewWindowOptions(settings.WritePermitLimit, WriteWindow));
+                }
+
+                return RateLimitPartition.GetNoLimiter("unlimited");
+            });
+
             options.AddPolicy(IpPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
-                TelemetryRedaction.HashRateLimitKey($"{context.Request.Path}:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}"),
-                _ => NewWindowOptions(permitLimit)));
+                TelemetryRedaction.HashRateLimitKey($"{context.Request.Path}:{ClientKey(context)}"),
+                _ => NewWindowOptions(settings.AuthPermitLimit, Window)));
+            options.AddPolicy(RefreshPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                TelemetryRedaction.HashRateLimitKey($"refresh:{context.Request.Cookies[RefreshCookie.Name] ?? ClientKey(context)}"),
+                _ => NewWindowOptions(settings.RefreshPermitLimit, RefreshWindow)));
+            options.AddPolicy(PublicReadPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                TelemetryRedaction.HashRateLimitKey($"public-read:{ClientKey(context)}"),
+                _ => NewWindowOptions(settings.PublicReadPermitLimit, PublicReadWindow)));
+            options.AddPolicy(WritePolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                TelemetryRedaction.HashRateLimitKey($"write:{UserKey(context) ?? ClientKey(context)}"),
+                _ => NewWindowOptions(settings.WritePermitLimit, WriteWindow)));
             options.AddPolicy(RegistrationPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
-                TelemetryRedaction.HashRateLimitKey($"registration:{context.User.FindFirst("sub")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown"}"),
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    AutoReplenishment = true,
-                    PermitLimit = RegistrationPermitLimit,
-                    QueueLimit = 0,
-                    Window = RegistrationWindow
-                }));
+                TelemetryRedaction.HashRateLimitKey($"registration:{UserKey(context) ?? "unknown"}"),
+                _ => NewWindowOptions(settings.RegistrationPermitLimit, RegistrationWindow)));
             options.AddPolicy(ExportPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
-                TelemetryRedaction.HashRateLimitKey($"export:{context.User.FindFirst("sub")?.Value ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown"}:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}"),
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    AutoReplenishment = true,
-                    PermitLimit = ExportPermitLimit,
-                    QueueLimit = 0,
-                    Window = ExportWindow
-                }));
+                TelemetryRedaction.HashRateLimitKey($"export:{UserKey(context) ?? "unknown"}:{ClientKey(context)}"),
+                _ => NewWindowOptions(settings.ExportPermitLimit, ExportWindow)));
+            options.AddPolicy(AdminPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                TelemetryRedaction.HashRateLimitKey($"admin:{UserKey(context) ?? ClientKey(context)}"),
+                _ => NewWindowOptions(settings.AdminPermitLimit, AdminWindow)));
         });
         return services;
     }
+
+    internal static string ClientKey(HttpContext context) => context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    internal static string? UserKey(HttpContext context) =>
+        context.User.FindFirst("sub")?.Value
+        ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
     internal static string Operation(PathString path) =>
         path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Replace("-", "_", StringComparison.Ordinal)
         ?? "auth";
 
-    internal static FixedWindowRateLimiterOptions NewWindowOptions(int permitLimit) => new()
+    internal static FixedWindowRateLimiterOptions NewWindowOptions(int permitLimit) => NewWindowOptions(permitLimit, Window);
+
+    internal static FixedWindowRateLimiterOptions NewWindowOptions(int permitLimit, TimeSpan window) => new()
     {
         AutoReplenishment = true,
         PermitLimit = permitLimit,
         QueueLimit = 0,
-        Window = Window
+        Window = window
     };
 
     internal static async Task WriteRateLimitAuditAsync(IServiceProvider services, string operation, CancellationToken cancellationToken)
     {
-        var database = services.GetRequiredService<GonesDbContext>();
+        // Public-read rejections can happen before persistence is configured; auditing is best-effort there.
+        var database = services.GetService<GonesDbContext>();
+        if (database is null) return;
         var clock = services.GetRequiredService<IClock>();
         database.AuditRecords.Add(new AuditRecord
         {

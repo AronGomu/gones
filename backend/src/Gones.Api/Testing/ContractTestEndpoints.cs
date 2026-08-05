@@ -23,6 +23,7 @@ internal static class ContractTestEndpoints
         group.MapGet("/organization-member", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.OrganizationMember);
         group.MapGet("/organization-owner", () => Results.NoContent()).RequireAuthorization(AuthorizationPolicies.OrganizationOwner);
         group.MapGet("/forbidden", () => Results.Forbid());
+        group.MapGet("/public-read", () => Results.Ok(new { ok = true })).AllowAnonymous();
         group.MapPost("/timestamp", (TimestampRequest request) => Results.Ok(request));
         group.MapPost("/datetime", (DateTimeRequest request) => Results.Ok(request));
         group.MapPost("/json", (JsonElement request) => Results.Ok(request));

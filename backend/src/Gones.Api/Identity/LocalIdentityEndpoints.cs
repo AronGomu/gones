@@ -40,7 +40,7 @@ internal static class LocalIdentityEndpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
         auth.MapPost("/refresh", RefreshAsync)
-            .RequireRateLimiting(AuthRateLimiting.IpPolicy)
+            .RequireRateLimiting(AuthRateLimiting.RefreshPolicy)
             .Produces<AccessTokenResponse>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);

@@ -195,7 +195,7 @@ describe('Organizer Tournament create, preview, publish', () => {
     }).as('unauthorizedPublish');
     cy.get('[data-cy="tournament-publish"]').click();
     cy.wait('@unauthorizedPublish');
-    cy.get('[data-cy="tournament-publish-error"] a[href^="/login"]').should('be.visible').and('have.attr', 'target', '_blank').and('have.attr', 'rel', 'noopener');
+    cy.get('[data-cy="tournament-publish-error"] a[href^="/login"]').should('be.visible').and('have.attr', 'target', '_blank').and('have.attr', 'rel', 'noopener noreferrer');
 
     cy.intercept('POST', '**/api/tournaments', {
       statusCode: 409,

@@ -8,5 +8,9 @@
 /cypress/videos
 .env
 .agentsystem/
+# Generated quality-gate reports (supply-chain audit, etc). CI retains them as artifacts.
+/reports/
+# Locally restored dotnet tools (dotnet-ef) used by the migration scripts.
+/backend/.tmp-tools/
 
 /.pi/artifacts/

@@ -122,7 +122,7 @@ interface RecoveryError { message: string; action: RecoveryAction; }
             <div class="error tournament-create-recovery" role="alert" data-cy="tournament-submit-error">
               <span>{{ error.message }}</span>
               @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="reload-organizations" (click)="loadReferences()">{{ i18n.t('tournamentCreate.reloadOrganizations') }}</button> }
-              @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/organizer/tournaments/new' }" target="_blank" rel="noopener">{{ i18n.t('tournamentCreate.signInAgain') }}</a> }
+              @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/organizer/tournaments/new' }" target="_blank" rel="noopener noreferrer">{{ i18n.t('tournamentCreate.signInAgain') }}</a> }
               @if (error.action === 'retry') { <button mat-stroked-button type="submit">{{ i18n.t('common.retry') }}</button> }
             </div>
           }
@@ -137,7 +137,7 @@ interface RecoveryError { message: string; action: RecoveryAction; }
         @if (publishError(); as error) {
           <div class="error tournament-create-recovery" role="alert" data-cy="tournament-publish-error">
             <span>{{ error.message }}</span>
-            @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/organizer/tournaments/new' }" target="_blank" rel="noopener">{{ i18n.t('tournamentCreate.signInAgain') }}</a> }
+            @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/organizer/tournaments/new' }" target="_blank" rel="noopener noreferrer">{{ i18n.t('tournamentCreate.signInAgain') }}</a> }
             @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="reload-organizations" (click)="reloadOrganizationAccess()">{{ i18n.t('tournamentCreate.reloadOrganizations') }}</button> }
             @if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/calendar" data-cy="tournament-review-calendar">{{ i18n.t('tournamentCreate.reviewCalendar') }}</a> }
             @if (error.action === 'refresh-preview') { <button mat-stroked-button type="button" data-cy="tournament-refresh-preview" (click)="refreshPreview()">{{ i18n.t('tournamentCreate.refreshPreview') }}</button> }

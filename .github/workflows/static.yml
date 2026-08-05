@@ -24,6 +24,15 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+      # Runs after `build` so the client-bundle secret scan has a `dist/` to read.
+      - run: npm run audit:supply-chain
+      - name: Upload quality-gate reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: quality-gate-reports
+          path: reports/
+          if-no-files-found: warn
 
   full-stack:
     runs-on: ubuntu-latest

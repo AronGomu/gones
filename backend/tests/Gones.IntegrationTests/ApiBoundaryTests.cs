@@ -310,6 +310,53 @@ public sealed class ApiBoundaryTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
+    public async Task Api_denies_every_unused_browser_capability_and_isolates_the_origin()
+    {
+        using var response = await client.GetAsync("/health/live");
+
+        var csp = response.Headers.GetValues("Content-Security-Policy").Single();
+        Assert.Contains("default-src 'none'", csp, StringComparison.Ordinal);
+        Assert.Contains("frame-ancestors 'none'", csp, StringComparison.Ordinal);
+        Assert.Contains("base-uri 'none'", csp, StringComparison.Ordinal);
+        Assert.Contains("form-action 'none'", csp, StringComparison.Ordinal);
+
+        var permissions = response.Headers.GetValues("Permissions-Policy").Single();
+        foreach (var feature in new[] { "camera", "microphone", "geolocation", "payment", "usb", "display-capture", "publickey-credentials-get" })
+        {
+            Assert.Contains($"{feature}=()", permissions, StringComparison.Ordinal);
+        }
+
+        Assert.Equal("same-origin", response.Headers.GetValues("Cross-Origin-Opener-Policy").Single());
+        Assert.Equal("same-site", response.Headers.GetValues("Cross-Origin-Resource-Policy").Single());
+    }
+
+    [Fact]
+    public async Task Hsts_is_emitted_only_over_tls()
+    {
+        using var plain = await client.GetAsync("/health/live");
+        using var secureClient = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"))
+            .CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
+        using var secure = await secureClient.GetAsync("/health/live");
+
+        Assert.False(plain.Headers.Contains("Strict-Transport-Security"));
+        var hsts = secure.Headers.GetValues("Strict-Transport-Security").Single();
+        Assert.Contains("max-age=63072000", hsts, StringComparison.Ordinal);
+        Assert.Contains("includeSubDomains", hsts, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Error_responses_keep_the_full_security_header_set()
+    {
+        using var response = await client.GetAsync("/api/_contract/boom");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.True(response.Headers.Contains("Content-Security-Policy"));
+        Assert.True(response.Headers.Contains("Permissions-Policy"));
+        Assert.True(response.Headers.Contains("Cross-Origin-Opener-Policy"));
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+    }
+
+    [Fact]
     public async Task Unknown_route_uses_not_found_problem_contract()
     {
         using var response = await client.GetAsync("/does-not-exist");

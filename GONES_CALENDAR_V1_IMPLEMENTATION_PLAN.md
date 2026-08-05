@@ -802,14 +802,14 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 
 **Deps:** C26, C28, C36, C39. **Lane:** F. **Runnable:** complete V1 passes local release-candidate quality gates.
 
-- [ ] RED: add abuse/E2E suites for IDOR, mass assignment, stale writes, duplicate submits, XSS payloads, CSV injection, open redirects, OAuth CSRF, refresh replay, webhook replay, oversized input.
-- [ ] Apply exact ASP.NET endpoint rate policies from locked defaults; test 429 + `Retry-After`; hash limiter keys. Document future ingress/global limiter requirement without vendor config.
-- [ ] Add CSP/Permissions-Policy/referrer/HSTS/header tests; sanitizer migration report; external links `noopener noreferrer`; no remote images.
-- [ ] Add DB query-count/time budgets, pagination caps, indexes, bounded Worker batches; eliminate N+1/unbounded lists/request waterfalls.
-- [ ] Add `axe-core` Cypress scans + keyboard/focus tests for dialogs/forms/calendar/nav; fix labels, names, contrast, live regions, 375px overflow.
-- [ ] Add route error boundaries, retries, loading/empty/error consistency, pending locks, stale-response guards.
-- [ ] Run dependency advisory/license/install-script audit + secret literal/env-client-bundle scan; pin accepted deps.
-- [ ] GREEN: all abuse/a11y/perf/resilience suites; `G-FULL`, `G-RUN`; retain reports as CI artifacts.
+- [x] RED: add abuse/E2E suites for IDOR, mass assignment, stale writes, duplicate submits, XSS payloads, CSV injection, open redirects, OAuth CSRF, refresh replay, webhook replay, oversized input.
+- [x] Apply exact ASP.NET endpoint rate policies from locked defaults; test 429 + `Retry-After`; hash limiter keys. Document future ingress/global limiter requirement without vendor config.
+- [x] Add CSP/Permissions-Policy/referrer/HSTS/header tests; sanitizer migration report; external links `noopener noreferrer`; no remote images.
+- [x] Add DB query-count/time budgets, pagination caps, indexes, bounded Worker batches; eliminate N+1/unbounded lists/request waterfalls.
+- [x] Add `axe-core` Cypress scans + keyboard/focus tests for dialogs/forms/calendar/nav; fix labels, names, contrast, live regions, 375px overflow.
+- [x] Add route error boundaries, retries, loading/empty/error consistency, pending locks, stale-response guards.
+- [x] Run dependency advisory/license/install-script audit + secret literal/env-client-bundle scan; pin accepted deps.
+- [x] GREEN: all abuse/a11y/perf/resilience suites; `G-FULL`, `G-RUN`; retain reports as CI artifacts.
 
 ## C41 — `ops: harden platform-agnostic OCI runtime artifacts`
 

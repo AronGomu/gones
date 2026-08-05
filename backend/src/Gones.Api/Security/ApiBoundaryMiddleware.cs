@@ -23,7 +23,12 @@ public sealed class ApiBoundaryMiddleware(RequestDelegate next, ILogger<ApiBound
             context.Response.Headers["X-Content-Type-Options"] = "nosniff";
             context.Response.Headers["X-Frame-Options"] = "DENY";
             context.Response.Headers["Referrer-Policy"] = "no-referrer";
-            context.Response.Headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'";
+            context.Response.Headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+            context.Response.Headers["Permissions-Policy"] = SecurityHeaders.PermissionsPolicy;
+            context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin";
+            context.Response.Headers["Cross-Origin-Resource-Policy"] = "same-site";
+            // HSTS is only meaningful (and only legal to emit) over TLS; the deployment edge terminates TLS.
+            if (context.Request.IsHttps) context.Response.Headers["Strict-Transport-Security"] = SecurityHeaders.StrictTransportSecurity;
             if (context.Request.Path.StartsWithSegments("/api") && string.IsNullOrWhiteSpace(context.Response.Headers.CacheControl)) context.Response.Headers.CacheControl = "no-store";
             return Task.CompletedTask;
         });
@@ -88,6 +93,17 @@ public sealed class ApiRequestSizeMiddleware(RequestDelegate next)
             return count;
         }
     }
+}
+
+/// <summary>Single source for the response security headers asserted by <c>ApiBoundaryTests</c> and by the nginx front-end config.</summary>
+public static class SecurityHeaders
+{
+    /// <summary>Denies every powerful browser feature the API and SPA do not use.</summary>
+    public const string PermissionsPolicy =
+        "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), usb=(), xr-spatial-tracking=()";
+
+    /// <summary>Two years, subdomains included, preload-eligible.</summary>
+    public const string StrictTransportSecurity = "max-age=63072000; includeSubDomains; preload";
 }
 
 public static class ApiLogEvents

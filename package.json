@@ -22,16 +22,18 @@
     "auth:smoke": "node scripts/smoke-account-lifecycle.mjs",
     "migration:smoke": "node scripts/smoke-migration.mjs",
     "e2e:ci": "node scripts/full-stack-ci.mjs",
+    "audit:supply-chain": "node scripts/audit-supply-chain.mjs",
     "db:reset": "node scripts/reset-local-stack.mjs",
     "db:seed": "node scripts/seed-local.mjs"
   },
   "devDependencies": {
-    "@angular/build": "^21.2.19",
-    "@angular/cli": "^21.2.19",
-    "@angular/compiler-cli": "^21.2.18",
+    "@angular/build": "^21.2.20",
+    "@angular/cli": "^21.2.20",
+    "@angular/compiler-cli": "^21.2.19",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
     "angular-eslint": "21.4.0",
+    "axe-core": "4.13.0",
     "cypress": "^15.0.0",
     "eslint": "^10.3.0",
     "jsdom": "^29.1.1",
@@ -40,20 +42,26 @@
     "vitest": "^4.1.7"
   },
   "dependencies": {
-    "@angular/animations": "^21.2.18",
+    "@angular/animations": "^21.2.19",
     "@angular/cdk": "^21.2.14",
-    "@angular/common": "^21.2.18",
-    "@angular/compiler": "^21.2.18",
-    "@angular/core": "^21.2.18",
-    "@angular/forms": "^21.2.18",
+    "@angular/common": "^21.2.19",
+    "@angular/compiler": "^21.2.19",
+    "@angular/core": "^21.2.19",
+    "@angular/forms": "^21.2.19",
     "@angular/material": "^21.2.14",
-    "@angular/platform-browser": "^21.2.18",
-    "@angular/router": "^21.2.18",
-    "@angular/service-worker": "^21.2.18",
+    "@angular/platform-browser": "^21.2.19",
+    "@angular/router": "^21.2.19",
+    "@angular/service-worker": "^21.2.19",
     "rxjs": "^7.8.2",
     "tslib": "^2.8.1"
   },
   "overrides": {
-    "qs": "6.15.2"
+    "qs": "6.15.2",
+    "@angular/build": {
+      "undici": "7.29.0"
+    },
+    "jsdom": {
+      "undici": "7.29.0"
+    }
   }
 }

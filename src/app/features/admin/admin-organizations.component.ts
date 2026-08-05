@@ -155,6 +155,7 @@ export class AdminOrganizationsComponent {
   }
 
   private async mutate(action: () => Promise<void>): Promise<void> {
+    if (this.pending()) return;
     this.pending.set(true);
     this.error.set('');
     this.status.set('');

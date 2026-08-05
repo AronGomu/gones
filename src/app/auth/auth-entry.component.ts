@@ -9,6 +9,7 @@ import { I18nService } from '../i18n/i18n.service';
 import { AuthFieldErrors, fieldErrorsFromProblem } from './auth-errors';
 import { AuthService } from './auth.service';
 import { registrationDestination } from './registration-gate';
+import { safeReturnUrl } from './return-url';
 
 @Component({ selector: 'gones-field-errors', standalone: true, template: `@for (message of messages() ?? []; track message) { <p class="field-error" role="alert">{{ message }}</p> }` })
 export class FieldErrorsComponent { readonly messages = input<string[]>(); }
@@ -122,8 +123,7 @@ export class AuthEntryComponent {
   async submitLogin(): Promise<void> {
     await this.run(async () => {
       await this.auth.login({ email: this.email, password: this.password, deviceLabel: deviceLabel() });
-      const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-      await this.router.navigateByUrl(returnUrl?.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : '/profile');
+      await this.router.navigateByUrl(safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), '/profile'));
     });
   }
 

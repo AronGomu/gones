@@ -12,6 +12,7 @@ import {
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { LatestRequest } from '../../shared/async-guards';
 
 @Component({
   standalone: true,
@@ -106,6 +107,7 @@ export class AdminUsersComponent {
   readonly impactError = signal('');
   readonly closeError = signal('');
   readonly pages = signal(1);
+  private readonly latest = new LatestRequest();
   search = '';
   page = 1;
   pageSize = 20;
@@ -131,17 +133,20 @@ export class AdminUsersComponent {
   }
 
   async reload(): Promise<void> {
+    const request = this.latest.begin();
     this.loading.set(true);
     this.error.set('');
     try {
       const response = await firstValueFrom(this.client.users(this.search || undefined, this.page, this.pageSize));
+      if (!this.latest.isCurrent(request)) return;
       this.items.set(response.items ?? []);
       this.pages.set(totalPages(response.totalCount ?? 0, response.pageSize || this.pageSize));
     } catch {
+      if (!this.latest.isCurrent(request)) return;
       this.error.set(this.i18n.t('admin.loadFailed'));
       this.items.set([]);
     } finally {
-      this.loading.set(false);
+      if (this.latest.isCurrent(request)) this.loading.set(false);
     }
   }
 
@@ -198,6 +203,7 @@ export class AdminUsersComponent {
   }
 
   private async mutate(action: () => Promise<unknown>): Promise<void> {
+    if (this.pending()) return;
     this.pending.set(true);
     this.error.set('');
     try {
