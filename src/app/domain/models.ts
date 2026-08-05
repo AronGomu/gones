@@ -1,5 +1,5 @@
-export const GONES_DATA_VERSION = 3;
-export const SUPPORTED_IMPORT_DATA_VERSIONS = [1, 2, 3] as const;
+export const GONES_DATA_VERSION = 4;
+export const SUPPORTED_IMPORT_DATA_VERSIONS = [1, 2, 3, 4] as const;
 export const PLACEHOLDER_LEAGUE_ID = 'placeholder-league';
 /** Canonical stored name only. UI must display via i18n (`live.unassigned` / `liveList.unassigned`), never this string by language. */
 export const PLACEHOLDER_LEAGUE_NAME = 'Unassigned Tournaments';

@@ -761,14 +761,14 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 
 **Deps:** C17, C30, C33, C36. **Lane:** E. **Runnable:** pre-cutover app can download migration bundle; public v4 remains safe.
 
-- [ ] RED: schema/snapshot tests for v4 allowlist + explicit secret/PII denylist; v1–v3 compatibility tests; private bundle round-trip fixtures.
-- [ ] Increment `GONES_DATA_VERSION` to 4; define versioned JSON Schemas + max sizes/counts/checksums.
-- [ ] Public League/Full Export v4 includes League/Result source + public Scheduled fields; excludes Live drafts, Users, PII, memberships, registrations, blocks, audit, tokens, outbox/history.
-- [ ] Private migration bundle reads legacy browser stores: `gones.frontend.backend.v1`, `gones.live-tournaments.v1`, `gones.settings*`; includes Live drafts + Deck Archetypes, excludes language/auth. Include stable per-browser `sourceInstanceId`, store hashes, export time.
-- [ ] Add migration-bundle download UI with warning, file hash, source-instance ID, counts, app/data versions; no browser→server upload. Test origin-scoped `localStorage` behavior locally; future cutover runbook must deploy exporter on every legacy origin + inventory every known device/browser.
-- [ ] Preserve v1–v3 League Restore parser; v4 restore uses server endpoints/auth rules; malformed/unsupported rejects before mutation.
-- [ ] Add automated grep/fixture assertion proving fake email/token/password never appears in either exported artifact.
-- [ ] GREEN: export/restore/schema/Cypress download tests; `G-FULL`, `G-RUN`; inspect v4 + private fixture.
+- [x] RED: schema/snapshot tests for v4 allowlist + explicit secret/PII denylist; v1–v3 compatibility tests; private bundle round-trip fixtures.
+- [x] Increment `GONES_DATA_VERSION` to 4; define versioned JSON Schemas + max sizes/counts/checksums.
+- [x] Public League/Full Export v4 includes League/Result source + public Scheduled fields; excludes Live drafts, Users, PII, memberships, registrations, blocks, audit, tokens, outbox/history.
+- [x] Private migration bundle reads legacy browser stores: `gones.frontend.backend.v1`, `gones.live-tournaments.v1`, `gones.settings*`; includes Live drafts + Deck Archetypes, excludes language/auth. Include stable per-browser `sourceInstanceId`, store hashes, export time.
+- [x] Add migration-bundle download UI with warning, file hash, source-instance ID, counts, app/data versions; no browser→server upload. Test origin-scoped `localStorage` behavior locally; future cutover runbook must deploy exporter on every legacy origin + inventory every known device/browser.
+- [x] Preserve v1–v3 League Restore parser; v4 restore uses server endpoints/auth rules; malformed/unsupported rejects before mutation.
+- [x] Add automated grep/fixture assertion proving fake email/token/password never appears in either exported artifact.
+- [x] GREEN: export/restore/schema/Cypress download tests; `G-FULL`, `G-RUN`; inspect v4 + private fixture.
 
 ## C38 — `feat: add dry-run-first atomic migration CLI`
 

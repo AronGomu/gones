@@ -59,6 +59,10 @@ try {
     if (settingsLocal.status !== 0) process.exitCode = settingsLocal.status ?? 1;
   }
   if (!process.exitCode) {
+    const migrationBundle = runCypress('cypress/e2e/migration-bundle.cy.js');
+    if (migrationBundle.status !== 0) process.exitCode = migrationBundle.status ?? 1;
+  }
+  if (!process.exitCode) {
     const liveLifecycle = runCypress('cypress/e2e/running-tournament-lifecycle.cy.js');
     if (liveLifecycle.status !== 0) process.exitCode = liveLifecycle.status ?? 1;
   }

@@ -149,7 +149,7 @@ function fixtureDocument() {
 
   return {
     fixtureVersion: 1,
-    sourceDataVersion: 3,
+    sourceDataVersion: 4,
     normalization: [{ input: normalizationInput, expected: normalizeLeague(normalizationInput as never, { idFactory: createIdFactory('normalized') }) }],
     csvImports: [
       { input: { text: csv, idPrefix: 'csv' }, expected: importRoundEntries(csv, { idFactory: createIdFactory('csv') }) },
@@ -200,7 +200,7 @@ function manifest(parityJson: string, document: ReturnType<typeof fixtureDocumen
       ],
       sourceRevision: 'e930c8399ae3720049bc6e0169964c3d5c75c025',
       runtime: { node: 'v24.18.0', icu: '78.3', typescript: '5.9.3', vitest: '4.1.7' },
-      sourceDataVersion: 3
+      sourceDataVersion: 4
     },
     serialization: 'JSON.stringify(value, null, 2) + LF',
     paritySha256: createHash('sha256').update(parityJson).digest('hex'),

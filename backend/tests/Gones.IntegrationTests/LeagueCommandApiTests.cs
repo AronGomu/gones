@@ -182,7 +182,8 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
     public async Task League_and_Full_Data_restore_remap_all_ids_names_enforce_roles_and_redact_audit()
     {
         var source = FixtureLeague("command-league", "Command League");
-        var leagueExport = new { kind = "league", gonesDataVersion = 3, league = source };
+        // v4 export restores through the server endpoint; the fullData fixture below stays at v3 for legacy parser coverage.
+        var leagueExport = new { kind = "league", gonesDataVersion = 4, league = source };
         using var restored = await SendJsonAsync(HttpMethod.Post, "/api/leagues/restore", leagueExport, "Organizer", key: "restore-one");
         Assert.Equal(HttpStatusCode.Created, restored.StatusCode);
         var restoredBody = await Body(restored);

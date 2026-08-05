@@ -1,6 +1,6 @@
 {
   "fixtureVersion": 1,
-  "sourceDataVersion": 3,
+  "sourceDataVersion": 4,
   "normalization": [
     {
       "input": {
@@ -761,7 +761,7 @@
     {
       "input": {
         "data": {
-          "version": 3,
+          "version": 4,
           "leagues": [
             {
               "id": "stats-league",
@@ -1621,7 +1621,7 @@
     {
       "input": {
         "data": {
-          "version": 3,
+          "version": 4,
           "leagues": [
             {
               "id": "stats-league",
@@ -2244,7 +2244,7 @@
     {
       "input": {
         "data": {
-          "version": 3,
+          "version": 4,
           "leagues": [
             {
               "id": "stats-league",

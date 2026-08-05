@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { CalendarEventRepository } from './calendar-event-repository.service';
 import { LeagueRepository } from './league-repository.service';
 import { normalizeExportFile, restoreFullDataBundle, restoreLeague } from '../domain/export-restore';
+import { EXPORT_LIMITS, verifyExportChecksum } from '../domain/export-schemas';
 import { defaultIdFactory } from '../domain/models';
 import { logBoundaryError } from '../shared/app-logger';
 
@@ -11,8 +12,8 @@ export interface LeagueImportResult {
   importedCalendarEventIds: string[];
 }
 
-const MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_FULL_DATA_LEAGUES = 100;
+const MAX_IMPORT_FILE_BYTES = EXPORT_LIMITS.maxImportFileBytes;
+const MAX_FULL_DATA_LEAGUES = EXPORT_LIMITS.maxFullDataLeagues;
 
 function importKey(): string {
   return globalThis.crypto?.randomUUID?.() ?? `league-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -27,6 +28,8 @@ export class LeagueImportService {
 
     const parsed = JSON.parse(await file.text());
     const exportFile = normalizeExportFile(parsed);
+    // v4 artifacts carry a checksum; a mismatch rejects the file before any mutation.
+    if (!(await verifyExportChecksum(parsed))) throw new Error('gonesExportChecksumMismatch');
 
     if (exportFile.kind === 'fullData') {
       if (exportFile.leagues.length > MAX_FULL_DATA_LEAGUES) throw new Error('gonesImportTooManyLeagues');

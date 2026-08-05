@@ -19,6 +19,7 @@ import { LiveTournamentRepository } from '../../data/live-tournament-repository.
 import { collectKnownPlayerNames } from '../../domain/player-stats';
 import { playerNameKey, renamePlayerInLeague, renamePlayerInLiveTournament, samePlayerName } from '../../domain/rename-player';
 import { trimPlayerName } from '../../domain/models';
+import { buildMigrationBundle, MigrationBundle, migrationBundleFilename } from '../../domain/migration-bundle';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -431,6 +432,24 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
+      <mat-card class="panel settings-panel">
+        <mat-card-content>
+          <h2>{{ i18n.t('settings.migrationTitle') }}</h2>
+          <p class="warning" data-cy="settings-migration-warning">{{ i18n.t('settings.migrationWarning') }}</p>
+          <p class="muted">{{ i18n.t('settings.migrationHelp') }}</p>
+          <button mat-stroked-button class="secondary-action" type="button" data-cy="settings-migration-export-button" [disabled]="migrationExporting()" (click)="downloadMigrationBundle()">{{ migrationExporting() ? i18n.t('common.loading') : i18n.t('settings.migrationDownload') }}</button>
+          @if (migrationSummary(); as summary) {
+            <dl class="migration-summary" data-cy="settings-migration-summary">
+              <div><dt>{{ i18n.t('settings.migrationHash') }}</dt><dd data-cy="settings-migration-hash">{{ summary.bundleChecksum }}</dd></div>
+              <div><dt>{{ i18n.t('settings.migrationInstance') }}</dt><dd data-cy="settings-migration-instance">{{ summary.sourceInstanceId }}</dd></div>
+              <div><dt>{{ i18n.t('settings.migrationVersionsLabel') }}</dt><dd data-cy="settings-migration-versions">{{ i18n.t('settings.migrationVersions', { app: summary.gonesAppVersion, data: summary.gonesDataVersion, format: summary.bundleFormatVersion }) }}</dd></div>
+              <div><dt>{{ i18n.t('settings.migrationCountsLabel') }}</dt><dd data-cy="settings-migration-counts">{{ i18n.t('settings.migrationCounts', { leagues: summary.counts.leagues, tournaments: summary.counts.tournaments, calendarEvents: summary.counts.calendarEvents, liveTournaments: summary.counts.liveTournaments, deckArchetypes: summary.counts.deckArchetypes }) }}</dd></div>
+            </dl>
+          }
+          @if (migrationError()) { <p class="error" role="alert" data-cy="settings-migration-error">{{ migrationError() }}</p> }
+        </mat-card-content>
+      </mat-card>
+
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
@@ -501,6 +520,10 @@ export class SettingsComponent {
   readonly orgSaving = signal(false);
   readonly orgMessage = signal('');
 
+  readonly migrationExporting = signal(false);
+  readonly migrationSummary = signal<MigrationBundle | null>(null);
+  readonly migrationError = signal('');
+
   private serverCatalogLoaded = false;
   private serverPlayersLoaded = false;
   private ownedOrganizationsLoaded = false;
@@ -528,6 +551,24 @@ export class SettingsComponent {
 
   async setLanguage(value: string): Promise<void> {
     await this.deckArchetypes.setLanguage(value);
+  }
+
+  /** Local-only download of the private migration bundle. Never uploads browser data to the server. */
+  async downloadMigrationBundle(): Promise<void> {
+    if (this.migrationExporting()) return;
+    this.migrationExporting.set(true);
+    this.migrationError.set('');
+    try {
+      const bundle = await buildMigrationBundle({ storage: window.localStorage, appVersion: '0.1.0' });
+      saveJsonFile(bundle, migrationBundleFilename(bundle.sourceInstanceId, new Date(bundle.exportedAt)));
+      this.migrationSummary.set(bundle);
+      logBoundaryInfo('settings.migrationBundle', { sourceInstanceId: bundle.sourceInstanceId, ...bundle.counts });
+    } catch (error) {
+      logBoundaryError('settings.migrationBundle', error);
+      this.migrationError.set(this.i18n.t('settings.migrationFailed'));
+    } finally {
+      this.migrationExporting.set(false);
+    }
   }
 
   languageLabel(): string {

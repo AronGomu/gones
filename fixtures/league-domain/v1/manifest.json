@@ -21,10 +21,10 @@
       "typescript": "5.9.3",
       "vitest": "4.1.7"
     },
-    "sourceDataVersion": 3
+    "sourceDataVersion": 4
   },
   "serialization": "JSON.stringify(value, null, 2) + LF",
-  "paritySha256": "be12c510ee59d557a0ceb74e191b58cf5b24cec8c7536bc6908627af093431dc",
+  "paritySha256": "590f4ea6b1e64669f0a729adf90d5b462a68124bd0879c4e982d5d88824a02ca",
   "caseCounts": {
     "normalization": 1,
     "csvImports": 2,

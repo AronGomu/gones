@@ -7,7 +7,7 @@ describe('export/restore contracts', () => {
     const source = createLeague({ id: 'old-league', name: 'League', tournaments: [{ id: 'old-tournament', leagueId: 'old-league', name: 'Tournament', tournamentDate: '2026-01-01', rounds: [{ id: 'old-round', entries: [{ kind: 'match', id: 'old-entry', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }] }] });
     const otherLeague = createLeague({ id: 'other-league', name: 'Other League' });
     const file = exportLeague(source, { appVersion: 'test', now: new Date('2026-01-01T00:00:00Z') });
-    expect(file).toMatchObject({ kind: 'league', gonesDataVersion: 3, gonesAppVersion: 'test' });
+    expect(file).toMatchObject({ kind: 'league', gonesDataVersion: 4, gonesAppVersion: 'test' });
     expect(file.league.id).toBe('old-league');
     expect(file.league.name).toBe('League');
     expect(file.league.tournaments).toHaveLength(1);
@@ -63,5 +63,28 @@ describe('export/restore contracts', () => {
 
   it('rejects unsupported future data versions', () => {
     expect(() => restoreLeague({ kind: 'league', gonesDataVersion: 999, league: {} })).toThrow('unsupportedGonesExport');
+    expect(() => restoreLeague({ kind: 'league', gonesDataVersion: 5, league: {} })).toThrow('unsupportedGonesExport');
+  });
+
+  it('keeps restoring every prior kind-tagged data version 1 through 4', () => {
+    for (const version of [1, 2, 3, 4]) {
+      const restored = restoreLeague(
+        { kind: 'league', gonesDataVersion: version, gonesAppVersion: 'old', exportedAt: '', league: { id: 'l', name: `League v${version}`, status: 'active', tournaments: [] } },
+        { idFactory: createIdFactory(`v${version}`) }
+      );
+      expect(restored.name).toBe(`League v${version}`);
+    }
+  });
+
+  it('exports only allowlisted public fields even when inputs carry private extras', () => {
+    const pollutedLeague = { ...createLeague({ name: 'League' }), ownerEmail: 'pii-probe@example.com', refreshToken: 'fake-refresh-token-123' } as never;
+    const pollutedEvent = { ...createCalendarEvent({ title: 'Night' }), createdByUserId: 'user-9', password: 'Sup3rSecretPassword!' } as never;
+    const file = exportFullData([pollutedLeague], { calendarEvents: [pollutedEvent] });
+    const artifact = JSON.stringify(file);
+    expect(Object.keys(file.leagues[0]).sort()).toEqual(['id', 'name', 'status', 'tournaments']);
+    expect(Object.keys(file.calendarEvents[0]).sort()).toEqual(['address', 'city', 'country', 'description', 'endTime', 'eventDate', 'externalLink', 'id', 'location', 'richDescriptionHtml', 'slug', 'startTime', 'title']);
+    for (const probe of ['pii-probe@example.com', 'fake-refresh-token-123', 'Sup3rSecretPassword!', 'ownerEmail', 'createdByUserId']) {
+      expect(artifact).not.toContain(probe);
+    }
   });
 });

@@ -7,7 +7,7 @@ namespace Gones.Domain.Leagues;
 
 public static partial class LeagueNormalizer
 {
-    public const int GonesDataVersion = 3;
+    public const int GonesDataVersion = 4;
     public const string PlaceholderLeagueId = "placeholder-league";
     public const string PlaceholderLeagueName = "Unassigned Tournaments";
 

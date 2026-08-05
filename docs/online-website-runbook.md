@@ -32,3 +32,21 @@ After deployment:
 - Ask users to export backups before clearing browser data.
 - Use Gones Restore to move data between browsers.
 - The future ASP.NET API should implement the `ApplicationBackend` contract before becoming the production backend.
+
+## 4. Cutover migration exporter (Export v4 / private migration bundle)
+
+`localStorage` is origin-scoped: each website address (origin), each browser, and each
+device holds its own copy of the legacy stores (`gones.frontend.backend.v1`,
+`gones.live-tournaments.v1`, `gones.settings*`). Before the server cutover:
+
+1. Deploy the app build containing the Settings → "Migration bundle (private)" exporter
+   on **every legacy origin** still in use (GitHub Pages, any mirror or staging origin).
+2. Inventory **every known device and browser** that ever held tournament data, and run
+   the migration-bundle download on each one. Track each `sourceInstanceId` (shown in the
+   UI and stored under `gones.migration.source-instance.v1`) plus the reported file hash
+   and counts in the inventory sheet.
+3. Collect the `*.private.json` bundles offline for the migration CLI (C38). The bundle
+   contains private data (Live drafts); it must never be uploaded from the browser to the
+   server or shared publicly.
+4. Public v4 exports (`Export all leagues` / League export) stay safe to share: they only
+   carry League/Result source and public Scheduled fields, protected by a checksum.

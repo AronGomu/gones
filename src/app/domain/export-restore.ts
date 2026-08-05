@@ -1,4 +1,4 @@
-import { CalendarEventDocument, createByeRoundEntry, createCalendarEvent, createIdFactory, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament, GONES_DATA_VERSION, LeagueDocument, normalizeCalendarEvents, normalizeLeague, normalizeLeagueStatus, RoundEntry } from './models';
+import { CalendarEventDocument, createByeRoundEntry, createCalendarEvent, createIdFactory, createInvalidRoundEntry, createLeague, createMatchRoundEntry, createRound, createTournament, GONES_DATA_VERSION, LeagueDocument, normalizeCalendarEvents, normalizeLeague, normalizeLeagueStatus, RoundEntry, SUPPORTED_IMPORT_DATA_VERSIONS } from './models';
 
 export type ExportKind = 'league' | 'fullData';
 
@@ -77,7 +77,7 @@ export function normalizeExportFile(file: unknown): GonesExportFile {
 }
 
 function assertSupportedVersion(version: unknown): void {
-  if (version !== 1 && version !== 2 && version !== 3) throw new Error('unsupportedGonesExport');
+  if (!SUPPORTED_IMPORT_DATA_VERSIONS.some((supported) => supported === version)) throw new Error('unsupportedGonesExport');
 }
 
 function remapLeague(source: LeagueDocument, { idFactory, existingLeagues }: { idFactory: () => string; existingLeagues: LeagueDocument[] }): LeagueDocument {

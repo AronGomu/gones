@@ -89,7 +89,7 @@ public sealed class PublicLeagueApiTests : IAsyncLifetime
         var leagueJson = await leagueExport.Content.ReadAsStringAsync();
         using var league = JsonDocument.Parse(leagueJson);
         Assert.Equal("league", league.RootElement.GetProperty("kind").GetString());
-        Assert.Equal(3, league.RootElement.GetProperty("gonesDataVersion").GetInt32());
+        Assert.Equal(4, league.RootElement.GetProperty("gonesDataVersion").GetInt32());
         Assert.Equal("api-league", league.RootElement.GetProperty("league").GetProperty("id").GetString());
         Assert.False(league.RootElement.TryGetProperty("result", out _));
         Assert.False(league.RootElement.TryGetProperty("warnings", out _));

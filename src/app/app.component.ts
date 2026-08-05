@@ -11,6 +11,7 @@ import { canManageLeagues, leagueCommandError } from './data/league-command-ux';
 import { LeagueRepository } from './data/league-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
+import { attachExportChecksum } from './domain/export-schemas';
 import { CalendarEventDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { DeckArchetypeSettingsService, parseAppSettings } from './shared/deck-archetype-settings.service';
@@ -349,10 +350,10 @@ export class AppComponent {
 
   async downloadFullExport(): Promise<void> {
     const leagues = (await this.repo.listLeagues()).filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID);
-    saveJsonFile(exportFullData(leagues, { calendarEvents: await this.calendarRepo.list() }), 'gones-full-data.gones.json');
+    saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: await this.calendarRepo.list() })), 'gones-full-data.gones.json');
   }
 
-  downloadLeagueExport(league: PersistedLeague): void { const exported = exportLeague(league); saveJsonFile(exported, leagueExportFilename(league, new Date(exported.exportedAt))); }
+  async downloadLeagueExport(league: PersistedLeague): Promise<void> { const exported = exportLeague(league); saveJsonFile(await attachExportChecksum(exported), leagueExportFilename(league, new Date(exported.exportedAt))); }
   isPlaceholderLeague(league: PersistedLeague): boolean { return league.id === PLACEHOLDER_LEAGUE_ID; }
 
   async deleteLeague(league: PersistedLeague): Promise<void> {
@@ -420,6 +421,7 @@ function importErrorMessage(error: unknown, i18n: I18nService): string {
     if (error.message === 'gonesImportFileTooLarge') return i18n.t('msg.importTooLarge');
     if (error.message === 'gonesImportTooManyLeagues') return i18n.t('msg.importTooManyLeagues');
     if (error.message === 'unsupportedGonesExport' || error.message === 'wrongExportKind') return i18n.t('msg.importUnsupported');
+    if (error.message === 'gonesExportChecksumMismatch') return i18n.t('msg.importChecksumMismatch');
   }
   if (error instanceof SyntaxError) return i18n.t('msg.importBadJson');
   return i18n.t('msg.importFailed');
