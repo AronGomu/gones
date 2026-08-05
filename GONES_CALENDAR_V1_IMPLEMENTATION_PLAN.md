@@ -748,14 +748,14 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 
 **Deps:** C13, C15, C31, C34. **Lane:** D/E. **Runnable:** language local; profile/org/admin settings separated.
 
-- [ ] RED: tests for Admin-only global Deck Archetype CRUD, case/space uniqueness, Organizer Player Name correction, cross-doc atomicity, org notification prefs.
-- [ ] Add global DeckArchetype catalog seeded bundled Legacy presets; soft delete prevents new selection but preserves historical labels.
-- [ ] Implement Admin catalog CRUD/import; no Organizer global catalog mutation.
-- [ ] Implement Organizer/Admin Player Name search + rename command over authorized shared League source; exact case-sensitive source semantics; preview affected count before commit.
-- [ ] Keep browser language local; optionally sync PreferredLanguage only on profile mutation. Never overwrite browser choice during anonymous use.
-- [ ] Refactor Settings page into Browser Language, Profile link, Admin Catalog, Organizer Maintenance, Org Notification sections by capability.
-- [ ] Remove flag-on local Deck Archetype mutation authority; keep local read only for migration exporter until future public cutover + soak.
-- [ ] GREEN: API/Angular/Cypress settings tests; `G-FULL`, `G-RUN` each role/language.
+- [x] RED: tests for Admin-only global Deck Archetype CRUD, case/space uniqueness, Organizer Player Name correction, cross-doc atomicity, org notification prefs.
+- [x] Add global DeckArchetype catalog seeded bundled Legacy presets; soft delete prevents new selection but preserves historical labels.
+- [x] Implement Admin catalog CRUD/import; no Organizer global catalog mutation.
+- [x] Implement Organizer/Admin Player Name search + rename command over authorized shared League source; exact case-sensitive source semantics; preview affected count before commit.
+- [x] Keep browser language local; optionally sync PreferredLanguage only on profile mutation. Never overwrite browser choice during anonymous use.
+- [x] Refactor Settings page into Browser Language, Profile link, Admin Catalog, Organizer Maintenance, Org Notification sections by capability.
+- [x] Remove flag-on local Deck Archetype mutation authority; keep local read only for migration exporter until future public cutover + soak.
+- [x] GREEN: API/Angular/Cypress settings tests; `G-FULL`, `G-RUN` each role/language.
 
 ## C37 — `feat: define public Export v4 and private migration bundle`
 

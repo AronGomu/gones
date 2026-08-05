@@ -70,6 +70,37 @@ internal static class AdminEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
+
+        admin.MapGet("/deck-archetypes", ListAdminDeckArchetypesAsync)
+            .WithName("ListAdminDeckArchetypes")
+            .Produces<IReadOnlyList<AdminDeckArchetypeResponse>>();
+        admin.MapPost("/deck-archetypes", CreateDeckArchetypeAsync)
+            .WithName("CreateDeckArchetype")
+            .AddEndpointFilter<DataAnnotationsValidationFilter>()
+            .Produces<AdminDeckArchetypeResponse>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+        admin.MapPut("/deck-archetypes/{archetypeId:guid}", RenameDeckArchetypeAsync)
+            .WithName("RenameDeckArchetype")
+            .AddEndpointFilter<DataAnnotationsValidationFilter>()
+            .Produces<AdminDeckArchetypeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+        admin.MapDelete("/deck-archetypes/{archetypeId:guid}", DeleteDeckArchetypeAsync)
+            .WithName("DeleteDeckArchetype")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        admin.MapPost("/deck-archetypes/{archetypeId:guid}/restore", RestoreDeckArchetypeAsync)
+            .WithName("RestoreDeckArchetype")
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        admin.MapPost("/deck-archetypes/import", ImportDeckArchetypesAsync)
+            .WithName("ImportDeckArchetypes")
+            .AddEndpointFilter<DataAnnotationsValidationFilter>()
+            .Produces<DeckArchetypeImportResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict);
     }
 
     public static void MapPublicCatalogEndpoints(this WebApplication app)
@@ -77,6 +108,11 @@ internal static class AdminEndpoints
         app.MapGet("/api/formats", ListPublicFormatsAsync)
             .AllowAnonymous()
             .Produces<IReadOnlyList<PublicFormatResponse>>();
+
+        app.MapGet("/api/deck-archetypes", ListPublicDeckArchetypesAsync)
+            .WithName("ListDeckArchetypes")
+            .AllowAnonymous()
+            .Produces<IReadOnlyList<PublicDeckArchetypeResponse>>();
     }
 
     private static async Task<IResult> ListUsersAsync(
@@ -318,6 +354,80 @@ internal static class AdminEndpoints
         return Results.Ok(formats);
     }
 
+    private static async Task<IResult> ListAdminDeckArchetypesAsync(GonesDbContext database, CancellationToken cancellationToken)
+    {
+        var archetypes = await database.DeckArchetypes.AsNoTracking()
+            .OrderBy(archetype => archetype.Name)
+            .ToListAsync(cancellationToken);
+        return Results.Ok(archetypes.Select(ToAdminDeckArchetype).ToArray());
+    }
+
+    private static async Task<IResult> CreateDeckArchetypeAsync(
+        UpsertDeckArchetypeRequest request,
+        ClaimsPrincipal principal,
+        AdminCatalogService catalog,
+        CancellationToken cancellationToken)
+    {
+        var archetype = await catalog.CreateArchetypeAsync(CurrentUserId(principal), request.Name, cancellationToken);
+        return Results.Created($"/api/admin/deck-archetypes/{archetype.Id:D}", ToAdminDeckArchetype(archetype));
+    }
+
+    private static async Task<IResult> RenameDeckArchetypeAsync(
+        Guid archetypeId,
+        UpsertDeckArchetypeRequest request,
+        ClaimsPrincipal principal,
+        AdminCatalogService catalog,
+        CancellationToken cancellationToken)
+    {
+        var archetype = await catalog.RenameArchetypeAsync(CurrentUserId(principal), archetypeId, request.Name, cancellationToken);
+        return Results.Ok(ToAdminDeckArchetype(archetype));
+    }
+
+    private static async Task<IResult> DeleteDeckArchetypeAsync(
+        Guid archetypeId,
+        ClaimsPrincipal principal,
+        AdminCatalogService catalog,
+        CancellationToken cancellationToken)
+    {
+        await catalog.SoftDeleteArchetypeAsync(CurrentUserId(principal), archetypeId, cancellationToken);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> RestoreDeckArchetypeAsync(
+        Guid archetypeId,
+        ClaimsPrincipal principal,
+        AdminCatalogService catalog,
+        CancellationToken cancellationToken)
+    {
+        await catalog.RestoreArchetypeAsync(CurrentUserId(principal), archetypeId, cancellationToken);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> ImportDeckArchetypesAsync(
+        ImportDeckArchetypesRequest request,
+        ClaimsPrincipal principal,
+        AdminCatalogService catalog,
+        CancellationToken cancellationToken)
+    {
+        if (request.Names is null || request.Names.Count == 0) throw Validation("names", "At least one Deck Archetype name is required.");
+        if (request.Names.Count > 1000) throw Validation("names", "Import supports at most 1000 Deck Archetype names.");
+        var result = await catalog.ImportArchetypesAsync(CurrentUserId(principal), request.Names, cancellationToken);
+        return Results.Ok(new DeckArchetypeImportResponse(result.Added, result.Restored, result.Skipped, result.Total));
+    }
+
+    private static async Task<IResult> ListPublicDeckArchetypesAsync(GonesDbContext database, CancellationToken cancellationToken)
+    {
+        var archetypes = await database.DeckArchetypes.AsNoTracking()
+            .Where(archetype => archetype.DeletedAt == null)
+            .OrderBy(archetype => archetype.Name)
+            .Select(archetype => new PublicDeckArchetypeResponse(archetype.Id, archetype.Name))
+            .ToListAsync(cancellationToken);
+        return Results.Ok(archetypes);
+    }
+
+    private static AdminDeckArchetypeResponse ToAdminDeckArchetype(DeckArchetype archetype) =>
+        new(archetype.Id, archetype.Name, archetype.DeletedAt, archetype.CreatedAt, archetype.UpdatedAt);
+
     private static AdminFormatResponse ToAdminFormat(TournamentFormat format) =>
         new(format.Id, format.Name, format.Slug, format.SortOrder, format.DeletedAt, format.CreatedAt, format.UpdatedAt);
 
@@ -454,3 +564,26 @@ internal sealed record PublicFormatResponse(
     string Name,
     string Slug,
     int SortOrder);
+
+internal sealed record UpsertDeckArchetypeRequest(
+    [property: Required, StringLength(DeckArchetype.MaximumNameLength)] string Name);
+
+internal sealed record ImportDeckArchetypesRequest(
+    [property: Required] IReadOnlyList<string> Names);
+
+internal sealed record AdminDeckArchetypeResponse(
+    Guid Id,
+    string Name,
+    Instant? DeletedAt,
+    Instant CreatedAt,
+    Instant UpdatedAt);
+
+internal sealed record DeckArchetypeImportResponse(
+    int Added,
+    int Restored,
+    int Skipped,
+    int Total);
+
+internal sealed record PublicDeckArchetypeResponse(
+    Guid Id,
+    string Name);

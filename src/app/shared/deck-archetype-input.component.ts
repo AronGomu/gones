@@ -2,6 +2,7 @@ import { Component, EventEmitter, Input, Output, inject, signal } from '@angular
 import { FormsModule } from '@angular/forms';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
+import { environment } from '../../environments/environment';
 import { I18nService } from '../i18n/i18n.service';
 import { DeckArchetypeSettingsService, fuzzyMatchIndices, normalizeArchetypeName } from './deck-archetype-settings.service';
 
@@ -51,6 +52,8 @@ export class DeckArchetypeInputComponent {
   @Output() readonly valueChange = new EventEmitter<string>();
 
   readonly adding = signal(false);
+  /** Server-catalog builds remove local mutation authority; the catalog is Admin-managed in Settings. */
+  private readonly localMutationAllowed = !environment.features.leagueServer;
 
   constructor(readonly deckArchetypes: DeckArchetypeSettingsService) {}
 
@@ -59,6 +62,7 @@ export class DeckArchetypeInputComponent {
   }
 
   canAddCurrentValue(): boolean {
+    if (!this.localMutationAllowed) return false;
     const archetype = normalizeArchetypeName(this.value);
     return !this.adding() && !!archetype && !this.deckArchetypes.has(archetype);
   }
@@ -93,7 +97,7 @@ export class DeckArchetypeInputComponent {
   }
 
   async addCurrentValue(): Promise<void> {
-    if (this.adding()) return;
+    if (this.adding() || !this.localMutationAllowed) return;
     const archetype = normalizeArchetypeName(this.value);
     this.adding.set(true);
     try {

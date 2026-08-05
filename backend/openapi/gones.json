@@ -51,6 +51,29 @@
         }
       }
     },
+    "/api/deck-archetypes": {
+      "get": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "operationId": "ListDeckArchetypes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicDeckArchetypeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/leagues": {
       "get": {
         "tags": [
@@ -3016,6 +3039,125 @@
         }
       }
     },
+    "/api/maintenance/player-names": {
+      "get": {
+        "tags": [
+          "PlayerNameMaintenanceEndpoints"
+        ],
+        "operationId": "ListMaintenancePlayerNames",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerNameListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/maintenance/player-names/rename-preview": {
+      "post": {
+        "tags": [
+          "PlayerNameMaintenanceEndpoints"
+        ],
+        "operationId": "PreviewMaintenancePlayerRename",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerRenamePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/maintenance/player-names/rename": {
+      "post": {
+        "tags": [
+          "PlayerNameMaintenanceEndpoints"
+        ],
+        "operationId": "CommitMaintenancePlayerRename",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerRenameCommitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/live-tournaments/{id}/document": {
       "get": {
         "tags": [
@@ -5499,6 +5641,264 @@
         }
       }
     },
+    "/api/admin/deck-archetypes": {
+      "get": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "operationId": "ListAdminDeckArchetypes",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminDeckArchetypeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "operationId": "CreateDeckArchetype",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertDeckArchetypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDeckArchetypeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/deck-archetypes/{archetypeId}": {
+      "put": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "operationId": "RenameDeckArchetype",
+        "parameters": [
+          {
+            "name": "archetypeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertDeckArchetypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDeckArchetypeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "operationId": "DeleteDeckArchetype",
+        "parameters": [
+          {
+            "name": "archetypeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/deck-archetypes/{archetypeId}/restore": {
+      "post": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "operationId": "RestoreDeckArchetype",
+        "parameters": [
+          {
+            "name": "archetypeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/deck-archetypes/import": {
+      "post": {
+        "tags": [
+          "AdminEndpoints"
+        ],
+        "operationId": "ImportDeckArchetypes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportDeckArchetypesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeckArchetypeImportResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/notifications/history": {
       "get": {
         "tags": [
@@ -6575,6 +6975,41 @@
           }
         }
       },
+      "AdminDeckArchetypeResponse": {
+        "required": [
+          "id",
+          "name",
+          "deletedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "deletedAt": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Instant"
+              }
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
       "AdminFormatResponse": {
         "required": [
           "id",
@@ -7295,6 +7730,49 @@
           }
         }
       },
+      "DeckArchetypeImportResponse": {
+        "required": [
+          "added",
+          "restored",
+          "skipped",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "added": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "restored": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "skipped": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "DeleteTournamentRequest": {
         "required": [
           "reason"
@@ -7533,6 +8011,20 @@
         "properties": {
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "ImportDeckArchetypesRequest": {
+        "required": [
+          "names"
+        ],
+        "type": "object",
+        "properties": {
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -8878,6 +9370,196 @@
           }
         }
       },
+      "PlayerNameListResponse": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerNameSummary"
+            }
+          }
+        }
+      },
+      "PlayerNameSummary": {
+        "required": [
+          "name",
+          "occurrenceCount",
+          "leagueCount"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "occurrenceCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "leagueCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PlayerRenameCommitResponse": {
+        "required": [
+          "fromName",
+          "toName",
+          "affectedLeagueCount",
+          "affectedOccurrenceCount",
+          "leagues"
+        ],
+        "type": "object",
+        "properties": {
+          "fromName": {
+            "type": "string"
+          },
+          "toName": {
+            "type": "string"
+          },
+          "affectedLeagueCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "affectedOccurrenceCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerRenameLeagueResult"
+            }
+          }
+        }
+      },
+      "PlayerRenameLeagueImpact": {
+        "required": [
+          "id",
+          "name",
+          "occurrenceCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "occurrenceCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PlayerRenameLeagueResult": {
+        "required": [
+          "id",
+          "documentVersion",
+          "eTag"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "eTag": {
+            "type": "string"
+          }
+        }
+      },
+      "PlayerRenamePreviewResponse": {
+        "required": [
+          "fromName",
+          "toName",
+          "affectedLeagueCount",
+          "affectedOccurrenceCount",
+          "mergesWithExistingPlayer",
+          "leagues"
+        ],
+        "type": "object",
+        "properties": {
+          "fromName": {
+            "type": "string"
+          },
+          "toName": {
+            "type": "string"
+          },
+          "affectedLeagueCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "affectedOccurrenceCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "mergesWithExistingPlayer": {
+            "type": "boolean"
+          },
+          "leagues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerRenameLeagueImpact"
+            }
+          }
+        }
+      },
+      "PlayerRenameRequest": {
+        "required": [
+          "fromName",
+          "toName"
+        ],
+        "type": "object",
+        "properties": {
+          "fromName": {
+            "type": "string"
+          },
+          "toName": {
+            "type": "string"
+          }
+        }
+      },
       "PlayerStatistics": {
         "required": [
           "playerName",
@@ -9093,6 +9775,22 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "PublicDeckArchetypeResponse": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -11266,6 +11964,19 @@
           }
         }
       },
+      "UpsertDeckArchetypeRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
       "UpsertFormatRequest": {
         "required": [
           "name",
@@ -11479,6 +12190,9 @@
     },
     {
       "name": "ExternalOAuthEndpoints"
+    },
+    {
+      "name": "PlayerNameMaintenanceEndpoints"
     },
     {
       "name": "TournamentLifecycleEndpoints"

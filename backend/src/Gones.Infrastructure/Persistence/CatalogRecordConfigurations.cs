@@ -22,6 +22,19 @@ internal sealed class TournamentFormatConfiguration : VersionedEntityConfigurati
     }
 }
 
+internal sealed class DeckArchetypeConfiguration : VersionedEntityConfiguration<DeckArchetype>
+{
+    public override void Configure(EntityTypeBuilder<DeckArchetype> builder)
+    {
+        base.Configure(builder);
+        builder.ToTable("deck_archetypes");
+        builder.Property(archetype => archetype.Name).HasMaxLength(DeckArchetype.MaximumNameLength);
+        builder.Property(archetype => archetype.NormalizedName).HasMaxLength(DeckArchetype.MaximumNameLength);
+        builder.HasIndex(archetype => archetype.NormalizedName).IsUnique();
+        builder.HasIndex(archetype => new { archetype.DeletedAt, archetype.Name });
+    }
+}
+
 internal sealed class SystemMarkerConfiguration : VersionedEntityConfiguration<SystemMarker>
 {
     public override void Configure(EntityTypeBuilder<SystemMarker> builder)

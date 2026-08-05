@@ -24,6 +24,10 @@ export interface IClient {
      */
     formatsAll(): Observable<PublicFormatResponse[]>;
     /**
+     * @return OK
+     */
+    listDeckArchetypes(): Observable<PublicDeckArchetypeResponse[]>;
+    /**
      * @param page (optional)
      * @param pageSize (optional)
      * @param status (optional)
@@ -314,6 +318,19 @@ export interface IClient {
      */
     restoreFullLeagueData(idempotency_Key: string | undefined, body: FullDataRestoreRequest): Observable<FullRestoreResponse>;
     /**
+     * @param search (optional)
+     * @return OK
+     */
+    listMaintenancePlayerNames(search: string | undefined): Observable<PlayerNameListResponse>;
+    /**
+     * @return OK
+     */
+    previewMaintenancePlayerRename(body: PlayerRenameRequest): Observable<PlayerRenamePreviewResponse>;
+    /**
+     * @return OK
+     */
+    commitMaintenancePlayerRename(body: PlayerRenameRequest): Observable<PlayerRenameCommitResponse>;
+    /**
      * @return OK
      */
     getLiveTournamentDocument(id: string): Observable<LiveTournamentDocumentResponse>;
@@ -534,6 +551,30 @@ export interface IClient {
      */
     formatsDELETE(formatId: string): Observable<void>;
     /**
+     * @return OK
+     */
+    listAdminDeckArchetypes(): Observable<AdminDeckArchetypeResponse[]>;
+    /**
+     * @return Created
+     */
+    createDeckArchetype(body: UpsertDeckArchetypeRequest): Observable<AdminDeckArchetypeResponse>;
+    /**
+     * @return OK
+     */
+    renameDeckArchetype(archetypeId: string, body: UpsertDeckArchetypeRequest): Observable<AdminDeckArchetypeResponse>;
+    /**
+     * @return No Content
+     */
+    deleteDeckArchetype(archetypeId: string): Observable<void>;
+    /**
+     * @return No Content
+     */
+    restoreDeckArchetype(archetypeId: string): Observable<void>;
+    /**
+     * @return OK
+     */
+    importDeckArchetypes(body: ImportDeckArchetypesRequest): Observable<DeckArchetypeImportResponse>;
+    /**
      * @param status (optional)
      * @param page (optional)
      * @param pageSize (optional)
@@ -712,6 +753,56 @@ export class Client implements IClient {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicFormatResponse[];
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    listDeckArchetypes(): Observable<PublicDeckArchetypeResponse[]> {
+        let url_ = this.baseUrl + "/api/deck-archetypes";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processListDeckArchetypes(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processListDeckArchetypes(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PublicDeckArchetypeResponse[]>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PublicDeckArchetypeResponse[]>;
+        }));
+    }
+
+    protected processListDeckArchetypes(response: HttpResponseBase): Observable<PublicDeckArchetypeResponse[]> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicDeckArchetypeResponse[];
             return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
@@ -4620,6 +4711,187 @@ export class Client implements IClient {
     }
 
     /**
+     * @param search (optional)
+     * @return OK
+     */
+    listMaintenancePlayerNames(search: string | undefined): Observable<PlayerNameListResponse> {
+        let url_ = this.baseUrl + "/api/maintenance/player-names?";
+        if (search === null)
+            throw new globalThis.Error("The parameter 'search' cannot be null.");
+        else if (search !== undefined)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processListMaintenancePlayerNames(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processListMaintenancePlayerNames(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PlayerNameListResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PlayerNameListResponse>;
+        }));
+    }
+
+    protected processListMaintenancePlayerNames(response: HttpResponseBase): Observable<PlayerNameListResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PlayerNameListResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    previewMaintenancePlayerRename(body: PlayerRenameRequest): Observable<PlayerRenamePreviewResponse> {
+        let url_ = this.baseUrl + "/api/maintenance/player-names/rename-preview";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processPreviewMaintenancePlayerRename(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processPreviewMaintenancePlayerRename(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PlayerRenamePreviewResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PlayerRenamePreviewResponse>;
+        }));
+    }
+
+    protected processPreviewMaintenancePlayerRename(response: HttpResponseBase): Observable<PlayerRenamePreviewResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PlayerRenamePreviewResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    commitMaintenancePlayerRename(body: PlayerRenameRequest): Observable<PlayerRenameCommitResponse> {
+        let url_ = this.baseUrl + "/api/maintenance/player-names/rename";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCommitMaintenancePlayerRename(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCommitMaintenancePlayerRename(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PlayerRenameCommitResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PlayerRenameCommitResponse>;
+        }));
+    }
+
+    protected processCommitMaintenancePlayerRename(response: HttpResponseBase): Observable<PlayerRenameCommitResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PlayerRenameCommitResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
      * @return OK
      */
     getLiveTournamentDocument(id: string): Observable<LiveTournamentDocumentResponse> {
@@ -7555,6 +7827,375 @@ export class Client implements IClient {
     }
 
     /**
+     * @return OK
+     */
+    listAdminDeckArchetypes(): Observable<AdminDeckArchetypeResponse[]> {
+        let url_ = this.baseUrl + "/api/admin/deck-archetypes";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processListAdminDeckArchetypes(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processListAdminDeckArchetypes(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminDeckArchetypeResponse[]>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminDeckArchetypeResponse[]>;
+        }));
+    }
+
+    protected processListAdminDeckArchetypes(response: HttpResponseBase): Observable<AdminDeckArchetypeResponse[]> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminDeckArchetypeResponse[];
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    createDeckArchetype(body: UpsertDeckArchetypeRequest): Observable<AdminDeckArchetypeResponse> {
+        let url_ = this.baseUrl + "/api/admin/deck-archetypes";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCreateDeckArchetype(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCreateDeckArchetype(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminDeckArchetypeResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminDeckArchetypeResponse>;
+        }));
+    }
+
+    protected processCreateDeckArchetype(response: HttpResponseBase): Observable<AdminDeckArchetypeResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminDeckArchetypeResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    renameDeckArchetype(archetypeId: string, body: UpsertDeckArchetypeRequest): Observable<AdminDeckArchetypeResponse> {
+        let url_ = this.baseUrl + "/api/admin/deck-archetypes/{archetypeId}";
+        if (archetypeId === undefined || archetypeId === null)
+            throw new globalThis.Error("The parameter 'archetypeId' must be defined.");
+        url_ = url_.replace("{archetypeId}", encodeURIComponent("" + archetypeId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("put", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRenameDeckArchetype(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRenameDeckArchetype(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<AdminDeckArchetypeResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<AdminDeckArchetypeResponse>;
+        }));
+    }
+
+    protected processRenameDeckArchetype(response: HttpResponseBase): Observable<AdminDeckArchetypeResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AdminDeckArchetypeResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    deleteDeckArchetype(archetypeId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/admin/deck-archetypes/{archetypeId}";
+        if (archetypeId === undefined || archetypeId === null)
+            throw new globalThis.Error("The parameter 'archetypeId' must be defined.");
+        url_ = url_.replace("{archetypeId}", encodeURIComponent("" + archetypeId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processDeleteDeckArchetype(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processDeleteDeckArchetype(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processDeleteDeckArchetype(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    restoreDeckArchetype(archetypeId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/admin/deck-archetypes/{archetypeId}/restore";
+        if (archetypeId === undefined || archetypeId === null)
+            throw new globalThis.Error("The parameter 'archetypeId' must be defined.");
+        url_ = url_.replace("{archetypeId}", encodeURIComponent("" + archetypeId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRestoreDeckArchetype(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRestoreDeckArchetype(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processRestoreDeckArchetype(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    importDeckArchetypes(body: ImportDeckArchetypesRequest): Observable<DeckArchetypeImportResponse> {
+        let url_ = this.baseUrl + "/api/admin/deck-archetypes/import";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processImportDeckArchetypes(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processImportDeckArchetypes(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<DeckArchetypeImportResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<DeckArchetypeImportResponse>;
+        }));
+    }
+
+    protected processImportDeckArchetypes(response: HttpResponseBase): Observable<DeckArchetypeImportResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as DeckArchetypeImportResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
      * @param status (optional)
      * @param page (optional)
      * @param pageSize (optional)
@@ -8675,6 +9316,16 @@ export interface AdminAuditRecordResponse {
     [key: string]: any;
 }
 
+export interface AdminDeckArchetypeResponse {
+    id: string;
+    name: string;
+    deletedAt: Instant | undefined;
+    createdAt: Instant;
+    updatedAt: Instant;
+
+    [key: string]: any;
+}
+
 export interface AdminFormatResponse {
     id: string;
     name: string;
@@ -8863,6 +9514,15 @@ export interface CreateResultTournamentRequest {
     [key: string]: any;
 }
 
+export interface DeckArchetypeImportResponse {
+    added: number;
+    restored: number;
+    skipped: number;
+    total: number;
+
+    [key: string]: any;
+}
+
 export interface DeleteTournamentRequest {
     reason: string | undefined;
 
@@ -8940,6 +9600,12 @@ export interface GenericAccountActionResponse {
 
 export interface HealthStatusResponse {
     status: string;
+
+    [key: string]: any;
+}
+
+export interface ImportDeckArchetypesRequest {
+    names: string[];
 
     [key: string]: any;
 }
@@ -9312,6 +9978,64 @@ export interface PlayerMatch {
     [key: string]: any;
 }
 
+export interface PlayerNameListResponse {
+    items: PlayerNameSummary[];
+
+    [key: string]: any;
+}
+
+export interface PlayerNameSummary {
+    name: string;
+    occurrenceCount: number;
+    leagueCount: number;
+
+    [key: string]: any;
+}
+
+export interface PlayerRenameCommitResponse {
+    fromName: string;
+    toName: string;
+    affectedLeagueCount: number;
+    affectedOccurrenceCount: number;
+    leagues: PlayerRenameLeagueResult[];
+
+    [key: string]: any;
+}
+
+export interface PlayerRenameLeagueImpact {
+    id: string;
+    name: string;
+    occurrenceCount: number;
+
+    [key: string]: any;
+}
+
+export interface PlayerRenameLeagueResult {
+    id: string;
+    documentVersion: number;
+    eTag: string;
+
+    [key: string]: any;
+}
+
+export interface PlayerRenamePreviewResponse {
+    fromName: string;
+    toName: string;
+    affectedLeagueCount: number;
+    affectedOccurrenceCount: number;
+    mergesWithExistingPlayer: boolean;
+    leagues: PlayerRenameLeagueImpact[];
+
+    [key: string]: any;
+}
+
+export interface PlayerRenameRequest {
+    fromName: string;
+    toName: string;
+
+    [key: string]: any;
+}
+
 export interface PlayerStatistics {
     playerName: string;
     playedMatchCount: number;
@@ -9356,6 +10080,13 @@ export interface ProblemDetails {
     status?: number | undefined;
     detail?: string | undefined;
     instance?: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface PublicDeckArchetypeResponse {
+    id: string;
+    name: string;
 
     [key: string]: any;
 }
@@ -9930,6 +10661,12 @@ export interface UpdateTournamentDetailsRequest {
     endsAtLocal: string | undefined;
     capacity: number | undefined;
     formatIds: string[];
+
+    [key: string]: any;
+}
+
+export interface UpsertDeckArchetypeRequest {
+    name: string;
 
     [key: string]: any;
 }

@@ -31,6 +31,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<ExternalIdentity> ExternalIdentities => Set<ExternalIdentity>();
     public DbSet<OAuthAttempt> OAuthAttempts => Set<OAuthAttempt>();
     public DbSet<TournamentFormat> TournamentFormats => Set<TournamentFormat>();
+    public DbSet<DeckArchetype> DeckArchetypes => Set<DeckArchetype>();
     public DbSet<SystemMarker> SystemMarkers => Set<SystemMarker>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();

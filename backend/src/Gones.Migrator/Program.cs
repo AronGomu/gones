@@ -202,6 +202,24 @@ static async Task SeedReferenceDataAsync(GonesDbContext database)
         });
         await database.SaveChangesAsync();
     }
+
+    var knownArchetypeKeys = await database.DeckArchetypes.Select(archetype => archetype.NormalizedName).ToListAsync();
+    var missingPresets = DeckArchetypePresets.LegacyNames
+        .Where(name => !knownArchetypeKeys.Contains(DeckArchetype.NormalizeKey(name), StringComparer.Ordinal))
+        .ToArray();
+    if (missingPresets.Length > 0)
+    {
+        foreach (var name in missingPresets) database.DeckArchetypes.Add(DeckArchetype.Create(name, now));
+        database.AuditRecords.Add(new AuditRecord
+        {
+            Action = "catalog.deck_archetype.seeded",
+            EntityType = "deck_archetype",
+            EntityId = "legacy-presets",
+            RedactedDiff = $$"""{"seeded":{{missingPresets.Length}}}""",
+            OccurredAt = now
+        });
+        await database.SaveChangesAsync();
+    }
 }
 
 public partial class Program;

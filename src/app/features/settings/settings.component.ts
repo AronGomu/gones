@@ -1,5 +1,6 @@
-import { Component, computed, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, effect, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -8,8 +9,11 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { environment } from '../../../environments/environment';
+import { ApiProblemError } from '../../api/api-boundary';
+import { AdminDeckArchetypeResponse, Client, MyOrganizationResponse, OrganizationNotificationSettingsResponse, PlayerNameSummary } from '../../api/generated/gones-api';
 import { AuthService } from '../../auth/auth.service';
-import { canManageLeagues, leagueCommandError } from '../../data/league-command-ux';
+import { leagueCommandError } from '../../data/league-command-ux';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { collectKnownPlayerNames } from '../../domain/player-stats';
@@ -19,12 +23,18 @@ import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
-import { archetypeKey, DeckArchetypeSettingsService, normalizeArchetypeName } from '../../shared/deck-archetype-settings.service';
+import { archetypeKey, DeckArchetypeSettingsService, normalizeArchetypeName, parseArchetypeImportList } from '../../shared/deck-archetype-settings.service';
 import { saveJsonFile } from '../../shared/save-json-file';
+import { settingsCapabilities } from './settings-capabilities';
+
+interface OwnedOrganizationSettings {
+  organization: MyOrganizationResponse;
+  settings: OrganizationNotificationSettingsResponse;
+}
 
 @Component({
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatCardModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
     <section class="info-page settings-page" [attr.aria-label]="i18n.t('settings.pageAria')">
@@ -47,147 +57,268 @@ import { saveJsonFile } from '../../shared/save-json-file';
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="panel settings-panel settings-archetype-panel-card">
-        <mat-card-content>
-          <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archetype-panel" [expanded]="false">
-            <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
-              <mat-panel-title>{{ i18n.t('settings.deckArchetypes') }}</mat-panel-title>
-              <mat-panel-description>{{ filteredArchetypes().length }} / {{ archetypes().length }}</mat-panel-description>
-            </mat-expansion-panel-header>
-
-            <p class="muted settings-archetype-copy">{{ i18n.t('settings.deckArchetypesHelp') }}</p>
-
-            <div class="settings-archetype-io">
-              <button mat-stroked-button type="button" class="secondary-action" data-cy="settings-export-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="exportArchetypes()">{{ i18n.t('settings.exportArchetypes') }}</button>
-              <button mat-stroked-button type="button" class="settings-add-archetype-button" data-cy="settings-import-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="openArchetypeImportPicker()">{{ archetypeImporting() ? i18n.t('common.importing') : i18n.t('settings.importArchetypes') }}</button>
-              <input #archetypeImportInput class="toolbar-import-input" data-cy="settings-import-archetypes-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="archetypeImporting()" (change)="importArchetypes($event)">
-            </div>
-
-            <form class="settings-archetype-add" (ngSubmit)="addArchetype()">
-              <mat-form-field appearance="outline" class="settings-archetype-field">
-                <mat-label>{{ i18n.t('settings.newArchetype') }}</mat-label>
-                <input matInput data-cy="settings-new-archetype-input" [ngModel]="newArchetype()" name="newArchetype" (ngModelChange)="newArchetype.set($event)">
-              </mat-form-field>
-              <button mat-stroked-button class="settings-add-archetype-button" type="submit" data-cy="settings-add-archetype-button" [disabled]="archetypeSaving() || !canAddNewArchetype()">{{ i18n.t('settings.addArchetype') }}</button>
-            </form>
-
-            <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
-              <mat-label>{{ i18n.t('settings.filterArchetypes') }}</mat-label>
-              <input matInput data-cy="settings-archetype-filter" [ngModel]="archetypeFilter()" name="archetypeFilter" (ngModelChange)="archetypeFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterArchetypes')">
-            </mat-form-field>
-
-            @if (filteredArchetypes().length) {
-              <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.deckArchetypes')">
-                @for (archetype of filteredArchetypes(); track archetype; let odd = $odd) {
-                  <div
-                    class="settings-archetype-item"
-                    role="listitem"
-                    data-cy="settings-archetype-row"
-                    [class.settings-archetype-item--odd]="odd"
-                    [class.settings-archetype-item--even]="!odd"
-                    [class.settings-archetype-item--editing]="editingArchetype() === archetype"
-                    [attr.data-archetype]="archetype"
-                  >
-                    @if (editingArchetype() === archetype) {
-                      <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
-                        <mat-label>{{ i18n.t('settings.deckArchetype') }}</mat-label>
-                        <input
-                          matInput
-                          data-cy="settings-archetype-input"
-                          [ngModel]="editValue(archetype)"
-                          [name]="'archetype-' + archetype"
-                          (ngModelChange)="setEditValue(archetype, $event)"
-                        >
-                      </mat-form-field>
-                      <button
-                        mat-stroked-button
-                        type="button"
-                        class="settings-archetype-row-action settings-archetype-save-button"
-                        data-cy="settings-save-archetype-button"
-                        (click)="saveArchetypeEdit(archetype)"
-                        [disabled]="archetypeSaving() || !canSaveArchetypeEdit(archetype)"
-                      >{{ i18n.t('common.save') }}</button>
-                    } @else {
-                      <span class="settings-archetype-name" data-cy="settings-archetype-name">{{ archetype }}</span>
-                      <button
-                        mat-stroked-button
-                        type="button"
-                        class="settings-archetype-row-action success-ghost-action"
-                        data-cy="settings-update-archetype-button"
-                        (click)="startEdit(archetype)"
-                        [disabled]="archetypeSaving()"
-                      >{{ i18n.t('common.update') }}</button>
-                    }
-                    <button
-                      mat-button
-                      type="button"
-                      class="destructive-menu-item"
-                      data-cy="settings-remove-archetype-button"
-                      (click)="removeArchetype(archetype)"
-                      [disabled]="archetypeSaving()"
-                    >{{ i18n.t('common.delete') }}</button>
-                  </div>
-                }
+      @if (capabilities().profileLink) {
+        <mat-card class="panel settings-panel">
+          <mat-card-content>
+            <div class="settings-row">
+              <div>
+                <h2>{{ i18n.t('settings.profile') }}</h2>
+                <p class="muted">{{ i18n.t('settings.profileHelp') }}</p>
               </div>
-            } @else if (archetypes().length) {
-              <p class="empty" data-cy="settings-empty-archetype-filter">{{ i18n.t('settings.noFilterMatches') }}</p>
-            } @else {
-              <p class="empty" data-cy="settings-empty-archetypes">{{ i18n.t('settings.emptyArchetypes') }}</p>
-            }
-            @if (archetypeMessage()) { <p class="settings-saved" role="status">{{ archetypeMessage() }}</p> }
-          </mat-expansion-panel>
-        </mat-card-content>
-      </mat-card>
+              <a mat-stroked-button class="secondary-action" routerLink="/profile" data-cy="settings-profile-link">{{ i18n.t('settings.profileOpen') }}</a>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
 
-      <mat-card class="panel settings-panel settings-archetype-panel-card">
-        <mat-card-content>
-          <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-players-panel" [expanded]="false">
-            <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
-              <mat-panel-title>{{ i18n.t('settings.players') }}</mat-panel-title>
-              <mat-panel-description>{{ filteredPlayers().length }} / {{ players().length }}</mat-panel-description>
-            </mat-expansion-panel-header>
+      @if (capabilities().localArchetypeMutation) {
+        <mat-card class="panel settings-panel settings-archetype-panel-card">
+          <mat-card-content>
+            <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archetype-panel" [expanded]="false">
+              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
+                <mat-panel-title>{{ i18n.t('settings.deckArchetypes') }}</mat-panel-title>
+                <mat-panel-description>{{ filteredArchetypes().length }} / {{ archetypes().length }}</mat-panel-description>
+              </mat-expansion-panel-header>
 
-            <p class="muted settings-archetype-copy">{{ i18n.t('settings.playersHelp') }}</p>
+              <p class="muted settings-archetype-copy">{{ i18n.t('settings.deckArchetypesHelp') }}</p>
 
-            <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
-              <mat-label>{{ i18n.t('settings.filterPlayers') }}</mat-label>
-              <input matInput data-cy="settings-player-filter" [ngModel]="playerFilter()" name="playerFilter" (ngModelChange)="playerFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterPlayers')">
-            </mat-form-field>
+              <div class="settings-archetype-io">
+                <button mat-stroked-button type="button" class="secondary-action" data-cy="settings-export-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="exportArchetypes()">{{ i18n.t('settings.exportArchetypes') }}</button>
+                <button mat-stroked-button type="button" class="settings-add-archetype-button" data-cy="settings-import-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="openArchetypeImportPicker()">{{ archetypeImporting() ? i18n.t('common.importing') : i18n.t('settings.importArchetypes') }}</button>
+                <input #archetypeImportInput class="toolbar-import-input" data-cy="settings-import-archetypes-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="archetypeImporting()" (change)="importArchetypes($event)">
+              </div>
 
-            @if (filteredPlayers().length) {
-              <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.players')">
-                @for (player of filteredPlayers(); track player; let odd = $odd) {
-                  <div
-                    class="settings-archetype-item"
-                    role="listitem"
-                    data-cy="settings-player-row"
-                    [class.settings-archetype-item--odd]="odd"
-                    [class.settings-archetype-item--even]="!odd"
-                    [class.settings-archetype-item--editing]="editingPlayer() === player"
-                    [attr.data-player]="player"
-                  >
-                    @if (editingPlayer() === player) {
-                      <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
-                        <mat-label>{{ i18n.t('settings.playerName') }}</mat-label>
-                        <input
-                          matInput
-                          data-cy="settings-player-input"
-                          [ngModel]="playerEditValue(player)"
-                          [name]="'player-' + player"
-                          (ngModelChange)="setPlayerEditValue(player, $event)"
-                        >
-                      </mat-form-field>
+              <form class="settings-archetype-add" (ngSubmit)="addArchetype()">
+                <mat-form-field appearance="outline" class="settings-archetype-field">
+                  <mat-label>{{ i18n.t('settings.newArchetype') }}</mat-label>
+                  <input matInput data-cy="settings-new-archetype-input" [ngModel]="newArchetype()" name="newArchetype" (ngModelChange)="newArchetype.set($event)">
+                </mat-form-field>
+                <button mat-stroked-button class="settings-add-archetype-button" type="submit" data-cy="settings-add-archetype-button" [disabled]="archetypeSaving() || !canAddNewArchetype()">{{ i18n.t('settings.addArchetype') }}</button>
+              </form>
+
+              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
+                <mat-label>{{ i18n.t('settings.filterArchetypes') }}</mat-label>
+                <input matInput data-cy="settings-archetype-filter" [ngModel]="archetypeFilter()" name="archetypeFilter" (ngModelChange)="archetypeFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterArchetypes')">
+              </mat-form-field>
+
+              @if (filteredArchetypes().length) {
+                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.deckArchetypes')">
+                  @for (archetype of filteredArchetypes(); track archetype; let odd = $odd) {
+                    <div
+                      class="settings-archetype-item"
+                      role="listitem"
+                      data-cy="settings-archetype-row"
+                      [class.settings-archetype-item--odd]="odd"
+                      [class.settings-archetype-item--even]="!odd"
+                      [class.settings-archetype-item--editing]="editingArchetype() === archetype"
+                      [attr.data-archetype]="archetype"
+                    >
+                      @if (editingArchetype() === archetype) {
+                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
+                          <mat-label>{{ i18n.t('settings.deckArchetype') }}</mat-label>
+                          <input
+                            matInput
+                            data-cy="settings-archetype-input"
+                            [ngModel]="editValue(archetype)"
+                            [name]="'archetype-' + archetype"
+                            (ngModelChange)="setEditValue(archetype, $event)"
+                          >
+                        </mat-form-field>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action settings-archetype-save-button"
+                          data-cy="settings-save-archetype-button"
+                          (click)="saveArchetypeEdit(archetype)"
+                          [disabled]="archetypeSaving() || !canSaveArchetypeEdit(archetype)"
+                        >{{ i18n.t('common.save') }}</button>
+                      } @else {
+                        <span class="settings-archetype-name" data-cy="settings-archetype-name">{{ archetype }}</span>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action success-ghost-action"
+                          data-cy="settings-update-archetype-button"
+                          (click)="startEdit(archetype)"
+                          [disabled]="archetypeSaving()"
+                        >{{ i18n.t('common.update') }}</button>
+                      }
                       <button
-                        mat-stroked-button
+                        mat-button
                         type="button"
-                        class="settings-archetype-row-action settings-archetype-save-button"
-                        data-cy="settings-save-player-button"
-                        (click)="savePlayerEdit(player)"
-                        [disabled]="playerSaving() || !canSavePlayerEdit(player)"
-                      >{{ i18n.t('common.save') }}</button>
-                    } @else {
-                      <span class="settings-archetype-name" data-cy="settings-player-name">{{ player }}</span>
-                      @if (canManageLeagueData()) {
+                        class="destructive-menu-item"
+                        data-cy="settings-remove-archetype-button"
+                        (click)="removeArchetype(archetype)"
+                        [disabled]="archetypeSaving()"
+                      >{{ i18n.t('common.delete') }}</button>
+                    </div>
+                  }
+                </div>
+              } @else if (archetypes().length) {
+                <p class="empty" data-cy="settings-empty-archetype-filter">{{ i18n.t('settings.noFilterMatches') }}</p>
+              } @else {
+                <p class="empty" data-cy="settings-empty-archetypes">{{ i18n.t('settings.emptyArchetypes') }}</p>
+              }
+              @if (archetypeMessage()) { <p class="settings-saved" role="status">{{ archetypeMessage() }}</p> }
+            </mat-expansion-panel>
+          </mat-card-content>
+        </mat-card>
+      } @else if (capabilities().adminCatalog) {
+        <mat-card class="panel settings-panel settings-archetype-panel-card">
+          <mat-card-content>
+            <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archetype-panel" [expanded]="false">
+              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
+                <mat-panel-title>{{ i18n.t('settings.deckArchetypes') }}</mat-panel-title>
+                <mat-panel-description>{{ filteredServerArchetypes().length }} / {{ serverArchetypes().length }}</mat-panel-description>
+              </mat-expansion-panel-header>
+
+              <p class="muted settings-archetype-copy">{{ i18n.t('settings.adminCatalogHelp') }}</p>
+
+              <div class="settings-archetype-io">
+                <button mat-stroked-button type="button" class="settings-add-archetype-button" data-cy="settings-import-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="openArchetypeImportPicker()">{{ archetypeImporting() ? i18n.t('common.importing') : i18n.t('settings.importArchetypes') }}</button>
+                <input #archetypeImportInput class="toolbar-import-input" data-cy="settings-import-archetypes-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="archetypeImporting()" (change)="importServerArchetypes($event)">
+              </div>
+
+              <form class="settings-archetype-add" (ngSubmit)="addServerArchetype()">
+                <mat-form-field appearance="outline" class="settings-archetype-field">
+                  <mat-label>{{ i18n.t('settings.newArchetype') }}</mat-label>
+                  <input matInput data-cy="settings-new-archetype-input" [ngModel]="newArchetype()" name="newArchetype" (ngModelChange)="newArchetype.set($event)">
+                </mat-form-field>
+                <button mat-stroked-button class="settings-add-archetype-button" type="submit" data-cy="settings-add-archetype-button" [disabled]="archetypeSaving() || !canAddNewServerArchetype()">{{ i18n.t('settings.addArchetype') }}</button>
+              </form>
+
+              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
+                <mat-label>{{ i18n.t('settings.filterArchetypes') }}</mat-label>
+                <input matInput data-cy="settings-archetype-filter" [ngModel]="archetypeFilter()" name="archetypeFilter" (ngModelChange)="archetypeFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterArchetypes')">
+              </mat-form-field>
+
+              @if (filteredServerArchetypes().length) {
+                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.deckArchetypes')">
+                  @for (archetype of filteredServerArchetypes(); track archetype.id; let odd = $odd) {
+                    <div
+                      class="settings-archetype-item"
+                      role="listitem"
+                      data-cy="settings-archetype-row"
+                      [class.settings-archetype-item--odd]="odd"
+                      [class.settings-archetype-item--even]="!odd"
+                      [class.settings-archetype-item--editing]="editingServerArchetype() === archetype.id"
+                      [attr.data-archetype]="archetype.name"
+                    >
+                      @if (editingServerArchetype() === archetype.id) {
+                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
+                          <mat-label>{{ i18n.t('settings.deckArchetype') }}</mat-label>
+                          <input
+                            matInput
+                            data-cy="settings-archetype-input"
+                            [ngModel]="serverEditValue(archetype)"
+                            [name]="'archetype-' + archetype.id"
+                            (ngModelChange)="setServerEditValue(archetype.id, $event)"
+                          >
+                        </mat-form-field>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action settings-archetype-save-button"
+                          data-cy="settings-save-archetype-button"
+                          (click)="saveServerArchetypeEdit(archetype)"
+                          [disabled]="archetypeSaving() || !canSaveServerArchetypeEdit(archetype)"
+                        >{{ i18n.t('common.save') }}</button>
+                      } @else {
+                        <span class="settings-archetype-name" data-cy="settings-archetype-name">
+                          {{ archetype.name }}
+                          @if (archetype.deletedAt) { <span class="muted" data-cy="settings-archetype-deleted">({{ i18n.t('settings.archetypeDeleted') }})</span> }
+                        </span>
+                        @if (!archetype.deletedAt) {
+                          <button
+                            mat-stroked-button
+                            type="button"
+                            class="settings-archetype-row-action success-ghost-action"
+                            data-cy="settings-update-archetype-button"
+                            (click)="startServerEdit(archetype)"
+                            [disabled]="archetypeSaving()"
+                          >{{ i18n.t('common.update') }}</button>
+                        }
+                      }
+                      @if (archetype.deletedAt) {
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action success-ghost-action"
+                          data-cy="settings-restore-archetype-button"
+                          (click)="restoreServerArchetype(archetype)"
+                          [disabled]="archetypeSaving()"
+                        >{{ i18n.t('admin.restore') }}</button>
+                      } @else {
+                        <button
+                          mat-button
+                          type="button"
+                          class="destructive-menu-item"
+                          data-cy="settings-remove-archetype-button"
+                          (click)="removeServerArchetype(archetype)"
+                          [disabled]="archetypeSaving()"
+                        >{{ i18n.t('common.delete') }}</button>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="empty" data-cy="settings-empty-archetypes">{{ i18n.t('settings.emptyArchetypes') }}</p>
+              }
+              @if (archetypeMessage()) { <p class="settings-saved" role="status">{{ archetypeMessage() }}</p> }
+            </mat-expansion-panel>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (capabilities().localPlayerRename) {
+        <mat-card class="panel settings-panel settings-archetype-panel-card">
+          <mat-card-content>
+            <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-players-panel" [expanded]="false">
+              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
+                <mat-panel-title>{{ i18n.t('settings.players') }}</mat-panel-title>
+                <mat-panel-description>{{ filteredPlayers().length }} / {{ players().length }}</mat-panel-description>
+              </mat-expansion-panel-header>
+
+              <p class="muted settings-archetype-copy">{{ i18n.t('settings.playersHelp') }}</p>
+
+              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
+                <mat-label>{{ i18n.t('settings.filterPlayers') }}</mat-label>
+                <input matInput data-cy="settings-player-filter" [ngModel]="playerFilter()" name="playerFilter" (ngModelChange)="playerFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterPlayers')">
+              </mat-form-field>
+
+              @if (filteredPlayers().length) {
+                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.players')">
+                  @for (player of filteredPlayers(); track player; let odd = $odd) {
+                    <div
+                      class="settings-archetype-item"
+                      role="listitem"
+                      data-cy="settings-player-row"
+                      [class.settings-archetype-item--odd]="odd"
+                      [class.settings-archetype-item--even]="!odd"
+                      [class.settings-archetype-item--editing]="editingPlayer() === player"
+                      [attr.data-player]="player"
+                    >
+                      @if (editingPlayer() === player) {
+                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
+                          <mat-label>{{ i18n.t('settings.playerName') }}</mat-label>
+                          <input
+                            matInput
+                            data-cy="settings-player-input"
+                            [ngModel]="playerEditValue(player)"
+                            [name]="'player-' + player"
+                            (ngModelChange)="setPlayerEditValue(player, $event)"
+                          >
+                        </mat-form-field>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action settings-archetype-save-button"
+                          data-cy="settings-save-player-button"
+                          (click)="savePlayerEdit(player)"
+                          [disabled]="playerSaving() || !canSavePlayerEdit(player)"
+                        >{{ i18n.t('common.save') }}</button>
+                      } @else {
+                        <span class="settings-archetype-name" data-cy="settings-player-name">{{ player }}</span>
                         <button
                           mat-stroked-button
                           type="button"
@@ -197,20 +328,108 @@ import { saveJsonFile } from '../../shared/save-json-file';
                           [disabled]="playerSaving()"
                         >{{ i18n.t('common.update') }}</button>
                       }
-                    }
-                  </div>
-                }
-              </div>
-            } @else if (players().length) {
-              <p class="empty" data-cy="settings-empty-player-filter">{{ i18n.t('settings.noPlayerFilterMatches') }}</p>
-            } @else {
-              <p class="empty" data-cy="settings-empty-players">{{ i18n.t('settings.emptyPlayers') }}</p>
+                    </div>
+                  }
+                </div>
+              } @else if (players().length) {
+                <p class="empty" data-cy="settings-empty-player-filter">{{ i18n.t('settings.noPlayerFilterMatches') }}</p>
+              } @else {
+                <p class="empty" data-cy="settings-empty-players">{{ i18n.t('settings.emptyPlayers') }}</p>
+              }
+              @if (playerMessage()) { <p class="settings-saved" role="status">{{ playerMessage() }}</p> }
+            </mat-expansion-panel>
+          </mat-card-content>
+        </mat-card>
+      } @else if (capabilities().organizerMaintenance) {
+        <mat-card class="panel settings-panel settings-archetype-panel-card">
+          <mat-card-content>
+            <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-players-panel" [expanded]="false">
+              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
+                <mat-panel-title>{{ i18n.t('settings.players') }}</mat-panel-title>
+                <mat-panel-description>{{ filteredServerPlayers().length }} / {{ serverPlayers().length }}</mat-panel-description>
+              </mat-expansion-panel-header>
+
+              <p class="muted settings-archetype-copy">{{ i18n.t('settings.maintenanceHelp') }}</p>
+
+              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
+                <mat-label>{{ i18n.t('settings.filterPlayers') }}</mat-label>
+                <input matInput data-cy="settings-player-filter" [ngModel]="playerFilter()" name="playerFilter" (ngModelChange)="playerFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterPlayers')">
+              </mat-form-field>
+
+              @if (filteredServerPlayers().length) {
+                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.players')">
+                  @for (player of filteredServerPlayers(); track player.name; let odd = $odd) {
+                    <div
+                      class="settings-archetype-item"
+                      role="listitem"
+                      data-cy="settings-player-row"
+                      [class.settings-archetype-item--odd]="odd"
+                      [class.settings-archetype-item--even]="!odd"
+                      [class.settings-archetype-item--editing]="editingPlayer() === player.name"
+                      [attr.data-player]="player.name"
+                    >
+                      @if (editingPlayer() === player.name) {
+                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
+                          <mat-label>{{ i18n.t('settings.playerName') }}</mat-label>
+                          <input
+                            matInput
+                            data-cy="settings-player-input"
+                            [ngModel]="playerEditValue(player.name)"
+                            [name]="'player-' + player.name"
+                            (ngModelChange)="setPlayerEditValue(player.name, $event)"
+                          >
+                        </mat-form-field>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action settings-archetype-save-button"
+                          data-cy="settings-save-player-button"
+                          (click)="saveServerPlayerEdit(player)"
+                          [disabled]="playerSaving() || !canSavePlayerEdit(player.name)"
+                        >{{ i18n.t('common.save') }}</button>
+                      } @else {
+                        <span class="settings-archetype-name" data-cy="settings-player-name">{{ player.name }}</span>
+                        <span class="muted" data-cy="settings-player-usage">{{ i18n.t('settings.playerUsage', { occurrences: player.occurrenceCount, leagues: player.leagueCount }) }}</span>
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          class="settings-archetype-row-action success-ghost-action"
+                          data-cy="settings-update-player-button"
+                          (click)="startPlayerEdit(player.name)"
+                          [disabled]="playerSaving()"
+                        >{{ i18n.t('common.update') }}</button>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else if (serverPlayers().length) {
+                <p class="empty" data-cy="settings-empty-player-filter">{{ i18n.t('settings.noPlayerFilterMatches') }}</p>
+              } @else {
+                <p class="empty" data-cy="settings-empty-players">{{ i18n.t('settings.emptyPlayers') }}</p>
+              }
+              @if (playerMessage()) { <p class="settings-saved" role="status">{{ playerMessage() }}</p> }
+            </mat-expansion-panel>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (capabilities().orgNotifications && ownedOrganizations().length) {
+        <mat-card class="panel settings-panel">
+          <mat-card-content>
+            <h2>{{ i18n.t('settings.orgNotifications') }}</h2>
+            <p class="muted">{{ i18n.t('settings.orgNotificationsHelp') }}</p>
+            @for (owned of ownedOrganizations(); track owned.organization.id) {
+              <form class="auth-form" data-cy="settings-org-row" [attr.data-org]="owned.organization.name" (ngSubmit)="saveOrganizationSettings(owned)">
+                <h3>{{ owned.organization.name }}</h3>
+                <label><input type="checkbox" data-cy="settings-org-notify-registration" [name]="'reg-' + owned.organization.id" [(ngModel)]="owned.settings.notifyOnRegistration" /> {{ i18n.t('org.notifyRegistration') }}</label>
+                <label><input type="checkbox" data-cy="settings-org-notify-unregistration" [name]="'unreg-' + owned.organization.id" [(ngModel)]="owned.settings.notifyOnUnregistration" /> {{ i18n.t('org.notifyUnregistration') }}</label>
+                <button mat-flat-button type="submit" data-cy="settings-org-save" [disabled]="orgSaving()">{{ i18n.t('common.save') }}</button>
+              </form>
             }
-            @if (!canManageLeagueData() && leagueRepo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
-            @if (playerMessage()) { <p class="settings-saved" role="status">{{ playerMessage() }}</p> }
-          </mat-expansion-panel>
-        </mat-card-content>
-      </mat-card>
+            @if (orgMessage()) { <p class="settings-saved" role="status" data-cy="settings-org-status">{{ orgMessage() }}</p> }
+          </mat-card-content>
+        </mat-card>
+      }
 
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
@@ -222,9 +441,16 @@ export class SettingsComponent {
   readonly leagueRepo = inject(LeagueRepository);
   private readonly auth = inject(AuthService);
   private readonly liveRepo = inject(LiveTournamentRepository);
+  private readonly client = inject(Client);
   private readonly dialog = inject(MatDialog);
   readonly language = this.deckArchetypes.language;
   private readonly archetypeImportInput = viewChild<ElementRef<HTMLInputElement>>('archetypeImportInput');
+  readonly capabilities = computed(() => settingsCapabilities({
+    authV1: environment.features.authV1,
+    adminV1: environment.features.adminV1,
+    leagueServer: environment.features.leagueServer
+  }, this.auth.profile()?.globalRole ?? null));
+
   readonly newArchetype = signal('');
   readonly archetypeFilter = signal('');
   readonly archetypeMessage = signal('');
@@ -240,13 +466,22 @@ export class SettingsComponent {
     return list.filter((archetype) => archetypeKey(archetype).includes(filter));
   });
 
+  readonly serverArchetypes = signal<AdminDeckArchetypeResponse[]>([]);
+  readonly editingServerArchetype = signal<string | null>(null);
+  readonly serverArchetypeEdits = signal<Record<string, string>>({});
+  readonly filteredServerArchetypes = computed(() => {
+    const filter = archetypeKey(this.archetypeFilter());
+    const list = this.serverArchetypes();
+    if (!filter) return list;
+    return list.filter((archetype) => archetypeKey(archetype.name).includes(filter));
+  });
+
   readonly players = signal<string[]>([]);
   readonly playerFilter = signal('');
   readonly playerMessage = signal('');
   readonly playerSaving = signal(false);
   readonly editingPlayer = signal<string | null>(null);
   readonly playerEdits = signal<Record<string, string>>({});
-  readonly canManageLeagueData = computed(() => canManageLeagues(this.leagueRepo.serverMode, this.auth.profile()?.globalRole));
   readonly filteredPlayers = computed(() => {
     const filter = playerNameKey(this.playerFilter());
     const list = this.players();
@@ -254,10 +489,41 @@ export class SettingsComponent {
     return list.filter((player) => playerNameKey(player).includes(filter));
   });
 
+  readonly serverPlayers = signal<PlayerNameSummary[]>([]);
+  readonly filteredServerPlayers = computed(() => {
+    const filter = playerNameKey(this.playerFilter());
+    const list = this.serverPlayers();
+    if (!filter) return list;
+    return list.filter((player) => playerNameKey(player.name).includes(filter));
+  });
+
+  readonly ownedOrganizations = signal<OwnedOrganizationSettings[]>([]);
+  readonly orgSaving = signal(false);
+  readonly orgMessage = signal('');
+
+  private serverCatalogLoaded = false;
+  private serverPlayersLoaded = false;
+  private ownedOrganizationsLoaded = false;
+
   constructor() {
     // Ensure baseline presets land even if this tab kept an old empty service state.
     this.deckArchetypes.bootstrapFromStorage();
-    void this.loadPlayers();
+    if (this.capabilities().localPlayerRename) void this.loadPlayers();
+    effect(() => {
+      const capabilities = this.capabilities();
+      if (capabilities.adminCatalog && !this.serverCatalogLoaded) {
+        this.serverCatalogLoaded = true;
+        void this.loadServerArchetypes();
+      }
+      if (capabilities.organizerMaintenance && !this.serverPlayersLoaded) {
+        this.serverPlayersLoaded = true;
+        void this.loadServerPlayers();
+      }
+      if (capabilities.orgNotifications && !this.ownedOrganizationsLoaded) {
+        this.ownedOrganizationsLoaded = true;
+        void this.loadOwnedOrganizations();
+      }
+    });
   }
 
   async setLanguage(value: string): Promise<void> {
@@ -417,6 +683,162 @@ export class SettingsComponent {
     }
   }
 
+  async loadServerArchetypes(): Promise<void> {
+    try {
+      this.serverArchetypes.set(await firstValueFrom(this.client.listAdminDeckArchetypes()));
+    } catch (error) {
+      logBoundaryError('settings.loadServerArchetypes', error);
+      this.archetypeMessage.set(this.i18n.t('settings.loadFailed'));
+    }
+  }
+
+  canAddNewServerArchetype(): boolean {
+    const archetype = normalizeArchetypeName(this.newArchetype());
+    return !!archetype && !this.serverArchetypes().some((item) => archetypeKey(item.name) === archetypeKey(archetype));
+  }
+
+  async addServerArchetype(): Promise<void> {
+    if (this.archetypeSaving()) return;
+    const archetype = normalizeArchetypeName(this.newArchetype());
+    if (!archetype) {
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeEnterName'));
+      return;
+    }
+    this.archetypeSaving.set(true);
+    try {
+      await firstValueFrom(this.client.createDeckArchetype({ name: archetype }));
+      this.newArchetype.set('');
+      await this.loadServerArchetypes();
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeAdded', { name: archetype }));
+    } catch (error) {
+      logBoundaryError('settings.addServerArchetype', error, { name: archetype });
+      this.archetypeMessage.set(error instanceof ApiProblemError && error.status === 409
+        ? this.i18n.t('settings.archetypeExists', { name: archetype })
+        : this.i18n.t('settings.archetypeSaveFailed'));
+    } finally {
+      this.archetypeSaving.set(false);
+    }
+  }
+
+  startServerEdit(archetype: AdminDeckArchetypeResponse): void {
+    const previous = this.editingServerArchetype();
+    if (previous && previous !== archetype.id) this.clearServerEditState(previous);
+    this.editingServerArchetype.set(archetype.id);
+    this.serverArchetypeEdits.update((edits) => ({ ...edits, [archetype.id]: archetype.name }));
+    this.archetypeMessage.set('');
+  }
+
+  cancelServerEdit(): void {
+    const editing = this.editingServerArchetype();
+    if (!editing) return;
+    this.clearServerEditState(editing);
+  }
+
+  serverEditValue(archetype: AdminDeckArchetypeResponse): string {
+    return this.serverArchetypeEdits()[archetype.id] ?? archetype.name;
+  }
+
+  setServerEditValue(archetypeId: string, value: string): void {
+    this.serverArchetypeEdits.update((edits) => ({ ...edits, [archetypeId]: value }));
+    this.archetypeMessage.set('');
+  }
+
+  canSaveServerArchetypeEdit(archetype: AdminDeckArchetypeResponse): boolean {
+    const next = normalizeArchetypeName(this.serverEditValue(archetype));
+    if (!next || next === archetype.name) return false;
+    return !this.serverArchetypes().some((item) => item.id !== archetype.id && archetypeKey(item.name) === archetypeKey(next));
+  }
+
+  async saveServerArchetypeEdit(archetype: AdminDeckArchetypeResponse): Promise<void> {
+    if (this.archetypeSaving()) return;
+    const next = normalizeArchetypeName(this.serverEditValue(archetype));
+    if (!next || next === archetype.name) {
+      this.clearServerEditState(archetype.id);
+      return;
+    }
+    this.archetypeSaving.set(true);
+    try {
+      await firstValueFrom(this.client.renameDeckArchetype(archetype.id, { name: next }));
+      this.clearServerEditState(archetype.id);
+      await this.loadServerArchetypes();
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeUpdated', { from: archetype.name, to: next }));
+    } catch (error) {
+      logBoundaryError('settings.saveServerArchetypeEdit', error, { from: archetype.name, to: next });
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeSaveFailed'));
+    } finally {
+      this.archetypeSaving.set(false);
+    }
+  }
+
+  async removeServerArchetype(archetype: AdminDeckArchetypeResponse): Promise<void> {
+    if (this.archetypeSaving()) return;
+    this.archetypeSaving.set(true);
+    try {
+      await firstValueFrom(this.client.deleteDeckArchetype(archetype.id));
+      if (this.editingServerArchetype() === archetype.id) this.clearServerEditState(archetype.id);
+      await this.loadServerArchetypes();
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeRemoved', { name: archetype.name }));
+    } catch (error) {
+      logBoundaryError('settings.removeServerArchetype', error, { name: archetype.name });
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeSaveFailed'));
+    } finally {
+      this.archetypeSaving.set(false);
+    }
+  }
+
+  async restoreServerArchetype(archetype: AdminDeckArchetypeResponse): Promise<void> {
+    if (this.archetypeSaving()) return;
+    this.archetypeSaving.set(true);
+    try {
+      await firstValueFrom(this.client.restoreDeckArchetype(archetype.id));
+      await this.loadServerArchetypes();
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeRestored', { name: archetype.name }));
+    } catch (error) {
+      logBoundaryError('settings.restoreServerArchetype', error, { name: archetype.name });
+      this.archetypeMessage.set(this.i18n.t('settings.archetypeSaveFailed'));
+    } finally {
+      this.archetypeSaving.set(false);
+    }
+  }
+
+  async importServerArchetypes(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || this.archetypeImporting()) return;
+
+    this.archetypeImporting.set(true);
+    try {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await file.text());
+      } catch {
+        this.archetypeMessage.set(this.i18n.t('settings.archetypesImportBadJson'));
+        return;
+      }
+
+      const names = parseArchetypeImportList(parsed);
+      if (!names || !names.length) {
+        this.archetypeMessage.set(this.i18n.t('settings.archetypesImportInvalid'));
+        return;
+      }
+
+      const result = await firstValueFrom(this.client.importDeckArchetypes({ names }));
+      await this.loadServerArchetypes();
+      this.archetypeMessage.set(this.i18n.t('settings.archetypesImportedServer', {
+        added: result.added,
+        restored: result.restored,
+        skipped: result.skipped
+      }));
+      logBoundaryInfo('settings.importServerArchetypes', { fileName: file.name, added: result.added, restored: result.restored, skipped: result.skipped });
+    } catch (error) {
+      logBoundaryError('settings.importServerArchetypes', error, { fileName: file.name });
+      this.archetypeMessage.set(this.i18n.t('settings.archetypesImportFailed'));
+    } finally {
+      this.archetypeImporting.set(false);
+      input.value = '';
+    }
+  }
+
   async loadPlayers(): Promise<void> {
     try {
       const leagues = await this.leagueRepo.listLeagues();
@@ -427,10 +849,21 @@ export class SettingsComponent {
     }
   }
 
+  async loadServerPlayers(): Promise<void> {
+    try {
+      const response = await firstValueFrom(this.client.listMaintenancePlayerNames(undefined));
+      this.serverPlayers.set(response.items);
+    } catch (error) {
+      logBoundaryError('settings.loadServerPlayers', error);
+      this.playerMessage.set(this.i18n.t('settings.loadFailed'));
+    }
+  }
+
   startPlayerEdit(player: string): void {
     const previous = this.editingPlayer();
     if (previous && previous !== player) this.clearPlayerEditState(previous);
     if (this.editingArchetype()) this.cancelEdit();
+    if (this.editingServerArchetype()) this.cancelServerEdit();
     this.editingPlayer.set(player);
     this.playerEdits.update((edits) => ({ ...edits, [player]: player }));
     this.playerMessage.set('');
@@ -457,7 +890,7 @@ export class SettingsComponent {
   }
 
   async savePlayerEdit(player: string): Promise<void> {
-    if (!this.canManageLeagueData() || this.playerSaving()) return;
+    if (this.playerSaving()) return;
     const next = trimPlayerName(this.playerEditValue(player));
     if (!next) {
       this.playerMessage.set(this.i18n.t('settings.playerEnterName'));
@@ -490,7 +923,7 @@ export class SettingsComponent {
     try {
       const canonicalTarget = this.players().find((name) => samePlayerName(name, next)) ?? next;
       const targetName = merge ? canonicalTarget : next;
-      await this.renamePlayerEverywhere(player, targetName);
+      await this.renamePlayerLocally(player, targetName);
       this.clearPlayerEditState(player);
       await this.loadPlayers();
       this.playerMessage.set(merge
@@ -498,9 +931,92 @@ export class SettingsComponent {
         : this.i18n.t('settings.playerRenamed', { from: player, to: targetName }));
     } catch (error) {
       logBoundaryError('settings.renamePlayer', error, { from: player, to: next });
+      this.playerMessage.set(this.i18n.t('settings.playerRenameFailed'));
+    } finally {
+      this.playerSaving.set(false);
+    }
+  }
+
+  /** Server rename: exact case-sensitive source, preview affected count before commit. */
+  async saveServerPlayerEdit(player: PlayerNameSummary): Promise<void> {
+    if (this.playerSaving()) return;
+    const next = trimPlayerName(this.playerEditValue(player.name));
+    if (!next) {
+      this.playerMessage.set(this.i18n.t('settings.playerEnterName'));
+      return;
+    }
+    if (next === player.name) {
+      this.clearPlayerEditState(player.name);
+      return;
+    }
+
+    this.playerSaving.set(true);
+    try {
+      const preview = await firstValueFrom(this.client.previewMaintenancePlayerRename({ fromName: player.name, toName: next }));
+      this.playerSaving.set(false);
+      const merge = preview.mergesWithExistingPlayer;
+      const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+        data: {
+          title: merge ? this.i18n.t('settings.mergePlayerTitle') : this.i18n.t('settings.renamePlayerTitle'),
+          message: merge
+            ? this.i18n.t('settings.mergePreviewMessage', { from: player.name, to: next, count: preview.affectedOccurrenceCount, leagues: preview.affectedLeagueCount })
+            : this.i18n.t('settings.renamePreviewMessage', { from: player.name, to: next, count: preview.affectedOccurrenceCount, leagues: preview.affectedLeagueCount }),
+          confirmLabel: merge ? this.i18n.t('settings.mergePlayerTitle') : this.i18n.t('settings.renamePlayerTitle'),
+          destructive: merge
+        }
+      }).afterClosed());
+      if (!confirmed) return;
+
+      this.playerSaving.set(true);
+      await firstValueFrom(this.client.commitMaintenancePlayerRename({ fromName: player.name, toName: next }));
+      this.clearPlayerEditState(player.name);
+      await this.loadServerPlayers();
+      this.playerMessage.set(merge
+        ? this.i18n.t('settings.playerMerged', { from: player.name, to: next })
+        : this.i18n.t('settings.playerRenamed', { from: player.name, to: next }));
+    } catch (error) {
+      logBoundaryError('settings.renameServerPlayer', error, { from: player.name, to: next });
       this.playerMessage.set(leagueCommandError(error) === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('settings.playerRenameFailed'));
     } finally {
       this.playerSaving.set(false);
+    }
+  }
+
+  async loadOwnedOrganizations(): Promise<void> {
+    try {
+      const organizations = await firstValueFrom(this.client.organizationsAll());
+      const owned = organizations.filter((organization) => organization.role === 'Owner');
+      const withSettings: OwnedOrganizationSettings[] = [];
+      for (const organization of owned) {
+        try {
+          withSettings.push({ organization, settings: await firstValueFrom(this.client.notificationSettingsGET(organization.id)) });
+        } catch (error) {
+          logBoundaryError('settings.loadOrganizationSettings', error, { organizationId: organization.id });
+        }
+      }
+      this.ownedOrganizations.set(withSettings);
+    } catch (error) {
+      logBoundaryError('settings.loadOwnedOrganizations', error);
+      this.ownedOrganizations.set([]);
+    }
+  }
+
+  async saveOrganizationSettings(owned: OwnedOrganizationSettings): Promise<void> {
+    if (this.orgSaving()) return;
+    this.orgSaving.set(true);
+    try {
+      const updated = await firstValueFrom(this.client.notificationSettingsPUT(owned.organization.id, {
+        notifyOnRegistration: owned.settings.notifyOnRegistration,
+        notifyOnUnregistration: owned.settings.notifyOnUnregistration
+      }));
+      owned.settings.notifyOnRegistration = updated.notifyOnRegistration;
+      owned.settings.notifyOnUnregistration = updated.notifyOnUnregistration;
+      this.orgMessage.set(this.i18n.t('settings.orgSaved', { name: owned.organization.name }));
+    } catch (error) {
+      logBoundaryError('settings.saveOrganizationSettings', error, { organizationId: owned.organization.id });
+      this.orgMessage.set(this.i18n.t('settings.orgSaveFailed', { name: owned.organization.name }));
+    } finally {
+      this.orgSaving.set(false);
     }
   }
 
@@ -509,12 +1025,15 @@ export class SettingsComponent {
     const target = event.target;
     if (!(target instanceof Element)) return;
 
-    if (this.editingArchetype()) {
+    if (this.editingArchetype() || this.editingServerArchetype()) {
       if (
         !target.closest('.settings-archetype-item--editing .settings-archetype-field')
         && !target.closest('.settings-archetype-item--editing [data-cy="settings-save-archetype-button"]')
         && !target.closest('.settings-archetype-item--editing [data-cy="settings-remove-archetype-button"]')
-      ) this.cancelEdit();
+      ) {
+        this.cancelEdit();
+        this.cancelServerEdit();
+      }
     }
 
     if (this.editingPlayer()) {
@@ -526,35 +1045,21 @@ export class SettingsComponent {
     }
   }
 
-  private async renamePlayerEverywhere(from: string, to: string): Promise<void> {
+  /** Legacy local rename across browser-stored Leagues and Live Tournaments (flag-off builds only). */
+  private async renamePlayerLocally(from: string, to: string): Promise<void> {
     const leagues = await this.leagueRepo.listLeagues();
     for (const league of leagues) {
       const nextLeague = renamePlayerInLeague(league, from, to);
       if (nextLeague === league) continue;
       const changed = JSON.stringify(nextLeague.tournaments) !== JSON.stringify(league.tournaments);
       if (!changed) continue;
-      if (this.leagueRepo.serverMode) await this.leagueRepo.renameLeaguePlayerName(league, from, to);
-      else await this.leagueRepo.saveLeague(nextLeague, league.documentVersion);
+      await this.leagueRepo.saveLeague(nextLeague, league.documentVersion);
     }
 
     const lives = await this.liveRepo.list();
     for (const live of lives) {
       const nextLive = renamePlayerInLiveTournament(live, from, to);
       if (JSON.stringify(nextLive.players) === JSON.stringify(live.players) && JSON.stringify(nextLive.rounds) === JSON.stringify(live.rounds)) continue;
-      if (this.liveRepo.serverMode) {
-        let expectedVersion = live.documentVersion;
-        for (const player of live.players.filter((item) => samePlayerName(item.name, from))) {
-          const updated = await this.liveRepo.editLivePlayer(live.id, player.id, expectedVersion, {
-            name: to,
-            initialWins: player.initialWins,
-            initialDraws: player.initialDraws,
-            initialLosses: player.initialLosses,
-            archetype: player.archetype
-          });
-          expectedVersion = updated.documentVersion;
-        }
-        continue;
-      }
       await this.liveRepo.save(nextLive);
     }
   }
@@ -565,6 +1070,14 @@ export class SettingsComponent {
       return rest;
     });
     if (this.editingArchetype() === archetype) this.editingArchetype.set(null);
+  }
+
+  private clearServerEditState(archetypeId: string): void {
+    this.serverArchetypeEdits.update((edits) => {
+      const { [archetypeId]: _removed, ...rest } = edits;
+      return rest;
+    });
+    if (this.editingServerArchetype() === archetypeId) this.editingServerArchetype.set(null);
   }
 
   private clearPlayerEditState(player: string): void {

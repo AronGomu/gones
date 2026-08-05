@@ -55,6 +55,10 @@ try {
     if (browser.status !== 0) process.exitCode = browser.status ?? 1;
   }
   if (!process.exitCode) {
+    const settingsLocal = runCypress('cypress/e2e/settings.cy.js');
+    if (settingsLocal.status !== 0) process.exitCode = settingsLocal.status ?? 1;
+  }
+  if (!process.exitCode) {
     const liveLifecycle = runCypress('cypress/e2e/running-tournament-lifecycle.cy.js');
     if (liveLifecycle.status !== 0) process.exitCode = liveLifecycle.status ?? 1;
   }
@@ -87,6 +91,10 @@ try {
   if (!process.exitCode) {
     const leagueBrowser = runCypress('cypress/e2e/league-server.cy.js');
     if (leagueBrowser.status !== 0) process.exitCode = leagueBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
+    const settingsBrowser = runCypress('cypress/e2e/settings-server.cy.js');
+    if (settingsBrowser.status !== 0) process.exitCode = settingsBrowser.status ?? 1;
   }
   if (!process.exitCode) {
     const liveBrowser = runCypress('cypress/e2e/live-server.cy.js');
