@@ -1,5 +1,10 @@
 # Frontend Deployment Guide
 
+> **Server-mode hosting:** this guide covers the legacy static, frontend-only deployment. For the
+> V1 server stack — API, Worker, Migrator, backup/restore images and everything a generic Linux host
+> must provide — see [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) and ADR 0018. No hosting
+> vendor is chosen for it yet.
+
 This project is an Angular single-page PWA that currently runs frontend-only. It can be deployed as static files and does **not** need a backend server online.
 
 The recommended host for this repository is **Cloudflare Pages**.

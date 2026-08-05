@@ -1,0 +1,281 @@
+# Gones release rehearsal (C41).
+#
+# Runs the exact release-mode images a generic Linux host would run, with every external dependency
+# replaced by a local fake and every route to the internet removed. Nothing here is a vendor product:
+# a TLS reverse proxy, a persistent PostgreSQL, mounted secret files, a migration job, one Worker,
+# an OTLP collector and a backup command are the whole host contract.
+#
+# Drive it with `npm run release:rehearsal` — that script owns the assertions.
+name: gones-release-test
+
+x-dotnet-runtime: &dotnet-runtime
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+
+services:
+  # Generates the test CA, per-service TLS certificates and every mounted secret. Nothing secret is
+  # committed to the repository; all of it is created here and dies with the volumes.
+  bootstrap:
+    build:
+      context: .
+      dockerfile: deploy/release-test/Dockerfile.fixtures
+    command: ["/usr/local/bin/bootstrap.sh"]
+    volumes:
+      - certs:/certs
+      - secrets:/secrets
+      - backups:/backups
+      - ./.release-test-export:/export
+    networks: [core]
+    restart: "no"
+
+  postgres:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_DB: gones
+      POSTGRES_USER: gones_migration
+      POSTGRES_PASSWORD: local-migration-only
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./deploy/postgres/init-roles.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gones_migration -d gones"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [core]
+
+  migrator:
+    <<: *dotnet-runtime
+    build:
+      context: .
+      dockerfile: backend/src/Gones.Migrator/Dockerfile
+    command: ["database", "update"]
+    environment:
+      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_migration;Password=local-migration-only
+    depends_on:
+      postgres: { condition: service_healthy }
+      bootstrap: { condition: service_completed_successfully }
+    networks: [core]
+    restart: "no"
+
+  permissions:
+    image: postgres:17-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      PGPASSWORD: local-migration-only
+    command:
+      - sh
+      - -ec
+      - |
+        psql -h postgres -U gones_migration -d gones -v ON_ERROR_STOP=1 <<'SQL'
+        GRANT USAGE ON SCHEMA public TO gones_app;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO gones_app;
+        GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO gones_app;
+        REVOKE UPDATE, DELETE, TRUNCATE ON audit_records FROM gones_app;
+        SQL
+    depends_on:
+      migrator: { condition: service_completed_successfully }
+    networks: [core]
+    restart: "no"
+
+  api:
+    <<: *dotnet-runtime
+    build:
+      context: .
+      dockerfile: backend/src/Gones.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Every secret arrives as a mounted file; none of them is visible in the process environment.
+      GONES_DB_CONNECTION_FILE: /secrets/db-connection
+      GONES_AUTH_SIGNING_KEY_FILE: /secrets/auth-signing-key
+      GONES_BREVO_WEBHOOK_PATH_TOKEN_FILE: /secrets/brevo-webhook-token
+      GONES_ALLOWED_ORIGINS: https://localhost:8443
+      GONES_PUBLIC_APP_ORIGIN: https://localhost:8443
+      # Only the TLS edge may restate the client IP and scheme. Its address is fixed below.
+      GONES_FORWARDED_PROXIES: 172.31.240.10
+      GONES_FORWARDED_PROXY_HOP_LIMIT: "1"
+      GONES_SHUTDOWN_TIMEOUT_SECONDS: "20"
+      GONES_FEATURES__API_BACKEND: "true"
+      GONES_FEATURES__CALENDAR_V1: "true"
+      GONES_FEATURES__AUTH_V1: "true"
+      GONES_FEATURES__ADMIN_V1: "true"
+      GONES_FEATURES__LEAGUE_SERVER: "true"
+      GONES_FEATURES__LIVE_SERVER: "true"
+      # Self-hosted fake identity provider: no live Google/Facebook credential exists in this stack.
+      GONES_AUTH_PROVIDER: External
+      GONES_OAUTH_CALLBACK_ORIGIN: https://localhost:8443
+      GONES_GOOGLE_CLIENT_ID: release-test-google
+      GONES_GOOGLE_CLIENT_SECRET_FILE: /secrets/oauth-google-secret
+      GONES_FACEBOOK_CLIENT_ID: release-test-facebook
+      GONES_FACEBOOK_CLIENT_SECRET_FILE: /secrets/oauth-facebook-secret
+      GONES_OAUTH_GOOGLE_AUTHORIZATION_ENDPOINT: https://fake-identity:8443/authorize
+      GONES_OAUTH_GOOGLE_TOKEN_ENDPOINT: https://fake-identity:8443/token
+      GONES_OAUTH_GOOGLE_USERINFO_ENDPOINT: https://fake-identity:8443/userinfo
+      GONES_OAUTH_FACEBOOK_AUTHORIZATION_ENDPOINT: https://fake-identity:8443/authorize
+      GONES_OAUTH_FACEBOOK_TOKEN_ENDPOINT: https://fake-identity:8443/token
+      GONES_OAUTH_FACEBOOK_USERINFO_ENDPOINT: https://fake-identity:8443/userinfo
+      # The test CA is the only trust anchor; there is no public root store in this network.
+      SSL_CERT_FILE: /certs/ca.pem
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    volumes:
+      - certs:/certs:ro
+      - secrets:/secrets:ro
+    depends_on:
+      permissions: { condition: service_completed_successfully }
+      otel-collector: { condition: service_started }
+    networks: [core]
+    restart: unless-stopped
+
+  worker:
+    <<: *dotnet-runtime
+    build:
+      context: .
+      dockerfile: backend/src/Gones.Worker/Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      GONES_DB_CONNECTION_FILE: /secrets/db-connection
+      GONES_AUTH_SIGNING_KEY_FILE: /secrets/auth-signing-key
+      GONES_PUBLIC_APP_ORIGIN: https://localhost:8443
+      GONES_SHUTDOWN_TIMEOUT_SECONDS: "20"
+      GONES_FEATURES__API_BACKEND: "true"
+      GONES_FEATURES__CALENDAR_V1: "true"
+      GONES_FEATURES__AUTH_V1: "true"
+      GONES_AUTH_PROVIDER: Local
+      GONES_ALLOWED_ORIGINS: https://localhost:8443
+      # Provider-neutral transport pointed at the local fake; no Brevo account is involved.
+      GONES_EMAIL_TRANSPORT: Brevo
+      GONES_BREVO_API_BASE_URL: https://fake-brevo:8443/v3/
+      GONES_BREVO_API_KEY_FILE: /secrets/brevo-api-key
+      GONES_BREVO_SENDER_EMAIL: no-reply@release-test.invalid
+      GONES_BREVO_SENDER_NAME: Gones Release Test
+      GONES_NOTIFICATION_POLL_MILLISECONDS: "500"
+      GONES_NOTIFICATION_LEASE_SECONDS: "120"
+      SSL_CERT_FILE: /certs/ca.pem
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    volumes:
+      - certs:/certs:ro
+      - secrets:/secrets:ro
+    depends_on:
+      permissions: { condition: service_completed_successfully }
+    networks: [core]
+    # Singleton by contract: leadership is a PostgreSQL advisory lock, not a scheduler feature.
+    deploy:
+      replicas: 1
+    restart: unless-stopped
+
+  tls-proxy:
+    build:
+      context: .
+      dockerfile: deploy/release-test/Dockerfile.tls-proxy
+    ports: ["127.0.0.1:8443:8443"]
+    volumes:
+      - certs:/certs:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=16m
+      - /tmp:size=8m
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      api: { condition: service_started }
+      bootstrap: { condition: service_completed_successfully }
+    networks:
+      edge: {}
+      core:
+        ipv4_address: 172.31.240.10
+    restart: unless-stopped
+
+  fake-identity:
+    build:
+      context: .
+      dockerfile: deploy/release-test/Dockerfile.fixtures
+    command: ["node", "/opt/fixtures/fake-provider.mjs"]
+    environment:
+      GONES_FIXTURE_ROLE: identity
+      GONES_FIXTURE_HOST: fake-identity
+    volumes:
+      - certs:/certs:ro
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    networks: [core]
+    restart: unless-stopped
+
+  fake-brevo:
+    build:
+      context: .
+      dockerfile: deploy/release-test/Dockerfile.fixtures
+    command: ["node", "/opt/fixtures/fake-provider.mjs"]
+    environment:
+      GONES_FIXTURE_ROLE: brevo
+      GONES_FIXTURE_HOST: fake-brevo
+      GONES_FIXTURE_WEBHOOK_BASE: https://tls-proxy:8443/api/notifications/webhooks/brevo
+      GONES_FIXTURE_WEBHOOK_TOKEN_FILE: /secrets/brevo-webhook-token
+      NODE_EXTRA_CA_CERTS: /certs/ca.pem
+    volumes:
+      - certs:/certs:ro
+      - secrets:/secrets:ro
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    networks: [core]
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.140.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./deploy/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [core]
+    restart: unless-stopped
+
+  # Run-to-completion commands, invoked by the rehearsal script.
+  backup:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: deploy/backup/Dockerfile
+    environment:
+      GONES_BACKUP_ROOT: /backups
+      GONES_BACKUP_DSN: postgresql://gones_migration:local-migration-only@postgres:5432/gones
+      GONES_BACKUP_KEY_FILE: /secrets/backup-key
+    volumes:
+      - backups:/backups
+      - secrets:/secrets:ro
+    read_only: true
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [core]
+    restart: "no"
+
+  # Proves the application tier has no route off the host.
+  egress-probe:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: deploy/release-test/Dockerfile.fixtures
+    command: ["/usr/local/bin/egress-probe.sh"]
+    networks: [core]
+    restart: "no"
+
+networks:
+  # Published ports need a routable network; only the TLS edge sits here.
+  edge: {}
+  # Everything else is unroutable: no default gateway, so no external egress at all.
+  core:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.31.240.0/24
+
+volumes:
+  postgres-data:
+  certs:
+  secrets:
+  backups:

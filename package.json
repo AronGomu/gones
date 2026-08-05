@@ -23,6 +23,11 @@
     "migration:smoke": "node scripts/smoke-migration.mjs",
     "e2e:ci": "node scripts/full-stack-ci.mjs",
     "audit:supply-chain": "node scripts/audit-supply-chain.mjs",
+    "images:build": "node scripts/build-release-images.mjs",
+    "images:verify": "node scripts/verify-image-contract.mjs",
+    "images:scan": "node scripts/scan-images.mjs",
+    "release:rehearsal": "node scripts/release-rehearsal.mjs",
+    "backup:rehearsal": "node scripts/backup-restore-rehearsal.mjs",
     "db:reset": "node scripts/reset-local-stack.mjs",
     "db:seed": "node scripts/seed-local.mjs"
   },

@@ -31,16 +31,16 @@ public sealed class ExternalOAuthOptions
             [ExternalIdentityProvider.Google] = new OAuthProviderOptions(
                 Require(configuration, "GONES_GOOGLE_CLIENT_ID"),
                 ReadSecret(configuration, "GONES_GOOGLE_CLIENT_SECRET", "GONES_GOOGLE_CLIENT_SECRET_FILE"),
-                new Uri("https://accounts.google.com/o/oauth2/v2/auth"),
-                new Uri("https://oauth2.googleapis.com/token"),
-                new Uri("https://openidconnect.googleapis.com/v1/userinfo"),
+                ReadEndpoint(configuration, "GOOGLE", "AUTHORIZATION", "https://accounts.google.com/o/oauth2/v2/auth"),
+                ReadEndpoint(configuration, "GOOGLE", "TOKEN", "https://oauth2.googleapis.com/token"),
+                ReadEndpoint(configuration, "GOOGLE", "USERINFO", "https://openidconnect.googleapis.com/v1/userinfo"),
                 "openid email profile"),
             [ExternalIdentityProvider.Facebook] = new OAuthProviderOptions(
                 Require(configuration, "GONES_FACEBOOK_CLIENT_ID"),
                 ReadSecret(configuration, "GONES_FACEBOOK_CLIENT_SECRET", "GONES_FACEBOOK_CLIENT_SECRET_FILE"),
-                new Uri("https://www.facebook.com/v22.0/dialog/oauth"),
-                new Uri("https://graph.facebook.com/v22.0/oauth/access_token"),
-                new Uri("https://graph.facebook.com/v22.0/me?fields=id,email,first_name,last_name"),
+                ReadEndpoint(configuration, "FACEBOOK", "AUTHORIZATION", "https://www.facebook.com/v22.0/dialog/oauth"),
+                ReadEndpoint(configuration, "FACEBOOK", "TOKEN", "https://graph.facebook.com/v22.0/oauth/access_token"),
+                ReadEndpoint(configuration, "FACEBOOK", "USERINFO", "https://graph.facebook.com/v22.0/me?fields=id,email,first_name,last_name"),
                 "email public_profile")
         };
         return new ExternalOAuthOptions(mode, callbackOrigin, providers);
@@ -60,6 +60,26 @@ public sealed class ExternalOAuthOptions
             || value.AbsolutePath != "/")
         {
             throw new InvalidOperationException($"{key} must be an exact HTTPS origin.");
+        }
+        return value;
+    }
+
+    /// <summary>
+    /// Optional per-provider endpoint override, so a self-hosted or fake OIDC provider can be pointed
+    /// at from a generic host without a code change (C41 release rehearsal uses this). HTTPS only:
+    /// the override never becomes a way to downgrade an identity exchange to cleartext.
+    /// </summary>
+    private static Uri ReadEndpoint(IConfiguration configuration, string provider, string endpoint, string fallback)
+    {
+        var key = $"GONES_OAUTH_{provider}_{endpoint}_ENDPOINT";
+        var raw = configuration[key];
+        if (string.IsNullOrWhiteSpace(raw)) return new Uri(fallback);
+        if (!Uri.TryCreate(raw.Trim(), UriKind.Absolute, out var value)
+            || value.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(value.UserInfo)
+            || !string.IsNullOrEmpty(value.Fragment))
+        {
+            throw new InvalidOperationException($"{key} must be an absolute HTTPS URL without user information or a fragment.");
         }
         return value;
     }

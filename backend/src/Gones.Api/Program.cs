@@ -17,6 +17,7 @@ using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NodaTime;
@@ -25,6 +26,11 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+// Mounted-file secrets are layered in first so every later reader sees one uniform configuration.
+builder.Configuration.AddGonesSecretFiles();
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
+var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);
+if (forwardedProxies.Enabled) builder.Services.Configure<ForwardedHeadersOptions>(forwardedProxies.Apply);
 var runtimeConfiguration = GonesRuntimeConfiguration.Load(
     builder.Configuration,
     builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"));
@@ -116,6 +122,8 @@ else
 }
 
 var app = builder.Build();
+// Must precede every consumer of the client IP and scheme: correlation logging, HSTS, rate limits.
+if (forwardedProxies.Enabled) app.UseForwardedHeaders();
 app.UseMiddleware<ApiBoundaryMiddleware>();
 app.UseCors(ApiBoundaryConfiguration.CorsPolicy);
 app.UseExceptionHandler();

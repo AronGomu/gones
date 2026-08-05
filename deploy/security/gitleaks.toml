@@ -1,0 +1,29 @@
+# Gitleaks configuration for the Gones repository (C41).
+#
+# Extends the upstream rule set and only narrows *where* it looks: build output, dependencies and
+# generated reports are not source, and the release-rehearsal fixtures deliberately contain
+# throwaway local-only values.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths that are generated, vendored, or deliberately local-only."
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)\.angular/''',
+  '''(^|/)\.git/''',
+  '''(^|/)reports/''',
+  '''(^|/)\.release-test-export/''',
+  '''(^|/)bin/''',
+  '''(^|/)obj/''',
+  '''package-lock\.json$''',
+  '''packages\.lock\.json$'''
+]
+regexes = [
+  # Local-only credentials used by compose and the release rehearsal. They never leave a developer
+  # machine and are recreated on every run; the naming convention makes that explicit.
+  '''local-migration-only''',
+  '''local-app-only''',
+  '''local-development-only-signing-key-change-me'''
+]

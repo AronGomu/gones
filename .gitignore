@@ -14,3 +14,5 @@
 /backend/.tmp-tools/
 
 /.pi/artifacts/
+# Test CA exported by the C41 release rehearsal; recreated on every run.
+/.release-test-export/

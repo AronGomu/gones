@@ -11,3 +11,5 @@ dist
 cypress/screenshots
 cypress/videos
 .env*
+.release-test-export
+reports

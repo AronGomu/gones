@@ -13,6 +13,8 @@ if (args.Contains("--help", StringComparer.Ordinal))
 }
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Configuration.AddGonesSecretFiles();
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 GonesRuntimeConfiguration runtimeConfiguration;
 try

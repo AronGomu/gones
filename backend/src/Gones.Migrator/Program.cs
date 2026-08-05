@@ -5,6 +5,7 @@ using Gones.Domain.Identity;
 using Gones.Domain.Leagues;
 using Gones.Domain.Live;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.MigrationImport;
 using Gones.Infrastructure.Notifications;
@@ -88,6 +89,7 @@ if (databaseCommand is null && notificationCommand is null && bootstrapEmail is 
 }
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Configuration.AddGonesSecretFiles();
 if (notificationCommand is not null && !builder.Configuration.GetValue<bool>("GONES_ALLOW_TEST_NOTIFICATION"))
 {
     throw new InvalidOperationException("GONES_ALLOW_TEST_NOTIFICATION=true is required for the test notification command.");
