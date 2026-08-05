@@ -735,14 +735,14 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 
 **Deps:** C04, C12, C34. **Lane:** D/E. **Runnable:** `liveServer` switches Live workflows; local fallback flag-off.
 
-- [ ] RED: adapter mapping tests + existing running-tournament Cypress lifecycle under API mode.
-- [ ] Replace flag-on `LiveTournamentRepository` local writes with generated command adapter + ETag state.
-- [ ] Refactor autosave into explicit debounced intent commands; abort stale requests; latest response guard prevents older response overwrite.
-- [ ] Replace client compensating finalization with atomic server finalize result/navigation.
-- [ ] Preserve current pairing/checkpoint/advanced settings/standings UX + route shape.
-- [ ] Add online-required errors, pending lock, 412 reload/reapply UX; no queued writes.
-- [ ] Run existing Live lifecycle at phone/desktop; add User read-only + Organizer/Admin mutation role tests.
-- [ ] GREEN: all Live/unit/Cypress tests; `G-FULL`, `G-RUN` flag off/on.
+- [x] RED: adapter mapping tests + existing running-tournament Cypress lifecycle under API mode.
+- [x] Replace flag-on `LiveTournamentRepository` local writes with generated command adapter + ETag state.
+- [x] Refactor autosave into explicit debounced intent commands; abort stale requests; latest response guard prevents older response overwrite.
+- [x] Replace client compensating finalization with atomic server finalize result/navigation.
+- [x] Preserve current pairing/checkpoint/advanced settings/standings UX + route shape.
+- [x] Add online-required errors, pending lock, 412 reload/reapply UX; no queued writes.
+- [x] Run existing Live lifecycle at phone/desktop; add User read-only + Organizer/Admin mutation role tests.
+- [x] GREEN: all Live/unit/Cypress tests; `G-FULL`, `G-RUN` flag off/on.
 
 ## C36 — `feat: move catalogs and Player Name maintenance to server settings`
 

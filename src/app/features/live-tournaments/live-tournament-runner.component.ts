@@ -15,10 +15,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
+import { AuthService } from '../../auth/auth.service';
 import { LeagueRepository } from '../../data/league-repository.service';
+import { canManageLive, liveCommandError } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
-import { activeLivePlayers, autoLiveSwissRoundCount, cancelCurrentSwissRound, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, createLiveTournamentPlayer, currentLiveRound, currentRoundComplete, finalizeLiveTournament, generateNextSwissRound, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, restoreLiveTournamentCheckpoint, unpaidActivePlayers, validateCurrentSwissRound } from '../../domain/live-tournament';
-import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument, trimPlayerName } from '../../domain/models';
+import { activeLivePlayers, autoLiveSwissRoundCount, cancelCurrentSwissRound, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, createLiveTournamentPlayer, currentLiveRound, currentRoundComplete, generateNextSwissRound, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, restoreLiveTournamentCheckpoint, unpaidActivePlayers, validateCurrentSwissRound } from '../../domain/live-tournament';
+import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, trimPlayerName } from '../../domain/models';
 import { collectKnownPlayerNames, suggestPlayerNames } from '../../domain/player-stats';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -33,14 +35,16 @@ import { I18nService } from '../../i18n/i18n.service';
   template: `
     <gones-back-button [link]="['/live-tournaments']" [label]="i18n.t('nav.backToRunningTournaments')" position="top" />
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    @if (stale()) { <button mat-stroked-button class="secondary-action" type="button" data-cy="live-reload" (click)="load()">{{ i18n.t('live.reloadLatest') }}</button> }
+    @if (readOnly() && tournament()) { <p class="muted" data-cy="live-read-only">{{ i18n.t('live.readOnly') }}</p> }
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else if (tournament(); as live) {
       <section class="page-heading live-tournament-title-heading">
         <h1>{{ live.name || i18n.t('live.defaultLiveName') }}</h1>
         <div class="live-tournament-meta-fields">
-          <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('live.tournamentName') }}</mat-label><input #liveTournamentNameInput data-cy="live-tournament-name-input" matInput [(ngModel)]="tournamentNameDraft" (blur)="saveTitleEdit()" (keydown.enter)="$event.preventDefault(); saveTitleEdit()" [disabled]="finalizing()"></mat-form-field>
-          <mat-form-field appearance="outline" class="live-tournament-date-field"><mat-label>{{ i18n.t('live.date') }}</mat-label><input matInput data-cy="live-tournament-date-input" type="date" [ngModel]="live.tournamentDate" (ngModelChange)="patch({ tournamentDate: stringValue($event, live.tournamentDate) })" [disabled]="finalizing()"></mat-form-field>
-          <mat-form-field appearance="outline" class="live-tournament-league-field"><mat-label>{{ i18n.t('live.leagueFinalize') }}</mat-label><mat-select data-cy="live-tournament-league-select" [ngModel]="leagueSelectValue(live.leagueId)" (ngModelChange)="patch({ leagueId: stringValue($event, '') })" [disabled]="finalizing()"><mat-option value="">{{ i18n.t('live.unassigned') }}</mat-option>@for (league of assignableLeagues(); track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field>
+          <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('live.tournamentName') }}</mat-label><input #liveTournamentNameInput data-cy="live-tournament-name-input" matInput [(ngModel)]="tournamentNameDraft" (blur)="saveTitleEdit()" (keydown.enter)="$event.preventDefault(); saveTitleEdit()" [disabled]="finalizing() || readOnly()"></mat-form-field>
+          <mat-form-field appearance="outline" class="live-tournament-date-field"><mat-label>{{ i18n.t('live.date') }}</mat-label><input matInput data-cy="live-tournament-date-input" type="date" [ngModel]="live.tournamentDate" (ngModelChange)="patch({ tournamentDate: stringValue($event, live.tournamentDate) })" [disabled]="finalizing() || readOnly()"></mat-form-field>
+          <mat-form-field appearance="outline" class="live-tournament-league-field"><mat-label>{{ i18n.t('live.leagueFinalize') }}</mat-label><mat-select data-cy="live-tournament-league-select" [ngModel]="leagueSelectValue(live.leagueId)" (ngModelChange)="patch({ leagueId: stringValue($event, '') })" [disabled]="finalizing() || readOnly()"><mat-option value="">{{ i18n.t('live.unassigned') }}</mat-option>@for (league of assignableLeagues(); track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field>
         </div>
       </section>
       <div class="live-warning-stack" aria-live="polite">
@@ -70,24 +74,24 @@ import { I18nService } from '../../i18n/i18n.service';
           <div class="live-form-stack">
             <p class="muted" data-cy="live-player-count">{{ i18n.plural(activePlayerCount(live), 'live.playersRegistered', 'live.playersRegisteredPlural') }}</p>
             <div class="live-add-player-row" data-cy="live-add-player-card">
-              <label class="live-registration-player-card__name live-registration-add-card__name"><span>{{ i18n.t('live.newPlayer') }}</span><span class="sr-only">{{ i18n.t('live.newPlayerSr') }}</span><input #newPlayerNameInput data-cy="live-add-player-name-input" [placeholder]="i18n.t('live.playerNamePlaceholder')" [(ngModel)]="newPlayerName" [matAutocomplete]="playerNameAutocomplete" (keydown.enter)="$event.preventDefault(); addPlayer()" [disabled]="live.stage !== 'registration'" [attr.aria-label]="i18n.t('live.newPlayerNameAria')" autocomplete="off" spellcheck="false" aria-keyshortcuts="Enter"><mat-autocomplete #playerNameAutocomplete="matAutocomplete" class="live-player-name-autocomplete" [autoActiveFirstOption]="newPlayerSuggestions(live).length > 0" (optionSelected)="selectNewPlayerSuggestion($event)">@for (name of newPlayerSuggestions(live); track name) { <mat-option [value]="name" [attr.data-cy]="'live-add-player-suggestion-' + name"><span class="live-player-name-option">@for (segment of playerNameHighlightSegments(name); track $index) {@if (segment.highlighted) { <strong>{{ segment.text }}</strong> } @else { <span>{{ segment.text }}</span> }}</span></mat-option> }</mat-autocomplete></label>
-              <button mat-flat-button class="create-action-button live-registration-add-card__button" type="button" data-cy="live-add-player-button" [disabled]="!canSubmitNewPlayer(live)" (click)="addPlayer()" [attr.aria-label]="i18n.t('live.addPlayerAria')"><mat-icon class="create-action-button__icon" aria-hidden="true">add</mat-icon><span>{{ i18n.t('live.addEnter') }}</span></button>
+              <label class="live-registration-player-card__name live-registration-add-card__name"><span>{{ i18n.t('live.newPlayer') }}</span><span class="sr-only">{{ i18n.t('live.newPlayerSr') }}</span><input #newPlayerNameInput data-cy="live-add-player-name-input" [placeholder]="i18n.t('live.playerNamePlaceholder')" [(ngModel)]="newPlayerName" [matAutocomplete]="playerNameAutocomplete" (keydown.enter)="$event.preventDefault(); addPlayer()" [disabled]="live.stage !== 'registration' || readOnly()" [attr.aria-label]="i18n.t('live.newPlayerNameAria')" autocomplete="off" spellcheck="false" aria-keyshortcuts="Enter"><mat-autocomplete #playerNameAutocomplete="matAutocomplete" class="live-player-name-autocomplete" [autoActiveFirstOption]="newPlayerSuggestions(live).length > 0" (optionSelected)="selectNewPlayerSuggestion($event)">@for (name of newPlayerSuggestions(live); track name) { <mat-option [value]="name" [attr.data-cy]="'live-add-player-suggestion-' + name"><span class="live-player-name-option">@for (segment of playerNameHighlightSegments(name); track $index) {@if (segment.highlighted) { <strong>{{ segment.text }}</strong> } @else { <span>{{ segment.text }}</span> }}</span></mat-option> }</mat-autocomplete></label>
+              <button mat-flat-button class="create-action-button live-registration-add-card__button" type="button" data-cy="live-add-player-button" [disabled]="!canSubmitNewPlayer(live) || readOnly()" (click)="addPlayer()" [attr.aria-label]="i18n.t('live.addPlayerAria')"><mat-icon class="create-action-button__icon" aria-hidden="true">add</mat-icon><span>{{ i18n.t('live.addEnter') }}</span></button>
             </div>
             <div class="live-registration-player-grid" [attr.aria-label]="i18n.t('live.registeredPlayersAria')">
               @for (player of live.players; track player.id) {
                 <article class="live-registration-player-card" data-cy="live-player-row" [class.is-dropped]="player.dropped">
-                  <label class="live-registration-player-card__name"><span>{{ i18n.t('common.player') }}</span><span class="sr-only">{{ player.name || i18n.t('live.newPlayerSr') }}</span><input data-cy="live-player-name-input" [ngModel]="player.name" (ngModelChange)="updatePlayer(player.id, { name: $event })" [attr.aria-label]="player.name ? i18n.t('live.playerNameFor', { name: player.name }) : i18n.t('live.playerNameForNew')"></label>
+                  <label class="live-registration-player-card__name"><span>{{ i18n.t('common.player') }}</span><span class="sr-only">{{ player.name || i18n.t('live.newPlayerSr') }}</span><input data-cy="live-player-name-input" [ngModel]="player.name" (ngModelChange)="updatePlayer(player.id, { name: $event })" [disabled]="readOnly()" [attr.aria-label]="player.name ? i18n.t('live.playerNameFor', { name: player.name }) : i18n.t('live.playerNameForNew')"></label>
                   @if (live.paidTrackingEnabled) {
-                    <label class="live-registration-player-card__paid"><input type="checkbox" data-cy="live-player-paid-checkbox" [ngModel]="player.paid" (ngModelChange)="updatePlayer(player.id, { paid: $event })" [attr.aria-label]="i18n.t('live.paidStatusFor', { name: player.name || i18n.t('live.newPlayerSr') })" [disabled]="live.stage === 'round'"> <span>{{ i18n.t('live.paid') }}</span></label>
+                    <label class="live-registration-player-card__paid"><input type="checkbox" data-cy="live-player-paid-checkbox" [ngModel]="player.paid" (ngModelChange)="updatePlayer(player.id, { paid: $event })" [attr.aria-label]="i18n.t('live.paidStatusFor', { name: player.name || i18n.t('live.newPlayerSr') })" [disabled]="live.stage === 'round' || readOnly()"> <span>{{ i18n.t('live.paid') }}</span></label>
                   }
-                  <button mat-button color="warn" type="button" data-cy="live-player-remove-button" [disabled]="live.stage !== 'registration'" (click)="confirmRemovePlayer(player.id)">{{ i18n.t('common.remove') }}</button>
+                  <button mat-button color="warn" type="button" data-cy="live-player-remove-button" [disabled]="live.stage !== 'registration' || readOnly() || pendingCommand()" (click)="confirmRemovePlayer(player.id)">{{ i18n.t('common.remove') }}</button>
                 </article>
               }
             </div>
             @if (!live.players.length) { <p class="empty">{{ i18n.t('live.noPlayersYet') }}</p> }
             <div class="live-round-count-settings" data-cy="live-round-count-settings">
-              <mat-form-field appearance="outline" class="live-round-count-field"><mat-label>{{ i18n.t('live.swissRoundCount') }}</mat-label><input matInput data-cy="live-tournament-round-count-input" type="number" min="0" [ngModel]="displayRoundCount(live)" (ngModelChange)="setRoundCount($event)" [disabled]="!live.customRoundCount || live.stage !== 'registration'"></mat-form-field>
-              <label class="live-custom-round-toggle"><span>{{ i18n.t('live.customRoundNumber') }}</span> <input type="checkbox" data-cy="live-tournament-custom-round-count-checkbox" [ngModel]="live.customRoundCount" (ngModelChange)="setCustomRoundCount($event)"></label>
+              <mat-form-field appearance="outline" class="live-round-count-field"><mat-label>{{ i18n.t('live.swissRoundCount') }}</mat-label><input matInput data-cy="live-tournament-round-count-input" type="number" min="0" [ngModel]="displayRoundCount(live)" (ngModelChange)="setRoundCount($event)" [disabled]="!live.customRoundCount || live.stage !== 'registration' || readOnly()"></mat-form-field>
+              <label class="live-custom-round-toggle"><span>{{ i18n.t('live.customRoundNumber') }}</span> <input type="checkbox" data-cy="live-tournament-custom-round-count-checkbox" [ngModel]="live.customRoundCount" (ngModelChange)="setCustomRoundCount($event)" [disabled]="readOnly()"></label>
             </div>
           </div>
         </mat-expansion-panel>
@@ -97,7 +101,7 @@ import { I18nService } from '../../i18n/i18n.service';
         <section class="live-step-panel panel">
           <h2>{{ i18n.t('live.step1') }}</h2>
           <p class="muted">{{ registrationCopy(live) }}</p>
-          <button mat-flat-button class="home-primary-action" type="button" data-cy="live-start-tournament-button" [disabled]="!canStart(live)" (click)="startTournament()">{{ i18n.t('live.startGenerateR1') }}</button>
+          <button mat-flat-button class="home-primary-action" type="button" data-cy="live-start-tournament-button" [disabled]="!canStart(live) || readOnly() || pendingCommand()" (click)="startTournament()">{{ i18n.t('live.startGenerateR1') }}</button>
           @if (!canStart(live)) { <p class="muted">{{ i18n.t('live.needTwoPlayers') }}</p> }
         </section>
       }
@@ -105,43 +109,43 @@ import { I18nService } from '../../i18n/i18n.service';
       @if (live.rounds.length) {
         <section class="stack live-round-progress">
           @for (round of orderedRounds(live); track round.id) {
-            <mat-expansion-panel class="live-step-panel panel live-progress-section" data-cy="live-pairing-step" [attr.data-round]="round.roundNumber" [expanded]="stepExpanded(pairingStepKey(round.roundNumber), isActivePairingStep(live, round.roundNumber))" (opened)="setStepExpanded(pairingStepKey(round.roundNumber), true)" (closed)="setStepExpanded(pairingStepKey(round.roundNumber), false)">
+            <mat-expansion-panel class="live-step-panel panel live-progress-section" data-cy="live-pairing-step" [attr.data-round]="round.roundNumber" [expanded]="stepExpanded(pairingStepKey(round.roundNumber), isActivePairingStep(live, round.roundNumber))" (opened)="onStepOpened(pairingStepKey(round.roundNumber), isActivePairingStep(live, round.roundNumber))" (closed)="setStepExpanded(pairingStepKey(round.roundNumber), false)">
               <mat-expansion-panel-header>
                 <mat-panel-title class="live-panel-title"><h2 class="live-panel-heading">{{ i18n.t('live.pairing', { n: round.roundNumber }) }}</h2></mat-panel-title>
                 <mat-panel-description>
                   <span class="live-step-status" [class.live-step-status--active]="isActivePairingStep(live, round.roundNumber)" [class.live-step-status--readonly]="!isActivePairingStep(live, round.roundNumber)">@if (isActivePairingStep(live, round.roundNumber)) { <span class="status-dot" aria-hidden="true"></span> {{ i18n.t('live.activeStep') }} } @else { {{ i18n.t('live.readonlyStep') }} }</span>
                   @if (live.stage === 'round' && round.roundNumber === live.currentRoundNumber) {
-                    <button mat-icon-button class="live-step-actions-trigger" type="button" data-cy="live-pairing-actions-button" [matMenuTriggerFor]="pairingActionsMenu" [attr.aria-label]="i18n.t('live.pairingActions')" [disabled]="!isActivePairingStep(live, round.roundNumber)" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋮</button>
+                    <button mat-icon-button class="live-step-actions-trigger" type="button" data-cy="live-pairing-actions-button" [matMenuTriggerFor]="pairingActionsMenu" [attr.aria-label]="i18n.t('live.pairingActions')" [disabled]="!isActivePairingStep(live, round.roundNumber) || readOnly()" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋮</button>
                     <mat-menu #pairingActionsMenu="matMenu">
-                      <button mat-menu-item class="destructive-menu-item" type="button" data-cy="live-cancel-round-button" [disabled]="!isActivePairingStep(live, round.roundNumber)" (click)="cancelRound()">{{ i18n.t('live.cancelRound') }}</button>
+                      <button mat-menu-item class="destructive-menu-item" type="button" data-cy="live-cancel-round-button" [disabled]="!isActivePairingStep(live, round.roundNumber) || readOnly() || pendingCommand()" (click)="cancelRound()">{{ i18n.t('live.cancelRound') }}</button>
                     </mat-menu>
                   }
                 </mat-panel-description>
               </mat-expansion-panel-header>
-              <ng-container [ngTemplateOutlet]="roundTable" [ngTemplateOutletContext]="{ round: round, editable: isActivePairingStep(live, round.roundNumber) }" />
+              <ng-container [ngTemplateOutlet]="roundTable" [ngTemplateOutletContext]="{ round: round, editable: isActivePairingStep(live, round.roundNumber) && !readOnly() }" />
               @if (live.stage === 'round' && round.roundNumber === live.currentRoundNumber) {
                 @if (allCurrentMatchesAreDraws(live)) { <p class="warning" role="status" data-cy="live-all-draws-warning">{{ i18n.t('live.allDrawsWarning') }}</p> }
-                <div class="live-validate-actions"><button mat-flat-button class="home-primary-action create-action-button" type="button" data-cy="live-validate-round-button" [disabled]="!!validateRoundIssue(live) || !isActivePairingStep(live, round.roundNumber)" [attr.title]="validateRoundIssue(live)" (click)="validateRound()">{{ i18n.t('live.validateRound') }}</button>@if (validateRoundIssue(live); as issue) { <p class="muted live-validate-issue">{{ issue }}</p> }</div>
+                <div class="live-validate-actions"><button mat-flat-button class="home-primary-action create-action-button" type="button" data-cy="live-validate-round-button" [disabled]="!!validateRoundIssue(live) || !isActivePairingStep(live, round.roundNumber) || readOnly() || pendingCommand()" [attr.title]="validateRoundIssue(live)" (click)="validateRound()">{{ i18n.t('live.validateRound') }}</button>@if (validateRoundIssue(live); as issue) { <p class="muted live-validate-issue">{{ issue }}</p> }</div>
               }
             </mat-expansion-panel>
 
             @if (round.validated) {
-              <mat-expansion-panel class="live-step-panel panel live-progress-section" data-cy="live-standing-step" [attr.data-round]="round.roundNumber" [expanded]="stepExpanded(standingStepKey(round.roundNumber), isActiveStandingStep(live, round.roundNumber))" (opened)="setStepExpanded(standingStepKey(round.roundNumber), true)" (closed)="setStepExpanded(standingStepKey(round.roundNumber), false)">
+              <mat-expansion-panel class="live-step-panel panel live-progress-section" data-cy="live-standing-step" [attr.data-round]="round.roundNumber" [expanded]="stepExpanded(standingStepKey(round.roundNumber), isActiveStandingStep(live, round.roundNumber))" (opened)="onStepOpened(standingStepKey(round.roundNumber), isActiveStandingStep(live, round.roundNumber))" (closed)="setStepExpanded(standingStepKey(round.roundNumber), false)">
                 <mat-expansion-panel-header>
                   <mat-panel-title class="live-panel-title"><h2 class="live-panel-heading">{{ i18n.t('live.standing', { n: round.roundNumber }) }}</h2></mat-panel-title>
                   <mat-panel-description>
                     <span class="live-step-status" [class.live-step-status--active]="isActiveStandingStep(live, round.roundNumber)" [class.live-step-status--readonly]="!isActiveStandingStep(live, round.roundNumber)">@if (isActiveStandingStep(live, round.roundNumber)) { <span class="status-dot" aria-hidden="true"></span> {{ i18n.t('live.activeStep') }} } @else { {{ i18n.t('live.readonlyStep') }} }</span>
                     @if (canEditStanding(live, round.roundNumber) || checkpointFor(live, 'Standing ' + round.roundNumber) || checkpointFor(live, 'Pairing ' + round.roundNumber)) {
-                      <button mat-icon-button class="live-step-actions-trigger" type="button" data-cy="live-standing-actions-button" [matMenuTriggerFor]="standingActionsMenu" [attr.aria-label]="i18n.t('live.standingActions')" [disabled]="!isActiveStandingStep(live, round.roundNumber)" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋮</button>
+                      <button mat-icon-button class="live-step-actions-trigger" type="button" data-cy="live-standing-actions-button" [matMenuTriggerFor]="standingActionsMenu" [attr.aria-label]="i18n.t('live.standingActions')" [disabled]="!isActiveStandingStep(live, round.roundNumber) || readOnly()" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">⋮</button>
                       <mat-menu #standingActionsMenu="matMenu">
                         @if (canEditStanding(live, round.roundNumber)) {
-                          <button mat-menu-item type="button" data-cy="live-standing-add-player-button" [disabled]="!isActiveStandingStep(live, round.roundNumber)" (click)="addLatePlayer(round.roundNumber)" [attr.aria-label]="i18n.t('live.addPlayerStandingsAria')">{{ i18n.t('live.addPlayer') }}</button>
+                          <button mat-menu-item type="button" data-cy="live-standing-add-player-button" [disabled]="!isActiveStandingStep(live, round.roundNumber) || pendingCommand()" (click)="addLatePlayer(round.roundNumber)" [attr.aria-label]="i18n.t('live.addPlayerStandingsAria')">{{ i18n.t('live.addPlayer') }}</button>
                         }
                         @if (checkpointFor(live, 'Standing ' + round.roundNumber); as checkpoint) {
-                          <button mat-menu-item type="button" data-cy="live-restore-standing-button" [disabled]="!isActiveStandingStep(live, round.roundNumber)" (click)="restoreCheckpoint(checkpoint)">{{ i18n.t('live.restoreCheckpoint', { label: i18n.checkpointLabel(checkpoint.label) }) }}</button>
+                          <button mat-menu-item type="button" data-cy="live-restore-standing-button" [disabled]="!isActiveStandingStep(live, round.roundNumber) || pendingCommand()" (click)="restoreCheckpoint(checkpoint)">{{ i18n.t('live.restoreCheckpoint', { label: i18n.checkpointLabel(checkpoint.label) }) }}</button>
                         }
                         @if (checkpointFor(live, 'Pairing ' + round.roundNumber); as pairingCheckpoint) {
-                          <button mat-menu-item class="destructive-menu-item" type="button" data-cy="live-cancel-standings-button" [disabled]="!isActiveStandingStep(live, round.roundNumber)" (click)="restoreCheckpoint(pairingCheckpoint)">{{ i18n.t('live.cancelStandings') }}</button>
+                          <button mat-menu-item class="destructive-menu-item" type="button" data-cy="live-cancel-standings-button" [disabled]="!isActiveStandingStep(live, round.roundNumber) || pendingCommand()" (click)="restoreCheckpoint(pairingCheckpoint)">{{ i18n.t('live.cancelStandings') }}</button>
                         }
                       </mat-menu>
                     }
@@ -151,8 +155,8 @@ import { I18nService } from '../../i18n/i18n.service';
                 @if (live.currentRoundNumber === round.roundNumber && (live.stage === 'standings' || live.stage === 'completed')) {
                   <div class="live-standing-footer-actions">
                     <div class="actions live-next-actions">
-                      @if (!finished(live)) { <button mat-flat-button class="create-action-button" type="button" data-cy="live-generate-next-round-button" (click)="generateNextRound()">{{ i18n.t('live.generateRound', { n: validatedRoundCount(live) + 1 }) }}</button> }
-                      @else { <button mat-flat-button class="home-primary-action" type="button" data-cy="live-archive-tournament-button" [disabled]="finalizing()" (click)="finalize()">{{ finalizing() ? i18n.t('common.archiving') : i18n.t('live.archiveTournament') }}</button> }
+                      @if (!finished(live)) { <button mat-flat-button class="create-action-button" type="button" data-cy="live-generate-next-round-button" [disabled]="pendingCommand()" (click)="generateNextRound()">{{ i18n.t('live.generateRound', { n: validatedRoundCount(live) + 1 }) }}</button> }
+                      @else { <button mat-flat-button class="home-primary-action" type="button" data-cy="live-archive-tournament-button" [disabled]="finalizing() || pendingCommand()" (click)="finalize()">{{ finalizing() ? i18n.t('common.archiving') : i18n.t('live.archiveTournament') }}</button> }
                     </div>
                   </div>
                   @if (finished(live) && !leagueSelectValue(live.leagueId)) { <p class="warning" role="status">{{ i18n.t('live.noLeagueFinalizeWarn') }}</p> }
@@ -172,7 +176,7 @@ import { I18nService } from '../../i18n/i18n.service';
         <div class="table-wrap">
           <table class="ranking-table live-standings-table" data-cy="live-standings-table">
             <thead><tr><th scope="col">{{ i18n.t('common.rank') }}</th><th scope="col">{{ i18n.t('common.player') }}</th><th scope="col">{{ i18n.t('common.pts') }}</th><th scope="col">{{ i18n.t('common.record') }}</th><th scope="col">{{ i18n.t('common.omw') }}</th><th scope="col">{{ i18n.t('common.gwr') }}</th><th scope="col">{{ i18n.t('common.ogw') }}</th>@if (canEditStanding(live, roundNumber)) { <th scope="col">{{ i18n.t('common.actions') }}</th> }</tr></thead>
-            <tbody>@for (row of rows; track row.playerId) { <tr [class.is-dropped]="row.dropped"><td>{{ row.rank }}</td><td>@if (canEditStandingPlayerRecord(live, row)) { <input class="live-standing-player-name-input" data-cy="live-standing-player-name-input" [ngModel]="row.playerName" (ngModelChange)="updatePlayer(row.playerId, { name: $event })" [attr.aria-label]="'Player name for ' + row.playerName"> } @else { {{ row.playerName }} }</td><td>{{ row.points }}</td><td>@if (canEditStandingPlayerRecord(live, row)) { <div class="live-record-inputs live-standing-record-inputs" [attr.aria-label]="'Starting record for ' + row.playerName"><label><span>W</span><input data-cy="live-standing-player-wins-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchWins" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialWins', $event)" [attr.aria-label]="'Starting wins for ' + row.playerName"></label><label><span>D</span><input data-cy="live-standing-player-draws-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchDraws" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialDraws', $event)" [attr.aria-label]="'Starting draws for ' + row.playerName"></label><label><span>L</span><input data-cy="live-standing-player-losses-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchLosses" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialLosses', $event)" [attr.aria-label]="'Starting losses for ' + row.playerName"></label></div> } @else { <span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">{{ i18n.t('ranking.bye', { count: row.byes }) }}</span> } }</td><td>{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td><td>{{ formatPercentage(row.gameWinPercentage) }}</td><td>{{ formatPercentage(row.opponentsGameWinPercentage) }}</td>@if (canEditStanding(live, roundNumber)) { <td><button mat-button color="warn" type="button" data-cy="live-standing-drop-player-button" [disabled]="row.dropped" [attr.aria-label]="standingPlayerActionLabel(live, row) + ' ' + row.playerName" (click)="confirmDropPlayer(row)">{{ standingPlayerActionLabel(live, row) }}</button></td> }</tr> }</tbody>
+            <tbody>@for (row of rows; track row.playerId) { <tr [class.is-dropped]="row.dropped"><td>{{ row.rank }}</td><td>@if (canEditStandingPlayerRecord(live, row)) { <input class="live-standing-player-name-input" data-cy="live-standing-player-name-input" [ngModel]="row.playerName" (ngModelChange)="updatePlayer(row.playerId, { name: $event })" [attr.aria-label]="'Player name for ' + row.playerName"> } @else { {{ row.playerName }} }</td><td>{{ row.points }}</td><td>@if (canEditStandingPlayerRecord(live, row)) { <div class="live-record-inputs live-standing-record-inputs" [attr.aria-label]="'Starting record for ' + row.playerName"><label><span>W</span><input data-cy="live-standing-player-wins-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchWins" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialWins', $event)" [attr.aria-label]="'Starting wins for ' + row.playerName"></label><label><span>D</span><input data-cy="live-standing-player-draws-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchDraws" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialDraws', $event)" [attr.aria-label]="'Starting draws for ' + row.playerName"></label><label><span>L</span><input data-cy="live-standing-player-losses-input" type="number" inputmode="numeric" step="1" min="0" [ngModel]="row.matchLosses" (ngModelChange)="updateStandingPlayerRecord(row.playerId, 'initialLosses', $event)" [attr.aria-label]="'Starting losses for ' + row.playerName"></label></div> } @else { <span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">{{ i18n.t('ranking.bye', { count: row.byes }) }}</span> } }</td><td>{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td><td>{{ formatPercentage(row.gameWinPercentage) }}</td><td>{{ formatPercentage(row.opponentsGameWinPercentage) }}</td>@if (canEditStanding(live, roundNumber)) { <td><button mat-button color="warn" type="button" data-cy="live-standing-drop-player-button" [disabled]="row.dropped || pendingCommand()" [attr.aria-label]="standingPlayerActionLabel(live, row) + ' ' + row.playerName" (click)="confirmDropPlayer(row)">{{ standingPlayerActionLabel(live, row) }}</button></td> }</tr> }</tbody>
           </table>
         </div>
       </ng-template>
@@ -224,8 +228,21 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   readonly registrationExpanded = signal(true);
   readonly manuallyExpandedSteps = signal<ReadonlySet<string>>(new Set<string>());
   readonly finalizing = signal(false);
+  /** Structural server command in flight — locks buttons until the response lands. */
+  readonly pendingCommand = signal(false);
+  /** Server rejected a write with 412 — the user must reload the latest document and reapply. */
+  readonly stale = signal(false);
+  private readonly auth = inject(AuthService);
+  readonly canManage = computed(() => canManageLive(this.liveRepo.serverMode, this.auth.profile()?.globalRole));
+  readonly readOnly = computed(() => !this.canManage());
   private saving = false;
   private pendingSave = false;
+  /** Latest documentVersion acknowledged by the server; the If-Match source for every intent. */
+  private serverVersion = 1;
+  private addSequence = 0;
+  private readonly debouncedIntents = new Map<string, { timer: ReturnType<typeof setTimeout>; run: () => Promise<LiveTournamentDocument> }>();
+  private readonly queuedIntents = new Map<string, () => Promise<LiveTournamentDocument>>();
+  private pumping = false;
   private readonly openAdvancedSettingsListener = () => this.openAdvancedSettings();
   readonly unpaidPlayers = computed(() => this.tournament() ? unpaidActivePlayers(this.tournament()!) : []);
   readonly unpaidPlayerNames = computed(() => this.unpaidPlayers().map((player) => player.name).join(', '));
@@ -244,6 +261,9 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     window.removeEventListener('gones-open-live-tournament-advanced-settings', this.openAdvancedSettingsListener);
+    for (const pending of this.debouncedIntents.values()) clearTimeout(pending.timer);
+    this.debouncedIntents.clear();
+    this.queuedIntents.clear();
   }
 
   async load(): Promise<void> {
@@ -255,15 +275,19 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       editTitleAfterLoad = id === 'new' || this.shouldEditTitleFromNavigationState();
       if (id === 'new') {
         const created = this.withAutomaticRoundCount(await this.liveRepo.create());
+        this.serverVersion = created.documentVersion;
         this.tournament.set(created);
         this.tournamentNameDraft = created.name;
         await this.router.navigate(['/live-tournaments', created.id], { replaceUrl: true, state: { editTitle: true } });
       } else {
         const existing = await this.liveRepo.get(id);
         const normalized = existing ? this.withAutomaticRoundCount(existing) : null;
+        if (existing) this.serverVersion = existing.documentVersion;
         this.tournament.set(normalized);
         this.tournamentNameDraft = normalized?.name ?? '';
       }
+      this.stale.set(false);
+      this.error.set('');
     } catch (error) {
       logBoundaryError('live-tournament.load', error);
       this.error.set(this.i18n.t('live.loadFailed'));
@@ -273,7 +297,10 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     }
   }
 
-  patch(patch: Partial<LiveTournamentDocument>): void { this.update((live) => this.withAutomaticRoundCount({ ...live, ...patch })); }
+  patch(patch: Partial<LiveTournamentDocument>): void {
+    this.update((live) => this.withAutomaticRoundCount({ ...live, ...patch }));
+    this.queueSettingsIntent();
+  }
   stringValue(value: unknown, fallback = ''): string { return String(value || fallback); }
   numberValue(value: unknown): number { const parsed = Number(value); return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0; }
   setRoundCount(value: unknown): void { this.patch({ roundCount: this.numberValue(value), customRoundCount: true }); }
@@ -293,12 +320,20 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   registrationCopy(live: LiveTournamentDocument): string { return live.paidTrackingEnabled ? this.i18n.t('live.regCopyPaid') : this.i18n.t('live.regCopyUnpaidOff'); }
   playerStatus(row: LiveStandingRow, live: LiveTournamentDocument): string { return row.dropped ? this.i18n.t('live.dropped') : live.paidTrackingEnabled ? (row.paid ? this.i18n.t('live.paid') : this.i18n.t('live.unpaid')) : this.i18n.t('common.active'); }
   standingPlayerActionLabel(live: LiveTournamentDocument, row: LiveStandingRow): string { return this.canDeleteStandingPlayer(live, row) ? this.i18n.t('common.remove') : this.i18n.t('live.drop'); }
-  canEditStanding(live: LiveTournamentDocument, roundNumber: number): boolean { return this.isActiveStandingStep(live, roundNumber); }
+  canEditStanding(live: LiveTournamentDocument, roundNumber: number): boolean { return this.isActiveStandingStep(live, roundNumber) && !this.readOnly(); }
   isActivePairingStep(live: LiveTournamentDocument, roundNumber: number): boolean { return live.stage === 'round' && live.currentRoundNumber === roundNumber; }
   isActiveStandingStep(live: LiveTournamentDocument, roundNumber: number): boolean { return (live.stage === 'standings' || live.stage === 'completed') && live.currentRoundNumber === roundNumber; }
   pairingStepKey(roundNumber: number): string { return `pairing-${roundNumber}`; }
   standingStepKey(roundNumber: number): string { return `standing-${roundNumber}`; }
   stepExpanded(key: string, active: boolean): boolean { return active || this.manuallyExpandedSteps().has(key); }
+  /**
+   * Track only user-driven expansions of non-active steps. Material emits (opened) when the
+   * expand animation of the active step completes, which can land after the active step already
+   * moved on; re-adding that key would re-expand a read-only panel forever.
+   */
+  onStepOpened(key: string, active: boolean): void {
+    if (!active) this.setStepExpanded(key, true);
+  }
   setStepExpanded(key: string, expanded: boolean): void {
     const next = new Set(this.manuallyExpandedSteps());
     if (expanded) next.add(key);
@@ -390,8 +425,12 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     }
     this.error.set('');
     this.newPlayerName = '';
-    const player = createLiveTournamentPlayer({ name });
-    this.update((current) => this.withAutomaticRoundCount({ ...current, players: [player, ...current.players] }));
+    if (this.liveRepo.serverMode) {
+      this.queueIntent(`add:${++this.addSequence}`, () => this.liveRepo.addLivePlayer(live.id, this.serverVersion, { name, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' }));
+    } else {
+      const player = createLiveTournamentPlayer({ name });
+      this.update((current) => this.withAutomaticRoundCount({ ...current, players: [player, ...current.players] }));
+    }
     this.focusNewPlayerNameInput();
   }
 
@@ -404,6 +443,10 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     if (!live || !this.canEditStanding(live, roundNumber)) return;
     const name = this.nextLatePlayerName(live);
     this.error.set('');
+    if (this.liveRepo.serverMode) {
+      this.queueIntent(`add:${++this.addSequence}`, () => this.liveRepo.addLivePlayer(live.id, this.serverVersion, { name, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' }));
+      return;
+    }
     this.update((current) => ({
       ...current,
       players: [...current.players, createLiveTournamentPlayer({ name })]
@@ -430,13 +473,22 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     }).afterClosed());
     if (!confirmed) return;
     if (deleteInsteadOfDrop) {
+      if (this.liveRepo.serverMode && live) {
+        await this.runExclusive((version) => this.liveRepo.removeLivePlayer(live.id, row.playerId, version));
+        return;
+      }
       this.removeStandingPlayer(row.playerId);
+      return;
+    }
+    if (this.liveRepo.serverMode && live) {
+      await this.runExclusive((version) => this.liveRepo.dropLivePlayer(live.id, row.playerId, version));
       return;
     }
     this.updatePlayer(row.playerId, { dropped: true });
   }
 
   updatePlayer(playerId: string, patch: Partial<LiveTournamentPlayerDocument>): void {
+    const before = this.tournament();
     this.update((live) => {
       const nextName = patch.name === undefined ? null : trimPlayerName(patch.name);
       if (nextName && live.players.some((player) => player.id !== playerId && trimPlayerName(player.name).toLowerCase() === nextName.toLowerCase())) {
@@ -449,6 +501,18 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       const updatedRounds = nextName === null || nextName === oldName ? live.rounds : this.renameRoundEntries(live.rounds, oldName, nextName);
       return this.withAutomaticRoundCount({ ...live, players: updatedPlayers, rounds: updatedRounds });
     });
+    if (!this.liveRepo.serverMode || this.tournament() === before) return;
+    if ('paid' in patch) {
+      this.queueIntent(`paid:${playerId}`, () => {
+        const live = this.tournament();
+        const player = live?.players.find((item) => item.id === playerId);
+        if (!live || !player) return Promise.resolve(live ?? this.tournament()!);
+        return this.liveRepo.setLivePlayerPaid(live.id, playerId, this.serverVersion, player.paid);
+      });
+      return;
+    }
+    if ('dropped' in patch) return; // server drops go through the explicit drop intent
+    this.queuePlayerEditIntent(playerId);
   }
 
   async confirmRemovePlayer(playerId: string): Promise<void> {
@@ -464,6 +528,10 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       }
     }).afterClosed());
     if (!confirmed) return;
+    if (this.liveRepo.serverMode) {
+      await this.runExclusive((version) => this.liveRepo.removeLivePlayer(live.id, playerId, version));
+      return;
+    }
     this.removePlayer(playerId);
   }
 
@@ -476,25 +544,49 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   async startTournament(): Promise<void> {
     const live = this.tournament();
     if (!live || !(await this.confirmWarnings(this.i18n.t('live.startTournamentQ'), this.startWarnings(live), this.i18n.t('live.startTournament')))) return;
+    if (this.liveRepo.serverMode) {
+      await this.runExclusive((version) => this.liveRepo.startLiveRound(live.id, version));
+      return;
+    }
     this.update((current) => generateNextSwissRound(this.withAutomaticRoundCount(current)));
   }
 
   async generateNextRound(): Promise<void> {
     const live = this.tournament();
     if (!live || !(await this.confirmWarnings(this.i18n.t('live.generateNextQ'), this.nextRoundWarnings(live), this.i18n.t('live.generateRoundConfirm')))) return;
+    if (this.liveRepo.serverMode) {
+      await this.runExclusive((version) => this.liveRepo.startLiveRound(live.id, version));
+      return;
+    }
     this.update((current) => generateNextSwissRound(this.withAutomaticRoundCount(current)));
   }
 
-  cancelRound(): void { this.update((live) => live.stage === 'round' ? cancelCurrentSwissRound(live) : live); }
+  cancelRound(): void {
+    const live = this.tournament();
+    if (this.liveRepo.serverMode) {
+      if (live && live.stage === 'round') void this.runExclusive((version) => this.liveRepo.cancelLiveRound(live.id, version));
+      return;
+    }
+    this.update((current) => current.stage === 'round' ? cancelCurrentSwissRound(current) : current);
+  }
 
   async validateRound(): Promise<void> {
     const live = this.tournament();
     if (!live || live.stage !== 'round' || this.validateRoundIssue(live)) return;
     if (!(await this.confirmWarnings(this.i18n.t('live.validateRoundQ'), this.validateRoundWarnings(live), this.i18n.t('live.validateRoundConfirm')))) return;
+    if (this.liveRepo.serverMode) {
+      await this.runExclusive((version) => this.liveRepo.validateLiveRound(live.id, version));
+      return;
+    }
     this.update((current) => current.stage === 'round' ? validateCurrentSwissRound(current) : current);
   }
   restoreCheckpoint(checkpoint: LiveTournamentCheckpointDocument): void {
-    this.update((live) => this.canRestoreCheckpoint(live, checkpoint) ? restoreLiveTournamentCheckpoint(live, checkpoint.id) : live);
+    const live = this.tournament();
+    if (this.liveRepo.serverMode) {
+      if (live && this.canRestoreCheckpoint(live, checkpoint)) void this.runExclusive((version) => this.liveRepo.restoreLiveCheckpoint(live.id, checkpoint.id, version));
+      return;
+    }
+    this.update((current) => this.canRestoreCheckpoint(current, checkpoint) ? restoreLiveTournamentCheckpoint(current, checkpoint.id) : current);
   }
 
   adjustMatchScore(roundId: string, entry: Extract<RoundEntry, { kind: 'match' }>, field: 'player1Score' | 'player2Score', delta: -1 | 1): void {
@@ -504,6 +596,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   setMatchScore(roundId: string, entry: Extract<RoundEntry, { kind: 'match' }>, field: 'player1Score' | 'player2Score', value: unknown): void {
     const score = this.numberValue(value);
+    const before = this.tournament();
     this.update((live) => {
       if (live.stage !== 'round') return live;
       const editedRound = live.rounds.find((round) => round.id === roundId);
@@ -518,40 +611,46 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
         ? { ...live, stage: 'standings', currentRoundNumber: editedRound.roundNumber, rounds, checkpoints: this.pruneCheckpointsAfterEditedRound(live, editedRound.roundNumber) }
         : { ...live, rounds };
     });
+    if (this.liveRepo.serverMode && this.tournament() !== before) this.queueScoreIntent(roundId, entry.id);
   }
 
+  /**
+   * Atomic finalization through the Live backend port: the server (or the local store, flag off)
+   * archives the finished Live Tournament into its League and tombstones the live document in one
+   * command; the runner only navigates to the resulting Result page.
+   */
   async finalize(): Promise<void> {
     const live = this.tournament();
-    if (!live || this.finalizing()) return;
+    if (!live || this.finalizing() || this.readOnly()) return;
     if (!(await this.confirmWarnings(this.i18n.t('live.archiveQ'), this.finalizeWarnings(live), this.i18n.t('live.archiveTournament')))) return;
+    if (this.liveRepo.serverMode && !this.requireOnline()) return;
     this.finalizing.set(true);
     try {
-      await this.waitForSaveIdle();
+      if (this.liveRepo.serverMode) await this.flushIntents();
+      else await this.waitForSaveIdle();
       const latestLive = this.tournament();
       if (!latestLive) return;
-      const targetLeagueId = latestLive.leagueId || PLACEHOLDER_LEAGUE_ID;
-      await this.leagueRepo.ensurePlaceholderLeague();
-      const stableLive = latestLive.finalizedTournamentId ? { ...latestLive, leagueId: targetLeagueId } : await this.liveRepo.save({ ...latestLive, leagueId: targetLeagueId, finalizedTournamentId: crypto.randomUUID() });
-      this.tournament.set(stableLive);
-      const league = await this.leagueRepo.getLeague(stableLive.leagueId);
-      if (!league) { this.error.set(this.i18n.t('live.leagueNotFound')); return; }
-      const tournament = finalizeLiveTournament(stableLive);
-      const nextTournament: TournamentDocument = { ...tournament, leagueId: league.id };
-      const nextLeague = { ...league, tournaments: league.tournaments.some((item) => item.id === nextTournament.id) ? league.tournaments.map((item) => item.id === nextTournament.id ? nextTournament : item) : [...league.tournaments, nextTournament] };
-      const saved = await this.leagueRepo.saveLeague(nextLeague, league.documentVersion);
-      const savedTournament = saved.tournaments.find((item) => item.id === nextTournament.id) ?? nextTournament;
-      await this.liveRepo.save({ ...stableLive, stage: 'completed', finalizedTournamentId: savedTournament.id });
-      await this.deleteFinalizedLiveTournament(stableLive.id);
-      await this.router.navigate(['/leagues', saved.id, 'tournaments', savedTournament.id]);
+      const version = this.liveRepo.serverMode ? this.serverVersion : latestLive.documentVersion;
+      const result = await this.liveRepo.finalizeLiveTournament(latestLive.id, version);
+      await this.router.navigate(['/leagues', result.leagueId, 'tournaments', result.finalizedTournamentId]);
     } catch (error) {
       logBoundaryError('live-tournament.finalize', error, { liveTournamentId: live.id, leagueId: live.leagueId });
-      this.error.set(this.i18n.t('live.finalizeFailed'));
+      if (this.liveRepo.serverMode && liveCommandError(error) === 'stale') {
+        this.stale.set(true);
+        this.error.set(this.i18n.t('live.staleDocument'));
+      } else {
+        this.error.set(error instanceof Error && error.message === 'leagueNotFound' ? this.i18n.t('live.leagueNotFound') : this.i18n.t('live.finalizeFailed'));
+        if (!this.liveRepo.serverMode) await this.resyncTournament();
+      }
     } finally {
       this.finalizing.set(false);
     }
   }
 
-  saveDraft(): void { void this.persist(); }
+  saveDraft(): void {
+    if (this.liveRepo.serverMode) { void this.flushIntents(); return; }
+    void this.persist();
+  }
 
   private startWarnings(live: LiveTournamentDocument): string[] {
     const warnings: string[] = [];
@@ -595,16 +694,15 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       data: { live, leagues: this.leagues() }
     }).afterClosed().subscribe((result) => {
       if (!result) return;
+      const before = this.tournament();
       this.update((current) => this.withAutomaticRoundCount({ ...current, ...result }));
+      if (!this.liveRepo.serverMode || !before || this.tournament() === before) return;
+      this.queueSettingsIntent();
+      for (const player of result.players) {
+        const previous = before.players.find((item) => item.id === player.id);
+        if (previous && previous.archetype !== player.archetype) this.queuePlayerEditIntent(player.id);
+      }
     });
-  }
-
-  private async deleteFinalizedLiveTournament(liveTournamentId: string): Promise<void> {
-    try {
-      await this.liveRepo.delete(liveTournamentId);
-    } catch (error) {
-      logBoundaryError('live-tournament.finalize.cleanup', error, { liveTournamentId });
-    }
   }
 
   private canRestoreCheckpoint(live: LiveTournamentDocument, checkpoint: LiveTournamentCheckpointDocument): boolean {
@@ -668,16 +766,175 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     });
   }
 
+  /**
+   * Optimistic in-memory transform. Flag off it persists the whole document (legacy autosave);
+   * flag on the matching intent command is dispatched separately by the caller.
+   */
   private update(updater: (live: LiveTournamentDocument) => LiveTournamentDocument): void {
     const live = this.tournament();
-    if (!live || this.finalizing()) return;
+    if (!live || this.finalizing() || this.readOnly()) return;
     const previousActiveStepKey = this.activeStepKey(live);
     const updated = updater(live);
     if (this.activeStepKey(updated) !== previousActiveStepKey) this.manuallyExpandedSteps.set(new Set<string>());
     this.tournament.set(updated);
     this.tournamentNameDraft = updated.name;
     window.dispatchEvent(new CustomEvent('gones-live-tournament-updated', { detail: { liveTournamentId: updated.id, name: updated.name } }));
-    void this.persist();
+    if (!this.liveRepo.serverMode) void this.persist();
+  }
+
+  private queueSettingsIntent(): void {
+    if (!this.liveRepo.serverMode) return;
+    this.debounceIntent('settings', () => {
+      const live = this.tournament();
+      if (!live) return Promise.reject(new Error('liveTournamentNotFound'));
+      return this.liveRepo.updateLiveSettings(live.id, this.serverVersion, {
+        name: live.name,
+        leagueId: live.leagueId,
+        tournamentDate: live.tournamentDate,
+        roundCount: live.roundCount,
+        customRoundCount: live.customRoundCount,
+        paidTrackingEnabled: live.paidTrackingEnabled
+      });
+    });
+  }
+
+  private queuePlayerEditIntent(playerId: string): void {
+    this.debounceIntent(`player:${playerId}`, () => {
+      const live = this.tournament();
+      if (!live) return Promise.reject(new Error('liveTournamentNotFound'));
+      const player = live.players.find((item) => item.id === playerId);
+      if (!player) return Promise.resolve(live); // removed before the debounce fired
+      return this.liveRepo.editLivePlayer(live.id, playerId, this.serverVersion, {
+        name: player.name,
+        initialWins: player.initialWins,
+        initialDraws: player.initialDraws,
+        initialLosses: player.initialLosses,
+        archetype: player.archetype
+      });
+    });
+  }
+
+  private queueScoreIntent(roundId: string, entryId: string): void {
+    this.debounceIntent(`score:${roundId}:${entryId}`, () => {
+      const live = this.tournament();
+      const entry = live?.rounds.find((round) => round.id === roundId)?.entries.find((item) => item.entry.id === entryId)?.entry;
+      if (!live) return Promise.reject(new Error('liveTournamentNotFound'));
+      // Invalid drafts stay local-only (the UI flags them); a corrected score sends the next intent.
+      if (!entry || entry.kind !== 'match' || liveMatchScoreIssue(entry)) return Promise.resolve(live);
+      return this.liveRepo.scoreLiveRoundEntry(live.id, roundId, entryId, this.serverVersion, { player1Score: entry.player1Score, player2Score: entry.player2Score });
+    });
+  }
+
+  /** Debounce a coalescing intent: a newer edit for the same key replaces the not-yet-sent one. */
+  private debounceIntent(key: string, run: () => Promise<LiveTournamentDocument>, delay = 400): void {
+    if (!this.liveRepo.serverMode || this.readOnly()) return;
+    const existing = this.debouncedIntents.get(key);
+    if (existing) clearTimeout(existing.timer);
+    const timer = setTimeout(() => {
+      this.debouncedIntents.delete(key);
+      this.queueIntent(key, run);
+    }, delay);
+    this.debouncedIntents.set(key, { timer, run });
+  }
+
+  /** Latest write per key wins; commands run one at a time and never queue while offline. */
+  private queueIntent(key: string, run: () => Promise<LiveTournamentDocument>): void {
+    if (!this.liveRepo.serverMode || this.readOnly() || !this.requireOnline()) return;
+    this.queuedIntents.set(key, run);
+    void this.pumpIntents();
+  }
+
+  private async pumpIntents(): Promise<void> {
+    if (this.pumping) return;
+    this.pumping = true;
+    try {
+      while (this.queuedIntents.size) {
+        const next = this.queuedIntents.entries().next().value as [string, () => Promise<LiveTournamentDocument>];
+        this.queuedIntents.delete(next[0]);
+        const saved = await next[1]();
+        this.serverVersion = Math.max(this.serverVersion, saved.documentVersion);
+        // Latest-response guard: only the final response (no newer local edit pending) replaces the doc.
+        if (!this.queuedIntents.size && !this.debouncedIntents.size) this.applyServerDocument(saved);
+      }
+    } catch (error) {
+      await this.handleCommandError('live-tournament.intent', error);
+    } finally {
+      this.pumping = false;
+    }
+  }
+
+  private async flushIntents(): Promise<void> {
+    for (const [key, pending] of [...this.debouncedIntents]) {
+      clearTimeout(pending.timer);
+      this.debouncedIntents.delete(key);
+      this.queueIntent(key, pending.run);
+    }
+    while (this.pumping || this.queuedIntents.size) await new Promise((resolve) => setTimeout(resolve, 15));
+  }
+
+  /** Pending lock for structural commands: one server command at a time, no optimistic apply. */
+  private async runExclusive(run: (version: number) => Promise<LiveTournamentDocument>): Promise<void> {
+    if (!this.liveRepo.serverMode || this.readOnly() || this.pendingCommand()) return;
+    if (!this.requireOnline()) return;
+    this.pendingCommand.set(true);
+    try {
+      await this.flushIntents();
+      const saved = await run(this.serverVersion);
+      this.applyServerDocument(saved);
+      this.error.set('');
+      this.stale.set(false);
+    } catch (error) {
+      await this.handleCommandError('live-tournament.command', error);
+    } finally {
+      this.pendingCommand.set(false);
+    }
+  }
+
+  private applyServerDocument(saved: LiveTournamentDocument): void {
+    this.serverVersion = Math.max(this.serverVersion, saved.documentVersion);
+    const previous = this.tournament();
+    if (previous && this.activeStepKey(saved) !== this.activeStepKey(previous)) this.manuallyExpandedSteps.set(new Set<string>());
+    this.tournament.set(saved);
+    if (!previous || previous.name !== saved.name) this.tournamentNameDraft = saved.name;
+    window.dispatchEvent(new CustomEvent('gones-live-tournament-updated', { detail: { liveTournamentId: saved.id, name: saved.name } }));
+  }
+
+  private async handleCommandError(context: string, error: unknown): Promise<void> {
+    logBoundaryError(context, error, { liveTournamentId: this.tournament()?.id });
+    this.clearPendingIntents();
+    const kind = liveCommandError(error);
+    if (kind === 'stale') {
+      this.stale.set(true);
+      this.error.set(this.i18n.t('live.staleDocument'));
+      return;
+    }
+    this.error.set(kind === 'forbidden' ? this.i18n.t('live.forbidden') : this.i18n.t('live.saveFailed'));
+    await this.resyncTournament();
+  }
+
+  private async resyncTournament(): Promise<void> {
+    const live = this.tournament();
+    if (!live) return;
+    try {
+      const latest = await this.liveRepo.get(live.id);
+      if (latest) this.applyServerDocument(latest);
+    } catch (resyncError) {
+      logBoundaryError('live-tournament.resync', resyncError, { liveTournamentId: live.id });
+    }
+  }
+
+  /** Writes require the server while liveServer is on — nothing is queued for later. */
+  private requireOnline(): boolean {
+    if (navigator.onLine !== false) return true;
+    this.clearPendingIntents();
+    this.error.set(this.i18n.t('live.onlineRequired'));
+    return false;
+  }
+
+  private clearPendingIntents(): void {
+    for (const pending of this.debouncedIntents.values()) clearTimeout(pending.timer);
+    this.debouncedIntents.clear();
+    this.queuedIntents.clear();
   }
 
   private withAutomaticRoundCount(live: LiveTournamentDocument): LiveTournamentDocument {

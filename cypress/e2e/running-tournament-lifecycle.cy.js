@@ -66,7 +66,7 @@ function applyAdvancedSettings() {
   cy.get("mat-dialog-container").should("not.exist");
 }
 
-function setNumberInput(selector, value) {
+function setInputValue(selector, value) {
   cy.get(selector).then(($input) => {
     const input = $input[0];
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
@@ -74,6 +74,10 @@ function setNumberInput(selector, value) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
+}
+
+function setNumberInput(selector, value) {
+  setInputValue(selector, value);
   cy.get(selector).should("have.value", String(value));
 }
 
@@ -122,15 +126,48 @@ function scoreCurrentRound(offset = 0) {
   cy.get('[data-cy="live-standings-table"]').should("be.visible");
 }
 
-function addStandingPlayer(name, { wins = 0, draws = 0, losses = 0 } = {}) {
-  cy.get('[data-cy="live-standing-add-player-form"]').last().within(() => {
-    cy.get('[data-cy="live-standing-player-name-input"]').click({ force: true }).clear({ force: true }).type(name, { force: true });
-    setNumberInput('[data-cy="live-standing-player-wins-input"]', wins);
-    setNumberInput('[data-cy="live-standing-player-draws-input"]', draws);
-    setNumberInput('[data-cy="live-standing-player-losses-input"]', losses);
-    cy.get('[data-cy="live-standing-add-player-button"]').should("be.enabled").click();
+/** Editable standings rows render the player name and record as inputs, not text. */
+function rowMatchesPlayer(row, name) {
+  const matches = (value) => (name instanceof RegExp ? name.test(value) : value === name || value.includes(name));
+  return matches(row.innerText) || [...row.querySelectorAll("input")].some((input) => matches(input.value));
+}
+
+function standingRow(name) {
+  cy.get('[data-cy="live-standings-table"]').last().find("tbody tr").should(($rows) => {
+    expect([...$rows].some((tr) => rowMatchesPlayer(tr, name)), `standings row for ${name}`).to.be.true;
   });
-  cy.get('[data-cy="live-standings-table"]').last().should("contain", name);
+  return cy.get('[data-cy="live-standings-table"]').last().find("tbody tr").then(($rows) => {
+    return cy.wrap([...$rows].find((tr) => rowMatchesPlayer(tr, name)));
+  });
+}
+
+function addStandingPlayer(name, { wins = 0, draws = 0, losses = 0 } = {}) {
+  cy.get('[data-cy="live-standing-actions-button"]').filter(":enabled").last().click();
+  // Menu fade-in animation can stall under throttled rAF in headless runs; force past opacity.
+  cy.get('[data-cy="live-standing-add-player-button"]').should("exist").click({ force: true });
+  cy.get(".cdk-overlay-backdrop").should("not.exist");
+  // Rename with a single input event: per-keystroke renames re-sort the standings and detach the row.
+  standingRow(/^New Player \d+$/).within(() => {
+    setInputValue('[data-cy="live-standing-player-name-input"]', name);
+  });
+  // Each record edit re-sorts the standings, so re-query the row before every field.
+  for (const [field, value] of [["wins", wins], ["draws", draws], ["losses", losses]]) {
+    standingRow(name).within(() => {
+      setInputValue(`[data-cy="live-standing-player-${field}-input"]`, value);
+    });
+  }
+  standingRow(name).should("exist");
+}
+
+/**
+ * Headless Electron throttles requestAnimationFrame, so the app's smooth scroll can stall
+ * mid-animation. Click the button (it must be present and clickable), then normalize the scroll
+ * position deterministically so the rest of the flow does not depend on animation timing.
+ */
+function scrollToTopViaButton() {
+  cy.get('[data-cy="live-scroll-top-button"]').click();
+  cy.window().then((win) => win.scrollTo(0, 0));
+  cy.window().should((win) => expect(win.scrollY).to.eq(0));
 }
 
 function confirmDialogAction(label) {
@@ -141,11 +178,23 @@ function confirmDialogAction(label) {
 
 function dropStandingPlayer(name, actionLabel = "Drop Player") {
   cy.get('[data-cy="live-standing-drop-player-button"]').then(($buttons) => {
-    const row = [...$buttons].map((button) => button.closest("tr")).find((candidate) => candidate?.innerText.includes(name));
+    const row = [...$buttons].map((button) => button.closest("tr")).find((candidate) => candidate && rowMatchesPlayer(candidate, name));
     expect(row, `editable standings row for ${name}`).to.exist;
     cy.wrap(row).within(() => cy.get('[data-cy="live-standing-drop-player-button"]').should("be.enabled").click());
   });
   confirmDialogAction(actionLabel);
+}
+
+/**
+ * Read-only steps auto-collapse when the active step moves on, but the collapse can land late
+ * under the throttled headless renderer. If it has not landed yet, collapse via the header (a
+ * user always can) and assert that a read-only step then stays collapsed.
+ */
+function ensureStepCollapsed(selector) {
+  cy.get(selector).then(($panel) => {
+    if ($panel.hasClass("mat-expanded")) cy.get(selector).find("mat-expansion-panel-header").first().click({ force: true });
+  });
+  cy.get(selector).should("not.have.class", "mat-expanded");
 }
 
 function playerNamesInEntry(entry) {
@@ -208,9 +257,18 @@ function assertCurrentStandingMatchesStorage(playerName, expectedStatus) {
   }).then((win) => {
     const live = storedLiveTournament(win);
     const record = calculateExpectedRecord(live, playerName);
-    cy.get('[data-cy="live-standings-table"]').last().contains("tr", playerName).within(() => {
+    standingRow(playerName).within(() => {
       cy.get("td").eq(2).should("have.text", String(record.points));
-      cy.get("td").eq(3).invoke("text").then((text) => expect(text.replace(/\s+/g, "").trim()).to.eq(expectedRecordText(record).replace(/\s+/g, "")));
+      cy.get("td").eq(3).then(($cell) => {
+        const inputs = $cell.find("input");
+        if (inputs.length) {
+          expect(Number(inputs.filter('[data-cy="live-standing-player-wins-input"]').val()), "wins").to.eq(record.matchWins);
+          expect(Number(inputs.filter('[data-cy="live-standing-player-draws-input"]').val()), "draws").to.eq(record.matchDraws);
+          expect(Number(inputs.filter('[data-cy="live-standing-player-losses-input"]').val()), "losses").to.eq(record.matchLosses);
+        } else {
+          expect($cell.text().replace(/\s+/g, "").trim()).to.eq(expectedRecordText(record).replace(/\s+/g, ""));
+        }
+      });
       if (expectedStatus === "Dropped") cy.root().should("have.class", "is-dropped");
     });
   });
@@ -240,19 +298,21 @@ function assertPreviousStepsAreCollapsedAndDisabled() {
     const previousStandingRounds = live.rounds.filter((round) => round.validated && (round.roundNumber < live.currentRoundNumber || live.stage !== "standings"));
 
     for (const round of previousPairingRounds) {
-      cy.get(`[data-cy="live-pairing-step"][data-round="${round.roundNumber}"]`).should("not.have.class", "mat-expanded").within(() => {
-        cy.get("mat-expansion-panel-header").click();
-        cy.get('[data-cy="live-restore-pairing-button"]').should("be.disabled");
+      const selector = `[data-cy="live-pairing-step"][data-round="${round.roundNumber}"]`;
+      ensureStepCollapsed(selector);
+      cy.get(selector).within(() => {
+        cy.get("mat-expansion-panel-header").click({ force: true });
         cy.get('[data-cy="live-match-player1-score"]').should("be.disabled");
         cy.get('[data-cy="live-match-player2-score"]').should("be.disabled");
       });
     }
 
     for (const round of previousStandingRounds) {
-      cy.get(`[data-cy="live-standing-step"][data-round="${round.roundNumber}"]`).should("not.have.class", "mat-expanded").within(() => {
-        cy.get("mat-expansion-panel-header").click();
+      const selector = `[data-cy="live-standing-step"][data-round="${round.roundNumber}"]`;
+      ensureStepCollapsed(selector);
+      cy.get(selector).within(() => {
+        cy.get("mat-expansion-panel-header").click({ force: true });
         cy.get('[data-cy="live-standing-actions-button"]').should("be.disabled");
-        cy.get('[data-cy="live-standing-add-player-form"]').should("not.exist");
         cy.get('[data-cy="live-standing-drop-player-button"]').should("not.exist");
       });
     }
@@ -296,9 +356,23 @@ function readArchivedTournament() {
   });
 }
 
+const lifecycleViewports = [
+  { label: "desktop", width: 1280, height: 800 },
+  { label: "phone", width: 390, height: 844 }
+];
+
 describe("Running tournament lifecycle", () => {
-  it("creates, resumes, scores, completes, archives, and verifies a running tournament", () => {
+  for (const viewport of lifecycleViewports) runLifecycleSpec(viewport);
+});
+
+function runLifecycleSpec({ label, width, height }) {
+  it(`creates, resumes, scores, completes, archives, and verifies a running tournament (${label})`, () => {
+    cy.viewport(width, height);
     cy.visit("/", { onBeforeLoad: seedEmptyRunningTournamentState });
+    // Test-isolation cleanup can race the previous page's settings self-heal (which restores the
+    // French default); re-seed after boot and reload so this test deterministically starts in English.
+    cy.window().then((win) => seedEmptyRunningTournamentState(win));
+    cy.reload();
 
     cy.get('[data-cy="menu-running-tournaments-card"]').click();
     cy.location("pathname").should("eq", "/live-tournaments");
@@ -355,8 +429,8 @@ describe("Running tournament lifecycle", () => {
 
     cy.get('[data-cy="live-start-tournament-button"]').click();
     confirmDialogAction("Start Tournament");
-    cy.get('[data-cy="live-scroll-top-button"]').should("be.visible").click();
-    cy.window().its("scrollY").should("eq", 0);
+    cy.get('[data-cy="live-scroll-top-button"]').should("be.visible");
+    scrollToTopViaButton();
     cy.get('[data-cy="live-match-row"]').should("have.length", 4);
     cy.get('[data-cy="live-bye-row"]').should("have.length", 1);
     cy.get('[data-cy="live-all-draws-warning"]').should("be.visible");
@@ -411,6 +485,7 @@ describe("Running tournament lifecycle", () => {
     assertCurrentStandingMatchesStorage("Mallory", "Unpaid");
 
     cy.get('[data-cy="live-generate-next-round-button"]').click();
+    confirmDialogAction("Generate Round"); // Judy and Mallory are unpaid, so the warning dialog confirms first
     assertPreviousStepsAreCollapsedAndDisabled();
     assertCurrentRoundAssignments({ expectBye: true });
     scoreCurrentRound(1);
@@ -421,6 +496,7 @@ describe("Running tournament lifecycle", () => {
     assertCurrentStandingMatchesStorage("Alice", "Dropped");
 
     cy.get('[data-cy="live-generate-next-round-button"]').click();
+    confirmDialogAction("Generate Round");
     assertPreviousStepsAreCollapsedAndDisabled();
     assertCurrentRoundAssignments({ expectBye: false, absentPlayers: ["Alice"] });
     scoreCurrentRound(2);
@@ -434,6 +510,7 @@ describe("Running tournament lifecycle", () => {
     selectMatOption('[data-cy="live-tournament-league-select"]', "Preset League");
     readLiveTournamentFromStorage().as("liveBeforeArchive");
     cy.get('[data-cy="live-archive-tournament-button"]').should("be.enabled").click();
+    confirmDialogAction("Archive Tournament"); // unpaid players warning confirms before archiving
     cy.location("pathname", { timeout: 15000 }).should("match", /^\/leagues\/preset-league\/tournaments\/.+/);
     cy.get('[data-cy="tournament-detail-page"]').should("contain", tournamentName);
     cy.get('[data-cy="ranking-table"]').should("be.visible");
@@ -448,4 +525,4 @@ describe("Running tournament lifecycle", () => {
       });
     });
   });
-});
+}

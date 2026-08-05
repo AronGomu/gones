@@ -4,7 +4,9 @@ import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../auth/auth.service';
 import { LeagueRepository } from '../../data/league-repository.service';
+import { canManageLive } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { LiveTournamentDocument, LiveTournamentStage } from '../../domain/live-tournament';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
@@ -57,10 +59,12 @@ import { I18nService } from '../../i18n/i18n.service';
           </a>
         }
 
-        <button class="running-tournament-card running-tournament-create-card league-create-card" type="button" [disabled]="creating()" (click)="createTournament()" data-cy="create-running-tournament-card">
-          <h2>{{ creating() ? i18n.t('common.creating') : i18n.t('liveList.create') }}</h2>
-          <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
-        </button>
+        @if (canManage()) {
+          <button class="running-tournament-card running-tournament-create-card league-create-card" type="button" [disabled]="creating()" (click)="createTournament()" data-cy="create-running-tournament-card">
+            <h2>{{ creating() ? i18n.t('common.creating') : i18n.t('liveList.create') }}</h2>
+            <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
+          </button>
+        } @else { <p class="muted" data-cy="live-list-read-only">{{ i18n.t('live.readOnly') }}</p> }
       </section>
     }
 
@@ -69,12 +73,14 @@ import { I18nService } from '../../i18n/i18n.service';
 })
 export class LiveTournamentListComponent {
   readonly i18n = inject(I18nService);
+  private readonly auth = inject(AuthService);
   readonly loading = signal(true);
   readonly creating = signal(false);
   readonly error = signal('');
   readonly tournaments = signal<LiveTournamentDocument[]>([]);
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly runningTournaments = computed(() => this.tournaments().filter((tournament) => tournament.stage !== 'completed'));
+  readonly canManage = computed(() => canManageLive(this.liveRepo.serverMode, this.auth.profile()?.globalRole));
 
   constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueRepository, private readonly router: Router) { void this.load(); }
 

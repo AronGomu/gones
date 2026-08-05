@@ -7,11 +7,12 @@ const composeEnv = {
   GONES_FEATURES__ADMIN_V1: 'true',
   GONES_FEATURES__CALENDAR_V1: 'true',
   GONES_FEATURES__LEAGUE_SERVER: 'true',
+  GONES_FEATURES__LIVE_SERVER: 'true',
   GONES_AUTH_PROVIDER: 'Local',
   GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: '1000',
   GONES_FRONTEND_API_BASE_URL: 'http://127.0.0.1:5080'
 };
-const legacyComposeEnv = { ...composeEnv, GONES_FEATURES__AUTH_V1: 'false', GONES_FEATURES__ADMIN_V1: 'false', GONES_FEATURES__CALENDAR_V1: 'false', GONES_FEATURES__LEAGUE_SERVER: 'false' };
+const legacyComposeEnv = { ...composeEnv, GONES_FEATURES__AUTH_V1: 'false', GONES_FEATURES__ADMIN_V1: 'false', GONES_FEATURES__CALENDAR_V1: 'false', GONES_FEATURES__LEAGUE_SERVER: 'false', GONES_FEATURES__LIVE_SERVER: 'false' };
 
 function run(args, env = composeEnv, allowFailure = false) {
   const result = spawnSync('docker', ['compose', ...args], { stdio: 'inherit', env });
@@ -54,6 +55,10 @@ try {
     if (browser.status !== 0) process.exitCode = browser.status ?? 1;
   }
   if (!process.exitCode) {
+    const liveLifecycle = runCypress('cypress/e2e/running-tournament-lifecycle.cy.js');
+    if (liveLifecycle.status !== 0) process.exitCode = liveLifecycle.status ?? 1;
+  }
+  if (!process.exitCode) {
     run(['--profile', 'release', 'up', '--build', '-d', '--wait']);
     smoke = spawnSync(process.execPath, ['scripts/smoke-full-stack.mjs', '--release'], { stdio: 'inherit' });
     if (smoke.status !== 0) process.exitCode = smoke.status ?? 1;
@@ -82,6 +87,10 @@ try {
   if (!process.exitCode) {
     const leagueBrowser = runCypress('cypress/e2e/league-server.cy.js');
     if (leagueBrowser.status !== 0) process.exitCode = leagueBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
+    const liveBrowser = runCypress('cypress/e2e/live-server.cy.js');
+    if (liveBrowser.status !== 0) process.exitCode = liveBrowser.status ?? 1;
   }
   if (!process.exitCode) {
     const adminBrowser = runCypress('cypress/e2e/admin-orgs.cy.js');

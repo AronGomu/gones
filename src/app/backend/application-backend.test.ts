@@ -1,6 +1,6 @@
 import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
-import { resolveBackendMode, resolveLeagueBackendMode } from './application-backend';
+import { resolveBackendMode, resolveLeagueBackendMode, resolveLiveBackendMode } from './application-backend';
 
 describe('application backend feature gate', () => {
   it('preserves local adapter while apiBackend is disabled', () => {
@@ -19,5 +19,11 @@ describe('application backend feature gate', () => {
     expect(resolveLeagueBackendMode(false, '')).toBe('frontend-local');
     expect(resolveLeagueBackendMode(true, 'https://api.example')).toBe('aspnet-api');
     expect(() => resolveLeagueBackendMode(true, '')).toThrowError('aspNetApiBaseUrlMissing');
+  });
+
+  it('switches only the Live port when liveServer is enabled', () => {
+    expect(resolveLiveBackendMode(false, '')).toBe('frontend-local');
+    expect(resolveLiveBackendMode(true, 'https://api.example')).toBe('aspnet-api');
+    expect(() => resolveLiveBackendMode(true, '')).toThrowError('aspNetApiBaseUrlMissing');
   });
 });

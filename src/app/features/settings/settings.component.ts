@@ -541,6 +541,20 @@ export class SettingsComponent {
     for (const live of lives) {
       const nextLive = renamePlayerInLiveTournament(live, from, to);
       if (JSON.stringify(nextLive.players) === JSON.stringify(live.players) && JSON.stringify(nextLive.rounds) === JSON.stringify(live.rounds)) continue;
+      if (this.liveRepo.serverMode) {
+        let expectedVersion = live.documentVersion;
+        for (const player of live.players.filter((item) => samePlayerName(item.name, from))) {
+          const updated = await this.liveRepo.editLivePlayer(live.id, player.id, expectedVersion, {
+            name: to,
+            initialWins: player.initialWins,
+            initialDraws: player.initialDraws,
+            initialLosses: player.initialLosses,
+            archetype: player.archetype
+          });
+          expectedVersion = updated.documentVersion;
+        }
+        continue;
+      }
       await this.liveRepo.save(nextLive);
     }
   }

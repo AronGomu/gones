@@ -1,110 +1,101 @@
-import { Injectable } from '@angular/core';
-import { createLiveTournament, LiveTournamentDocument, normalizeLiveTournament } from '../domain/live-tournament';
-import { logBoundaryError } from '../shared/app-logger';
+import { Inject, Injectable } from '@angular/core';
+import { environment } from '../../environments/environment';
+import { LIVE_BACKEND, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand } from '../backend/application-backend';
+import { LiveTournamentDocument } from '../domain/live-tournament';
 
-interface LiveTournamentStore {
-  version: 1;
-  tournaments: LiveTournamentDocument[];
-  deletedTournamentIds: string[];
-}
-
-const STORE_KEY = 'gones.live-tournaments.v1';
-const CORRUPT_BACKUP_PREFIX = `${STORE_KEY}.corrupt`;
-
+/**
+ * Facade over the flag-switched Live Tournament backend port. With `liveServer` off it keeps the
+ * legacy per-browser localStorage store (whole-document saves); with the flag on every mutation is
+ * an explicit server intent command guarded by the document version (If-Match ETag).
+ */
 @Injectable({ providedIn: 'root' })
 export class LiveTournamentRepository {
+  readonly serverMode = environment.features.liveServer;
+
+  constructor(@Inject(LIVE_BACKEND) private readonly backend: LiveBackendPort) {}
+
+  get configured(): boolean { return !this.serverMode || environment.apiBaseUrl.length > 0; }
+
   async list(): Promise<LiveTournamentDocument[]> {
-    return this.clone(this.read().tournaments).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return this.backend.listLiveTournaments();
   }
 
   async get(id: string): Promise<LiveTournamentDocument | null> {
-    return this.clone(this.read().tournaments.find((tournament) => tournament.id === id) ?? null);
+    return this.backend.getLiveTournament(id);
   }
 
   async create(): Promise<LiveTournamentDocument> {
-    const tournament = createLiveTournament();
-    await this.save(tournament);
-    return this.clone(tournament);
+    return this.backend.createLiveTournament(todayDateInputValue());
   }
 
+  /** Legacy-only whole-document save; rejects when liveServer is enabled. */
   async save(tournament: LiveTournamentDocument): Promise<LiveTournamentDocument> {
-    return this.withStoreLock(async () => {
-      const incoming = normalizeLiveTournament(tournament);
-      let saved: LiveTournamentDocument | null = null;
-      this.mutate((store) => {
-        const existingIndex = store.tournaments.findIndex((item) => item.id === incoming.id);
-        const tournaments = [...store.tournaments];
-        if (existingIndex === -1) {
-          if (store.deletedTournamentIds.includes(incoming.id)) throw new Error('deletedLiveTournamentDocument');
-          saved = normalizeLiveTournament({ ...incoming, documentVersion: 1, updatedAt: new Date().toISOString() });
-          tournaments.unshift(saved);
-        } else {
-          const existing = tournaments[existingIndex];
-          if (incoming.documentVersion !== existing.documentVersion) throw new Error('staleLiveTournamentDocument');
-          saved = normalizeLiveTournament({ ...incoming, documentVersion: existing.documentVersion + 1, updatedAt: new Date().toISOString() });
-          tournaments[existingIndex] = saved;
-        }
-        return { ...store, tournaments };
-      });
-      if (!saved) throw new Error('liveTournamentSaveFailed');
-      return this.clone(saved);
-    });
+    if (this.serverMode) throw new Error('liveWholeDocumentSaveDisabled');
+    return this.backend.saveLiveTournament(tournament);
   }
 
   async delete(id: string): Promise<void> {
-    await this.withStoreLock(() => {
-      this.mutate((store) => ({
-        ...store,
-        tournaments: store.tournaments.filter((tournament) => tournament.id !== id),
-        deletedTournamentIds: store.deletedTournamentIds.includes(id) ? store.deletedTournamentIds : [...store.deletedTournamentIds, id]
-      }));
-    });
+    const existing = await this.backend.getLiveTournament(id);
+    if (!existing) return;
+    await this.backend.deleteLiveTournament(id, existing.documentVersion);
   }
 
-  private async withStoreLock<T>(callback: () => T): Promise<T> {
-    const locks = navigator.locks;
-    return locks ? locks.request(STORE_KEY, callback) : callback();
+  updateLiveSettings(id: string, expectedVersion: number, settings: LiveSettingsCommand): Promise<LiveTournamentDocument> {
+    return this.backend.updateLiveSettings(id, expectedVersion, settings);
   }
 
-  private read(): LiveTournamentStore {
-    const raw = localStorage.getItem(STORE_KEY);
-    try {
-      const parsed = JSON.parse(raw ?? 'null') as Partial<LiveTournamentStore> | null;
-      return this.normalizeStore(parsed, raw);
-    } catch (error) {
-      logBoundaryError('live-tournament-repository.read', error, { hasRaw: Boolean(raw) });
-      this.backupRawStore(raw);
-      return this.defaultStore();
-    }
+  addLivePlayer(id: string, expectedVersion: number, player: LivePlayerCommand): Promise<LiveTournamentDocument> {
+    return this.backend.addLivePlayer(id, expectedVersion, player);
   }
 
-  private mutate(update: (store: LiveTournamentStore) => LiveTournamentStore): void {
-    localStorage.setItem(STORE_KEY, JSON.stringify(update(this.read())));
+  editLivePlayer(id: string, playerId: string, expectedVersion: number, player: LivePlayerCommand): Promise<LiveTournamentDocument> {
+    return this.backend.editLivePlayer(id, playerId, expectedVersion, player);
   }
 
-  private normalizeStore(store: Partial<LiveTournamentStore> | null, raw: string | null): LiveTournamentStore {
-    if (!store) return this.defaultStore();
-    if (!Array.isArray(store.tournaments)) {
-      this.backupRawStore(raw);
-      return this.defaultStore();
-    }
-    return {
-      version: 1,
-      tournaments: store.tournaments.map((tournament) => normalizeLiveTournament(tournament)),
-      deletedTournamentIds: Array.isArray(store.deletedTournamentIds) ? store.deletedTournamentIds.filter((id) => typeof id === 'string') : []
-    };
+  setLivePlayerPaid(id: string, playerId: string, expectedVersion: number, paid: boolean): Promise<LiveTournamentDocument> {
+    return this.backend.setLivePlayerPaid(id, playerId, expectedVersion, paid);
   }
 
-  private backupRawStore(raw: string | null): void {
-    if (!raw) return;
-    localStorage.setItem(`${CORRUPT_BACKUP_PREFIX}.${new Date().toISOString()}`, raw);
+  dropLivePlayer(id: string, playerId: string, expectedVersion: number): Promise<LiveTournamentDocument> {
+    return this.backend.dropLivePlayer(id, playerId, expectedVersion);
   }
 
-  private defaultStore(): LiveTournamentStore {
-    return { version: 1, tournaments: [], deletedTournamentIds: [] };
+  removeLivePlayer(id: string, playerId: string, expectedVersion: number): Promise<LiveTournamentDocument> {
+    return this.backend.removeLivePlayer(id, playerId, expectedVersion);
   }
 
-  private clone<T>(value: T): T {
-    return structuredClone(value);
+  startLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
+    return this.backend.startLiveRound(id, expectedVersion);
   }
+
+  regenerateLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
+    return this.backend.regenerateLiveRound(id, expectedVersion);
+  }
+
+  cancelLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
+    return this.backend.cancelLiveRound(id, expectedVersion);
+  }
+
+  validateLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
+    return this.backend.validateLiveRound(id, expectedVersion);
+  }
+
+  scoreLiveRoundEntry(id: string, roundId: string, entryId: string, expectedVersion: number, score: LiveScoreCommand): Promise<LiveTournamentDocument> {
+    return this.backend.scoreLiveRoundEntry(id, roundId, entryId, expectedVersion, score);
+  }
+
+  restoreLiveCheckpoint(id: string, checkpointId: string, expectedVersion: number): Promise<LiveTournamentDocument> {
+    return this.backend.restoreLiveCheckpoint(id, checkpointId, expectedVersion);
+  }
+
+  finalizeLiveTournament(id: string, expectedVersion: number, idempotencyKey?: string): Promise<LiveFinalizeResult> {
+    return this.backend.finalizeLiveTournament(id, expectedVersion, idempotencyKey);
+  }
+}
+
+function todayDateInputValue(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
