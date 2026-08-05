@@ -1,7 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, InjectionToken, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { SessionScopeService } from '../../auth/session-scope.service';
 import { MessageKey } from '../../i18n/messages';
+import { OnlineStatusService } from '../../shared/online-status.service';
 import {
   Client,
   PublicTournamentParticipantListResponse,
@@ -12,7 +14,10 @@ import {
 
 export const REGISTRATION_ONLINE = new InjectionToken<() => boolean>('REGISTRATION_ONLINE', {
   providedIn: 'root',
-  factory: () => () => globalThis.navigator?.onLine !== false
+  factory: () => {
+    const status = inject(OnlineStatusService);
+    return () => status.isOnline();
+  }
 });
 
 export class RegistrationOfflineError extends Error {
@@ -36,7 +41,12 @@ export function registrationErrorKey(code?: string): MessageKey {
 export class TournamentRegistrationService {
   private readonly client = inject(Client);
   private readonly isOnline = inject(REGISTRATION_ONLINE);
+  /** Idempotency keys are session-scoped: a new user must never replay the previous one. */
   private readonly retryKeys = new Map<string, string>();
+
+  constructor() {
+    inject(SessionScopeService).register(() => this.retryKeys.clear());
+  }
 
   participants(slug: string): Promise<PublicTournamentParticipantListResponse> {
     return firstValueFrom(this.client.participants(slug));

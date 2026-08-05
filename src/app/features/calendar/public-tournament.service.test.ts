@@ -23,9 +23,11 @@ describe('PublicTournamentService', () => {
     ] });
     const service = injector.get(PublicTournamentService);
 
-    await expect(service.list(query)).resolves.toMatchObject({ data: response, stale: false });
-    await expect(service.list(query)).resolves.toMatchObject({ data: response, stale: false });
-    await expect(service.list(query)).resolves.toMatchObject({ data: response, stale: true });
+    const fresh = await service.list(query);
+    expect(fresh).toMatchObject({ data: response, stale: false });
+    expect(Date.parse(fresh.cachedAt!)).toBeGreaterThan(0);
+    await expect(service.list(query)).resolves.toMatchObject({ data: response, stale: false, cachedAt: fresh.cachedAt });
+    await expect(service.list(query)).resolves.toMatchObject({ data: response, stale: true, cachedAt: fresh.cachedAt });
 
     expect(get).toHaveBeenCalledTimes(3);
     expect(get.mock.calls[1][0]).toBe('https://api.example/api/tournaments');

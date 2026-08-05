@@ -8,10 +8,13 @@ import { CalendarQuery, monthBounds } from './public-calendar';
 export interface CachedApiResult<T> {
   data: T;
   stale: boolean;
+  /** ISO instant the cached copy was fetched, so a stale page can date itself. */
+  cachedAt?: string;
 }
 
 interface CacheEntry<T> {
   etag?: string;
+  cachedAt?: string;
   data: T;
 }
 
@@ -52,11 +55,11 @@ export class PublicTournamentService {
     const headers = cached?.etag ? new HttpHeaders({ 'If-None-Match': cached.etag }) : undefined;
     try {
       const response = await firstValueFrom(this.http.get<T>(url, { params, headers, observe: 'response' }));
-      this.writeCache(key, response);
-      return { data: response.body as T, stale: false };
+      const cachedAt = this.writeCache(key, response);
+      return { data: response.body as T, stale: false, cachedAt };
     } catch (error) {
-      if (cached && error instanceof HttpErrorResponse && error.status === 304) return { data: cached.data, stale: false };
-      if (cached && error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500)) return { data: cached.data, stale: true };
+      if (cached && error instanceof HttpErrorResponse && error.status === 304) return { data: cached.data, stale: false, cachedAt: cached.cachedAt };
+      if (cached && error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500)) return { data: cached.data, stale: true, cachedAt: cached.cachedAt };
       throw error;
     }
   }
@@ -70,12 +73,14 @@ export class PublicTournamentService {
     }
   }
 
-  private writeCache<T>(key: string, response: HttpResponse<T>): void {
-    if (response.body === null) return;
+  private writeCache<T>(key: string, response: HttpResponse<T>): string | undefined {
+    if (response.body === null) return undefined;
+    const cachedAt = new Date().toISOString();
     try {
-      globalThis.localStorage?.setItem(key, JSON.stringify({ data: response.body, etag: response.headers.get('ETag') ?? undefined } satisfies CacheEntry<T>));
+      globalThis.localStorage?.setItem(key, JSON.stringify({ data: response.body, etag: response.headers.get('ETag') ?? undefined, cachedAt } satisfies CacheEntry<T>));
     } catch {
       // Cache failure must not hide fresh public data.
     }
+    return cachedAt;
   }
 }

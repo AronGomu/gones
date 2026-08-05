@@ -14,6 +14,8 @@ import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { OfflineBannerComponent } from '../../shared/offline-banner.component';
+import { OnlineStatusService } from '../../shared/online-status.service';
 import { PublicTournamentService } from './public-tournament.service';
 import {
   RegistrationOfflineError,
@@ -24,10 +26,10 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BackButtonComponent, TournamentDetailViewComponent],
+  imports: [RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent, TournamentDetailViewComponent],
   template: `
     <gones-back-button [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="top" />
-    @if (stale()) { <aside class="warning calendar-offline-banner" role="status" data-cy="calendar-stale">{{ i18n.t('calendar.cachedStale') }}</aside> }
+    <gones-offline-banner [stale]="stale()" [cachedAt]="cachedAt()" />
     @if (loading()) { <section class="panel event-section calendar-detail-skeleton" aria-busy="true" data-cy="calendar-loading"><div></div><div></div><div></div></section> }
     @else if (error()) { <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h1>{{ i18n.t('calendar.detailLoadFailed') }}</h1><button mat-stroked-button type="button" (click)="load()">{{ i18n.t('common.retry') }}</button></section> }
     @else if (notFound()) { <section class="panel calendar-state" data-cy="calendar-not-found"><h1>{{ i18n.t('event.notFoundTitle') }}</h1><p>{{ i18n.t('event.notFoundBody') }}</p></section> }
@@ -46,9 +48,9 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
           } @else if (capability(); as state) {
             <p>{{ i18n.t('registration.capacityStatus', { count: state.activeParticipantCount, capacity: state.capacity ?? i18n.t('registration.unlimited') }) }}</p>
             @if (state.canRegister) {
-              <button mat-flat-button class="home-primary-action" type="button" [disabled]="mutationPending()" (click)="register()" data-cy="registration-register">{{ mutationPending() ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button>
+              <button mat-flat-button class="home-primary-action" type="button" [disabled]="mutationPending() || !online()" (click)="register()" data-cy="registration-register">{{ mutationPending() ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button>
             } @else if (state.canUnregister) {
-              <button mat-stroked-button class="danger-ghost-action" type="button" [disabled]="mutationPending() || confirmationPending()" (click)="confirmUnregister()" data-cy="registration-unregister">{{ mutationPending() || confirmationPending() ? i18n.t('registration.pending') : i18n.t('registration.unregister') }}</button>
+              <button mat-stroked-button class="danger-ghost-action" type="button" [disabled]="mutationPending() || confirmationPending() || !online()" (click)="confirmUnregister()" data-cy="registration-unregister">{{ mutationPending() || confirmationPending() ? i18n.t('registration.pending') : i18n.t('registration.unregister') }}</button>
             } @else {
               <p class="warning" data-cy="registration-reason">{{ reasonMessage(state.reason) }}</p>
             }
@@ -57,6 +59,7 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
             <p class="error" role="alert">{{ i18n.t('registration.capabilityLoadFailed') }}</p>
             <button mat-stroked-button type="button" (click)="loadCapability()">{{ i18n.t('common.retry') }}</button>
           }
+          @if (!online()) { <p class="warning" data-cy="registration-offline">{{ i18n.t('registration.offline') }}</p> }
           <p #registrationStatus class="registration-live-status" tabindex="-1" role="status" aria-live="polite" data-cy="registration-status">{{ mutationStatus() }}</p>
         </section>
         }
@@ -94,6 +97,8 @@ export class PublicTournamentDetailComponent implements OnInit {
   readonly participantsLoading = signal(false);
   readonly capabilityLoading = signal(false);
   readonly stale = signal(false);
+  readonly cachedAt = signal<string | undefined>(undefined);
+  readonly online = inject(OnlineStatusService).online;
   readonly error = signal(false);
   readonly notFound = signal(false);
   readonly participantsError = signal(false);
@@ -115,10 +120,12 @@ export class PublicTournamentDetailComponent implements OnInit {
       const result = await this.service.detail(slug);
       this.tournament.set(result.data);
       this.stale.set(result.stale);
+      this.cachedAt.set(result.cachedAt);
       await Promise.all([this.loadParticipants(), this.auth.profile() ? this.loadCapability() : Promise.resolve()]);
     } catch (error) {
       this.tournament.set(null);
       this.stale.set(false);
+      this.cachedAt.set(undefined);
       if (error instanceof ApiProblemError && error.status === 404) this.notFound.set(true);
       else this.error.set(true);
     } finally {
@@ -214,5 +221,6 @@ export class PublicTournamentDetailComponent implements OnInit {
     const result = await this.service.detail(this.route.snapshot.paramMap.get('slug') ?? '');
     this.tournament.set(result.data);
     this.stale.set(result.stale);
+    this.cachedAt.set(result.cachedAt);
   }
 }

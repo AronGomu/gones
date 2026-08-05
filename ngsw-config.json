@@ -15,5 +15,56 @@
       "updateMode": "prefetch",
       "resources": { "files": ["/assets/**"] }
     }
-  ]
+  ],
+  "dataGroups": [
+    {
+      "name": "public-calendar-reads",
+      "version": 1,
+      "urls": [
+        "/api/tournaments$",
+        "/api/tournaments?**",
+        "/api/tournaments/*$",
+        "/api/organizations$",
+        "/api/organizations?**",
+        "/api/organizations/*$"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 100,
+        "maxAge": "1d",
+        "timeout": "5s"
+      }
+    },
+    {
+      "name": "public-league-reads",
+      "version": 1,
+      "urls": [
+        "/api/leagues$",
+        "/api/leagues?**",
+        "/api/leagues/*$",
+        "/api/leagues/*/result$",
+        "/api/leagues/*/tournaments/*$",
+        "/api/leagues/*/tournaments/*/result$",
+        "/api/leagues/*/players/*/statistics$"
+      ],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 100,
+        "maxAge": "1d",
+        "timeout": "5s"
+      }
+    },
+    {
+      "name": "public-catalog-reads",
+      "version": 1,
+      "urls": ["/api/formats$", "/api/deck-archetypes$"],
+      "cacheConfig": {
+        "strategy": "freshness",
+        "maxSize": 20,
+        "maxAge": "1d",
+        "timeout": "5s"
+      }
+    }
+  ],
+  "navigationUrls": ["/**", "!/api/**", "!/**/*.*", "!/**/*__*", "!/**/*__*/**"]
 }

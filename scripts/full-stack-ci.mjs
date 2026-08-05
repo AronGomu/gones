@@ -89,6 +89,10 @@ try {
     if (registrationBrowser.status !== 0) process.exitCode = registrationBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const offlineBrowser = runCypress('cypress/e2e/offline-public-read.cy.js');
+    if (offlineBrowser.status !== 0) process.exitCode = offlineBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const browser = runCypress('cypress/e2e/auth-profile.cy.js');
     if (browser.status !== 0) process.exitCode = browser.status ?? 1;
   }

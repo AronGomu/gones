@@ -8,6 +8,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { AppComponent } from './app/app.component';
 import { apiBoundaryInterceptor, normalizeApiBaseUrl } from './app/api/api-boundary';
 import { API_BASE_URL } from './app/api/generated/gones-api';
+import { serviceWorkerBypassInterceptor } from './app/api/service-worker-cache';
 import { routes } from './app/app.routes';
 import { authSessionInterceptor } from './app/auth/auth.interceptor';
 import { AuthService } from './app/auth/auth.service';
@@ -20,7 +21,7 @@ if (environment.production) enableProdMode();
 bootstrapApplication(AppComponent, {
   providers: [
     provideZonelessChangeDetection(),
-    provideHttpClient(withInterceptors([authSessionInterceptor, apiBoundaryInterceptor])),
+    provideHttpClient(withInterceptors([authSessionInterceptor, apiBoundaryInterceptor, serviceWorkerBypassInterceptor])),
     { provide: API_BASE_URL, useValue: normalizeApiBaseUrl(environment.apiBaseUrl) },
     provideAnimationsAsync(),
     provideAppInitializer(() => inject(ViewportScroller).setOffset(routeScrollOffset)),

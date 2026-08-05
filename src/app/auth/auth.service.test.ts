@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
 import { AuthService } from './auth.service';
+import { SessionScopeService } from './session-scope.service';
 
 const profile = { id: 'u1', email: 'u@example.test', emailVerified: true, globalRole: 'User', username: 'user', firstName: 'U', lastName: 'Ser', preferredLanguage: 'en', isFirstNamePublic: false, isLastNamePublic: false, isLocationPublic: false, isBirthYearPublic: false, isPreferredLanguagePublic: false } as UserProfileResponse;
 const token = { accessToken: 'memory-token', tokenType: 'Bearer', expiresAt: {} } as AccessTokenResponse;
@@ -17,8 +18,8 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
     logout: vi.fn(() => of(undefined)),
     logoutAll: vi.fn(() => of(undefined))
   };
-  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, { provide: Client, useValue: client }] });
-  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), client };
+  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }] });
+  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client };
 }
 
 describe('AuthService', () => {
@@ -38,6 +39,19 @@ describe('AuthService', () => {
     result.next(token);
     await Promise.all([first, second]);
     expect(client.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops user-scoped state on logout so a later session cannot read it', async () => {
+    const { service, store, sessionScope } = setup(() => of(token));
+    const reset = vi.fn();
+    sessionScope.register(reset);
+    await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+
+    await service.logout();
+
+    expect(store.token).toBeUndefined();
+    expect(service.profile()).toBeNull();
+    expect(reset).toHaveBeenCalledTimes(1);
   });
 
   it('clears auth when refresh fails', async () => {

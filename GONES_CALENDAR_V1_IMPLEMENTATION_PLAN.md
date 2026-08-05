@@ -789,14 +789,14 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 
 **Deps:** C18, C24, C32, C35. **Lane:** E. **Runnable:** installable PWA gives explicit stale public data, never local mutations.
 
-- [ ] RED: service-worker tests for public GET allowlist, private/auth exclusion, stale indicator, mutation network failure, cache-user separation.
-- [ ] Configure Angular SW data groups only for anonymous public Calendar/org/League/result GETs with bounded freshness/max entries.
-- [ ] Never cache auth/profile/Admin/private participant responses, refresh responses, mutation responses, or Authorization-keyed requests.
-- [ ] Add online/offline service + stale timestamp/banner; cached page labels itself stale and disables every write.
-- [ ] Fail writes immediately with stable online-required UI; no Background Sync, local queue, optimistic source authority.
-- [ ] Ensure logout clears any user-scoped app memory; service-worker update cannot expose previous private response.
-- [ ] Add Cypress offline public-read + registration/edit rejection tests.
-- [ ] GREEN: SW/unit/Cypress tests; `G-FULL`, release-mode `G-RUN`; load public page, disconnect, reload stale, verify writes blocked.
+- [x] RED: service-worker tests for public GET allowlist, private/auth exclusion, stale indicator, mutation network failure, cache-user separation.
+- [x] Configure Angular SW data groups only for anonymous public Calendar/org/League/result GETs with bounded freshness/max entries.
+- [x] Never cache auth/profile/Admin/private participant responses, refresh responses, mutation responses, or Authorization-keyed requests.
+- [x] Add online/offline service + stale timestamp/banner; cached page labels itself stale and disables every write.
+- [x] Fail writes immediately with stable online-required UI; no Background Sync, local queue, optimistic source authority.
+- [x] Ensure logout clears any user-scoped app memory; service-worker update cannot expose previous private response.
+- [x] Add Cypress offline public-read + registration/edit rejection tests.
+- [x] GREEN: SW/unit/Cypress tests; `G-FULL`, release-mode `G-RUN`; load public page, disconnect, reload stale, verify writes blocked.
 
 ## C40 — `fix: close security accessibility performance and resilience gates`
 

@@ -17,11 +17,13 @@ import {
   ResetPasswordRequest,
   UserProfileResponse
 } from '../api/generated/gones-api';
+import { SessionScopeService } from './session-scope.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly client = inject(Client);
   private readonly tokens = inject(ApiAccessTokenStore);
+  private readonly sessionScope = inject(SessionScopeService);
   private refreshFlight?: Observable<void>;
 
   readonly enabled = environment.features.authV1;
@@ -91,6 +93,7 @@ export class AuthService {
   clear(): void {
     this.tokens.clear();
     this.profile.set(null);
+    this.sessionScope.clear();
   }
 
   async loadProfile(): Promise<UserProfileResponse> {

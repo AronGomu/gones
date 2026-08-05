@@ -93,9 +93,11 @@ describe('public participant registration', () => {
     cy.intercept('GET', '**/api/tournaments/*/registration-capability', { canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 });
     cy.intercept('POST', '**/api/tournaments/*/registrations').as('register');
     visit('/calendar/tournaments/lyon-legacy');
+    cy.get('[data-cy="registration-register"]').should('be.enabled');
     cy.window().then(win => cy.stub(win.navigator, 'onLine').value(false));
     cy.get('[data-cy="registration-register"]').click();
     cy.get('[data-cy="registration-status"]').should('contain.text', 'Rien n’a été mis en file ni modifié');
+    cy.get('[data-cy="registration-register"]').should('be.disabled');
     cy.get('[data-cy="registration-reason"]').should('not.exist');
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(375));
     cy.get('@register.all').should('have.length', 0);

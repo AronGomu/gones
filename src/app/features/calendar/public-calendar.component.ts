@@ -7,6 +7,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { PublicTournamentListResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { OfflineBannerComponent } from '../../shared/offline-banner.component';
 import {
   CalendarQuery,
   CalendarView,
@@ -32,7 +33,7 @@ const VIEW_KEY = 'gones.calendar-v1.view';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, BackButtonComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
     <section class="info-page public-calendar-page" aria-labelledby="public-calendar-title" data-cy="public-calendar">
@@ -55,7 +56,7 @@ const VIEW_KEY = 'gones.calendar-v1.view';
         <button mat-flat-button class="home-primary-action" type="submit">{{ i18n.t('common.apply') }}</button>
       </form>
 
-      @if (stale()) { <aside class="warning calendar-offline-banner" role="status" data-cy="calendar-stale">{{ i18n.t('calendar.cachedStale') }}</aside> }
+      <gones-offline-banner [stale]="stale()" [cachedAt]="cachedAt()" />
       @if (error()) {
         <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h2>{{ i18n.t('calendar.loadFailed') }}</h2><button mat-stroked-button type="button" (click)="reload()">{{ i18n.t('common.retry') }}</button></section>
       } @else if (loading()) {
@@ -118,6 +119,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly result = signal<PublicTournamentListResponse | null>(null);
   readonly loading = signal(true);
   readonly stale = signal(false);
+  readonly cachedAt = signal<string | undefined>(undefined);
   readonly error = signal(false);
   readonly items = computed(() => this.result()?.items ?? []);
   readonly groups = computed(() => groupTournamentsByVenueDate(this.items()));
@@ -164,8 +166,9 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
       if (id !== this.loadId) return;
       this.result.set(result.data);
       this.stale.set(result.stale);
+      this.cachedAt.set(result.cachedAt);
     } catch {
-      if (id === this.loadId) { this.error.set(true); this.stale.set(false); }
+      if (id === this.loadId) { this.error.set(true); this.stale.set(false); this.cachedAt.set(undefined); }
     } finally {
       if (id === this.loadId) this.loading.set(false);
     }

@@ -23,6 +23,7 @@ import { activeLivePlayers, autoLiveSwissRoundCount, cancelCurrentSwissRound, ca
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, trimPlayerName } from '../../domain/models';
 import { collectKnownPlayerNames, suggestPlayerNames } from '../../domain/player-stats';
 import { logBoundaryError } from '../../shared/app-logger';
+import { OnlineStatusService } from '../../shared/online-status.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.component';
@@ -233,6 +234,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   /** Server rejected a write with 412 — the user must reload the latest document and reapply. */
   readonly stale = signal(false);
   private readonly auth = inject(AuthService);
+  private readonly onlineStatus = inject(OnlineStatusService);
   readonly canManage = computed(() => canManageLive(this.liveRepo.serverMode, this.auth.profile()?.globalRole));
   readonly readOnly = computed(() => !this.canManage());
   private saving = false;
@@ -925,7 +927,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   /** Writes require the server while liveServer is on — nothing is queued for later. */
   private requireOnline(): boolean {
-    if (navigator.onLine !== false) return true;
+    if (this.onlineStatus.isOnline()) return true;
     this.clearPendingIntents();
     this.error.set(this.i18n.t('live.onlineRequired'));
     return false;
