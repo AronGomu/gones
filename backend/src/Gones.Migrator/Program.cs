@@ -1,6 +1,8 @@
 using Gones.Application.Notifications;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
+using Gones.Domain.Leagues;
+using Gones.Domain.Live;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
@@ -84,6 +86,7 @@ await database.Database.MigrateAsync();
 if (databaseCommand == "seed")
 {
     await SeedReferenceDataAsync(database);
+    await SeedLocalLiveTournamentAsync(database);
     await database.Database.ExecuteSqlRawAsync("""
         INSERT INTO audit_records (id, version, action, entity_type, entity_id, redacted_diff, occurred_at)
         VALUES ('00000000-0000-0000-0000-000000000005', 1, 'local_seed', 'system', 'local', '{{}}', '2026-01-01T00:00:00Z')
@@ -132,6 +135,54 @@ else
 {
     await SeedReferenceDataAsync(database);
     Console.WriteLine("Gones database migrations complete.");
+}
+
+static async Task SeedLocalLiveTournamentAsync(GonesDbContext database)
+{
+    const string documentId = "local-live-demo";
+    if (await database.LiveAggregates.AnyAsync(aggregate => aggregate.DocumentId == documentId)) return;
+    var document = new LiveTournamentDocument(
+        documentId,
+        "Local Live Demo",
+        "placeholder-league",
+        "2026-08-05",
+        "swiss",
+        1,
+        false,
+        true,
+        424242,
+        ["local-live-player-1", "local-live-player-2"],
+        "standings",
+        1,
+        [
+            new LiveTournamentPlayerDocument("local-live-player-1", "Alice", true, false, 0, 0, 0, "Tempo"),
+            new LiveTournamentPlayerDocument("local-live-player-2", "Bob", true, false, 0, 0, 0, "Control")
+        ],
+        [new LiveTournamentRoundDocument("local-live-round-1", 1, [
+            new LiveTournamentRoundEntryDocument(new MatchRoundEntry("local-live-match-1", "1", "Alice", "Bob", 2, 1, "", ""), true)
+        ], true)],
+        [new LiveTournamentCheckpointDocument("local-live-checkpoint-1", "Pairing 1", "2026-08-05T10:00:00.000Z", "round", 1, 1, true,
+            [
+                new LiveTournamentPlayerDocument("local-live-player-1", "Alice", true, false, 0, 0, 0, "Tempo"),
+                new LiveTournamentPlayerDocument("local-live-player-2", "Bob", true, false, 0, 0, 0, "Control")
+            ],
+            [new LiveTournamentRoundDocument("local-live-round-1", 1, [
+                new LiveTournamentRoundEntryDocument(new MatchRoundEntry("local-live-match-1", "1", "Alice", "Bob", 0, 0, "", ""), false)
+            ], false)])],
+        null,
+        1,
+        "2026-08-05T09:00:00.000Z",
+        "2026-08-05T10:00:00.000Z");
+    database.LiveAggregates.Add(LiveAggregate.Create(document, Instant.FromUtc(2026, 8, 5, 10, 0)));
+    database.AuditRecords.Add(new AuditRecord
+    {
+        Action = "live.local_seed",
+        EntityType = "live_aggregate",
+        EntityId = documentId,
+        RedactedDiff = """{"id":"local-live-demo"}""",
+        OccurredAt = SystemClock.Instance.GetCurrentInstant()
+    });
+    await database.SaveChangesAsync();
 }
 
 static async Task SeedReferenceDataAsync(GonesDbContext database)

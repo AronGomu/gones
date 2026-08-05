@@ -1,0 +1,41 @@
+{
+  "fixtureSet": "gones-live-domain-parity",
+  "fixtureVersion": 1,
+  "source": {
+    "language": "TypeScript",
+    "exporter": "src/app/domain/live-parity-fixtures.test.ts",
+    "sourceFiles": [
+      "src/app/domain/live-tournament.ts",
+      "src/app/domain/models.ts"
+    ],
+    "sourceRevision": "e68eb1103470e30f5b826d668a56cee14ad4be5c",
+    "runtime": {
+      "node": "v24.18.0",
+      "icu": "78.3",
+      "typescript": "5.9.3",
+      "vitest": "4.1.7"
+    },
+    "clock": {
+      "nowIso": "2026-08-05T12:00:00.000Z",
+      "today": "2026-08-05"
+    }
+  },
+  "serialization": "JSON.stringify(value, null, 2) + LF",
+  "paritySha256": "a75ab67317270cde9529588fb3259ef224049de72a0d1a54e6d81ef362cc2068",
+  "caseCounts": {
+    "registrations": 3,
+    "normalizations": 3,
+    "shuffles": 5,
+    "roundGenerations": 7,
+    "roundRegenerations": 3,
+    "roundCancellations": 3,
+    "roundValidations": 4,
+    "scoreUpdates": 3,
+    "scoreIssues": 6,
+    "standings": 6,
+    "restores": 4,
+    "completions": 3,
+    "roundCountRules": 10,
+    "stateRules": 6
+  }
+}

@@ -707,14 +707,16 @@ Evidence: Vitest adapter coverage maps all 19 C31 League/Result commands to gene
 
 **Deps:** C02, C03, C04, C05, C29. **Lane:** D. **Runnable:** hidden Live read API uses PostgreSQL; local Live remains default.
 
-- [ ] RED: golden fixtures for registration, rounds, pairing seed/order, scores, standings, checkpoints, restore, completion; JSONB round-trip/version/tombstone tests.
-- [ ] Port exact Live document/normalizers/calculations to C#; consume TS golden fixtures.
-- [ ] Add LiveAggregate envelope: UUID surrogate PK + unique string `DocumentId`, indexed name/date/stage/updated/version/deleted + canonical JSONB; preserve existing string IDs exactly.
-- [ ] Implement public/authorized list/get DTO policy: public if current app exposes; mutation details restricted as decided by existing UX/security review.
-- [ ] Return ETag; enforce bounded player/round/checkpoint/document sizes; preserve max 80 checkpoints.
-- [ ] Add Organizer/Admin auth policy for shared Live writes; User/Visitor read policy matches locked public-read decision.
-- [ ] Regenerate OpenAPI/client + add DTO parity tests.
-- [ ] GREEN: TS/C# parity + persistence/API tests; `G-FULL`, `G-RUN` seeded Live read.
+- [x] RED: golden fixtures for registration, rounds, pairing seed/order, scores, standings, checkpoints, restore, completion; JSONB round-trip/version/tombstone tests.
+- [x] Port exact Live document/normalizers/calculations to C#; consume TS golden fixtures.
+- [x] Add LiveAggregate envelope: UUID surrogate PK + unique string `DocumentId`, indexed name/date/stage/updated/version/deleted + canonical JSONB; preserve existing string IDs exactly.
+- [x] Implement public/authorized list/get DTO policy: public if current app exposes; mutation details restricted as decided by existing UX/security review.
+- [x] Return ETag; enforce bounded player/round/checkpoint/document sizes; preserve max 80 checkpoints.
+- [x] Add Organizer/Admin auth policy for shared Live writes; User/Visitor read policy matches locked public-read decision.
+- [x] Regenerate OpenAPI/client + add DTO parity tests.
+- [x] GREEN: TS/C# parity + persistence/API tests; `G-FULL`, `G-RUN` seeded Live read.
+
+Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80 checkpoint slice, seeded shuffles, round generation/regeneration/cancel/validation, pairing relaunch seed/order, score updates/issues, standings/through-round, checkpoint restores incl. pruning and completed no-op, finalization, round-count/state rules) replay bit-exact in C# `LiveParityTests` under a fixed clock/uuid protocol; `live_aggregates` JSONB envelope tests cover exact round-trip, unique `DocumentId`, name/date/stage/updated/version/deleted indexes, version increment on Apply, tombstone hiding + blocked mutation, and malformed/mismatched/oversized/over-bound (players/rounds/checkpoints>80) rejection with DB check constraints. Public list/detail/standings are anonymous with ETag/304 and hide pairingSeed/firstRoundPlayerOrder/checkpoints; `/document` requires Organizer/Admin (401/403 verified) inside the Organizer group C34 will extend with writes. G-FULL: lint, typecheck, 128 TS tests (incl. new DTO parity), 152 C# unit + 11 architecture, integration 213/215 parallel with the 2 known RootlessKit bind flakes each passing 1/1 isolated, `api:check` clean after regen, build, `e2e:ci` exit 0. G-RUN: Compose build + development smoke pass; `seed-local` seeds deterministic `local-live-demo`, public detail returns ETag `"AAAAAAAAAAE="` without mutation details, standings derive server-side, anonymous `/document` returns 401; `down -v` clean.
 
 ## C34 — `feat: implement Live intent commands and atomic finalization`
 

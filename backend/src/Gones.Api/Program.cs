@@ -3,6 +3,7 @@ using Gones.Api.Errors;
 using Gones.Api.Health;
 using Gones.Api.Identity;
 using Gones.Api.Leagues;
+using Gones.Api.Live;
 using Gones.Api.Observability;
 using Gones.Api.Organizations;
 using Gones.Api.Notifications;
@@ -168,6 +169,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapPublicCatalogEndpoints();
     app.MapPublicLeagueEndpoints();
     app.MapLeagueCommandEndpoints();
+    app.MapPublicLiveEndpoints();
     app.MapPublicTournamentEndpoints();
     app.MapTournamentPublicationEndpoints();
     app.MapTournamentLifecycleEndpoints();
