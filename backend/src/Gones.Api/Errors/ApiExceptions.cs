@@ -17,7 +17,13 @@ public sealed class AuthenticationFailedException() : ApiException("invalid_cred
 public sealed class InvalidAccountActionTokenException() : ApiException("invalid_account_action", "Account action link is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class RateLimitExceededException() : ApiException("rate_limited", "Too many requests. Try again later.", StatusCodes.Status429TooManyRequests);
 public sealed class ResourceNotFoundException() : ApiException("not_found", "Resource not found.", StatusCodes.Status404NotFound);
-public sealed class ConcurrencyConflictException() : ApiException("stale_version", "Resource changed since it was read.", StatusCodes.Status412PreconditionFailed);
+public sealed class ConcurrencyConflictException(string? currentETag = null, long? currentDocumentVersion = null)
+    : ApiException("stale_version", "Resource changed since it was read.", StatusCodes.Status412PreconditionFailed)
+{
+    /// <summary>Latest strong ETag of the resource, surfaced so stale writers can reload and retry.</summary>
+    public string? CurrentETag { get; } = currentETag;
+    public long? CurrentDocumentVersion { get; } = currentDocumentVersion;
+}
 public sealed class ResourceConflictException() : ApiException("conflict", "Request conflicts with current resource state.", StatusCodes.Status409Conflict);
 public sealed class RequestBodyTooLargeException() : ApiException("request_too_large", "Request body exceeds the allowed size.", StatusCodes.Status413PayloadTooLarge);
 public sealed class InvalidOAuthStateException() : ApiException("invalid_oauth_state", "OAuth request is invalid or expired.", StatusCodes.Status400BadRequest);

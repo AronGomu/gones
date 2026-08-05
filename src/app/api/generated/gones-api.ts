@@ -86,9 +86,19 @@ export interface IClient {
      */
     liveTournaments(page: number | undefined, pageSize: number | undefined, stage: string | undefined, search: string | undefined): Observable<PublicLiveTournamentListResponse>;
     /**
+     * @param idempotency_Key (optional)
+     * @return Created
+     */
+    createLiveTournament(idempotency_Key: string | undefined, body: CreateLiveTournamentRequest): Observable<LiveCommandResponse>;
+    /**
      * @return OK
      */
     liveTournaments2(id: string): Observable<PublicLiveTournamentDetailResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    deleteLiveTournament(id: string, if_Match: string | undefined): Observable<LiveDeleteResponse>;
     /**
      * @return OK
      */
@@ -307,6 +317,72 @@ export interface IClient {
      * @return OK
      */
     getLiveTournamentDocument(id: string): Observable<LiveTournamentDocumentResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    updateLiveTournamentSettings(id: string, if_Match: string | undefined, body: UpdateLiveSettingsRequest): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    addLiveTournamentPlayer(id: string, if_Match: string | undefined, body: AddLivePlayerRequest): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    editLiveTournamentPlayer(id: string, playerId: string, if_Match: string | undefined, body: EditLivePlayerRequest): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    removeLiveTournamentPlayer(id: string, playerId: string, if_Match: string | undefined): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    setLiveTournamentPlayerPaid(id: string, playerId: string, if_Match: string | undefined, body: SetLivePlayerPaidRequest): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    dropLiveTournamentPlayer(id: string, playerId: string, if_Match: string | undefined): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    startLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    regenerateLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    cancelLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    validateLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    scoreLiveTournamentRoundEntry(id: string, roundId: string, entryId: string, if_Match: string | undefined, body: ScoreLiveRoundEntryRequest): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    restoreLiveTournamentCheckpoint(id: string, checkpointId: string, if_Match: string | undefined): Observable<LiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @param idempotency_Key (optional)
+     * @return OK
+     */
+    finalizeLiveTournament(id: string, if_Match: string | undefined, idempotency_Key: string | undefined): Observable<LiveFinalizeResponse>;
     /**
      * @return OK
      */
@@ -1447,6 +1523,62 @@ export class Client implements IClient {
     }
 
     /**
+     * @param idempotency_Key (optional)
+     * @return Created
+     */
+    createLiveTournament(idempotency_Key: string | undefined, body: CreateLiveTournamentRequest): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Idempotency-Key": idempotency_Key !== undefined && idempotency_Key !== null ? "" + idempotency_Key : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCreateLiveTournament(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCreateLiveTournament(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processCreateLiveTournament(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
      * @return OK
      */
     liveTournaments2(id: string): Observable<PublicLiveTournamentDetailResponse> {
@@ -1506,6 +1638,61 @@ export class Client implements IClient {
             let result404: any = null;
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    deleteLiveTournament(id: string, if_Match: string | undefined): Observable<LiveDeleteResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processDeleteLiveTournament(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processDeleteLiveTournament(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveDeleteResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveDeleteResponse>;
+        }));
+    }
+
+    protected processDeleteLiveTournament(response: HttpResponseBase): Observable<LiveDeleteResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveDeleteResponse;
+            return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -4486,6 +4673,764 @@ export class Client implements IClient {
             let result404: any = null;
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    updateLiveTournamentSettings(id: string, if_Match: string | undefined, body: UpdateLiveSettingsRequest): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/settings";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processUpdateLiveTournamentSettings(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processUpdateLiveTournamentSettings(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processUpdateLiveTournamentSettings(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    addLiveTournamentPlayer(id: string, if_Match: string | undefined, body: AddLivePlayerRequest): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/players";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processAddLiveTournamentPlayer(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processAddLiveTournamentPlayer(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processAddLiveTournamentPlayer(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    editLiveTournamentPlayer(id: string, playerId: string, if_Match: string | undefined, body: EditLivePlayerRequest): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/players/{playerId}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (playerId === undefined || playerId === null)
+            throw new globalThis.Error("The parameter 'playerId' must be defined.");
+        url_ = url_.replace("{playerId}", encodeURIComponent("" + playerId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processEditLiveTournamentPlayer(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processEditLiveTournamentPlayer(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processEditLiveTournamentPlayer(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    removeLiveTournamentPlayer(id: string, playerId: string, if_Match: string | undefined): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/players/{playerId}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (playerId === undefined || playerId === null)
+            throw new globalThis.Error("The parameter 'playerId' must be defined.");
+        url_ = url_.replace("{playerId}", encodeURIComponent("" + playerId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRemoveLiveTournamentPlayer(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRemoveLiveTournamentPlayer(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processRemoveLiveTournamentPlayer(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    setLiveTournamentPlayerPaid(id: string, playerId: string, if_Match: string | undefined, body: SetLivePlayerPaidRequest): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/players/{playerId}/paid";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (playerId === undefined || playerId === null)
+            throw new globalThis.Error("The parameter 'playerId' must be defined.");
+        url_ = url_.replace("{playerId}", encodeURIComponent("" + playerId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processSetLiveTournamentPlayerPaid(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processSetLiveTournamentPlayerPaid(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processSetLiveTournamentPlayerPaid(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    dropLiveTournamentPlayer(id: string, playerId: string, if_Match: string | undefined): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/players/{playerId}/drop";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (playerId === undefined || playerId === null)
+            throw new globalThis.Error("The parameter 'playerId' must be defined.");
+        url_ = url_.replace("{playerId}", encodeURIComponent("" + playerId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processDropLiveTournamentPlayer(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processDropLiveTournamentPlayer(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processDropLiveTournamentPlayer(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    startLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/rounds/start";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processStartLiveTournamentRound(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processStartLiveTournamentRound(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processStartLiveTournamentRound(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    regenerateLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/rounds/regenerate";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRegenerateLiveTournamentRound(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRegenerateLiveTournamentRound(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processRegenerateLiveTournamentRound(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    cancelLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/rounds/cancel";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processCancelLiveTournamentRound(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processCancelLiveTournamentRound(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processCancelLiveTournamentRound(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    validateLiveTournamentRound(id: string, if_Match: string | undefined): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/rounds/validate";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processValidateLiveTournamentRound(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processValidateLiveTournamentRound(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processValidateLiveTournamentRound(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    scoreLiveTournamentRoundEntry(id: string, roundId: string, entryId: string, if_Match: string | undefined, body: ScoreLiveRoundEntryRequest): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/rounds/{roundId}/entries/{entryId}/score";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (roundId === undefined || roundId === null)
+            throw new globalThis.Error("The parameter 'roundId' must be defined.");
+        url_ = url_.replace("{roundId}", encodeURIComponent("" + roundId));
+        if (entryId === undefined || entryId === null)
+            throw new globalThis.Error("The parameter 'entryId' must be defined.");
+        url_ = url_.replace("{entryId}", encodeURIComponent("" + entryId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processScoreLiveTournamentRoundEntry(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processScoreLiveTournamentRoundEntry(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processScoreLiveTournamentRoundEntry(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    restoreLiveTournamentCheckpoint(id: string, checkpointId: string, if_Match: string | undefined): Observable<LiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/checkpoints/{checkpointId}/restore";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (checkpointId === undefined || checkpointId === null)
+            throw new globalThis.Error("The parameter 'checkpointId' must be defined.");
+        url_ = url_.replace("{checkpointId}", encodeURIComponent("" + checkpointId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processRestoreLiveTournamentCheckpoint(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processRestoreLiveTournamentCheckpoint(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveCommandResponse>;
+        }));
+    }
+
+    protected processRestoreLiveTournamentCheckpoint(response: HttpResponseBase): Observable<LiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @param idempotency_Key (optional)
+     * @return OK
+     */
+    finalizeLiveTournament(id: string, if_Match: string | undefined, idempotency_Key: string | undefined): Observable<LiveFinalizeResponse> {
+        let url_ = this.baseUrl + "/api/live-tournaments/{id}/finalize";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Idempotency-Key": idempotency_Key !== undefined && idempotency_Key !== null ? "" + idempotency_Key : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processFinalizeLiveTournament(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processFinalizeLiveTournament(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<LiveFinalizeResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<LiveFinalizeResponse>;
+        }));
+    }
+
+    protected processFinalizeLiveTournament(response: HttpResponseBase): Observable<LiveFinalizeResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveFinalizeResponse;
+            return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -7676,6 +8621,16 @@ export interface AccessTokenResponse {
     [key: string]: any;
 }
 
+export interface AddLivePlayerRequest {
+    name: string | undefined;
+    initialWins: number | undefined;
+    initialDraws: number | undefined;
+    initialLosses: number | undefined;
+    archetype: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface AddOrganizationMemberRequest {
     userId: string;
     role: string;
@@ -7880,6 +8835,17 @@ export interface CreateLeagueRequest {
     [key: string]: any;
 }
 
+export interface CreateLiveTournamentRequest {
+    name: string | undefined;
+    leagueId: string | undefined;
+    tournamentDate: string | undefined;
+    roundCount: number | undefined;
+    customRoundCount: boolean | undefined;
+    paidTrackingEnabled: boolean | undefined;
+
+    [key: string]: any;
+}
+
 export interface CreateOrganizationRequest {
     name: string;
     description: string | undefined;
@@ -7906,6 +8872,16 @@ export interface DeleteTournamentRequest {
 export interface DisableUserRequest {
     confirmedUsername: string;
     ownershipTransfers: OwnershipTransferBody[] | undefined;
+
+    [key: string]: any;
+}
+
+export interface EditLivePlayerRequest {
+    name: string | undefined;
+    initialWins: number | undefined;
+    initialDraws: number | undefined;
+    initialLosses: number | undefined;
+    archetype: string | undefined;
 
     [key: string]: any;
 }
@@ -8040,6 +9016,37 @@ export interface LeagueResult {
 
 export interface LinkExternalIdentityRequest {
     currentPassword: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface LiveCommandResponse {
+    document: LiveTournamentDocument;
+    documentVersion: number;
+    serverUpdatedAt: Instant;
+    eTag: string;
+
+    [key: string]: any;
+}
+
+export interface LiveDeleteResponse {
+    id: string;
+    deleted: boolean;
+    documentVersion: number;
+    eTag: string;
+
+    [key: string]: any;
+}
+
+export interface LiveFinalizeResponse {
+    id: string;
+    stage: string;
+    leagueId: string;
+    finalizedTournamentId: string;
+    liveDocumentVersion: number;
+    liveETag: string;
+    leagueDocumentVersion: number;
+    leagueETag: string;
 
     [key: string]: any;
 }
@@ -8674,6 +9681,19 @@ export interface RoundEntryMatchRoundEntry {
     [key: string]: any;
 }
 
+export interface ScoreLiveRoundEntryRequest {
+    player1Score: number;
+    player2Score: number;
+
+    [key: string]: any;
+}
+
+export interface SetLivePlayerPaidRequest {
+    paid: boolean;
+
+    [key: string]: any;
+}
+
 export interface TokenRequest {
     token: string;
 
@@ -8860,6 +9880,17 @@ export interface TransferOrganizationOwnershipRequest {
 
 export interface UnlinkExternalIdentityRequest {
     currentPassword: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface UpdateLiveSettingsRequest {
+    name: string | undefined;
+    leagueId: string | undefined;
+    tournamentDate: string | undefined;
+    roundCount: number | undefined;
+    customRoundCount: boolean | undefined;
+    paidTrackingEnabled: boolean | undefined;
 
     [key: string]: any;
 }

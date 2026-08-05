@@ -33,6 +33,13 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         problem.Extensions["message"] = message;
         problem.Extensions["traceId"] = context.TraceIdentifier;
         if (errors is not null) problem.Extensions["errors"] = errors;
+        // Latest-version metadata travels in the problem body: the exception-handler middleware
+        // strips ETag response headers on error responses, so stale writers reload from here.
+        if (exception is ConcurrencyConflictException { CurrentETag: not null } stale)
+        {
+            problem.Extensions["currentETag"] = stale.CurrentETag;
+            if (stale.CurrentDocumentVersion is { } currentDocumentVersion) problem.Extensions["currentDocumentVersion"] = currentDocumentVersion;
+        }
 
         context.Response.StatusCode = status;
         await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: cancellationToken);

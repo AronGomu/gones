@@ -671,6 +671,43 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "CreateLiveTournament",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLiveTournamentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/live-tournaments/{id}": {
@@ -718,6 +755,41 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "DeleteLiveTournament",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveDeleteResponse"
                 }
               }
             }
@@ -2980,6 +3052,598 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/settings": {
+      "patch": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "UpdateLiveTournamentSettings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLiveSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/players": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "AddLiveTournamentPlayer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddLivePlayerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/players/{playerId}": {
+      "patch": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "EditLiveTournamentPlayer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditLivePlayerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "RemoveLiveTournamentPlayer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/players/{playerId}/paid": {
+      "patch": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "SetLiveTournamentPlayerPaid",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLivePlayerPaidRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/players/{playerId}/drop": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "DropLiveTournamentPlayer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/rounds/start": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "StartLiveTournamentRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/rounds/regenerate": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "RegenerateLiveTournamentRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/rounds/cancel": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "CancelLiveTournamentRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/rounds/validate": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "ValidateLiveTournamentRound",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/rounds/{roundId}/entries/{entryId}/score": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "ScoreLiveTournamentRoundEntry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "roundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreLiveRoundEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/checkpoints/{checkpointId}/restore": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "RestoreLiveTournamentCheckpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkpointId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/live-tournaments/{id}/finalize": {
+      "post": {
+        "tags": [
+          "LiveCommandEndpoints"
+        ],
+        "operationId": "FinalizeLiveTournament",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveFinalizeResponse"
                 }
               }
             }
@@ -5699,6 +6363,57 @@
           }
         }
       },
+      "AddLivePlayerRequest": {
+        "required": [
+          "name",
+          "initialWins",
+          "initialDraws",
+          "initialLosses",
+          "archetype"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "initialWins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "initialDraws": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "initialLosses": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "archetype": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "AddOrganizationMemberRequest": {
         "required": [
           "userId",
@@ -6468,6 +7183,58 @@
           }
         }
       },
+      "CreateLiveTournamentRequest": {
+        "required": [
+          "name",
+          "leagueId",
+          "tournamentDate",
+          "roundCount",
+          "customRoundCount",
+          "paidTrackingEnabled"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "leagueId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tournamentDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roundCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "customRoundCount": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "paidTrackingEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
       "CreateOrganizationRequest": {
         "required": [
           "name",
@@ -6563,6 +7330,57 @@
             "items": {
               "$ref": "#/components/schemas/OwnershipTransferBody"
             }
+          }
+        }
+      },
+      "EditLivePlayerRequest": {
+        "required": [
+          "name",
+          "initialWins",
+          "initialDraws",
+          "initialLosses",
+          "archetype"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "initialWins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "initialDraws": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "initialLosses": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "archetype": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -6930,6 +7748,111 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "LiveCommandResponse": {
+        "required": [
+          "document",
+          "documentVersion",
+          "serverUpdatedAt",
+          "eTag"
+        ],
+        "type": "object",
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/LiveTournamentDocument"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "serverUpdatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "eTag": {
+            "type": "string"
+          }
+        }
+      },
+      "LiveDeleteResponse": {
+        "required": [
+          "id",
+          "deleted",
+          "documentVersion",
+          "eTag"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "eTag": {
+            "type": "string"
+          }
+        }
+      },
+      "LiveFinalizeResponse": {
+        "required": [
+          "id",
+          "stage",
+          "leagueId",
+          "finalizedTournamentId",
+          "liveDocumentVersion",
+          "liveETag",
+          "leagueDocumentVersion",
+          "leagueETag"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "leagueId": {
+            "type": "string"
+          },
+          "finalizedTournamentId": {
+            "type": "string"
+          },
+          "liveDocumentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "liveETag": {
+            "type": "string"
+          },
+          "leagueDocumentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "leagueETag": {
+            "type": "string"
           }
         }
       },
@@ -9369,6 +10292,42 @@
           }
         }
       },
+      "ScoreLiveRoundEntryRequest": {
+        "required": [
+          "player1Score",
+          "player2Score"
+        ],
+        "type": "object",
+        "properties": {
+          "player1Score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "player2Score": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "SetLivePlayerPaidRequest": {
+        "required": [
+          "paid"
+        ],
+        "type": "object",
+        "properties": {
+          "paid": {
+            "type": "boolean"
+          }
+        }
+      },
       "Stream": {
         "type": "string",
         "format": "binary"
@@ -10103,6 +11062,58 @@
           }
         }
       },
+      "UpdateLiveSettingsRequest": {
+        "required": [
+          "name",
+          "leagueId",
+          "tournamentDate",
+          "roundCount",
+          "customRoundCount",
+          "paidTrackingEnabled"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "leagueId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tournamentDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roundCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "customRoundCount": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "paidTrackingEnabled": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        }
+      },
       "UpdateOrganizationNotificationSettingsRequest": {
         "required": [
           "notifyOnRegistration",
@@ -10447,6 +11458,9 @@
     },
     {
       "name": "PublicLiveEndpoints"
+    },
+    {
+      "name": "LiveCommandEndpoints"
     },
     {
       "name": "PublicTournamentEndpoints"

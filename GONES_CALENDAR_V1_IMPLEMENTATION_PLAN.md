@@ -722,14 +722,14 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 
 **Deps:** C09, C30, C31, C33. **Lane:** D. **Runnable:** complete Live API behind flag.
 
-- [ ] RED: command tests for create/settings/player add/edit/drop/paid, start/cancel round, score, validate, checkpoint/restore, standings, finalize, delete, stale/retry.
-- [ ] Implement intent endpoints requiring If-Match; create/finalize use Idempotency-Key.
-- [ ] Execute exact C# Live rules; persist one JSONB aggregate version per accepted command.
-- [ ] Finalize in one DB tx: mark Live completed/finalized ID, insert Result Tournament in target League aggregate, tombstone active Live view; retries return same result.
-- [ ] Serialize concurrent score/round actions with version predicate; return 412 + latest ETag metadata.
-- [ ] Audit action/IDs only; never duplicate full players/scores in audit JSON.
-- [ ] Regenerate command OpenAPI/client; stress same-round concurrent score writes.
-- [ ] GREEN: parity/command/concurrency tests; `G-FULL`, `G-RUN`; full Live lifecycle via API.
+- [x] RED: command tests for create/settings/player add/edit/drop/paid, start/cancel round, score, validate, checkpoint/restore, standings, finalize, delete, stale/retry.
+- [x] Implement intent endpoints requiring If-Match; create/finalize use Idempotency-Key.
+- [x] Execute exact C# Live rules; persist one JSONB aggregate version per accepted command.
+- [x] Finalize in one DB tx: mark Live completed/finalized ID, insert Result Tournament in target League aggregate, tombstone active Live view; retries return same result.
+- [x] Serialize concurrent score/round actions with version predicate; return 412 + latest ETag metadata (metadata in problem body: exception middleware strips ETag headers).
+- [x] Audit action/IDs only; never duplicate full players/scores in audit JSON.
+- [x] Regenerate command OpenAPI/client; stress same-round concurrent score writes.
+- [x] GREEN: parity/command/concurrency tests; `G-FULL`, `G-RUN`; full Live lifecycle via API.
 
 ## C35 — `feat: cut Angular Live Tournament flows to server commands`
 
