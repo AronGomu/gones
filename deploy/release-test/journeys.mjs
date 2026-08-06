@@ -1,0 +1,489 @@
+// V1 role journeys, executed from inside the isolated release-test network (C43).
+//
+// This runs where the fake identity provider and the local email sink actually live. The host
+// cannot reach them — the application network has no default route and no published port — so a
+// journey that has to read a verification email or complete an OAuth code exchange has to run here.
+//
+// It only ever speaks to the TLS edge with the rehearsal's private CA. No live provider, no
+// credential, no public domain is involved, and nothing it proves may be read as a live claim.
+//
+//   node journeys.mjs <stage>
+//
+// Stages are independent: each one re-authenticates from the deterministic fixture accounts and
+// receives any identifiers it needs through GONES_JOURNEY_STATE, so the host can assert database
+// state in between without holding a session open.
+import { randomUUID } from 'node:crypto';
+
+const edge = process.env.GONES_EDGE ?? 'https://tls-proxy:8443';
+const sink = process.env.GONES_SINK ?? 'https://fake-brevo:8443';
+const bootstrapEmail = process.env.GONES_BOOTSTRAP_ADMIN_EMAIL ?? 'bootstrap-admin@release-test.invalid';
+const password = 'Release-test-pass-123!';
+const organizerEmail = 'organizer@release-test.invalid';
+const participantEmail = 'participant@release-test.invalid';
+const standInEmail = 'stand-in@release-test.invalid';
+const state = JSON.parse(process.env.GONES_JOURNEY_STATE || '{}');
+const stage = process.argv[2];
+
+const failures = [];
+const check = (condition, message) => {
+  if (condition) {
+    console.log(`  ok   ${message}`);
+    return true;
+  }
+  failures.push(message);
+  console.error(`  FAIL ${message}`);
+  return false;
+};
+
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+/** Minimal HTTP client: bearer sessions, manual cookie jar, never follows a redirect. */
+async function call(path, { method = 'GET', body, token, headers = {}, cookie, base = edge } = {}) {
+  const response = await fetch(`${base}${path}`, {
+    method,
+    redirect: 'manual',
+    headers: {
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(cookie ? { cookie } : {}),
+      ...headers
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const text = await response.text();
+  let json;
+  try { json = text ? JSON.parse(text) : undefined; } catch { json = undefined; }
+  return { status: response.status, headers: response.headers, text, json };
+}
+
+const idempotent = () => ({ 'idempotency-key': randomUUID() });
+
+/** Reads the local email sink the way an operator would read the inbox it stands in for. */
+async function sinkMessages() {
+  const response = await call('/_fixture/received', { base: sink });
+  return response.json?.received ?? [];
+}
+
+async function waitForActionToken(email, pathFragment, attempts = 60) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const messages = await sinkMessages();
+    const match = messages
+      .filter((message) => message.to === email)
+      .reverse()
+      .map((message) => new RegExp(`https://[^"'<>\\s]*${pathFragment}\\?token=([A-Za-z0-9_\\-%]+)`).exec(message.htmlContent ?? ''))
+      .find(Boolean);
+    if (match) return decodeURIComponent(match[1]);
+    await sleep(1000);
+  }
+  return null;
+}
+
+async function setProviderFaults(faults) {
+  return call('/_fixture/mode', { base: sink, method: 'POST', body: faults });
+}
+
+async function registerAndVerify(email, username) {
+  const registered = await call('/api/auth/register', {
+    method: 'POST',
+    body: { email, username, password, firstName: 'Release', lastName: 'Tester' }
+  });
+  if (registered.status !== 201 && registered.status !== 409) {
+    throw new Error(`register ${email} failed: ${registered.status} ${registered.text.slice(0, 200)}`);
+  }
+  if (registered.status === 201) {
+    const token = await waitForActionToken(email, '/verify-email');
+    if (!token) throw new Error(`no verification email reached the local sink for ${email}`);
+    const verified = await call('/api/auth/verify-email', { method: 'POST', body: { token } });
+    if (verified.status >= 300) throw new Error(`verify ${email} failed: ${verified.status} ${verified.text.slice(0, 200)}`);
+  }
+  return login(email);
+}
+
+async function login(email) {
+  const response = await call('/api/auth/login', { method: 'POST', body: { email, password, deviceLabel: 'release-rehearsal' } });
+  if (response.status !== 200) throw new Error(`login ${email} failed: ${response.status} ${response.text.slice(0, 200)}`);
+  const me = await call('/api/users/me', { token: response.json.accessToken });
+  if (me.status !== 200) throw new Error(`profile for ${email} failed: ${me.status}`);
+  return { token: response.json.accessToken, profile: me.json };
+}
+
+function tournamentPayload(organizationId, formatIds, startsAtLocal, title) {
+  return {
+    organizationId,
+    title,
+    summary: 'Release rehearsal tournament',
+    bodyHtml: '<p>Local rehearsal only.</p>',
+    streetAddress: '1 Rue de la Republique',
+    postalCode: '69002',
+    city: 'Lyon',
+    country: 'France',
+    timeZoneId: 'Europe/Paris',
+    startsAtLocal,
+    endsAtLocal: startsAtLocal.replace('T09:00:00', 'T18:00:00'),
+    capacity: 8,
+    formatIds
+  };
+}
+
+/** A local date far enough out that every reminder class (monthly, Saturday, J-2, J-1) is planned. */
+function futureLocal(daysAhead) {
+  const date = new Date(Date.now() + daysAhead * 86_400_000);
+  return `${date.toISOString().slice(0, 10)}T09:00:00`;
+}
+
+async function visitorStage() {
+  const list = await call('/api/tournaments');
+  check(list.status === 200, `anonymous Visitor reads the public calendar (${list.status})`);
+  const me = await call('/api/users/me');
+  check(me.status === 401, `anonymous Visitor cannot read a profile (${me.status})`);
+  const admin = await call('/api/admin/users');
+  check(admin.status === 401, `anonymous Visitor cannot reach the Admin surface (${admin.status})`);
+  const organizer = await call('/api/organizer/tournaments');
+  check(organizer.status === 401, `anonymous Visitor cannot reach the Organizer surface (${organizer.status})`);
+  const spa = await call('/');
+  check(spa.status === 200 && spa.text.includes('<gones-root'), 'the server-mode SPA is served from the same TLS origin as the API');
+  check((spa.headers.get('content-security-policy') ?? '').includes("connect-src 'self' https://localhost:8443"),
+    'the SPA content-security-policy names exactly the API origin it is allowed to call');
+}
+
+async function bootstrapStage() {
+  const session = await registerAndVerify(bootstrapEmail, 'release-bootstrap');
+  check(session.profile.emailVerified === true || session.profile.isEmailVerified === true || session.profile.email === bootstrapEmail,
+    'the configured bootstrap account is registered and verified through the local email sink');
+  const duplicate = await call('/api/auth/register', {
+    method: 'POST',
+    body: { email: bootstrapEmail, username: 'release-bootstrap-2', password, firstName: 'Release', lastName: 'Tester' }
+  });
+  check(duplicate.status === 409, `re-registering the same address is refused (${duplicate.status})`);
+  const stillUser = await call('/api/admin/users', { token: session.token });
+  check(stillUser.status === 403, `a verified account is not an Admin before the bootstrap CLI runs (${stillUser.status})`);
+  emit({ bootstrapUserId: session.profile.userId ?? session.profile.id });
+}
+
+async function rolesStage() {
+  const admin = await login(bootstrapEmail);
+  const adminUsers = await call('/api/admin/users', { token: admin.token });
+  check(adminUsers.status === 200, `the bootstrapped account reaches the Admin surface (${adminUsers.status})`);
+
+  const organizer = await registerAndVerify(organizerEmail, 'release-organizer');
+  const participant = await registerAndVerify(participantEmail, 'release-participant');
+  const standIn = await registerAndVerify(standInEmail, 'release-stand-in');
+  const organizerId = organizer.profile.userId ?? organizer.profile.id;
+  const participantId = participant.profile.userId ?? participant.profile.id;
+  const standInId = standIn.profile.userId ?? standIn.profile.id;
+
+  const organization = await call('/api/admin/organizations/', {
+    method: 'POST',
+    token: admin.token,
+    body: { name: `Release Rehearsal Club ${randomUUID().slice(0, 8)}`, ownerUserId: organizerId }
+  });
+  check(organization.status === 201, `an Admin creates the organization (${organization.status})`);
+  const organizationId = organization.json.id;
+
+  // Publishing needs the global Organizer role, and an Admin is the only one who can attribute it.
+  // Granting it revokes the account's refresh sessions on purpose, so the Organizer signs in again.
+  const granted = await call(`/api/admin/users/${organizerId}/roles/Organizer/grant`, { method: 'POST', token: admin.token });
+  check(granted.status === 204, `the Admin attributes the Organizer role (${granted.status})`);
+  Object.assign(organizer, await login(organizerEmail));
+
+  const members = await call(`/api/organizations/${organizationId}/members`, { token: organizer.token });
+  check(members.status === 200 && members.json.some((member) => member.role === 'Owner' && member.userId === organizerId),
+    'the organization Owner is the member the Admin nominated');
+
+  const addedMember = await call(`/api/organizations/${organizationId}/members`, {
+    method: 'POST',
+    token: organizer.token,
+    body: { userId: standInId, role: 'Organizer' }
+  });
+  check(addedMember.status === 201, `the Owner adds an Organizer member (${addedMember.status})`);
+
+  const notOwner = await call(`/api/organizations/${organizationId}/transfer-ownership`, {
+    method: 'POST',
+    token: standIn.token,
+    body: { newOwnerUserId: standInId }
+  });
+  check([403, 404, 409].includes(notOwner.status), `a non-Owner member cannot transfer ownership (${notOwner.status})`);
+
+  const formats = await call('/api/formats');
+  check(formats.status === 200 && formats.json.length > 0, 'the public format catalog is populated');
+  const formatIds = [formats.json[0].id];
+
+  const startsAtLocal = futureLocal(70);
+  const payload = tournamentPayload(organizationId, formatIds, startsAtLocal, 'Release Rehearsal Cup');
+  const preview = await call('/api/tournaments/preview', { method: 'POST', token: organizer.token, body: payload });
+  check(preview.status === 200 && typeof preview.json.previewTicket === 'string', `the Organizer previews before publishing (${preview.status} ${preview.text.slice(0, 120)})`);
+
+  const published = await call('/api/tournaments/', {
+    method: 'POST',
+    token: organizer.token,
+    headers: idempotent(),
+    body: { previewTicket: preview.json.previewTicket, payload }
+  });
+  check(published.status === 201 && published.json.status === 'Published',
+    `the Organizer publishes the tournament (${published.status} ${published.text.slice(0, 160)})`);
+  const tournamentId = published.json.id;
+  const slug = published.json.slug;
+
+  const publicDetail = await call(`/api/tournaments/${slug}`);
+  check(publicDetail.status === 200, `a Visitor reads the published tournament (${publicDetail.status})`);
+  const ics = await call(`/api/tournaments/${slug}.ics`);
+  check(ics.status === 200 && ics.text.includes('BEGIN:VEVENT') && ics.text.includes('Europe/Paris'),
+    'the tournament exports an ICS entry carrying the venue time zone');
+
+  const registrationKey = randomUUID();
+  const registered = await call(`/api/tournaments/${tournamentId}/registrations`, {
+    method: 'POST', token: participant.token, headers: { 'idempotency-key': registrationKey }
+  });
+  check(registered.status === 201, `a verified User registers (${registered.status} ${registered.text.slice(0, 160)})`);
+  const replayed = await call(`/api/tournaments/${tournamentId}/registrations`, {
+    method: 'POST', token: participant.token, headers: { 'idempotency-key': registrationKey }
+  });
+  check(replayed.status === 201 || replayed.status === 200, `replaying the same Idempotency-Key is not a second registration (${replayed.status})`);
+  const duplicate = await call(`/api/tournaments/${tournamentId}/registrations`, {
+    method: 'POST', token: participant.token, headers: idempotent()
+  });
+  check(duplicate.status === 409, `a second active registration is refused (${duplicate.status})`);
+
+  const anonymousParticipants = await call(`/api/tournaments/${slug}/participants`);
+  check(anonymousParticipants.status === 200 && !anonymousParticipants.text.includes(participantEmail),
+    'the public participant view never exposes a participant address');
+  const privateParticipants = await call(`/api/tournaments/${tournamentId}/registrations`, { token: organizer.token });
+  check(privateParticipants.status === 200 && privateParticipants.text.includes(participantEmail),
+    'the Organizer private participant view resolves the participant');
+
+  const csv = await call(`/api/tournaments/${tournamentId}/registrations/export`, { token: organizer.token });
+  check(csv.status === 200 && csv.text.includes(participantEmail), `the Organizer exports participants as CSV (${csv.status})`);
+  check(!/^[=+\-@]/m.test(csv.text), 'the CSV export never starts a cell with a spreadsheet formula character');
+
+  const manual = await call(`/api/tournaments/${tournamentId}/registrations/by-organizer`, {
+    method: 'POST', token: organizer.token, headers: idempotent(), body: { userId: standInId }
+  });
+  check(manual.status === 201, `the Organizer registers a participant manually (${manual.status})`);
+  const manualId = manual.json.attemptId;
+  const removed = await call(`/api/tournaments/${tournamentId}/registrations/${manualId}`, {
+    method: 'DELETE', token: organizer.token, headers: idempotent()
+  });
+  check(removed.status === 200 || removed.status === 204, `the Organizer removes that participant (${removed.status})`);
+
+  const blocked = await call(`/api/organizations/${organizationId}/blocked-users`, {
+    method: 'POST', token: organizer.token, body: { userId: standInId, reason: 'release rehearsal block' }
+  });
+  check(blocked.status === 201, `the Organizer blocks a user for the organization (${blocked.status})`);
+  const blockedAttempt = await call(`/api/tournaments/${tournamentId}/registrations`, {
+    method: 'POST', token: standIn.token, headers: idempotent()
+  });
+  check(blockedAttempt.status === 403, `a blocked user cannot register (${blockedAttempt.status})`);
+
+  // Fake OAuth: the whole authorization-code exchange happens inside this network.
+  const start = await call('/api/auth/oauth/google/start');
+  const authorizeUrl = start.headers.get('location') ?? '';
+  check(start.status === 302 && authorizeUrl.startsWith('https://fake-identity:8443/authorize'),
+    `OAuth start redirects to the local fake identity provider (${authorizeUrl.slice(0, 48)})`);
+  check(!/google\.com|facebook\.com|googleapis\.com/.test(authorizeUrl), 'no live identity provider is contacted');
+  const correlation = (start.headers.getSetCookie?.() ?? []).map((entry) => entry.split(';')[0]).join('; ');
+  const authorized = await fetch(authorizeUrl, { redirect: 'manual' });
+  const callbackUrl = new URL(authorized.headers.get('location') ?? '');
+  const callback = await call(
+    `/api/auth/oauth/google/callback?code=${encodeURIComponent(callbackUrl.searchParams.get('code') ?? '')}&state=${encodeURIComponent(callbackUrl.searchParams.get('state') ?? '')}`,
+    { cookie: correlation });
+  check(callback.status === 200, `the OAuth callback completes against the fake provider (${callback.status})`);
+  const oauthSession = callback.json?.accessToken
+    ? callback.json
+    : (await call('/api/auth/oauth/complete', {
+      method: 'POST',
+      body: {
+        completionTicket: callback.json?.completionTicket,
+        email: callback.json?.email,
+        username: 'release-oauth',
+        firstName: 'Release',
+        lastName: 'Oauth'
+      }
+    })).json;
+  check(typeof oauthSession?.accessToken === 'string', 'the fake-OAuth account reaches an authenticated session');
+  const oauthProfile = await call('/api/users/me', { token: oauthSession.accessToken });
+  check(oauthProfile.status === 200, `the fake-OAuth User reads its own profile (${oauthProfile.status})`);
+  const oauthAdmin = await call('/api/admin/users', { token: oauthSession.accessToken });
+  check(oauthAdmin.status === 403, `the fake-OAuth User is not an Admin (${oauthAdmin.status})`);
+
+  emit({ organizationId, tournamentId, slug, organizerId, participantId, standInId });
+}
+
+async function deleteRestoreStage() {
+  const admin = await login(bootstrapEmail);
+  const organizer = await login(organizerEmail);
+  const payload = tournamentPayload(state.organizationId, state.formatIds ?? (await call('/api/formats')).json.map((format) => format.id).slice(0, 1), futureLocal(50), 'Release Rehearsal Spare');
+  const preview = await call('/api/tournaments/preview', { method: 'POST', token: organizer.token, body: payload });
+  const published = await call('/api/tournaments/', {
+    method: 'POST', token: organizer.token, headers: idempotent(), body: { previewTicket: preview.json.previewTicket, payload }
+  });
+  check(published.status === 201, `a spare tournament is published for the delete/restore journey (${published.status} ${published.text.slice(0, 160)})`);
+  const id = published.json.id;
+  const slug = published.json.slug;
+
+  const managed = await call('/api/organizer/tournaments', { token: organizer.token });
+  const entry = managed.json.items.find((item) => item.id === id);
+  check(Boolean(entry?.eTag), 'the Organizer management list carries the concurrency token');
+
+  const stale = await call(`/api/tournaments/${id}`, {
+    method: 'DELETE', token: organizer.token, headers: { 'if-match': '"0"', ...idempotent() }, body: { reason: 'stale write' }
+  });
+  check(stale.status === 412 || stale.status === 409, `a stale If-Match is refused (${stale.status})`);
+
+  const deleted = await call(`/api/tournaments/${id}`, {
+    method: 'DELETE', token: organizer.token, headers: { 'if-match': entry.eTag, ...idempotent() }, body: { reason: 'release rehearsal' }
+  });
+  check(deleted.status === 200 || deleted.status === 204, `the Organizer soft-deletes the tournament (${deleted.status})`);
+  const gone = await call(`/api/tournaments/${slug}`);
+  check(gone.status === 404, `a deleted tournament disappears from the public surface (${gone.status})`);
+
+  const deletedList = await call('/api/admin/tournaments/deleted', { token: admin.token });
+  const deletedEntry = deletedList.json.items.find((item) => item.id === id);
+  check(Boolean(deletedEntry), 'the Admin sees the deleted tournament');
+  const restored = await call(`/api/admin/tournaments/${id}/restore`, {
+    method: 'POST', token: admin.token, headers: { 'if-match': deletedEntry.eTag }
+  });
+  check(restored.status === 200 || restored.status === 204, `the Admin restores the tournament (${restored.status})`);
+  const back = await call(`/api/tournaments/${slug}`);
+  check(back.status === 200, `the restored tournament is public again (${back.status})`);
+  emit({ spareTournamentId: id, spareSlug: slug });
+}
+
+async function spareRegisterStage() {
+  const participant = await login(participantEmail);
+  const response = await call(`/api/tournaments/${state.spareTournamentId}/registrations`, {
+    method: 'POST', token: participant.token, headers: idempotent()
+  });
+  check(response.status === 201, `the participant registers on the second tournament (${response.status})`);
+}
+
+async function dateChangeStage() {
+  const organizer = await login(organizerEmail);
+  const managed = await call('/api/organizer/tournaments', { token: organizer.token });
+  const entry = managed.json.items.find((item) => item.id === state.tournamentId);
+  check(Boolean(entry), 'the Organizer can still manage the rehearsal tournament');
+  const startsAtLocal = futureLocal(40);
+  const update = await call(`/api/tournaments/${state.tournamentId}/details`, {
+    method: 'PATCH',
+    token: organizer.token,
+    headers: { 'if-match': entry.eTag },
+    body: {
+      title: entry.title,
+      summary: entry.summary,
+      bodyHtml: entry.bodyHtml,
+      streetAddress: entry.streetAddress,
+      postalCode: entry.postalCode,
+      city: entry.city,
+      country: entry.country,
+      timeZoneId: entry.timeZoneId,
+      startsAtLocal,
+      endsAtLocal: startsAtLocal.replace('T09:00:00', 'T18:00:00'),
+      capacity: entry.capacity,
+      formatIds: entry.formatIds
+    }
+  });
+  check(update.status === 200, `the Organizer moves the tournament date (${update.status})`);
+  emit({ startsAtLocal });
+}
+
+async function unregisterStage() {
+  const participant = await login(participantEmail);
+  const response = await call(`/api/tournaments/${state.spareTournamentId}/registrations`, {
+    method: 'DELETE', token: participant.token, headers: idempotent()
+  });
+  check(response.status === 200 || response.status === 204, `the participant unregisters (${response.status})`);
+  const mine = await call('/api/users/me/registrations', { token: participant.token });
+  check(!mine.json.items.some((item) => item.tournamentId === state.spareTournamentId && item.status === 'Confirmed'),
+    'the cancelled registration is no longer confirmed for that user');
+}
+
+async function cancelStage() {
+  const organizer = await login(organizerEmail);
+  const managed = await call('/api/organizer/tournaments', { token: organizer.token });
+  const entry = managed.json.items.find((item) => item.id === state.tournamentId);
+  const response = await call(`/api/tournaments/${state.tournamentId}/cancel`, {
+    method: 'POST', token: organizer.token, headers: { 'if-match': entry.eTag, ...idempotent() }
+  });
+  check(response.status === 200, `the Organizer cancels the tournament (${response.status})`);
+}
+
+async function deadLetterStage() {
+  const admin = await login(bootstrapEmail);
+  const before = await call('/api/admin/notifications/dead-letters', { token: admin.token });
+  check(before.status === 200, `the Admin can list dead letters (${before.status})`);
+  // The provider fails every attempt from here; the retry ladder is real, but the host drives the
+  // clock by making each retry immediately available so the rehearsal never waits out the backoff.
+  const faults = await setProviderFaults({ failSends: Number(state.failSends ?? 24), statusCode: 503 });
+  check(faults.status === 200, 'the local provider fake is switched into failure mode');
+  // forgot-password always enqueues for an existing account, verified or not, so the failure path
+  // is exercised on a real transactional message rather than a synthetic one.
+  const resend = await call('/api/auth/forgot-password', { method: 'POST', body: { email: standInEmail } });
+  check(resend.status === 202 || resend.status === 200, `a fresh transactional message is enqueued (${resend.status})`);
+  emit({ deadLetterCountBefore: before.json.items?.length ?? 0 });
+}
+
+async function reconciliationStage() {
+  // An accepted-looking response with no message id is the "we cannot tell" case: the outbox must
+  // hold it for an operator instead of guessing, because a blind resend can double-send a real email.
+  const faults = await setProviderFaults({ failSends: 0, invalidResponses: 1 });
+  check(faults.status === 200, 'the local provider fake is switched to an acceptance-uncertain response');
+  const resend = await call('/api/auth/forgot-password', { method: 'POST', body: { email: participantEmail } });
+  check(resend.status === 202 || resend.status === 200, `another transactional message is enqueued (${resend.status})`);
+}
+
+async function deadLetterRetryStage() {
+  const admin = await login(bootstrapEmail);
+  await setProviderFaults({ failSends: 0, invalidResponses: 0 });
+  const list = await call('/api/admin/notifications/dead-letters', { token: admin.token });
+  check(list.json.items.some((item) => item.id === state.deadLetterId), 'the permanently failed message is in the dead-letter queue');
+  const target = list.json.items.find((item) => item.id === state.reconciliationId);
+  check(Boolean(target), 'the acceptance-uncertain message is held for operator reconciliation');
+
+  const unapproved = await call(`/api/admin/notifications/dead-letters/${target.id}/retry`, {
+    method: 'POST', token: admin.token, body: { operatorApproved: false }
+  });
+  check(unapproved.status === 400, `a replay without explicit operator approval is refused (${unapproved.status})`);
+
+  const retried = await call(`/api/admin/notifications/dead-letters/${target.id}/retry`, {
+    method: 'POST', token: admin.token, body: { operatorApproved: true }
+  });
+  check(retried.status === 201, `the Admin replays the held message after approving it (${retried.status})`);
+  const history = await call('/api/admin/notifications/history', { token: admin.token });
+  check(history.status === 200, `the Admin reads the notification history (${history.status})`);
+}
+
+function emit(value) {
+  console.log(`JOURNEY_STATE ${JSON.stringify(value)}`);
+}
+
+const stages = {
+  visitor: visitorStage,
+  bootstrap: bootstrapStage,
+  roles: rolesStage,
+  'delete-restore': deleteRestoreStage,
+  'spare-register': spareRegisterStage,
+  'date-change': dateChangeStage,
+  unregister: unregisterStage,
+  cancel: cancelStage,
+  'dead-letter': deadLetterStage,
+  reconciliation: reconciliationStage,
+  'dead-letter-retry': deadLetterRetryStage
+};
+
+const runner = stages[stage];
+if (!runner) {
+  console.error(`Unknown journey stage "${stage}". Known stages: ${Object.keys(stages).join(', ')}`);
+  process.exit(2);
+}
+
+try {
+  await runner();
+} catch (error) {
+  console.error(`  FAIL ${stage} threw: ${error instanceof Error ? error.message : String(error)}`);
+  failures.push(String(error));
+}
+
+if (failures.length > 0) {
+  console.error(`journey stage ${stage} failed with ${failures.length} finding(s)`);
+  process.exit(1);
+}
+console.log(`journey stage ${stage} passed`);

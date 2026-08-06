@@ -1,0 +1,39 @@
+# OTLP collector for the release rehearsal (C43).
+#
+# Identical pipeline to deploy/otel-collector.yaml, except that traces are printed in full so the
+# rehearsal can assert the correlation really spans Gones.Api -> PostgreSQL -> Gones.Worker ->
+# the fake email provider. Metrics and logs stay terse so the assertion is readable.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+
+exporters:
+  debug/traces:
+    verbosity: detailed
+  debug/summary:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug/summary]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug/summary]

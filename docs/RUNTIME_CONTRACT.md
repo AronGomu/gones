@@ -8,6 +8,10 @@ Gones Calendar.
 Verified continuously by `ops/image-contract.test.ts`, `ops/host-contract.test.ts`,
 `npm run images:verify`, `npm run release:rehearsal` and `npm run backup:rehearsal`.
 
+What an operator *does* with that host — deploy ordering, rollback principles, secret rotation, the
+provider webhook, backup and restore, schema migrations, the legacy-import CLI, Admin bootstrap and
+observability — is [`OPERATIONS.md`](OPERATIONS.md).
+
 ## Artifacts
 
 | Image | Shape | Runs as | Stop signal | Probe |

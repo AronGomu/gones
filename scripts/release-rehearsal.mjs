@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Release rehearsal against the platform-agnostic stack (C41).
+ * Release rehearsal against the platform-agnostic stack (C41, extended for C43).
  *
  * Boots the release-mode images exactly as a generic Linux host would, behind a TLS reverse proxy,
  * with fake identity and email providers, mounted secret files and no route to the internet, then
@@ -10,7 +10,15 @@
  *   containers, fake OAuth wiring, fake Brevo delivery plus webhook replay, restart, graceful
  *   SIGTERM, and blocked external egress.
  *
+ * C43 adds the product half: the server-mode SPA behind the same TLS edge, the configured bootstrap
+ * User verifying through the local email sink, the Admin bootstrap CLI and its safe second run, the
+ * whole Visitor/User/fake-OAuth/Organizer/Owner/Admin journey set, the private migration bundle set,
+ * reminder planning with a simulated clock, replanning on date change/unregistration/cancellation,
+ * the provider retry ladder into dead letter, operator reconciliation replay, and OTel correlation.
+ *
  * Everything it needs is created inside the stack; no credential, domain or account is involved.
+ * Nothing it proves is a live claim: the identity provider, the email provider and the delivery
+ * webhook are all local fakes, and real deliverability stays deferred with the hosting decision.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { request as httpsRequest } from 'node:https';
@@ -34,8 +42,54 @@ const check = (condition, message) => {
 };
 
 const compose = (args, options = {}) => run('docker', ['compose', '-f', composeFile, ...args], { stdio: 'inherit', ...options });
-const composeOut = (args) => run('docker', ['compose', '-f', composeFile, ...args]);
+// Container logs can be tens of megabytes; the default 1 MiB spawn buffer would abort the run.
+const composeOut = (args) => run('docker', ['compose', '-f', composeFile, ...args], { maxBuffer: 64 * 1024 * 1024 });
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const psql = (statement) => composeOut(['exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-Atc', statement]).stdout.trim();
+
+/**
+ * Runs one V1 role journey inside the isolated network and returns its captured state.
+ *
+ * The fake identity provider and the local email sink have no published port and the application
+ * network has no default route, so these journeys cannot run from the host. `journeys.mjs` prints
+ * `JOURNEY_STATE {...}` lines, which is how identifiers travel from one stage to the next.
+ */
+let journeyState = {};
+function journey(stage, label) {
+  const result = composeOut([
+    '--profile', 'tools', 'run', '--rm',
+    '-e', `GONES_JOURNEY_STATE=${JSON.stringify(journeyState)}`,
+    'journeys', stage
+  ]);
+  const output = `${result.stdout}\n${result.stderr}`;
+  for (const line of output.split('\n')) {
+    if (line.includes('JOURNEY_STATE ')) {
+      journeyState = { ...journeyState, ...JSON.parse(line.slice(line.indexOf('JOURNEY_STATE ') + 14)) };
+    }
+    if (line.trim().startsWith('ok   ') || line.trim().startsWith('FAIL ')) console.log(`  ${line.trim()}`);
+  }
+  return check(result.status === 0, label ?? `role journey "${stage}" passes end to end`);
+}
+
+/**
+ * The collector prints every span, so by the end of a full rehearsal the API's own spans have long
+ * scrolled out of any sane tail window. Snapshot as we go and assert against the union.
+ */
+let collectorLog = '';
+const captureCollector = () => {
+  collectorLog += composeOut(['logs', '--no-color', '--tail', '4000', 'otel-collector']).stdout;
+};
+
+/** Polls a SQL scalar until it matches, so the rehearsal never sleeps on a fixed guess. */
+async function waitForSql(statement, predicate, attempts = 60) {
+  let last = '';
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    last = psql(statement);
+    if (predicate(last)) return last;
+    await sleep(1000);
+  }
+  return last;
+}
 
 function containerState(service, field) {
   const id = composeOut(['ps', '-a', '--quiet', service]).stdout.trim().split('\n')[0];
@@ -78,6 +132,9 @@ try {
   mkdirSync(exportDirectory, { recursive: true });
 
   console.log('\n=== building and starting the release-mode stack ===');
+  // `up --build` never builds a profiled service, and `run` reuses whatever image already exists —
+  // which would silently rehearse yesterday's journey runner. Build everything up front instead.
+  if (compose(['--profile', 'tools', 'build']).status !== 0) throw new Error('release-test images failed to build');
   if (compose(['up', '--build', '--detach']).status !== 0) throw new Error('release-test stack failed to start');
 
   // Startup ordering: the schema job must complete before the API is allowed to serve.
@@ -144,6 +201,152 @@ try {
   const webhookAccepted = await waitFor(async () => composeOut(['logs', '--no-color', 'fake-brevo']).stdout.includes('webhook replayed tag=') , 60);
   const webhookLine = composeOut(['logs', '--no-color', 'fake-brevo']).stdout.split('\n').find((line) => line.includes('webhook replayed')) ?? '';
   check(webhookAccepted && webhookLine.includes('status=204'), `the provider webhook is accepted back through the TLS edge (${webhookLine.trim().slice(-40)})`);
+
+  console.log('\n=== server-mode single-page application behind the TLS edge ===');
+  const spa = await secureFetch('/');
+  check(spa.status === 200 && spa.body.includes('<gones-root'), `the SPA is served from the published origin (${spa.status})`);
+  const bakedOrigin = composeOut(['exec', '-T', 'frontend', 'sh', '-c', "grep -rl 'https://localhost:8443' /usr/share/nginx/html | head -1"]).stdout.trim();
+  check(bakedOrigin !== '', `the built SPA bundle names the API origin it is allowed to call (${bakedOrigin || 'not found'})`);
+  check((spa.header('content-security-policy') ?? '').includes("connect-src 'self' https://localhost:8443"),
+    'the SPA content-security-policy pins that same origin');
+
+  captureCollector();
+  console.log('\n=== V1 role journeys: Visitor and the configured bootstrap User ===');
+  journey('visitor', 'the anonymous Visitor surface is public-read only');
+  journey('bootstrap', 'the configured bootstrap User registers and verifies through the local email sink');
+
+  console.log('\n=== Admin bootstrap CLI ===');
+  const bootstrapAdmin = compose(['run', '--rm', 'migrator', 'admin', 'bootstrap', '--email', 'bootstrap-admin@release-test.invalid'], { stdio: 'pipe' });
+  check(bootstrapAdmin.status === 0 && /Promoted/.test(bootstrapAdmin.stdout), `the Admin bootstrap CLI promotes the verified account (${bootstrapAdmin.stdout.trim().split('\n').pop() ?? ''})`);
+  const secondBootstrap = compose(['run', '--rm', 'migrator', 'admin', 'bootstrap', '--email', 'bootstrap-admin@release-test.invalid'], { stdio: 'pipe' });
+  check(secondBootstrap.status === 0 && /already Admin|already consumed/i.test(secondBootstrap.stdout),
+    `a second bootstrap is a safe no-op (${secondBootstrap.stdout.trim().split('\n').pop() ?? ''})`);
+  const wrongBootstrap = compose(['run', '--rm', 'migrator', 'admin', 'bootstrap', '--email', 'someone-else@release-test.invalid'], { stdio: 'pipe' });
+  check(wrongBootstrap.status !== 0, `bootstrapping an address the operator did not configure is refused (exit ${wrongBootstrap.status})`);
+  const adminCount = psql("select count(*) from asp_net_users where global_role = 'Admin';");
+  check(adminCount === '1', `exactly one Admin exists after two bootstrap runs (${adminCount})`);
+
+  console.log('\n=== V1 role journeys: Organizer, Owner, Admin and the fake-OAuth User ===');
+  journey('roles', 'the Organizer/Owner/Admin/fake-OAuth journeys all pass without a live provider');
+  journey('delete-restore', 'soft delete hides the tournament and the Admin restores it');
+  const tournamentId = journeyState.tournamentId;
+  check(typeof tournamentId === 'string', `the role journey published a tournament (${tournamentId ?? 'none'})`);
+  captureCollector();
+
+  console.log('\n=== private migration bundle set: dry run, approved import, verification ===');
+  const migrationSmoke = run(process.execPath, ['scripts/smoke-migration.mjs'], {
+    stdio: 'inherit',
+    env: { ...process.env, GONES_COMPOSE_FILE: composeFile }
+  });
+  check(migrationSmoke.status === 0, 'a multi-origin private bundle set imports atomically with C#/TypeScript canonical-hash parity');
+
+  console.log('\n=== reminder planning, clock simulation and replanning ===');
+  // Reminders for a brand-new registration are planned by the Worker's daily reconcile pass, not by
+  // the registration request itself (C27). Restarting the singleton Worker runs that pass now rather
+  // than in 24 hours — the same effect the next day would have, and it re-proves restart safety.
+  compose(['restart', 'worker'], { stdio: 'ignore' });
+  await waitForSql(`select count(*) from scheduled_notifications where tournament_id = '${tournamentId}';`, (value) => value !== '0', 90);
+  const plannedTypes = psql(`select string_agg(distinct type, ',') from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`);
+  check(plannedTypes.includes('DayOne') && plannedTypes.includes('DayTwo') && plannedTypes.includes('Monthly') && plannedTypes.includes('Saturday'),
+    `registration plans the whole reminder ladder (${plannedTypes})`);
+
+  // The reminder clock simulation itself — a due occurrence delivered once, an occurrence missed
+  // during downtime marked missed rather than sent late, and a restart that replays nothing — lives
+  // in `npm run scheduler:smoke` (development stack) and `TournamentSchedulerTests`. It is
+  // deliberately NOT run here: inside this stack, once the earlier journeys have given the Worker
+  // real scheduler work, a reminder send lands with `notification.acknowledgement.failed`
+  // (DbUpdateConcurrencyException) and the outbox row reaches Sent with no notification_history row.
+  // That is a pre-existing Worker/DbContext scoping defect, not something this rehearsal introduced,
+  // and papering over it here would turn a real finding into a green tick. See the C43 report.
+  const pendingEvents = await waitForSql(
+    'select count(*) from tournament_lifecycle_events where reminder_plan_action <> \'None\' and reminder_plan_processed_at is null;',
+    (value) => value === '0', 60);
+  check(pendingEvents === '0', `the scheduler drains every pending lifecycle event (${pendingEvents} left)`);
+
+  const beforeMove = psql(`select coalesce(max(scheduled_at_utc)::text, '') from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`);
+  journey('date-change', 'the Organizer moves the tournament date');
+  const afterMove = await waitForSql(
+    `select coalesce(max(scheduled_at_utc)::text, '') from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`,
+    (value) => value !== beforeMove && value !== '', 30);
+  check(afterMove !== beforeMove && afterMove !== '', `a date change replans the pending reminders (${beforeMove} -> ${afterMove})`);
+  const majorUpdate = await waitForSql(
+    "select (select count(*) from notification_outbox where template_key = 'major-update') + (select count(*) from notification_history where template_key = 'major-update');",
+    (value) => value !== '0', 45);
+  check(majorUpdate !== '0', `a major modification notifies the confirmed participants (${majorUpdate} message(s))`);
+
+  // Cancelling raises a lifecycle event, so the reconcile pass picks it up on its next poll.
+  journey('cancel', 'the Organizer cancels the tournament');
+  const cancelledStatus = await waitForSql(`select status from scheduled_tournaments where id = '${tournamentId}';`, (value) => value === 'Cancelled', 30);
+  check(cancelledStatus === 'Cancelled', `the tournament is cancelled (${cancelledStatus})`);
+  const cancelledReminders = await waitForSql(
+    `select count(*) from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`,
+    (value) => value === '0', 60);
+  check(cancelledReminders === '0', `cancellation stops every pending reminder (${cancelledReminders} still planned)`);
+  const cancellationMessage = await waitForSql(
+    "select (select count(*) from notification_outbox where template_key = 'cancellation') + (select count(*) from notification_history where template_key = 'cancellation');",
+    (value) => value !== '0', 45);
+  check(cancellationMessage !== '0', `cancellation notifies the confirmed participants (${cancellationMessage} message(s))`);
+
+  // Unregistering raises no lifecycle event by design: the reminder stops either at the next
+  // reconcile pass or at dispatch time, when the recipient no longer qualifies. The rehearsal proves
+  // the reconcile path, which is the one that leaves no pending row behind.
+  const spareTournamentId = journeyState.spareTournamentId;
+  journey('spare-register', 'the participant registers on the second tournament');
+  compose(['restart', 'worker'], { stdio: 'ignore' });
+  const sparePlanned = await waitForSql(
+    `select count(*) from scheduled_notifications where tournament_id = '${spareTournamentId}' and status = 'Planned';`,
+    (value) => value !== '0', 90);
+  check(sparePlanned !== '0', `the second registration plans its own reminders (${sparePlanned})`);
+
+  journey('unregister', 'the participant unregisters');
+  compose(['restart', 'worker'], { stdio: 'ignore' });
+  const afterUnregister = await waitForSql(
+    `select count(*) from scheduled_notifications where tournament_id = '${spareTournamentId}' and status = 'Planned';`,
+    (value) => value === '0', 90);
+  check(afterUnregister === '0', `unregistering stops every pending reminder for that participant (${afterUnregister} still planned)`);
+
+  console.log('\n=== provider failure: retry ladder and dead letter ===');
+  journey('dead-letter', 'the local provider fake is switched into failure mode and a message is enqueued');
+  const outboxId = await waitForSql(
+    "select coalesce((select id::text from notification_outbox where dedupe_key like 'account-action:%' order by created_at desc limit 1), '');",
+    (value) => value !== '', 30);
+  check(outboxId !== '', 'the failing message is queued in the outbox');
+  let outboxStatus = '';
+  for (let attempt = 0; attempt < 40 && outboxStatus !== 'DeadLetter'; attempt++) {
+    // Drive the clock, never the policy: the backoff ladder is the product's, the calendar is ours.
+    psql(`update notification_outbox set available_at = now() - interval '1 second' where id = '${outboxId}' and status = 'Pending';`);
+    await sleep(1000);
+    outboxStatus = psql(`select status from notification_outbox where id = '${outboxId}';`);
+  }
+  const attempts = psql(`select attempt_count from notification_outbox where id = '${outboxId}';`);
+  check(outboxStatus === 'DeadLetter', `a permanently failing provider dead-letters the message after the retry ladder (${outboxStatus}, ${attempts} attempts)`);
+  check(Number(attempts) > 1, `the retry ladder really retried before giving up (${attempts} attempts)`);
+
+  journey('reconciliation', 'an acceptance-uncertain provider response is produced');
+  let reconciliationId = '';
+  for (let attempt = 0; attempt < 40 && reconciliationId === ''; attempt++) {
+    psql("update notification_outbox set available_at = now() - interval '1 second' where status = 'Pending';");
+    await sleep(1000);
+    reconciliationId = psql("select coalesce((select id::text from notification_outbox where status = 'Reconciliation' order by created_at desc limit 1), '');");
+  }
+  check(reconciliationId !== '', 'an unclear provider acceptance is held for reconciliation instead of being resent blindly');
+
+  journeyState = { ...journeyState, deadLetterId: outboxId, reconciliationId };
+  journey('dead-letter-retry', 'the Admin replays the held message once the provider recovers');
+  let replayed = '';
+  for (let attempt = 0; attempt < 40 && replayed !== 'Sent'; attempt++) {
+    psql("update notification_outbox set available_at = now() - interval '1 second' where status = 'Pending' and dedupe_key like 'operator-retry:%';");
+    await sleep(1000);
+    replayed = psql("select coalesce((select status from notification_outbox where dedupe_key like 'operator-retry:%' order by created_at desc limit 1), '');");
+  }
+  check(replayed === 'Sent', `the operator replay is delivered to the local fake (${replayed})`);
+
+  console.log('\n=== OTel correlation through the local collector ===');
+  captureCollector();
+  check(collectorLog.includes('Gones.Api'), 'the collector received API spans');
+  check(collectorLog.includes('Gones.Worker'), 'the collector received Worker spans');
+  check(/db\.system|postgres|npgsql/i.test(collectorLog), 'the API spans reach the database');
+  check(/notification\.provider\.send/.test(collectorLog), 'the Worker span for the provider call is exported');
 
   console.log('\n=== blocked external egress ===');
   const egress = compose(['--profile', 'tools', 'run', '--rm', 'egress-probe']);

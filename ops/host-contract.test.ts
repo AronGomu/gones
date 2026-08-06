@@ -84,11 +84,65 @@ describe('generic host requirements', () => {
   });
 });
 
+describe('operator runbook', () => {
+  const runbook = () => read('docs/OPERATIONS.md');
+
+  it('covers every procedure an operator has to perform', () => {
+    for (const procedure of [
+      'Local environment',
+      'OpenAPI and the generated client',
+      'Deploying a version',
+      'Rollback principles',
+      'Secret rotation',
+      'Provider delivery webhook',
+      'Backup and restore',
+      'Running a schema migration',
+      'Importing legacy browser data',
+      'Admin bootstrap',
+      'Observability'
+    ]) {
+      expect(runbook()).toContain(procedure);
+    }
+  });
+
+  it('names the local rehearsal behind each procedure instead of asserting it in prose', () => {
+    for (const command of [
+      'npm run release:rehearsal',
+      'npm run backup:rehearsal',
+      'npm run migration:smoke',
+      'npm run images:verify',
+      'npm run acceptance:matrix'
+    ]) {
+      expect(runbook()).toContain(command);
+    }
+  });
+
+  it('marks the live-host steps deferred rather than implying they were validated', () => {
+    for (const deferred of [
+      'registry',
+      'public domain',
+      'point-in-time recovery',
+      'real deliverability',
+      'live cutover'
+    ]) {
+      expect(runbook().toLowerCase()).toContain(deferred.toLowerCase());
+    }
+    // A local rehearsal must never be presented as a recovery objective.
+    expect(runbook()).toMatch(/not a recovery objective|no measured recovery objective/i);
+  });
+
+  it('is reachable from the entry-point documents', () => {
+    for (const document of ['README.md', 'DEPLOYMENT.md', 'docs/RUNTIME_CONTRACT.md']) {
+      expect(read(document)).toContain('OPERATIONS.md');
+    }
+  });
+});
+
 describe('registry-neutral release build', () => {
   it('exposes the ops commands from package.json', () => {
     const manifest = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
 
-    for (const script of ['images:build', 'images:verify', 'images:scan', 'release:rehearsal', 'backup:rehearsal']) {
+    for (const script of ['images:build', 'images:verify', 'images:scan', 'release:rehearsal', 'backup:rehearsal', 'acceptance:matrix']) {
       expect(manifest.scripts[script]).toBeTruthy();
     }
   });

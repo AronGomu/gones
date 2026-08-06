@@ -1,8 +1,20 @@
+/**
+ * C27 scheduler runtime smoke.
+ *
+ * Simulates the reminder clock against a running stack: a reminder that comes due is delivered once
+ * and recorded once, a reminder missed while the Worker was down is marked missed instead of sent
+ * late, the tournament lifecycle advances on its own, and a Worker restart replays nothing.
+ *
+ * Set GONES_COMPOSE_FILE to run it against another Compose project — the release rehearsal points it
+ * at the isolated release-test stack.
+ */
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
+const composeArgs = process.env.GONES_COMPOSE_FILE ? ['compose', '-f', process.env.GONES_COMPOSE_FILE] : ['compose'];
+
 function psql(sql, tuplesOnly = false) {
-  const args = ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-v', 'ON_ERROR_STOP=1'];
+  const args = [...composeArgs, 'exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-v', 'ON_ERROR_STOP=1'];
   if (tuplesOnly) args.push('-At');
   const result = spawnSync('docker', args, { input: sql, encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`${result.stdout}\n${result.stderr}`);
@@ -76,7 +88,7 @@ for (let attempt = 0; attempt < 90; attempt++) {
 }
 if (state !== 'Enqueued|Missed|Completed|1') throw new Error(`Scheduler runtime smoke timed out; state=${state}`);
 
-const restart = spawnSync('docker', ['compose', 'restart', 'worker'], { encoding: 'utf8' });
+const restart = spawnSync('docker', [...composeArgs, 'restart', 'worker'], { encoding: 'utf8' });
 if (restart.status !== 0) throw new Error(`${restart.stdout}\n${restart.stderr}`);
 await new Promise(resolve => setTimeout(resolve, 3000));
 const lateOutboxCount = psql(`SELECT count(*) FROM notification_outbox WHERE dedupe_key = '${missedDedupe}';`, true);

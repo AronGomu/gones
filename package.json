@@ -26,6 +26,7 @@
     "images:build": "node scripts/build-release-images.mjs",
     "images:verify": "node scripts/verify-image-contract.mjs",
     "images:scan": "node scripts/scan-images.mjs",
+    "acceptance:matrix": "node scripts/acceptance-matrix.mjs",
     "release:rehearsal": "node scripts/release-rehearsal.mjs",
     "backup:rehearsal": "node scripts/backup-restore-rehearsal.mjs",
     "db:reset": "node scripts/reset-local-stack.mjs",

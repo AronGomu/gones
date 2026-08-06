@@ -13,8 +13,23 @@ const port = Number(process.env.GONES_FIXTURE_PORT ?? 8443);
 const webhookBase = process.env.GONES_FIXTURE_WEBHOOK_BASE;
 const webhookTokenFile = process.env.GONES_FIXTURE_WEBHOOK_TOKEN_FILE;
 
+/**
+ * The local email sink. It keeps the rendered message, because the rehearsal has to read the
+ * verification link out of it exactly the way a human would read it out of an inbox. Nothing here
+ * ever leaves the isolated network: the address space is `.invalid` and there is no default route.
+ */
 const received = [];
 const webhooks = [];
+/**
+ * Failure injection, so the retry/dead-letter and acceptance-uncertain paths can be exercised
+ * without waiting for a real provider to break.
+ *
+ *   failSends        - reply with `statusCode` (a transient failure) this many more times
+ *   invalidResponses - accept with a body that carries no message id, which is exactly the
+ *                      "we do not know whether it was accepted" case the outbox holds for operator
+ *                      reconciliation rather than silently resending
+ */
+const faults = { remainingFailures: 0, statusCode: 503, invalidResponses: 0 };
 
 function json(response, status, body) {
   const payload = JSON.stringify(body);
@@ -94,15 +109,41 @@ async function handleBrevo(request, response, url) {
   if (url.pathname === '/v3/smtp/email' && request.method === 'POST') {
     if (!request.headers['api-key']) return json(response, 401, { message: 'missing api key' });
     const body = JSON.parse((await readBody(request)) || '{}');
+    if (faults.remainingFailures > 0) {
+      faults.remainingFailures--;
+      console.log(`fake-brevo: injected failure status=${faults.statusCode} remaining=${faults.remainingFailures}`);
+      return json(response, faults.statusCode, { message: 'injected provider failure' });
+    }
+    if (faults.invalidResponses > 0) {
+      faults.invalidResponses--;
+      console.log(`fake-brevo: injected acceptance-uncertain response remaining=${faults.invalidResponses}`);
+      return json(response, 201, {});
+    }
     const tag = Array.isArray(body.tags) ? body.tags[0] : undefined;
     const messageId = `<fake-${randomUUID()}@release-test.invalid>`;
-    received.push({ tag, subject: body.subject, to: body.to?.[0]?.email, messageId });
+    received.push({
+      tag,
+      subject: body.subject,
+      to: body.to?.[0]?.email,
+      messageId,
+      htmlContent: body.htmlContent ?? '',
+      textContent: body.textContent ?? ''
+    });
+    // The message body stays in memory only; logging it would leak an action token into stdout.
     console.log(`fake-brevo: accepted send tag=${tag} messageId=${messageId}`);
     json(response, 201, { messageId });
     if (tag) await deliverWebhook(tag, messageId);
     return undefined;
   }
-  if (url.pathname === '/_fixture/received') return json(response, 200, { received, webhooks });
+  if (url.pathname === '/_fixture/mode' && request.method === 'POST') {
+    const body = JSON.parse((await readBody(request)) || '{}');
+    faults.remainingFailures = Number(body.failSends ?? 0);
+    faults.statusCode = Number(body.statusCode ?? 503);
+    faults.invalidResponses = Number(body.invalidResponses ?? 0);
+    console.log(`fake-brevo: fault mode failSends=${faults.remainingFailures} invalid=${faults.invalidResponses} status=${faults.statusCode}`);
+    return json(response, 200, { faults });
+  }
+  if (url.pathname === '/_fixture/received') return json(response, 200, { received, webhooks, faults });
   return json(response, 404, { error: 'not_found' });
 }
 

@@ -9,8 +9,12 @@
  *   - a corrupted archive is refused before the restore touches the database
  *   - a wrong key is refused before the restore touches the database
  *   - a correct key restores data that was deleted after the dump was taken
+ *   - destroying the data volume entirely and restoring into a clean database recovers the schema,
+ *     the data and the append-only audit guard, and the migration job is then a no-op (C43)
  *
- * Remote storage, retention sweeps and PITR stay deferred with the hosting decision.
+ * The restore duration it prints is a local wall-clock measurement on one machine. It is not an RPO
+ * or an RTO: recovery objectives need real hardware and a real hosting decision, both deferred.
+ * Remote storage, retention sweeps and PITR stay deferred with the hosting decision too.
  */
 import { run } from './release-images.mjs';
 
@@ -82,6 +86,43 @@ try {
   check(restore.status === 0, `restore succeeds (${(restore.stderr || restore.stdout).trim().split('\n').pop() ?? ''})`);
   await sleep(500);
   check(psql(`select count(*) from backup_rehearsal_marker where id = '${marker}';`).stdout.trim() === '1', 'the marker row is back after the restore');
+
+  // A restore into a database that still exists only proves `pg_restore` runs. The disaster case is
+  // the one where the volume is gone, so that is the one the rehearsal actually performs.
+  console.log('\n=== destroying the database volume and restoring into a clean database ===');
+  const beforeCount = psql('select count(*) from "__EFMigrationsHistory";').stdout.trim();
+  compose(['stop', 'postgres'], { stdio: 'ignore' });
+  compose(['rm', '--force', '--stop', '--volumes', 'postgres'], { stdio: 'ignore' });
+  const removedVolume = run('docker', ['volume', 'rm', '--force', 'gones-release-test_postgres-data']);
+  check(removedVolume.status === 0, 'the PostgreSQL data volume is destroyed, not merely emptied');
+
+  const restoreStartedAt = Date.now();
+  if (compose(['up', '--detach', '--wait', 'postgres']).status !== 0) throw new Error('the clean database did not start');
+  const freshTables = psql("select count(*) from information_schema.tables where table_schema = 'public';").stdout.trim();
+  check(freshTables === '0', `the replacement database really is empty before the restore (${freshTables} tables)`);
+
+  const disasterRestore = tool(
+    ['--entrypoint', '/usr/local/bin/gones-restore.sh', 'backup', 'rehearsal.dump.enc'],
+    ['GONES_BACKUP_DSN=postgresql://gones_migration:local-migration-only@postgres:5432/gones']);
+  check(disasterRestore.status === 0, `the encrypted archive restores into the clean database (${(disasterRestore.stderr || disasterRestore.stdout).trim().split('\n').pop() ?? ''})`);
+  const restoreSeconds = Math.round((Date.now() - restoreStartedAt) / 1000);
+
+  const afterCount = psql('select count(*) from "__EFMigrationsHistory";').stdout.trim();
+  check(afterCount === beforeCount && Number(afterCount) > 0, `the restored schema carries the same migration history (${beforeCount} -> ${afterCount})`);
+  check(psql(`select count(*) from backup_rehearsal_marker where id = '${marker}';`).stdout.trim() === '1', 'the marker row survives a full volume loss');
+
+  // Re-running the migration job against the restored database must be a no-op: that is the smoke
+  // test an operator would run before letting the API back in.
+  const smoke = compose(['run', '--rm', 'migrator', 'database', 'update']);
+  check(smoke.status === 0, 'the migration job runs cleanly against the restored database');
+  const afterSmoke = psql('select count(*) from "__EFMigrationsHistory";').stdout.trim();
+  check(afterSmoke === afterCount, `the post-restore migration smoke applies nothing new (${afterSmoke})`);
+  const auditGuard = psql("select count(*) from pg_trigger where tgrelid = 'audit_records'::regclass and not tgisinternal;").stdout.trim();
+  check(Number(auditGuard) > 0, `the append-only audit guard is restored with the schema (${auditGuard} trigger(s))`);
+
+  // A local wall-clock number on one developer machine. It is NOT an RPO or RTO: those need real
+  // hardware, real data volumes and a real hosting decision, all of which stay deferred.
+  console.log(`\n  note  local restore duration on this machine: ${restoreSeconds}s (measurement only; no recovery objective is claimed)`);
 } finally {
   console.log('\n=== tearing the database stack down ===');
   compose(['--profile', 'tools', 'down', '--volumes', '--remove-orphans'], { stdio: 'ignore' });

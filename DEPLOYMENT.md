@@ -4,6 +4,10 @@
 > V1 server stack — API, Worker, Migrator, backup/restore images and everything a generic Linux host
 > must provide — see [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) and ADR 0018. No hosting
 > vendor is chosen for it yet.
+>
+> **Running it day to day** — deploy ordering, rollback principles, secret rotation, the provider
+> webhook, backup/restore, schema migrations, the legacy-import CLI and Admin bootstrap all live in
+> [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 ## Data authority: pick one, explicitly
 

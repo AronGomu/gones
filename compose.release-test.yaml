@@ -54,6 +54,8 @@ services:
     command: ["database", "update"]
     environment:
       GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_migration;Password=local-migration-only
+      # The operator names the single bootstrap Admin up front; the CLI refuses any other address.
+      GONES_BOOTSTRAP_ADMIN_EMAIL: bootstrap-admin@release-test.invalid
     depends_on:
       postgres: { condition: service_healthy }
       bootstrap: { condition: service_completed_successfully }
@@ -102,6 +104,9 @@ services:
       GONES_FEATURES__ADMIN_V1: "true"
       GONES_FEATURES__LEAGUE_SERVER: "true"
       GONES_FEATURES__LIVE_SERVER: "true"
+      # The rehearsal replays whole role journeys from one address; the per-account auth limiter is
+      # a C40 concern with its own tests (RateLimitPolicyTests) and would only add noise here.
+      GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: "1000"
       # Self-hosted fake identity provider: no live Google/Facebook credential exists in this stack.
       GONES_AUTH_PROVIDER: External
       GONES_OAUTH_CALLBACK_ORIGIN: https://localhost:8443
@@ -152,6 +157,9 @@ services:
       GONES_BREVO_SENDER_NAME: Gones Release Test
       GONES_NOTIFICATION_POLL_MILLISECONDS: "500"
       GONES_NOTIFICATION_LEASE_SECONDS: "120"
+      # The circuit breaker itself stays on; only its cool-down is shortened so the rehearsal can
+      # walk the whole retry ladder in seconds instead of minutes. Production keeps the default 30s.
+      GONES_BREVO_CIRCUIT_BREAK_SECONDS: "2"
       SSL_CERT_FILE: /certs/ca.pem
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
@@ -164,6 +172,28 @@ services:
     # Singleton by contract: leadership is a PostgreSQL advisory lock, not a scheduler feature.
     deploy:
       replicas: 1
+    restart: unless-stopped
+
+  # The server-mode single-page application (C42/ADR 0019). It shares the published origin with the
+  # API, so the release rehearsal exercises the same artifact a generic host would serve — not the
+  # frozen legacy-browser build. A missing or incoherent data-authority declaration fails the build.
+  frontend:
+    build:
+      context: .
+      target: release
+      args:
+        GONES_FRONTEND_DATA_MODE: server
+        GONES_FRONTEND_AUTH_V1: "true"
+        GONES_FRONTEND_ADMIN_V1: "true"
+        GONES_FRONTEND_API_BASE_URL: https://localhost:8443
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:size=16m
+      - /var/run:size=1m
+      - /tmp:size=8m
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [core]
     restart: unless-stopped
 
   tls-proxy:
@@ -181,6 +211,7 @@ services:
     cap_drop: [ALL]
     depends_on:
       api: { condition: service_started }
+      frontend: { condition: service_started }
       bootstrap: { condition: service_completed_successfully }
     networks:
       edge: {}
@@ -226,7 +257,7 @@ services:
     image: otel/opentelemetry-collector-contrib:0.140.0
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
-      - ./deploy/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ./deploy/release-test/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
     read_only: true
     tmpfs: ["/tmp:size=16m"]
     security_opt: [no-new-privileges:true]
@@ -251,6 +282,24 @@ services:
     tmpfs: ["/tmp:size=256m,mode=1777"]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
+    networks: [core]
+    restart: "no"
+
+  # Runs the V1 role journeys from inside the isolated network, because the fake identity provider
+  # and the email sink are unreachable from the host by design. It speaks only to the TLS edge.
+  journeys:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: deploy/release-test/Dockerfile.fixtures
+    entrypoint: ["node", "/opt/fixtures/journeys.mjs"]
+    environment:
+      GONES_EDGE: https://tls-proxy:8443
+      GONES_SINK: https://fake-brevo:8443
+      GONES_BOOTSTRAP_ADMIN_EMAIL: bootstrap-admin@release-test.invalid
+      NODE_EXTRA_CA_CERTS: /certs/ca.pem
+    volumes:
+      - certs:/certs:ro
     networks: [core]
     restart: "no"
 

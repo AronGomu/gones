@@ -50,6 +50,16 @@ The ASP.NET API and its PostgreSQL database are the single authority. Every muta
 
 The public domain, DNS, CDN, hosting vendor, container registry, live email/OAuth providers and the live cutover from the legacy origin are all still deferred.
 
+## Operating it
+
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — the operator runbook: local environment, OpenAPI use,
+  deploy and start ordering, rollback principles, secret rotation, the provider webhook, backup and
+  restore, schema migrations, the legacy-import CLI, Admin bootstrap and observability. Every
+  procedure names the committed script that rehearses it locally, and every step that would need real
+  infrastructure is marked deferred.
+- [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) — what a generic Linux host must provide.
+- [`DEPLOYMENT.md`](DEPLOYMENT.md) — how each frontend artifact is built.
+
 ## Commands
 
 ```bash
@@ -59,6 +69,20 @@ npm run lint
 npm run test
 npm run cy:run
 ```
+
+Quality and release gates:
+
+```bash
+npm run e2e:ci             # full-stack browser suite, both data-authority profiles
+npm run acceptance:matrix  # every V1 capability row and its executable evidence
+npm run release:rehearsal  # isolated release-mode stack: infrastructure plus the V1 role journeys
+npm run backup:rehearsal   # encrypted dump, safe failures, volume loss and restore
+npm run images:verify      # runtime contract of each OCI image
+```
+
+The acceptance matrix (`ops/acceptance-matrix.json`) maps every capability in
+`docs/tournament-inscription-calendar-architecture/00..09` to a test or rehearsal that actually runs.
+A row cannot be marked proved without evidence that resolves, and `npm run test` enforces it.
 
 ## Data portability
 
