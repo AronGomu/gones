@@ -24,6 +24,15 @@ function seedLegacyStores(win) {
   win.localStorage.setItem('gones.auth.session.v1', JSON.stringify({ email: PII_EMAIL, refreshToken: PII_TOKEN, password: PII_PASSWORD }));
 }
 
+// The cutover export is a legacy-authority capability: it reads the browser stores and must never
+// reach the server, in either direction (C42, ADR 0019).
+function expectNoApiTraffic(win) {
+  const apiRequests = win.performance.getEntriesByType('resource')
+    .map((entry) => entry.name)
+    .filter((url) => new URL(url).pathname.startsWith('/api/'));
+  expect(apiRequests, 'migration export must not call the API').to.deep.equal([]);
+}
+
 function expectNoSecrets(text) {
   expect(text).to.not.contain(PII_EMAIL);
   expect(text).to.not.contain(PII_TOKEN);
@@ -52,6 +61,7 @@ describe('Export v4 and private migration bundle downloads', () => {
     cy.get('[data-cy="settings-migration-counts"]').should('contain', '1 Leagues').and('contain', '1 Live drafts');
 
     cy.window().then((win) => {
+      expectNoApiTraffic(win);
       const sourceInstanceId = win.localStorage.getItem('gones.migration.source-instance.v1');
       expect(sourceInstanceId).to.match(/^[0-9a-f-]{36}$/);
       const fileName = `${new Date().toISOString().slice(0, 10)} gones-migration-${sourceInstanceId.slice(0, 8)}.private.json`;
@@ -88,5 +98,16 @@ describe('Export v4 and private migration bundle downloads', () => {
       expect(artifact).to.not.contain('migration-live');
       expectNoSecrets(artifact);
     });
+    cy.window().then(expectNoApiTraffic);
+  });
+
+  it('keeps the cutover exporter available only under the legacy browser authority', () => {
+    visitSeeded('/settings');
+
+    cy.get('[data-cy="settings-migration-export-button"]').should('be.visible');
+    // The frozen legacy build exposes no auth/admin capability that could upload the bundle.
+    cy.get('[data-cy="settings-profile-link"]').should('not.exist');
+    cy.visit('/login', { failOnStatusCode: false });
+    cy.get('[data-cy="not-found"]').should('exist');
   });
 });

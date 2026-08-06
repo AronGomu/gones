@@ -9,3 +9,8 @@ Current implementation:
 - A `AspNetApiBackend` adapter defines the future HTTP boundary so the backend can be introduced without rewriting feature components.
 
 This keeps the application functional offline from any hosted backend today while preserving a clean cutover path for server-owned persistence, jobs, integrations, and any future auth or permissions later.
+
+**Amended by ADR 0019 (C42).** The bridge is no longer a runtime fallback. A build declares one
+authority — `legacy-browser` or `server` — and the bridge binds to exactly one adapter for that
+build. `LocalFrontendBackend` is not injectable in server mode, and `AspNetApiBackend` no longer
+carries the whole-document or CalendarEvent methods that only ever wrote the browser store.

@@ -47,9 +47,13 @@ export class LeagueImportService {
             importedLeagueIds.push(persisted.id);
           }
         }
-        for (const event of restored.calendarEvents) {
-          const persisted = await this.calendarRepo.save(event);
-          importedCalendarEventIds.push(persisted.id);
+        // Legacy CalendarEvent documents restore only into the browser store; the server Calendar
+        // is owned by Scheduled Tournaments and has no whole-document CalendarEvent path.
+        if (this.calendarRepo.available) {
+          for (const event of restored.calendarEvents) {
+            const persisted = await this.calendarRepo.save(event);
+            importedCalendarEventIds.push(persisted.id);
+          }
         }
       } catch (error) {
         await this.rollbackImportedLeagues(importedLeagueIds);

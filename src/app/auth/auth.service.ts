@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, catchError, defer, finalize, firstValueFrom, map, shareReplay, tap, throwError } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { dataAuthority } from '../config/data-authority';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import {
   AccessTokenResponse,
@@ -26,7 +26,7 @@ export class AuthService {
   private readonly sessionScope = inject(SessionScopeService);
   private refreshFlight?: Observable<void>;
 
-  readonly enabled = environment.features.authV1;
+  readonly enabled = dataAuthority().authV1;
   readonly profile = signal<UserProfileResponse | null>(null);
   readonly bootstrapped = signal(!this.enabled);
 

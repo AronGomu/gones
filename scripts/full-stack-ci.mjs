@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
+// Server profile: the API database is the single data authority (C42/ADR 0019).
 const composeEnv = {
   ...process.env,
+  GONES_FRONTEND_DATA_MODE: 'server',
   GONES_FEATURES__AUTH_V1: 'true',
   GONES_FEATURES__ADMIN_V1: 'true',
   GONES_FEATURES__CALENDAR_V1: 'true',
@@ -12,7 +14,18 @@ const composeEnv = {
   GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: '1000',
   GONES_FRONTEND_API_BASE_URL: 'http://127.0.0.1:5080'
 };
-const legacyComposeEnv = { ...composeEnv, GONES_FEATURES__AUTH_V1: 'false', GONES_FEATURES__ADMIN_V1: 'false', GONES_FEATURES__CALENDAR_V1: 'false', GONES_FEATURES__LEAGUE_SERVER: 'false', GONES_FEATURES__LIVE_SERVER: 'false' };
+// Legacy profile: the frozen static build. No API base URL at all, so the browser cannot reach a
+// server mutation route even by accident, and no auth/admin/Calendar V1 capability is exposed.
+const legacyComposeEnv = {
+  ...composeEnv,
+  GONES_FRONTEND_DATA_MODE: 'legacy-browser',
+  GONES_FRONTEND_API_BASE_URL: '',
+  GONES_FEATURES__AUTH_V1: 'false',
+  GONES_FEATURES__ADMIN_V1: 'false',
+  GONES_FEATURES__CALENDAR_V1: 'false',
+  GONES_FEATURES__LEAGUE_SERVER: 'false',
+  GONES_FEATURES__LIVE_SERVER: 'false'
+};
 
 function run(args, env = composeEnv, allowFailure = false) {
   const result = spawnSync('docker', ['compose', ...args], { stdio: 'inherit', env });
@@ -67,6 +80,10 @@ try {
     if (liveLifecycle.status !== 0) process.exitCode = liveLifecycle.status ?? 1;
   }
   if (!process.exitCode) {
+    const legacyAuthority = runCypress('cypress/e2e/legacy-data-authority.cy.js');
+    if (legacyAuthority.status !== 0) process.exitCode = legacyAuthority.status ?? 1;
+  }
+  if (!process.exitCode) {
     run(['--profile', 'release', 'up', '--build', '-d', '--wait']);
     smoke = spawnSync(process.execPath, ['scripts/smoke-full-stack.mjs', '--release'], { stdio: 'inherit' });
     if (smoke.status !== 0) process.exitCode = smoke.status ?? 1;
@@ -79,6 +96,10 @@ try {
         break;
       }
     }
+  }
+  if (!process.exitCode) {
+    const serverAuthority = runCypress('cypress/e2e/server-data-authority.cy.js');
+    if (serverAuthority.status !== 0) process.exitCode = serverAuthority.status ?? 1;
   }
   if (!process.exitCode) {
     const calendarBrowser = runCypress('cypress/e2e/public-calendar.cy.js');

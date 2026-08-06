@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output, inject, signal } from '@angular
 import { FormsModule } from '@angular/forms';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
-import { environment } from '../../environments/environment';
+import { dataAuthority } from '../config/data-authority';
 import { I18nService } from '../i18n/i18n.service';
 import { DeckArchetypeSettingsService, fuzzyMatchIndices, normalizeArchetypeName } from './deck-archetype-settings.service';
 
@@ -53,7 +53,7 @@ export class DeckArchetypeInputComponent {
 
   readonly adding = signal(false);
   /** Server-catalog builds remove local mutation authority; the catalog is Admin-managed in Settings. */
-  private readonly localMutationAllowed = !environment.features.leagueServer;
+  private readonly localMutationAllowed = !dataAuthority().serverAuthority;
 
   constructor(readonly deckArchetypes: DeckArchetypeSettingsService) {}
 

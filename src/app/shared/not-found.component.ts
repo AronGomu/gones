@@ -8,7 +8,7 @@ import { BackButtonComponent } from './back-button.component';
   imports: [MatCardModule, BackButtonComponent],
   template: `
     <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="top" />
-    <mat-card class="panel">
+    <mat-card class="panel" data-cy="not-found">
       <mat-card-title>{{ i18n.t('notFound.title') }}</mat-card-title>
       <mat-card-content><p>{{ i18n.t('notFound.body') }}</p></mat-card-content>
     </mat-card>

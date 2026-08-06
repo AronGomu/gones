@@ -1,25 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { settingsCapabilities } from './settings-capabilities';
 
-const localFlags = { authV1: false, adminV1: false, leagueServer: false };
-const serverFlags = { authV1: true, adminV1: true, leagueServer: true };
+const localFlags = { authV1: false, adminV1: false, serverAuthority: false };
+const serverFlags = { authV1: true, adminV1: true, serverAuthority: true };
 
 describe('settingsCapabilities', () => {
-  it('keeps local mutation authority when the league server flag is off', () => {
+  it('keeps local mutation authority under the legacy browser authority', () => {
     const capabilities = settingsCapabilities(localFlags, null);
     expect(capabilities.localArchetypeMutation).toBe(true);
     expect(capabilities.localPlayerRename).toBe(true);
+    expect(capabilities.migrationBundleExport).toBe(true);
     expect(capabilities.adminCatalog).toBe(false);
     expect(capabilities.organizerMaintenance).toBe(false);
     expect(capabilities.profileLink).toBe(false);
     expect(capabilities.orgNotifications).toBe(false);
   });
 
-  it('removes flag-on local archetype mutation authority for every role', () => {
+  it('removes every browser-authority Settings section in server mode, for every role', () => {
     for (const role of [null, 'User', 'Organizer', 'Admin'] as const) {
       const capabilities = settingsCapabilities(serverFlags, role);
       expect(capabilities.localArchetypeMutation).toBe(false);
       expect(capabilities.localPlayerRename).toBe(false);
+      expect(capabilities.migrationBundleExport).toBe(false);
     }
   });
 

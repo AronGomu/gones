@@ -29,7 +29,7 @@ function clientMock() {
 describe('ASP.NET League command adapter', () => {
   it('maps every League/Result intent to generated command with exact If-Match', async () => {
     const client = clientMock();
-    const backend = new AspNetApiBackend(client, {} as never);
+    const backend = new AspNetApiBackend(client);
     const entry = createMatchRoundEntry({ id: 'entry-1', player1Name: 'Alice', player2Name: 'Bob' });
     const etag = '"AAAAAAAAAAU="';
 
@@ -100,7 +100,7 @@ describe('ASP.NET Live command adapter', () => {
 
   it('maps every Live intent to the generated command with exact If-Match and Idempotency-Key', async () => {
     const client = liveClientMock();
-    const backend = new AspNetApiBackend(client, {} as never);
+    const backend = new AspNetApiBackend(client);
 
     await backend.createLiveTournament('2026-08-05', 'live-create-key');
     await backend.updateLiveSettings('live-1', 7, { name: 'Live', leagueId: 'league-9', tournamentDate: '2026-08-05', roundCount: 3, customRoundCount: false, paidTrackingEnabled: true });
@@ -137,14 +137,14 @@ describe('ASP.NET Live command adapter', () => {
   });
 
   it('applies the response documentVersion to mapped Live documents', async () => {
-    const backend = new AspNetApiBackend(liveClientMock(), {} as never);
+    const backend = new AspNetApiBackend(liveClientMock());
     const updated = await backend.startLiveRound('live-1', 7);
     expect(updated.documentVersion).toBe(8);
     expect(updated.id).toBe('live-1');
   });
 
   it('reads the full document for Organizer and falls back to the public detail for read-only users', async () => {
-    const backend = new AspNetApiBackend(liveClientMock(), {} as never);
+    const backend = new AspNetApiBackend(liveClientMock());
     const full = await backend.getLiveTournament('live-1');
     expect(full?.documentVersion).toBe(8);
 
@@ -153,18 +153,17 @@ describe('ASP.NET Live command adapter', () => {
       getLiveTournamentDocument: vi.fn(() => throwError(() => new ApiProblemError(403, { code: 'forbidden' }))),
       liveTournaments2: vi.fn(() => of(publicDetail))
     });
-    const readOnlyBackend = new AspNetApiBackend(readOnlyClient, {} as never);
+    const readOnlyBackend = new AspNetApiBackend(readOnlyClient);
     const fallback = await readOnlyBackend.getLiveTournament('live-1');
     expect(readOnlyClient.liveTournaments2).toHaveBeenCalledWith('live-1');
     expect(fallback?.checkpoints).toEqual([]);
     expect(fallback?.documentVersion).toBe(8);
 
     const missingClient = liveClientMock({ getLiveTournamentDocument: vi.fn(() => throwError(() => new ApiProblemError(404, { code: 'not_found' }))) });
-    await expect(new AspNetApiBackend(missingClient, {} as never).getLiveTournament('missing')).resolves.toBeNull();
+    await expect(new AspNetApiBackend(missingClient).getLiveTournament('missing')).resolves.toBeNull();
   });
 
-  it('rejects legacy whole-document Live saves in server mode', async () => {
-    const backend = new AspNetApiBackend(liveClientMock(), {} as never);
-    await expect(backend.saveLiveTournament(liveDocument)).rejects.toThrow('liveWholeDocumentSaveDisabled');
+  it('carries no whole-document Live save at all in server mode', () => {
+    expect('saveLiveTournament' in new AspNetApiBackend(liveClientMock())).toBe(false);
   });
 });

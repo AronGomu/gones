@@ -26,7 +26,9 @@ describe('runtime configuration surface', () => {
     'OTEL_EXPORTER_OTLP_ENDPOINT',
     'GONES_NOTIFICATION_LEASE_SECONDS',
     'GONES_BACKUP_ROOT',
-    'GONES_BACKUP_KEY_FILE'
+    'GONES_BACKUP_KEY_FILE',
+    'GONES_FRONTEND_DATA_MODE',
+    'GONES_FRONTEND_API_BASE_URL'
   ];
 
   it('documents every vendor-neutral runtime key in .env.example', () => {
@@ -66,6 +68,19 @@ describe('generic host requirements', () => {
     expect(adr).toContain('## Status');
     expect(adr).toContain('## Decision');
     expect(adr).toContain('## Consequences');
+  });
+
+  it('records the data-authority boundary and the deferred cutover work', () => {
+    const adr = read('docs/adr/0019-explicit-legacy-versus-server-data-authority.md');
+
+    expect(adr).toContain('## Status');
+    expect(adr).toContain('## Decision');
+    expect(adr).toContain('## Consequences');
+    for (const deferred of ['domain', 'CDN', 'registry', 'cutover', 'soak']) expect(adr).toContain(deferred);
+
+    for (const document of ['README.md', 'DEPLOYMENT.md', 'CONTEXT.md']) {
+      expect(read(document)).toContain('legacy-browser');
+    }
   });
 });
 

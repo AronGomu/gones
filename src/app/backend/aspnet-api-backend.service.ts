@@ -1,19 +1,21 @@
-import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../environments/environment';
 import { ApiProblemError } from '../api/api-boundary';
 import { Client, LeagueCommandResponse, LiveCommandResponse, LiveTournamentDocumentResponse, PublicLeagueDetailResponse, PublicLiveTournamentDetailResponse, LiveTournamentDocument as ApiLiveTournamentDocument } from '../api/generated/gones-api';
 import { LiveTournamentDocument, normalizeLiveTournament } from '../domain/live-tournament';
-import { CalendarEventDocument, LeagueDocument, LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
-import type { ApplicationBackend, FullLeagueRestoreCommand, LeagueRestoreCommand, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
+import { LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
+import type { BackendMode, FullLeagueRestoreCommand, LeagueBackendPort, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
 
+/**
+ * Server-authority adapter. It carries intent commands only: no whole-document League or Live save
+ * and no legacy CalendarEvent store, because in server mode the API database is the sole authority
+ * and those paths only ever existed to write the browser store (ADR 0019).
+ */
 @Injectable({ providedIn: 'root' })
-export class AspNetApiBackend implements ApplicationBackend {
-  readonly mode = 'aspnet-api' as const;
-  readonly configured = Boolean(environment.apiBaseUrl);
+export class AspNetApiBackend implements LeagueBackendPort, LiveBackendPort {
+  readonly mode: BackendMode = 'aspnet-api';
 
-  constructor(private readonly client: Client, private readonly http: HttpClient) {}
+  constructor(private readonly client: Client) {}
 
   async listLeagues(): Promise<PersistedLeague[]> {
     const summaries = [];
@@ -112,14 +114,6 @@ export class AspNetApiBackend implements ApplicationBackend {
     return response.leagues.map(league => this.toPersisted(league));
   }
 
-  insertLeague(_league: LeagueDocument): Promise<PersistedLeague> {
-    return Promise.reject(new Error('leagueWholeDocumentSaveDisabled'));
-  }
-
-  saveLeague(_league: LeagueDocument, _expectedVersion: number): Promise<PersistedLeague> {
-    return Promise.reject(new Error('leagueWholeDocumentSaveDisabled'));
-  }
-
   async listLiveTournaments(): Promise<LiveTournamentDocument[]> {
     const summaries = [];
     const pageSize = 100;
@@ -214,22 +208,6 @@ export class AspNetApiBackend implements ApplicationBackend {
     };
   }
 
-  saveLiveTournament(_document: LiveTournamentDocument): Promise<LiveTournamentDocument> {
-    return Promise.reject(new Error('liveWholeDocumentSaveDisabled'));
-  }
-
-  listCalendarEvents(): Promise<CalendarEventDocument[]> {
-    return firstValueFrom(this.http.get<CalendarEventDocument[]>(this.url('/calendar-events')));
-  }
-
-  saveCalendarEvent(event: CalendarEventDocument): Promise<CalendarEventDocument> {
-    return firstValueFrom(this.http.put<CalendarEventDocument>(this.url(`/calendar-events/${encodeURIComponent(event.id)}`), { event }));
-  }
-
-  deleteCalendarEvent(id: string): Promise<void> {
-    return firstValueFrom(this.http.delete<void>(this.url(`/calendar-events/${encodeURIComponent(id)}`)));
-  }
-
   private async command(request: ReturnType<Client['createLeague']>): Promise<PersistedLeague> {
     return this.toPersisted(await firstValueFrom(request));
   }
@@ -258,10 +236,6 @@ export class AspNetApiBackend implements ApplicationBackend {
       updatedAt: String(response.updatedAt),
       eTag: 'eTag' in response ? response.eTag : encodeLeagueETag(response.documentVersion)
     };
-  }
-
-  private url(path: string): string {
-    return `${environment.apiBaseUrl.replace(/\/$/, '')}${path}`;
   }
 }
 

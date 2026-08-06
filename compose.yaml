@@ -119,17 +119,20 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
 
+  # Local release Compose runs mandatory server mode: the API database is the single data authority.
+  # `GONES_FRONTEND_DATA_MODE=legacy-browser` (with an empty API base URL) is the only other legal
+  # combination and exists solely to rehearse the frozen static deployment. A missing or incoherent
+  # pair fails the image build, and then app startup — it never falls back to the browser store.
   frontend-development:
     build:
       context: .
       target: development
       args:
+        GONES_FRONTEND_DATA_MODE: ${GONES_FRONTEND_DATA_MODE:-server}
         GONES_FRONTEND_AUTH_V1: ${GONES_FEATURES__AUTH_V1:-false}
         GONES_FRONTEND_ADMIN_V1: ${GONES_FEATURES__ADMIN_V1:-false}
-        GONES_FRONTEND_CALENDAR_V1: ${GONES_FEATURES__CALENDAR_V1:-false}
-        GONES_FRONTEND_LEAGUE_SERVER: ${GONES_FEATURES__LEAGUE_SERVER:-false}
-        GONES_FRONTEND_LIVE_SERVER: ${GONES_FEATURES__LIVE_SERVER:-false}
-        GONES_FRONTEND_API_BASE_URL: ${GONES_FRONTEND_API_BASE_URL:-http://127.0.0.1:5080}
+        # No colon: an explicitly empty value is honoured, so the legacy profile really has no API.
+        GONES_FRONTEND_API_BASE_URL: ${GONES_FRONTEND_API_BASE_URL-http://127.0.0.1:5080}
     read_only: true
     tmpfs:
       - /app/.angular:size=32m
@@ -146,12 +149,10 @@ services:
       context: .
       target: release
       args:
+        GONES_FRONTEND_DATA_MODE: ${GONES_FRONTEND_DATA_MODE:-server}
         GONES_FRONTEND_AUTH_V1: ${GONES_FEATURES__AUTH_V1:-false}
         GONES_FRONTEND_ADMIN_V1: ${GONES_FEATURES__ADMIN_V1:-false}
-        GONES_FRONTEND_CALENDAR_V1: ${GONES_FEATURES__CALENDAR_V1:-false}
-        GONES_FRONTEND_LEAGUE_SERVER: ${GONES_FEATURES__LEAGUE_SERVER:-false}
-        GONES_FRONTEND_LIVE_SERVER: ${GONES_FEATURES__LIVE_SERVER:-false}
-        GONES_FRONTEND_API_BASE_URL: ${GONES_FRONTEND_API_BASE_URL:-http://127.0.0.1:5080}
+        GONES_FRONTEND_API_BASE_URL: ${GONES_FRONTEND_API_BASE_URL-http://127.0.0.1:5080}
     read_only: true
     tmpfs:
       - /var/cache/nginx:size=16m

@@ -50,7 +50,6 @@ const DEMO_LEAGUES: StoredLeague[] = [
 @Injectable({ providedIn: 'root' })
 export class LocalFrontendBackend implements ApplicationBackend {
   readonly mode = 'frontend-local' as const;
-  readonly configured = true;
 
   async listLeagues(): Promise<PersistedLeague[]> {
     return this.clone(this.read().leagues).sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));

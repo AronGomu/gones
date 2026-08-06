@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { environment } from '../../environments/environment';
+import { dataAuthority } from '../config/data-authority';
 import { ApiProblemError, joinApiUrl } from '../api/api-boundary';
 import { I18nService } from '../i18n/i18n.service';
 import { AuthFieldErrors, fieldErrorsFromProblem } from './auth-errors';
@@ -169,7 +169,7 @@ export class AuthEntryComponent {
   }
 
   startOAuth(provider: 'google' | 'facebook'): void {
-    window.location.assign(joinApiUrl(environment.apiBaseUrl, `/api/auth/oauth/${provider}/start`));
+    window.location.assign(joinApiUrl(dataAuthority().apiBaseUrl, `/api/auth/oauth/${provider}/start`));
   }
 
   private async run(action: () => Promise<void>): Promise<void> {

@@ -1,14 +1,14 @@
 import { inject, Injectable } from '@angular/core';
-import { environment } from '../../environments/environment';
-import { LEAGUE_BACKEND, LeagueBackendPort, FullLeagueRestoreCommand, LeagueRestoreCommand } from '../backend/application-backend';
+import { dataAuthority } from '../config/data-authority';
+import { ApplicationBackend, LEGACY_BROWSER_BACKEND, LEAGUE_BACKEND, LeagueBackendPort, FullLeagueRestoreCommand, LeagueRestoreCommand, requireLegacyBrowserStore } from '../backend/application-backend';
 import { createPlaceholderLeague, getDefaultTournamentName, isUnassignedLeagueName, LeagueDocument, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
 
 @Injectable({ providedIn: 'root' })
 export class LeagueRepository {
   private readonly backend: LeagueBackendPort = inject(LEAGUE_BACKEND);
-  readonly serverMode = environment.features.leagueServer;
-
-  get configured(): boolean { return !this.serverMode || environment.apiBaseUrl.length > 0; }
+  /** Whole-document browser store; null whenever the build declares the server authority. */
+  private readonly legacyBrowserStore: ApplicationBackend | null = inject(LEGACY_BROWSER_BACKEND);
+  readonly serverMode = dataAuthority().serverAuthority;
 
   async listLeagues(): Promise<PersistedLeague[]> {
     if (!this.serverMode) await this.ensurePlaceholderLeague();
@@ -34,7 +34,7 @@ export class LeagueRepository {
   }
 
   async insertLeague(league: LeagueDocument): Promise<PersistedLeague> {
-    if (this.serverMode) throw new Error('leagueWholeDocumentSaveDisabled');
+    const legacy = this.requireLegacyBrowserStore();
     if (league.id === PLACEHOLDER_LEAGUE_ID || isUnassignedLeagueName(league.name)) {
       const existing = await this.ensurePlaceholderLeague();
       if (!league.tournaments?.length) return existing;
@@ -42,14 +42,13 @@ export class LeagueRepository {
         ...existing.tournaments.filter((item) => !league.tournaments.some((incoming) => incoming.id === item.id)),
         ...league.tournaments.map((tournament) => ({ ...tournament, leagueId: PLACEHOLDER_LEAGUE_ID }))
       ];
-      return this.backend.saveLeague({ ...existing, tournaments: mergedTournaments }, existing.documentVersion);
+      return legacy.saveLeague({ ...existing, tournaments: mergedTournaments }, existing.documentVersion);
     }
-    return this.backend.insertLeague(league);
+    return legacy.insertLeague(league);
   }
 
   async saveLeague(league: LeagueDocument, expectedVersion: number): Promise<PersistedLeague> {
-    if (this.serverMode) throw new Error('leagueWholeDocumentSaveDisabled');
-    return this.backend.saveLeague(league, expectedVersion);
+    return this.requireLegacyBrowserStore().saveLeague(league, expectedVersion);
   }
 
   async deleteLeague(id: string): Promise<void> {
@@ -64,7 +63,12 @@ export class LeagueRepository {
     const existing = await this.backend.getLeague(PLACEHOLDER_LEAGUE_ID);
     if (existing) return existing;
     if (this.serverMode) throw new Error('placeholderLeagueMissing');
-    return this.backend.insertLeague(createPlaceholderLeague());
+    return this.requireLegacyBrowserStore().insertLeague(createPlaceholderLeague());
+  }
+
+  /** Whole-document writes exist only under the legacy browser authority. */
+  private requireLegacyBrowserStore(): ApplicationBackend {
+    return requireLegacyBrowserStore(this.legacyBrowserStore, 'leagueWholeDocumentSaveDisabled');
   }
 
   async createResultTournament(league: PersistedLeague, name = getDefaultTournamentName(), tournamentDate = ''): Promise<{ league: PersistedLeague; tournament: TournamentDocument }> {

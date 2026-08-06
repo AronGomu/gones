@@ -22,6 +22,24 @@ All five are `linux/amd64` OCI images built from digest-pinned public base image
 read-only root filesystem plus a writable `/tmp`, drop every Linux capability, and take no cloud SDK
 dependency of any kind.
 
+## Frontend data authority
+
+The static frontend artifact declares one data authority at build time and never infers it
+(ADR 0019). A host serving Gones Calendar V1 must serve a `server`-mode artifact:
+
+| Build arg | Value for the V1 server stack |
+| --- | --- |
+| `GONES_FRONTEND_DATA_MODE` | `server` |
+| `GONES_FRONTEND_API_BASE_URL` | the exact public API origin (also baked into the CSP `connect-src`) |
+| `GONES_FRONTEND_AUTH_V1` / `GONES_FRONTEND_ADMIN_V1` | optional; admin requires auth |
+
+The only other legal declaration is `GONES_FRONTEND_DATA_MODE=legacy-browser` with an **empty**
+`GONES_FRONTEND_API_BASE_URL` and both capabilities off — the frozen static deployment. Anything else
+fails `scripts/check-frontend-data-authority.mjs` during the image build; a hand-edited artifact
+refuses to bootstrap rather than falling back to browser storage. In `server` mode the database is
+the single authority and the browser holds only language, view preference, filters and the anonymous
+public read cache.
+
 ## Generic host requirements
 
 ### TLS reverse proxy

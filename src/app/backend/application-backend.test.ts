@@ -1,29 +1,27 @@
 import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
-import { resolveBackendMode, resolveLeagueBackendMode, resolveLiveBackendMode } from './application-backend';
+import { resolveDataAuthority } from '../config/data-authority';
+import { legacyBrowserBackendAvailable, requireLegacyBrowserStore, resolveLeagueBackendMode, resolveLiveBackendMode } from './application-backend';
 
-describe('application backend feature gate', () => {
-  it('preserves local adapter while apiBackend is disabled', () => {
-    expect(resolveBackendMode(false, '')).toBe('frontend-local');
+const legacy = resolveDataAuthority({ dataMode: 'legacy-browser', apiBaseUrl: '', features: { authV1: false, adminV1: false } });
+const server = resolveDataAuthority({ dataMode: 'server', apiBaseUrl: 'https://api.example', features: { authV1: true, adminV1: false } });
+
+describe('application backend authority gate', () => {
+  it('binds the browser store adapter under the legacy authority', () => {
+    expect(resolveLeagueBackendMode(legacy)).toBe('frontend-local');
+    expect(resolveLiveBackendMode(legacy)).toBe('frontend-local');
+    expect(legacyBrowserBackendAvailable(legacy)).toBe(true);
   });
 
-  it('selects ASP.NET adapter only with enabled flag and URL', () => {
-    expect(resolveBackendMode(true, 'https://api.example')).toBe('aspnet-api');
+  it('binds every port to the API under the server authority, with no browser store fallback', () => {
+    expect(resolveLeagueBackendMode(server)).toBe('aspnet-api');
+    expect(resolveLiveBackendMode(server)).toBe('aspnet-api');
+    expect(legacyBrowserBackendAvailable(server)).toBe(false);
+    expect(() => requireLegacyBrowserStore(null, 'leagueWholeDocumentSaveDisabled')).toThrowError('leagueWholeDocumentSaveDisabled');
   });
 
-  it('rejects enabled API backend without base URL', () => {
-    expect(() => resolveBackendMode(true, '')).toThrowError('aspNetApiBaseUrlMissing');
-  });
-
-  it('switches only League port when leagueServer is enabled', () => {
-    expect(resolveLeagueBackendMode(false, '')).toBe('frontend-local');
-    expect(resolveLeagueBackendMode(true, 'https://api.example')).toBe('aspnet-api');
-    expect(() => resolveLeagueBackendMode(true, '')).toThrowError('aspNetApiBaseUrlMissing');
-  });
-
-  it('switches only the Live port when liveServer is enabled', () => {
-    expect(resolveLiveBackendMode(false, '')).toBe('frontend-local');
-    expect(resolveLiveBackendMode(true, 'https://api.example')).toBe('aspnet-api');
-    expect(() => resolveLiveBackendMode(true, '')).toThrowError('aspNetApiBaseUrlMissing');
+  it('never selects a per-port mode: League and Live always share one authority', () => {
+    expect(resolveLeagueBackendMode(server)).toBe(resolveLiveBackendMode(server));
+    expect(resolveLeagueBackendMode(legacy)).toBe(resolveLiveBackendMode(legacy));
   });
 });

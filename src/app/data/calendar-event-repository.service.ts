@@ -1,13 +1,21 @@
 import { inject, Injectable } from '@angular/core';
-import { APP_BACKEND, ApplicationBackend } from '../backend/application-backend';
+import { ApplicationBackend, LEGACY_BROWSER_BACKEND, requireLegacyBrowserStore } from '../backend/application-backend';
 import { CalendarEventDocument, createCalendarEvent, normalizeCalendarEvent, normalizeCalendarEvents, normalizeSlug } from '../domain/models';
 
+/**
+ * Legacy browser CalendarEvent documents. Server mode owns the Calendar through Scheduled
+ * Tournaments instead, so the store is not injected there and every call fails closed rather than
+ * writing a second, browser-local authority (ADR 0019).
+ */
 @Injectable({ providedIn: 'root' })
 export class CalendarEventRepository {
-  private readonly backend: ApplicationBackend = inject(APP_BACKEND);
+  private readonly legacyBrowserStore: ApplicationBackend | null = inject(LEGACY_BROWSER_BACKEND);
+
+  /** True only under the legacy browser authority. */
+  get available(): boolean { return this.legacyBrowserStore !== null; }
 
   async list(): Promise<CalendarEventDocument[]> {
-    return normalizeCalendarEvents(await this.backend.listCalendarEvents());
+    return normalizeCalendarEvents(await this.backend().listCalendarEvents());
   }
 
   async create(): Promise<CalendarEventDocument> {
@@ -17,11 +25,15 @@ export class CalendarEventRepository {
 
   async save(event: CalendarEventDocument): Promise<CalendarEventDocument> {
     const normalized = await this.withUniqueSlug(normalizeCalendarEvent(event));
-    return normalizeCalendarEvent(await this.backend.saveCalendarEvent(normalized));
+    return normalizeCalendarEvent(await this.backend().saveCalendarEvent(normalized));
   }
 
   async delete(id: string): Promise<void> {
-    await this.backend.deleteCalendarEvent(id);
+    await this.backend().deleteCalendarEvent(id);
+  }
+
+  private backend(): ApplicationBackend {
+    return requireLegacyBrowserStore(this.legacyBrowserStore, 'calendarEventStoreDisabled');
   }
 
   private async withUniqueSlug(event: CalendarEventDocument): Promise<CalendarEventDocument> {

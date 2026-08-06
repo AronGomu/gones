@@ -8,7 +8,9 @@ describe('LiveTournamentRepository (local Live backend)', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    repository = new LiveTournamentRepository(new LocalFrontendBackend());
+    // Legacy browser authority: the same adapter serves the intent port and the whole-document store.
+    const legacyBrowserStore = new LocalFrontendBackend();
+    repository = new LiveTournamentRepository(legacyBrowserStore, legacyBrowserStore);
   });
 
   it('stores created live tournaments locally', async () => {

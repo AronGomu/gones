@@ -3,15 +3,18 @@ import type { GlobalRole } from '../../data/league-command-ux';
 export interface SettingsFeatureFlags {
   authV1: boolean;
   adminV1: boolean;
-  leagueServer: boolean;
+  /** True when the API database owns League/Live/Calendar data (ADR 0019). */
+  serverAuthority: boolean;
 }
 
-/** Which Settings sections are available for the current build flags and viewer role. */
+/** Which Settings sections are available for the current data authority and viewer role. */
 export interface SettingsCapabilities {
-  /** Local (browser) Deck Archetype catalog mutation. Removed once the server catalog owns mutations. */
+  /** Local (browser) Deck Archetype catalog mutation. Legacy authority only. */
   localArchetypeMutation: boolean;
-  /** Local (browser) Player rename over local league documents. */
+  /** Local (browser) Player rename over local league documents. Legacy authority only. */
   localPlayerRename: boolean;
+  /** Private migration-bundle export for the future cutover. Legacy authority only. */
+  migrationBundleExport: boolean;
   /** Admin-only global Deck Archetype catalog CRUD + import. */
   adminCatalog: boolean;
   /** Organizer/Admin Player Name search + rename over the shared League source. */
@@ -25,10 +28,11 @@ export interface SettingsCapabilities {
 export function settingsCapabilities(flags: SettingsFeatureFlags, role: GlobalRole | null | undefined): SettingsCapabilities {
   const signedIn = flags.authV1 && role != null;
   return {
-    localArchetypeMutation: !flags.leagueServer,
-    localPlayerRename: !flags.leagueServer,
-    adminCatalog: flags.leagueServer && flags.adminV1 && role === 'Admin',
-    organizerMaintenance: flags.leagueServer && (role === 'Organizer' || role === 'Admin'),
+    localArchetypeMutation: !flags.serverAuthority,
+    localPlayerRename: !flags.serverAuthority,
+    migrationBundleExport: !flags.serverAuthority,
+    adminCatalog: flags.serverAuthority && flags.adminV1 && role === 'Admin',
+    organizerMaintenance: flags.serverAuthority && (role === 'Organizer' || role === 'Admin'),
     profileLink: signedIn,
     orgNotifications: signedIn && flags.adminV1
   };

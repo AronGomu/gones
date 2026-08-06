@@ -1,20 +1,23 @@
 import { Inject, Injectable } from '@angular/core';
-import { environment } from '../../environments/environment';
-import { LIVE_BACKEND, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand } from '../backend/application-backend';
+import { dataAuthority } from '../config/data-authority';
+import { ApplicationBackend, LEGACY_BROWSER_BACKEND, LIVE_BACKEND, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, requireLegacyBrowserStore } from '../backend/application-backend';
 import { LiveTournamentDocument } from '../domain/live-tournament';
 
 /**
- * Facade over the flag-switched Live Tournament backend port. With `liveServer` off it keeps the
- * legacy per-browser localStorage store (whole-document saves); with the flag on every mutation is
- * an explicit server intent command guarded by the document version (If-Match ETag).
+ * Facade over the authority-bound Live Tournament backend port. Under the legacy browser authority
+ * it keeps the per-browser store (whole-document saves); under the server authority every mutation
+ * is an explicit server intent command guarded by the document version (If-Match ETag), and the
+ * whole-document path is not injected at all.
  */
 @Injectable({ providedIn: 'root' })
 export class LiveTournamentRepository {
-  readonly serverMode = environment.features.liveServer;
+  readonly serverMode = dataAuthority().serverAuthority;
 
-  constructor(@Inject(LIVE_BACKEND) private readonly backend: LiveBackendPort) {}
-
-  get configured(): boolean { return !this.serverMode || environment.apiBaseUrl.length > 0; }
+  constructor(
+    @Inject(LIVE_BACKEND) private readonly backend: LiveBackendPort,
+    /** Whole-document browser store; null whenever the build declares the server authority. */
+    @Inject(LEGACY_BROWSER_BACKEND) private readonly legacyBrowserStore: ApplicationBackend | null = null
+  ) {}
 
   async list(): Promise<LiveTournamentDocument[]> {
     return this.backend.listLiveTournaments();
@@ -28,10 +31,9 @@ export class LiveTournamentRepository {
     return this.backend.createLiveTournament(todayDateInputValue());
   }
 
-  /** Legacy-only whole-document save; rejects when liveServer is enabled. */
+  /** Legacy-only whole-document save; rejects under the server authority. */
   async save(tournament: LiveTournamentDocument): Promise<LiveTournamentDocument> {
-    if (this.serverMode) throw new Error('liveWholeDocumentSaveDisabled');
-    return this.backend.saveLiveTournament(tournament);
+    return requireLegacyBrowserStore(this.legacyBrowserStore, 'liveWholeDocumentSaveDisabled').saveLiveTournament(tournament);
   }
 
   async delete(id: string): Promise<void> {

@@ -216,6 +216,26 @@ _Avoid_: Generic table
 A UI component for editing Round Entries in one Round.
 _Avoid_: Ranking Table
 
+**Data Authority**:
+The single place that owns Gones source data for one build. Declared explicitly as **Legacy Browser Mode** or **Server Mode**; never inferred and never switched while the app runs.
+_Avoid_: Backend mode, storage mode, fallback
+
+**Legacy Browser Mode**:
+The frozen static deployment (`dataMode: legacy-browser`), where the browser store owns League, Live Tournament and Calendar Event source data. It has no API, no User, no Organizer User and no Admin User.
+_Avoid_: Offline mode, local mode
+
+**Server Mode**:
+The deployment (`dataMode: server`) where the Gones API database owns every piece of source data. The browser keeps only language, view preference, filters and a public read cache.
+_Avoid_: Online mode, hybrid mode
+
+**Migration Bundle**:
+A private, per-browser snapshot of every Legacy Browser Mode store, produced in Settings for the offline Migrator and never uploaded from the browser.
+_Avoid_: Gones Export, backup
+
+**Live Cutover**:
+The future, deferred operation that inventories every legacy origin and browser, imports their Migration Bundles into Server Mode, and retires the Legacy Browser Mode build after a soak.
+_Avoid_: Migration, deployment
+
 ## UI Conventions
 
 - Create and add actions use the green/success color scheme; ghost create/add actions use green text and a green border.
@@ -233,6 +253,11 @@ _Avoid_: Ranking Table
 - A Tournament counts toward a **League Result** when it belongs to that League
 - League dates are descriptive and do not filter which Tournaments count
 - A **SpiceRack Import** is one possible kind of **Tournament Import**
+- A build has exactly one **Data Authority**: either **Legacy Browser Mode** or **Server Mode**
+- A build with no satisfiable **Data Authority** refuses to start rather than choosing one
+- **Legacy Browser Mode** produces a **Migration Bundle** and never reaches the Gones API
+- **Server Mode** exposes **User**, **Organizer User** and **Admin User** capabilities; **Legacy Browser Mode** exposes none of them
+- A **Live Cutover** moves data from **Legacy Browser Mode** to **Server Mode** and is deferred
 - A **Round Import** is the only supported kind of Tournament Import data
 - A **Round Import** performs a **Round Replacement** for its targeted Round
 - A **Round Import** removes leading and trailing whitespace from imported fields
@@ -769,3 +794,5 @@ _Avoid_: Ranking Table
 - "decklist" could mean a full card list or an archetype label - resolved: use **Deck Archetype** because Gones records archetype names, not full card lists.
 - "incomplete" could mean unusable or partially usable - resolved: an **Incomplete Tournament** can produce a **Provisional Result** from valid Matches.
 - "valid match" could mean only a winner is known or the full result is known - resolved: a played **Valid Match** requires both a **Match Outcome** and a **Game Score**.
+- "backend mode" could mean a runtime fallback between the browser store and the API - resolved: a build declares one **Data Authority** (**Legacy Browser Mode** or **Server Mode**), there is no fallback, and an unsatisfiable declaration fails the build and then refuses to start (ADR 0019).
+- "migration" could mean the database schema migration or moving legacy browser data to the server - resolved: use **Live Cutover** for moving **Migration Bundles** into **Server Mode**; the public domain, CDN, hosting provider and the Live Cutover itself are all deferred.

@@ -271,6 +271,8 @@ export class AppComponent {
   }
 
   private async safeGetEvent(slug: string): Promise<CalendarEventDocument | null> {
+    // Legacy browser CalendarEvents only; server mode routes this slug into the Calendar V1 detail.
+    if (!this.calendarRepo.available) return null;
     try { return (await this.calendarRepo.list()).find((event) => event.slug === slug) ?? null; }
     catch (error) { logBoundaryError('app-breadcrumb.loadEvent', error, { slug }); return null; }
   }
@@ -350,7 +352,8 @@ export class AppComponent {
 
   async downloadFullExport(): Promise<void> {
     const leagues = (await this.repo.listLeagues()).filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID);
-    saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: await this.calendarRepo.list() })), 'gones-full-data.gones.json');
+    const calendarEvents = this.calendarRepo.available ? await this.calendarRepo.list() : [];
+    saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents })), 'gones-full-data.gones.json');
   }
 
   async downloadLeagueExport(league: PersistedLeague): Promise<void> { const exported = exportLeague(league); saveJsonFile(await attachExportChecksum(exported), leagueExportFilename(league, new Date(exported.exportedAt))); }

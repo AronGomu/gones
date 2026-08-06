@@ -9,7 +9,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { environment } from '../../../environments/environment';
+import { dataAuthority } from '../../config/data-authority';
 import { ApiProblemError } from '../../api/api-boundary';
 import { AdminDeckArchetypeResponse, Client, MyOrganizationResponse, OrganizationNotificationSettingsResponse, PlayerNameSummary } from '../../api/generated/gones-api';
 import { AuthService } from '../../auth/auth.service';
@@ -432,6 +432,7 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
+      @if (capabilities().migrationBundleExport) {
       <mat-card class="panel settings-panel">
         <mat-card-content>
           <h2>{{ i18n.t('settings.migrationTitle') }}</h2>
@@ -449,6 +450,7 @@ interface OwnedOrganizationSettings {
           @if (migrationError()) { <p class="error" role="alert" data-cy="settings-migration-error">{{ migrationError() }}</p> }
         </mat-card-content>
       </mat-card>
+      }
 
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
@@ -465,9 +467,9 @@ export class SettingsComponent {
   readonly language = this.deckArchetypes.language;
   private readonly archetypeImportInput = viewChild<ElementRef<HTMLInputElement>>('archetypeImportInput');
   readonly capabilities = computed(() => settingsCapabilities({
-    authV1: environment.features.authV1,
-    adminV1: environment.features.adminV1,
-    leagueServer: environment.features.leagueServer
+    authV1: dataAuthority().authV1,
+    adminV1: dataAuthority().adminV1,
+    serverAuthority: dataAuthority().serverAuthority
   }, this.auth.profile()?.globalRole ?? null));
 
   readonly newArchetype = signal('');
@@ -553,9 +555,12 @@ export class SettingsComponent {
     await this.deckArchetypes.setLanguage(value);
   }
 
-  /** Local-only download of the private migration bundle. Never uploads browser data to the server. */
+  /**
+   * Local-only download of the private migration bundle. Never uploads browser data to the server,
+   * and only ever runs under the legacy browser authority — server builds hold no browser source.
+   */
   async downloadMigrationBundle(): Promise<void> {
-    if (this.migrationExporting()) return;
+    if (!this.capabilities().migrationBundleExport || this.migrationExporting()) return;
     this.migrationExporting.set(true);
     this.migrationError.set('');
     try {
