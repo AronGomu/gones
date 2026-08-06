@@ -25,7 +25,8 @@ export type DataAuthorityErrorCode =
   | 'serverModeApiBaseUrlMissing'
   | 'serverModeAdminRequiresAuth'
   | 'legacyModeApiBaseUrlForbidden'
-  | 'legacyModeCapabilityForbidden';
+  | 'legacyModeCapabilityForbidden'
+  | 'runtimeConfigurationInvalid';
 
 export interface DataAuthorityCapabilityFlags {
   readonly authV1: boolean;
@@ -84,7 +85,61 @@ export function resolveDataAuthority(input: DataAuthorityInput): DataAuthority {
   });
 }
 
+function requireString(document: Record<string, unknown>, key: string): string | undefined {
+  const value = document[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') throw new DataAuthorityConfigurationError('runtimeConfigurationInvalid');
+  return value;
+}
+
+function requireBoolean(document: Record<string, unknown>, key: string): boolean | undefined {
+  const value = document[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'boolean') throw new DataAuthorityConfigurationError('runtimeConfigurationInvalid');
+  return value;
+}
+
+/**
+ * C44 — runtime configuration injection.
+ *
+ * The release artifact is one immutable image that any host may serve on any origin, so the origin
+ * and the mode arrive at container start (`/runtime-config.json`), not at build time. The values
+ * compiled into `environment` are only the artifact's defaults; a host that injects nothing — the
+ * frozen static deployment — keeps exactly the declaration it was built with.
+ *
+ * A document that exists but is malformed fails closed. Silently ignoring a field would be worse
+ * than not shipping the file at all: the browser would fall back to an authority nobody declared.
+ */
+export function mergeRuntimeDeclaration(baked: DataAuthorityInput, runtime: unknown): DataAuthorityInput {
+  if (runtime === null || runtime === undefined) return baked;
+  if (typeof runtime !== 'object' || Array.isArray(runtime)) throw new DataAuthorityConfigurationError('runtimeConfigurationInvalid');
+
+  const document = runtime as Record<string, unknown>;
+  const features = document['features'];
+  if (features !== undefined && features !== null && (typeof features !== 'object' || Array.isArray(features))) {
+    throw new DataAuthorityConfigurationError('runtimeConfigurationInvalid');
+  }
+  const capabilities = (features ?? {}) as Record<string, unknown>;
+
+  return {
+    dataMode: requireString(document, 'dataMode') ?? baked.dataMode,
+    apiBaseUrl: requireString(document, 'apiBaseUrl') ?? baked.apiBaseUrl,
+    features: {
+      authV1: requireBoolean(capabilities, 'authV1') ?? baked.features.authV1,
+      adminV1: requireBoolean(capabilities, 'adminV1') ?? baked.features.adminV1
+    }
+  };
+}
+
 let resolved: DataAuthority | undefined;
+
+/**
+ * Fixes the startup authority decision. Called once by `main.ts`, before the application bootstraps,
+ * with the baked declaration merged with whatever the host injected at container start.
+ */
+export function configureDataAuthority(input: DataAuthorityInput): DataAuthority {
+  return (resolved = resolveDataAuthority(input));
+}
 
 /**
  * The build's authority decision. Resolved from `environment` on first read and memoized, so the

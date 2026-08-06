@@ -114,6 +114,18 @@
     { "id": "doc01-operations-docs", "doc": "01-architecture.md", "capability": "The generic host contract and the operator procedures are documented in the repository, not in a vendor console.", "status": "proved", "acceptance": ["ops-docs"], "evidence": [
       { "gate": "vitest", "target": "ops/host-contract.test.ts", "detail": "runbook sections, rehearsal commands and deferred markers stay present" }
     ] },
+    { "id": "doc01-release-artifacts", "doc": "01-architecture.md", "capability": "The V1 release candidate is an immutable artifact set: five digest-pinned linux/amd64 images with SBOMs, checksums, scan reports and the source revision they were built from.", "status": "proved", "acceptance": ["eng-artifacts-build"], "evidence": [
+      { "gate": "script", "target": "images:build", "detail": "digests, SPDX SBOMs and checksums for every artifact" },
+      { "gate": "script", "target": "release:preflight", "detail": "the gate that decides whether a built set is releasable" },
+      { "gate": "vitest", "target": "ops/release-preflight.test.ts", "detail": "each of the nine mismatch classes really rejects" },
+      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "container is the released digest" }
+    ] },
+    { "id": "doc01-clean-machine", "doc": "01-architecture.md", "capability": "A clean environment starts from those exact artifacts and reaches a complete V1 state: migrated schema, verified bootstrap User, Admin, every server feature flag enabled.", "status": "proved", "acceptance": ["eng-artifacts-build"], "evidence": [
+      { "gate": "script", "target": "release:candidate", "detail": "clean environment assembled from the immutable artifacts" },
+      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the clean database is migrated to the shipped schema" },
+      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "runs with all six server feature flags enabled" },
+      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the configured bootstrap User registers and verifies through the local email sink" }
+    ] },
     { "id": "doc01-public-hosting", "doc": "01-architecture.md", "capability": "Public hosting: domain, DNS, CDN, managed PostgreSQL, container registry and image signing trust.", "status": "deferred", "deferredReason": "No hosting vendor, domain or registry is chosen. Every artifact is registry-neutral and every rehearsal runs on one machine, so nothing here can be proved locally and nothing claims it is.", "acceptance": [], "evidence": [] },
 
     { "id": "doc02-entities", "doc": "02-modeles-donnees.md", "capability": "The documented entity set exists with its documented fields and relations.", "status": "proved", "acceptance": ["eng-db-constraints"], "evidence": [
@@ -421,6 +433,12 @@
       { "gate": "cypress", "target": "cypress/e2e/migration-bundle.cy.js", "detail": "browser export with zero /api/ traffic" },
       { "gate": "script", "target": "migration:smoke", "detail": "dry-run-first atomic import" },
       { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "a multi-origin private bundle set imports atomically with C#/TypeScript canonical-hash parity" }
+    ] },
+    { "id": "doc09-runtime-config", "doc": "09-frontend-angular.md", "capability": "The single-page application artifact is bound to no origin: data mode, API base URL and capability flags are injected at container start and validated identically at build, at start and in the browser.", "status": "proved", "acceptance": ["eng-artifacts-build", "ops-authority-mode"], "evidence": [
+      { "gate": "vitest", "target": "src/app/config/data-authority.test.ts", "detail": "the injected declaration replaces the built-in default and still fails closed" },
+      { "gate": "vitest", "target": "ops/frontend-data-authority.test.ts", "detail": "build checker, container-start gate and browser resolver agree on every declaration" },
+      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the artifact is serving the injected declaration" },
+      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the served content-security-policy names the injected origin" }
     ] }
   ],
 
@@ -442,7 +460,7 @@
     { "id": "eng-no-pii", "section": "Engineering", "status": "proved", "text": "No PII/secrets in public DTO/export/log/audit/email-body storage." },
     { "id": "eng-openapi-drift", "section": "Engineering", "status": "proved", "text": "OpenAPI generated client drift check green." },
     { "id": "eng-suites-green", "section": "Engineering", "status": "proved", "text": "Unit/integration/contract/Cypress/a11y/security/perf suites green." },
-    { "id": "eng-artifacts-build", "section": "Engineering", "status": "release-candidate", "reason": "C44 owns the terminal candidate: the final image digests, SBOMs, checksums and the clean-machine start from those exact artifacts. C43 proves the build and the runtime contract, not the immutable release set.", "text": "Angular release artifact + API/Worker/Migrator/backup OCI images build reproducibly; full app healthy from clean clone." },
+    { "id": "eng-artifacts-build", "section": "Engineering", "status": "proved", "text": "Angular release artifact + API/Worker/Migrator/backup OCI images build reproducibly; full app healthy from clean clone." },
 
     { "id": "ops-no-cloud-sdk", "section": "Portable operations", "status": "proved", "text": "API/Worker/Migrator/backup OCI images require no cloud SDK/runtime." },
     { "id": "ops-runtime-config", "section": "Portable operations", "status": "proved", "text": "Runtime config uses env/file secrets, PostgreSQL DSN, forwarded-header config, OTLP, stdout JSON." },

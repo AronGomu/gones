@@ -58,6 +58,9 @@ The public domain, DNS, CDN, hosting vendor, container registry, live email/OAut
   procedure names the committed script that rehearses it locally, and every step that would need real
   infrastructure is marked deferred.
 - [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) — what a generic Linux host must provide.
+- [`docs/RELEASE_NOTES_V1.md`](docs/RELEASE_NOTES_V1.md) — the V1 release candidate: the immutable
+  artifact set, how to reproduce it with `npm run release:candidate`, the known residuals, and the
+  live infrastructure that stays deferred.
 - [`DEPLOYMENT.md`](DEPLOYMENT.md) — how each frontend artifact is built.
 
 ## Commands

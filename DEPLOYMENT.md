@@ -8,6 +8,9 @@
 > **Running it day to day** — deploy ordering, rollback principles, secret rotation, the provider
 > webhook, backup/restore, schema migrations, the legacy-import CLI and Admin bootstrap all live in
 > [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+>
+> **The V1 release candidate** — what the artifact set is, how to reproduce it, what is still
+> deferred: [`docs/RELEASE_NOTES_V1.md`](docs/RELEASE_NOTES_V1.md).
 
 ## Data authority: pick one, explicitly
 
@@ -112,10 +115,16 @@ dist/gones/browser
 
 The API exists; the cutover is what is deferred. To build a server-mode artifact:
 
-1. Build the image with `GONES_FRONTEND_DATA_MODE=server` and `GONES_FRONTEND_API_BASE_URL=<exact API origin>`.
-   The origin is also baked into the nginx `connect-src` directive, so it cannot drift from the CSP.
+1. Build the image with `GONES_FRONTEND_DATA_MODE=server` and `GONES_FRONTEND_API_BASE_URL=<an API origin>`.
+   These are the artifact's **defaults**, not a binding: they decide what the image serves when the
+   host injects nothing.
 2. Optionally add `GONES_FRONTEND_AUTH_V1=true` and `GONES_FRONTEND_ADMIN_V1=true`; admin requires auth.
-3. Point the API at its PostgreSQL database and follow [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md).
+3. Serve it anywhere by injecting the declaration at container start — `GONES_DATA_MODE`,
+   `GONES_API_BASE_URL`, `GONES_AUTH_V1`, `GONES_ADMIN_V1`. The entrypoint validates the pair, writes
+   `/runtime-config.json` (read by the app before it bootstraps) and renders the nginx `connect-src`
+   from the same origin, so the CSP cannot drift. An incoherent declaration exits the container.
+   **One artifact, any domain or CDN: moving origins never needs a rebuild.**
+4. Point the API at its PostgreSQL database and follow [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md).
 
 In server mode the database is the single authority: there is no whole-document League/Live save and
 no browser CalendarEvent store, and the browser keeps only language, view preference, filters and the

@@ -1,0 +1,40 @@
+# Gones Calendar V1 release candidate (C44).
+#
+# An overlay on `compose.release-test.yaml` that replaces every release artifact with the immutable
+# image digest recorded in `reports/images/manifest.json`. Nothing here is built: `pull_policy: never`
+# means the stack either starts from the exact bytes that were scanned and check-summed, or it does
+# not start at all. The surrounding fixtures — the TLS edge, the fake identity provider, the local
+# email sink, the collector and the journey runner — are test scaffolding and keep building from
+# source, because they are not part of the release.
+#
+# The frontend is the point of the exercise: the artifact was built with a *different* default origin
+# and is served here on this stack's origin, injected at container start. One image, any host.
+#
+# Drive it with `npm run release:candidate`; it exports the GONES_IMAGE_* digests from the manifest.
+name: gones-release-candidate
+
+services:
+  migrator:
+    image: ${GONES_IMAGE_MIGRATOR:?the release candidate must name the immutable migrator digest}
+    pull_policy: never
+
+  api:
+    image: ${GONES_IMAGE_API:?the release candidate must name the immutable API digest}
+    pull_policy: never
+
+  worker:
+    image: ${GONES_IMAGE_WORKER:?the release candidate must name the immutable Worker digest}
+    pull_policy: never
+
+  frontend:
+    image: ${GONES_IMAGE_FRONTEND:?the release candidate must name the immutable frontend digest}
+    pull_policy: never
+    environment:
+      GONES_DATA_MODE: server
+      GONES_API_BASE_URL: https://localhost:8443
+      GONES_AUTH_V1: "true"
+      GONES_ADMIN_V1: "true"
+
+  backup:
+    image: ${GONES_IMAGE_BACKUP:?the release candidate must name the immutable backup digest}
+    pull_policy: never

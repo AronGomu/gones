@@ -31,8 +31,24 @@ describe('V1 acceptance matrix', () => {
     const planRows = [...section.matchAll(/^- \[[ x]\] (.+)$/gm)].map((match) => match[1].trim());
     expect(planRows).toHaveLength(result.matrix.acceptanceChecklist.length);
     for (const entry of result.matrix.acceptanceChecklist) {
-      // The matrix stores plain ASCII arrows; the plan uses the same text.
-      expect(planRows.some((row) => row.replaceAll('→', '->') === entry.text)).toBe(true);
+      // The matrix stores plain ASCII arrows; the plan uses the same text, optionally followed by the
+      // parenthetical naming the executable gate that ticked the box (C44).
+      expect(planRows.some((row) => row.replaceAll('→', '->').startsWith(entry.text))).toBe(true);
+    }
+  });
+
+  it('never lets a final acceptance box be ticked without naming its gate', () => {
+    const plan = readFileSync('GONES_CALENDAR_V1_IMPLEMENTATION_PLAN.md', 'utf8');
+    const section = plan.slice(plan.indexOf('## 5. Final V1 acceptance checklist'));
+    const ticked = [...section.matchAll(/^- \[x\] (.+)$/gm)].map((match) => match[1].trim());
+    const provedTexts: string[] = result.matrix.acceptanceChecklist
+      .filter((entry: { status: string }) => entry.status === 'proved')
+      .map((entry: { text: string }) => entry.text);
+
+    for (const row of ticked) {
+      // A ticked box must cite a runnable gate, and the matrix must agree it is proved.
+      expect(row).toMatch(/\(`?npm run [\w:-]+/);
+      expect(provedTexts.some((text) => row.replaceAll('→', '->').startsWith(text))).toBe(true);
     }
   });
 

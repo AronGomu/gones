@@ -14,7 +14,8 @@
  * the C#/TypeScript canonical-hash parity proof.
  *
  * Set GONES_COMPOSE_FILE to point it at another Compose project — the release rehearsal runs it
- * against the isolated release-test stack rather than the development one.
+ * against the isolated release-test stack rather than the development one, and the C44 release
+ * candidate passes a comma-separated pair so it runs against the digest-pinned candidate stack.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -22,7 +23,8 @@ import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const composeArgs = process.env.GONES_COMPOSE_FILE ? ['compose', '-f', process.env.GONES_COMPOSE_FILE] : ['compose'];
+const composeFiles = (process.env.GONES_COMPOSE_FILE ?? '').split(',').filter(Boolean);
+const composeArgs = ['compose', ...composeFiles.flatMap((file) => ['-f', file])];
 
 function psql(sql, tuplesOnly = false) {
   const args = [...composeArgs, 'exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-v', 'ON_ERROR_STOP=1'];

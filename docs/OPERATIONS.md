@@ -17,6 +17,10 @@ bucket — the step is marked **deferred** and is *not* claimed to work.
 | Provider webhook | `npm run release:rehearsal` |
 | Image provenance | `npm run images:build`, `npm run images:verify`, `npm run images:scan` |
 | Acceptance coverage | `npm run acceptance:matrix` |
+| Release candidate assembly | `npm run release:preflight`, `npm run release:candidate` |
+
+The candidate this runbook operates — the artifact set, the residuals and the deferred live
+infrastructure — is described in [`RELEASE_NOTES_V1.md`](RELEASE_NOTES_V1.md).
 
 ---
 
@@ -63,8 +67,11 @@ The deployment unit is a set of immutable image digests, never a tag.
    `postgres` (healthy) → `migrator` (exit 0) → grants → `api` and the singleton `worker`.
    The API must never serve against an unmigrated schema; the release rehearsal asserts the ordering
    from container timestamps.
-3. The frontend artifact must declare `GONES_FRONTEND_DATA_MODE=server` **and** the exact API origin.
-   The origin is also baked into the nginx CSP `connect-src`, so the two cannot drift.
+3. The frontend artifact is served with its declaration injected at container start:
+   `GONES_DATA_MODE=server` **and** `GONES_API_BASE_URL=<this deployment's API origin>` (plus the
+   capability flags). The entrypoint renders the CSP `connect-src` from the same value, so the two
+   cannot drift, and refuses to serve an incoherent pair. The image needs no rebuild to move origin.
+   Verify the whole set with `npm run release:preflight` before starting anything.
 4. Health: `GET /health/live` for liveness, `GET /health/ready` for readiness. Readiness includes the
    Worker heartbeat, so a dead Worker takes the instance out of rotation rather than failing silently.
 

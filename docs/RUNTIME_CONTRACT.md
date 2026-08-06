@@ -28,13 +28,13 @@ dependency of any kind.
 
 ## Frontend data authority
 
-The static frontend artifact declares one data authority at build time and never infers it
-(ADR 0019). A host serving Gones Calendar V1 must serve a `server`-mode artifact:
+The frontend artifact declares one data authority and never infers it (ADR 0019). A host serving
+Gones Calendar V1 must serve a `server`-mode declaration:
 
-| Build arg | Value for the V1 server stack |
+| Build arg (the artifact's default) | Value for the V1 server stack |
 | --- | --- |
 | `GONES_FRONTEND_DATA_MODE` | `server` |
-| `GONES_FRONTEND_API_BASE_URL` | the exact public API origin (also baked into the CSP `connect-src`) |
+| `GONES_FRONTEND_API_BASE_URL` | an API origin |
 | `GONES_FRONTEND_AUTH_V1` / `GONES_FRONTEND_ADMIN_V1` | optional; admin requires auth |
 
 The only other legal declaration is `GONES_FRONTEND_DATA_MODE=legacy-browser` with an **empty**
@@ -43,6 +43,32 @@ fails `scripts/check-frontend-data-authority.mjs` during the image build; a hand
 refuses to bootstrap rather than falling back to browser storage. In `server` mode the database is
 the single authority and the browser holds only language, view preference, filters and the anonymous
 public read cache.
+
+### Runtime injection (C44)
+
+The build arguments are **defaults only**. The image is one immutable artifact that any host may
+serve on any origin, so the declaration that is actually served is injected at container start:
+
+| Runtime variable | Meaning |
+| --- | --- |
+| `GONES_DATA_MODE` | `server` or `legacy-browser` |
+| `GONES_API_BASE_URL` | the exact API origin this deployment talks to |
+| `GONES_AUTH_V1` / `GONES_ADMIN_V1` | capability flags; admin requires auth |
+
+`/docker-entrypoint.d/40-gones-runtime.sh` validates the declaration with the same rules as the build
+checker and the browser resolver (`deploy/nginx/gones-data-authority.sh`; the three are pinned
+together by `ops/frontend-data-authority.test.ts`), then writes, into the container's tmpfs:
+
+- `/runtime-config.json` — read by the application before it bootstraps, relative to the document
+  base URL, so no origin and no base href is compiled in;
+- the nginx server block, with `connect-src` set to that same origin, so the CSP cannot drift from
+  the configuration.
+
+An incoherent declaration **exits the container before nginx serves a byte**. A host that injects
+nothing keeps exactly the declaration the image was built with, which is what the frozen static
+deployment does. Consequence: an artifact is never bound to one domain or CDN, and moving a
+deployment to another origin needs no rebuild — `npm run release:preflight` refuses a candidate whose
+served origin is the only origin its artifact could ever serve.
 
 ## Generic host requirements
 

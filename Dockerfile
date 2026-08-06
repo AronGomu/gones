@@ -42,6 +42,9 @@ RUN sed -i "s/dataMode: 'legacy-browser'/dataMode: '${GONES_FRONTEND_DATA_MODE}'
     && npm run build
 
 FROM ${NGINX_IMAGE} AS release
+ARG GONES_FRONTEND_DATA_MODE=legacy-browser
+ARG GONES_FRONTEND_AUTH_V1=false
+ARG GONES_FRONTEND_ADMIN_V1=false
 ARG GONES_FRONTEND_API_BASE_URL=
 ARG GONES_IMAGE_REVISION=unknown
 ARG GONES_IMAGE_CREATED=1970-01-01T00:00:00Z
@@ -54,9 +57,16 @@ LABEL org.opencontainers.image.title="gones-frontend" \
       org.opencontainers.image.created="${GONES_IMAGE_CREATED}"
 USER root
 RUN rm -rf /etc/nginx/templates
-COPY deploy/nginx/default.conf /etc/nginx/conf.d/default.conf
-# Bake the exact API origin into connect-src; the container filesystem is read-only at runtime.
-RUN sed -i "s|__GONES_API_ORIGIN__|${GONES_FRONTEND_API_BASE_URL}|g" /etc/nginx/conf.d/default.conf
+# C44: the server block and the data-authority declaration are rendered at container start, not baked
+# here, so one artifact can be served on any origin. The build values become the runtime defaults.
+COPY deploy/nginx/runtime-include.conf /etc/nginx/conf.d/default.conf
+COPY deploy/nginx/default.conf.template /etc/nginx/gones/default.conf.template
+COPY --chmod=0755 deploy/nginx/gones-data-authority.sh /etc/nginx/gones/gones-data-authority.sh
+COPY --chmod=0755 deploy/nginx/gones-runtime-entrypoint.sh /docker-entrypoint.d/40-gones-runtime.sh
+ENV GONES_DATA_MODE=${GONES_FRONTEND_DATA_MODE} \
+    GONES_API_BASE_URL=${GONES_FRONTEND_API_BASE_URL} \
+    GONES_AUTH_V1=${GONES_FRONTEND_AUTH_V1} \
+    GONES_ADMIN_V1=${GONES_FRONTEND_ADMIN_V1}
 COPY --from=build /app/dist/gones/browser /usr/share/nginx/html
 ENV TMPDIR=/tmp
 USER 101:101

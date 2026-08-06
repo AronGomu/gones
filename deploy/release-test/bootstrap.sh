@@ -28,6 +28,9 @@ fi
 
 if [ ! -f "$secrets/db-connection" ]; then
     printf '%s' 'Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only' > "$secrets/db-connection"
+    # The migration job owns the schema, so it gets its own higher-privilege DSN — as a file, like
+    # every other secret: no service in this stack ever receives a credential as an env value (C44).
+    printf '%s' 'Host=postgres;Port=5432;Database=gones;Username=gones_migration;Password=local-migration-only' > "$secrets/db-migration-connection"
     random_hex 32 > "$secrets/auth-signing-key"
     random_hex 24 > "$secrets/brevo-webhook-token"
     random_hex 24 > "$secrets/brevo-api-key"

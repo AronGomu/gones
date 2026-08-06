@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DATA_MODES,
   DataAuthorityConfigurationError,
+  configureDataAuthority,
   dataAuthority,
+  mergeRuntimeDeclaration,
   resolveDataAuthority
 } from './data-authority';
 
@@ -96,5 +98,72 @@ describe('data authority mode', () => {
   it('memoizes the startup resolution: repeated reads return the identical decision', () => {
     expect(dataAuthority()).toBe(dataAuthority());
     expect(DATA_MODES).toContain(dataAuthority().mode);
+  });
+});
+
+/**
+ * C44 — the release artifact is one image any host may serve on any origin, so the declaration is
+ * injected at container start. The compiled-in values are only the artifact's defaults.
+ */
+describe('runtime configuration injection', () => {
+  it('keeps the build declaration when the host injects nothing', () => {
+    expect(mergeRuntimeDeclaration(legacyInput, null)).toEqual(legacyInput);
+    expect(mergeRuntimeDeclaration(legacyInput, undefined)).toEqual(legacyInput);
+  });
+
+  it('lets the host move the same artifact to another origin without rebuilding it', () => {
+    const merged = mergeRuntimeDeclaration(
+      { dataMode: 'server', apiBaseUrl: 'https://built-for.example', features: { authV1: true, adminV1: true } },
+      { dataMode: 'server', apiBaseUrl: 'https://served-on.example', features: { authV1: true, adminV1: true } }
+    );
+
+    expect(merged.apiBaseUrl).toBe('https://served-on.example');
+    expect(resolveDataAuthority(merged).apiBaseUrl).toBe('https://served-on.example');
+  });
+
+  it('lets the host switch the data mode and the capability flags', () => {
+    const merged = mergeRuntimeDeclaration(legacyInput, {
+      dataMode: 'server',
+      apiBaseUrl: 'https://api.example',
+      features: { authV1: true, adminV1: true }
+    });
+
+    expect(resolveDataAuthority(merged).mode).toBe('server');
+    expect(resolveDataAuthority(merged).adminV1).toBe(true);
+  });
+
+  it('fills only what the document declares', () => {
+    const merged = mergeRuntimeDeclaration(serverInput, { apiBaseUrl: 'https://elsewhere.example' });
+
+    expect(merged.dataMode).toBe('server');
+    expect(merged.features).toEqual({ authV1: true, adminV1: true });
+    expect(merged.apiBaseUrl).toBe('https://elsewhere.example');
+  });
+
+  it('still fails closed on an injected declaration that cannot be satisfied', () => {
+    expect(code(() => resolveDataAuthority(mergeRuntimeDeclaration(serverInput, { apiBaseUrl: '' }))))
+      .toBe('serverModeApiBaseUrlMissing');
+    expect(code(() => resolveDataAuthority(mergeRuntimeDeclaration(serverInput, { dataMode: 'auto' }))))
+      .toBe('dataModeUnknown');
+    expect(code(() => resolveDataAuthority(mergeRuntimeDeclaration(legacyInput, { apiBaseUrl: 'https://api.example' }))))
+      .toBe('legacyModeApiBaseUrlForbidden');
+  });
+
+  it('rejects a malformed injected document instead of quietly ignoring it', () => {
+    for (const document of ['server', 42, ['server'], { dataMode: 7 }, { apiBaseUrl: null, features: [] }, { features: { authV1: 'true' } }]) {
+      expect(code(() => mergeRuntimeDeclaration(serverInput, document))).toBe('runtimeConfigurationInvalid');
+    }
+  });
+
+  it('fixes the startup decision so every later read sees the injected authority', () => {
+    const configured = configureDataAuthority(mergeRuntimeDeclaration(legacyInput, {
+      dataMode: 'server',
+      apiBaseUrl: 'https://injected.example/',
+      features: { authV1: true, adminV1: true }
+    }));
+
+    expect(configured.mode).toBe('server');
+    expect(dataAuthority()).toBe(configured);
+    expect(dataAuthority().apiBaseUrl).toBe('https://injected.example');
   });
 });

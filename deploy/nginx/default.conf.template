@@ -1,0 +1,36 @@
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Rendered at container start by /docker-entrypoint.d/40-gones-runtime.sh (C44). `${GONES_API_ORIGIN}`
+  # comes from the runtime environment, never from the build, so one artifact can serve any origin.
+  add_header X-Content-Type-Options nosniff always;
+  add_header X-Frame-Options DENY always;
+  add_header Referrer-Policy no-referrer always;
+  add_header Cross-Origin-Opener-Policy same-origin always;
+  add_header Cross-Origin-Resource-Policy same-origin always;
+  add_header Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), usb=(), xr-spatial-tracking=()" always;
+  add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' ${GONES_API_ORIGIN}; worker-src 'self'; manifest-src 'self'; object-src 'none'; media-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+  # The runtime data-authority declaration the single-page application reads before it boots. It is
+  # written to a tmpfs at container start, so the image itself carries no origin it must be served on.
+  location = /runtime-config.json {
+    alias /tmp/gones-www/runtime-config.json;
+    default_type application/json;
+    add_header Cache-Control "no-store" always;
+    add_header X-Content-Type-Options nosniff always;
+  }
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  location = /health {
+    access_log off;
+    add_header Content-Type text/plain;
+    return 200 'live';
+  }
+}

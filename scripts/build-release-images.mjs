@@ -98,6 +98,10 @@ for (const image of RELEASE_IMAGES) {
 }
 
 manifest.sbom = sbomStatus;
+// C44: the frontend artifact's *default* declaration. Any host may override it at container start
+// (see deploy/nginx/gones-runtime-entrypoint.sh), so this records what the image falls back to — the
+// release preflight refuses a candidate whose default origin is the only origin it can ever serve.
+manifest.frontend = { dataMode: frontendDataMode, apiBaseUrl: frontendApiBaseUrl };
 const manifestPath = join(outputDirectory, 'manifest.json');
 writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 artifacts.push({ artifact: 'manifest.json', sha256: sha256(manifestPath) });

@@ -28,7 +28,12 @@ describe('runtime configuration surface', () => {
     'GONES_BACKUP_ROOT',
     'GONES_BACKUP_KEY_FILE',
     'GONES_FRONTEND_DATA_MODE',
-    'GONES_FRONTEND_API_BASE_URL'
+    'GONES_FRONTEND_API_BASE_URL',
+    // C44 runtime injection: the same artifact, served on any origin.
+    'GONES_DATA_MODE',
+    'GONES_API_BASE_URL',
+    'GONES_AUTH_V1',
+    'GONES_ADMIN_V1'
   ];
 
   it('documents every vendor-neutral runtime key in .env.example', () => {
@@ -138,11 +143,78 @@ describe('operator runbook', () => {
   });
 });
 
+describe('release candidate notes', () => {
+  const notes = (): string => read('docs/RELEASE_NOTES_V1.md');
+
+  it('says what the candidate is and how anyone can reproduce it', () => {
+    for (const section of [
+      'What the candidate is',
+      'How to reproduce the candidate',
+      'Portability',
+      'Known residuals',
+      'Deferred live infrastructure',
+      'Evidence index'
+    ]) {
+      expect(notes()).toContain(section);
+    }
+    expect(notes()).toContain('npm run release:candidate');
+  });
+
+  it('backs every claim in the evidence index with a script that exists', () => {
+    const manifest = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
+    const evidence = notes().slice(notes().indexOf('## Evidence index'));
+    const commands = [...evidence.matchAll(/`npm run ([\w:-]+)`/g)].map((match) => match[1]);
+
+    expect(commands.length).toBeGreaterThan(5);
+    for (const command of commands) expect(manifest.scripts[command]).toBeTruthy();
+  });
+
+  it('carries the known residuals forward instead of quietly dropping them', () => {
+    for (const residual of [
+      'notification.acknowledgement.failed',
+      '24-hour reconcile',
+      'nginx-alpine base',
+      '`linux/amd64` only',
+      'Cosign signing hook is inert',
+      'point-in-time recovery are absent',
+      'edge or global rate limiter',
+      'fonts.googleapis.com',
+      'sanitizer allowlists',
+      'development-only'
+    ]) {
+      expect(notes().toLowerCase()).toContain(residual.toLowerCase());
+    }
+  });
+
+  it('keeps every live-infrastructure item deferred and unchecked', () => {
+    const deferred = notes().slice(notes().indexOf('## Deferred live infrastructure'), notes().indexOf('## Evidence index'));
+    const boxes = [...deferred.matchAll(/^- \[( |x)\]/gm)].map((match) => match[1]);
+
+    expect(boxes.length).toBeGreaterThan(8);
+    // A ticked box here would be a live claim nothing in this repository can support.
+    expect(boxes.every((box) => box === ' ')).toBe(true);
+    for (const item of ['registry', 'public domain', 'oauth', 'deliverability', 'recovery objectives', 'cutover']) {
+      expect(deferred.toLowerCase()).toContain(item);
+    }
+  });
+
+  it('never presents a local rehearsal as a live validation', () => {
+    expect(notes()).toMatch(/not\b[^.]*a recovery objective/i);
+    expect(notes()).toContain('nothing here validates a live provider');
+  });
+
+  it('is reachable from the entry-point documents', () => {
+    for (const document of ['README.md', 'DEPLOYMENT.md', 'docs/OPERATIONS.md']) {
+      expect(read(document)).toContain('RELEASE_NOTES_V1.md');
+    }
+  });
+});
+
 describe('registry-neutral release build', () => {
   it('exposes the ops commands from package.json', () => {
     const manifest = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
 
-    for (const script of ['images:build', 'images:verify', 'images:scan', 'release:rehearsal', 'backup:rehearsal', 'acceptance:matrix']) {
+    for (const script of ['images:build', 'images:verify', 'images:scan', 'release:preflight', 'release:candidate', 'release:rehearsal', 'backup:rehearsal', 'acceptance:matrix']) {
       expect(manifest.scripts[script]).toBeTruthy();
     }
   });

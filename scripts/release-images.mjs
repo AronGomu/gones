@@ -60,7 +60,19 @@ export function dockerSocket() {
   return host.startsWith('unix://') ? host.slice('unix://'.length) : '/var/run/docker.sock';
 }
 
+/**
+ * The source revision an artifact was built from.
+ *
+ * A working tree with uncommitted changes is marked `-dirty` (C44): an artifact built from it is not
+ * the commit it names, and provenance that quietly rounds that off is worse than no provenance. The
+ * release preflight compares this to the same value, so a candidate is only ever accepted while its
+ * artifacts and its source agree — rebuilding on the committed terminal SHA is what clears the mark.
+ */
 export function gitRevision() {
   const result = run('git', ['rev-parse', 'HEAD']);
-  return result.status === 0 ? result.stdout.trim() : 'unknown';
+  if (result.status !== 0) return 'unknown';
+  const revision = result.stdout.trim();
+  const status = run('git', ['status', '--porcelain']);
+  const dirty = status.status === 0 && status.stdout.trim().length > 0;
+  return dirty ? `${revision}-dirty` : revision;
 }
