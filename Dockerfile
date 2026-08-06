@@ -11,41 +11,42 @@ ENV CYPRESS_INSTALL_BINARY=0
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# The data authority is declared, never inferred (ADR 0019). Defaults reproduce the frozen legacy
-# static build; a server-mode image must pass the mode AND the API base URL explicitly.
+# The data authority is declared, never inferred (ADR 0020). `server` is the only mode; the default
+# origin is the local Compose API, and any other deployment passes its own API base URL.
 FROM dependencies AS development
-ARG GONES_FRONTEND_DATA_MODE=legacy-browser
-ARG GONES_FRONTEND_AUTH_V1=false
-ARG GONES_FRONTEND_ADMIN_V1=false
-ARG GONES_FRONTEND_API_BASE_URL=
+ARG GONES_FRONTEND_DATA_MODE=server
+ARG GONES_FRONTEND_AUTH_V1=true
+ARG GONES_FRONTEND_ADMIN_V1=true
+ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
 COPY --chown=node:node . .
-RUN sed -i "s/dataMode: 'legacy-browser'/dataMode: '${GONES_FRONTEND_DATA_MODE}'/" src/environments/environment.ts \
-    && sed -i "s/authV1: false/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.ts \
-    && sed -i "s/adminV1: false/adminV1: ${GONES_FRONTEND_ADMIN_V1}/" src/environments/environment.ts \
-    && sed -i "s|apiBaseUrl: ''|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.ts \
+RUN sed -i "s/dataMode: '[^']*'/dataMode: '${GONES_FRONTEND_DATA_MODE}'/" src/environments/environment.ts \
+    && sed -i "s/authV1: \(true\|false\)/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.ts \
+    && sed -i "s/adminV1: \(true\|false\)/adminV1: ${GONES_FRONTEND_ADMIN_V1}/" src/environments/environment.ts \
+    && sed -i "s|apiBaseUrl: '[^']*'|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.ts \
     && node scripts/check-frontend-data-authority.mjs src/environments/environment.ts
 USER node
 EXPOSE 4200
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# The container has no Docker socket, and Compose already started the API — serve directly.
+CMD ["npm", "run", "dev:serve", "--", "--host", "0.0.0.0"]
 
 FROM dependencies AS build
-ARG GONES_FRONTEND_DATA_MODE=legacy-browser
-ARG GONES_FRONTEND_AUTH_V1=false
-ARG GONES_FRONTEND_ADMIN_V1=false
-ARG GONES_FRONTEND_API_BASE_URL=
+ARG GONES_FRONTEND_DATA_MODE=server
+ARG GONES_FRONTEND_AUTH_V1=true
+ARG GONES_FRONTEND_ADMIN_V1=true
+ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
 COPY . .
-RUN sed -i "s/dataMode: 'legacy-browser'/dataMode: '${GONES_FRONTEND_DATA_MODE}'/" src/environments/environment.prod.ts \
-    && sed -i "s/authV1: false/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.prod.ts \
-    && sed -i "s/adminV1: false/adminV1: ${GONES_FRONTEND_ADMIN_V1}/" src/environments/environment.prod.ts \
-    && sed -i "s|apiBaseUrl: ''|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.prod.ts \
+RUN sed -i "s/dataMode: '[^']*'/dataMode: '${GONES_FRONTEND_DATA_MODE}'/" src/environments/environment.prod.ts \
+    && sed -i "s/authV1: \(true\|false\)/authV1: ${GONES_FRONTEND_AUTH_V1}/" src/environments/environment.prod.ts \
+    && sed -i "s/adminV1: \(true\|false\)/adminV1: ${GONES_FRONTEND_ADMIN_V1}/" src/environments/environment.prod.ts \
+    && sed -i "s|apiBaseUrl: '[^']*'|apiBaseUrl: '${GONES_FRONTEND_API_BASE_URL}'|" src/environments/environment.prod.ts \
     && node scripts/check-frontend-data-authority.mjs src/environments/environment.prod.ts \
     && npm run build
 
 FROM ${NGINX_IMAGE} AS release
-ARG GONES_FRONTEND_DATA_MODE=legacy-browser
-ARG GONES_FRONTEND_AUTH_V1=false
-ARG GONES_FRONTEND_ADMIN_V1=false
-ARG GONES_FRONTEND_API_BASE_URL=
+ARG GONES_FRONTEND_DATA_MODE=server
+ARG GONES_FRONTEND_AUTH_V1=true
+ARG GONES_FRONTEND_ADMIN_V1=true
+ARG GONES_FRONTEND_API_BASE_URL=http://127.0.0.1:5080
 ARG GONES_IMAGE_REVISION=unknown
 ARG GONES_IMAGE_CREATED=1970-01-01T00:00:00Z
 LABEL org.opencontainers.image.title="gones-frontend" \

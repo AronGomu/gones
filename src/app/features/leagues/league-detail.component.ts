@@ -58,7 +58,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           }
         </div>
       </section>
-      @if (!canManage() && repo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+      @if (!canManage()) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       @if (stale()) { <button type="button" class="secondary-action" data-cy="league-reload" (click)="load()">{{ i18n.t('leagues.reloadLatest') }}</button> }
 
     } @else if (!loading()) {
@@ -78,7 +78,7 @@ export class LeagueDetailComponent {
   readonly titleEditing = signal(false);
   readonly error = signal('');
   readonly stale = signal(false);
-  readonly canManage = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
+  readonly canManage = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
   leagueNameDraft = '';
   readonly result = computed(() => calculateLeagueResult(this.league()!));
   readonly sortedTournaments = computed(() => [...(this.league()?.tournaments ?? [])].sort((a, b) => (b.tournamentDate || '9999-12-31').localeCompare(a.tournamentDate || '9999-12-31') || b.name.localeCompare(a.name)));

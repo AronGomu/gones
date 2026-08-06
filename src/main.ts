@@ -19,9 +19,9 @@ import { environment } from './environments/environment';
 const routeScrollOffset: [number, number] = [0, 128];
 
 /**
- * The declared data authority is resolved before anything else boots. A build whose declared mode
- * cannot be satisfied — unknown mode, server mode without an API base URL, a legacy build carrying
- * a server capability — refuses to start instead of falling back to the browser store (ADR 0019).
+ * The declared data authority is resolved before anything else boots. A build whose declaration
+ * cannot be satisfied — an unknown mode (the retired `legacy-browser` included), no API base URL,
+ * admin without auth — refuses to start rather than running with no authority at all (ADR 0020).
  */
 function renderDataAuthorityFailure(error: DataAuthorityConfigurationError): void {
   const message = document.createElement('p');
@@ -72,7 +72,7 @@ async function startGones(): Promise<void> {
         // The routed capability surface follows the resolved authority, injected value included —
         // never the compiled-in defaults, or a runtime declaration could enable a route the
         // authority decision refused.
-        buildRoutes(authority.mode, { authV1: authority.authV1, adminV1: authority.adminV1 }),
+        buildRoutes({ authV1: authority.authV1, adminV1: authority.adminV1 }),
         withComponentInputBinding(),
         withInMemoryScrolling({ anchorScrolling: 'enabled', scrollPositionRestoration: 'enabled' }),
         withNavigationErrorHandler(routeErrorBoundary)

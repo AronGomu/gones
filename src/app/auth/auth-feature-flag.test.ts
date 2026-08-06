@@ -3,16 +3,23 @@ import { describe, expect, it } from 'vitest';
 import { environment } from '../../environments/environment';
 import { buildRoutes } from '../app.routes';
 
-describe('authV1 feature flag', () => {
-  it('ships the repository default as the frozen legacy build with auth disabled', () => {
-    expect(environment.dataMode).toBe('legacy-browser');
-    expect(environment.features.authV1).toBe(false);
-    expect(environment.features.adminV1).toBe(false);
-    expect(environment.apiBaseUrl).toBe('');
+describe('repository default build', () => {
+  it('ships the modern API-connected declaration, not a browser-store one', () => {
+    expect(environment.dataMode).toBe('server');
+    expect(environment.apiBaseUrl).not.toBe('');
+    expect(environment.features.authV1).toBe(true);
+    expect(environment.features.adminV1).toBe(true);
   });
 
-  it('keeps auth routes absent when disabled', () => {
-    const paths = buildRoutes(environment.dataMode, environment.features).map((route) => route.path);
+  it('routes the auth surface by default', () => {
+    const paths = buildRoutes(environment.features).map((route) => route.path);
+
+    expect(paths).toContain('login');
+    expect(paths).toContain('profile');
+  });
+
+  it('keeps auth routes absent when the capability is disabled', () => {
+    const paths = buildRoutes({ authV1: false, adminV1: false }).map((route) => route.path);
 
     expect(paths.some((path) => path === 'login' || path === 'profile')).toBe(false);
   });

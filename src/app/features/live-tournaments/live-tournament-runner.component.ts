@@ -19,7 +19,7 @@ import { AuthService } from '../../auth/auth.service';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { canManageLive, liveCommandError } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
-import { activeLivePlayers, autoLiveSwissRoundCount, cancelCurrentSwissRound, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, createLiveTournamentPlayer, currentLiveRound, currentRoundComplete, generateNextSwissRound, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, restoreLiveTournamentCheckpoint, unpaidActivePlayers, validateCurrentSwissRound } from '../../domain/live-tournament';
+import { activeLivePlayers, autoLiveSwissRoundCount, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, currentLiveRound, currentRoundComplete, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, unpaidActivePlayers } from '../../domain/live-tournament';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, trimPlayerName } from '../../domain/models';
 import { collectKnownPlayerNames, suggestPlayerNames } from '../../domain/player-stats';
 import { logBoundaryError } from '../../shared/app-logger';
@@ -235,7 +235,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   readonly stale = signal(false);
   private readonly auth = inject(AuthService);
   private readonly onlineStatus = inject(OnlineStatusService);
-  readonly canManage = computed(() => canManageLive(this.liveRepo.serverMode, this.auth.profile()?.globalRole));
+  readonly canManage = computed(() => canManageLive(this.auth.profile()?.globalRole));
   readonly readOnly = computed(() => !this.canManage());
   private saving = false;
   private pendingSave = false;
@@ -427,12 +427,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     }
     this.error.set('');
     this.newPlayerName = '';
-    if (this.liveRepo.serverMode) {
-      this.queueIntent(`add:${++this.addSequence}`, () => this.liveRepo.addLivePlayer(live.id, this.serverVersion, { name, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' }));
-    } else {
-      const player = createLiveTournamentPlayer({ name });
-      this.update((current) => this.withAutomaticRoundCount({ ...current, players: [player, ...current.players] }));
-    }
+    this.queueIntent(`add:${++this.addSequence}`, () => this.liveRepo.addLivePlayer(live.id, this.serverVersion, { name, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' }));
     this.focusNewPlayerNameInput();
   }
 
@@ -445,14 +440,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     if (!live || !this.canEditStanding(live, roundNumber)) return;
     const name = this.nextLatePlayerName(live);
     this.error.set('');
-    if (this.liveRepo.serverMode) {
-      this.queueIntent(`add:${++this.addSequence}`, () => this.liveRepo.addLivePlayer(live.id, this.serverVersion, { name, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' }));
-      return;
-    }
-    this.update((current) => ({
-      ...current,
-      players: [...current.players, createLiveTournamentPlayer({ name })]
-    }));
+    this.queueIntent(`add:${++this.addSequence}`, () => this.liveRepo.addLivePlayer(live.id, this.serverVersion, { name, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' }));
   }
 
   updateStandingPlayerRecord(playerId: string, field: 'initialWins' | 'initialDraws' | 'initialLosses', value: unknown): void {
@@ -474,19 +462,12 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       }
     }).afterClosed());
     if (!confirmed) return;
+    if (!live) return;
     if (deleteInsteadOfDrop) {
-      if (this.liveRepo.serverMode && live) {
-        await this.runExclusive((version) => this.liveRepo.removeLivePlayer(live.id, row.playerId, version));
-        return;
-      }
-      this.removeStandingPlayer(row.playerId);
+      await this.runExclusive((version) => this.liveRepo.removeLivePlayer(live.id, row.playerId, version));
       return;
     }
-    if (this.liveRepo.serverMode && live) {
-      await this.runExclusive((version) => this.liveRepo.dropLivePlayer(live.id, row.playerId, version));
-      return;
-    }
-    this.updatePlayer(row.playerId, { dropped: true });
+    await this.runExclusive((version) => this.liveRepo.dropLivePlayer(live.id, row.playerId, version));
   }
 
   updatePlayer(playerId: string, patch: Partial<LiveTournamentPlayerDocument>): void {
@@ -503,7 +484,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       const updatedRounds = nextName === null || nextName === oldName ? live.rounds : this.renameRoundEntries(live.rounds, oldName, nextName);
       return this.withAutomaticRoundCount({ ...live, players: updatedPlayers, rounds: updatedRounds });
     });
-    if (!this.liveRepo.serverMode || this.tournament() === before) return;
+    if (this.tournament() === before) return;
     if ('paid' in patch) {
       this.queueIntent(`paid:${playerId}`, () => {
         const live = this.tournament();
@@ -530,65 +511,36 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       }
     }).afterClosed());
     if (!confirmed) return;
-    if (this.liveRepo.serverMode) {
-      await this.runExclusive((version) => this.liveRepo.removeLivePlayer(live.id, playerId, version));
-      return;
-    }
-    this.removePlayer(playerId);
-  }
-
-  private removePlayer(playerId: string): void {
-    this.update((live) => live.stage === 'registration'
-      ? this.withAutomaticRoundCount({ ...live, players: live.players.filter((player) => player.id !== playerId) })
-      : live);
+    await this.runExclusive((version) => this.liveRepo.removeLivePlayer(live.id, playerId, version));
   }
 
   async startTournament(): Promise<void> {
     const live = this.tournament();
     if (!live || !(await this.confirmWarnings(this.i18n.t('live.startTournamentQ'), this.startWarnings(live), this.i18n.t('live.startTournament')))) return;
-    if (this.liveRepo.serverMode) {
-      await this.runExclusive((version) => this.liveRepo.startLiveRound(live.id, version));
-      return;
-    }
-    this.update((current) => generateNextSwissRound(this.withAutomaticRoundCount(current)));
+    await this.runExclusive((version) => this.liveRepo.startLiveRound(live.id, version));
   }
 
   async generateNextRound(): Promise<void> {
     const live = this.tournament();
     if (!live || !(await this.confirmWarnings(this.i18n.t('live.generateNextQ'), this.nextRoundWarnings(live), this.i18n.t('live.generateRoundConfirm')))) return;
-    if (this.liveRepo.serverMode) {
-      await this.runExclusive((version) => this.liveRepo.startLiveRound(live.id, version));
-      return;
-    }
-    this.update((current) => generateNextSwissRound(this.withAutomaticRoundCount(current)));
+    await this.runExclusive((version) => this.liveRepo.startLiveRound(live.id, version));
   }
 
   cancelRound(): void {
     const live = this.tournament();
-    if (this.liveRepo.serverMode) {
-      if (live && live.stage === 'round') void this.runExclusive((version) => this.liveRepo.cancelLiveRound(live.id, version));
-      return;
-    }
-    this.update((current) => current.stage === 'round' ? cancelCurrentSwissRound(current) : current);
+    if (live && live.stage === 'round') void this.runExclusive((version) => this.liveRepo.cancelLiveRound(live.id, version));
   }
 
   async validateRound(): Promise<void> {
     const live = this.tournament();
     if (!live || live.stage !== 'round' || this.validateRoundIssue(live)) return;
     if (!(await this.confirmWarnings(this.i18n.t('live.validateRoundQ'), this.validateRoundWarnings(live), this.i18n.t('live.validateRoundConfirm')))) return;
-    if (this.liveRepo.serverMode) {
-      await this.runExclusive((version) => this.liveRepo.validateLiveRound(live.id, version));
-      return;
-    }
-    this.update((current) => current.stage === 'round' ? validateCurrentSwissRound(current) : current);
+    await this.runExclusive((version) => this.liveRepo.validateLiveRound(live.id, version));
   }
+
   restoreCheckpoint(checkpoint: LiveTournamentCheckpointDocument): void {
     const live = this.tournament();
-    if (this.liveRepo.serverMode) {
-      if (live && this.canRestoreCheckpoint(live, checkpoint)) void this.runExclusive((version) => this.liveRepo.restoreLiveCheckpoint(live.id, checkpoint.id, version));
-      return;
-    }
-    this.update((current) => this.canRestoreCheckpoint(current, checkpoint) ? restoreLiveTournamentCheckpoint(current, checkpoint.id) : current);
+    if (live && this.canRestoreCheckpoint(live, checkpoint)) void this.runExclusive((version) => this.liveRepo.restoreLiveCheckpoint(live.id, checkpoint.id, version));
   }
 
   adjustMatchScore(roundId: string, entry: Extract<RoundEntry, { kind: 'match' }>, field: 'player1Score' | 'player2Score', delta: -1 | 1): void {
@@ -613,36 +565,34 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
         ? { ...live, stage: 'standings', currentRoundNumber: editedRound.roundNumber, rounds, checkpoints: this.pruneCheckpointsAfterEditedRound(live, editedRound.roundNumber) }
         : { ...live, rounds };
     });
-    if (this.liveRepo.serverMode && this.tournament() !== before) this.queueScoreIntent(roundId, entry.id);
+    if (this.tournament() !== before) this.queueScoreIntent(roundId, entry.id);
   }
 
   /**
-   * Atomic finalization through the Live backend port: the server (or the local store, flag off)
-   * archives the finished Live Tournament into its League and tombstones the live document in one
-   * command; the runner only navigates to the resulting Result page.
+   * Atomic finalization through the Live backend port: the server archives the finished Live
+   * Tournament into its League and tombstones the live document in one command; the runner only
+   * navigates to the resulting Result page.
    */
   async finalize(): Promise<void> {
     const live = this.tournament();
     if (!live || this.finalizing() || this.readOnly()) return;
     if (!(await this.confirmWarnings(this.i18n.t('live.archiveQ'), this.finalizeWarnings(live), this.i18n.t('live.archiveTournament')))) return;
-    if (this.liveRepo.serverMode && !this.requireOnline()) return;
+    if (!this.requireOnline()) return;
     this.finalizing.set(true);
     try {
-      if (this.liveRepo.serverMode) await this.flushIntents();
-      else await this.waitForSaveIdle();
+      await this.flushIntents();
       const latestLive = this.tournament();
       if (!latestLive) return;
-      const version = this.liveRepo.serverMode ? this.serverVersion : latestLive.documentVersion;
+      const version = this.serverVersion;
       const result = await this.liveRepo.finalizeLiveTournament(latestLive.id, version);
       await this.router.navigate(['/leagues', result.leagueId, 'tournaments', result.finalizedTournamentId]);
     } catch (error) {
       logBoundaryError('live-tournament.finalize', error, { liveTournamentId: live.id, leagueId: live.leagueId });
-      if (this.liveRepo.serverMode && liveCommandError(error) === 'stale') {
+      if (liveCommandError(error) === 'stale') {
         this.stale.set(true);
         this.error.set(this.i18n.t('live.staleDocument'));
       } else {
         this.error.set(error instanceof Error && error.message === 'leagueNotFound' ? this.i18n.t('live.leagueNotFound') : this.i18n.t('live.finalizeFailed'));
-        if (!this.liveRepo.serverMode) await this.resyncTournament();
       }
     } finally {
       this.finalizing.set(false);
@@ -650,8 +600,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   }
 
   saveDraft(): void {
-    if (this.liveRepo.serverMode) { void this.flushIntents(); return; }
-    void this.persist();
+    void this.flushIntents();
   }
 
   private startWarnings(live: LiveTournamentDocument): string[] {
@@ -698,7 +647,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       if (!result) return;
       const before = this.tournament();
       this.update((current) => this.withAutomaticRoundCount({ ...current, ...result }));
-      if (!this.liveRepo.serverMode || !before || this.tournament() === before) return;
+      if (!before || this.tournament() === before) return;
       this.queueSettingsIntent();
       for (const player of result.players) {
         const previous = before.players.find((item) => item.id === player.id);
@@ -781,11 +730,9 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     this.tournament.set(updated);
     this.tournamentNameDraft = updated.name;
     window.dispatchEvent(new CustomEvent('gones-live-tournament-updated', { detail: { liveTournamentId: updated.id, name: updated.name } }));
-    if (!this.liveRepo.serverMode) void this.persist();
   }
 
   private queueSettingsIntent(): void {
-    if (!this.liveRepo.serverMode) return;
     this.debounceIntent('settings', () => {
       const live = this.tournament();
       if (!live) return Promise.reject(new Error('liveTournamentNotFound'));
@@ -829,7 +776,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   /** Debounce a coalescing intent: a newer edit for the same key replaces the not-yet-sent one. */
   private debounceIntent(key: string, run: () => Promise<LiveTournamentDocument>, delay = 400): void {
-    if (!this.liveRepo.serverMode || this.readOnly()) return;
+    if (this.readOnly()) return;
     const existing = this.debouncedIntents.get(key);
     if (existing) clearTimeout(existing.timer);
     const timer = setTimeout(() => {
@@ -841,7 +788,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   /** Latest write per key wins; commands run one at a time and never queue while offline. */
   private queueIntent(key: string, run: () => Promise<LiveTournamentDocument>): void {
-    if (!this.liveRepo.serverMode || this.readOnly() || !this.requireOnline()) return;
+    if (this.readOnly() || !this.requireOnline()) return;
     this.queuedIntents.set(key, run);
     void this.pumpIntents();
   }
@@ -876,7 +823,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   /** Pending lock for structural commands: one server command at a time, no optimistic apply. */
   private async runExclusive(run: (version: number) => Promise<LiveTournamentDocument>): Promise<void> {
-    if (!this.liveRepo.serverMode || this.readOnly() || this.pendingCommand()) return;
+    if (this.readOnly() || this.pendingCommand()) return;
     if (!this.requireOnline()) return;
     this.pendingCommand.set(true);
     try {
@@ -978,28 +925,6 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     return round.entries.flatMap((item) => item.entry.kind === 'match' && liveMatchScoreIssue(item.entry) ? [item.entry.table] : []);
   }
 
-  private async waitForSaveIdle(): Promise<void> {
-    while (this.saving || this.pendingSave) await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-
-  private async persist(): Promise<void> {
-    if (this.saving) { this.pendingSave = true; return; }
-    const live = this.tournament();
-    if (!live) return;
-    this.saving = true;
-    this.pendingSave = false;
-    try {
-      const saved = await this.liveRepo.save(live);
-      const latest = this.tournament();
-      this.tournament.set(latest && latest.id === saved.id ? { ...latest, documentVersion: saved.documentVersion, updatedAt: saved.updatedAt } : saved);
-      window.dispatchEvent(new CustomEvent('gones-live-tournament-updated', { detail: { liveTournamentId: saved.id, name: saved.name } }));
-    }
-    catch (error) { logBoundaryError('live-tournament.save', error, { liveTournamentId: live.id }); this.error.set(this.i18n.t('live.saveFailed')); }
-    finally {
-      this.saving = false;
-      if (this.pendingSave) void this.persist();
-    }
-  }
 }
 
 interface LiveTournamentAdvancedSettingsDialogData {

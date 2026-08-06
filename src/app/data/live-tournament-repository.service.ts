@@ -1,23 +1,15 @@
 import { Inject, Injectable } from '@angular/core';
-import { dataAuthority } from '../config/data-authority';
-import { ApplicationBackend, LEGACY_BROWSER_BACKEND, LIVE_BACKEND, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, requireLegacyBrowserStore } from '../backend/application-backend';
+import { LIVE_BACKEND, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand } from '../backend/application-backend';
 import { LiveTournamentDocument } from '../domain/live-tournament';
 
 /**
- * Facade over the authority-bound Live Tournament backend port. Under the legacy browser authority
- * it keeps the per-browser store (whole-document saves); under the server authority every mutation
- * is an explicit server intent command guarded by the document version (If-Match ETag), and the
- * whole-document path is not injected at all.
+ * Facade over the Live Tournament backend port. Every mutation is an explicit server intent command
+ * guarded by the document version (If-Match ETag); the whole-document save path went with the
+ * browser store (ADR 0020).
  */
 @Injectable({ providedIn: 'root' })
 export class LiveTournamentRepository {
-  readonly serverMode = dataAuthority().serverAuthority;
-
-  constructor(
-    @Inject(LIVE_BACKEND) private readonly backend: LiveBackendPort,
-    /** Whole-document browser store; null whenever the build declares the server authority. */
-    @Inject(LEGACY_BROWSER_BACKEND) private readonly legacyBrowserStore: ApplicationBackend | null = null
-  ) {}
+  constructor(@Inject(LIVE_BACKEND) private readonly backend: LiveBackendPort) {}
 
   async list(): Promise<LiveTournamentDocument[]> {
     return this.backend.listLiveTournaments();
@@ -29,11 +21,6 @@ export class LiveTournamentRepository {
 
   async create(): Promise<LiveTournamentDocument> {
     return this.backend.createLiveTournament(todayDateInputValue());
-  }
-
-  /** Legacy-only whole-document save; rejects under the server authority. */
-  async save(tournament: LiveTournamentDocument): Promise<LiveTournamentDocument> {
-    return requireLegacyBrowserStore(this.legacyBrowserStore, 'liveWholeDocumentSaveDisabled').saveLiveTournament(tournament);
   }
 
   async delete(id: string): Promise<void> {

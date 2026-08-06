@@ -9,7 +9,7 @@ import {
   resolveDataAuthority
 } from './data-authority';
 
-const legacyInput = {
+const retiredLegacyInput = {
   dataMode: 'legacy-browser',
   apiBaseUrl: '',
   features: { authV1: false, adminV1: false }
@@ -32,17 +32,8 @@ function code(run: () => unknown): string {
 }
 
 describe('data authority mode', () => {
-  it('exposes exactly two explicit modes', () => {
-    expect([...DATA_MODES]).toEqual(['legacy-browser', 'server']);
-  });
-
-  it('resolves the legacy browser authority with no server capability', () => {
-    const authority = resolveDataAuthority(legacyInput);
-
-    expect(authority.mode).toBe('legacy-browser');
-    expect(authority.legacyBrowserAuthority).toBe(true);
-    expect(authority.serverAuthority).toBe(false);
-    expect(authority.apiBaseUrl).toBe('');
+  it('exposes exactly one mode', () => {
+    expect([...DATA_MODES]).toEqual(['server']);
   });
 
   it('resolves the server authority with an API base URL', () => {
@@ -50,17 +41,20 @@ describe('data authority mode', () => {
 
     expect(authority.mode).toBe('server');
     expect(authority.serverAuthority).toBe(true);
-    expect(authority.legacyBrowserAuthority).toBe(false);
     expect(authority.apiBaseUrl).toBe('https://api.example');
   });
 
+  it('rejects the retired legacy-browser mode rather than booting without an authority', () => {
+    expect(code(() => resolveDataAuthority(retiredLegacyInput))).toBe('dataModeUnknown');
+  });
+
   it('never infers a mode: an unknown, empty or auto value fails closed', () => {
-    for (const dataMode of ['', 'auto', 'Server', 'legacy', 'legacy-browser ', 'undefined']) {
-      expect(code(() => resolveDataAuthority({ ...legacyInput, dataMode }))).toBe('dataModeUnknown');
+    for (const dataMode of ['', 'auto', 'Server', 'legacy', 'legacy-browser', 'server ', 'undefined']) {
+      expect(code(() => resolveDataAuthority({ ...serverInput, dataMode }))).toBe('dataModeUnknown');
     }
   });
 
-  it('fails closed when server mode has no API base URL instead of falling back to the browser store', () => {
+  it('fails closed when there is no API base URL instead of booting with no data source', () => {
     expect(code(() => resolveDataAuthority({ ...serverInput, apiBaseUrl: '' }))).toBe('serverModeApiBaseUrlMissing');
     expect(code(() => resolveDataAuthority({ ...serverInput, apiBaseUrl: '   ' }))).toBe('serverModeApiBaseUrlMissing');
   });
@@ -68,18 +62,6 @@ describe('data authority mode', () => {
   it('rejects an Admin capability without auth in server mode', () => {
     expect(code(() => resolveDataAuthority({ ...serverInput, features: { authV1: false, adminV1: true } })))
       .toBe('serverModeAdminRequiresAuth');
-  });
-
-  it('keeps legacy mode frozen: no API base URL may be configured', () => {
-    expect(code(() => resolveDataAuthority({ ...legacyInput, apiBaseUrl: 'https://api.example' })))
-      .toBe('legacyModeApiBaseUrlForbidden');
-  });
-
-  it('keeps legacy mode frozen: no auth or admin capability may be enabled', () => {
-    expect(code(() => resolveDataAuthority({ ...legacyInput, features: { authV1: true, adminV1: false } })))
-      .toBe('legacyModeCapabilityForbidden');
-    expect(code(() => resolveDataAuthority({ ...legacyInput, features: { authV1: true, adminV1: true } })))
-      .toBe('legacyModeCapabilityForbidden');
   });
 
   it('trims no meaning into the base URL and normalizes a trailing slash', () => {
@@ -91,7 +73,7 @@ describe('data authority mode', () => {
 
     expect(Object.isFrozen(authority)).toBe(true);
     expect(() => {
-      (authority as { mode: string }).mode = 'legacy-browser';
+      (authority as { mode: string }).mode = 'anything-else';
     }).toThrow();
   });
 
@@ -107,8 +89,8 @@ describe('data authority mode', () => {
  */
 describe('runtime configuration injection', () => {
   it('keeps the build declaration when the host injects nothing', () => {
-    expect(mergeRuntimeDeclaration(legacyInput, null)).toEqual(legacyInput);
-    expect(mergeRuntimeDeclaration(legacyInput, undefined)).toEqual(legacyInput);
+    expect(mergeRuntimeDeclaration(serverInput, null)).toEqual(serverInput);
+    expect(mergeRuntimeDeclaration(serverInput, undefined)).toEqual(serverInput);
   });
 
   it('lets the host move the same artifact to another origin without rebuilding it', () => {
@@ -121,14 +103,13 @@ describe('runtime configuration injection', () => {
     expect(resolveDataAuthority(merged).apiBaseUrl).toBe('https://served-on.example');
   });
 
-  it('lets the host switch the data mode and the capability flags', () => {
-    const merged = mergeRuntimeDeclaration(legacyInput, {
-      dataMode: 'server',
-      apiBaseUrl: 'https://api.example',
-      features: { authV1: true, adminV1: true }
-    });
+  it('lets the host switch the capability flags', () => {
+    const merged = mergeRuntimeDeclaration(
+      { dataMode: 'server', apiBaseUrl: 'https://api.example', features: { authV1: false, adminV1: false } },
+      { features: { authV1: true, adminV1: true } }
+    );
 
-    expect(resolveDataAuthority(merged).mode).toBe('server');
+    expect(resolveDataAuthority(merged).authV1).toBe(true);
     expect(resolveDataAuthority(merged).adminV1).toBe(true);
   });
 
@@ -145,8 +126,8 @@ describe('runtime configuration injection', () => {
       .toBe('serverModeApiBaseUrlMissing');
     expect(code(() => resolveDataAuthority(mergeRuntimeDeclaration(serverInput, { dataMode: 'auto' }))))
       .toBe('dataModeUnknown');
-    expect(code(() => resolveDataAuthority(mergeRuntimeDeclaration(legacyInput, { apiBaseUrl: 'https://api.example' }))))
-      .toBe('legacyModeApiBaseUrlForbidden');
+    expect(code(() => resolveDataAuthority(mergeRuntimeDeclaration(serverInput, { dataMode: 'legacy-browser' }))))
+      .toBe('dataModeUnknown');
   });
 
   it('rejects a malformed injected document instead of quietly ignoring it', () => {
@@ -156,7 +137,7 @@ describe('runtime configuration injection', () => {
   });
 
   it('fixes the startup decision so every later read sees the injected authority', () => {
-    const configured = configureDataAuthority(mergeRuntimeDeclaration(legacyInput, {
+    const configured = configureDataAuthority(mergeRuntimeDeclaration(serverInput, {
       dataMode: 'server',
       apiBaseUrl: 'https://injected.example/',
       features: { authV1: true, adminV1: true }

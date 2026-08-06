@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { DataAuthorityCapabilityFlags, DataMode } from './config/data-authority';
+import { DataAuthorityCapabilityFlags } from './config/data-authority';
 import { adminGuard, organizerGuard, userGuard } from './auth/auth.guards';
 
 const authRoutes: Routes = [
@@ -35,16 +35,10 @@ const adminRoutes: Routes = [
 ];
 
 /**
- * Legacy mode keeps the browser-store Calendar/Event pages; server mode serves Calendar V1 and
- * redirects the old Event detail path. No build exposes both.
+ * Calendar V1. The browser-store Calendar/Event pages went with the legacy authority (ADR 0020);
+ * the old Event detail path still redirects so existing links keep resolving.
  */
-export function calendarRoutes(mode: DataMode): Routes {
-  if (mode === 'legacy-browser') {
-    return [
-      { path: 'calendar', loadComponent: () => import('./features/menu/calendar.component').then((m) => m.CalendarComponent) },
-      { path: 'events/:slug', loadComponent: () => import('./features/events/event-detail.component').then((m) => m.EventDetailComponent) }
-    ];
-  }
+export function calendarRoutes(): Routes {
   return [
     { path: 'calendar', loadComponent: () => import('./features/calendar/public-calendar.component').then((m) => m.PublicCalendarComponent) },
     { path: 'calendar/tournaments/:slug', loadComponent: () => import('./features/calendar/public-tournament-detail.component').then((m) => m.PublicTournamentDetailComponent) },
@@ -53,18 +47,17 @@ export function calendarRoutes(mode: DataMode): Routes {
 }
 
 /**
- * Route exposure follows the declared data authority. A legacy-browser build never exposes an auth,
- * registration, organizer or admin route, whatever the capability flags claim (ADR 0019).
+ * Route exposure follows the resolved capability flags. The data authority is always the server, so
+ * auth, registration, organizer and admin routes are gated by their own flags alone (ADR 0020).
  */
-export function buildRoutes(mode: DataMode, features: DataAuthorityCapabilityFlags): Routes {
-  const serverAuthority = mode === 'server';
-  const authV1 = serverAuthority && features.authV1;
-  const adminV1 = serverAuthority && features.adminV1;
+export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
+  const authV1 = features.authV1;
+  const adminV1 = features.adminV1;
 
   return [
     { path: '', loadComponent: () => import('./features/menu/home-menu.component').then((m) => m.HomeMenuComponent) },
     { path: 'about', loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
-    ...calendarRoutes(mode),
+    ...calendarRoutes(),
     { path: 'leagues', loadComponent: () => import('./features/leagues/league-list.component').then((m) => m.LeagueListComponent) },
     { path: 'live-tournaments', loadComponent: () => import('./features/live-tournaments/live-tournament-list.component').then((m) => m.LiveTournamentListComponent) },
     { path: 'live-tournaments/new', loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },

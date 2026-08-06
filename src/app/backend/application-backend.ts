@@ -1,8 +1,7 @@
 import { InjectionToken, inject } from '@angular/core';
 import { DataAuthority, dataAuthority } from '../config/data-authority';
 import { LiveTournamentDocument } from '../domain/live-tournament';
-import { CalendarEventDocument, LeagueDocument, LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
-import { LocalFrontendBackend } from './local-frontend-backend.service';
+import { LeagueDocument, LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
 import { AspNetApiBackend } from './aspnet-api-backend.service';
 
 export interface LeagueRestoreCommand {
@@ -44,23 +43,6 @@ export interface LeagueBackendPort {
   renameLeaguePlayerName(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedLeague>;
   restoreLeague(command: LeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague>;
   restoreFullLeagueData(command: FullLeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague[]>;
-}
-
-/**
- * Whole-document League writes. They exist only in the legacy browser store, where the document in
- * `localStorage` *is* the source of truth; the server adapter has no equivalent and never will.
- */
-export interface LegacyLeagueBackendPort extends LeagueBackendPort {
-  saveLeague(league: LeagueDocument, expectedVersion: number): Promise<PersistedLeague>;
-  /** Pre-restored insert. Server restores use restoreLeague/restoreFullLeagueData. */
-  insertLeague(league: LeagueDocument): Promise<PersistedLeague>;
-}
-
-/** Legacy browser CalendarEvent documents. Server mode uses Scheduled Tournaments instead. */
-export interface CalendarEventBackendPort {
-  listCalendarEvents(): Promise<CalendarEventDocument[]>;
-  saveCalendarEvent(event: CalendarEventDocument): Promise<CalendarEventDocument>;
-  deleteCalendarEvent(id: string): Promise<void>;
 }
 
 export interface LiveSettingsCommand {
@@ -112,60 +94,30 @@ export interface LiveBackendPort {
   finalizeLiveTournament(id: string, expectedVersion: number, idempotencyKey?: string): Promise<LiveFinalizeResult>;
 }
 
-/** Whole-document Live writes. Legacy browser store only; the server adapter has no equivalent. */
-export interface LegacyLiveBackendPort extends LiveBackendPort {
-  saveLiveTournament(document: LiveTournamentDocument): Promise<LiveTournamentDocument>;
-}
-
-export type BackendMode = 'frontend-local' | 'aspnet-api';
+export type BackendMode = 'aspnet-api';
 
 /**
- * The complete legacy browser adapter surface: intent commands plus the whole-document and
- * CalendarEvent paths that only ever existed while `localStorage` was the authority.
+ * The API adapter is the only adapter. ADR 0020 removed the browser store, so there is no second
+ * source of truth to bridge to and no whole-document or CalendarEvent write path to expose: every
+ * mutation is an explicit server intent command guarded by the document version (If-Match ETag).
  */
-export interface ApplicationBackend extends LegacyLeagueBackendPort, CalendarEventBackendPort, LegacyLiveBackendPort {
-  readonly mode: BackendMode;
-}
-
-export function resolveLeagueBackendMode(authority: DataAuthority): BackendMode {
-  return authority.serverAuthority ? 'aspnet-api' : 'frontend-local';
-}
-
-export function resolveLiveBackendMode(authority: DataAuthority): BackendMode {
-  return authority.serverAuthority ? 'aspnet-api' : 'frontend-local';
-}
-
-/** The browser store adapter exists only under the legacy authority. */
-export function legacyBrowserBackendAvailable(authority: DataAuthority): boolean {
-  return authority.legacyBrowserAuthority;
+export function resolveBackendMode(authority: DataAuthority): BackendMode {
+  if (!authority.serverAuthority) throw new Error('serverAuthorityRequired');
+  return 'aspnet-api';
 }
 
 export const LEAGUE_BACKEND = new InjectionToken<LeagueBackendPort>('Gones League backend bridge', {
   providedIn: 'root',
-  factory: () => resolveLeagueBackendMode(dataAuthority()) === 'aspnet-api'
-    ? inject(AspNetApiBackend)
-    : inject(LocalFrontendBackend)
+  factory: () => {
+    resolveBackendMode(dataAuthority());
+    return inject(AspNetApiBackend);
+  }
 });
 
 export const LIVE_BACKEND = new InjectionToken<LiveBackendPort>('Gones Live Tournament backend bridge', {
   providedIn: 'root',
-  factory: () => resolveLiveBackendMode(dataAuthority()) === 'aspnet-api'
-    ? inject(AspNetApiBackend)
-    : inject(LocalFrontendBackend)
+  factory: () => {
+    resolveBackendMode(dataAuthority());
+    return inject(AspNetApiBackend);
+  }
 });
-
-/**
- * Legacy-only browser store bridge. It resolves to `null` under the server authority, so a
- * server-mode build has no injectable second, browser-local source of truth at all. Callers that
- * still own a legacy-only path fail closed on the null through `requireLegacyBrowserStore`.
- */
-export const LEGACY_BROWSER_BACKEND = new InjectionToken<ApplicationBackend | null>('Gones legacy browser store bridge', {
-  providedIn: 'root',
-  factory: () => legacyBrowserBackendAvailable(dataAuthority()) ? inject(LocalFrontendBackend) : null
-});
-
-/** Fail closed on a legacy-only path that a server-mode build reached. */
-export function requireLegacyBrowserStore(store: ApplicationBackend | null, code: string): ApplicationBackend {
-  if (!store) throw new Error(code);
-  return store;
-}

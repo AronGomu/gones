@@ -1,22 +1,16 @@
 import { inject, Injectable } from '@angular/core';
-import { dataAuthority } from '../config/data-authority';
-import { ApplicationBackend, LEGACY_BROWSER_BACKEND, LEAGUE_BACKEND, LeagueBackendPort, FullLeagueRestoreCommand, LeagueRestoreCommand, requireLegacyBrowserStore } from '../backend/application-backend';
-import { createPlaceholderLeague, getDefaultTournamentName, isUnassignedLeagueName, LeagueDocument, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
+import { LEAGUE_BACKEND, LeagueBackendPort, FullLeagueRestoreCommand, LeagueRestoreCommand } from '../backend/application-backend';
+import { getDefaultTournamentName, isUnassignedLeagueName, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
 
 @Injectable({ providedIn: 'root' })
 export class LeagueRepository {
   private readonly backend: LeagueBackendPort = inject(LEAGUE_BACKEND);
-  /** Whole-document browser store; null whenever the build declares the server authority. */
-  private readonly legacyBrowserStore: ApplicationBackend | null = inject(LEGACY_BROWSER_BACKEND);
-  readonly serverMode = dataAuthority().serverAuthority;
 
   async listLeagues(): Promise<PersistedLeague[]> {
-    if (!this.serverMode) await this.ensurePlaceholderLeague();
     return this.backend.listLeagues();
   }
 
   async getLeague(id: string): Promise<PersistedLeague | null> {
-    if (!this.serverMode && id === PLACEHOLDER_LEAGUE_ID) await this.ensurePlaceholderLeague();
     return this.backend.getLeague(id);
   }
 
@@ -33,42 +27,18 @@ export class LeagueRepository {
     return this.backend.changeLeagueStatus(league.id, league.documentVersion, status);
   }
 
-  async insertLeague(league: LeagueDocument): Promise<PersistedLeague> {
-    const legacy = this.requireLegacyBrowserStore();
-    if (league.id === PLACEHOLDER_LEAGUE_ID || isUnassignedLeagueName(league.name)) {
-      const existing = await this.ensurePlaceholderLeague();
-      if (!league.tournaments?.length) return existing;
-      const mergedTournaments = [
-        ...existing.tournaments.filter((item) => !league.tournaments.some((incoming) => incoming.id === item.id)),
-        ...league.tournaments.map((tournament) => ({ ...tournament, leagueId: PLACEHOLDER_LEAGUE_ID }))
-      ];
-      return legacy.saveLeague({ ...existing, tournaments: mergedTournaments }, existing.documentVersion);
-    }
-    return legacy.insertLeague(league);
-  }
-
-  async saveLeague(league: LeagueDocument, expectedVersion: number): Promise<PersistedLeague> {
-    return this.requireLegacyBrowserStore().saveLeague(league, expectedVersion);
-  }
-
   async deleteLeague(id: string): Promise<void> {
     if (id === PLACEHOLDER_LEAGUE_ID) throw new Error('placeholderLeagueCannotBeDeleted');
     const league = await this.backend.getLeague(id);
     if (!league) throw new Error('leagueNotFound');
     await this.backend.deleteLeague(id, league.documentVersion);
-    if (!this.serverMode) await this.ensurePlaceholderLeague();
   }
 
+  /** The server seeds the placeholder League; the browser has no way to create one. */
   async ensurePlaceholderLeague(): Promise<PersistedLeague> {
     const existing = await this.backend.getLeague(PLACEHOLDER_LEAGUE_ID);
-    if (existing) return existing;
-    if (this.serverMode) throw new Error('placeholderLeagueMissing');
-    return this.requireLegacyBrowserStore().insertLeague(createPlaceholderLeague());
-  }
-
-  /** Whole-document writes exist only under the legacy browser authority. */
-  private requireLegacyBrowserStore(): ApplicationBackend {
-    return requireLegacyBrowserStore(this.legacyBrowserStore, 'leagueWholeDocumentSaveDisabled');
+    if (!existing) throw new Error('placeholderLeagueMissing');
+    return existing;
   }
 
   async createResultTournament(league: PersistedLeague, name = getDefaultTournamentName(), tournamentDate = ''): Promise<{ league: PersistedLeague; tournament: TournamentDocument }> {
@@ -133,7 +103,6 @@ export class LeagueRepository {
 
   async moveTournament(tournamentId: string, fromLeagueId: string, toLeagueId: string): Promise<{ fromLeague: PersistedLeague; toLeague: PersistedLeague }> {
     const targetLeagueId = toLeagueId || PLACEHOLDER_LEAGUE_ID;
-    if (!this.serverMode) await this.ensurePlaceholderLeague();
     const fromLeague = await this.backend.getLeague(fromLeagueId);
     const toLeague = await this.backend.getLeague(targetLeagueId);
     if (!fromLeague || !toLeague) throw new Error('leagueNotFound');

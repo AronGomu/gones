@@ -180,9 +180,9 @@ services:
       replicas: 1
     restart: unless-stopped
 
-  # The server-mode single-page application (C42/ADR 0019). It shares the published origin with the
-  # API, so the release rehearsal exercises the same artifact a generic host would serve — not the
-  # frozen legacy-browser build. A missing or incoherent data-authority declaration fails the build.
+  # The single-page application (ADR 0020). It shares the published origin with the API, so the
+  # release rehearsal exercises the same artifact a generic host would serve. A missing or
+  # incoherent data-authority declaration fails the build.
   frontend:
     build:
       context: .

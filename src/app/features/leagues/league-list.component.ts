@@ -50,7 +50,7 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
             <h2>{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
             <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
           </button>
-        } @else if (repo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+        } @else { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       </div>
     }
 
@@ -63,7 +63,7 @@ export class LeagueListComponent {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly creating = signal(false);
-  readonly canManage = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
+  readonly canManage = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
   searchTerm = '';
   readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {

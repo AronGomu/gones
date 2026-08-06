@@ -82,9 +82,20 @@ describe('generic host requirements', () => {
     expect(adr).toContain('## Decision');
     expect(adr).toContain('## Consequences');
     for (const deferred of ['domain', 'CDN', 'registry', 'cutover', 'soak']) expect(adr).toContain(deferred);
+  });
+
+  it('records the retirement of the browser data authority, and the docs agree', () => {
+    const adr = read('docs/adr/0020-retire-the-legacy-browser-data-authority.md');
+
+    expect(adr).toContain('## Status');
+    expect(adr).toContain('Supersedes ADR 0019');
+    expect(adr).toContain('## Decision');
+    expect(adr).toContain('## Consequences');
+    // The one-way door has to be written down where an operator will meet it.
+    expect(adr).toContain('no longer any way to produce a migration bundle');
 
     for (const document of ['README.md', 'DEPLOYMENT.md', 'CONTEXT.md']) {
-      expect(read(document)).toContain('legacy-browser');
+      expect(read(document)).toContain('ADR 0020');
     }
   });
 });

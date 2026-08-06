@@ -3,8 +3,9 @@ import { ApiProblemError } from '../api/api-boundary';
 export type GlobalRole = 'User' | 'Organizer' | 'Admin' | string;
 export type LeagueCommandError = 'forbidden' | 'stale' | 'failed';
 
-export function canManageLeagues(serverMode: boolean, role: GlobalRole | null | undefined): boolean {
-  return !serverMode || role === 'Organizer' || role === 'Admin';
+/** The server owns League data, so managing it is a role question only (ADR 0020). */
+export function canManageLeagues(role: GlobalRole | null | undefined): boolean {
+  return role === 'Organizer' || role === 'Admin';
 }
 
 export function leagueCommandError(error: unknown): LeagueCommandError {

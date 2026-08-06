@@ -3,18 +3,10 @@ import type { GlobalRole } from '../../data/league-command-ux';
 export interface SettingsFeatureFlags {
   authV1: boolean;
   adminV1: boolean;
-  /** True when the API database owns League/Live/Calendar data (ADR 0019). */
-  serverAuthority: boolean;
 }
 
-/** Which Settings sections are available for the current data authority and viewer role. */
+/** Which Settings sections are available for the current viewer role. */
 export interface SettingsCapabilities {
-  /** Local (browser) Deck Archetype catalog mutation. Legacy authority only. */
-  localArchetypeMutation: boolean;
-  /** Local (browser) Player rename over local league documents. Legacy authority only. */
-  localPlayerRename: boolean;
-  /** Private migration-bundle export for the future cutover. Legacy authority only. */
-  migrationBundleExport: boolean;
   /** Admin-only global Deck Archetype catalog CRUD + import. */
   adminCatalog: boolean;
   /** Organizer/Admin Player Name search + rename over the shared League source. */
@@ -25,14 +17,16 @@ export interface SettingsCapabilities {
   orgNotifications: boolean;
 }
 
+/**
+ * The API database owns League, Live and Calendar data, so there are no browser-local Settings
+ * sections left: the local Deck Archetype catalog, the local Player rename and the migration-bundle
+ * export all went with the browser store (ADR 0020).
+ */
 export function settingsCapabilities(flags: SettingsFeatureFlags, role: GlobalRole | null | undefined): SettingsCapabilities {
   const signedIn = flags.authV1 && role != null;
   return {
-    localArchetypeMutation: !flags.serverAuthority,
-    localPlayerRename: !flags.serverAuthority,
-    migrationBundleExport: !flags.serverAuthority,
-    adminCatalog: flags.serverAuthority && flags.adminV1 && role === 'Admin',
-    organizerMaintenance: flags.serverAuthority && (role === 'Organizer' || role === 'Admin'),
+    adminCatalog: flags.adminV1 && role === 'Admin',
+    organizerMaintenance: role === 'Organizer' || role === 'Admin',
     profileLink: signedIn,
     orgNotifications: signedIn && flags.adminV1
   };

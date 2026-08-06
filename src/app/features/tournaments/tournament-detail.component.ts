@@ -168,7 +168,7 @@ import { I18nService } from '../../i18n/i18n.service';
           } @else { <p class="empty">{{ i18n.t('tournament.noPlayersYet') }}</p> }
         </mat-expansion-panel>
       </section>
-      @if (!canManage() && repo.serverMode) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+      @if (!canManage()) { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       @if (stale()) { <button type="button" class="secondary-action" data-cy="tournament-reload" (click)="reloadLatest()">{{ i18n.t('leagues.reloadLatest') }}</button> }
     } @else if (!loading()) { <mat-card class="panel"><mat-card-title>{{ i18n.t('tournament.notFoundTitle') }}</mat-card-title><mat-card-content><p>{{ i18n.t('tournament.notFoundBody') }}</p></mat-card-content></mat-card> }
     @if (!loading()) { <gones-back-button [link]="leagueBackLink()" [label]="i18n.t('nav.backToLeague')" position="bottom" /> }
@@ -190,7 +190,7 @@ export class TournamentDetailComponent {
   readonly error = signal('');
   readonly stale = signal(false);
   readonly importErrors = signal<string[]>([]);
-  readonly canManage = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
+  readonly canManage = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
   readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);

@@ -1,22 +1,19 @@
 import { environment } from '../../environments/environment';
 
 /**
- * C42 — explicit legacy versus server data authority.
+ * The data authority. Superseded C42's legacy-versus-server pair: the browser store authority is
+ * gone, so `server` is the only mode there is (ADR 0020).
  *
- * There is exactly one data authority per build and it is declared, never inferred:
+ * The API database is the single authority. The browser keeps language, view, filter and public
+ * read cache only; it never holds canonical source data, and there is no adapter that could.
  *
- * - `legacy-browser` — the frozen static deployment. Browser `localStorage` owns League, Live and
- *   CalendarEvent source data. No API base URL, no auth, no admin, no Calendar V1 server surface.
- *   Kept only so the existing static site keeps working and can export its migration bundle.
- * - `server` — the API database is the single authority. The browser keeps language, view, filter
- *   and public read cache only; it never holds canonical source data.
- *
- * There is no third state and no fallback: a build that cannot satisfy its declared mode fails
- * closed at startup rather than silently degrading to the browser store. The decision is resolved
- * once and memoized, so nothing can switch authority while the app is running.
+ * The declaration is kept — rather than assumed — so a host that still injects the retired
+ * `legacy-browser` value at container start fails closed at startup with `dataModeUnknown` instead
+ * of being silently served a build that means something else. The decision is resolved once and
+ * memoized, so nothing can switch authority while the app is running.
  */
 
-export const DATA_MODES = ['legacy-browser', 'server'] as const;
+export const DATA_MODES = ['server'] as const;
 
 export type DataMode = (typeof DATA_MODES)[number];
 
@@ -24,8 +21,6 @@ export type DataAuthorityErrorCode =
   | 'dataModeUnknown'
   | 'serverModeApiBaseUrlMissing'
   | 'serverModeAdminRequiresAuth'
-  | 'legacyModeApiBaseUrlForbidden'
-  | 'legacyModeCapabilityForbidden'
   | 'runtimeConfigurationInvalid';
 
 export interface DataAuthorityCapabilityFlags {
@@ -41,9 +36,9 @@ export interface DataAuthorityInput {
 
 export interface DataAuthority {
   readonly mode: DataMode;
+  /** Always true. Kept so call sites read as an assertion about the authority, not about a flag. */
   readonly serverAuthority: boolean;
-  readonly legacyBrowserAuthority: boolean;
-  /** Empty in legacy mode; a normalized absolute origin in server mode. */
+  /** A normalized absolute origin. Never empty — an empty one fails the build closed. */
   readonly apiBaseUrl: string;
   readonly authV1: boolean;
   readonly adminV1: boolean;
@@ -67,18 +62,12 @@ export function resolveDataAuthority(input: DataAuthorityInput): DataAuthority {
   const apiBaseUrl = input.apiBaseUrl.trim().replace(/\/+$/, '');
   const { authV1, adminV1 } = input.features;
 
-  if (input.dataMode === 'server') {
-    if (!apiBaseUrl) throw new DataAuthorityConfigurationError('serverModeApiBaseUrlMissing');
-    if (adminV1 && !authV1) throw new DataAuthorityConfigurationError('serverModeAdminRequiresAuth');
-  } else {
-    if (apiBaseUrl) throw new DataAuthorityConfigurationError('legacyModeApiBaseUrlForbidden');
-    if (authV1 || adminV1) throw new DataAuthorityConfigurationError('legacyModeCapabilityForbidden');
-  }
+  if (!apiBaseUrl) throw new DataAuthorityConfigurationError('serverModeApiBaseUrlMissing');
+  if (adminV1 && !authV1) throw new DataAuthorityConfigurationError('serverModeAdminRequiresAuth');
 
   return Object.freeze<DataAuthority>({
     mode: input.dataMode,
-    serverAuthority: input.dataMode === 'server',
-    legacyBrowserAuthority: input.dataMode === 'legacy-browser',
+    serverAuthority: true,
     apiBaseUrl,
     authV1,
     adminV1

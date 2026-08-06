@@ -16,10 +16,8 @@ import { AuthService } from '../../auth/auth.service';
 import { leagueCommandError } from '../../data/league-command-ux';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
-import { collectKnownPlayerNames } from '../../domain/player-stats';
-import { playerNameKey, renamePlayerInLeague, renamePlayerInLiveTournament, samePlayerName } from '../../domain/rename-player';
+import { playerNameKey } from '../../domain/rename-player';
 import { trimPlayerName } from '../../domain/models';
-import { buildMigrationBundle, MigrationBundle, migrationBundleFilename } from '../../domain/migration-bundle';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -72,99 +70,7 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
-      @if (capabilities().localArchetypeMutation) {
-        <mat-card class="panel settings-panel settings-archetype-panel-card">
-          <mat-card-content>
-            <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archetype-panel" [expanded]="false">
-              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
-                <mat-panel-title>{{ i18n.t('settings.deckArchetypes') }}</mat-panel-title>
-                <mat-panel-description>{{ filteredArchetypes().length }} / {{ archetypes().length }}</mat-panel-description>
-              </mat-expansion-panel-header>
-
-              <p class="muted settings-archetype-copy">{{ i18n.t('settings.deckArchetypesHelp') }}</p>
-
-              <div class="settings-archetype-io">
-                <button mat-stroked-button type="button" class="secondary-action" data-cy="settings-export-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="exportArchetypes()">{{ i18n.t('settings.exportArchetypes') }}</button>
-                <button mat-stroked-button type="button" class="settings-add-archetype-button" data-cy="settings-import-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="openArchetypeImportPicker()">{{ archetypeImporting() ? i18n.t('common.importing') : i18n.t('settings.importArchetypes') }}</button>
-                <input #archetypeImportInput class="toolbar-import-input" data-cy="settings-import-archetypes-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="archetypeImporting()" (change)="importArchetypes($event)">
-              </div>
-
-              <form class="settings-archetype-add" (ngSubmit)="addArchetype()">
-                <mat-form-field appearance="outline" class="settings-archetype-field">
-                  <mat-label>{{ i18n.t('settings.newArchetype') }}</mat-label>
-                  <input matInput data-cy="settings-new-archetype-input" [ngModel]="newArchetype()" name="newArchetype" (ngModelChange)="newArchetype.set($event)">
-                </mat-form-field>
-                <button mat-stroked-button class="settings-add-archetype-button" type="submit" data-cy="settings-add-archetype-button" [disabled]="archetypeSaving() || !canAddNewArchetype()">{{ i18n.t('settings.addArchetype') }}</button>
-              </form>
-
-              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
-                <mat-label>{{ i18n.t('settings.filterArchetypes') }}</mat-label>
-                <input matInput data-cy="settings-archetype-filter" [ngModel]="archetypeFilter()" name="archetypeFilter" (ngModelChange)="archetypeFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterArchetypes')">
-              </mat-form-field>
-
-              @if (filteredArchetypes().length) {
-                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.deckArchetypes')">
-                  @for (archetype of filteredArchetypes(); track archetype; let odd = $odd) {
-                    <div
-                      class="settings-archetype-item"
-                      role="listitem"
-                      data-cy="settings-archetype-row"
-                      [class.settings-archetype-item--odd]="odd"
-                      [class.settings-archetype-item--even]="!odd"
-                      [class.settings-archetype-item--editing]="editingArchetype() === archetype"
-                      [attr.data-archetype]="archetype"
-                    >
-                      @if (editingArchetype() === archetype) {
-                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
-                          <mat-label>{{ i18n.t('settings.deckArchetype') }}</mat-label>
-                          <input
-                            matInput
-                            data-cy="settings-archetype-input"
-                            [ngModel]="editValue(archetype)"
-                            [name]="'archetype-' + archetype"
-                            (ngModelChange)="setEditValue(archetype, $event)"
-                          >
-                        </mat-form-field>
-                        <button
-                          mat-stroked-button
-                          type="button"
-                          class="settings-archetype-row-action settings-archetype-save-button"
-                          data-cy="settings-save-archetype-button"
-                          (click)="saveArchetypeEdit(archetype)"
-                          [disabled]="archetypeSaving() || !canSaveArchetypeEdit(archetype)"
-                        >{{ i18n.t('common.save') }}</button>
-                      } @else {
-                        <span class="settings-archetype-name" data-cy="settings-archetype-name">{{ archetype }}</span>
-                        <button
-                          mat-stroked-button
-                          type="button"
-                          class="settings-archetype-row-action success-ghost-action"
-                          data-cy="settings-update-archetype-button"
-                          (click)="startEdit(archetype)"
-                          [disabled]="archetypeSaving()"
-                        >{{ i18n.t('common.update') }}</button>
-                      }
-                      <button
-                        mat-button
-                        type="button"
-                        class="destructive-menu-item"
-                        data-cy="settings-remove-archetype-button"
-                        (click)="removeArchetype(archetype)"
-                        [disabled]="archetypeSaving()"
-                      >{{ i18n.t('common.delete') }}</button>
-                    </div>
-                  }
-                </div>
-              } @else if (archetypes().length) {
-                <p class="empty" data-cy="settings-empty-archetype-filter">{{ i18n.t('settings.noFilterMatches') }}</p>
-              } @else {
-                <p class="empty" data-cy="settings-empty-archetypes">{{ i18n.t('settings.emptyArchetypes') }}</p>
-              }
-              @if (archetypeMessage()) { <p class="settings-saved" role="status">{{ archetypeMessage() }}</p> }
-            </mat-expansion-panel>
-          </mat-card-content>
-        </mat-card>
-      } @else if (capabilities().adminCatalog) {
+      @if (capabilities().adminCatalog) {
         <mat-card class="panel settings-panel settings-archetype-panel-card">
           <mat-card-content>
             <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archetype-panel" [expanded]="false">
@@ -271,77 +177,7 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
-      @if (capabilities().localPlayerRename) {
-        <mat-card class="panel settings-panel settings-archetype-panel-card">
-          <mat-card-content>
-            <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-players-panel" [expanded]="false">
-              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
-                <mat-panel-title>{{ i18n.t('settings.players') }}</mat-panel-title>
-                <mat-panel-description>{{ filteredPlayers().length }} / {{ players().length }}</mat-panel-description>
-              </mat-expansion-panel-header>
-
-              <p class="muted settings-archetype-copy">{{ i18n.t('settings.playersHelp') }}</p>
-
-              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
-                <mat-label>{{ i18n.t('settings.filterPlayers') }}</mat-label>
-                <input matInput data-cy="settings-player-filter" [ngModel]="playerFilter()" name="playerFilter" (ngModelChange)="playerFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterPlayers')">
-              </mat-form-field>
-
-              @if (filteredPlayers().length) {
-                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.players')">
-                  @for (player of filteredPlayers(); track player; let odd = $odd) {
-                    <div
-                      class="settings-archetype-item"
-                      role="listitem"
-                      data-cy="settings-player-row"
-                      [class.settings-archetype-item--odd]="odd"
-                      [class.settings-archetype-item--even]="!odd"
-                      [class.settings-archetype-item--editing]="editingPlayer() === player"
-                      [attr.data-player]="player"
-                    >
-                      @if (editingPlayer() === player) {
-                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
-                          <mat-label>{{ i18n.t('settings.playerName') }}</mat-label>
-                          <input
-                            matInput
-                            data-cy="settings-player-input"
-                            [ngModel]="playerEditValue(player)"
-                            [name]="'player-' + player"
-                            (ngModelChange)="setPlayerEditValue(player, $event)"
-                          >
-                        </mat-form-field>
-                        <button
-                          mat-stroked-button
-                          type="button"
-                          class="settings-archetype-row-action settings-archetype-save-button"
-                          data-cy="settings-save-player-button"
-                          (click)="savePlayerEdit(player)"
-                          [disabled]="playerSaving() || !canSavePlayerEdit(player)"
-                        >{{ i18n.t('common.save') }}</button>
-                      } @else {
-                        <span class="settings-archetype-name" data-cy="settings-player-name">{{ player }}</span>
-                        <button
-                          mat-stroked-button
-                          type="button"
-                          class="settings-archetype-row-action success-ghost-action"
-                          data-cy="settings-update-player-button"
-                          (click)="startPlayerEdit(player)"
-                          [disabled]="playerSaving()"
-                        >{{ i18n.t('common.update') }}</button>
-                      }
-                    </div>
-                  }
-                </div>
-              } @else if (players().length) {
-                <p class="empty" data-cy="settings-empty-player-filter">{{ i18n.t('settings.noPlayerFilterMatches') }}</p>
-              } @else {
-                <p class="empty" data-cy="settings-empty-players">{{ i18n.t('settings.emptyPlayers') }}</p>
-              }
-              @if (playerMessage()) { <p class="settings-saved" role="status">{{ playerMessage() }}</p> }
-            </mat-expansion-panel>
-          </mat-card-content>
-        </mat-card>
-      } @else if (capabilities().organizerMaintenance) {
+      @if (capabilities().organizerMaintenance) {
         <mat-card class="panel settings-panel settings-archetype-panel-card">
           <mat-card-content>
             <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-players-panel" [expanded]="false">
@@ -432,26 +268,6 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
-      @if (capabilities().migrationBundleExport) {
-      <mat-card class="panel settings-panel">
-        <mat-card-content>
-          <h2>{{ i18n.t('settings.migrationTitle') }}</h2>
-          <p class="warning" data-cy="settings-migration-warning">{{ i18n.t('settings.migrationWarning') }}</p>
-          <p class="muted">{{ i18n.t('settings.migrationHelp') }}</p>
-          <button mat-stroked-button class="secondary-action" type="button" data-cy="settings-migration-export-button" [disabled]="migrationExporting()" (click)="downloadMigrationBundle()">{{ migrationExporting() ? i18n.t('common.loading') : i18n.t('settings.migrationDownload') }}</button>
-          @if (migrationSummary(); as summary) {
-            <dl class="migration-summary" data-cy="settings-migration-summary">
-              <div><dt>{{ i18n.t('settings.migrationHash') }}</dt><dd data-cy="settings-migration-hash">{{ summary.bundleChecksum }}</dd></div>
-              <div><dt>{{ i18n.t('settings.migrationInstance') }}</dt><dd data-cy="settings-migration-instance">{{ summary.sourceInstanceId }}</dd></div>
-              <div><dt>{{ i18n.t('settings.migrationVersionsLabel') }}</dt><dd data-cy="settings-migration-versions">{{ i18n.t('settings.migrationVersions', { app: summary.gonesAppVersion, data: summary.gonesDataVersion, format: summary.bundleFormatVersion }) }}</dd></div>
-              <div><dt>{{ i18n.t('settings.migrationCountsLabel') }}</dt><dd data-cy="settings-migration-counts">{{ i18n.t('settings.migrationCounts', { leagues: summary.counts.leagues, tournaments: summary.counts.tournaments, calendarEvents: summary.counts.calendarEvents, liveTournaments: summary.counts.liveTournaments, deckArchetypes: summary.counts.deckArchetypes }) }}</dd></div>
-            </dl>
-          }
-          @if (migrationError()) { <p class="error" role="alert" data-cy="settings-migration-error">{{ migrationError() }}</p> }
-        </mat-card-content>
-      </mat-card>
-      }
-
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
@@ -468,8 +284,7 @@ export class SettingsComponent {
   private readonly archetypeImportInput = viewChild<ElementRef<HTMLInputElement>>('archetypeImportInput');
   readonly capabilities = computed(() => settingsCapabilities({
     authV1: dataAuthority().authV1,
-    adminV1: dataAuthority().adminV1,
-    serverAuthority: dataAuthority().serverAuthority
+    adminV1: dataAuthority().adminV1
   }, this.auth.profile()?.globalRole ?? null));
 
   readonly newArchetype = signal('');
@@ -497,19 +312,11 @@ export class SettingsComponent {
     return list.filter((archetype) => archetypeKey(archetype.name).includes(filter));
   });
 
-  readonly players = signal<string[]>([]);
   readonly playerFilter = signal('');
   readonly playerMessage = signal('');
   readonly playerSaving = signal(false);
   readonly editingPlayer = signal<string | null>(null);
   readonly playerEdits = signal<Record<string, string>>({});
-  readonly filteredPlayers = computed(() => {
-    const filter = playerNameKey(this.playerFilter());
-    const list = this.players();
-    if (!filter) return list;
-    return list.filter((player) => playerNameKey(player).includes(filter));
-  });
-
   readonly serverPlayers = signal<PlayerNameSummary[]>([]);
   readonly filteredServerPlayers = computed(() => {
     const filter = playerNameKey(this.playerFilter());
@@ -522,9 +329,6 @@ export class SettingsComponent {
   readonly orgSaving = signal(false);
   readonly orgMessage = signal('');
 
-  readonly migrationExporting = signal(false);
-  readonly migrationSummary = signal<MigrationBundle | null>(null);
-  readonly migrationError = signal('');
 
   private serverCatalogLoaded = false;
   private serverPlayersLoaded = false;
@@ -533,7 +337,6 @@ export class SettingsComponent {
   constructor() {
     // Ensure baseline presets land even if this tab kept an old empty service state.
     this.deckArchetypes.bootstrapFromStorage();
-    if (this.capabilities().localPlayerRename) void this.loadPlayers();
     effect(() => {
       const capabilities = this.capabilities();
       if (capabilities.adminCatalog && !this.serverCatalogLoaded) {
@@ -553,27 +356,6 @@ export class SettingsComponent {
 
   async setLanguage(value: string): Promise<void> {
     await this.deckArchetypes.setLanguage(value);
-  }
-
-  /**
-   * Local-only download of the private migration bundle. Never uploads browser data to the server,
-   * and only ever runs under the legacy browser authority — server builds hold no browser source.
-   */
-  async downloadMigrationBundle(): Promise<void> {
-    if (!this.capabilities().migrationBundleExport || this.migrationExporting()) return;
-    this.migrationExporting.set(true);
-    this.migrationError.set('');
-    try {
-      const bundle = await buildMigrationBundle({ storage: window.localStorage, appVersion: '0.1.0' });
-      saveJsonFile(bundle, migrationBundleFilename(bundle.sourceInstanceId, new Date(bundle.exportedAt)));
-      this.migrationSummary.set(bundle);
-      logBoundaryInfo('settings.migrationBundle', { sourceInstanceId: bundle.sourceInstanceId, ...bundle.counts });
-    } catch (error) {
-      logBoundaryError('settings.migrationBundle', error);
-      this.migrationError.set(this.i18n.t('settings.migrationFailed'));
-    } finally {
-      this.migrationExporting.set(false);
-    }
   }
 
   languageLabel(): string {
@@ -885,16 +667,6 @@ export class SettingsComponent {
     }
   }
 
-  async loadPlayers(): Promise<void> {
-    try {
-      const leagues = await this.leagueRepo.listLeagues();
-      this.players.set(collectKnownPlayerNames(leagues));
-    } catch (error) {
-      logBoundaryError('settings.loadPlayers', error);
-      this.players.set([]);
-    }
-  }
-
   async loadServerPlayers(): Promise<void> {
     try {
       const response = await firstValueFrom(this.client.listMaintenancePlayerNames(undefined));
@@ -933,54 +705,6 @@ export class SettingsComponent {
   canSavePlayerEdit(player: string): boolean {
     const next = trimPlayerName(this.playerEditValue(player));
     return !!next && next !== player;
-  }
-
-  async savePlayerEdit(player: string): Promise<void> {
-    if (this.playerSaving()) return;
-    const next = trimPlayerName(this.playerEditValue(player));
-    if (!next) {
-      this.playerMessage.set(this.i18n.t('settings.playerEnterName'));
-      return;
-    }
-    if (next === player) {
-      this.clearPlayerEditState(player);
-      return;
-    }
-
-    const merge = this.players().some((name) => samePlayerName(name, next) && name !== player);
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
-      data: merge
-        ? {
-            title: this.i18n.t('settings.mergePlayerTitle'),
-            message: this.i18n.t('settings.mergePlayerMessage', { from: player, to: next }),
-            confirmLabel: this.i18n.t('settings.mergePlayerTitle'),
-            destructive: true
-          }
-        : {
-            title: this.i18n.t('settings.renamePlayerTitle'),
-            message: this.i18n.t('settings.renamePlayerMessage', { from: player, to: next }),
-            confirmLabel: this.i18n.t('settings.renamePlayerTitle'),
-            destructive: false
-          }
-    }).afterClosed());
-    if (!confirmed) return;
-
-    this.playerSaving.set(true);
-    try {
-      const canonicalTarget = this.players().find((name) => samePlayerName(name, next)) ?? next;
-      const targetName = merge ? canonicalTarget : next;
-      await this.renamePlayerLocally(player, targetName);
-      this.clearPlayerEditState(player);
-      await this.loadPlayers();
-      this.playerMessage.set(merge
-        ? this.i18n.t('settings.playerMerged', { from: player, to: targetName })
-        : this.i18n.t('settings.playerRenamed', { from: player, to: targetName }));
-    } catch (error) {
-      logBoundaryError('settings.renamePlayer', error, { from: player, to: next });
-      this.playerMessage.set(this.i18n.t('settings.playerRenameFailed'));
-    } finally {
-      this.playerSaving.set(false);
-    }
   }
 
   /** Server rename: exact case-sensitive source, preview affected count before commit. */
@@ -1088,25 +812,6 @@ export class SettingsComponent {
         && !target.closest('[data-cy="settings-player-row"].settings-archetype-item--editing [data-cy="settings-save-player-button"]')
         && !target.closest('mat-dialog-container')
       ) this.cancelPlayerEdit();
-    }
-  }
-
-  /** Legacy local rename across browser-stored Leagues and Live Tournaments (flag-off builds only). */
-  private async renamePlayerLocally(from: string, to: string): Promise<void> {
-    const leagues = await this.leagueRepo.listLeagues();
-    for (const league of leagues) {
-      const nextLeague = renamePlayerInLeague(league, from, to);
-      if (nextLeague === league) continue;
-      const changed = JSON.stringify(nextLeague.tournaments) !== JSON.stringify(league.tournaments);
-      if (!changed) continue;
-      await this.leagueRepo.saveLeague(nextLeague, league.documentVersion);
-    }
-
-    const lives = await this.liveRepo.list();
-    for (const live of lives) {
-      const nextLive = renamePlayerInLiveTournament(live, from, to);
-      if (JSON.stringify(nextLive.players) === JSON.stringify(live.players) && JSON.stringify(nextLive.rounds) === JSON.stringify(live.rounds)) continue;
-      await this.liveRepo.save(nextLive);
     }
   }
 

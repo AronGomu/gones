@@ -3,471 +3,2388 @@
   "version": 1,
   "note": "Executable V1 acceptance matrix. Validated by scripts/acceptance-matrix.mjs and ops/acceptance-matrix.test.ts. A row may only be 'proved' when every piece of evidence resolves to something a committed gate really runs; a 'deferred' row must say why and is never counted as proved.",
   "rows": [
-    { "id": "doc00-accounts", "doc": "00-vision-projets.md", "capability": "V1 accounts: local sign-up, OAuth sign-in, mandatory email validation before any write.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "register, verify, login and the write gate" },
-      { "gate": "cypress", "target": "cypress/e2e/auth-profile.cy.js", "detail": "browser sign-up and profile" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the configured bootstrap User registers and verifies through the local email sink" }
-    ] },
-    { "id": "doc00-users", "doc": "00-vision-projets.md", "capability": "V1 users: Visitor/User/Organizer/Admin with a public profile whose fields are opt-in.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs", "detail": "admin user list, roles and closure" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the fake-OAuth User is not an Admin" }
-    ] },
-    { "id": "doc00-calendar", "doc": "00-vision-projets.md", "capability": "V1 calendar: public month calendar as the default landing surface plus a list view.", "status": "proved", "acceptance": ["product-public-calendar"], "evidence": [
-      { "gate": "vitest", "target": "src/app/features/calendar/public-calendar.test.ts", "detail": "month and list projection" },
-      { "gate": "cypress", "target": "cypress/e2e/public-calendar.cy.js", "detail": "anonymous browsing" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs", "detail": "public read API" }
-    ] },
-    { "id": "doc00-tournaments", "doc": "00-vision-projets.md", "capability": "V1 tournaments: an Organizer publishes, edits, cancels and deletes a dated tournament.", "status": "proved", "acceptance": ["product-organizer-lifecycle"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs", "detail": "preview and publish" },
-      { "gate": "cypress", "target": "cypress/e2e/organizer-tournament-create.cy.js", "detail": "browser create flow" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the Organizer publishes the tournament" }
-    ] },
-    { "id": "doc00-structures", "doc": "00-vision-projets.md", "capability": "V1 structures: organizations own tournaments and carry member roles.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs", "detail": "organization and member endpoints" },
-      { "gate": "cypress", "target": "cypress/e2e/admin-orgs.cy.js", "detail": "admin organization management" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the organization Owner is the member the Admin nominated" }
-    ] },
-    { "id": "doc00-registrations", "doc": "00-vision-projets.md", "capability": "V1 registrations: a verified User registers and unregisters within capacity.", "status": "proved", "acceptance": ["product-registration"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "register, unregister, capacity" },
-      { "gate": "cypress", "target": "cypress/e2e/tournament-registration.cy.js", "detail": "browser registration flow" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "a verified User registers" }
-    ] },
-    { "id": "doc00-notifications", "doc": "00-vision-projets.md", "capability": "V1 notifications: transactional email and reminders around the tournament date.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs", "detail": "outbox delivery" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs", "detail": "reminder planning and dispatch" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "registration plans the whole reminder ladder" }
-    ] },
-    { "id": "doc00-out-of-scope", "doc": "00-vision-projets.md", "capability": "Out of V1 scope stays out: no payment, no waiting list, and the legacy static build gains no V1 capability.", "status": "proved", "acceptance": ["ops-authority-mode"], "evidence": [
-      { "gate": "vitest", "target": "src/app/data-mode-routes.test.ts", "detail": "legacy mode exposes no V1 route" },
-      { "gate": "vitest", "target": "src/app/features/settings/settings-capabilities.test.ts", "detail": "legacy-only capability surface" },
-      { "gate": "cypress", "target": "cypress/e2e/legacy-data-authority.cy.js", "detail": "ten server-only routes are Not Found and no /api/ traffic happens" }
-    ] },
-
-    { "id": "doc01-slices", "doc": "01-architecture.md", "capability": "Vertical-slice layering with enforced dependency direction Domain <- Application <- Infrastructure/Api.", "status": "proved", "acceptance": ["eng-suites-green"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.ArchitectureTests/UnitTest1.cs", "detail": "assembly dependency rules" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.ArchitectureTests/ServerAuthorityBoundaryTests.cs", "detail": "server-authority boundary" }
-    ] },
-    { "id": "doc01-rest", "doc": "01-architecture.md", "capability": "REST conventions: resource URLs, problem-details errors and documented HTTP codes.", "status": "proved", "acceptance": ["eng-openapi-drift"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/ApiBoundaryTests.cs", "detail": "error envelope and status codes" },
-      { "gate": "vitest", "target": "src/app/api/api-boundary.test.ts", "detail": "client-side contract" },
-      { "gate": "script", "target": "api:check", "detail": "generated client drift gate" }
-    ] },
-    { "id": "doc01-authz", "doc": "01-architecture.md", "capability": "Authentication and authorization are enforced server-side on every mutation.", "status": "proved", "acceptance": ["eng-server-authz"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs", "detail": "ownership and role checks on mutations" },
-      { "gate": "cypress", "target": "cypress/e2e/abuse-surface.cy.js", "detail": "IDOR, mass assignment and forged-role attempts" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the anonymous Visitor surface is public-read only" }
-    ] },
-    { "id": "doc01-persistence", "doc": "01-architecture.md", "capability": "PostgreSQL persistence with EF Core migrations, optimistic concurrency and append-only audit.", "status": "proved", "acceptance": ["eng-db-constraints"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PersistenceKernelTests.cs", "detail": "concurrency and audit guard" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/ScheduledTournamentPersistenceTests.cs", "detail": "calendar persistence" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "re-running the migration job applies nothing new" }
-    ] },
-    { "id": "doc01-logs", "doc": "01-architecture.md", "capability": "Structured stdout JSON logs plus OTLP traces correlating API, database and Worker.", "status": "proved", "acceptance": ["ops-otel-trace"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TelemetryAndHealthTests.cs", "detail": "correlation id and health surface" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the collector received API spans" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the collector received Worker spans" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the API spans reach the database" }
-    ] },
-    { "id": "doc01-email", "doc": "01-architecture.md", "capability": "Provider-neutral email transport driven by an outbox, not by request threads.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/BrevoDeliveryTests.cs", "detail": "transport classification and circuit breaker" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs", "detail": "outbox lease and delivery" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the Worker delivers through the provider-neutral transport to the local fake" }
-    ] },
-    { "id": "doc01-scheduler", "doc": "01-architecture.md", "capability": "Singleton scheduler holding a PostgreSQL advisory lock plans and fires time-based work.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs", "detail": "leader election and due dispatch" },
-      { "gate": "script", "target": "scheduler:smoke", "detail": "clock simulation against a live stack: due delivered once, downtime-missed not sent late, restart replays nothing" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the scheduler drains every pending lifecycle event" }
-    ] },
-    { "id": "doc01-config-secrets", "doc": "01-architecture.md", "capability": "Configuration through environment variables and secrets through mounted files, never literals.", "status": "proved", "acceptance": ["ops-runtime-config"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/RuntimeContractTests.cs", "detail": "secret files, forwarded proxies, shutdown window" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/RuntimeConfigurationTests.cs", "detail": "configuration validation" },
-      { "gate": "vitest", "target": "ops/host-contract.test.ts", "detail": "every runtime key stays documented" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "database credentials reach the API as a mounted file, never as an environment value" }
-    ] },
-    { "id": "doc01-docker", "doc": "01-architecture.md", "capability": "Every runtime component ships as a Linux OCI image runnable on a generic host with no cloud SDK.", "status": "proved", "acceptance": ["ops-no-cloud-sdk"], "evidence": [
-      { "gate": "vitest", "target": "ops/image-contract.test.ts", "detail": "image shape, user, stop signal, labels" },
-      { "gate": "script", "target": "images:verify", "detail": "runtime contract of each built image" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "API runs as a non-root account" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "API root filesystem is read-only at runtime" }
-    ] },
-    { "id": "doc01-container-lifecycle", "doc": "01-architecture.md", "capability": "Container health, restart, graceful shutdown, startup ordering and migration idempotency.", "status": "proved", "acceptance": ["ops-container-lifecycle"], "evidence": [
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "API starts only after the migration job finished" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "API exits 0 on SIGTERM" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "API returns to a ready state after a restart with the same volumes" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the singleton Worker stayed up across the API restart" }
-    ] },
-    { "id": "doc01-backup", "doc": "01-architecture.md", "capability": "Encrypted dump and restore run from the shipped backup image against mounted paths only, and survive a total volume loss.", "status": "proved", "acceptance": ["ops-backup-restore"], "evidence": [
-      { "gate": "script", "target": "backup:rehearsal", "detail": "the whole backup and restore rehearsal" },
-      { "gate": "rehearsal", "target": "scripts/backup-restore-rehearsal.mjs", "detail": "the PostgreSQL data volume is destroyed, not merely emptied" },
-      { "gate": "rehearsal", "target": "scripts/backup-restore-rehearsal.mjs", "detail": "the encrypted archive restores into the clean database" },
-      { "gate": "rehearsal", "target": "scripts/backup-restore-rehearsal.mjs", "detail": "the post-restore migration smoke applies nothing new" }
-    ] },
-    { "id": "doc01-security", "doc": "01-architecture.md", "capability": "Security headers, CSP, rate limits and input hardening applied at the API edge.", "status": "proved", "acceptance": ["eng-suites-green"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/RateLimitPolicyTests.cs", "detail": "429 and Retry-After" },
-      { "gate": "cypress", "target": "cypress/e2e/abuse-surface.cy.js", "detail": "XSS, CSV injection, open redirect, replay" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "forwarded scheme from the trusted proxy is honoured (HSTS emitted)" }
-    ] },
-    { "id": "doc01-public-api", "doc": "01-architecture.md", "capability": "Anonymous public read API exposes no private participant or account data.", "status": "proved", "acceptance": ["eng-no-pii"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs", "detail": "public DTO shape" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the public participant view never exposes a participant address" }
-    ] },
-    { "id": "doc01-operations-docs", "doc": "01-architecture.md", "capability": "The generic host contract and the operator procedures are documented in the repository, not in a vendor console.", "status": "proved", "acceptance": ["ops-docs"], "evidence": [
-      { "gate": "vitest", "target": "ops/host-contract.test.ts", "detail": "runbook sections, rehearsal commands and deferred markers stay present" }
-    ] },
-    { "id": "doc01-release-artifacts", "doc": "01-architecture.md", "capability": "The V1 release candidate is an immutable artifact set: five digest-pinned linux/amd64 images with SBOMs, checksums, scan reports and the source revision they were built from.", "status": "proved", "acceptance": ["eng-artifacts-build"], "evidence": [
-      { "gate": "script", "target": "images:build", "detail": "digests, SPDX SBOMs and checksums for every artifact" },
-      { "gate": "script", "target": "release:preflight", "detail": "the gate that decides whether a built set is releasable" },
-      { "gate": "vitest", "target": "ops/release-preflight.test.ts", "detail": "each of the nine mismatch classes really rejects" },
-      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "container is the released digest" }
-    ] },
-    { "id": "doc01-clean-machine", "doc": "01-architecture.md", "capability": "A clean environment starts from those exact artifacts and reaches a complete V1 state: migrated schema, verified bootstrap User, Admin, every server feature flag enabled.", "status": "proved", "acceptance": ["eng-artifacts-build"], "evidence": [
-      { "gate": "script", "target": "release:candidate", "detail": "clean environment assembled from the immutable artifacts" },
-      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the clean database is migrated to the shipped schema" },
-      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "runs with all six server feature flags enabled" },
-      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the configured bootstrap User registers and verifies through the local email sink" }
-    ] },
-    { "id": "doc01-public-hosting", "doc": "01-architecture.md", "capability": "Public hosting: domain, DNS, CDN, managed PostgreSQL, container registry and image signing trust.", "status": "deferred", "deferredReason": "No hosting vendor, domain or registry is chosen. Every artifact is registry-neutral and every rehearsal runs on one machine, so nothing here can be proved locally and nothing claims it is.", "acceptance": [], "evidence": [] },
-
-    { "id": "doc02-entities", "doc": "02-modeles-donnees.md", "capability": "The documented entity set exists with its documented fields and relations.", "status": "proved", "acceptance": ["eng-db-constraints"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PersistenceKernelTests.cs", "detail": "schema round-trip" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/ScheduledTournamentPersistenceTests.cs", "detail": "calendar entities" }
-    ] },
-    { "id": "doc02-uniqueness", "doc": "02-modeles-donnees.md", "capability": "Uniqueness constraints on email, username, organization name and tournament slug.", "status": "proved", "acceptance": ["eng-db-constraints"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "duplicate email and username" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs", "detail": "duplicate organization name" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "re-registering the same address is refused" }
-    ] },
-    { "id": "doc02-registration-constraint", "doc": "02-modeles-donnees.md", "capability": "At most one active registration per (tournament, user) enforced in the database.", "status": "proved", "acceptance": ["eng-db-constraints"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "duplicate active registration" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs", "detail": "status transition rules" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "a second active registration is refused" }
-    ] },
-    { "id": "doc02-soft-delete", "doc": "02-modeles-donnees.md", "capability": "Soft deletion keeps rows recoverable and hides them from public reads.", "status": "proved", "acceptance": ["product-organizer-lifecycle"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs", "detail": "delete and restore" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "a deleted tournament disappears from the public surface" }
-    ] },
-    { "id": "doc02-audit", "doc": "02-modeles-donnees.md", "capability": "Audit records are append-only and carry a redacted diff, never raw personal data.", "status": "proved", "acceptance": ["eng-no-pii"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs", "detail": "audit surface and redaction" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PersistenceKernelTests.cs", "detail": "append-only trigger" },
-      { "gate": "rehearsal", "target": "scripts/backup-restore-rehearsal.mjs", "detail": "the append-only audit guard is restored with the schema" }
-    ] },
-    { "id": "doc02-utc", "doc": "02-modeles-donnees.md", "capability": "Instants are stored in UTC while the venue time zone is stored beside the local wall time.", "status": "proved", "acceptance": ["product-public-calendar"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/ScheduledTournamentDomainTests.cs", "detail": "local-to-UTC normalization" },
-      { "gate": "vitest", "target": "src/app/domain/calendar-ics.test.ts", "detail": "venue and viewer zone rendering" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the tournament exports an ICS entry carrying the venue time zone" }
-    ] },
-    { "id": "doc02-indexes", "doc": "02-modeles-donnees.md", "capability": "Documented indexes exist and keep public list queries inside their budget.", "status": "proved", "acceptance": ["eng-suites-green"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PerformanceBudgetTests.cs", "detail": "query-count and time budgets" }
-    ] },
-
-    { "id": "doc03-local-account", "doc": "03-authentification.md", "capability": "Local account creation with password policy, lockout and normalized email.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/LocalIdentityPolicyTests.cs", "detail": "password and lockout policy" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "register and login endpoints" }
-    ] },
-    { "id": "doc03-oauth", "doc": "03-authentification.md", "capability": "Google and Facebook adapters run the full authorize/callback/link contract against a local fake provider.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OAuthApiTests.cs", "detail": "start, callback, completion, linking, CSRF state" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/ExternalIdentityTests.cs", "detail": "external identity domain rules" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the fake-OAuth account reaches an authenticated session" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "no live identity provider is contacted" }
-    ] },
-    { "id": "doc03-oauth-live", "doc": "03-authentification.md", "capability": "Smoke test against the real Google and Facebook applications with registered redirect URIs.", "status": "deferred", "deferredReason": "Requires provider accounts, client credentials and a registered public callback origin. None exists, and inventing one would be a credential this repository must not hold. Only the local fake provider is exercised.", "acceptance": [], "evidence": [] },
-    { "id": "doc03-email-validation", "doc": "03-authentification.md", "capability": "Email validation gates writes; unverified accounts see a banner and can resend.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/AccountLifecycleTests.cs", "detail": "token issue, supersede and consume" },
-      { "gate": "cypress", "target": "cypress/e2e/auth-profile.cy.js", "detail": "unverified banner and resend" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the configured bootstrap User registers and verifies through the local email sink" }
-    ] },
-    { "id": "doc03-email-change", "doc": "03-authentification.md", "capability": "Email change is confirmed on the new address and recorded in an email history.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/AccountLifecycleTests.cs", "detail": "change-email token targeting" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "email-change and history endpoints" }
-    ] },
-    { "id": "doc03-jwt", "doc": "03-authentification.md", "capability": "Short-lived JWT plus rotating refresh sessions, with logout and logout-all revocation.", "status": "proved", "acceptance": ["eng-server-authz"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/RefreshSessionTests.cs", "detail": "rotation, reuse detection, revocation" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "refresh and logout endpoints" },
-      { "gate": "vitest", "target": "src/app/auth/auth.interceptor.test.ts", "detail": "client refresh handling" }
-    ] },
-    { "id": "doc03-roles", "doc": "03-authentification.md", "capability": "Global roles and their permission matrix, including refusal responses.", "status": "proved", "acceptance": ["eng-server-authz"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/GlobalRolePolicyTests.cs", "detail": "role assignability and policy mapping" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs", "detail": "grant and revoke endpoints" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the Admin attributes the Organizer role" }
-    ] },
-    { "id": "doc03-oauth-profile", "doc": "03-authentification.md", "capability": "An OAuth account must complete the mandatory profile before it can act.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OAuthApiTests.cs", "detail": "completion ticket flow" },
-      { "gate": "vitest", "target": "src/app/auth/registration-gate.test.ts", "detail": "client-side completion gate" }
-    ] },
-    { "id": "doc03-audit", "doc": "03-authentification.md", "capability": "Authentication events are audited without storing credentials or raw email bodies.", "status": "proved", "acceptance": ["eng-no-pii"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TelemetryRedactionTests.cs", "detail": "redaction of addresses and tokens" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs", "detail": "audit record contents" }
-    ] },
-
-    { "id": "doc04-hierarchy", "doc": "04-utilisateurs-et-organisation.md", "capability": "Visitor, User, Organizer and Admin capability hierarchy.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/GlobalRolePolicyTests.cs", "detail": "hierarchy rules" },
-      { "gate": "vitest", "target": "src/app/auth/auth-guards.test.ts", "detail": "client route guards" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the anonymous Visitor surface is public-read only" }
-    ] },
-    { "id": "doc04-organizations", "doc": "04-utilisateurs-et-organisation.md", "capability": "Organization creation, update, transfer and deletion with owner protection.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs", "detail": "CRUD, transfer, last-owner protection" },
-      { "gate": "cypress", "target": "cypress/e2e/admin-orgs.cy.js", "detail": "admin organization screens" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "a non-Owner member cannot transfer ownership" }
-    ] },
-    { "id": "doc04-members", "doc": "04-utilisateurs-et-organisation.md", "capability": "Organization members carry internal roles and grant the Organizer capability.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/OrganizationDomainTests.cs", "detail": "member role rules" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs", "detail": "member endpoints" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the Owner adds an Organizer member" }
-    ] },
-    { "id": "doc04-blocking", "doc": "04-utilisateurs-et-organisation.md", "capability": "An organization can block a user, which refuses that user's registrations.", "status": "proved", "acceptance": ["product-organizer-participants"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "blocked-user refusal" },
-      { "gate": "cypress", "target": "cypress/e2e/organizer-participants.cy.js", "detail": "block management screen" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "a blocked user cannot register" }
-    ] },
-    { "id": "doc04-public-profile", "doc": "04-utilisateurs-et-organisation.md", "capability": "Only opt-in profile fields are public; Organizers see the documented extra fields.", "status": "proved", "acceptance": ["eng-no-pii"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "profile visibility flags" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs", "detail": "public DTO omits private fields" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the Organizer private participant view resolves the participant" }
-    ] },
-    { "id": "doc04-profile-history", "doc": "04-utilisateurs-et-organisation.md", "capability": "Profile modification is recorded and the email history is retained then redacted.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "email history endpoint and retention" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs", "detail": "audit of profile changes" }
-    ] },
-    { "id": "doc04-account-closure", "doc": "04-utilisateurs-et-organisation.md", "capability": "Account closure is refused while it would orphan an organization, and anonymizes otherwise.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/AccountClosurePolicyTests.cs", "detail": "closure impact rules" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs", "detail": "closure endpoints" }
-    ] },
-
-    { "id": "doc05-creation", "doc": "05-gestion-tournoi.md", "capability": "Organizer create -> preview -> publish workflow with required and optional fields.", "status": "proved", "acceptance": ["product-organizer-lifecycle"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs", "detail": "preview ticket and publish" },
-      { "gate": "vitest", "target": "src/app/features/calendar/organizer-tournament-create.test.ts", "detail": "form model and validation" },
-      { "gate": "cypress", "target": "cypress/e2e/organizer-tournament-create.cy.js", "detail": "browser create flow" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the Organizer previews before publishing" }
-    ] },
-    { "id": "doc05-formats", "doc": "05-gestion-tournoi.md", "capability": "Tournament formats come from an Admin catalog, not free text.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TournamentFormatTests.cs", "detail": "format domain rules" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminBootstrapAndCatalogTests.cs", "detail": "catalog endpoints" }
-    ] },
-    { "id": "doc05-lifecycle", "doc": "05-gestion-tournoi.md", "capability": "Draft/Published/Ongoing/Completed/Cancelled lifecycle with automatic start and end.", "status": "proved", "acceptance": ["product-organizer-lifecycle"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/ScheduledTournamentDomainTests.cs", "detail": "state machine" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs", "detail": "automatic start and end" },
-      { "gate": "script", "target": "scheduler:smoke", "detail": "lifecycle advances on a live stack" }
-    ] },
-    { "id": "doc05-modification", "doc": "05-gestion-tournoi.md", "capability": "Major modification notifies participants; minor modification does not.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs", "detail": "major versus minor change classification" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "a major modification notifies the confirmed participants" }
-    ] },
-    { "id": "doc05-delete-restore", "doc": "05-gestion-tournoi.md", "capability": "Soft delete, Admin restore and cancellation each behave as documented.", "status": "proved", "acceptance": ["product-organizer-lifecycle"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs", "detail": "delete, restore, cancel" },
-      { "gate": "cypress", "target": "cypress/e2e/organizer-tournament-management.cy.js", "detail": "management screens" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "soft delete hides the tournament and the Admin restores it" }
-    ] },
-    { "id": "doc05-visibility", "doc": "05-gestion-tournoi.md", "capability": "Public visibility rules for past, cancelled and completed tournaments.", "status": "proved", "acceptance": ["product-public-calendar"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs", "detail": "visibility filtering" },
-      { "gate": "vitest", "target": "src/app/features/calendar/public-calendar.test.ts", "detail": "client visibility rules" },
-      { "gate": "cypress", "target": "cypress/e2e/public-calendar.cy.js", "detail": "browser visibility" }
-    ] },
-    { "id": "doc05-calendar-views", "doc": "05-gestion-tournoi.md", "capability": "Calendar view, list view and documented filters over the public surface.", "status": "proved", "acceptance": ["product-public-calendar"], "evidence": [
-      { "gate": "vitest", "target": "src/app/features/calendar/public-calendar.test.ts", "detail": "filters and view switching" },
-      { "gate": "vitest", "target": "src/app/domain/event-pages.test.ts", "detail": "pagination" },
-      { "gate": "cypress", "target": "cypress/e2e/public-calendar.cy.js", "detail": "browser filters" }
-    ] },
-    { "id": "doc05-capacity", "doc": "05-gestion-tournoi.md", "capability": "Capacity and full-tournament rules on the public tournament page.", "status": "proved", "acceptance": ["product-registration"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs", "detail": "capacity rules" },
-      { "gate": "vitest", "target": "src/app/features/calendar/public-tournament.service.test.ts", "detail": "full-tournament presentation" }
-    ] },
-    { "id": "doc05-ics", "doc": "05-gestion-tournoi.md", "capability": "A tournament exports an ICS entry using the venue time zone.", "status": "proved", "acceptance": ["product-public-calendar"], "evidence": [
-      { "gate": "vitest", "target": "src/app/domain/calendar-ics.test.ts", "detail": "ICS rendering" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs", "detail": "the .ics endpoint" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the tournament exports an ICS entry carrying the venue time zone" }
-    ] },
-
-    { "id": "doc06-conditions", "doc": "06-gestion-inscription.md", "capability": "Registration requires a verified account and an open, published, future tournament.", "status": "proved", "acceptance": ["product-registration"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "precondition checks" },
-      { "gate": "vitest", "target": "src/app/features/calendar/tournament-registration.service.test.ts", "detail": "client capability model" }
-    ] },
-    { "id": "doc06-workflow", "doc": "06-gestion-inscription.md", "capability": "Register, unregister and re-register produce the documented status transitions.", "status": "proved", "acceptance": ["product-registration"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs", "detail": "status transitions" },
-      { "gate": "cypress", "target": "cypress/e2e/tournament-registration.cy.js", "detail": "browser register and unregister" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the cancelled registration is no longer confirmed for that user" }
-    ] },
-    { "id": "doc06-refusal", "doc": "06-gestion-inscription.md", "capability": "Every documented refusal reason returns its own stable error.", "status": "proved", "acceptance": ["product-registration"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "refusal codes" },
-      { "gate": "vitest", "target": "src/app/features/calendar/tournament-registration.service.test.ts", "detail": "client error mapping" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "a second active registration is refused" }
-    ] },
-    { "id": "doc06-organizer-manual", "doc": "06-gestion-inscription.md", "capability": "An Organizer registers and removes a participant manually.", "status": "proved", "acceptance": ["product-organizer-participants"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "by-organizer endpoints" },
-      { "gate": "cypress", "target": "cypress/e2e/organizer-participants.cy.js", "detail": "participant screens" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the Organizer registers a participant manually" }
-    ] },
-    { "id": "doc06-capacity-concurrency", "doc": "06-gestion-inscription.md", "capability": "Capacity is enforced transactionally under concurrent registration attempts.", "status": "proved", "acceptance": ["eng-db-constraints"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "serializable capacity race" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs", "detail": "capacity domain rules" }
-    ] },
-    { "id": "doc06-participants-view", "doc": "06-gestion-inscription.md", "capability": "Public participant list is anonymous; the Organizer sees the private list.", "status": "proved", "acceptance": ["product-organizer-participants"], "evidence": [
-      { "gate": "vitest", "target": "src/app/features/calendar/participant-management.test.ts", "detail": "private list presentation" },
-      { "gate": "cypress", "target": "cypress/e2e/organizer-participants.cy.js", "detail": "browser participant list" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the public participant view never exposes a participant address" }
-    ] },
-    { "id": "doc06-csv", "doc": "06-gestion-inscription.md", "capability": "Organizer CSV export of participants is injection-safe.", "status": "proved", "acceptance": ["product-organizer-participants"], "evidence": [
-      { "gate": "cypress", "target": "cypress/e2e/abuse-surface.cy.js", "detail": "CSV injection payloads" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "the CSV export never starts a cell with a spreadsheet formula character" }
-    ] },
-    { "id": "doc06-tournament-events", "doc": "06-gestion-inscription.md", "capability": "Tournament cancellation or deletion terminates registrations and their reminders.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs", "detail": "reminder cancellation on lifecycle events" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "cancellation notifies the confirmed participants" }
-    ] },
-
-    { "id": "doc07-types", "doc": "07-notifications.md", "capability": "The documented notification types render from templates in the user's language.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/NotificationTemplateRendererTests.cs", "detail": "every template key in fr and en" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs", "detail": "enqueue and render path" }
-    ] },
-    { "id": "doc07-reminders", "doc": "07-notifications.md", "capability": "Monthly, last-month Saturday, J-2 and J-1 reminders are planned from the tournament date.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TournamentReminderPlannerTests.cs", "detail": "occurrence generation" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "registration plans the whole reminder ladder" }
-    ] },
-    { "id": "doc07-replan", "doc": "07-notifications.md", "capability": "Date change replans, cancellation and unregistration stop pending reminders.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/ScheduledNotificationTests.cs", "detail": "cancel and replan transitions" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "a date change replans the pending reminders" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "unregistering stops every pending reminder for that participant" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "cancellation stops every pending reminder" }
-    ] },
-    { "id": "doc07-preferences", "doc": "07-notifications.md", "capability": "User and organization notification preferences suppress the optional categories only.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/NotificationOptionsTests.cs", "detail": "preference resolution" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs", "detail": "organization notification settings" }
-    ] },
-    { "id": "doc07-dedupe", "doc": "07-notifications.md", "capability": "A dedupe key plus notification history makes every send at-most-once.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/NotificationOutboxRecordTests.cs", "detail": "dedupe and lease rules" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs", "detail": "history written once per outbox record" },
-      { "gate": "script", "target": "scheduler:smoke", "detail": "a delivered reminder appears exactly once in the notification history" }
-    ] },
-    { "id": "doc07-retry", "doc": "07-notifications.md", "capability": "Transport failures retry with backoff and land in a dead-letter queue; an unclear acceptance is held for operator reconciliation.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/NotificationRetryPolicyTests.cs", "detail": "the retry ladder" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "a permanently failing provider dead-letters the message after the retry ladder" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "an unclear provider acceptance is held for reconciliation instead of being resent blindly" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the operator replay is delivered to the local fake" }
-    ] },
-    { "id": "doc07-webhook", "doc": "07-notifications.md", "capability": "Provider delivery webhooks update history and reject replayed or unauthenticated calls.", "status": "proved", "acceptance": ["product-notifications"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/BrevoWebhookAndAdminTests.cs", "detail": "token check, replay, delivery status" },
-      { "gate": "cypress", "target": "cypress/e2e/admin-notification-delivery.cy.js", "detail": "admin delivery screens" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "the provider webhook is accepted back through the TLS edge" }
-    ] },
-    { "id": "doc07-body-privacy", "doc": "07-notifications.md", "capability": "No rendered email body or recipient address is persisted in logs or audit.", "status": "proved", "acceptance": ["eng-no-pii"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/TelemetryRedactionTests.cs", "detail": "log and span redaction" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/BrevoWebhookAndAdminTests.cs", "detail": "admin views expose no body" }
-    ] },
-    { "id": "doc07-live-delivery", "doc": "07-notifications.md", "capability": "Real email delivery through a live Brevo account, including inbox placement and bounce handling.", "status": "deferred", "deferredReason": "Requires a provider account, a verified sender domain and real recipients. Every local and CI run uses the fake transport, so nothing about real deliverability is measured or claimed.", "acceptance": [], "evidence": [] },
-
-    { "id": "doc08-envelope", "doc": "08-api-rest.md", "capability": "Documented response envelope, error shape and HTTP status codes.", "status": "proved", "acceptance": ["eng-openapi-drift"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/ApiBoundaryTests.cs", "detail": "problem details and status codes" },
-      { "gate": "vitest", "target": "src/app/api/api-boundary.test.ts", "detail": "client parsing of the envelope" }
-    ] },
-    { "id": "doc08-auth-endpoints", "doc": "08-api-rest.md", "capability": "The documented /api/auth endpoint set exists with its documented behavior.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs", "detail": "local auth endpoints" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OAuthApiTests.cs", "detail": "oauth endpoints" }
-    ] },
-    { "id": "doc08-org-user-endpoints", "doc": "08-api-rest.md", "capability": "The documented organization and user endpoint sets exist and are authorized.", "status": "proved", "acceptance": ["eng-server-authz"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs", "detail": "organization endpoints and authorization" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs", "detail": "admin user endpoints" }
-    ] },
-    { "id": "doc08-tournament-endpoints", "doc": "08-api-rest.md", "capability": "The documented tournament endpoint set exists, including public reads.", "status": "proved", "acceptance": ["product-public-calendar"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs", "detail": "public reads" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs", "detail": "organizer writes" }
-    ] },
-    { "id": "doc08-registration-endpoints", "doc": "08-api-rest.md", "capability": "The documented registration endpoint set exists, including the organizer routes.", "status": "proved", "acceptance": ["product-registration"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs", "detail": "user and organizer registration routes" }
-    ] },
-    { "id": "doc08-concurrency", "doc": "08-api-rest.md", "capability": "ETag/If-Match and Idempotency-Key cover the stale-write and retry paths.", "status": "proved", "acceptance": ["eng-etag-idempotency"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/StrongETagTests.cs", "detail": "ETag formatting and parsing" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs", "detail": "412 on a stale If-Match and idempotent retries" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "a stale If-Match is refused" },
-      { "gate": "rehearsal", "target": "deploy/release-test/journeys.mjs", "detail": "replaying the same Idempotency-Key is not a second registration" }
-    ] },
-    { "id": "doc08-openapi", "doc": "08-api-rest.md", "capability": "The OpenAPI document generates the typed client and drift fails the build.", "status": "proved", "acceptance": ["eng-openapi-drift"], "evidence": [
-      { "gate": "script", "target": "api:check", "detail": "regenerate and diff" },
-      { "gate": "vitest", "target": "src/app/api/live-dto-parity.test.ts", "detail": "DTO parity with the domain model" }
-    ] },
-
-    { "id": "doc09-public-pages", "doc": "09-frontend-angular.md", "capability": "Public pages: calendar, list, tournament detail, anonymous participant count.", "status": "proved", "acceptance": ["product-public-calendar"], "evidence": [
-      { "gate": "vitest", "target": "src/app/features/calendar/public-tournament.service.test.ts", "detail": "detail page model" },
-      { "gate": "cypress", "target": "cypress/e2e/public-calendar.cy.js", "detail": "browser public pages" }
-    ] },
-    { "id": "doc09-user-pages", "doc": "09-frontend-angular.md", "capability": "User pages: login, profile, my registrations, unverified-email banner.", "status": "proved", "acceptance": ["product-auth"], "evidence": [
-      { "gate": "vitest", "target": "src/app/features/calendar/my-registrations.test.ts", "detail": "my registrations model" },
-      { "gate": "vitest", "target": "src/app/auth/auth.service.test.ts", "detail": "session handling" },
-      { "gate": "cypress", "target": "cypress/e2e/auth-profile.cy.js", "detail": "browser login and profile" }
-    ] },
-    { "id": "doc09-organizer-pages", "doc": "09-frontend-angular.md", "capability": "Organizer pages: tournament form, preview, my tournaments, participant management.", "status": "proved", "acceptance": ["product-organizer-lifecycle"], "evidence": [
-      { "gate": "vitest", "target": "src/app/features/calendar/tournament-management.test.ts", "detail": "management list model" },
-      { "gate": "cypress", "target": "cypress/e2e/organizer-tournament-management.cy.js", "detail": "browser management screens" }
-    ] },
-    { "id": "doc09-admin-pages", "doc": "09-frontend-angular.md", "capability": "Admin dashboard: users, roles, organizations, formats, archetypes, audit.", "status": "proved", "acceptance": ["product-admin"], "evidence": [
-      { "gate": "vitest", "target": "src/app/features/admin/admin-query.test.ts", "detail": "admin query model" },
-      { "gate": "cypress", "target": "cypress/e2e/admin-orgs.cy.js", "detail": "browser admin screens" }
-    ] },
-    { "id": "doc09-guards", "doc": "09-frontend-angular.md", "capability": "Route guards and permission-driven UI hide what the session may not do.", "status": "proved", "acceptance": ["eng-server-authz"], "evidence": [
-      { "gate": "vitest", "target": "src/app/auth/auth-guards.test.ts", "detail": "guard behaviour" },
-      { "gate": "vitest", "target": "src/app/data-mode-routes.test.ts", "detail": "route exposure per data mode" },
-      { "gate": "cypress", "target": "cypress/e2e/legacy-data-authority.cy.js", "detail": "server-only routes are Not Found in legacy mode" }
-    ] },
-    { "id": "doc09-interceptor", "doc": "09-frontend-angular.md", "capability": "The HTTP interceptor attaches the session, refreshes it and surfaces errors consistently.", "status": "proved", "acceptance": ["eng-suites-green"], "evidence": [
-      { "gate": "vitest", "target": "src/app/auth/auth.interceptor.test.ts", "detail": "token attach and refresh" },
-      { "gate": "vitest", "target": "src/app/auth/auth-errors.test.ts", "detail": "error mapping" },
-      { "gate": "vitest", "target": "src/app/shared/async-guards.test.ts", "detail": "pending locks and stale-response guards" }
-    ] },
-    { "id": "doc09-ui-states", "doc": "09-frontend-angular.md", "capability": "Loading, empty, error and confirmation states plus accessible, responsive layout.", "status": "proved", "acceptance": ["eng-suites-green"], "evidence": [
-      { "gate": "cypress", "target": "cypress/e2e/accessibility.cy.js", "detail": "axe-core scans, keyboard and focus" },
-      { "gate": "vitest", "target": "src/app/shared/async-guards.test.ts", "detail": "loading and error state guards" }
-    ] },
-    { "id": "doc09-local-persistence", "doc": "09-frontend-angular.md", "capability": "Local persistence is limited to preferences and the public read cache; writes need the network.", "status": "proved", "acceptance": ["product-offline"], "evidence": [
-      { "gate": "vitest", "target": "src/app/api/service-worker-cache.test.ts", "detail": "public GET allowlist and private exclusion" },
-      { "gate": "vitest", "target": "src/app/backend/server-authority-boundary.test.ts", "detail": "no canonical browser store in server mode" },
-      { "gate": "cypress", "target": "cypress/e2e/offline-public-read.cy.js", "detail": "stale public read and rejected offline writes" }
-    ] },
-    { "id": "doc09-league-live", "doc": "09-frontend-angular.md", "capability": "Existing League/Result/Live behavior matches the TypeScript golden fixtures over the API.", "status": "proved", "acceptance": ["product-league-live-parity"], "evidence": [
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/LeagueParityTests.cs", "detail": "League derived results parity" },
-      { "gate": "dotnet", "target": "backend/tests/Gones.UnitTests/LiveParityTests.cs", "detail": "Live standings parity" },
-      { "gate": "vitest", "target": "src/app/domain/league-parity-fixtures.test.ts", "detail": "the TypeScript side of the same fixtures" },
-      { "gate": "cypress", "target": "cypress/e2e/league-server.cy.js", "detail": "League over the API" },
-      { "gate": "cypress", "target": "cypress/e2e/live-server.cy.js", "detail": "Live over the API" }
-    ] },
-    { "id": "doc09-export-migration", "doc": "09-frontend-angular.md", "capability": "Public Export v4 and the private migration bundle plus the atomic offline CLI.", "status": "proved", "acceptance": ["product-export-migration"], "evidence": [
-      { "gate": "vitest", "target": "src/app/domain/export-schemas.test.ts", "detail": "Export v4 schema and canonical JSON" },
-      { "gate": "vitest", "target": "src/app/domain/migration-bundle.test.ts", "detail": "private bundle shape" },
-      { "gate": "cypress", "target": "cypress/e2e/migration-bundle.cy.js", "detail": "browser export with zero /api/ traffic" },
-      { "gate": "script", "target": "migration:smoke", "detail": "dry-run-first atomic import" },
-      { "gate": "rehearsal", "target": "scripts/release-rehearsal.mjs", "detail": "a multi-origin private bundle set imports atomically with C#/TypeScript canonical-hash parity" }
-    ] },
-    { "id": "doc09-runtime-config", "doc": "09-frontend-angular.md", "capability": "The single-page application artifact is bound to no origin: data mode, API base URL and capability flags are injected at container start and validated identically at build, at start and in the browser.", "status": "proved", "acceptance": ["eng-artifacts-build", "ops-authority-mode"], "evidence": [
-      { "gate": "vitest", "target": "src/app/config/data-authority.test.ts", "detail": "the injected declaration replaces the built-in default and still fails closed" },
-      { "gate": "vitest", "target": "ops/frontend-data-authority.test.ts", "detail": "build checker, container-start gate and browser resolver agree on every declaration" },
-      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the artifact is serving the injected declaration" },
-      { "gate": "rehearsal", "target": "scripts/release-candidate.mjs", "detail": "the served content-security-policy names the injected origin" }
-    ] }
+    {
+      "id": "doc00-accounts",
+      "doc": "00-vision-projets.md",
+      "capability": "V1 accounts: local sign-up, OAuth sign-in, mandatory email validation before any write.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "register, verify, login and the write gate"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/auth-profile.cy.js",
+          "detail": "browser sign-up and profile"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the configured bootstrap User registers and verifies through the local email sink"
+        }
+      ]
+    },
+    {
+      "id": "doc00-users",
+      "doc": "00-vision-projets.md",
+      "capability": "V1 users: Visitor/User/Organizer/Admin with a public profile whose fields are opt-in.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
+          "detail": "admin user list, roles and closure"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the fake-OAuth User is not an Admin"
+        }
+      ]
+    },
+    {
+      "id": "doc00-calendar",
+      "doc": "00-vision-projets.md",
+      "capability": "V1 calendar: public month calendar as the default landing surface plus a list view.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/public-calendar.test.ts",
+          "detail": "month and list projection"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/public-calendar.cy.js",
+          "detail": "anonymous browsing"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "detail": "public read API"
+        }
+      ]
+    },
+    {
+      "id": "doc00-tournaments",
+      "doc": "00-vision-projets.md",
+      "capability": "V1 tournaments: an Organizer publishes, edits, cancels and deletes a dated tournament.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs",
+          "detail": "preview and publish"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-tournament-create.cy.js",
+          "detail": "browser create flow"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the Organizer publishes the tournament"
+        }
+      ]
+    },
+    {
+      "id": "doc00-structures",
+      "doc": "00-vision-projets.md",
+      "capability": "V1 structures: organizations own tournaments and carry member roles.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+          "detail": "organization and member endpoints"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/admin-orgs.cy.js",
+          "detail": "admin organization management"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the organization Owner is the member the Admin nominated"
+        }
+      ]
+    },
+    {
+      "id": "doc00-registrations",
+      "doc": "00-vision-projets.md",
+      "capability": "V1 registrations: a verified User registers and unregisters within capacity.",
+      "status": "proved",
+      "acceptance": [
+        "product-registration"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "register, unregister, capacity"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/tournament-registration.cy.js",
+          "detail": "browser registration flow"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "a verified User registers"
+        }
+      ]
+    },
+    {
+      "id": "doc00-notifications",
+      "doc": "00-vision-projets.md",
+      "capability": "V1 notifications: transactional email and reminders around the tournament date.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs",
+          "detail": "outbox delivery"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs",
+          "detail": "reminder planning and dispatch"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "registration plans the whole reminder ladder"
+        }
+      ]
+    },
+    {
+      "id": "doc00-out-of-scope",
+      "doc": "00-vision-projets.md",
+      "capability": "Out of V1 scope stays out: no payment and no waiting list. The browser-store build is retired, so no deployment can serve V1 data from localStorage.",
+      "status": "proved",
+      "acceptance": [
+        "ops-authority-mode"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/backend/server-authority-boundary.test.ts",
+          "detail": "no canonical browser store key, adapter or import survives anywhere in the application"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/settings/settings-capabilities.test.ts",
+          "detail": "no browser-authority Settings section is offered to any role"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/config/data-authority.test.ts",
+          "detail": "the retired legacy-browser declaration is refused with dataModeUnknown"
+        }
+      ]
+    },
+    {
+      "id": "doc01-slices",
+      "doc": "01-architecture.md",
+      "capability": "Vertical-slice layering with enforced dependency direction Domain <- Application <- Infrastructure/Api.",
+      "status": "proved",
+      "acceptance": [
+        "eng-suites-green"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.ArchitectureTests/UnitTest1.cs",
+          "detail": "assembly dependency rules"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.ArchitectureTests/ServerAuthorityBoundaryTests.cs",
+          "detail": "server-authority boundary"
+        }
+      ]
+    },
+    {
+      "id": "doc01-rest",
+      "doc": "01-architecture.md",
+      "capability": "REST conventions: resource URLs, problem-details errors and documented HTTP codes.",
+      "status": "proved",
+      "acceptance": [
+        "eng-openapi-drift"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/ApiBoundaryTests.cs",
+          "detail": "error envelope and status codes"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/api/api-boundary.test.ts",
+          "detail": "client-side contract"
+        },
+        {
+          "gate": "script",
+          "target": "api:check",
+          "detail": "generated client drift gate"
+        }
+      ]
+    },
+    {
+      "id": "doc01-authz",
+      "doc": "01-architecture.md",
+      "capability": "Authentication and authorization are enforced server-side on every mutation.",
+      "status": "proved",
+      "acceptance": [
+        "eng-server-authz"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "detail": "ownership and role checks on mutations"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/abuse-surface.cy.js",
+          "detail": "IDOR, mass assignment and forged-role attempts"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the anonymous Visitor surface is public-read only"
+        }
+      ]
+    },
+    {
+      "id": "doc01-persistence",
+      "doc": "01-architecture.md",
+      "capability": "PostgreSQL persistence with EF Core migrations, optimistic concurrency and append-only audit.",
+      "status": "proved",
+      "acceptance": [
+        "eng-db-constraints"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PersistenceKernelTests.cs",
+          "detail": "concurrency and audit guard"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/ScheduledTournamentPersistenceTests.cs",
+          "detail": "calendar persistence"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "re-running the migration job applies nothing new"
+        }
+      ]
+    },
+    {
+      "id": "doc01-logs",
+      "doc": "01-architecture.md",
+      "capability": "Structured stdout JSON logs plus OTLP traces correlating API, database and Worker.",
+      "status": "proved",
+      "acceptance": [
+        "ops-otel-trace"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TelemetryAndHealthTests.cs",
+          "detail": "correlation id and health surface"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the collector received API spans"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the collector received Worker spans"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the API spans reach the database"
+        }
+      ]
+    },
+    {
+      "id": "doc01-email",
+      "doc": "01-architecture.md",
+      "capability": "Provider-neutral email transport driven by an outbox, not by request threads.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/BrevoDeliveryTests.cs",
+          "detail": "transport classification and circuit breaker"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs",
+          "detail": "outbox lease and delivery"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the Worker delivers through the provider-neutral transport to the local fake"
+        }
+      ]
+    },
+    {
+      "id": "doc01-scheduler",
+      "doc": "01-architecture.md",
+      "capability": "Singleton scheduler holding a PostgreSQL advisory lock plans and fires time-based work.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs",
+          "detail": "leader election and due dispatch"
+        },
+        {
+          "gate": "script",
+          "target": "scheduler:smoke",
+          "detail": "clock simulation against a live stack: due delivered once, downtime-missed not sent late, restart replays nothing"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the scheduler drains every pending lifecycle event"
+        }
+      ]
+    },
+    {
+      "id": "doc01-config-secrets",
+      "doc": "01-architecture.md",
+      "capability": "Configuration through environment variables and secrets through mounted files, never literals.",
+      "status": "proved",
+      "acceptance": [
+        "ops-runtime-config"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/RuntimeContractTests.cs",
+          "detail": "secret files, forwarded proxies, shutdown window"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/RuntimeConfigurationTests.cs",
+          "detail": "configuration validation"
+        },
+        {
+          "gate": "vitest",
+          "target": "ops/host-contract.test.ts",
+          "detail": "every runtime key stays documented"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "database credentials reach the API as a mounted file, never as an environment value"
+        }
+      ]
+    },
+    {
+      "id": "doc01-docker",
+      "doc": "01-architecture.md",
+      "capability": "Every runtime component ships as a Linux OCI image runnable on a generic host with no cloud SDK.",
+      "status": "proved",
+      "acceptance": [
+        "ops-no-cloud-sdk"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "ops/image-contract.test.ts",
+          "detail": "image shape, user, stop signal, labels"
+        },
+        {
+          "gate": "script",
+          "target": "images:verify",
+          "detail": "runtime contract of each built image"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "API runs as a non-root account"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "API root filesystem is read-only at runtime"
+        }
+      ]
+    },
+    {
+      "id": "doc01-container-lifecycle",
+      "doc": "01-architecture.md",
+      "capability": "Container health, restart, graceful shutdown, startup ordering and migration idempotency.",
+      "status": "proved",
+      "acceptance": [
+        "ops-container-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "API starts only after the migration job finished"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "API exits 0 on SIGTERM"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "API returns to a ready state after a restart with the same volumes"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the singleton Worker stayed up across the API restart"
+        }
+      ]
+    },
+    {
+      "id": "doc01-backup",
+      "doc": "01-architecture.md",
+      "capability": "Encrypted dump and restore run from the shipped backup image against mounted paths only, and survive a total volume loss.",
+      "status": "proved",
+      "acceptance": [
+        "ops-backup-restore"
+      ],
+      "evidence": [
+        {
+          "gate": "script",
+          "target": "backup:rehearsal",
+          "detail": "the whole backup and restore rehearsal"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/backup-restore-rehearsal.mjs",
+          "detail": "the PostgreSQL data volume is destroyed, not merely emptied"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/backup-restore-rehearsal.mjs",
+          "detail": "the encrypted archive restores into the clean database"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/backup-restore-rehearsal.mjs",
+          "detail": "the post-restore migration smoke applies nothing new"
+        }
+      ]
+    },
+    {
+      "id": "doc01-security",
+      "doc": "01-architecture.md",
+      "capability": "Security headers, CSP, rate limits and input hardening applied at the API edge.",
+      "status": "proved",
+      "acceptance": [
+        "eng-suites-green"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/RateLimitPolicyTests.cs",
+          "detail": "429 and Retry-After"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/abuse-surface.cy.js",
+          "detail": "XSS, CSV injection, open redirect, replay"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "forwarded scheme from the trusted proxy is honoured (HSTS emitted)"
+        }
+      ]
+    },
+    {
+      "id": "doc01-public-api",
+      "doc": "01-architecture.md",
+      "capability": "Anonymous public read API exposes no private participant or account data.",
+      "status": "proved",
+      "acceptance": [
+        "eng-no-pii"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "detail": "public DTO shape"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the public participant view never exposes a participant address"
+        }
+      ]
+    },
+    {
+      "id": "doc01-operations-docs",
+      "doc": "01-architecture.md",
+      "capability": "The generic host contract and the operator procedures are documented in the repository, not in a vendor console.",
+      "status": "proved",
+      "acceptance": [
+        "ops-docs"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "ops/host-contract.test.ts",
+          "detail": "runbook sections, rehearsal commands and deferred markers stay present"
+        }
+      ]
+    },
+    {
+      "id": "doc01-release-artifacts",
+      "doc": "01-architecture.md",
+      "capability": "The V1 release candidate is an immutable artifact set: five digest-pinned linux/amd64 images with SBOMs, checksums, scan reports and the source revision they were built from.",
+      "status": "proved",
+      "acceptance": [
+        "eng-artifacts-build"
+      ],
+      "evidence": [
+        {
+          "gate": "script",
+          "target": "images:build",
+          "detail": "digests, SPDX SBOMs and checksums for every artifact"
+        },
+        {
+          "gate": "script",
+          "target": "release:preflight",
+          "detail": "the gate that decides whether a built set is releasable"
+        },
+        {
+          "gate": "vitest",
+          "target": "ops/release-preflight.test.ts",
+          "detail": "each of the nine mismatch classes really rejects"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-candidate.mjs",
+          "detail": "container is the released digest"
+        }
+      ]
+    },
+    {
+      "id": "doc01-clean-machine",
+      "doc": "01-architecture.md",
+      "capability": "A clean environment starts from those exact artifacts and reaches a complete V1 state: migrated schema, verified bootstrap User, Admin, every server feature flag enabled.",
+      "status": "proved",
+      "acceptance": [
+        "eng-artifacts-build"
+      ],
+      "evidence": [
+        {
+          "gate": "script",
+          "target": "release:candidate",
+          "detail": "clean environment assembled from the immutable artifacts"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-candidate.mjs",
+          "detail": "the clean database is migrated to the shipped schema"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-candidate.mjs",
+          "detail": "runs with all six server feature flags enabled"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-candidate.mjs",
+          "detail": "the configured bootstrap User registers and verifies through the local email sink"
+        }
+      ]
+    },
+    {
+      "id": "doc01-public-hosting",
+      "doc": "01-architecture.md",
+      "capability": "Public hosting: domain, DNS, CDN, managed PostgreSQL, container registry and image signing trust.",
+      "status": "deferred",
+      "deferredReason": "No hosting vendor, domain or registry is chosen. Every artifact is registry-neutral and every rehearsal runs on one machine, so nothing here can be proved locally and nothing claims it is.",
+      "acceptance": [],
+      "evidence": []
+    },
+    {
+      "id": "doc02-entities",
+      "doc": "02-modeles-donnees.md",
+      "capability": "The documented entity set exists with its documented fields and relations.",
+      "status": "proved",
+      "acceptance": [
+        "eng-db-constraints"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PersistenceKernelTests.cs",
+          "detail": "schema round-trip"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/ScheduledTournamentPersistenceTests.cs",
+          "detail": "calendar entities"
+        }
+      ]
+    },
+    {
+      "id": "doc02-uniqueness",
+      "doc": "02-modeles-donnees.md",
+      "capability": "Uniqueness constraints on email, username, organization name and tournament slug.",
+      "status": "proved",
+      "acceptance": [
+        "eng-db-constraints"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "duplicate email and username"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+          "detail": "duplicate organization name"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "re-registering the same address is refused"
+        }
+      ]
+    },
+    {
+      "id": "doc02-registration-constraint",
+      "doc": "02-modeles-donnees.md",
+      "capability": "At most one active registration per (tournament, user) enforced in the database.",
+      "status": "proved",
+      "acceptance": [
+        "eng-db-constraints"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "duplicate active registration"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs",
+          "detail": "status transition rules"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "a second active registration is refused"
+        }
+      ]
+    },
+    {
+      "id": "doc02-soft-delete",
+      "doc": "02-modeles-donnees.md",
+      "capability": "Soft deletion keeps rows recoverable and hides them from public reads.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "detail": "delete and restore"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "a deleted tournament disappears from the public surface"
+        }
+      ]
+    },
+    {
+      "id": "doc02-audit",
+      "doc": "02-modeles-donnees.md",
+      "capability": "Audit records are append-only and carry a redacted diff, never raw personal data.",
+      "status": "proved",
+      "acceptance": [
+        "eng-no-pii"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
+          "detail": "audit surface and redaction"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PersistenceKernelTests.cs",
+          "detail": "append-only trigger"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/backup-restore-rehearsal.mjs",
+          "detail": "the append-only audit guard is restored with the schema"
+        }
+      ]
+    },
+    {
+      "id": "doc02-utc",
+      "doc": "02-modeles-donnees.md",
+      "capability": "Instants are stored in UTC while the venue time zone is stored beside the local wall time.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/ScheduledTournamentDomainTests.cs",
+          "detail": "local-to-UTC normalization"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/domain/calendar-ics.test.ts",
+          "detail": "venue and viewer zone rendering"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the tournament exports an ICS entry carrying the venue time zone"
+        }
+      ]
+    },
+    {
+      "id": "doc02-indexes",
+      "doc": "02-modeles-donnees.md",
+      "capability": "Documented indexes exist and keep public list queries inside their budget.",
+      "status": "proved",
+      "acceptance": [
+        "eng-suites-green"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PerformanceBudgetTests.cs",
+          "detail": "query-count and time budgets"
+        }
+      ]
+    },
+    {
+      "id": "doc03-local-account",
+      "doc": "03-authentification.md",
+      "capability": "Local account creation with password policy, lockout and normalized email.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/LocalIdentityPolicyTests.cs",
+          "detail": "password and lockout policy"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "register and login endpoints"
+        }
+      ]
+    },
+    {
+      "id": "doc03-oauth",
+      "doc": "03-authentification.md",
+      "capability": "Google and Facebook adapters run the full authorize/callback/link contract against a local fake provider.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OAuthApiTests.cs",
+          "detail": "start, callback, completion, linking, CSRF state"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/ExternalIdentityTests.cs",
+          "detail": "external identity domain rules"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the fake-OAuth account reaches an authenticated session"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "no live identity provider is contacted"
+        }
+      ]
+    },
+    {
+      "id": "doc03-oauth-live",
+      "doc": "03-authentification.md",
+      "capability": "Smoke test against the real Google and Facebook applications with registered redirect URIs.",
+      "status": "deferred",
+      "deferredReason": "Requires provider accounts, client credentials and a registered public callback origin. None exists, and inventing one would be a credential this repository must not hold. Only the local fake provider is exercised.",
+      "acceptance": [],
+      "evidence": []
+    },
+    {
+      "id": "doc03-email-validation",
+      "doc": "03-authentification.md",
+      "capability": "Email validation gates writes; unverified accounts see a banner and can resend.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/AccountLifecycleTests.cs",
+          "detail": "token issue, supersede and consume"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/auth-profile.cy.js",
+          "detail": "unverified banner and resend"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the configured bootstrap User registers and verifies through the local email sink"
+        }
+      ]
+    },
+    {
+      "id": "doc03-email-change",
+      "doc": "03-authentification.md",
+      "capability": "Email change is confirmed on the new address and recorded in an email history.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/AccountLifecycleTests.cs",
+          "detail": "change-email token targeting"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "email-change and history endpoints"
+        }
+      ]
+    },
+    {
+      "id": "doc03-jwt",
+      "doc": "03-authentification.md",
+      "capability": "Short-lived JWT plus rotating refresh sessions, with logout and logout-all revocation.",
+      "status": "proved",
+      "acceptance": [
+        "eng-server-authz"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/RefreshSessionTests.cs",
+          "detail": "rotation, reuse detection, revocation"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "refresh and logout endpoints"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/auth.interceptor.test.ts",
+          "detail": "client refresh handling"
+        }
+      ]
+    },
+    {
+      "id": "doc03-roles",
+      "doc": "03-authentification.md",
+      "capability": "Global roles and their permission matrix, including refusal responses.",
+      "status": "proved",
+      "acceptance": [
+        "eng-server-authz"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/GlobalRolePolicyTests.cs",
+          "detail": "role assignability and policy mapping"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
+          "detail": "grant and revoke endpoints"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the Admin attributes the Organizer role"
+        }
+      ]
+    },
+    {
+      "id": "doc03-oauth-profile",
+      "doc": "03-authentification.md",
+      "capability": "An OAuth account must complete the mandatory profile before it can act.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OAuthApiTests.cs",
+          "detail": "completion ticket flow"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/registration-gate.test.ts",
+          "detail": "client-side completion gate"
+        }
+      ]
+    },
+    {
+      "id": "doc03-audit",
+      "doc": "03-authentification.md",
+      "capability": "Authentication events are audited without storing credentials or raw email bodies.",
+      "status": "proved",
+      "acceptance": [
+        "eng-no-pii"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TelemetryRedactionTests.cs",
+          "detail": "redaction of addresses and tokens"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
+          "detail": "audit record contents"
+        }
+      ]
+    },
+    {
+      "id": "doc04-hierarchy",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "Visitor, User, Organizer and Admin capability hierarchy.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/GlobalRolePolicyTests.cs",
+          "detail": "hierarchy rules"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/auth-guards.test.ts",
+          "detail": "client route guards"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the anonymous Visitor surface is public-read only"
+        }
+      ]
+    },
+    {
+      "id": "doc04-organizations",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "Organization creation, update, transfer and deletion with owner protection.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+          "detail": "CRUD, transfer, last-owner protection"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/admin-orgs.cy.js",
+          "detail": "admin organization screens"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "a non-Owner member cannot transfer ownership"
+        }
+      ]
+    },
+    {
+      "id": "doc04-members",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "Organization members carry internal roles and grant the Organizer capability.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/OrganizationDomainTests.cs",
+          "detail": "member role rules"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+          "detail": "member endpoints"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the Owner adds an Organizer member"
+        }
+      ]
+    },
+    {
+      "id": "doc04-blocking",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "An organization can block a user, which refuses that user's registrations.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-participants"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "blocked-user refusal"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-participants.cy.js",
+          "detail": "block management screen"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "a blocked user cannot register"
+        }
+      ]
+    },
+    {
+      "id": "doc04-public-profile",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "Only opt-in profile fields are public; Organizers see the documented extra fields.",
+      "status": "proved",
+      "acceptance": [
+        "eng-no-pii"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "profile visibility flags"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "detail": "public DTO omits private fields"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the Organizer private participant view resolves the participant"
+        }
+      ]
+    },
+    {
+      "id": "doc04-profile-history",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "Profile modification is recorded and the email history is retained then redacted.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "email history endpoint and retention"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
+          "detail": "audit of profile changes"
+        }
+      ]
+    },
+    {
+      "id": "doc04-account-closure",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "Account closure is refused while it would orphan an organization, and anonymizes otherwise.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/AccountClosurePolicyTests.cs",
+          "detail": "closure impact rules"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
+          "detail": "closure endpoints"
+        }
+      ]
+    },
+    {
+      "id": "doc05-creation",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Organizer create -> preview -> publish workflow with required and optional fields.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs",
+          "detail": "preview ticket and publish"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/organizer-tournament-create.test.ts",
+          "detail": "form model and validation"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-tournament-create.cy.js",
+          "detail": "browser create flow"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the Organizer previews before publishing"
+        }
+      ]
+    },
+    {
+      "id": "doc05-formats",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Tournament formats come from an Admin catalog, not free text.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TournamentFormatTests.cs",
+          "detail": "format domain rules"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminBootstrapAndCatalogTests.cs",
+          "detail": "catalog endpoints"
+        }
+      ]
+    },
+    {
+      "id": "doc05-lifecycle",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Draft/Published/Ongoing/Completed/Cancelled lifecycle with automatic start and end.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/ScheduledTournamentDomainTests.cs",
+          "detail": "state machine"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs",
+          "detail": "automatic start and end"
+        },
+        {
+          "gate": "script",
+          "target": "scheduler:smoke",
+          "detail": "lifecycle advances on a live stack"
+        }
+      ]
+    },
+    {
+      "id": "doc05-modification",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Major modification notifies participants; minor modification does not.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "detail": "major versus minor change classification"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "a major modification notifies the confirmed participants"
+        }
+      ]
+    },
+    {
+      "id": "doc05-delete-restore",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Soft delete, Admin restore and cancellation each behave as documented.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "detail": "delete, restore, cancel"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-tournament-management.cy.js",
+          "detail": "management screens"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "soft delete hides the tournament and the Admin restores it"
+        }
+      ]
+    },
+    {
+      "id": "doc05-visibility",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Public visibility rules for past, cancelled and completed tournaments.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "detail": "visibility filtering"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/public-calendar.test.ts",
+          "detail": "client visibility rules"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/public-calendar.cy.js",
+          "detail": "browser visibility"
+        }
+      ]
+    },
+    {
+      "id": "doc05-calendar-views",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Calendar view, list view and documented filters over the public surface.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/public-calendar.test.ts",
+          "detail": "filters and view switching"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/domain/event-pages.test.ts",
+          "detail": "pagination"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/public-calendar.cy.js",
+          "detail": "browser filters"
+        }
+      ]
+    },
+    {
+      "id": "doc05-capacity",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "Capacity and full-tournament rules on the public tournament page.",
+      "status": "proved",
+      "acceptance": [
+        "product-registration"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs",
+          "detail": "capacity rules"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/public-tournament.service.test.ts",
+          "detail": "full-tournament presentation"
+        }
+      ]
+    },
+    {
+      "id": "doc05-ics",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "A tournament exports an ICS entry using the venue time zone.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/domain/calendar-ics.test.ts",
+          "detail": "ICS rendering"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "detail": "the .ics endpoint"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the tournament exports an ICS entry carrying the venue time zone"
+        }
+      ]
+    },
+    {
+      "id": "doc06-conditions",
+      "doc": "06-gestion-inscription.md",
+      "capability": "Registration requires a verified account and an open, published, future tournament.",
+      "status": "proved",
+      "acceptance": [
+        "product-registration"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "precondition checks"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/tournament-registration.service.test.ts",
+          "detail": "client capability model"
+        }
+      ]
+    },
+    {
+      "id": "doc06-workflow",
+      "doc": "06-gestion-inscription.md",
+      "capability": "Register, unregister and re-register produce the documented status transitions.",
+      "status": "proved",
+      "acceptance": [
+        "product-registration"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs",
+          "detail": "status transitions"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/tournament-registration.cy.js",
+          "detail": "browser register and unregister"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the cancelled registration is no longer confirmed for that user"
+        }
+      ]
+    },
+    {
+      "id": "doc06-refusal",
+      "doc": "06-gestion-inscription.md",
+      "capability": "Every documented refusal reason returns its own stable error.",
+      "status": "proved",
+      "acceptance": [
+        "product-registration"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "refusal codes"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/tournament-registration.service.test.ts",
+          "detail": "client error mapping"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "a second active registration is refused"
+        }
+      ]
+    },
+    {
+      "id": "doc06-organizer-manual",
+      "doc": "06-gestion-inscription.md",
+      "capability": "An Organizer registers and removes a participant manually.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-participants"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "by-organizer endpoints"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-participants.cy.js",
+          "detail": "participant screens"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the Organizer registers a participant manually"
+        }
+      ]
+    },
+    {
+      "id": "doc06-capacity-concurrency",
+      "doc": "06-gestion-inscription.md",
+      "capability": "Capacity is enforced transactionally under concurrent registration attempts.",
+      "status": "proved",
+      "acceptance": [
+        "eng-db-constraints"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "serializable capacity race"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TournamentRegistrationTests.cs",
+          "detail": "capacity domain rules"
+        }
+      ]
+    },
+    {
+      "id": "doc06-participants-view",
+      "doc": "06-gestion-inscription.md",
+      "capability": "Public participant list is anonymous; the Organizer sees the private list.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-participants"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/participant-management.test.ts",
+          "detail": "private list presentation"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-participants.cy.js",
+          "detail": "browser participant list"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the public participant view never exposes a participant address"
+        }
+      ]
+    },
+    {
+      "id": "doc06-csv",
+      "doc": "06-gestion-inscription.md",
+      "capability": "Organizer CSV export of participants is injection-safe.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-participants"
+      ],
+      "evidence": [
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/abuse-surface.cy.js",
+          "detail": "CSV injection payloads"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "the CSV export never starts a cell with a spreadsheet formula character"
+        }
+      ]
+    },
+    {
+      "id": "doc06-tournament-events",
+      "doc": "06-gestion-inscription.md",
+      "capability": "Tournament cancellation or deletion terminates registrations and their reminders.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs",
+          "detail": "reminder cancellation on lifecycle events"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "cancellation notifies the confirmed participants"
+        }
+      ]
+    },
+    {
+      "id": "doc07-types",
+      "doc": "07-notifications.md",
+      "capability": "The documented notification types render from templates in the user's language.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/NotificationTemplateRendererTests.cs",
+          "detail": "every template key in fr and en"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs",
+          "detail": "enqueue and render path"
+        }
+      ]
+    },
+    {
+      "id": "doc07-reminders",
+      "doc": "07-notifications.md",
+      "capability": "Monthly, last-month Saturday, J-2 and J-1 reminders are planned from the tournament date.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TournamentReminderPlannerTests.cs",
+          "detail": "occurrence generation"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "registration plans the whole reminder ladder"
+        }
+      ]
+    },
+    {
+      "id": "doc07-replan",
+      "doc": "07-notifications.md",
+      "capability": "Date change replans, cancellation and unregistration stop pending reminders.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/ScheduledNotificationTests.cs",
+          "detail": "cancel and replan transitions"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "a date change replans the pending reminders"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "unregistering stops every pending reminder for that participant"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "cancellation stops every pending reminder"
+        }
+      ]
+    },
+    {
+      "id": "doc07-preferences",
+      "doc": "07-notifications.md",
+      "capability": "User and organization notification preferences suppress the optional categories only.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/NotificationOptionsTests.cs",
+          "detail": "preference resolution"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+          "detail": "organization notification settings"
+        }
+      ]
+    },
+    {
+      "id": "doc07-dedupe",
+      "doc": "07-notifications.md",
+      "capability": "A dedupe key plus notification history makes every send at-most-once.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/NotificationOutboxRecordTests.cs",
+          "detail": "dedupe and lease rules"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/NotificationOutboxTests.cs",
+          "detail": "history written once per outbox record"
+        },
+        {
+          "gate": "script",
+          "target": "scheduler:smoke",
+          "detail": "a delivered reminder appears exactly once in the notification history"
+        }
+      ]
+    },
+    {
+      "id": "doc07-retry",
+      "doc": "07-notifications.md",
+      "capability": "Transport failures retry with backoff and land in a dead-letter queue; an unclear acceptance is held for operator reconciliation.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/NotificationRetryPolicyTests.cs",
+          "detail": "the retry ladder"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "a permanently failing provider dead-letters the message after the retry ladder"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "an unclear provider acceptance is held for reconciliation instead of being resent blindly"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the operator replay is delivered to the local fake"
+        }
+      ]
+    },
+    {
+      "id": "doc07-webhook",
+      "doc": "07-notifications.md",
+      "capability": "Provider delivery webhooks update history and reject replayed or unauthenticated calls.",
+      "status": "proved",
+      "acceptance": [
+        "product-notifications"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/BrevoWebhookAndAdminTests.cs",
+          "detail": "token check, replay, delivery status"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/admin-notification-delivery.cy.js",
+          "detail": "admin delivery screens"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "the provider webhook is accepted back through the TLS edge"
+        }
+      ]
+    },
+    {
+      "id": "doc07-body-privacy",
+      "doc": "07-notifications.md",
+      "capability": "No rendered email body or recipient address is persisted in logs or audit.",
+      "status": "proved",
+      "acceptance": [
+        "eng-no-pii"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/TelemetryRedactionTests.cs",
+          "detail": "log and span redaction"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/BrevoWebhookAndAdminTests.cs",
+          "detail": "admin views expose no body"
+        }
+      ]
+    },
+    {
+      "id": "doc07-live-delivery",
+      "doc": "07-notifications.md",
+      "capability": "Real email delivery through a live Brevo account, including inbox placement and bounce handling.",
+      "status": "deferred",
+      "deferredReason": "Requires a provider account, a verified sender domain and real recipients. Every local and CI run uses the fake transport, so nothing about real deliverability is measured or claimed.",
+      "acceptance": [],
+      "evidence": []
+    },
+    {
+      "id": "doc08-envelope",
+      "doc": "08-api-rest.md",
+      "capability": "Documented response envelope, error shape and HTTP status codes.",
+      "status": "proved",
+      "acceptance": [
+        "eng-openapi-drift"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/ApiBoundaryTests.cs",
+          "detail": "problem details and status codes"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/api/api-boundary.test.ts",
+          "detail": "client parsing of the envelope"
+        }
+      ]
+    },
+    {
+      "id": "doc08-auth-endpoints",
+      "doc": "08-api-rest.md",
+      "capability": "The documented /api/auth endpoint set exists with its documented behavior.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs",
+          "detail": "local auth endpoints"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OAuthApiTests.cs",
+          "detail": "oauth endpoints"
+        }
+      ]
+    },
+    {
+      "id": "doc08-org-user-endpoints",
+      "doc": "08-api-rest.md",
+      "capability": "The documented organization and user endpoint sets exist and are authorized.",
+      "status": "proved",
+      "acceptance": [
+        "eng-server-authz"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+          "detail": "organization endpoints and authorization"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
+          "detail": "admin user endpoints"
+        }
+      ]
+    },
+    {
+      "id": "doc08-tournament-endpoints",
+      "doc": "08-api-rest.md",
+      "capability": "The documented tournament endpoint set exists, including public reads.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "detail": "public reads"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs",
+          "detail": "organizer writes"
+        }
+      ]
+    },
+    {
+      "id": "doc08-registration-endpoints",
+      "doc": "08-api-rest.md",
+      "capability": "The documented registration endpoint set exists, including the organizer routes.",
+      "status": "proved",
+      "acceptance": [
+        "product-registration"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "detail": "user and organizer registration routes"
+        }
+      ]
+    },
+    {
+      "id": "doc08-concurrency",
+      "doc": "08-api-rest.md",
+      "capability": "ETag/If-Match and Idempotency-Key cover the stale-write and retry paths.",
+      "status": "proved",
+      "acceptance": [
+        "eng-etag-idempotency"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/StrongETagTests.cs",
+          "detail": "ETag formatting and parsing"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "detail": "412 on a stale If-Match and idempotent retries"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "a stale If-Match is refused"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "deploy/release-test/journeys.mjs",
+          "detail": "replaying the same Idempotency-Key is not a second registration"
+        }
+      ]
+    },
+    {
+      "id": "doc08-openapi",
+      "doc": "08-api-rest.md",
+      "capability": "The OpenAPI document generates the typed client and drift fails the build.",
+      "status": "proved",
+      "acceptance": [
+        "eng-openapi-drift"
+      ],
+      "evidence": [
+        {
+          "gate": "script",
+          "target": "api:check",
+          "detail": "regenerate and diff"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/api/live-dto-parity.test.ts",
+          "detail": "DTO parity with the domain model"
+        }
+      ]
+    },
+    {
+      "id": "doc09-public-pages",
+      "doc": "09-frontend-angular.md",
+      "capability": "Public pages: calendar, list, tournament detail, anonymous participant count.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/public-tournament.service.test.ts",
+          "detail": "detail page model"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/public-calendar.cy.js",
+          "detail": "browser public pages"
+        }
+      ]
+    },
+    {
+      "id": "doc09-user-pages",
+      "doc": "09-frontend-angular.md",
+      "capability": "User pages: login, profile, my registrations, unverified-email banner.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/my-registrations.test.ts",
+          "detail": "my registrations model"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/auth.service.test.ts",
+          "detail": "session handling"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/auth-profile.cy.js",
+          "detail": "browser login and profile"
+        }
+      ]
+    },
+    {
+      "id": "doc09-organizer-pages",
+      "doc": "09-frontend-angular.md",
+      "capability": "Organizer pages: tournament form, preview, my tournaments, participant management.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/tournament-management.test.ts",
+          "detail": "management list model"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-tournament-management.cy.js",
+          "detail": "browser management screens"
+        }
+      ]
+    },
+    {
+      "id": "doc09-admin-pages",
+      "doc": "09-frontend-angular.md",
+      "capability": "Admin dashboard: users, roles, organizations, formats, archetypes, audit.",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/features/admin/admin-query.test.ts",
+          "detail": "admin query model"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/admin-orgs.cy.js",
+          "detail": "browser admin screens"
+        }
+      ]
+    },
+    {
+      "id": "doc09-guards",
+      "doc": "09-frontend-angular.md",
+      "capability": "Route guards and permission-driven UI hide what the session may not do.",
+      "status": "proved",
+      "acceptance": [
+        "eng-server-authz"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/auth-guards.test.ts",
+          "detail": "guard behaviour"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/data-mode-routes.test.ts",
+          "detail": "route exposure per capability flag"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/server-data-authority.cy.js",
+          "detail": "the API is the only data source a routed page reads"
+        }
+      ]
+    },
+    {
+      "id": "doc09-interceptor",
+      "doc": "09-frontend-angular.md",
+      "capability": "The HTTP interceptor attaches the session, refreshes it and surfaces errors consistently.",
+      "status": "proved",
+      "acceptance": [
+        "eng-suites-green"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/auth.interceptor.test.ts",
+          "detail": "token attach and refresh"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/auth-errors.test.ts",
+          "detail": "error mapping"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/shared/async-guards.test.ts",
+          "detail": "pending locks and stale-response guards"
+        }
+      ]
+    },
+    {
+      "id": "doc09-ui-states",
+      "doc": "09-frontend-angular.md",
+      "capability": "Loading, empty, error and confirmation states plus accessible, responsive layout.",
+      "status": "proved",
+      "acceptance": [
+        "eng-suites-green"
+      ],
+      "evidence": [
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/accessibility.cy.js",
+          "detail": "axe-core scans, keyboard and focus"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/shared/async-guards.test.ts",
+          "detail": "loading and error state guards"
+        }
+      ]
+    },
+    {
+      "id": "doc09-local-persistence",
+      "doc": "09-frontend-angular.md",
+      "capability": "Local persistence is limited to preferences and the public read cache; writes need the network.",
+      "status": "proved",
+      "acceptance": [
+        "product-offline"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/api/service-worker-cache.test.ts",
+          "detail": "public GET allowlist and private exclusion"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/backend/server-authority-boundary.test.ts",
+          "detail": "no canonical browser store in server mode"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/offline-public-read.cy.js",
+          "detail": "stale public read and rejected offline writes"
+        }
+      ]
+    },
+    {
+      "id": "doc09-league-live",
+      "doc": "09-frontend-angular.md",
+      "capability": "Existing League/Result/Live behavior matches the TypeScript golden fixtures over the API.",
+      "status": "proved",
+      "acceptance": [
+        "product-league-live-parity"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/LeagueParityTests.cs",
+          "detail": "League derived results parity"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/LiveParityTests.cs",
+          "detail": "Live standings parity"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/domain/league-parity-fixtures.test.ts",
+          "detail": "the TypeScript side of the same fixtures"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/league-server.cy.js",
+          "detail": "League over the API"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/live-server.cy.js",
+          "detail": "Live over the API"
+        }
+      ]
+    },
+    {
+      "id": "doc09-export-migration",
+      "doc": "09-frontend-angular.md",
+      "capability": "Public Export v4 plus the atomic offline migration CLI for bundles exported before the cutover.",
+      "status": "proved",
+      "acceptance": [
+        "product-export-migration"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/domain/export-schemas.test.ts",
+          "detail": "Export v4 schema and canonical JSON"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/domain/export-restore.test.ts",
+          "detail": "bundle normalization and restore"
+        },
+        {
+          "gate": "script",
+          "target": "migration:smoke",
+          "detail": "dry-run-first atomic import"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-rehearsal.mjs",
+          "detail": "a multi-origin private bundle set imports atomically with C#/TypeScript canonical-hash parity"
+        }
+      ]
+    },
+    {
+      "id": "doc09-runtime-config",
+      "doc": "09-frontend-angular.md",
+      "capability": "The single-page application artifact is bound to no origin: data mode, API base URL and capability flags are injected at container start and validated identically at build, at start and in the browser.",
+      "status": "proved",
+      "acceptance": [
+        "eng-artifacts-build",
+        "ops-authority-mode"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/config/data-authority.test.ts",
+          "detail": "the injected declaration replaces the built-in default and still fails closed"
+        },
+        {
+          "gate": "vitest",
+          "target": "ops/frontend-data-authority.test.ts",
+          "detail": "build checker, container-start gate and browser resolver agree on every declaration"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-candidate.mjs",
+          "detail": "the artifact is serving the injected declaration"
+        },
+        {
+          "gate": "rehearsal",
+          "target": "scripts/release-candidate.mjs",
+          "detail": "the served content-security-policy names the injected origin"
+        }
+      ]
+    }
   ],
-
   "acceptanceChecklist": [
-    { "id": "product-public-calendar", "section": "Product", "status": "proved", "text": "Public Calendar default, list, filters, past/cancelled/completed visibility, venue/viewer zones, ICS." },
-    { "id": "product-auth", "section": "Product", "status": "proved", "text": "Local auth complete. Google/Facebook adapters, callback/linking/security contracts pass local fake-provider tests; live-provider smoke deferred." },
-    { "id": "product-organizer-lifecycle", "section": "Product", "status": "proved", "text": "Organizer create->preview->publish->edit/cancel/delete; Admin restore." },
-    { "id": "product-registration", "section": "Product", "status": "proved", "text": "Verified User register/unregister/re-register; capacity/block/concurrency correct." },
-    { "id": "product-organizer-participants", "section": "Product", "status": "proved", "text": "Organizer manual registration, removal, block, private participant view, CSV." },
-    { "id": "product-notifications", "section": "Product", "status": "proved", "text": "Monthly/Saturday/J-2/J-1 reminders, major-update/cancel/registration messages, retry/dead letter/history pass fake transport/webhook tests; live delivery deferred." },
-    { "id": "product-admin", "section": "Product", "status": "proved", "text": "Admin Users/roles/orgs/formats/archetypes/audit/account closure." },
-    { "id": "product-league-live-parity", "section": "Product", "status": "proved", "text": "Existing League/Result/Live behavior matches TS golden fixtures under PostgreSQL/API." },
-    { "id": "product-export-migration", "section": "Product", "status": "proved", "text": "Public Export v4 safe; private migration bundle + atomic CLI verified." },
-    { "id": "product-offline", "section": "Product", "status": "proved", "text": "Offline public stale reads work; all writes reject offline." },
-
-    { "id": "eng-server-authz", "section": "Engineering", "status": "proved", "text": "Every mutation validated/authenticated/authorized server-side." },
-    { "id": "eng-etag-idempotency", "section": "Engineering", "status": "proved", "text": "ETag/If-Match + Idempotency-Key cover stale/retry paths." },
-    { "id": "eng-db-constraints", "section": "Engineering", "status": "proved", "text": "DB constraints cover uniqueness, active registration, ownership, FK, capacity transaction logic." },
-    { "id": "eng-no-pii", "section": "Engineering", "status": "proved", "text": "No PII/secrets in public DTO/export/log/audit/email-body storage." },
-    { "id": "eng-openapi-drift", "section": "Engineering", "status": "proved", "text": "OpenAPI generated client drift check green." },
-    { "id": "eng-suites-green", "section": "Engineering", "status": "proved", "text": "Unit/integration/contract/Cypress/a11y/security/perf suites green." },
-    { "id": "eng-artifacts-build", "section": "Engineering", "status": "proved", "text": "Angular release artifact + API/Worker/Migrator/backup OCI images build reproducibly; full app healthy from clean clone." },
-
-    { "id": "ops-no-cloud-sdk", "section": "Portable operations", "status": "proved", "text": "API/Worker/Migrator/backup OCI images require no cloud SDK/runtime." },
-    { "id": "ops-runtime-config", "section": "Portable operations", "status": "proved", "text": "Runtime config uses env/file secrets, PostgreSQL DSN, forwarded-header config, OTLP, stdout JSON." },
-    { "id": "ops-backup-restore", "section": "Portable operations", "status": "proved", "text": "Encrypted dump->destroy->restore rehearsal succeeds from mounted artifacts." },
-    { "id": "ops-otel-trace", "section": "Portable operations", "status": "proved", "text": "OTel correlation trace spans API->DB->Worker->fake provider through local collector." },
-    { "id": "ops-container-lifecycle", "section": "Portable operations", "status": "proved", "text": "Container health, restart, graceful shutdown, migration idempotency, backup failure paths tested." },
-    { "id": "ops-docs", "section": "Portable operations", "status": "proved", "text": "Generic deploy/rollback/secret rotation/webhook/migration/backup docs complete; live-host checklist explicitly deferred." },
-    { "id": "ops-authority-mode", "section": "Portable operations", "status": "proved", "text": "Server mode has no browser canonical-data fallback; legacy mode remains explicit until future public cutover." }
+    {
+      "id": "product-public-calendar",
+      "section": "Product",
+      "status": "proved",
+      "text": "Public Calendar default, list, filters, past/cancelled/completed visibility, venue/viewer zones, ICS."
+    },
+    {
+      "id": "product-auth",
+      "section": "Product",
+      "status": "proved",
+      "text": "Local auth complete. Google/Facebook adapters, callback/linking/security contracts pass local fake-provider tests; live-provider smoke deferred."
+    },
+    {
+      "id": "product-organizer-lifecycle",
+      "section": "Product",
+      "status": "proved",
+      "text": "Organizer create->preview->publish->edit/cancel/delete; Admin restore."
+    },
+    {
+      "id": "product-registration",
+      "section": "Product",
+      "status": "proved",
+      "text": "Verified User register/unregister/re-register; capacity/block/concurrency correct."
+    },
+    {
+      "id": "product-organizer-participants",
+      "section": "Product",
+      "status": "proved",
+      "text": "Organizer manual registration, removal, block, private participant view, CSV."
+    },
+    {
+      "id": "product-notifications",
+      "section": "Product",
+      "status": "proved",
+      "text": "Monthly/Saturday/J-2/J-1 reminders, major-update/cancel/registration messages, retry/dead letter/history pass fake transport/webhook tests; live delivery deferred."
+    },
+    {
+      "id": "product-admin",
+      "section": "Product",
+      "status": "proved",
+      "text": "Admin Users/roles/orgs/formats/archetypes/audit/account closure."
+    },
+    {
+      "id": "product-league-live-parity",
+      "section": "Product",
+      "status": "proved",
+      "text": "Existing League/Result/Live behavior matches TS golden fixtures under PostgreSQL/API."
+    },
+    {
+      "id": "product-export-migration",
+      "section": "Product",
+      "status": "proved",
+      "text": "Public Export v4 safe; private migration bundle + atomic CLI verified."
+    },
+    {
+      "id": "product-offline",
+      "section": "Product",
+      "status": "proved",
+      "text": "Offline public stale reads work; all writes reject offline."
+    },
+    {
+      "id": "eng-server-authz",
+      "section": "Engineering",
+      "status": "proved",
+      "text": "Every mutation validated/authenticated/authorized server-side."
+    },
+    {
+      "id": "eng-etag-idempotency",
+      "section": "Engineering",
+      "status": "proved",
+      "text": "ETag/If-Match + Idempotency-Key cover stale/retry paths."
+    },
+    {
+      "id": "eng-db-constraints",
+      "section": "Engineering",
+      "status": "proved",
+      "text": "DB constraints cover uniqueness, active registration, ownership, FK, capacity transaction logic."
+    },
+    {
+      "id": "eng-no-pii",
+      "section": "Engineering",
+      "status": "proved",
+      "text": "No PII/secrets in public DTO/export/log/audit/email-body storage."
+    },
+    {
+      "id": "eng-openapi-drift",
+      "section": "Engineering",
+      "status": "proved",
+      "text": "OpenAPI generated client drift check green."
+    },
+    {
+      "id": "eng-suites-green",
+      "section": "Engineering",
+      "status": "proved",
+      "text": "Unit/integration/contract/Cypress/a11y/security/perf suites green."
+    },
+    {
+      "id": "eng-artifacts-build",
+      "section": "Engineering",
+      "status": "proved",
+      "text": "Angular release artifact + API/Worker/Migrator/backup OCI images build reproducibly; full app healthy from clean clone."
+    },
+    {
+      "id": "ops-no-cloud-sdk",
+      "section": "Portable operations",
+      "status": "proved",
+      "text": "API/Worker/Migrator/backup OCI images require no cloud SDK/runtime."
+    },
+    {
+      "id": "ops-runtime-config",
+      "section": "Portable operations",
+      "status": "proved",
+      "text": "Runtime config uses env/file secrets, PostgreSQL DSN, forwarded-header config, OTLP, stdout JSON."
+    },
+    {
+      "id": "ops-backup-restore",
+      "section": "Portable operations",
+      "status": "proved",
+      "text": "Encrypted dump->destroy->restore rehearsal succeeds from mounted artifacts."
+    },
+    {
+      "id": "ops-otel-trace",
+      "section": "Portable operations",
+      "status": "proved",
+      "text": "OTel correlation trace spans API->DB->Worker->fake provider through local collector."
+    },
+    {
+      "id": "ops-container-lifecycle",
+      "section": "Portable operations",
+      "status": "proved",
+      "text": "Container health, restart, graceful shutdown, migration idempotency, backup failure paths tested."
+    },
+    {
+      "id": "ops-docs",
+      "section": "Portable operations",
+      "status": "proved",
+      "text": "Generic deploy/rollback/secret rotation/webhook/migration/backup docs complete; live-host checklist explicitly deferred."
+    },
+    {
+      "id": "ops-authority-mode",
+      "section": "Portable operations",
+      "status": "proved",
+      "text": "Server mode has no browser canonical-data fallback; legacy mode remains explicit until future public cutover."
+    }
   ]
 }

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "ng serve --host 127.0.0.1",
+    "dev": "node scripts/dev.mjs",
+    "dev:serve": "ng serve --host 127.0.0.1",
     "cy:open": "cypress open",
     "cy:run": "cypress run",
     "build": "ng build",

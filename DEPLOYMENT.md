@@ -1,71 +1,64 @@
 # Frontend Deployment Guide
 
-> **Server-mode hosting:** this guide covers the legacy static, frontend-only deployment. For the
-> V1 server stack — API, Worker, Migrator, backup/restore images and everything a generic Linux host
-> must provide — see [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) and ADR 0018. No hosting
-> vendor is chosen for it yet.
+> **The frontend is one artifact and it talks to the API.** The browser-store deployment described
+> by earlier revisions of this guide is retired (ADR 0020): there is no static, backend-free build
+> any more. For everything a generic Linux host must provide, see
+> [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) and ADR 0018. No hosting vendor is chosen
+> yet.
 >
 > **Running it day to day** — deploy ordering, rollback principles, secret rotation, the provider
-> webhook, backup/restore, schema migrations, the legacy-import CLI and Admin bootstrap all live in
+> webhook, backup/restore, schema migrations, the bundle-import CLI and Admin bootstrap all live in
 > [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 >
 > **The V1 release candidate** — what the artifact set is, how to reproduce it, what is still
 > deferred: [`docs/RELEASE_NOTES_V1.md`](docs/RELEASE_NOTES_V1.md).
 
-## Data authority: pick one, explicitly
+## Data authority: declared, and there is only one
 
-Every frontend artifact declares exactly one data authority (ADR 0019). There is no fallback between
-them, and no build may sit between them.
+Every frontend artifact declares its data authority (ADR 0020). `server` is the only legal value —
+the API PostgreSQL database owns the data, and no build can sit anywhere else.
 
-| Build arg | `legacy-browser` (this guide) | `server` |
-| --- | --- | --- |
-| `GONES_FRONTEND_DATA_MODE` | `legacy-browser` | `server` |
-| `GONES_FRONTEND_API_BASE_URL` | must be **empty** | required, exact origin |
-| `GONES_FRONTEND_AUTH_V1` | must be `false` | optional |
-| `GONES_FRONTEND_ADMIN_V1` | must be `false` | optional, requires auth |
+| Build arg | Value |
+| --- | --- |
+| `GONES_FRONTEND_DATA_MODE` | `server` (anything else fails the build) |
+| `GONES_FRONTEND_API_BASE_URL` | required, the exact API origin |
+| `GONES_FRONTEND_AUTH_V1` | optional, defaults to `true` |
+| `GONES_FRONTEND_ADMIN_V1` | optional, defaults to `true`, requires auth |
 
-An incoherent pair fails `scripts/check-frontend-data-authority.mjs` during the image build, and a
-hand-edited artifact refuses to bootstrap in the browser instead of degrading to the browser store.
+An incoherent declaration fails `scripts/check-frontend-data-authority.mjs` during the image build,
+is refused again by `deploy/nginx/gones-data-authority.sh` at container start, and a hand-edited
+artifact refuses to bootstrap in the browser rather than running with no data source.
 
-`compose.yaml` defaults to **mandatory server mode**. To rehearse the legacy static build locally,
-set `GONES_FRONTEND_DATA_MODE=legacy-browser` **and** `GONES_FRONTEND_API_BASE_URL=` (empty) — that
-is exactly what the legacy profile of `npm run e2e:ci` does.
+## The artifact is not bound to an origin
 
-This project is an Angular single-page PWA that currently runs frontend-only in `legacy-browser` mode. It can be deployed as static files and does **not** need a backend server online.
-
-The recommended host for this repository is **Cloudflare Pages**.
+The release image reads `GONES_DATA_MODE`, `GONES_API_BASE_URL`, `GONES_AUTH_V1` and
+`GONES_ADMIN_V1` at container start and renders `/runtime-config.json` plus the CSP `connect-src`
+into a tmpfs. The build arguments above are only the artifact's defaults, so the same image can be
+served on any origin without rebuilding it.
 
 ## What gets deployed
 
 - Build command: `npm run build`
 - Production output directory: `dist/gones/browser`
-- Declared data authority: `legacy-browser` (the repository default in `src/environments/environment*.ts`)
-- Runtime backend: browser `localStorage` through the authority-bound backend bridge
-- Required build-time config: none — and an API base URL must **not** be set
+- Declared data authority: `server` (the repository default in `src/environments/environment*.ts`)
+- Runtime backend: the ASP.NET API over HTTP
+- Required config: an API origin — at build time, at container start, or both
 
-## 1. Deploy with Cloudflare Pages
+Static-file hosts (Cloudflare Pages, GitHub Pages and friends) can still serve the bundle, but they
+cannot inject a runtime declaration, so such a deployment is pinned to whatever origin it was built
+with and needs the API reachable from the browser. The supported path is the release container.
 
-1. Push this repository to GitHub.
-2. In Cloudflare, go to **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
-3. Select the GitHub repository.
-4. Use these build settings:
+## 1. Serve it from the release image
 
-| Setting | Value |
-| --- | --- |
-| Framework preset | Angular, or None if you enter settings manually |
-| Build command | `npm ci && npm run build` |
-| Build output directory | `dist/gones/browser` |
-| Root directory | leave blank |
-| Node version | `24` |
-
-Add a Cloudflare Pages environment variable:
-
-```text
-NODE_VERSION=24
+```bash
+docker compose --profile release up --build -d
 ```
 
-No app-specific environment variables are required for the `legacy-browser` build. Do not set an API
-base URL here: a legacy artifact carrying one fails closed rather than talking to a server.
+The SPA answers on `http://127.0.0.1:8081` and the API on `http://127.0.0.1:5080`. To point the same
+image at another origin, set `GONES_API_BASE_URL` on the container and restart it.
+
+For local development with hot reload, use `npm run dev` — it starts the API stack in Docker and
+serves the app against it.
 
 ## 2. Verify the deployment
 
@@ -80,13 +73,11 @@ Open the deployed URL and check:
 6. Settings still offers the private migration-bundle export, and the browser issues no `/api/`
    request at any point.
 
-Browser storage is per-device/per-browser. Use Gones Export/Gones Restore to move data between browsers until the ASP.NET backend is introduced.
-
 ## 3. If direct route refreshes 404
 
 Angular routes such as `/leagues` and `/players/Alice` need a static-host fallback to `index.html`.
 
-If Cloudflare Pages does not handle this automatically, add a `_redirects` file to the built site with this content:
+If a static host does not handle this automatically, add a `_redirects` file to the built site with this content:
 
 ```text
 /* /index.html 200
@@ -111,13 +102,11 @@ The built frontend will be in:
 dist/gones/browser
 ```
 
-## 5. Server-mode build
+## 5. Building the artifact
 
-The API exists; the cutover is what is deferred. To build a server-mode artifact:
-
-1. Build the image with `GONES_FRONTEND_DATA_MODE=server` and `GONES_FRONTEND_API_BASE_URL=<an API origin>`.
-   These are the artifact's **defaults**, not a binding: they decide what the image serves when the
-   host injects nothing.
+1. Build the image with `GONES_FRONTEND_API_BASE_URL=<an API origin>` (`GONES_FRONTEND_DATA_MODE`
+   already defaults to `server`, the only legal value). These are the artifact's **defaults**, not a
+   binding: they decide what the image serves when the host injects nothing.
 2. Optionally add `GONES_FRONTEND_AUTH_V1=true` and `GONES_FRONTEND_ADMIN_V1=true`; admin requires auth.
 3. Serve it anywhere by injecting the declaration at container start — `GONES_DATA_MODE`,
    `GONES_API_BASE_URL`, `GONES_AUTH_V1`, `GONES_ADMIN_V1`. The entrypoint validates the pair, writes
@@ -126,20 +115,20 @@ The API exists; the cutover is what is deferred. To build a server-mode artifact
    **One artifact, any domain or CDN: moving origins never needs a rebuild.**
 4. Point the API at its PostgreSQL database and follow [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md).
 
-In server mode the database is the single authority: there is no whole-document League/Live save and
-no browser CalendarEvent store, and the browser keeps only language, view preference, filters and the
-anonymous public read cache.
+The database is the single authority: there is no whole-document League/Live save and no browser
+CalendarEvent store, and the browser keeps only language, view preference, filters and the anonymous
+public read cache.
 
-## 6. Deferred: domain, CDN, providers and the live cutover
+## 6. Deferred: domain, CDN and providers
 
 Still explicitly **not** decided, and not implied anywhere in this repository:
 
-- Public domain and DNS, CDN or edge configuration, and the hosting vendor for either mode.
+- Public domain and DNS, CDN or edge configuration, and the hosting vendor.
 - Managed PostgreSQL, managed secret store, container registry and image signing trust (ADR 0018).
 - Live email (Brevo) and OAuth provider credentials — every local and CI run uses fakes by design.
-- **The live cutover itself.** Legacy `localStorage` is origin- and device-scoped, so the cutover
-  runbook must inventory every legacy origin/browser, export a private migration bundle from each
-  (Settings → migration export), run the offline Migrator CLI dry-run, approve the report hash, and
-  import — then soak before the legacy build is retired. The cutover bundle UI, the Export v4 and
-  bundle schemas and the Migrator CLI all stay in the repository until that soak explicitly
-  authorizes their removal.
+- **A live cutover from a browser-store origin.** No longer possible from this revision: ADR 0020
+  retired the browser authority and with it the Settings migration export, which was the only thing
+  that could produce a private bundle. The offline Migrator CLI, the Export v4 and bundle schemas and
+  `npm run migration:smoke` all remain, so bundles exported **before** that change still import and
+  are still rehearsed on every release. Anything not exported by then is recoverable only by
+  reverting that commit.

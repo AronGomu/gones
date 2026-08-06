@@ -119,10 +119,8 @@ services:
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
 
-  # Local release Compose runs mandatory server mode: the API database is the single data authority.
-  # `GONES_FRONTEND_DATA_MODE=legacy-browser` (with an empty API base URL) is the only other legal
-  # combination and exists solely to rehearse the frozen static deployment. A missing or incoherent
-  # pair fails the image build, and then app startup — it never falls back to the browser store.
+  # The API database is the single data authority (ADR 0020). A missing or incoherent declaration
+  # fails the image build, and then app startup — there is no browser store left to fall back to.
   frontend-development:
     build:
       context: .

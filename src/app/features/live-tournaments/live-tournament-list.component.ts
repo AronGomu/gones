@@ -80,7 +80,7 @@ export class LiveTournamentListComponent {
   readonly tournaments = signal<LiveTournamentDocument[]>([]);
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly runningTournaments = computed(() => this.tournaments().filter((tournament) => tournament.stage !== 'completed'));
-  readonly canManage = computed(() => canManageLive(this.liveRepo.serverMode, this.auth.profile()?.globalRole));
+  readonly canManage = computed(() => canManageLive(this.auth.profile()?.globalRole));
 
   constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueRepository, private readonly router: Router) { void this.load(); }
 

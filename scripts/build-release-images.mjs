@@ -29,16 +29,16 @@ const sha256 = (path) => createHash('sha256').update(readFileSync(path)).digest(
 const artifacts = [];
 const manifest = { platform, revision, created, images: [] };
 
-// C42: the frontend artifact declares its data authority explicitly. Without a public API origin
-// the only coherent declaration is the frozen legacy static build, so that stays the default; a
-// server-mode release passes both variables. An incoherent pair fails the image build (ADR 0019).
-const frontendDataMode = process.env.GONES_FRONTEND_DATA_MODE ?? 'legacy-browser';
-const frontendApiBaseUrl = process.env.GONES_FRONTEND_API_BASE_URL ?? '';
+// The frontend artifact declares its data authority explicitly, and `server` is the only one there
+// is (ADR 0020). The origin below is only the artifact's default: the release image reads the real
+// one at container start. An incoherent pair fails the image build.
+const frontendDataMode = process.env.GONES_FRONTEND_DATA_MODE ?? 'server';
+const frontendApiBaseUrl = process.env.GONES_FRONTEND_API_BASE_URL ?? 'http://127.0.0.1:5080';
 const frontendBuildArgs = [
   '--build-arg', `GONES_FRONTEND_DATA_MODE=${frontendDataMode}`,
   '--build-arg', `GONES_FRONTEND_API_BASE_URL=${frontendApiBaseUrl}`,
-  '--build-arg', `GONES_FRONTEND_AUTH_V1=${process.env.GONES_FRONTEND_AUTH_V1 ?? 'false'}`,
-  '--build-arg', `GONES_FRONTEND_ADMIN_V1=${process.env.GONES_FRONTEND_ADMIN_V1 ?? 'false'}`
+  '--build-arg', `GONES_FRONTEND_AUTH_V1=${process.env.GONES_FRONTEND_AUTH_V1 ?? 'true'}`,
+  '--build-arg', `GONES_FRONTEND_ADMIN_V1=${process.env.GONES_FRONTEND_ADMIN_V1 ?? 'true'}`
 ];
 
 for (const image of RELEASE_IMAGES) {

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
-// Server profile: the API database is the single data authority (C42/ADR 0019).
+// The API database is the single data authority (ADR 0020); there is no second profile to run.
 const composeEnv = {
   ...process.env,
   GONES_FRONTEND_DATA_MODE: 'server',
@@ -14,19 +14,6 @@ const composeEnv = {
   GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: '1000',
   GONES_FRONTEND_API_BASE_URL: 'http://127.0.0.1:5080'
 };
-// Legacy profile: the frozen static build. No API base URL at all, so the browser cannot reach a
-// server mutation route even by accident, and no auth/admin/Calendar V1 capability is exposed.
-const legacyComposeEnv = {
-  ...composeEnv,
-  GONES_FRONTEND_DATA_MODE: 'legacy-browser',
-  GONES_FRONTEND_API_BASE_URL: '',
-  GONES_FEATURES__AUTH_V1: 'false',
-  GONES_FEATURES__ADMIN_V1: 'false',
-  GONES_FEATURES__CALENDAR_V1: 'false',
-  GONES_FEATURES__LEAGUE_SERVER: 'false',
-  GONES_FEATURES__LIVE_SERVER: 'false'
-};
-
 function run(args, env = composeEnv, allowFailure = false) {
   const result = spawnSync('docker', ['compose', ...args], { stdio: 'inherit', env });
   if (!allowFailure && result.status !== 0) process.exit(result.status ?? 1);
@@ -60,34 +47,9 @@ function runCypress(spec) {
 }
 
 try {
-  run(['--profile', 'release', 'up', '--build', '-d', '--wait'], legacyComposeEnv);
-  let smoke = spawnSync(process.execPath, ['scripts/smoke-full-stack.mjs', '--release'], { stdio: 'inherit' });
+  run(['--profile', 'release', 'up', '--build', '-d', '--wait']);
+  const smoke = spawnSync(process.execPath, ['scripts/smoke-full-stack.mjs', '--release'], { stdio: 'inherit' });
   if (smoke.status !== 0) process.exitCode = smoke.status ?? 1;
-  if (!process.exitCode) {
-    const browser = runCypress('cypress/e2e/local-static.cy.js');
-    if (browser.status !== 0) process.exitCode = browser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const settingsLocal = runCypress('cypress/e2e/settings.cy.js');
-    if (settingsLocal.status !== 0) process.exitCode = settingsLocal.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const migrationBundle = runCypress('cypress/e2e/migration-bundle.cy.js');
-    if (migrationBundle.status !== 0) process.exitCode = migrationBundle.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const liveLifecycle = runCypress('cypress/e2e/running-tournament-lifecycle.cy.js');
-    if (liveLifecycle.status !== 0) process.exitCode = liveLifecycle.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const legacyAuthority = runCypress('cypress/e2e/legacy-data-authority.cy.js');
-    if (legacyAuthority.status !== 0) process.exitCode = legacyAuthority.status ?? 1;
-  }
-  if (!process.exitCode) {
-    run(['--profile', 'release', 'up', '--build', '-d', '--wait']);
-    smoke = spawnSync(process.execPath, ['scripts/smoke-full-stack.mjs', '--release'], { stdio: 'inherit' });
-    if (smoke.status !== 0) process.exitCode = smoke.status ?? 1;
-  }
   if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const authSeed = spawnSync(process.execPath, ['scripts/seed-auth-e2e.mjs'], { stdio: 'inherit', env: composeEnv });

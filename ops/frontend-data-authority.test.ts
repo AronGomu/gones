@@ -8,7 +8,7 @@ import { DataAuthorityConfigurationError, resolveDataAuthority } from '../src/ap
 import { dataAuthorityFailureCode, readEnvironmentDeclaration } from '../scripts/check-frontend-data-authority.mjs';
 
 /**
- * C42 parity gate.
+ * Parity gate (C42, narrowed to server-only by ADR 0020).
  *
  * The build-time checker (`scripts/check-frontend-data-authority.mjs`), the container-start gate
  * (`deploy/nginx/gones-data-authority.sh`, C44) and the runtime resolver
@@ -19,10 +19,9 @@ import { dataAuthorityFailureCode, readEnvironmentDeclaration } from '../scripts
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const declarations = [
+  // The retired mode must be rejected identically by all three implementations, not merely absent.
   { dataMode: 'legacy-browser', apiBaseUrl: '', features: { authV1: false, adminV1: false } },
   { dataMode: 'legacy-browser', apiBaseUrl: 'http://127.0.0.1:5080', features: { authV1: false, adminV1: false } },
-  { dataMode: 'legacy-browser', apiBaseUrl: '', features: { authV1: true, adminV1: false } },
-  { dataMode: 'legacy-browser', apiBaseUrl: '', features: { authV1: false, adminV1: true } },
   { dataMode: 'server', apiBaseUrl: 'http://127.0.0.1:5080', features: { authV1: true, adminV1: true } },
   { dataMode: 'server', apiBaseUrl: 'https://api.example/', features: { authV1: false, adminV1: false } },
   { dataMode: 'server', apiBaseUrl: '', features: { authV1: true, adminV1: false } },
@@ -72,9 +71,7 @@ describe('build-time and runtime data-authority rules', () => {
     for (const code of [
       'dataModeUnknown',
       'serverModeApiBaseUrlMissing',
-      'serverModeAdminRequiresAuth',
-      'legacyModeApiBaseUrlForbidden',
-      'legacyModeCapabilityForbidden'
+      'serverModeAdminRequiresAuth'
     ]) {
       expect(codes).toContain(code);
     }
@@ -87,13 +84,15 @@ describe('checked environment files', () => {
 
     expect(declaration).not.toBeNull();
     expect(dataAuthorityFailureCode(declaration)).toBeNull();
-    // The repository ships the frozen legacy static build; container builds substitute the values.
-    expect(declaration.dataMode).toBe('legacy-browser');
+    // The repository default is already the modern API-connected build; container builds only
+    // substitute the origin and the capability flags.
+    expect(declaration.dataMode).toBe('server');
+    expect(declaration.apiBaseUrl).not.toBe('');
   });
 
   it('runs the checker in every image build stage that substitutes the environment', () => {
     const dockerfile = readFileSync(join(root, 'Dockerfile'), 'utf8');
-    const substitutions = dockerfile.match(/sed -i "s\/dataMode: 'legacy-browser'/g) ?? [];
+    const substitutions = dockerfile.match(/sed -i "s\/dataMode: '\[\^'\]\*'/g) ?? [];
     const checks = dockerfile.match(/check-frontend-data-authority\.mjs/g) ?? [];
 
     expect(substitutions.length).toBeGreaterThan(0);

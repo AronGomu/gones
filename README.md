@@ -4,24 +4,24 @@ Gones is an Angular single-page PWA for consulting tournament League results, ex
 
 ## Data authority
 
-Every build declares exactly one data authority — it is never inferred (ADR 0019):
+There is exactly one data authority and every build declares it — it is never inferred (ADR 0020):
 
 | `dataMode` | Who owns the data | Capabilities |
 | --- | --- | --- |
-| `legacy-browser` | browser `localStorage` | frozen: browsing, League/Live editing, Settings, Gones Export and the private migration-bundle export. No API base URL, no auth, no admin, no Calendar V1. |
-| `server` | the API PostgreSQL database | Calendar V1, auth, organizer and admin. The browser keeps only language, view preference, filters and the anonymous public read cache. |
+| `server` | the API PostgreSQL database | everything: Calendar V1, auth, organizer, admin, League and Live. The browser keeps only language, view preference, filters and the anonymous public read cache. |
 
-There is no fallback between them. A build that declares `server` without an API base URL, or
-`legacy-browser` with a server capability, fails the image build and then refuses to start — it never
-degrades to the browser store. The repository default is `legacy-browser`, matching the current
-static deployment; `compose.yaml` defaults to mandatory `server` mode.
+`server` is the only mode. The retired `legacy-browser` browser-store authority was removed with its
+adapter, its pages and its migration-bundle export; a build or a host that still asks for it is
+refused with `dataModeUnknown` at build time, at container start and in the browser, rather than
+being served something that means anything else. A build that declares `server` without an API base
+URL fails the same way. The repository default is already the modern API-connected declaration.
 
 ## Stack
 
 - Angular standalone components, Angular Router, Signals, zoneless change detection
 - Angular Material UI with Gones dark metal / blood-red theme tokens
-- Authority-bound backend bridge in `src/app/backend/`: browser `localStorage` in `legacy-browser` mode, the ASP.NET API in `server` mode
-- Declared data mode in `src/app/config/data-authority.ts`
+- Backend bridge in `src/app/backend/`, bound to the ASP.NET API — the only adapter there is
+- Declared data authority in `src/app/config/data-authority.ts`
 - Vitest for domain/unit tests
 - Cypress for browser flows
 - GitHub Pages static hosting through GitHub Actions
@@ -33,28 +33,32 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://127.0.0.1:4200`.
+`npm run dev` starts the API stack in Docker (`postgres`, `migrator`, `api`, `worker`), waits for
+`/health/ready`, then serves the app against it. The app runs at `http://127.0.0.1:4200` and talks to
+the API at `http://127.0.0.1:5080`. Stop the stack afterwards with `docker compose down`.
 
-## Legacy browser mode
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | API stack in Docker + local dev server with hot reload |
+| `npm run dev -- --no-docker` | dev server only, against an API that is already running |
+| `npm run dev -- --detached` | bring the API stack up and exit |
+| `docker compose --profile release up --build` | everything containerised, SPA on `:8081` |
 
-No external backend is required. The browser store bridge keeps Leagues in `localStorage` under `gones.frontend.backend.v1` and Live drafts under `gones.live-tournaments.v1`.
+## How it works
 
-- Everyone can consult League data, export backups, and edit source data.
-- There is no login, authentication, or role-management UI: those capabilities exist only in server mode.
-- Gones Export/Gones Restore remain the portability and backup mechanism, and Settings offers the private migration-bundle export used by the future cutover.
-- The mode is **frozen**. New Calendar V1, auth and admin capabilities land in server mode only.
+The ASP.NET API and its PostgreSQL database are the single authority. Every mutation is an explicit intent command guarded by the document version; there is no whole-document save and no browser CalendarEvent store. See `docs/RUNTIME_CONTRACT.md` for what a host must provide, and `DEPLOYMENT.md` for how the artifact is built.
 
-## Server mode
+The public domain, DNS, CDN, hosting vendor, container registry and live email/OAuth providers are all still deferred.
 
-The ASP.NET API and its PostgreSQL database are the single authority. Every mutation is an explicit intent command guarded by the document version; there is no whole-document save and no browser CalendarEvent store. See `docs/RUNTIME_CONTRACT.md` for what a host must provide, and `DEPLOYMENT.md` for how each mode is built.
-
-The public domain, DNS, CDN, hosting vendor, container registry, live email/OAuth providers and the live cutover from the legacy origin are all still deferred.
+> **One-way door:** retiring the browser authority also removed the only producer of private
+> migration bundles. The import CLI still applies bundles exported before this change; nothing can
+> create a new one. See ADR 0020.
 
 ## Operating it
 
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — the operator runbook: local environment, OpenAPI use,
   deploy and start ordering, rollback principles, secret rotation, the provider webhook, backup and
-  restore, schema migrations, the legacy-import CLI, Admin bootstrap and observability. Every
+  restore, schema migrations, the bundle-import CLI, Admin bootstrap and observability. Every
   procedure names the committed script that rehearses it locally, and every step that would need real
   infrastructure is marked deferred.
 - [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) — what a generic Linux host must provide.

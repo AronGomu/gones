@@ -6,13 +6,12 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { CalendarEventRepository } from './data/calendar-event-repository.service';
 import { canManageLeagues, leagueCommandError } from './data/league-command-ux';
 import { LeagueRepository } from './data/league-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
 import { attachExportChecksum } from './domain/export-schemas';
-import { CalendarEventDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
+import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { DeckArchetypeSettingsService, parseAppSettings } from './shared/deck-archetype-settings.service';
 import { I18nService } from './i18n/i18n.service';
@@ -124,7 +123,6 @@ export class AppComponent {
   readonly auth = inject(AuthService);
   private readonly repo = inject(LeagueRepository);
   private readonly liveRepo = inject(LiveTournamentRepository);
-  private readonly calendarRepo = inject(CalendarEventRepository);
   private readonly settings = inject(DeckArchetypeSettingsService);
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
@@ -136,7 +134,7 @@ export class AppComponent {
   readonly settingsMessage = signal('');
   readonly resendPending = signal(false);
   readonly resendStatus = signal('');
-  readonly canManageLeagueData = computed(() => canManageLeagues(this.repo.serverMode, this.auth.profile()?.globalRole));
+  readonly canManageLeagueData = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
   readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
@@ -233,9 +231,10 @@ export class AppComponent {
       if (segments[1] === 'tournaments' && segments[2]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: this.i18n.t('crumb.tournament') }];
       return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar') }];
     }
+    // Legacy `/events/:slug` links redirect into the Calendar V1 detail; this breadcrumb is only
+    // ever seen for the instant before the redirect resolves.
     if (segments[0] === 'events') {
-      const eventPage = segments[1] ? await this.safeGetEvent(decodeURIComponent(segments[1])) : null;
-      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: eventPage?.title || this.i18n.t('crumb.event') }];
+      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: this.i18n.t('crumb.event') }];
     }
     if (segments[0] === 'settings') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.settings') }];
     if (segments[0] === 'registrations') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('registration.myRegistrations') }];
@@ -268,13 +267,6 @@ export class AppComponent {
   private async safeGetLeague(leagueId: string): Promise<PersistedLeague | null> {
     try { return await this.repo.getLeague(leagueId); }
     catch (error) { logBoundaryError('app-breadcrumb.loadLeague', error, { leagueId }); return null; }
-  }
-
-  private async safeGetEvent(slug: string): Promise<CalendarEventDocument | null> {
-    // Legacy browser CalendarEvents only; server mode routes this slug into the Calendar V1 detail.
-    if (!this.calendarRepo.available) return null;
-    try { return (await this.calendarRepo.list()).find((event) => event.slug === slug) ?? null; }
-    catch (error) { logBoundaryError('app-breadcrumb.loadEvent', error, { slug }); return null; }
   }
 
   private async safeGetLiveTournament(liveTournamentId: string) {
@@ -352,8 +344,7 @@ export class AppComponent {
 
   async downloadFullExport(): Promise<void> {
     const leagues = (await this.repo.listLeagues()).filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID);
-    const calendarEvents = this.calendarRepo.available ? await this.calendarRepo.list() : [];
-    saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents })), 'gones-full-data.gones.json');
+    saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: [] })), 'gones-full-data.gones.json');
   }
 
   async downloadLeagueExport(league: PersistedLeague): Promise<void> { const exported = exportLeague(league); saveJsonFile(await attachExportChecksum(exported), leagueExportFilename(league, new Date(exported.exportedAt))); }
@@ -403,9 +394,8 @@ export class AppComponent {
       const result = await this.injector.get(LeagueImportService).importFile(file);
       this.importError.set('');
       const firstImportedLeagueId = result.importedLeagueIds[0];
-      const importedCount = result.importedLeagueIds.length + result.importedCalendarEventIds.length;
-      logBoundaryInfo('app-header.importLeague.success', { kind: result.kind, importedCount, importedLeagueCount: result.importedLeagueIds.length, importedCalendarEventCount: result.importedCalendarEventIds.length, destinationLeagueId: firstImportedLeagueId ?? null });
-      await this.router.navigate(firstImportedLeagueId ? ['/leagues', firstImportedLeagueId] : result.importedCalendarEventIds.length ? ['/calendar'] : ['/leagues']);
+      logBoundaryInfo('app-header.importLeague.success', { kind: result.kind, importedLeagueCount: result.importedLeagueIds.length, destinationLeagueId: firstImportedLeagueId ?? null });
+      await this.router.navigate(firstImportedLeagueId ? ['/leagues', firstImportedLeagueId] : ['/leagues']);
     } catch (error) {
       logBoundaryError('app-header.importLeague', error, { fileName: file.name });
       this.importError.set(importErrorMessage(error, this.i18n));

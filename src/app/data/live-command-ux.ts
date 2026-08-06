@@ -3,8 +3,9 @@ import type { GlobalRole } from './league-command-ux';
 
 export type LiveCommandError = 'forbidden' | 'stale' | 'failed';
 
-export function canManageLive(serverMode: boolean, role: GlobalRole | null | undefined): boolean {
-  return !serverMode || role === 'Organizer' || role === 'Admin';
+/** The server owns Live data, so managing it is a role question only (ADR 0020). */
+export function canManageLive(role: GlobalRole | null | undefined): boolean {
+  return role === 'Organizer' || role === 'Admin';
 }
 
 export function liveCommandError(error: unknown): LiveCommandError {

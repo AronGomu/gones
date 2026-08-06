@@ -4,12 +4,12 @@ import { ApiProblemError } from '../api/api-boundary';
 import { canManageLeagues, leagueCommandError } from './league-command-ux';
 
 describe('League server access and stale UX', () => {
-  it('keeps legacy controls while limiting server commands to Organizer/Admin', () => {
-    expect(canManageLeagues(false, null)).toBe(true);
-    expect(canManageLeagues(true, null)).toBe(false);
-    expect(canManageLeagues(true, 'User')).toBe(false);
-    expect(canManageLeagues(true, 'Organizer')).toBe(true);
-    expect(canManageLeagues(true, 'Admin')).toBe(true);
+  it('limits League commands to Organizer and Admin', () => {
+    expect(canManageLeagues(null)).toBe(false);
+    expect(canManageLeagues(undefined)).toBe(false);
+    expect(canManageLeagues('User')).toBe(false);
+    expect(canManageLeagues('Organizer')).toBe(true);
+    expect(canManageLeagues('Admin')).toBe(true);
   });
 
   it('distinguishes explicit forbidden and stale compare/reload states', () => {

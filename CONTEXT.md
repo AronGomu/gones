@@ -217,16 +217,16 @@ A UI component for editing Round Entries in one Round.
 _Avoid_: Ranking Table
 
 **Data Authority**:
-The single place that owns Gones source data for one build. Declared explicitly as **Legacy Browser Mode** or **Server Mode**; never inferred and never switched while the app runs.
+The single place that owns Gones source data. Always **Server Mode**; declared explicitly, never inferred, and never switched while the app runs. ADR 0020 retired the browser authority, so there is no second value.
 _Avoid_: Backend mode, storage mode, fallback
 
-**Legacy Browser Mode**:
-The frozen static deployment (`dataMode: legacy-browser`), where the browser store owns League, Live Tournament and Calendar Event source data. It has no API, no User, no Organizer User and no Admin User.
-_Avoid_: Offline mode, local mode
-
 **Server Mode**:
-The deployment (`dataMode: server`) where the Gones API database owns every piece of source data. The browser keeps only language, view preference, filters and a public read cache.
+The only deployment (`dataMode: server`): the Gones API database owns every piece of source data. The browser keeps only language, view preference, filters and a public read cache.
 _Avoid_: Online mode, hybrid mode
+
+**Legacy Browser Mode**:
+Retired (ADR 0020). The former static deployment (`dataMode: legacy-browser`) where the browser store owned League, Live Tournament and Calendar Event source data. Its adapter, pages and migration-bundle export are deleted; the value is now refused at build time, at container start and in the browser.
+_Avoid_: Offline mode, local mode
 
 **Migration Bundle**:
 A private, per-browser snapshot of every Legacy Browser Mode store, produced in Settings for the offline Migrator and never uploaded from the browser.

@@ -1,15 +1,12 @@
 import { Injectable } from '@angular/core';
-import { CalendarEventRepository } from './calendar-event-repository.service';
 import { LeagueRepository } from './league-repository.service';
-import { normalizeExportFile, restoreFullDataBundle, restoreLeague } from '../domain/export-restore';
+import { normalizeExportFile } from '../domain/export-restore';
 import { EXPORT_LIMITS, verifyExportChecksum } from '../domain/export-schemas';
-import { defaultIdFactory } from '../domain/models';
 import { logBoundaryError } from '../shared/app-logger';
 
 export interface LeagueImportResult {
   kind: 'league' | 'fullData';
   importedLeagueIds: string[];
-  importedCalendarEventIds: string[];
 }
 
 const MAX_IMPORT_FILE_BYTES = EXPORT_LIMITS.maxImportFileBytes;
@@ -21,7 +18,7 @@ function importKey(): string {
 
 @Injectable({ providedIn: 'root' })
 export class LeagueImportService {
-  constructor(private readonly repo: LeagueRepository, private readonly calendarRepo: CalendarEventRepository) {}
+  constructor(private readonly repo: LeagueRepository) {}
 
   async importFile(file: File): Promise<LeagueImportResult> {
     if (file.size > MAX_IMPORT_FILE_BYTES) throw new Error('gonesImportFileTooLarge');
@@ -31,46 +28,23 @@ export class LeagueImportService {
     // v4 artifacts carry a checksum; a mismatch rejects the file before any mutation.
     if (!(await verifyExportChecksum(parsed))) throw new Error('gonesExportChecksumMismatch');
 
+    // Legacy CalendarEvent documents in an older bundle are ignored: the server Calendar is owned
+    // by Scheduled Tournaments and has no whole-document CalendarEvent path (ADR 0020).
     if (exportFile.kind === 'fullData') {
       if (exportFile.leagues.length > MAX_FULL_DATA_LEAGUES) throw new Error('gonesImportTooManyLeagues');
-      const existingLeagues = await this.repo.listLeagues();
-      const restored = restoreFullDataBundle(parsed, { idFactory: defaultIdFactory, existingLeagues: [...existingLeagues] });
       const importedLeagueIds: string[] = [];
-      const importedCalendarEventIds: string[] = [];
       try {
-        if (this.repo.serverMode) {
-          const leagues = await this.repo.restoreFullLeagueData({ kind: 'fullData', gonesDataVersion: exportFile.gonesDataVersion, leagues: exportFile.leagues }, importKey());
-          importedLeagueIds.push(...leagues.map(league => league.id));
-        } else {
-          for (const restoredLeague of restored.leagues) {
-            const persisted = await this.repo.insertLeague(restoredLeague);
-            importedLeagueIds.push(persisted.id);
-          }
-        }
-        // Legacy CalendarEvent documents restore only into the browser store; the server Calendar
-        // is owned by Scheduled Tournaments and has no whole-document CalendarEvent path.
-        if (this.calendarRepo.available) {
-          for (const event of restored.calendarEvents) {
-            const persisted = await this.calendarRepo.save(event);
-            importedCalendarEventIds.push(persisted.id);
-          }
-        }
+        const leagues = await this.repo.restoreFullLeagueData({ kind: 'fullData', gonesDataVersion: exportFile.gonesDataVersion, leagues: exportFile.leagues }, importKey());
+        importedLeagueIds.push(...leagues.map(league => league.id));
       } catch (error) {
         await this.rollbackImportedLeagues(importedLeagueIds);
-        await this.rollbackImportedCalendarEvents(importedCalendarEventIds);
         throw error;
       }
-      return { kind: 'fullData', importedLeagueIds, importedCalendarEventIds };
+      return { kind: 'fullData', importedLeagueIds };
     }
 
-    if (this.repo.serverMode) {
-      const persisted = await this.repo.restoreLeague({ kind: 'league', gonesDataVersion: exportFile.gonesDataVersion, league: exportFile.league }, importKey());
-      return { kind: 'league', importedLeagueIds: [persisted.id], importedCalendarEventIds: [] };
-    }
-    const existingLeagues = await this.repo.listLeagues();
-    const restored = restoreLeague(parsed, { idFactory: defaultIdFactory, existingLeagues });
-    const persisted = await this.repo.insertLeague(restored);
-    return { kind: 'league', importedLeagueIds: [persisted.id], importedCalendarEventIds: [] };
+    const persisted = await this.repo.restoreLeague({ kind: 'league', gonesDataVersion: exportFile.gonesDataVersion, league: exportFile.league }, importKey());
+    return { kind: 'league', importedLeagueIds: [persisted.id] };
   }
 
   private async rollbackImportedLeagues(importedLeagueIds: string[]): Promise<void> {
@@ -80,10 +54,4 @@ export class LeagueImportService {
     });
   }
 
-  private async rollbackImportedCalendarEvents(importedCalendarEventIds: string[]): Promise<void> {
-    const results = await Promise.allSettled(importedCalendarEventIds.map((id) => this.calendarRepo.delete(id)));
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') logBoundaryError('league-import.calendarRollback', result.reason, { calendarEventId: importedCalendarEventIds[index] });
-    });
-  }
 }

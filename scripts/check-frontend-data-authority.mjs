@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 /**
- * C42 build-time data-authority gate.
+ * Build-time data-authority gate (C42, narrowed to server-only by ADR 0020).
  *
  * The Angular build bakes the declared data authority into `src/environments/environment*.ts`. This
  * script runs right after that substitution so an incoherent image fails at build time instead of
  * shipping and failing in the browser. It mirrors the rules in `src/app/config/data-authority.ts`;
  * `ops/frontend-data-authority.test.ts` feeds the same matrix to both and fails on any drift.
  *
+ * The retired `legacy-browser` mode is not accepted here either: a build that still asks for it
+ * fails with `dataModeUnknown` rather than producing an image with no data authority at all.
+ *
  * Usage: node scripts/check-frontend-data-authority.mjs <environment-file>
  * Exit codes: 0 coherent, 2 incoherent (the error code is printed), 3 unreadable/unparseable file.
  */
 import { readFileSync } from 'node:fs';
 
-const DATA_MODES = ['legacy-browser', 'server'];
+const DATA_MODES = ['server'];
 
 export function readEnvironmentDeclaration(source) {
   const dataMode = /dataMode:\s*'([^']*)'/.exec(source);
@@ -32,13 +35,8 @@ export function dataAuthorityFailureCode(declaration) {
   if (!DATA_MODES.includes(declaration.dataMode)) return 'dataModeUnknown';
   const apiBaseUrl = declaration.apiBaseUrl.trim().replace(/\/+$/, '');
   const { authV1, adminV1 } = declaration.features;
-  if (declaration.dataMode === 'server') {
-    if (!apiBaseUrl) return 'serverModeApiBaseUrlMissing';
-    if (adminV1 && !authV1) return 'serverModeAdminRequiresAuth';
-    return null;
-  }
-  if (apiBaseUrl) return 'legacyModeApiBaseUrlForbidden';
-  if (authV1 || adminV1) return 'legacyModeCapabilityForbidden';
+  if (!apiBaseUrl) return 'serverModeApiBaseUrlMissing';
+  if (adminV1 && !authV1) return 'serverModeAdminRequiresAuth';
   return null;
 }
 
