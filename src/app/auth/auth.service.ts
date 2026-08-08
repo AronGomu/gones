@@ -132,11 +132,11 @@ export class AuthService {
   forgotPassword(request: EmailAccountRequest): Promise<unknown> { return firstValueFrom(this.client.forgotPassword(request)); }
   resetPassword(request: ResetPasswordRequest): Promise<void> { return firstValueFrom(this.client.resetPassword(request)); }
   listExternalIdentities(): Promise<ExternalIdentityResponse[]> { return firstValueFrom(this.client.externalIdentitiesAll()); }
-  async startLink(provider: string, currentPassword?: string): Promise<string> {
-    return (await firstValueFrom(this.client.startPOST(provider, { currentPassword }))).authorizationUrl;
+  async startLink(provider: string): Promise<string> {
+    return (await firstValueFrom(this.client.startPOST(provider))).authorizationUrl;
   }
-  unlink(provider: string, currentPassword?: string): Promise<void> {
-    return firstValueFrom(this.client.externalIdentities(provider, { currentPassword }));
+  unlink(provider: string): Promise<void> {
+    return firstValueFrom(this.client.externalIdentities(provider));
   }
 
   private acceptToken(response: AccessTokenResponse): void {

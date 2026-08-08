@@ -218,19 +218,16 @@ public sealed class OAuthApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Authenticated_user_can_link_then_unlink_with_reauth_and_sessions_are_revoked()
+    public async Task Authenticated_user_can_link_then_unlink_without_a_password_and_sessions_are_revoked()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"link-{suffix}@example.test";
         using var registration = await RegisterAsync(email, $"Link{suffix[..8]}");
         var login = await LoginAsync(email);
 
-        using var badReauth = await SendAuthorizedFakeAsync(HttpMethod.Post, "/api/users/me/external-identities/google/start", login.AccessToken,
-            new { currentPassword = "wrong-password-value" }, "complete", $"linked-{suffix}", email);
-        Assert.Equal(HttpStatusCode.BadRequest, badReauth.StatusCode);
-
         using var linkStart = await SendAuthorizedFakeAsync(HttpMethod.Post, "/api/users/me/external-identities/google/start", login.AccessToken,
-            new { currentPassword = "valid-password-value" }, "complete", $"linked-{suffix}", email);
+            "complete", $"linked-{suffix}", email);
+        Assert.Equal(HttpStatusCode.OK, linkStart.StatusCode);
         var startBody = await linkStart.Content.ReadFromJsonAsync<JsonElement>();
         var authorizationUrl = new Uri(startBody.GetProperty("authorizationUrl").GetString()!);
         var cookie = CookieFrom(linkStart);
@@ -242,8 +239,7 @@ public sealed class OAuthApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, oldRefresh.StatusCode);
 
         var secondLogin = await LoginAsync(email);
-        using var unlinked = await SendAuthorizedAsync(HttpMethod.Delete, "/api/users/me/external-identities/google", secondLogin.AccessToken,
-            new { currentPassword = "valid-password-value" });
+        using var unlinked = await SendAuthorizedAsync(HttpMethod.Delete, "/api/users/me/external-identities/google", secondLogin.AccessToken);
         Assert.Equal(HttpStatusCode.NoContent, unlinked.StatusCode);
         using var secondOldRefresh = await RefreshAsync(secondLogin.Cookie);
         Assert.Equal(HttpStatusCode.Unauthorized, secondOldRefresh.StatusCode);
@@ -266,7 +262,8 @@ public sealed class OAuthApiTests : IAsyncLifetime
         using var registration = await RegisterAsync(email, $"Browser{suffix[..8]}");
         var login = await LoginAsync(email);
         using var linkStart = await SendAuthorizedFakeAsync(HttpMethod.Post, "/api/users/me/external-identities/google/start", login.AccessToken,
-            new { currentPassword = "valid-password-value" }, "complete", $"browser-linked-{suffix}", email);
+            "complete", $"browser-linked-{suffix}", email);
+        Assert.Equal(HttpStatusCode.OK, linkStart.StatusCode);
         var startBody = await linkStart.Content.ReadFromJsonAsync<JsonElement>();
         var callbackPath = await AuthorizeAsync(new Uri(startBody.GetProperty("authorizationUrl").GetString()!));
 
@@ -284,19 +281,34 @@ public sealed class OAuthApiTests : IAsyncLifetime
     public async Task Unlink_refuses_final_login_method()
     {
         var suffix = Guid.NewGuid().ToString("N");
-        var started = await StartAsync("google", "complete", $"only-{suffix}", $"only-{suffix}@example.test");
+        var subject = $"only-{suffix}";
+        var started = await StartAsync("google", "complete", subject, $"only-{suffix}@example.test");
         using var callback = await SendWithCookieAsync(HttpMethod.Get, started.CallbackPath, started.Cookie);
         var body = await callback.Content.ReadFromJsonAsync<JsonElement>();
         var accessToken = body.GetProperty("accessToken").GetString()!;
 
-        using var rejected = await SendAuthorizedAsync(HttpMethod.Delete, "/api/users/me/external-identities/google", accessToken, new { });
+        using var rejected = await SendAuthorizedAsync(HttpMethod.Delete, "/api/users/me/external-identities/google", accessToken);
 
         Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
         Assert.Equal("last_login_method", await ProblemCodeAsync(rejected));
+        await using var database = CreateContext();
+        Assert.True(await database.ExternalIdentities.AnyAsync(item => item.ProviderSubject == subject));
     }
 
     [Fact]
-    public async Task Recent_external_reauthentication_allows_linking_and_unlinking_when_another_method_remains()
+    public async Task Link_start_rejects_an_anonymous_caller()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+
+        using var anonymous = await SendAnonymousFakeAsync(HttpMethod.Post, "/api/users/me/external-identities/google/start",
+            "complete", $"anonymous-{suffix}", $"anonymous-{suffix}@example.test");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.False(anonymous.Headers.Contains("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task External_only_account_can_link_and_unlink_when_another_method_remains()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var google = await StartAsync("google", "complete", $"google-{suffix}", $"external-{suffix}@example.test");
@@ -305,14 +317,14 @@ public sealed class OAuthApiTests : IAsyncLifetime
         var accessToken = body.GetProperty("accessToken").GetString()!;
 
         using var linkStart = await SendAuthorizedFakeAsync(HttpMethod.Post, "/api/users/me/external-identities/facebook/start", accessToken,
-            new { }, "complete", $"facebook-{suffix}", $"facebook-{suffix}@example.test");
+            "complete", $"facebook-{suffix}", $"facebook-{suffix}@example.test");
         Assert.Equal(HttpStatusCode.OK, linkStart.StatusCode);
         var startBody = await linkStart.Content.ReadFromJsonAsync<JsonElement>();
         var callbackPath = await AuthorizeAsync(new Uri(startBody.GetProperty("authorizationUrl").GetString()!));
         using var linked = await SendWithCookieAsync(HttpMethod.Get, callbackPath, CookieFrom(linkStart));
         Assert.Equal(HttpStatusCode.NoContent, linked.StatusCode);
 
-        using var unlinked = await SendAuthorizedAsync(HttpMethod.Delete, "/api/users/me/external-identities/google", accessToken, new { });
+        using var unlinked = await SendAuthorizedAsync(HttpMethod.Delete, "/api/users/me/external-identities/google", accessToken);
         Assert.Equal(HttpStatusCode.NoContent, unlinked.StatusCode);
         await using var database = CreateContext();
         Assert.Equal(["facebook"], await database.ExternalIdentities.Select(item => item.Provider).ToArrayAsync());
@@ -399,14 +411,23 @@ public sealed class OAuthApiTests : IAsyncLifetime
         return await Client.SendAsync(request);
     }
 
-    private async Task<HttpResponseMessage> SendAuthorizedFakeAsync(HttpMethod method, string path, string token, object body, string scenario, string subject, string email)
+    private async Task<HttpResponseMessage> SendAuthorizedFakeAsync(HttpMethod method, string path, string token, string scenario, string subject, string email, object? body = null)
     {
         var request = new HttpRequestMessage(method, path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Add("X-Gones-Fake-OAuth-Scenario", scenario);
         request.Headers.Add("X-Gones-Fake-OAuth-Subject", subject);
         request.Headers.Add("X-Gones-Fake-OAuth-Email", email);
-        request.Content = JsonContent.Create(body);
+        if (body is not null) request.Content = JsonContent.Create(body);
+        return await Client.SendAsync(request);
+    }
+
+    private async Task<HttpResponseMessage> SendAnonymousFakeAsync(HttpMethod method, string path, string scenario, string subject, string email)
+    {
+        var request = new HttpRequestMessage(method, path);
+        request.Headers.Add("X-Gones-Fake-OAuth-Scenario", scenario);
+        request.Headers.Add("X-Gones-Fake-OAuth-Subject", subject);
+        request.Headers.Add("X-Gones-Fake-OAuth-Email", email);
         return await Client.SendAsync(request);
     }
 

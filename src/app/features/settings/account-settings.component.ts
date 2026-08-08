@@ -59,7 +59,6 @@ function isoDate(value: LocalDate | undefined): string {
       <mat-card class="panel auth-card" data-cy="account-linked-accounts-card"><mat-card-content class="stack" data-cy="account-linked-accounts-card-content">
         <h2 data-cy="account-linked-accounts-title">{{ i18n.t('profile.linkedAccounts') }}</h2>
         <p class="muted" data-cy="account-link-help">{{ i18n.t('profile.linkHelp') }}</p>
-        <label for="link-password" data-cy="account-link-password-label">{{ i18n.t('profile.currentPasswordOptional') }}</label><input id="link-password" data-cy="account-link-password" type="password" autocomplete="current-password" [(ngModel)]="linkPassword">
         @for (provider of providers; track provider) {
           <div class="identity-row" [attr.data-cy]="'account-identity-row-' + provider">
             <strong [attr.data-cy]="'account-identity-name-' + provider">{{ provider === 'google' ? 'Google' : 'Facebook' }}</strong>
@@ -108,7 +107,6 @@ export class AccountSettingsComponent {
   currentPassword = '';
   newEmail = '';
   emailPassword = '';
-  linkPassword = '';
 
   constructor() { void this.loadIdentities(); }
   identity(provider: string): ExternalIdentityResponse | undefined { return this.identities().find(item => item.provider.toLowerCase() === provider); }
@@ -132,11 +130,11 @@ export class AccountSettingsComponent {
   }
 
   async link(provider: string): Promise<void> {
-    await this.run(this.identityPending, async () => { window.location.assign(await this.auth.startLink(provider, this.linkPassword || undefined)); });
+    await this.run(this.identityPending, async () => { window.location.assign(await this.auth.startLink(provider)); });
   }
 
   async unlink(provider: string): Promise<void> {
-    await this.run(this.identityPending, async () => { await this.auth.unlink(provider, this.linkPassword || undefined); await this.loadIdentities(); this.status.set(this.i18n.t('profile.unlinked')); });
+    await this.run(this.identityPending, async () => { await this.auth.unlink(provider); await this.loadIdentities(); this.status.set(this.i18n.t('profile.unlinked')); });
   }
 
   async logout(): Promise<void> { await this.auth.logout(); await this.router.navigate(['/login']); }

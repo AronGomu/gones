@@ -2120,16 +2120,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LinkExternalIdentityRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2179,16 +2169,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UnlinkExternalIdentityRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "204": {
             "description": "No Content"
@@ -8225,22 +8205,6 @@
           }
         }
       },
-      "LinkExternalIdentityRequest": {
-        "required": [
-          "currentPassword"
-        ],
-        "type": "object",
-        "properties": {
-          "currentPassword": {
-            "maxLength": 128,
-            "minLength": 0,
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "LiveCommandResponse": {
         "required": [
           "document",
@@ -11727,22 +11691,6 @@
           "newOwnerUserId": {
             "type": "string",
             "format": "uuid"
-          }
-        }
-      },
-      "UnlinkExternalIdentityRequest": {
-        "required": [
-          "currentPassword"
-        ],
-        "type": "object",
-        "properties": {
-          "currentPassword": {
-            "maxLength": 128,
-            "minLength": 0,
-            "type": [
-              "null",
-              "string"
-            ]
           }
         }
       },

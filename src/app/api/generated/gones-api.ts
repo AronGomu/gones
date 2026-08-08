@@ -232,11 +232,11 @@ export interface IClient {
     /**
      * @return OK
      */
-    startPOST(provider: string, body: LinkExternalIdentityRequest): Observable<OAuthStartResponse>;
+    startPOST(provider: string): Observable<OAuthStartResponse>;
     /**
      * @return No Content
      */
-    externalIdentities(provider: string, body: UnlinkExternalIdentityRequest): Observable<void>;
+    externalIdentities(provider: string): Observable<void>;
     /**
      * @param if_Match (optional)
      * @return OK
@@ -3608,21 +3608,17 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    startPOST(provider: string, body: LinkExternalIdentityRequest): Observable<OAuthStartResponse> {
+    startPOST(provider: string): Observable<OAuthStartResponse> {
         let url_ = this.baseUrl + "/api/users/me/external-identities/{provider}/start";
         if (provider === undefined || provider === null)
             throw new globalThis.Error("The parameter 'provider' must be defined.");
         url_ = url_.replace("{provider}", encodeURIComponent("" + provider));
         url_ = url_.replace(/[?&]$/, "");
 
-        const content_ = JSON.stringify(body);
-
         let options_ : any = {
-            body: content_,
             observe: "response",
             responseType: "blob",
             headers: new HttpHeaders({
-                "Content-Type": "application/json",
                 "Accept": "application/json"
             })
         };
@@ -3677,21 +3673,17 @@ export class Client implements IClient {
     /**
      * @return No Content
      */
-    externalIdentities(provider: string, body: UnlinkExternalIdentityRequest): Observable<void> {
+    externalIdentities(provider: string): Observable<void> {
         let url_ = this.baseUrl + "/api/users/me/external-identities/{provider}";
         if (provider === undefined || provider === null)
             throw new globalThis.Error("The parameter 'provider' must be defined.");
         url_ = url_.replace("{provider}", encodeURIComponent("" + provider));
         url_ = url_.replace(/[?&]$/, "");
 
-        const content_ = JSON.stringify(body);
-
         let options_ : any = {
-            body: content_,
             observe: "response",
             responseType: "blob",
             headers: new HttpHeaders({
-                "Content-Type": "application/json",
             })
         };
 
@@ -9639,12 +9631,6 @@ export interface LeagueResult {
     [key: string]: any;
 }
 
-export interface LinkExternalIdentityRequest {
-    currentPassword: string | undefined;
-
-    [key: string]: any;
-}
-
 export interface LiveCommandResponse {
     document: LiveTournamentDocument;
     documentVersion: number;
@@ -10560,12 +10546,6 @@ export interface TournamentResult {
 
 export interface TransferOrganizationOwnershipRequest {
     newOwnerUserId: string;
-
-    [key: string]: any;
-}
-
-export interface UnlinkExternalIdentityRequest {
-    currentPassword: string | undefined;
 
     [key: string]: any;
 }

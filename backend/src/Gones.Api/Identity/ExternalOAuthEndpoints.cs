@@ -15,7 +15,6 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -82,7 +81,6 @@ internal static class ExternalOAuthEndpoints
 
     private static async Task<IResult> LinkStartAsync(
         string provider,
-        LinkExternalIdentityRequest request,
         ClaimsPrincipal principal,
         HttpContext context,
         ExternalOAuthService service,
@@ -91,7 +89,6 @@ internal static class ExternalOAuthEndpoints
     {
         provider = NormalizeProvider(provider);
         var userId = CurrentUserId(principal);
-        await service.RequireReauthenticationAsync(userId, request.CurrentPassword, principal, cancellationToken);
         var started = await service.StartAsync(provider, OAuthAttemptPurpose.Link, userId, FakeScenario(context, options), cancellationToken);
         OAuthCorrelationCookie.Issue(context.Response, started.Correlation);
         return Results.Ok(new OAuthStartResponse(started.AuthorizationUri));
@@ -216,12 +213,11 @@ internal static class ExternalOAuthEndpoints
 
     private static async Task<IResult> UnlinkAsync(
         string provider,
-        [FromBody] UnlinkExternalIdentityRequest request,
         ClaimsPrincipal principal,
         ExternalOAuthService service,
         CancellationToken cancellationToken)
     {
-        await service.UnlinkAsync(CurrentUserId(principal), NormalizeProvider(provider), request.CurrentPassword, principal, cancellationToken);
+        await service.UnlinkAsync(CurrentUserId(principal), NormalizeProvider(provider), cancellationToken);
         return Results.NoContent();
     }
 
@@ -275,27 +271,6 @@ internal sealed class ExternalOAuthService(
         database.OAuthAttempts.Add(attempt);
         await database.SaveChangesAsync(cancellationToken);
         return new OAuthStartResult(client.CreateAuthorizationUri(provider, state, scenario), correlation);
-    }
-
-    public async Task RequireReauthenticationAsync(
-        Guid userId,
-        string? currentPassword,
-        ClaimsPrincipal principal,
-        CancellationToken cancellationToken)
-    {
-        var user = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
-        if (await userManager.HasPasswordAsync(user))
-        {
-            if (string.IsNullOrWhiteSpace(currentPassword) || !await userManager.CheckPasswordAsync(user, currentPassword))
-            {
-                throw Validation(nameof(currentPassword), "Current password is required and must be valid.");
-            }
-        }
-        else if (!HasRecentAuthentication(principal, clock.GetCurrentInstant()))
-        {
-            throw Validation("reauthentication", "Sign in again before changing external identities.");
-        }
-        cancellationToken.ThrowIfCancellationRequested();
     }
 
     public async Task<OAuthCallbackResult> CallbackAsync(
@@ -454,8 +429,6 @@ internal sealed class ExternalOAuthService(
     public async Task UnlinkAsync(
         Guid userId,
         string provider,
-        string? currentPassword,
-        ClaimsPrincipal principal,
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
@@ -465,7 +438,6 @@ internal sealed class ExternalOAuthService(
         var identity = identities.SingleOrDefault(item => item.Provider == provider) ?? throw new ResourceNotFoundException();
         var hasPassword = await userManager.HasPasswordAsync(user);
         if (!hasPassword && identities.Count == 1) throw new LastLoginMethodException();
-        await RequireReauthenticationAsync(userId, currentPassword, principal, cancellationToken);
 
         database.ExternalIdentities.Remove(identity);
         await sessions.RevokeAllForIdentityChangeAsync(userId, cancellationToken);
@@ -531,15 +503,6 @@ internal sealed class ExternalOAuthService(
         }
     }
 
-    private static bool HasRecentAuthentication(ClaimsPrincipal principal, Instant now)
-    {
-        var issuedClaim = principal.FindFirstValue("iat");
-        if (!long.TryParse(issuedClaim, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var issuedSeconds)) return false;
-        var issuedAt = Instant.FromUnixTimeSeconds(issuedSeconds);
-        var age = now - issuedAt;
-        return age >= Duration.Zero && age <= Duration.FromMinutes(5);
-    }
-
     private static string RandomToken() => WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
     private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     private static ApiValidationException Validation(string field, string message) => new(new Dictionary<string, string[]> { [field] = [message] });
@@ -586,8 +549,6 @@ internal sealed record VerifyOAuthEmailRequest(
     [property: Required, StringLength(256)] string Token,
     [property: StringLength(RefreshSession.MaximumDeviceLabelLength)] string? DeviceLabel);
 
-internal sealed record LinkExternalIdentityRequest([property: StringLength(128)] string? CurrentPassword);
-internal sealed record UnlinkExternalIdentityRequest([property: StringLength(128)] string? CurrentPassword);
 internal sealed record OAuthStartResponse(Uri AuthorizationUrl);
 internal sealed record ExternalIdentityResponse(string Provider, string? ProviderEmail, bool ProviderEmailVerified, Instant CreatedAt, Instant UpdatedAt);
 internal sealed record OAuthFlowResponse(
