@@ -10983,6 +10983,8 @@ export interface TournamentProposalReviewResponse {
     submittedByUsername: string;
     approverUsername: string;
     expiresAt: Instant;
+    organizationName: string;
+    formatNames: string[];
 
     [key: string]: any;
 }

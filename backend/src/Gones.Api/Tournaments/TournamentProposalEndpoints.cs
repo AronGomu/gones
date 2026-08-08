@@ -117,13 +117,25 @@ internal static class TournamentProposalEndpoints
     {
         var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
+        var payload = Payload(proposal);
+        var organizationName = await database.Organizations.AsNoTracking()
+            .Where(organization => organization.Id == payload.OrganizationId && organization.DeletedAt == null)
+            .Select(organization => organization.Name)
+            .SingleOrDefaultAsync(cancellationToken) ?? string.Empty;
+        var formatNames = await database.TournamentFormats.AsNoTracking()
+            .Where(format => payload.FormatIds.Contains(format.Id) && format.DeletedAt == null)
+            .OrderBy(format => format.Slug)
+            .Select(format => format.Name)
+            .ToListAsync(cancellationToken);
         return Results.Ok(new TournamentProposalReviewResponse(
             proposal.Id,
-            Payload(proposal),
+            payload,
             proposal.Status.ToString(),
             await UsernameAsync(database, proposal.SubmittedByUserId, cancellationToken),
             await UsernameAsync(database, recipient.UserId, cancellationToken),
-            proposal.ExpiresAt));
+            proposal.ExpiresAt,
+            organizationName,
+            formatNames));
     }
 
     /// <summary>
@@ -523,7 +535,9 @@ internal sealed record TournamentProposalReviewResponse(
     string Status,
     string SubmittedByUsername,
     string ApproverUsername,
-    Instant ExpiresAt);
+    Instant ExpiresAt,
+    string OrganizationName,
+    IReadOnlyList<string> FormatNames);
 
 internal sealed record TournamentProposalDecisionResponse(Guid ProposalId, string Status, string? Slug);
 

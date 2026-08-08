@@ -89,6 +89,68 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     }
 
     [Fact]
+    public async Task Get_by_token_returns_display_names()
+    {
+        var extra = TournamentFormat.Create("Doubles", "doubles", sortOrder: 1, Now);
+        await using (var database = CreateContext())
+        {
+            database.TournamentFormats.Add(extra);
+            await database.SaveChangesAsync();
+        }
+        var proposal = await SeedProposalAsync(extra);
+
+        using var response = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        output.WriteLine($"GET by-token (display names) -> {body}");
+        Assert.Equal(seed.Alpha.Name, body.GetProperty("organizationName").GetString());
+        // "doubles" sorts before "legacy": the response must follow the same slug order publishing uses.
+        Assert.Equal(
+            new[] { extra.Name, seed.Legacy.Name },
+            body.GetProperty("formatNames").EnumerateArray().Select(item => item.GetString()).ToArray());
+    }
+
+    [Fact]
+    public async Task Get_by_token_tolerates_a_deleted_organization()
+    {
+        var proposal = await SeedProposalAsync();
+        await using (var database = CreateContext())
+        {
+            var organization = await database.Organizations.SingleAsync(item => item.Id == seed.Alpha.Id);
+            organization.SoftDelete(Now);
+            await database.SaveChangesAsync();
+        }
+
+        using var response = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        output.WriteLine($"GET by-token (deleted org) -> {body}");
+        Assert.Equal(string.Empty, body.GetProperty("organizationName").GetString());
+        Assert.Equal(proposal.Id, body.GetProperty("id").GetGuid());
+        Assert.Equal("Pending", body.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Get_by_token_exposes_no_new_personal_data()
+    {
+        var proposal = await SeedProposalAsync();
+
+        using var response = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
+        var raw = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        output.WriteLine($"GET by-token (raw) -> {raw}");
+        Assert.DoesNotContain("@", raw, StringComparison.Ordinal);
+        var body = JsonDocument.Parse(raw).RootElement;
+        Assert.False(body.TryGetProperty("email", out _));
+        Assert.False(body.TryGetProperty("userId", out _));
+        Assert.False(body.TryGetProperty("submittedByUserId", out _));
+        Assert.False(body.TryGetProperty("tokenHash", out _));
+    }
+
+    [Fact]
     public async Task Get_by_token_is_anonymous()
     {
         var proposal = await SeedProposalAsync();
@@ -406,13 +468,13 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     /// hand. Going through <c>POST /api/tournament-proposals</c> would burn the shared IP rate-limit
     /// budget these tests need for the decision calls, and would never hand back a sibling token.
     /// </summary>
-    private async Task<SeededProposal> SeedProposalAsync()
+    private async Task<SeededProposal> SeedProposalAsync(TournamentFormat? extraFormat = null)
     {
         var organizerToken = NewToken();
         var adminToken = NewToken();
         var proposal = TournamentProposal.Create(
             seed.Submitter.Id,
-            JsonSerializer.Serialize(Payload(), PayloadJsonOptions),
+            JsonSerializer.Serialize(Payload(extraFormat), PayloadJsonOptions),
             clock.GetCurrentInstant());
         proposal.AddRecipient(seed.Organizer.Id, Sha256Hex(organizerToken), clock.GetCurrentInstant());
         proposal.AddRecipient(seed.Admin.Id, Sha256Hex(adminToken), clock.GetCurrentInstant());
@@ -491,7 +553,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         return user;
     }
 
-    private TournamentPayload Payload() => new(
+    private TournamentPayload Payload(TournamentFormat? extraFormat = null) => new(
         seed.Alpha.Id,
         "Summer Cup",
         "Featured",
@@ -504,7 +566,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         "2035-03-04T10:00:00",
         "2035-03-04T18:00:00",
         64,
-        [seed.Legacy.Id]);
+        extraFormat is null ? [seed.Legacy.Id] : [seed.Legacy.Id, extraFormat.Id]);
 
     private GonesDbContext CreateContext()
     {

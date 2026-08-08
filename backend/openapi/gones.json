@@ -11928,7 +11928,9 @@
           "status",
           "submittedByUsername",
           "approverUsername",
-          "expiresAt"
+          "expiresAt",
+          "organizationName",
+          "formatNames"
         ],
         "type": "object",
         "properties": {
@@ -11950,6 +11952,15 @@
           },
           "expiresAt": {
             "$ref": "#/components/schemas/Instant"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "formatNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

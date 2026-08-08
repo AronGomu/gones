@@ -75,14 +75,14 @@ Run: `npm run backend:test`
 
 ## Impl steps
 
-- [ ] 1. Append `string OrganizationName` and `IReadOnlyList<string> FormatNames` to `TournamentProposalReviewResponse` (`TournamentProposalEndpoints.cs:520`), after the existing members — validate: the file compiles and the record's earlier members are unchanged.
-- [ ] 2. In `GetByTokenAsync`, after `Payload(proposal)`, resolve the organization name: query `database.Organizations.AsNoTracking()` for the payload's `OrganizationId`, selecting `Name`, and fall back to `string.Empty` when the row is missing or soft-deleted — validate: `Get_by_token_tolerates_a_deleted_organization` passes.
-- [ ] 3. In the same handler resolve the format names: `database.TournamentFormats.AsNoTracking().Where(format => payload.FormatIds.Contains(format.Id) && format.DeletedAt == null).OrderBy(format => format.Slug).Select(format => format.Name)` — validate: `Get_by_token_returns_display_names` shows both names in slug order.
-- [ ] 4. Materialise both lookups before constructing the response; do not put a query inside the record initializer — validate: no `InvalidOperationException` about a second operation on the same context in the test run.
-- [ ] 5. Add the three Test plan rows to `backend/tests/Gones.IntegrationTests/TournamentProposalDecisionTests.cs` — validate: they appear in the passing list.
-- [ ] 6. Run `npm run backend:test` — validate: green, with `TournamentProposalDecisionTests` passing in full.
-- [ ] 7. Run `npm run api:generate`, then `npm run api:check` — validate: no drift, and `TournamentProposalReviewResponse` in `src/app/api/generated/gones-api.ts` now carries `organizationName: string` and `formatNames: string[]`.
-- [ ] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build` — validate: all four green (the change is additive, so no frontend edit should be needed).
+- [x] 1. Append `string OrganizationName` and `IReadOnlyList<string> FormatNames` to `TournamentProposalReviewResponse` (`TournamentProposalEndpoints.cs:520`), after the existing members — validate: the file compiles and the record's earlier members are unchanged.
+- [x] 2. In `GetByTokenAsync`, after `Payload(proposal)`, resolve the organization name: query `database.Organizations.AsNoTracking()` for the payload's `OrganizationId`, selecting `Name`, and fall back to `string.Empty` when the row is missing or soft-deleted — validate: `Get_by_token_tolerates_a_deleted_organization` passes.
+- [x] 3. In the same handler resolve the format names: `database.TournamentFormats.AsNoTracking().Where(format => payload.FormatIds.Contains(format.Id) && format.DeletedAt == null).OrderBy(format => format.Slug).Select(format => format.Name)` — validate: `Get_by_token_returns_display_names` shows both names in slug order.
+- [x] 4. Materialise both lookups before constructing the response; do not put a query inside the record initializer — validate: no `InvalidOperationException` about a second operation on the same context in the test run.
+- [x] 5. Add the three Test plan rows to `backend/tests/Gones.IntegrationTests/TournamentProposalDecisionTests.cs` — validate: they appear in the passing list.
+- [x] 6. Run `npm run backend:test` — validate: green, with `TournamentProposalDecisionTests` passing in full.
+- [x] 7. Run `npm run api:generate`, then `npm run api:check` — validate: no drift, and `TournamentProposalReviewResponse` in `src/app/api/generated/gones-api.ts` now carries `organizationName: string` and `formatNames: string[]`.
+- [x] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build` — validate: all four green (the change is additive, so no frontend edit should be needed).
 
 ## Outputs
 
@@ -92,8 +92,8 @@ Run: `npm run backend:test`
 
 ## Validation
 
-- [ ] `npm run backend:test` passes
-- [ ] `npm run api:check` reports no drift
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] app functional — approve and reject behave exactly as before
-- [ ] commit msg draft: `feat(tournaments): name the organization and formats on the proposal review response`
+- [x] `npm run backend:test` passes
+- [x] `npm run api:check` reports no drift
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass
+- [x] app functional — approve and reject behave exactly as before
+- [x] commit msg draft: `feat(tournaments): name the organization and formats on the proposal review response`
