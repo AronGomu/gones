@@ -92,7 +92,8 @@ flowchart TD
   T15 --> T16[T16: proposal entity + submit + mail]
   T16 --> T17[T17: approve/deny + cancel mail]
   T16 --> T18[T18: approver dialog on submit]
-  T17 --> T19[T19: /tournament-requests/:token page]
+  T17 --> T19b[T19b: review response display names]
+  T19b --> T19[T19: /tournament-requests/:token page]
   T1 --> T20[T20: local Live store by role]
   T1 --> T21[T21: first-visit about]
   T1 --> T22[T22: registrations page polish]
@@ -132,7 +133,8 @@ flowchart TD
 | T16 | Proposal entity, submit endpoint, mail | T15 | Non-organizer submission stores a proposal and mails chosen approvers | `PLAN_2026_08_08_feedback-calendar-v1/T16_tournament-proposal-backend.md` |
 | T17 | Proposal approve/deny + cancellation mail | T16 | Token approval publishes the tournament; denial mails the reason | `PLAN_2026_08_08_feedback-calendar-v1/T17_proposal-approval-endpoints.md` |
 | T18 | Approver-selection dialog | T16 | Non-organizer submit opens the admin/organizer checkbox dialog | `PLAN_2026_08_08_feedback-calendar-v1/T18_approver-selection-dialog.md` |
-| T19 | `/tournament-requests/:token` pages | T17 | Approver validates or refuses from the mail link | `PLAN_2026_08_08_feedback-calendar-v1/T19_tournament-request-pages.md` |
+| T19b | Proposal review display names *(parent-added)* | T17 | Review response names the organization and formats | `PLAN_2026_08_08_feedback-calendar-v1/T19b_review-response-display-names.md` |
+| T19 | `/tournament-requests/:token` pages | T17, T19b | Approver validates or refuses from the mail link | `PLAN_2026_08_08_feedback-calendar-v1/T19_tournament-request-pages.md` |
 | T20 | Role-scoped local Live store | T1 | Anonymous and plain users run Live tournaments fully offline | `PLAN_2026_08_08_feedback-calendar-v1/T20_local-live-store.md` |
 | T21 | First-visit About redirect | T1 | First ever visit lands on `/about`, later visits on `/` | `PLAN_2026_08_08_feedback-calendar-v1/T21_first-visit-about.md` |
 | T22 | Registrations page polish | T1 | Home card when logged in, top/bottom return buttons, no kicker | `PLAN_2026_08_08_feedback-calendar-v1/T22_registrations-page-polish.md` |
@@ -162,7 +164,8 @@ flowchart TD
 - [T16: Proposal entity, submit endpoint, mail](PLAN_2026_08_08_feedback-calendar-v1/T16_tournament-proposal-backend.md) — depends: T15
 - [T17: Proposal approve/deny + cancellation mail](PLAN_2026_08_08_feedback-calendar-v1/T17_proposal-approval-endpoints.md) — depends: T16
 - [T18: Approver-selection dialog](PLAN_2026_08_08_feedback-calendar-v1/T18_approver-selection-dialog.md) — depends: T16
-- [T19: `/tournament-requests/:token` pages](PLAN_2026_08_08_feedback-calendar-v1/T19_tournament-request-pages.md) — depends: T17
+- [T19b: Proposal review display names](PLAN_2026_08_08_feedback-calendar-v1/T19b_review-response-display-names.md) — depends: T17 *(parent-added)*
+- [T19: `/tournament-requests/:token` pages](PLAN_2026_08_08_feedback-calendar-v1/T19_tournament-request-pages.md) — depends: T17, T19b
 - [T20: Role-scoped local Live store](PLAN_2026_08_08_feedback-calendar-v1/T20_local-live-store.md) — depends: T1
 - [T21: First-visit About redirect](PLAN_2026_08_08_feedback-calendar-v1/T21_first-visit-about.md) — depends: T1
 - [T22: Registrations page polish](PLAN_2026_08_08_feedback-calendar-v1/T22_registrations-page-polish.md) — depends: T1
