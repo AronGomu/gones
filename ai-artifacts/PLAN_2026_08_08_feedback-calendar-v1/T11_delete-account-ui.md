@@ -1,7 +1,7 @@
 # T11: Delete account UI
 
 **Plan:** `./ai-artifacts/PLAN_2026_08_08_feedback-calendar-v1.md`
-**Depends:** T6, T8
+**Depends:** T6b, T8
 **Commit outcome:** The account page ends with a "Supprimer Compte" button whose confirmation dialog demands the current password; confirming deletes the account and returns the user to the home page signed out.
 
 ## Context (self-contained)
@@ -29,8 +29,24 @@
 - `src/styles.css:117` — `.danger-ghost-action` gives the outlined red treatment used for destructive actions elsewhere.
 - `src/app/api/api-boundary.ts` — `ApiProblemError` carries `status` and the parsed problem body.
 - `src/app/i18n/messages.ts` — `const en = {` line 5, `const fr` line 1000; add every key to BOTH.
-- Backend contract from T6: `DELETE /api/users/me`, body `{ "currentPassword": string }`; `400` with `errors.currentPassword` on a bad password; `409` with `lastAdmin` when the sole admin tries to delete themselves; `204` on success.
-- **From Depends (T6):** the endpoint and `AuthService.deleteAccount` exist and are unit-tested. **From Depends (T8):** the page lives at `src/app/features/settings/account-settings.component.ts` on route `settings/account`, uses `account-` prefixed selectors, and is out of `PENDING_DATA_CY_RETROFIT`.
+- Backend contract: `DELETE /api/users/me`, body `{ "currentPassword": string }`; `400` with `errors.currentPassword` on a bad password; `204` on success; and **two different `409`s** that must not be conflated:
+  - `problem.code === 'lastAdmin'` — the sole remaining Admin (`LocalIdentityEndpoints.cs:341-345`).
+  - `problem.code === 'account_owns_records'` — the account still owns rows behind a restricting foreign key
+    (`AccountOwnsRecordsException`, `backend/src/Gones.Api/Errors/ApiExceptions.cs:38-42`). The problem body also
+    carries a `relations` extension, a `string[]` of `table.column` pairs such as
+    `["scheduled_tournaments.created_by_user_id"]` (`ApiExceptionHandler.cs:45`). Nothing was mutated and the caller
+    is still signed in.
+- `src/app/api/api-boundary.ts:8-22` — `ApiProblemDetails` exposes `code`, `message`, `title`, `errors`. It does
+  **not** declare `relations`; read it defensively, e.g.
+  `const relations = (error.problem as { relations?: string[] }).relations ?? []`. Do not widen the shared interface.
+- **From Depends (T6 + T6b):** the endpoint and `AuthService.deleteAccount(currentPassword)` exist and are
+  integration-tested, including the `409 account_owns_records` refusal, which was added after this ticket was written.
+  A plain `User` who has only registered for tournaments still deletes successfully; an Organizer or Admin who created
+  tournaments is refused. **From Depends (T8):** the page lives at
+  `src/app/features/settings/account-settings.component.ts` on route `settings/account`, uses `account-` prefixed
+  selectors, and is out of `PENDING_DATA_CY_RETROFIT`. **From Depends (T9/T10):** the component already injects
+  `MatDialog`, already imports `MatDialogModule`, and its submit button sits outside the details `<form>` bound by
+  `form="account-details-form"` — leave all three alone and append the danger zone after the linked-accounts card.
 
 ## TDD
 
@@ -48,7 +64,8 @@
 | `cancelling makes no request` | dialog stub resolving `undefined` | `auth.deleteAccount` spy not called |
 | `confirming deletes and navigates` | stub resolving `'pw'`, `deleteAccount` resolving | spy called with `'pw'`; `router.navigate` called with `['/']` |
 | `a bad password shows a field error` | `deleteAccount` rejecting with a 400 problem naming `currentPassword` | `fieldErrors()['currentPassword']` non-empty; no navigation |
-| `the last-admin conflict shows its own message` | reject with a 409 whose detail contains `lastAdmin` | `error()` equals `i18n.t('account.deleteLastAdmin')` |
+| `the last-admin conflict shows its own message` | reject with a 409 whose `problem.code` is `'lastAdmin'` | `error()` equals `i18n.t('account.deleteLastAdmin')` |
+| `the owned-records conflict lists what blocks it` | reject with a 409 whose `problem.code` is `'account_owns_records'` and whose `relations` is `['scheduled_tournaments.created_by_user_id']` | `error()` starts with `i18n.t('account.deleteOwnsRecords')` and contains `scheduled_tournaments.created_by_user_id`; no navigation |
 | `data-cy coverage` | both touched files | suite green |
 
 Run: `npm run test -- password-confirm-dialog account-delete data-cy-coverage`
@@ -67,6 +84,7 @@ Run: `npm run test -- password-confirm-dialog account-delete data-cy-coverage`
   - `account.deletePassword` — en `'Current password'`, fr `'Mot de passe actuel'`
   - `account.deleteFailed` — en `'Account deletion failed. Check your password, then retry.'`, fr `'La suppression du compte a échoué. Vérifiez votre mot de passe, puis réessayez.'`
   - `account.deleteLastAdmin` — en `'The last administrator cannot delete their own account.'`, fr `'Le dernier administrateur ne peut pas supprimer son propre compte.'`
+  - `account.deleteOwnsRecords` — en `'Your account still owns records that must be handed over or removed first.'`, fr `'Votre compte possède encore des enregistrements qui doivent être transférés ou supprimés au préalable.'`
 - [ ] 6. In `src/app/features/settings/account-settings.component.ts`, append after the linked-accounts card and before the closing `</section>`:
   ```
   <mat-card class="panel auth-card account-danger-zone" data-cy="account-danger-zone"><mat-card-content class="stack" data-cy="account-danger-zone-content">
@@ -90,17 +108,36 @@ Run: `npm run test -- password-confirm-dialog account-delete data-cy-coverage`
       await this.router.navigate(['/']);
     } catch (error) {
       this.fieldErrors.set(fieldErrorsFromProblem(error));
-      this.error.set(error instanceof ApiProblemError && error.status === 409 ? this.i18n.t('account.deleteLastAdmin') : this.i18n.t('account.deleteFailed'));
+      this.error.set(this.deleteFailureMessage(error));
     } finally {
       this.deletePending.set(false);
     }
   }
   ```
+- [ ] 8b. Add the failure-message mapper next to it — the two `409` codes mean different things and must not share a message:
+  ```
+  private deleteFailureMessage(error: unknown): string {
+    if (!(error instanceof ApiProblemError) || error.status !== 409) return this.i18n.t('account.deleteFailed');
+    if (error.problem.code === 'lastAdmin') return this.i18n.t('account.deleteLastAdmin');
+    if (error.problem.code === 'account_owns_records') {
+      const relations = (error.problem as { relations?: string[] }).relations ?? [];
+      return relations.length ? `${this.i18n.t('account.deleteOwnsRecords')} (${relations.join(', ')})` : this.i18n.t('account.deleteOwnsRecords');
+    }
+    return this.i18n.t('account.deleteFailed');
+  }
+  ```
+  — validate: the two 409 Test plan rows pass.
 - [ ] 9. Render `fieldErrors()['currentPassword']` under the delete button so a bad password is visible after the dialog closes, with `data-cy="account-delete-error"`.
 - [ ] 10. Add `.account-danger-zone { border-color: var(--hot-blood); }` to `src/styles.css`.
 - [ ] 11. Confirm `logout()` in this component navigates to `'/'`, not `'/login'`.
 - [ ] 12. Create `src/app/features/settings/account-delete.test.ts` with Test plan rows four to seven, stubbing `AuthService`, `MatDialog` and `Router`.
 - [ ] 13. Add a Cypress case to `cypress/e2e/auth-profile.cy.js`: register a throwaway user, open `/settings/account`, click `[data-cy=account-delete]`, type the password into `[data-cy=password-confirm-input]`, submit, assert the URL is `/` and `[data-cy=profile-link]` is absent; then assert signing in with the deleted credentials fails.
+  **Two hard constraints on this step.** (a) The account it deletes MUST be a freshly registered throwaway with a
+  unique email — never the shared `cypress.user@example.test` fixture, which every other spec in the suite logs in
+  with; deleting it would break the whole Cypress suite for good. (b) This case costs three auth calls (register,
+  the post-delete sign-in attempt, plus the existing spec's own login) against a 15-minute rate-limit window that
+  cannot be raised on this host. Write it once, run it once. Do not add exploratory login-bearing runs.
+  — validate: the new case passes and the shared fixture user still logs in afterwards.
 - [ ] 14. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
 - [ ] 15. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`.
 
