@@ -1,6 +1,7 @@
 import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
 import { buildRoutes, calendarRoutes } from './app.routes';
+import { userGuard } from './auth/auth.guards';
 
 const noCapabilities = { authV1: false, adminV1: false };
 const allCapabilities = { authV1: true, adminV1: true };
@@ -45,6 +46,30 @@ describe('route exposure per capability flag', () => {
 
   it('serves no sessions page, the feature was removed', () => {
     expect(paths(allCapabilities)).not.toContain('profile/sessions');
+  });
+
+  it('exposes settings/account when auth is on', () => {
+    expect(paths(allCapabilities)).toContain('settings/account');
+  });
+
+  it('hides settings/account when auth is off', () => {
+    expect(paths(noCapabilities)).not.toContain('settings/account');
+  });
+
+  it('keeps settings anonymous', () => {
+    const settingsRoute = buildRoutes(noCapabilities).find((route) => route.path === 'settings');
+    expect(settingsRoute?.canActivate).toBeUndefined();
+  });
+
+  it('redirects profile to the account settings route', () => {
+    const profileRoute = buildRoutes(allCapabilities).find((route) => route.path === 'profile');
+    expect(profileRoute?.redirectTo).toBe('settings/account');
+    expect(profileRoute?.pathMatch).toBe('full');
+  });
+
+  it('guards the account route', () => {
+    const accountRoute = buildRoutes(allCapabilities).find((route) => route.path === 'settings/account');
+    expect(accountRoute?.canActivate).toContain(userGuard);
   });
 
   it('exposes no auth, registration, organizer or admin route while the flags are off', () => {

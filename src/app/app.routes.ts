@@ -9,7 +9,8 @@ const authRoutes: Routes = [
   { path: 'verify-email', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'verify-email' } },
   { path: 'forgot-password', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'forgot-password' } },
   { path: 'reset-password', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'reset-password' } },
-  { path: 'profile', canActivate: [userGuard], loadComponent: () => import('./auth/profile.component').then((m) => m.ProfileComponent) }
+  { path: 'profile', pathMatch: 'full', redirectTo: 'settings/account' },
+  { path: 'settings/account', canActivate: [userGuard], loadComponent: () => import('./features/settings/account-settings.component').then((m) => m.AccountSettingsComponent) }
 ];
 
 const registrationAndOrganizerRoutes: Routes = [

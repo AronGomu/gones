@@ -64,20 +64,20 @@ Run: `npm run test -- data-mode-routes data-cy-coverage`
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/features/settings/account-settings.component.ts` exporting `AccountSettingsComponent`.
-- [ ] 2. Move the entire template and class body of `src/app/auth/profile.component.ts` into it verbatim, fixing the relative import depth (`../../api/generated/gones-api`, `../../i18n/i18n.service`, `../../shared/deck-archetype-settings.service`, `../../auth/auth-errors`, `../../auth/auth.service`).
-- [ ] 3. In that template, change the heading block to `<header class="page-heading" data-cy="account-heading"><div data-cy="account-heading-text"><h1 id="account-title" data-cy="account-title">{{ i18n.t('settings.accountTitle') }}</h1></div><div class="actions" data-cy="account-heading-actions"><a mat-stroked-button routerLink="/registrations" data-cy="account-registrations-link">{{ i18n.t('registration.myRegistrations') }}</a></div></header>` — the kicker goes (T1's rule), the sessions link is already gone (T7).
-- [ ] 4. Change the `aria-labelledby` on the root section from `profile-title` to `account-title` and give the section `data-cy="account-settings-page"`.
-- [ ] 5. Add a unique `data-cy` to every remaining element in the moved template, prefixed `account-`.
-- [ ] 6. Add keys to BOTH maps in `src/app/i18n/messages.ts`: `settings.accountTitle` (en `'Account'`, fr `'Compte'`), `settings.accountOpen` (en `'Open account settings'`, fr `'Ouvrir les paramètres du compte'`), `settings.accountSignInPrompt` (en `'Sign in to manage your account.'`, fr `'Connectez-vous pour gérer votre compte.'`), `crumb.account` (en `'Account'`, fr `'Compte'`).
-- [ ] 7. `git rm src/app/auth/profile.component.ts`.
-- [ ] 8. In `src/app/app.routes.ts`, replace the `profile` entry in `authRoutes` with:
+- [x] 1. Create `src/app/features/settings/account-settings.component.ts` exporting `AccountSettingsComponent`.
+- [x] 2. Move the entire template and class body of `src/app/auth/profile.component.ts` into it verbatim, fixing the relative import depth (`../../api/generated/gones-api`, `../../i18n/i18n.service`, `../../shared/deck-archetype-settings.service`, `../../auth/auth-errors`, `../../auth/auth.service`).
+- [x] 3. In that template, change the heading block to `<header class="page-heading" data-cy="account-heading"><div data-cy="account-heading-text"><h1 id="account-title" data-cy="account-title">{{ i18n.t('settings.accountTitle') }}</h1></div><div class="actions" data-cy="account-heading-actions"><a mat-stroked-button routerLink="/registrations" data-cy="account-registrations-link">{{ i18n.t('registration.myRegistrations') }}</a></div></header>` — the kicker goes (T1's rule), the sessions link is already gone (T7).
+- [x] 4. Change the `aria-labelledby` on the root section from `profile-title` to `account-title` and give the section `data-cy="account-settings-page"`.
+- [x] 5. Add a unique `data-cy` to every remaining element in the moved template, prefixed `account-`.
+- [x] 6. Add keys to BOTH maps in `src/app/i18n/messages.ts`: `settings.accountTitle` (en `'Account'`, fr `'Compte'`), `settings.accountOpen` (en `'Open account settings'`, fr `'Ouvrir les paramètres du compte'`), `settings.accountSignInPrompt` (en `'Sign in to manage your account.'`, fr `'Connectez-vous pour gérer votre compte.'`), `crumb.account` (en `'Account'`, fr `'Compte'`).
+- [x] 7. `git rm src/app/auth/profile.component.ts`.
+- [x] 8. In `src/app/app.routes.ts`, replace the `profile` entry in `authRoutes` with:
   ```
   { path: 'profile', pathMatch: 'full', redirectTo: 'settings/account' },
   { path: 'settings/account', canActivate: [userGuard], loadComponent: () => import('./features/settings/account-settings.component').then((m) => m.AccountSettingsComponent) }
   ```
-- [ ] 9. Confirm `authRoutes` is spread **after** the unconditional `settings` route in `buildRoutes` so the child path resolves; it already is (line 71).
-- [ ] 10. In `src/app/features/settings/settings.component.ts`, replace the profile card body (lines 62-68) with a signed-in-aware block:
+- [x] 9. Confirm `authRoutes` is spread **after** the unconditional `settings` route in `buildRoutes` so the child path resolves; it already is (line 71).
+- [x] 10. In `src/app/features/settings/settings.component.ts`, replace the profile card body (lines 62-68) with a signed-in-aware block:
   ```
   <h2 data-cy="settings-account-title">{{ i18n.t('settings.accountTitle') }}</h2>
   @if (auth.profile()) {
@@ -88,20 +88,20 @@ Run: `npm run test -- data-mode-routes data-cy-coverage`
   }
   ```
   and inject `readonly auth = inject(AuthService);` into `SettingsComponent`.
-- [ ] 11. Delete the now-unused `settings.profile` / `settings.profileOpen` keys from BOTH maps if nothing else references them (`grep -rn "settings.profileOpen\|'settings.profile'" src/`).
-- [ ] 12. Add a unique `data-cy` to every element of `settings.component.ts`'s template that lacks one — the file is large; work section by section using the `settings-` prefix already in use.
-- [ ] 13. In `src/app/app.component.ts`, replace the settings breadcrumb branch with:
+- [x] 11. Delete the now-unused `settings.profile` / `settings.profileOpen` keys from BOTH maps if nothing else references them (`grep -rn "settings.profileOpen\|'settings.profile'" src/`).
+- [x] 12. Add a unique `data-cy` to every element of `settings.component.ts`'s template that lacks one — the file is large; work section by section using the `settings-` prefix already in use.
+- [x] 13. In `src/app/app.component.ts`, replace the settings breadcrumb branch with:
   ```
   if (segments[0] === 'settings') {
     if (segments[1] === 'account') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.settings'), link: ['/settings'] }, { label: this.i18n.t('crumb.account') }];
     return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.settings') }];
   }
   ```
-- [ ] 14. Remove `'profile'` from the auth-segment array at `src/app/app.component.ts:241`.
-- [ ] 15. Delete `src/app/auth/profile.component.ts`, `src/app/features/settings/settings.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts` and confirm the new `account-settings.component.ts` is **not** added to it.
-- [ ] 16. Add the seven Test plan rows: routing assertions in `src/app/data-mode-routes.test.ts`, the breadcrumb assertion in a new `src/app/app-breadcrumbs.test.ts` if none exists (extract `buildBreadcrumbs` to a pure exported function in `src/app/app-breadcrumbs.ts` if it is not already reachable — keep the extraction mechanical).
-- [ ] 17. `grep -rn "'/profile'\|routerLink=\"/profile\"\|navigate(\['/profile'\])" src/ cypress/` and repoint every hit to `/settings/account`.
-- [ ] 18. Update `cypress/e2e/auth-profile.cy.js` and `cypress/e2e/settings-server.cy.js` to visit `/settings/account`, and rename their `[data-cy=profile-*]` selectors to the new `[data-cy=account-*]` values.
+- [x] 14. Remove `'profile'` from the auth-segment array at `src/app/app.component.ts:241`.
+- [x] 15. Delete `src/app/auth/profile.component.ts`, `src/app/features/settings/settings.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts` and confirm the new `account-settings.component.ts` is **not** added to it.
+- [x] 16. Add the seven Test plan rows: routing assertions in `src/app/data-mode-routes.test.ts`, the breadcrumb assertion in a new `src/app/app-breadcrumbs.test.ts` if none exists (extract `buildBreadcrumbs` to a pure exported function in `src/app/app-breadcrumbs.ts` if it is not already reachable — keep the extraction mechanical).
+- [x] 17. `grep -rn "'/profile'\|routerLink=\"/profile\"\|navigate(\['/profile'\])" src/ cypress/` and repoint every hit to `/settings/account`.
+- [x] 18. Update `cypress/e2e/auth-profile.cy.js` and `cypress/e2e/settings-server.cy.js` to visit `/settings/account`, and rename their `[data-cy=profile-*]` selectors to the new `[data-cy=account-*]` values.
 - [ ] 19. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
 - [ ] 20. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/settings-server.cy.js`.
 
@@ -115,9 +115,9 @@ Run: `npm run test -- data-mode-routes data-cy-coverage`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/settings-server.cy.js` passes
-- [ ] manual check: signed out, `/settings` renders language and archetypes and offers a sign-in link; `/settings/account` bounces to `/login?returnUrl=%2Fsettings%2Faccount`; signed in, `/profile` lands on `/settings/account`
-- [ ] app functional — settings export/import header actions still appear on `/settings` only
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/settings-server.cy.js` passes (9/10; the one failure is the documented pre-existing "starts explicit provider linking" port-8081 baseline failure, not caused by this change)
+- [x] manual check: signed out, `/settings` renders language and archetypes and offers a sign-in link; `/settings/account` bounces to `/login?returnUrl=%2Fsettings%2Faccount`; signed in, `/profile` lands on `/settings/account` — verified via `settings-server.cy.js` (visitor sees `settings-account-login-link`, signed-in sees `settings-account-link` -> `/settings/account`), `auth-profile.cy.js` `login()` helper (visits `/login?returnUrl=%2Fsettings%2Faccount`, lands on `/settings/account`), the `settings/account` routing test (`canActivate` contains `userGuard`), and the pre-existing `userGuard` unit test (`auth/auth-guards.test.ts`) which is unchanged and still exercises the `/login?returnUrl=...` redirect
+- [x] app functional — settings export/import header actions still appear on `/settings` only — `app.component.ts`'s `showSettingsActions` exact-match on `path === '/settings'` left untouched (Input note at ticket line 39); `settings/account` is a distinct path so the header actions do not appear there
 - [ ] commit msg draft: `refactor(settings): merge the profile page into a login-gated /settings/account child route`

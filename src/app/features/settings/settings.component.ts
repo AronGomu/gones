@@ -35,20 +35,20 @@ interface OwnedOrganizationSettings {
   standalone: true,
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
-    <section class="info-page settings-page" [attr.aria-label]="i18n.t('settings.pageAria')">
-      <mat-card class="panel settings-panel">
-        <mat-card-content>
-          <div class="settings-row">
-            <div>
-              <h2>{{ i18n.t('settings.language') }}</h2>
-              <p class="muted">{{ i18n.t('settings.languageHelp') }}</p>
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="settings-back-button-top" />
+    <section class="info-page settings-page" [attr.aria-label]="i18n.t('settings.pageAria')" data-cy="settings-page">
+      <mat-card class="panel settings-panel" data-cy="settings-language-card">
+        <mat-card-content data-cy="settings-language-card-content">
+          <div class="settings-row" data-cy="settings-language-row">
+            <div data-cy="settings-language-row-text">
+              <h2 data-cy="settings-language-title">{{ i18n.t('settings.language') }}</h2>
+              <p class="muted" data-cy="settings-language-help">{{ i18n.t('settings.languageHelp') }}</p>
             </div>
-            <mat-form-field appearance="outline" class="settings-language-field">
-              <mat-label>{{ i18n.t('settings.language') }}</mat-label>
+            <mat-form-field appearance="outline" class="settings-language-field" data-cy="settings-language-field">
+              <mat-label data-cy="settings-language-field-label">{{ i18n.t('settings.language') }}</mat-label>
               <mat-select data-cy="settings-language-select" [ngModel]="language()" (ngModelChange)="setLanguage($event)">
-                <mat-option value="en">{{ i18n.t('lang.englishNative') }}</mat-option>
-                <mat-option value="fr">{{ i18n.t('lang.frenchNative') }}</mat-option>
+                <mat-option value="en" data-cy="settings-language-option-en">{{ i18n.t('lang.englishNative') }}</mat-option>
+                <mat-option value="fr" data-cy="settings-language-option-fr">{{ i18n.t('lang.frenchNative') }}</mat-option>
               </mat-select>
             </mat-form-field>
           </div>
@@ -56,51 +56,57 @@ interface OwnedOrganizationSettings {
         </mat-card-content>
       </mat-card>
 
-      @if (capabilities().profileLink) {
-        <mat-card class="panel settings-panel">
-          <mat-card-content>
-            <div class="settings-row">
-              <div>
-                <h2>{{ i18n.t('settings.profile') }}</h2>
-                <p class="muted">{{ i18n.t('settings.profileHelp') }}</p>
+      @if (authV1()) {
+        <mat-card class="panel settings-panel" data-cy="settings-account-card">
+          <mat-card-content data-cy="settings-account-card-content">
+            <div class="settings-row" data-cy="settings-account-row">
+              <div data-cy="settings-account-row-text">
+                <h2 data-cy="settings-account-title">{{ i18n.t('settings.accountTitle') }}</h2>
               </div>
-              <a mat-stroked-button class="secondary-action" routerLink="/profile" data-cy="settings-profile-link">{{ i18n.t('settings.profileOpen') }}</a>
+              @if (auth.profile()) {
+                <a mat-stroked-button class="secondary-action" routerLink="/settings/account" data-cy="settings-account-link">{{ i18n.t('settings.accountOpen') }}</a>
+              } @else {
+                <div data-cy="settings-account-signed-out">
+                  <p class="muted" data-cy="settings-account-prompt">{{ i18n.t('settings.accountSignInPrompt') }}</p>
+                  <a mat-stroked-button class="secondary-action" routerLink="/login" [queryParams]="{ returnUrl: '/settings/account' }" data-cy="settings-account-login-link">{{ i18n.t('auth.signIn') }}</a>
+                </div>
+              }
             </div>
           </mat-card-content>
         </mat-card>
       }
 
       @if (capabilities().adminCatalog) {
-        <mat-card class="panel settings-panel settings-archetype-panel-card">
-          <mat-card-content>
+        <mat-card class="panel settings-panel settings-archetype-panel-card" data-cy="settings-archetype-card">
+          <mat-card-content data-cy="settings-archetype-card-content">
             <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archetype-panel" [expanded]="false">
-              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
-                <mat-panel-title>{{ i18n.t('settings.deckArchetypes') }}</mat-panel-title>
-                <mat-panel-description>{{ filteredServerArchetypes().length }} / {{ serverArchetypes().length }}</mat-panel-description>
+              <mat-expansion-panel-header (click)="blurExpansionHeader($event)" data-cy="settings-archetype-panel-header">
+                <mat-panel-title data-cy="settings-archetype-panel-title">{{ i18n.t('settings.deckArchetypes') }}</mat-panel-title>
+                <mat-panel-description data-cy="settings-archetype-panel-description">{{ filteredServerArchetypes().length }} / {{ serverArchetypes().length }}</mat-panel-description>
               </mat-expansion-panel-header>
 
-              <p class="muted settings-archetype-copy">{{ i18n.t('settings.adminCatalogHelp') }}</p>
+              <p class="muted settings-archetype-copy" data-cy="settings-archetype-copy">{{ i18n.t('settings.adminCatalogHelp') }}</p>
 
-              <div class="settings-archetype-io">
+              <div class="settings-archetype-io" data-cy="settings-archetype-io">
                 <button mat-stroked-button type="button" class="settings-add-archetype-button" data-cy="settings-import-archetypes-button" [disabled]="archetypeSaving() || archetypeImporting()" (click)="openArchetypeImportPicker()">{{ archetypeImporting() ? i18n.t('common.importing') : i18n.t('settings.importArchetypes') }}</button>
                 <input #archetypeImportInput class="toolbar-import-input" data-cy="settings-import-archetypes-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="archetypeImporting()" (change)="importServerArchetypes($event)">
               </div>
 
-              <form class="settings-archetype-add" (ngSubmit)="addServerArchetype()">
-                <mat-form-field appearance="outline" class="settings-archetype-field">
-                  <mat-label>{{ i18n.t('settings.newArchetype') }}</mat-label>
+              <form class="settings-archetype-add" (ngSubmit)="addServerArchetype()" data-cy="settings-add-archetype-form">
+                <mat-form-field appearance="outline" class="settings-archetype-field" data-cy="settings-new-archetype-field">
+                  <mat-label data-cy="settings-new-archetype-field-label">{{ i18n.t('settings.newArchetype') }}</mat-label>
                   <input matInput data-cy="settings-new-archetype-input" [ngModel]="newArchetype()" name="newArchetype" (ngModelChange)="newArchetype.set($event)">
                 </mat-form-field>
                 <button mat-stroked-button class="settings-add-archetype-button" type="submit" data-cy="settings-add-archetype-button" [disabled]="archetypeSaving() || !canAddNewServerArchetype()">{{ i18n.t('settings.addArchetype') }}</button>
               </form>
 
-              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
-                <mat-label>{{ i18n.t('settings.filterArchetypes') }}</mat-label>
+              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter" data-cy="settings-archetype-filter-field">
+                <mat-label data-cy="settings-archetype-filter-field-label">{{ i18n.t('settings.filterArchetypes') }}</mat-label>
                 <input matInput data-cy="settings-archetype-filter" [ngModel]="archetypeFilter()" name="archetypeFilter" (ngModelChange)="archetypeFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterArchetypes')">
               </mat-form-field>
 
               @if (filteredServerArchetypes().length) {
-                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.deckArchetypes')">
+                <div class="settings-archetype-list" role="list" data-cy="settings-archetype-list" [attr.aria-label]="i18n.t('settings.deckArchetypes')">
                   @for (archetype of filteredServerArchetypes(); track archetype.id; let odd = $odd) {
                     <div
                       class="settings-archetype-item"
@@ -112,8 +118,8 @@ interface OwnedOrganizationSettings {
                       [attr.data-archetype]="archetype.name"
                     >
                       @if (editingServerArchetype() === archetype.id) {
-                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
-                          <mat-label>{{ i18n.t('settings.deckArchetype') }}</mat-label>
+                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic" data-cy="settings-archetype-edit-field">
+                          <mat-label data-cy="settings-archetype-edit-field-label">{{ i18n.t('settings.deckArchetype') }}</mat-label>
                           <input
                             matInput
                             data-cy="settings-archetype-input"
@@ -171,30 +177,30 @@ interface OwnedOrganizationSettings {
               } @else {
                 <p class="empty" data-cy="settings-empty-archetypes">{{ i18n.t('settings.emptyArchetypes') }}</p>
               }
-              @if (archetypeMessage()) { <p class="settings-saved" role="status">{{ archetypeMessage() }}</p> }
+              @if (archetypeMessage()) { <p class="settings-saved" role="status" data-cy="settings-archetype-message">{{ archetypeMessage() }}</p> }
             </mat-expansion-panel>
           </mat-card-content>
         </mat-card>
       }
 
       @if (capabilities().organizerMaintenance) {
-        <mat-card class="panel settings-panel settings-archetype-panel-card">
-          <mat-card-content>
+        <mat-card class="panel settings-panel settings-archetype-panel-card" data-cy="settings-players-card">
+          <mat-card-content data-cy="settings-players-card-content">
             <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-players-panel" [expanded]="false">
-              <mat-expansion-panel-header (click)="blurExpansionHeader($event)">
-                <mat-panel-title>{{ i18n.t('settings.players') }}</mat-panel-title>
-                <mat-panel-description>{{ filteredServerPlayers().length }} / {{ serverPlayers().length }}</mat-panel-description>
+              <mat-expansion-panel-header (click)="blurExpansionHeader($event)" data-cy="settings-players-panel-header">
+                <mat-panel-title data-cy="settings-players-panel-title">{{ i18n.t('settings.players') }}</mat-panel-title>
+                <mat-panel-description data-cy="settings-players-panel-description">{{ filteredServerPlayers().length }} / {{ serverPlayers().length }}</mat-panel-description>
               </mat-expansion-panel-header>
 
-              <p class="muted settings-archetype-copy">{{ i18n.t('settings.maintenanceHelp') }}</p>
+              <p class="muted settings-archetype-copy" data-cy="settings-players-copy">{{ i18n.t('settings.maintenanceHelp') }}</p>
 
-              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter">
-                <mat-label>{{ i18n.t('settings.filterPlayers') }}</mat-label>
+              <mat-form-field appearance="outline" class="settings-archetype-field settings-archetype-filter" data-cy="settings-player-filter-field">
+                <mat-label data-cy="settings-player-filter-field-label">{{ i18n.t('settings.filterPlayers') }}</mat-label>
                 <input matInput data-cy="settings-player-filter" [ngModel]="playerFilter()" name="playerFilter" (ngModelChange)="playerFilter.set($event)" [attr.aria-label]="i18n.t('settings.filterPlayers')">
               </mat-form-field>
 
               @if (filteredServerPlayers().length) {
-                <div class="settings-archetype-list" role="list" [attr.aria-label]="i18n.t('settings.players')">
+                <div class="settings-archetype-list" role="list" data-cy="settings-player-list" [attr.aria-label]="i18n.t('settings.players')">
                   @for (player of filteredServerPlayers(); track player.name; let odd = $odd) {
                     <div
                       class="settings-archetype-item"
@@ -206,8 +212,8 @@ interface OwnedOrganizationSettings {
                       [attr.data-player]="player.name"
                     >
                       @if (editingPlayer() === player.name) {
-                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic">
-                          <mat-label>{{ i18n.t('settings.playerName') }}</mat-label>
+                        <mat-form-field appearance="outline" class="settings-archetype-field" subscriptSizing="dynamic" data-cy="settings-player-edit-field">
+                          <mat-label data-cy="settings-player-edit-field-label">{{ i18n.t('settings.playerName') }}</mat-label>
                           <input
                             matInput
                             data-cy="settings-player-input"
@@ -244,22 +250,22 @@ interface OwnedOrganizationSettings {
               } @else {
                 <p class="empty" data-cy="settings-empty-players">{{ i18n.t('settings.emptyPlayers') }}</p>
               }
-              @if (playerMessage()) { <p class="settings-saved" role="status">{{ playerMessage() }}</p> }
+              @if (playerMessage()) { <p class="settings-saved" role="status" data-cy="settings-player-message">{{ playerMessage() }}</p> }
             </mat-expansion-panel>
           </mat-card-content>
         </mat-card>
       }
 
       @if (capabilities().orgNotifications && ownedOrganizations().length) {
-        <mat-card class="panel settings-panel">
-          <mat-card-content>
-            <h2>{{ i18n.t('settings.orgNotifications') }}</h2>
-            <p class="muted">{{ i18n.t('settings.orgNotificationsHelp') }}</p>
+        <mat-card class="panel settings-panel" data-cy="settings-org-card">
+          <mat-card-content data-cy="settings-org-card-content">
+            <h2 data-cy="settings-org-title">{{ i18n.t('settings.orgNotifications') }}</h2>
+            <p class="muted" data-cy="settings-org-help">{{ i18n.t('settings.orgNotificationsHelp') }}</p>
             @for (owned of ownedOrganizations(); track owned.organization.id) {
               <form class="auth-form" data-cy="settings-org-row" [attr.data-org]="owned.organization.name" (ngSubmit)="saveOrganizationSettings(owned)">
-                <h3>{{ owned.organization.name }}</h3>
-                <label><input type="checkbox" data-cy="settings-org-notify-registration" [name]="'reg-' + owned.organization.id" [(ngModel)]="owned.settings.notifyOnRegistration" /> {{ i18n.t('org.notifyRegistration') }}</label>
-                <label><input type="checkbox" data-cy="settings-org-notify-unregistration" [name]="'unreg-' + owned.organization.id" [(ngModel)]="owned.settings.notifyOnUnregistration" /> {{ i18n.t('org.notifyUnregistration') }}</label>
+                <h3 data-cy="settings-org-name">{{ owned.organization.name }}</h3>
+                <label data-cy="settings-org-notify-registration-label"><input type="checkbox" data-cy="settings-org-notify-registration" [name]="'reg-' + owned.organization.id" [(ngModel)]="owned.settings.notifyOnRegistration" /> {{ i18n.t('org.notifyRegistration') }}</label>
+                <label data-cy="settings-org-notify-unregistration-label"><input type="checkbox" data-cy="settings-org-notify-unregistration" [name]="'unreg-' + owned.organization.id" [(ngModel)]="owned.settings.notifyOnUnregistration" /> {{ i18n.t('org.notifyUnregistration') }}</label>
                 <button mat-flat-button type="submit" data-cy="settings-org-save" [disabled]="orgSaving()">{{ i18n.t('common.save') }}</button>
               </form>
             }
@@ -269,19 +275,20 @@ interface OwnedOrganizationSettings {
       }
 
     </section>
-    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="settings-back-button-bottom" />
   `
 })
 export class SettingsComponent {
   readonly i18n = inject(I18nService);
   private readonly deckArchetypes = inject(DeckArchetypeSettingsService);
   readonly leagueRepo = inject(LeagueRepository);
-  private readonly auth = inject(AuthService);
+  readonly auth = inject(AuthService);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly client = inject(Client);
   private readonly dialog = inject(MatDialog);
   readonly language = this.deckArchetypes.language;
   private readonly archetypeImportInput = viewChild<ElementRef<HTMLInputElement>>('archetypeImportInput');
+  readonly authV1 = computed(() => dataAuthority().authV1);
   readonly capabilities = computed(() => settingsCapabilities({
     authV1: dataAuthority().authV1,
     adminV1: dataAuthority().adminV1

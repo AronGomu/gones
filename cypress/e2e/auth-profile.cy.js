@@ -2,11 +2,11 @@ const email = 'cypress.user@example.test';
 const password = 'Cypress-pass-123!';
 
 function login() {
-  cy.visit('/login?returnUrl=%2Fprofile');
+  cy.visit('/login?returnUrl=%2Fsettings%2Faccount');
   cy.get('[data-cy="auth-email"]').type(email);
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
-  cy.location('pathname').should('eq', '/profile');
+  cy.location('pathname').should('eq', '/settings/account');
 }
 
 describe('auth and profile', () => {
@@ -55,17 +55,17 @@ describe('auth and profile', () => {
   it('logs in, updates private-by-default profile, changes email, signs out', () => {
     login();
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(1280));
-    cy.get('[data-cy="profile-location-public"]').should('not.be.checked');
-    cy.get('[data-cy="profile-location-city"]').clear().type('Lyon');
-    cy.get('[data-cy="profile-birth-date"]').clear().type('1990-04-17');
-    cy.get('[data-cy="profile-language"]').select('fr');
-    cy.get('[data-cy="profile-location-public"]').check();
-    cy.get('[data-cy="profile-save"]').click();
-    cy.get('[data-cy="profile-status"]').should('be.visible');
+    cy.get('[data-cy="account-location-public"]').should('not.be.checked');
+    cy.get('[data-cy="account-location-city"]').clear().type('Lyon');
+    cy.get('[data-cy="account-birth-date"]').clear().type('1990-04-17');
+    cy.get('[data-cy="account-language"]').select('fr');
+    cy.get('[data-cy="account-location-public"]').check();
+    cy.get('[data-cy="account-save"]').click();
+    cy.get('[data-cy="account-status"]').should('be.visible');
 
-    cy.get('[data-cy="profile-new-email"]').type('cypress.user+changed@example.test');
+    cy.get('[data-cy="account-new-email"]').type('cypress.user+changed@example.test');
     cy.get('#profile-email-password').type(password, { log: false });
-    cy.get('[data-cy="profile-change-email"]').click();
+    cy.get('[data-cy="account-change-email"]').click();
     cy.get('[data-cy="unverified-banner"]').should('be.visible');
 
     cy.window().then(win => {
@@ -94,7 +94,7 @@ describe('auth and profile', () => {
     cy.get('#complete-last').type('User');
     cy.get('[data-cy="complete-profile-submit"]').click();
     cy.wait('@completeOAuth');
-    cy.location('pathname').should('eq', '/profile');
+    cy.location('pathname').should('eq', '/settings/account');
     cy.location('search').should('eq', '');
   });
 

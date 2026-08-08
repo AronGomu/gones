@@ -122,7 +122,8 @@ describe("Settings sections by capability (server mode)", () => {
     visitSettings("en");
 
     cy.get('[data-cy="settings-language-select"]').should("contain", "English");
-    cy.get('[data-cy="settings-profile-link"]').should("not.exist");
+    cy.get('[data-cy="settings-account-link"]').should("not.exist");
+    cy.get('[data-cy="settings-account-login-link"]').should("be.visible");
     cy.get('[data-cy="settings-archetype-panel"]').should("not.exist");
     cy.get('[data-cy="settings-players-panel"]').should("not.exist");
     cy.get('[data-cy="settings-org-row"]').should("not.exist");
@@ -153,7 +154,7 @@ describe("Settings sections by capability (server mode)", () => {
 
     visitSettings();
     cy.wait("@profile");
-    cy.get('[data-cy="settings-profile-link"]').should("be.visible").and("have.attr", "href", "/profile");
+    cy.get('[data-cy="settings-account-link"]').should("be.visible").and("have.attr", "href", "/settings/account");
     cy.get('[data-cy="settings-archetype-panel"]').should("not.exist");
     cy.get('[data-cy="settings-players-panel"]').should("not.exist");
 

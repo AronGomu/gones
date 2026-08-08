@@ -165,7 +165,7 @@ export class AuthEntryComponent {
     await this.run(async () => {
       const response = await this.auth.completeOAuth({ completionTicket: this.completionTicket, email: this.email, username: this.username, firstName: this.firstName, lastName: this.lastName, deviceLabel: deviceLabel() });
       if (response.status === 'email_verification_required') await this.router.navigate(['/verify-email'], { queryParams: { email: this.email, oauth: 'true' } });
-      else await this.router.navigate(['/profile']);
+      else await this.router.navigate(['/settings/account']);
     });
   }
 
@@ -173,7 +173,7 @@ export class AuthEntryComponent {
     await this.run(async () => {
       if (this.route.snapshot.queryParamMap.get('oauth') === 'true') {
         await this.auth.verifyOAuthEmail(this.token, deviceLabel());
-        await this.router.navigate(['/profile']);
+        await this.router.navigate(['/settings/account']);
       } else {
         await this.auth.verifyEmail(this.token);
         this.status.set(this.i18n.t('auth.verifiedStatus'));

@@ -20,12 +20,7 @@ import { saveJsonFile } from './shared/save-json-file';
 import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
 import { ApiProblemError } from './api/api-boundary';
-
-interface BreadcrumbItem {
-  label: string;
-  link?: unknown[];
-  lang?: string;
-}
+import { BreadcrumbItem, buildBreadcrumbs } from './app-breadcrumbs';
 
 interface HeaderTournament {
   league: PersistedLeague;
@@ -44,7 +39,7 @@ interface HeaderTournament {
         @if (auth.enabled) {
           <div class="auth-toolbar-actions" data-cy="auth-toolbar-actions">
             @if (auth.profile(); as profile) {
-              <a class="toolbar-profile-link" routerLink="/profile" data-cy="profile-link">{{ profile.username }}</a>
+              <a class="toolbar-profile-link" routerLink="/settings/account" data-cy="profile-link">{{ profile.username }}</a>
               <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="logout-button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
             }
           </div>
@@ -224,45 +219,12 @@ export class AppComponent {
   }
 
   private async buildBreadcrumbs(path: string): Promise<BreadcrumbItem[]> {
-    const menu = this.i18n.t('nav.menu');
-    const segments = path.split('/').filter(Boolean);
-    if (!segments.length) return [{ label: menu }];
-    if (segments[0] === 'about') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.about'), lang: 'fr' }];
-    if (segments[0] === 'calendar') {
-      if (segments[1] === 'tournaments' && segments[2]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: this.i18n.t('crumb.tournament') }];
-      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar') }];
-    }
-    // Legacy `/events/:slug` links redirect into the Calendar V1 detail; this breadcrumb is only
-    // ever seen for the instant before the redirect resolves.
-    if (segments[0] === 'events') {
-      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.calendar'), link: ['/calendar'] }, { label: this.i18n.t('crumb.event') }];
-    }
-    if (segments[0] === 'settings') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.settings') }];
-    if (segments[0] === 'registrations') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('registration.myRegistrations') }];
-    if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth', 'profile'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('auth.account') }];
-    if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.player') }];
-    if (segments[0] === 'live-tournaments') {
-      if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.runningTournaments') }];
-      const liveTournament = segments[1] === 'new' ? null : await this.safeGetLiveTournament(decodeURIComponent(segments[1]));
-      const label = segments[1] === 'new'
-        ? this.i18n.t('crumb.newTournament')
-        : this.i18n.t('crumb.liveSuffix', { name: liveTournament?.name || this.i18n.t('crumb.liveTournament') });
-      return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.runningTournaments'), link: ['/live-tournaments'] }, { label }];
-    }
-    if (segments[0] !== 'leagues') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('nav.notFound') }];
-    if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues') }];
-
-    const leagueId = decodeURIComponent(segments[1]);
-    const league = await this.safeGetLeague(leagueId);
-    const leagueLabel = league
-      ? (league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name)
-      : this.i18n.t('crumb.league');
-    if (segments[2] !== 'tournaments' || !segments[3]) return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel }];
-
-    const tournamentId = decodeURIComponent(segments[3]);
-    const tournamentLabel = league?.tournaments.find((item) => item.id === tournamentId)?.name || this.i18n.t('crumb.tournament');
-    if (segments[4] === 'result') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel, link: ['/leagues', leagueId, 'tournaments', tournamentId] }, { label: this.i18n.t('crumb.result') }];
-    return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel }];
+    return buildBreadcrumbs(
+      path,
+      (key, params) => this.i18n.t(key, params),
+      (leagueId) => this.safeGetLeague(leagueId),
+      (liveTournamentId) => this.safeGetLiveTournament(liveTournamentId)
+    );
   }
 
   private async safeGetLeague(leagueId: string): Promise<PersistedLeague | null> {

@@ -104,7 +104,6 @@ function toRepoRelative(path: string): string {
 }
 
 export const PENDING_DATA_CY_RETROFIT: string[] = [
-  'src/app/auth/profile.component.ts',
   'src/app/features/admin/admin-audit.component.ts',
   'src/app/features/admin/admin-home.component.ts',
   'src/app/features/admin/admin-notification-delivery.component.ts',
@@ -128,7 +127,6 @@ export const PENDING_DATA_CY_RETROFIT: string[] = [
   'src/app/features/live-tournaments/live-tournament-runner.component.ts',
   'src/app/features/menu/about.component.ts',
   'src/app/features/players/player-detail.component.ts',
-  'src/app/features/settings/settings.component.ts',
   'src/app/features/tournaments/tournament-detail.component.ts',
   'src/app/features/tournaments/tournament-result.component.ts',
   'src/app/shared/back-button.component.ts',
