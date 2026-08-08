@@ -6,7 +6,7 @@ function login() {
   cy.get('[data-cy="auth-email"]').type(email);
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
-  cy.location('pathname').should('eq', '/profile');
+  cy.location('pathname').should('eq', '/');
 }
 
 describe('session persistence across a reload', () => {

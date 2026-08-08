@@ -2,7 +2,7 @@ const email = 'cypress.user@example.test';
 const password = 'Cypress-pass-123!';
 
 function login() {
-  cy.visit('/login');
+  cy.visit('/login?returnUrl=%2Fprofile');
   cy.get('[data-cy="auth-email"]').type(email);
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
