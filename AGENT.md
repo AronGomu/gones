@@ -19,6 +19,7 @@ the browser.
 | path | contents |
 | --- | --- |
 | `src/` | Angular app: standalone components, Signals, zoneless change detection, Material with the dark-metal / blood-red theme. Backend bridge in `src/app/backend/`, declared authority in `src/app/config/data-authority.ts` |
+| `src/AGENT.md` | Frontend agent contract: data-cy rule, title/kicker rule, component style |
 | `backend/` | ASP.NET solution (`backend/Gones.sln`) and EF migrations |
 | `ops/` | runtime/host contract tests, `acceptance-matrix.json` |
 | `scripts/` | every dev, smoke, release and rehearsal script referenced below |

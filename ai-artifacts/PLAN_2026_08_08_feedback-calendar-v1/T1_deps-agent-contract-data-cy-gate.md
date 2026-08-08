@@ -54,25 +54,25 @@ Run: `npm run test -- data-cy-coverage`
 
 ## Impl steps
 
-- [ ] 1. Run `npm install fuse.js`.
-- [ ] 2. Run `npm install --save-dev country-region-data @etalab/decoupage-administratif`.
-- [ ] 3. Confirm `node -e "require('fuse.js')"` exits 0.
-- [ ] 4. Create `src/AGENT.md` with exactly these sections: `# Frontend AGENT contract`, `## Test identifiers`, `## Page titles`, `## Component style`. Under `## Test identifiers` write: "Every HTML element rendered by a component template MUST carry a `data-cy` attribute (`data-cy="..."` for static values, `[attr.data-cy]="..."` for computed ones). The value is a unique identifier for that element inside its component: kebab-case, prefixed with the feature (`settings-account-save`, `calendar-search-input`). Structural directives (`ng-container`, `ng-template`, `ng-content`) and inline SVG shape elements are exempt. Enforced by `src/app/shared/data-cy-coverage.test.ts`."
-- [ ] 5. Under `## Page titles` in `src/AGENT.md` write: "By default DO NOT add a kicker (`<p class=\"kicker\">`) above a page title. Add one only when the page is a sub-page whose parent context is otherwise invisible."
-- [ ] 6. Under `## Component style` in `src/AGENT.md` write: "Standalone components, Signals, zoneless change detection, Angular Material, inline `template:` strings, i18n through `I18nService.t()` with keys added to BOTH the `en` and `fr` maps in `src/app/i18n/messages.ts`."
-- [ ] 7. In `AGENT.md`, add a row to the "Repository layout" table immediately after the `src/` row: `| \`src/AGENT.md\` | Frontend agent contract: data-cy rule, title/kicker rule, component style |`.
-- [ ] 8. In `docs/DESIGN.md`, under `## 3. Typography` → `### Named Rules`, append the bullet: `- **No default kicker** — page titles stand alone. A kicker above an \`<h1>\` is opt-in, never the default.`
-- [ ] 9. In `docs/DESIGN.md`, under `## 6. Do's and Don'ts` → `### Don't:`, append: `- **Don't** put a kicker above a page title by default; only add one when the parent context is otherwise invisible.`
-- [ ] 10. Create `src/app/shared/data-cy-coverage.test.ts`. Export two pure helpers from the test file itself: `findMissingDataCy(source: string): string[]` and `findDuplicateDataCy(source: string): string[]`.
-- [ ] 11. In that file, define `const EXEMPT_TAGS = ['ng-container','ng-template','ng-content','svg','path','defs','g','use','circle','rect','line','polyline','polygon','br','hr'];`
-- [ ] 12. Implement `templateBlocks(source: string): string[]` — match `` /template:\s*`([\s\S]*?)`\s*\n\s*\}\)/g `` and return capture group 1 for each match.
-- [ ] 13. Implement `findMissingDataCy`: for each template block, scan opening tags with `` /<([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g ``; skip when tag is in `EXEMPT_TAGS`; push the tag name when the attribute chunk matches neither `/\sdata-cy\s*=/` nor `/\[attr\.data-cy\]\s*=/`.
-- [ ] 14. Implement `findDuplicateDataCy`: collect every `` /\sdata-cy="([^"]+)"/g `` value across the file's template blocks; return values seen more than once.
-- [ ] 15. Implement `componentSourceFiles()`: walk `src/app` recursively, keep `.ts` files that are not `*.test.ts` and whose contents match `/template:\s*`/`.
-- [ ] 16. Add the six tests from the Test plan table. The repo-wide test iterates `componentSourceFiles()`, skips paths present in `PENDING_DATA_CY_RETROFIT`, and asserts `findMissingDataCy(source)` and `findDuplicateDataCy(source)` are both `[]`.
-- [ ] 17. Declare `export const PENDING_DATA_CY_RETROFIT: string[] = [];` above the tests, run `npm run test -- data-cy-coverage`, copy the reported repo-relative paths (POSIX separators, e.g. `src/app/features/menu/home-menu.component.ts`) into the array, sorted.
-- [ ] 18. Re-run `npm run test -- data-cy-coverage` and confirm it passes.
-- [ ] 19. Run `npm run lint && npm run typecheck && npm run build`.
+- [x] 1. Run `npm install fuse.js`.
+- [x] 2. Run `npm install --save-dev country-region-data @etalab/decoupage-administratif`.
+- [x] 3. Confirm `node -e "require('fuse.js')"` exits 0.
+- [x] 4. Create `src/AGENT.md` with exactly these sections: `# Frontend AGENT contract`, `## Test identifiers`, `## Page titles`, `## Component style`. Under `## Test identifiers` write: "Every HTML element rendered by a component template MUST carry a `data-cy` attribute (`data-cy="..."` for static values, `[attr.data-cy]="..."` for computed ones). The value is a unique identifier for that element inside its component: kebab-case, prefixed with the feature (`settings-account-save`, `calendar-search-input`). Structural directives (`ng-container`, `ng-template`, `ng-content`) and inline SVG shape elements are exempt. Enforced by `src/app/shared/data-cy-coverage.test.ts`."
+- [x] 5. Under `## Page titles` in `src/AGENT.md` write: "By default DO NOT add a kicker (`<p class=\"kicker\">`) above a page title. Add one only when the page is a sub-page whose parent context is otherwise invisible."
+- [x] 6. Under `## Component style` in `src/AGENT.md` write: "Standalone components, Signals, zoneless change detection, Angular Material, inline `template:` strings, i18n through `I18nService.t()` with keys added to BOTH the `en` and `fr` maps in `src/app/i18n/messages.ts`."
+- [x] 7. In `AGENT.md`, add a row to the "Repository layout" table immediately after the `src/` row: `| \`src/AGENT.md\` | Frontend agent contract: data-cy rule, title/kicker rule, component style |`.
+- [x] 8. In `docs/DESIGN.md`, under `## 3. Typography` → `### Named Rules`, append the bullet: `- **No default kicker** — page titles stand alone. A kicker above an \`<h1>\` is opt-in, never the default.`
+- [x] 9. In `docs/DESIGN.md`, under `## 6. Do's and Don'ts` → `### Don't:`, append: `- **Don't** put a kicker above a page title by default; only add one when the parent context is otherwise invisible.`
+- [x] 10. Create `src/app/shared/data-cy-coverage.test.ts`. Export two pure helpers from the test file itself: `findMissingDataCy(source: string): string[]` and `findDuplicateDataCy(source: string): string[]`.
+- [x] 11. In that file, define `const EXEMPT_TAGS = ['ng-container','ng-template','ng-content','svg','path','defs','g','use','circle','rect','line','polyline','polygon','br','hr'];`
+- [x] 12. Implement `templateBlocks(source: string): string[]` — match `` /template:\s*`([\s\S]*?)`\s*\n\s*\}\)/g `` and return capture group 1 for each match.
+- [x] 13. Implement `findMissingDataCy`: for each template block, scan opening tags with `` /<([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g ``; skip when tag is in `EXEMPT_TAGS`; push the tag name when the attribute chunk matches neither `/\sdata-cy\s*=/` nor `/\[attr\.data-cy\]\s*=/`.
+- [x] 14. Implement `findDuplicateDataCy`: collect every `` /\sdata-cy="([^"]+)"/g `` value across the file's template blocks; return values seen more than once.
+- [x] 15. Implement `componentSourceFiles()`: walk `src/app` recursively, keep `.ts` files that are not `*.test.ts` and whose contents match `/template:\s*`/`.
+- [x] 16. Add the six tests from the Test plan table. The repo-wide test iterates `componentSourceFiles()`, skips paths present in `PENDING_DATA_CY_RETROFIT`, and asserts `findMissingDataCy(source)` and `findDuplicateDataCy(source)` are both `[]`.
+- [x] 17. Declare `export const PENDING_DATA_CY_RETROFIT: string[] = [];` above the tests, run `npm run test -- data-cy-coverage`, copy the reported repo-relative paths (POSIX separators, e.g. `src/app/features/menu/home-menu.component.ts`) into the array, sorted.
+- [x] 18. Re-run `npm run test -- data-cy-coverage` and confirm it passes.
+- [x] 19. Run `npm run lint && npm run typecheck && npm run build`.
 
 ## Outputs
 
@@ -83,10 +83,10 @@ Run: `npm run test -- data-cy-coverage`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] manual check: deleting one path from `PENDING_DATA_CY_RETROFIT` makes `npm run test -- data-cy-coverage` fail with that file named — then restore it
-- [ ] app functional — no runtime code changed
-- [ ] commit msg draft: `chore(frontend): add data-cy contract, kicker rule and calendar-v1 dependencies`
+- [x] `npm run test` passes
+- [x] `npm run lint` passes
+- [x] `npm run typecheck` passes
+- [x] `npm run build` passes
+- [x] manual check: deleting one path from `PENDING_DATA_CY_RETROFIT` makes `npm run test -- data-cy-coverage` fail with that file named — then restore it
+- [x] app functional — no runtime code changed
+- [x] commit msg draft: `chore(frontend): add data-cy contract, kicker rule and calendar-v1 dependencies`

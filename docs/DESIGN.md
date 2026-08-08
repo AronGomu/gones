@@ -165,6 +165,8 @@ The palette is a restrained dark product palette: black metal neutrals carry mos
 
 **The Product Type Rule.** Use one clean sans-serif family across headings, controls, labels, and data. Create character through weight, scale, and spacing rather than decorative type.
 
+- **No default kicker** — page titles stand alone. A kicker above an `<h1>` is opt-in, never the default.
+
 ## 4. Elevation
 
 Gones should rely mostly on tonal layering, borders, and surface contrast. Shadows are allowed, but they should be subtle and structural, not glossy or floating.
@@ -254,3 +256,4 @@ Gones should rely mostly on tonal layering, borders, and surface contrast. Shado
 - **Don't** use decorative side-stripe borders on cards or list items.
 - **Don't** use double borders or inset borders on cards.
 - **Don't** make the breadcrumb active state look like a button; only the current text should be highlighted.
+- **Don't** put a kicker above a page title by default; only add one when the parent context is otherwise invisible.
