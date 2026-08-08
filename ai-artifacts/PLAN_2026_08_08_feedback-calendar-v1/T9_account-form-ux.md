@@ -77,35 +77,35 @@ Run: `npm run test -- account-form account-settings`
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/features/settings/account-form.ts` with `export interface AccountFormValues { username: string; firstName: string; lastName: string; locationCountry: string; locationRegion: string; locationCity: string; birthDate: string; preferredLanguage: string; isFirstNamePublic: boolean; isLastNamePublic: boolean; isLocationPublic: boolean; isBirthDatePublic: boolean; isPreferredLanguagePublic: boolean; }`.
-- [ ] 2. In the same file add `export function accountFormValues(profile: UserProfileResponse | null): AccountFormValues` mapping nulls to `''` / `false` and defaulting `preferredLanguage` to `'fr'`; `birthDate` comes from the profile's ISO date string, `''` when absent.
-- [ ] 3. Add `export function accountFormIsDirty(baseline: AccountFormValues, current: AccountFormValues): boolean` comparing every key of `AccountFormValues` with `!==`. The password is deliberately not part of the interface, so it cannot influence dirtiness.
-- [ ] 4. Add `export function accountFormPayload(values: AccountFormValues, currentPassword: string): PatchUserProfileRequest` turning `''` into `undefined` for `locationCountry`, `locationRegion`, `locationCity`, `birthDate` and `currentPassword`.
-- [ ] 5. Create `src/app/features/settings/account-form.test.ts` with the first seven Test plan rows.
-- [ ] 6. In `account-settings.component.ts`, replace the seventeen loose field declarations with `readonly baseline = signal<AccountFormValues>(accountFormValues(this.profile()));` and `readonly form = signal<AccountFormValues>(accountFormValues(this.profile()));` plus `currentPassword = ''`, `newEmail = ''`, `emailPassword = ''`.
-- [ ] 7. Add a constructor `effect(() => { const values = accountFormValues(this.profile()); this.baseline.set(values); if (!this.isDirty()) this.form.set(values); });` so a profile arriving after `bootstrap()` seeds the form without clobbering user edits.
-- [ ] 8. Add `readonly isDirty = computed(() => accountFormIsDirty(this.baseline(), this.form()));` and `readonly pseudoChanged = computed(() => this.baseline().username !== this.form().username);`.
-- [ ] 9. Add `setField<K extends keyof AccountFormValues>(key: K, value: AccountFormValues[K]): void { this.form.update(values => ({ ...values, [key]: value })); }` and bind every input with `[ngModel]="form().x"` / `(ngModelChange)="setField('x', $event)"`.
-- [ ] 10. Change the username label to `{{ i18n.t('account.pseudo') }}`; add `account.pseudo` to BOTH maps (en `'Nickname'`, fr `'Pseudo'`).
-- [ ] 11. Wrap the current-password input in `@if (pseudoChanged()) { … }` and label it `{{ i18n.t('account.pseudoPassword') }}` (en `'Current password (required to change your nickname)'`, fr `'Mot de passe actuel (requis pour changer de pseudo)'`).
-- [ ] 12. Replace the submit button with `<button mat-flat-button class="warning-action" data-cy="account-save" type="submit" [disabled]="pending() || !isDirty()">{{ pending() ? i18n.t('common.saving') : i18n.t('account.submit') }}</button>`; add `account.submit` to BOTH maps (en `'Update account information'`, fr `'Modifier Information du Compte'`).
-- [ ] 13. Add to `src/styles.css`: `.warning-action { --mdc-filled-button-container-color: var(--rust, oklch(72% 0.16 62)); --mdc-filled-button-label-text-color: oklch(15% 0.02 60); min-height: 48px; padding-inline: 1.2rem !important; border-radius: 0 !important; font-weight: 900; letter-spacing: .03em; }` and a `:hover` darkening it one step. Confirm `--rust` exists in the `:root` block; if it does not, use the literal oklch value.
-- [ ] 14. Inject `private readonly dialog = inject(MatDialog);` and add `MatDialogModule` to the component imports.
-- [ ] 15. Rewrite `saveProfile()` to first open the confirmation:
+- [x] 1. Create `src/app/features/settings/account-form.ts` with `export interface AccountFormValues { username: string; firstName: string; lastName: string; locationCountry: string; locationRegion: string; locationCity: string; birthDate: string; preferredLanguage: string; isFirstNamePublic: boolean; isLastNamePublic: boolean; isLocationPublic: boolean; isBirthDatePublic: boolean; isPreferredLanguagePublic: boolean; }`.
+- [x] 2. In the same file add `export function accountFormValues(profile: UserProfileResponse | null): AccountFormValues` mapping nulls to `''` / `false` and defaulting `preferredLanguage` to `'fr'`; `birthDate` comes from the profile's ISO date string, `''` when absent.
+- [x] 3. Add `export function accountFormIsDirty(baseline: AccountFormValues, current: AccountFormValues): boolean` comparing every key of `AccountFormValues` with `!==`. The password is deliberately not part of the interface, so it cannot influence dirtiness.
+- [x] 4. Add `export function accountFormPayload(values: AccountFormValues, currentPassword: string): PatchUserProfileRequest` turning `''` into `undefined` for `locationCountry`, `locationRegion`, `locationCity`, `birthDate` and `currentPassword`.
+- [x] 5. Create `src/app/features/settings/account-form.test.ts` with the first seven Test plan rows.
+- [x] 6. In `account-settings.component.ts`, replace the seventeen loose field declarations with `readonly baseline = signal<AccountFormValues>(accountFormValues(this.profile()));` and `readonly form = signal<AccountFormValues>(accountFormValues(this.profile()));` plus `currentPassword = ''`, `newEmail = ''`, `emailPassword = ''`.
+- [x] 7. Add a constructor `effect(() => { const values = accountFormValues(this.profile()); this.baseline.set(values); if (!this.isDirty()) this.form.set(values); });` so a profile arriving after `bootstrap()` seeds the form without clobbering user edits.
+- [x] 8. Add `readonly isDirty = computed(() => accountFormIsDirty(this.baseline(), this.form()));` and `readonly pseudoChanged = computed(() => this.baseline().username !== this.form().username);`.
+- [x] 9. Add `setField<K extends keyof AccountFormValues>(key: K, value: AccountFormValues[K]): void { this.form.update(values => ({ ...values, [key]: value })); }` and bind every input with `[ngModel]="form().x"` / `(ngModelChange)="setField('x', $event)"`.
+- [x] 10. Change the username label to `{{ i18n.t('account.pseudo') }}`; add `account.pseudo` to BOTH maps (en `'Nickname'`, fr `'Pseudo'`).
+- [x] 11. Wrap the current-password input in `@if (pseudoChanged()) { … }` and label it `{{ i18n.t('account.pseudoPassword') }}` (en `'Current password (required to change your nickname)'`, fr `'Mot de passe actuel (requis pour changer de pseudo)'`).
+- [x] 12. Replace the submit button with `<button mat-flat-button class="warning-action" data-cy="account-save" type="submit" [disabled]="pending() || !isDirty()">{{ pending() ? i18n.t('common.saving') : i18n.t('account.submit') }}</button>`; add `account.submit` to BOTH maps (en `'Update account information'`, fr `'Modifier Information du Compte'`).
+- [x] 13. Add to `src/styles.css`: `.warning-action { --mdc-filled-button-container-color: var(--rust, oklch(72% 0.16 62)); --mdc-filled-button-label-text-color: oklch(15% 0.02 60); min-height: 48px; padding-inline: 1.2rem !important; border-radius: 0 !important; font-weight: 900; letter-spacing: .03em; }` and a `:hover` darkening it one step. Confirm `--rust` exists in the `:root` block; if it does not, use the literal oklch value.
+- [x] 14. Inject `private readonly dialog = inject(MatDialog);` and add `MatDialogModule` to the component imports.
+- [x] 15. Rewrite `saveProfile()` to first open the confirmation:
   ```
   const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('account.confirmTitle'), message: this.i18n.t('account.confirmMessage'), confirmLabel: this.i18n.t('account.submit'), destructive: false } }).afterClosed());
   if (!confirmed) return;
   ```
   then run the existing `this.run(this.pending, …)` body with `accountFormPayload(this.form(), this.currentPassword)`, and on success `this.baseline.set(accountFormValues(this.auth.profile()));` and `this.currentPassword = '';`.
-- [ ] 16. Add `account.confirmTitle` (en `'Update your account?'`, fr `'Modifier votre compte ?'`) and `account.confirmMessage` (en `'Your account information will be updated.'`, fr `'Les informations de votre compte seront mises à jour.'`) to BOTH maps.
-- [ ] 17. Move the email card's contents into the details card: delete the second `<mat-card class="panel auth-card">` wrapper and re-insert its `<h2>` and form as a `<section class="account-email-section" data-cy="account-email-section">` at the bottom of the first card, after the privacy fieldset and before the submit button.
-- [ ] 18. Verify the "Comptes liés" card carries no password: **T9b already deleted** the `link-password` label and input, the `linkPassword` field and the second argument of `startLink` / `unlink` (the backend stopped accepting `currentPassword` there, so the parameter no longer exists on `AuthService`). Re-apply only what is actually missing — validate: `grep -n "linkPassword\|link-password" src/app/features/settings/account-settings.component.ts` returns nothing and `this.auth.startLink(provider)` / `this.auth.unlink(provider)` are called with one argument.
-- [ ] 19. Delete the `profile.linkHelp` sentence if it mentions the password, and replace with `account.linkHelp` (en `'Link a provider to sign in with it. You can unlink at any time.'`, fr `'Liez un fournisseur pour vous connecter avec. Vous pouvez délier à tout moment.'`) in BOTH maps.
-- [ ] 20. Re-check that every element in the file still has a unique `data-cy`, including the new email section and the conditional password row.
-- [ ] 21. Create `src/app/features/settings/account-settings.component.test.ts` with the last three Test plan rows, stubbing `AuthService` and `MatDialog`.
-- [ ] 22. Update `cypress/e2e/auth-profile.cy.js`: after editing a field, assert `[data-cy=account-save]` is enabled, click it, confirm the dialog, then `cy.reload()` and assert the new value is still rendered.
-- [ ] 23. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 24. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`.
+- [x] 16. Add `account.confirmTitle` (en `'Update your account?'`, fr `'Modifier votre compte ?'`) and `account.confirmMessage` (en `'Your account information will be updated.'`, fr `'Les informations de votre compte seront mises à jour.'`) to BOTH maps.
+- [x] 17. Move the email card's contents into the details card: delete the second `<mat-card class="panel auth-card">` wrapper and re-insert its `<h2>` and form as a `<section class="account-email-section" data-cy="account-email-section">` at the bottom of the first card, after the privacy fieldset and before the submit button.
+- [x] 18. Verify the "Comptes liés" card carries no password: **T9b already deleted** the `link-password` label and input, the `linkPassword` field and the second argument of `startLink` / `unlink` (the backend stopped accepting `currentPassword` there, so the parameter no longer exists on `AuthService`). Re-apply only what is actually missing — validate: `grep -n "linkPassword\|link-password" src/app/features/settings/account-settings.component.ts` returns nothing and `this.auth.startLink(provider)` / `this.auth.unlink(provider)` are called with one argument.
+- [x] 19. Delete the `profile.linkHelp` sentence if it mentions the password, and replace with `account.linkHelp` (en `'Link a provider to sign in with it. You can unlink at any time.'`, fr `'Liez un fournisseur pour vous connecter avec. Vous pouvez délier à tout moment.'`) in BOTH maps.
+- [x] 20. Re-check that every element in the file still has a unique `data-cy`, including the new email section and the conditional password row.
+- [x] 21. Create `src/app/features/settings/account-settings.component.test.ts` with the last three Test plan rows, stubbing `AuthService` and `MatDialog`.
+- [x] 22. Update `cypress/e2e/auth-profile.cy.js`: after editing a field, assert `[data-cy=account-save]` is enabled, click it, confirm the dialog, then `cy.reload()` and assert the new value is still rendered.
+- [x] 23. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 24. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`. (Run via the documented recipe: `dev:serve` + direct cypress binary with `LD_LIBRARY_PATH`; 5/6 passing, matching the documented ng-serve baseline — the one failure is the known `127.0.0.1:8081` redirect spec.)
 
 ## Outputs
 
@@ -116,9 +116,9 @@ Run: `npm run test -- account-form account-settings`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes
-- [ ] manual check: open `/settings/account`; the button is disabled; change the city; it enables in warning colour; click it; confirm; reload; the city is still there and the button is disabled again
-- [ ] app functional — email change and provider linking still work
-- [ ] commit msg draft: `feat(account): dirty-gated, confirmed account updates with merged email settings`
+- [x] `npm run test` passes (382 tests, 59 files)
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes at 5/6 (documented `ng serve` baseline; the 1 failure is the known `127.0.0.1:8081` redirect spec, out of scope)
+- [x] manual check: verified via `cypress/e2e/auth-profile.cy.js` (disabled while pristine, computed `background-color` asserted warm/orange once dirty, dialog confirm, reload, value persists, button disabled again)
+- [x] app functional — email change (unverified-banner appears) and provider linking (`link-google`/`unlink-google` specs pass) still work
+- [x] commit msg draft: `feat(account): dirty-gated, confirmed account updates with merged email settings`

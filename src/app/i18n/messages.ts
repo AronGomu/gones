@@ -295,6 +295,12 @@ const en = {
   'profile.unlinked': 'Provider unlinked.',
   'profile.identitiesFailed': 'Could not load linked accounts. Retry by reloading this page.',
   'profile.back': 'Back to profile',
+  'account.pseudo': 'Nickname',
+  'account.pseudoPassword': 'Current password (required to change your nickname)',
+  'account.submit': 'Update account information',
+  'account.confirmTitle': 'Update your account?',
+  'account.confirmMessage': 'Your account information will be updated.',
+  'account.linkHelp': 'Link a provider to sign in with it. You can unlink at any time.',
 
   // Settings
   'settings.pageAria': 'Settings',
@@ -1283,6 +1289,12 @@ const fr: Record<MessageKey, string> = {
   'profile.unlinked': 'Fournisseur délié.',
   'profile.identitiesFailed': 'Impossible de charger les comptes liés. Rechargez la page pour réessayer.',
   'profile.back': 'Retour au profil',
+  'account.pseudo': 'Pseudo',
+  'account.pseudoPassword': 'Mot de passe actuel (requis pour changer de pseudo)',
+  'account.submit': 'Modifier Information du Compte',
+  'account.confirmTitle': 'Modifier votre compte ?',
+  'account.confirmMessage': 'Les informations de votre compte seront mises à jour.',
+  'account.linkHelp': 'Liez un fournisseur pour vous connecter avec. Vous pouvez délier à tout moment.',
 
   'settings.pageAria': 'Paramètres',
   'settings.language': 'Langue',

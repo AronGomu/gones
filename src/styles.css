@@ -114,6 +114,9 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .info-actions { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
 .home-primary-action { --mdc-filled-button-container-color: var(--blood); --mdc-filled-button-label-text-color: var(--ash); min-height: 48px; padding-inline: 1.2rem !important; border-radius: 0 !important; font-weight: 900; letter-spacing: .03em; }
 .home-primary-action:hover { --mdc-filled-button-container-color: oklch(42% 0.22 27); }
+.warning-action { --mdc-filled-button-container-color: oklch(72% 0.16 62); --mdc-filled-button-label-text-color: oklch(15% 0.02 60); background-color: oklch(72% 0.16 62) !important; color: oklch(15% 0.02 60) !important; min-height: 48px; padding-inline: 1.2rem !important; border-radius: 0 !important; font-weight: 900; letter-spacing: .03em; }
+.warning-action:hover:not(:disabled) { --mdc-filled-button-container-color: oklch(64% 0.16 62); background-color: oklch(64% 0.16 62) !important; }
+.warning-action:disabled { background-color: initial !important; color: initial !important; }
 .danger-ghost-action { --mdc-outlined-button-label-text-color: var(--hot-blood); --mdc-outlined-button-outline-color: var(--hot-blood); color: var(--hot-blood) !important; border-color: var(--hot-blood) !important; }
 .danger-ghost-action:hover, .danger-ghost-action:focus-visible { --mdc-outlined-button-outline-color: var(--blood); color: var(--blood) !important; }
 .success-ghost-action { --mdc-outlined-button-label-text-color: var(--create-green); --mdc-outlined-button-outline-color: var(--create-green); color: var(--create-green) !important; border-color: var(--create-green) !important; }

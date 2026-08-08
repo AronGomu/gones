@@ -56,12 +56,24 @@ describe('auth and profile', () => {
     login();
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(1280));
     cy.get('[data-cy="account-location-public"]').should('not.be.checked');
+    cy.get('[data-cy="account-save"]').should('be.disabled');
     cy.get('[data-cy="account-location-city"]').clear().type('Lyon');
     cy.get('[data-cy="account-birth-date"]').clear().type('1990-04-17');
     cy.get('[data-cy="account-language"]').select('fr');
     cy.get('[data-cy="account-location-public"]').check();
-    cy.get('[data-cy="account-save"]').click();
+    cy.get('[data-cy="account-save"]').should('be.enabled').then($btn => {
+      const [r, g, b] = getComputedStyle($btn[0]).backgroundColor.match(/\d+/g).map(Number);
+      // Warning colour is a warm rust/orange (oklch(72% 0.16 62)): red channel clearly
+      // dominant over blue, and not the flat grey of a disabled/unstyled button (r !== g).
+      expect(r, 'red channel of warning-action background').to.be.greaterThan(b);
+      expect(r, 'red channel of warning-action background').not.to.eq(g);
+    }).click();
+    cy.contains('mat-dialog-container button', /modifier information du compte|update account information/i).click();
     cy.get('[data-cy="account-status"]').should('be.visible');
+    cy.get('[data-cy="account-save"]').should('be.disabled');
+    cy.reload();
+    cy.get('[data-cy="account-location-city"]').should('have.value', 'Lyon');
+    cy.get('[data-cy="account-save"]').should('be.disabled');
 
     cy.get('[data-cy="account-new-email"]').type('cypress.user+changed@example.test');
     cy.get('#profile-email-password').type(password, { log: false });
