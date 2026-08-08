@@ -28,7 +28,35 @@
 
 - From T16 — `backend/src/Gones.Api/Tournaments/TournamentProposalEndpoints.cs` with `MapTournamentProposalEndpoints(this WebApplication app)`, the group `app.MapGroup("/api/tournament-proposals").RequireAuthorization(AuthorizationPolicies.User)`, `ListApproversAsync`, `SubmitAsync`, and the records `TournamentProposalRequest`, `TournamentProposalResponse`, `ProposalApproverResponse`.
 - From T16 — the entities: `TournamentProposal { Id, SubmittedByUserId, PayloadJson, Status, CreatedAt, ExpiresAt, DecidedAt, DecidedByUserId, RejectionReason }` with methods `Approve(Guid decidedBy, Instant now)` and `Reject(Guid? decidedBy, string reason, Instant now)`; `TournamentProposalRecipient { Id, ProposalId, UserId, TokenHash, SentAt }` where `TokenHash` is the lowercase hex SHA-256 of the plaintext token, unique-indexed.
-- From T16 — `internal static Task<TournamentPublishOutcome> PublishTournamentAsync(TournamentPublishRequest request, Guid actingUserId, …)` extracted from `PublishAsync` in `backend/src/Gones.Api/Tournaments/TournamentPublicationEndpoints.cs`. `TournamentPublishOutcome` is `(TournamentPublishResponse Response, string Location, string ETag)` and the response carries the created tournament's slug.
+- From T16 — the publish path, **as actually landed** (the plan's earlier wording named types that do not exist; these are the real ones, verified in the file):
+  - `TournamentPublicationService` (`TournamentPublicationEndpoints.cs:92`) is the owning class, and the method is an
+    **instance** method, not `internal static`:
+    ```csharp
+    // TournamentPublicationEndpoints.cs:136
+    internal async Task<TournamentPublishOutcome> PublishTournamentAsync(
+        TournamentPayloadRequest request, Guid actingUserId, bool isAdmin,
+        string idempotencyKey, string? previewTicket, CancellationToken cancellationToken)
+    ```
+    Inject the service and call it; `previewTicket: null` skips ticket validation (T16 made it nullable for exactly this).
+  - The payload record is **`TournamentPayloadRequest`** (`:440`). There is no `TournamentPublishRequest` — the other
+    record is `PublishTournamentRequest` (`:455`), which wraps payload + preview ticket and is not what you want.
+    Use `TournamentPayloadRequest` everywhere this ticket says `TournamentPublishRequest`, including in
+    `TournamentProposalReviewResponse` at step 7.
+  - `TournamentPublishOutcome` (`:483`) is `(TournamentPublishResponse Response, string Location, string ETag)`;
+    `TournamentPublishResponse` (`:482`) is `(Guid Id, string Slug, string Status)`, so the slug comes from
+    `outcome.Response.Slug`.
+- **Membership trap — read before writing step 8.** `PublishTournamentAsync` calls
+  `NormalizeAsync(actingUserId, isAdmin, request, ct)` with the default `requireMembership: true` (`:253-258`), which
+  routes through `access.RequireMemberAsync(...)`. Publishing as `proposal.SubmittedByUserId` — a plain user who is by
+  definition **not** a member of the target organization — therefore throws instead of publishing, and approval would
+  never work. The file already solves this exact problem at `:250`, where T16's
+  `ValidateProposalPayloadAsync` calls `NormalizeAsync(submitterUserId, isAdmin: false, request, ct, requireMembership: false)`.
+  Mirror it: thread a `bool requireMembership = true` parameter through `PublishTournamentAsync` to `NormalizeAsync`,
+  and pass `requireMembership: false` from the approve path only. `PublishAsync` keeps the default, so direct
+  organizer publishing is untouched — prove that with `TournamentPublicationApiTests` still passing unchanged.
+- Idempotency: `PublishTournamentAsync` takes an `idempotencyKey`. Derive it deterministically from the proposal
+  (`$"tournament-proposal:{proposal.Id:D}"`) so a retried approve cannot create a second tournament even if the
+  concurrency guard in step 9 is somehow bypassed.
 - From T16 — `NotificationTemplateKeys.TournamentProposal`, `TournamentProposalTemplateModel`, and the four template files under `backend/src/Gones.Application/Notifications/Templates/{fr,en}/tournament-proposal.*`.
 - `backend/src/Gones.Application/Notifications/NotificationTemplateRenderer.cs:17-28` — the `Subjects` dictionary; a new template key must be registered there or rendering throws.
 - `NotificationModelSerializer.TemplateKey(model)` — must learn the new model type.
@@ -37,7 +65,19 @@
 - `backend/src/Gones.Api/Security/AuthRateLimiting.cs` — `AuthRateLimiting.IpPolicy`.
 - `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs:380-401` — `NewAudit(actorId, action, entityType, entityId, diff, clock)` and `WriteAuditAsync(...)`; mirror the shape for proposal audits.
 - Public app origin resolution: the same helper `AccountLifecycleService` uses for verification links (configuration surfaced as `GONES_PUBLIC_APP_ORIGIN`).
-- Regeneration: start Postgres (`docker compose up -d postgres`) then `npm run api:generate`; verify with `npm run api:check`.
+- Regeneration: Postgres and the API already run under docker compose — do **not** tear them down or recreate them. Run `npm run api:generate`, then verify with `npm run api:check`. Commit `backend/openapi/gones.json` alongside the generated TS client; `api:check` compares both.
+- **Known host flake, do not chase it.** A full `npm run backend:test` intermittently fails 1-3 random test *classes*
+  at `InitializeAsync` with `Docker.DotNet.DockerApiException … RootlessKit PortManager.AddPort(): bind: address
+  already in use`. Never an assertion failure, different classes each run. Re-run the affected class alone
+  (`dotnet test … --filter <ClassName>`); a class that passes in isolation is green.
+- `DOTNET_ROOT` is empty in a fresh shell — export it with
+  `export DOTNET_ROOT="$(dirname "$(readlink -f "$(which dotnet)")")"` if a `dotnet` command complains.
+- Mail transport on this host is the **file sink** (`GONES_EMAIL_TRANSPORT=File`), never a real provider. Confirm that
+  before anything is enqueued, and do not configure or call a real provider.
+- T16 residual risk that also touches this ticket: the compose `permissions` service granted privileges on all tables
+  at setup time, so the proposal tables have no grants for the local `gones_app` role yet. Integration tests are
+  unaffected (they use the container superuser) — but do not conclude from a live-API failure on 5080 that your code
+  is wrong.
 - **From Depends (T16):** the proposal tables exist, the submit endpoint works, and one mail per recipient is enqueued with a plaintext token embedded in `{PublicAppOrigin}/tournament-requests/{token}`.
 
 ## TDD
