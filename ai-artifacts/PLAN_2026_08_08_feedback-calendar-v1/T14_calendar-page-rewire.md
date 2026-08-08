@@ -46,6 +46,19 @@
 - `src/styles.css:1100-1103` — `.calendar-filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .75rem; align-items: end; padding: 1rem; }` plus its label/input rules; `:1151-1152` the mobile override.
 - `src/app/i18n/messages.ts` — `calendar.publicKicker`, `calendar.status`, `calendar.city`, `calendar.country`, `calendar.organization`, `calendar.format`, `calendar.allStatuses`, `calendar.includePast`, `common.apply` in BOTH maps. `calendar.city` and `calendar.country` are also used by `organizer-tournament-create.component.ts` — check with `grep` before deleting any key.
 - `src/app/shared/offline-banner.component.ts` — `<gones-offline-banner [stale] [cachedAt]>`; keep it, fed from the new cache service.
+- `src/app/i18n/i18n.service.ts:18,40` — both helpers step 15 uses already exist:
+  `t(key: MessageKey, params?: MessageParams): string` (so `{instant}` / `{count}` interpolation works) and
+  `formatDateTime(value: string | Date, options?: Intl.DateTimeFormatOptions): string`. No new i18n plumbing needed.
+- **Test harness — there is no Angular `TestBed` and no zone.js in this repo**, and `@angular/common/http/testing` is
+  not installed, so step 25 cannot use `TestBed` or `HttpTestingController`. Build the component with a bare
+  `Injector` and `runInInjectionContext`, stubbing `effect()` to a no-op, exactly as
+  `src/app/features/settings/account-settings.component.test.ts` does; for plain services use `Injector.create` with
+  `vi.fn()` stubs as in `src/app/features/calendar/public-tournament.service.test.ts`. The component tests assert on
+  component state and spy calls, not on rendered DOM.
+- **Cypress cost for step 28: zero auth permits.** All three specs are anonymous —
+  `public-calendar.cy.js` and `accessibility.cy.js` never authenticate, and `offline-public-read.cy.js` only
+  intercepts tournament *registration* (`cy.intercept`), never hitting `/api/auth/*`. So this ticket may re-run its
+  specs freely; the 15-minute auth rate limit that constrains the account tickets does not apply here.
 - **From Depends (T13):** `AllTournamentsCacheService` (`src/app/features/calendar/all-tournaments-cache.service.ts`) with `async load(options?: { force?: boolean }): Promise<AllTournamentsResult>` where `AllTournamentsResult = { items: PublicTournamentView[]; fetchedAt: string; fromCache: boolean; stale: boolean; truncated: boolean }`, plus the `cachedAt` and `truncated` signals; and `filterTournaments(items, query)` / `splitSearchTerms(query)` from `src/app/features/calendar/tournament-fuzzy-search.ts`.
 
 ## TDD
