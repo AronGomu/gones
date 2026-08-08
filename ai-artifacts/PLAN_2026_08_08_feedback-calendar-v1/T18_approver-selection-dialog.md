@@ -30,7 +30,26 @@
   - `organizations()` and `formats()` signals loaded from the generated `Client`, `formPending()`, `fieldError(name)`, `success()`, and the recovery-error machinery (`RecoveryError { message, action }`).
   - `requestPreview()` builds the payload through `tournamentPayload(...)` from `src/app/features/calendar/organizer-tournament-create.ts`.
 - `src/app/features/calendar/organizer-tournament-create.ts` — 64 lines, exports `tournamentPayload(...)`, `browserTimeZoneSuggestion()`, `PreviewPublicationState`. `tournamentPayload` is the single place that maps form values to the publish request; reuse it verbatim for the proposal body.
-- `src/app/api/generated/gones-api.ts` — after T16 it exposes a client method for `GET /api/tournament-proposals/approvers` returning `ProposalApproverResponse[]` (`{ id, username, globalRole }`) and one for `POST /api/tournament-proposals` taking `{ tournament, recipientUserIds }` and returning `{ proposalId, status, expiresAt, recipientCount }`. Confirm the generated method names after regeneration.
+- `src/app/api/generated/gones-api.ts` — already regenerated; the exact names and shapes, verified in the file:
+  - `approvers(): Observable<ProposalApproverResponse[]>` (`:411`), where `ProposalApproverResponse` is
+    `{ id, username, globalRole }`.
+  - `tournamentProposals(body: TournamentProposalRequest): Observable<TournamentProposalResponse>` (`:415`), where
+    `TournamentProposalRequest` is `{ tournament: TournamentPayloadRequest; recipientUserIds: string[] }` (`:10963`).
+  - `TournamentProposalResponse` (`:10970`) is `{ id, status, expiresAt, recipientCount }` — the field is **`id`**,
+    not `proposalId`. Step 11 only reads `recipientCount`, so this matters just for typing.
+  - The payload type is `TournamentPayloadRequest`, which is exactly what `tournamentPayload(...)` already returns.
+- **Test harness — there is no Angular `TestBed` and no zone.js in this repo**, and `@angular/common/http/testing` is
+  not installed. Build components with a bare `Injector` + `runInInjectionContext`, stubbing `effect()` to a no-op
+  (see `src/app/features/settings/account-settings.component.test.ts` and the calendar component test); build plain
+  services with `Injector.create` and `vi.fn()` stubs. Assert on component state and spy calls, never rendered DOM.
+- **Cypress auth budget — step 16 must NOT perform a real login.** This host enforces 5 auth permits per 15 minutes
+  per IP, shared with every other ticket, and a real sign-in would spend one on every run.
+  `cypress/e2e/organizer-tournament-create.cy.js:39` already fakes the session with
+  `cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'memory-token', … })` — extend that pattern: stub the
+  profile so `globalRole` is a plain `User` with `emailVerified: true`, and `cy.intercept` both
+  `GET **/api/tournament-proposals/approvers` and `POST **/api/tournament-proposals` so the case asserts the UI flow
+  without touching the real backend. Read step 16's "sign in as a verified plain user" as "present a faked verified
+  plain-user session", not as a literal login.
 - `src/app/shared/dialogs.ts` — `ConfirmDialogComponent` only; a checkbox-list dialog does not exist yet.
 - Dialog idiom: `firstValueFrom(this.dialog.open(X, { data }).afterClosed())`; see `src/app/app.component.ts:313-324`.
 - `src/app/api/api-boundary.ts` — `ApiProblemError` with `status` and the parsed problem body; `src/app/auth/auth-errors.ts` — `fieldErrorsFromProblem(error)`.
