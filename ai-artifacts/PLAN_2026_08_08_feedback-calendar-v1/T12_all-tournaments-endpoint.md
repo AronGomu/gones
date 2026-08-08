@@ -31,7 +31,14 @@
 - `backend/src/Gones.Domain/Calendar/` — `ScheduledTournament` entity with `Status`, `DeletedAt`, `StartsAtUtc`, `EndsAtUtc`, `VenueStartDate`, `UpdatedAt`, `NormalizedSearchText`.
 - `backend/src/Gones.Infrastructure/Observability/` — `OperationalMetrics` and the structured logging helpers used elsewhere in the API for warnings.
 - `backend/tests/Gones.IntegrationTests/` — the public tournament API tests live here; follow their fixture and seeding helpers.
-- Regeneration: start Postgres (`docker compose up -d postgres`) then `npm run api:generate`; verify with `npm run api:check`.
+- Regeneration: Postgres is already running under docker compose on this host (`gones-postgres-1`), along with `gones-api-1` on port 5080 — do **not** tear down or recreate the user's containers. Run `npm run api:generate`, then verify with `npm run api:check`.
+- **Known host flake, do not chase it.** A full `npm run backend:test` intermittently fails 1-3 random test *classes*
+  at `InitializeAsync` with `Docker.DotNet.DockerApiException … RootlessKit PortManager.AddPort(): bind: address
+  already in use`. It is never an assertion failure, it hits different unrelated classes each run, and it predates
+  this plan. Re-run the affected class alone (`dotnet test … --filter <ClassName>`) to confirm; a class that passes
+  in isolation is green. Only an actual assertion failure counts against this ticket.
+- `backend/src/Gones.Api/Tournaments/PublicTournamentEndpoints.cs:32` — `app.MapGet("/api/tournaments/{slug}", GetAsync)`
+  is the route the new `all` route must be registered **before**, exactly as step 4 says.
 - **From Depends (T1):** nothing on the backend.
 
 ## TDD
