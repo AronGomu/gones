@@ -60,14 +60,21 @@ describe('public Calendar helpers', () => {
     expect(same.secondary).toBeUndefined();
   });
 
-  it('restores URL month, filters, page, past, and URL view over local preference', () => {
+  it('reads the reduced query', () => {
     expect(readCalendarQuery(params({
-      month: '2026-08', view: 'list', page: '3', past: 'true', status: 'Cancelled', city: ' Lyon ',
-      country: 'France', organization: tournament.organization.id, format: 'legacy', search: ' fire '
+      month: '2026-09', view: 'list', q: 'lyon', past: 'true'
     }), 'calendar', new Date('2026-03-01T12:00:00Z'))).toEqual({
-      month: '2026-08', view: 'list', page: 3, past: true, status: 'Cancelled', city: 'Lyon',
-      country: 'France', organization: tournament.organization.id, format: 'legacy', search: 'fire'
+      month: '2026-09', view: 'list', q: 'lyon', past: true
     });
+  });
+
+  it('drops removed parameters', () => {
+    const result = readCalendarQuery(params({
+      month: '2026-08', status: 'Published', city: 'Lyon', page: '3'
+    }), 'calendar');
+    expect(result).not.toHaveProperty('status');
+    expect(result).not.toHaveProperty('city');
+    expect(result).not.toHaveProperty('page');
   });
 
   it('uses local view preference only when URL omits view', () => {
@@ -75,9 +82,14 @@ describe('public Calendar helpers', () => {
     expect(readCalendarQuery(params({ view: 'calendar' }), 'list', new Date('2026-03-01T12:00:00Z')).view).toBe('calendar');
   });
 
-  it('serializes past toggle and resets paging while preserving filters', () => {
-    const current = readCalendarQuery(params({ month: '2026-08', page: '4', city: 'Lyon' }), 'calendar');
-    expect(buildCalendarQueryParams({ ...current, past: true, page: 1 })).toEqual({ month: '2026-08', city: 'Lyon', past: 'true', view: 'calendar' });
+  it('builds only the reduced parameters', () => {
+    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false }))
+      .toEqual({ month: '2026-09', view: 'calendar' });
+  });
+
+  it('keeps q when set', () => {
+    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy', past: false }))
+      .toEqual({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy' });
   });
 
   it('renders explicit cancelled badge and completed text', () => {

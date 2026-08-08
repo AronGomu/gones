@@ -1107,11 +1107,11 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .calendar-view-tabs { display: flex; flex-wrap: wrap; gap: .5rem; }
 .calendar-view-tabs button { min-height: 44px; }
 .calendar-view-tabs button[aria-pressed='true'] { border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 25%, var(--black-metal)); }
-.calendar-filter-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: .75rem; align-items: end; padding: 1rem; }
+.calendar-filter-form { display: grid; grid-template-columns: 1fr; gap: .35rem; padding: 1rem; width: 100%; }
 .calendar-filter-form label { display: grid; gap: .35rem; color: var(--dim-ash); font-size: .85rem; font-weight: 800; }
-.calendar-filter-form input:not([type='checkbox']), .calendar-filter-form select { width: 100%; min-height: 44px; padding: .55rem .65rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }
-.calendar-filter-form input:focus-visible, .calendar-filter-form select:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
-.calendar-past-toggle { align-self: stretch; grid-template-columns: auto minmax(0, 1fr); }
+.calendar-search-input { width: 100%; min-height: 48px; padding: .6rem .75rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }
+.calendar-filter-form input:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+.calendar-header-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
 .calendar-offline-banner { margin: 0; }
 .calendar-state { display: grid; justify-items: start; gap: .75rem; padding: clamp(1rem, 3vw, 2rem); }
 .calendar-skeleton, .calendar-detail-skeleton { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }
@@ -1158,8 +1158,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .registration-empty { margin: 0; padding: 1rem; color: var(--dim-ash); }
 @media (prefers-reduced-motion: reduce) { .calendar-skeleton div, .calendar-detail-skeleton div { animation: none; } }
 @media (max-width: 600px) {
-  .calendar-view-tabs, .calendar-view-tabs button, .calendar-filter-form button { width: 100%; }
-  .calendar-filter-form { grid-template-columns: 1fr; }
+  .calendar-view-tabs, .calendar-view-tabs button { width: 100%; }
   .public-month-grid { grid-template-columns: 1fr; }
   /* Hide the whole header row, not its cells: an empty ARIA row is an a11y violation. */
   .public-month-row--head { display: none; }

@@ -6,14 +6,8 @@ export type CalendarView = 'calendar' | 'list';
 export interface CalendarQuery {
   month: string;
   view: CalendarView;
-  page: number;
+  q: string;
   past: boolean;
-  status: string;
-  city: string;
-  country: string;
-  organization: string;
-  format: string;
-  search: string;
 }
 
 export interface PublicTournamentView {
@@ -45,29 +39,20 @@ export interface TournamentDatePresentation {
   secondary?: string;
 }
 
-const FILTER_KEYS = ['status', 'city', 'country', 'organization', 'format', 'search'] as const;
-
 export function readCalendarQuery(params: ParamMap, preferredView: CalendarView, now = new Date()): CalendarQuery {
   const rawView = params.get('view');
   return {
     month: validMonth(params.get('month')) ?? monthValue(now),
     view: rawView === 'list' || rawView === 'calendar' ? rawView : preferredView,
-    page: positiveInteger(params.get('page')),
     past: params.get('past') === 'true',
-    status: clean(params.get('status')),
-    city: clean(params.get('city')),
-    country: clean(params.get('country')),
-    organization: clean(params.get('organization')),
-    format: clean(params.get('format')),
-    search: clean(params.get('search'))
+    q: clean(params.get('q'))
   };
 }
 
 export function buildCalendarQueryParams(query: CalendarQuery): Record<string, string> {
   const result: Record<string, string> = { month: query.month };
-  for (const key of FILTER_KEYS) if (query[key]) result[key] = query[key];
+  if (query.q) result['q'] = query.q;
   if (query.past) result['past'] = 'true';
-  if (query.page > 1) result['page'] = String(query.page);
   result['view'] = query.view;
   return result;
 }
@@ -113,12 +98,6 @@ export function statusPresentation(status: string): { label: string; className: 
   return { label: status || 'Published', className: normalized || 'published' };
 }
 
-export function monthBounds(month: string): { from: string; to: string } {
-  const [year, monthNumber] = month.split('-').map(Number);
-  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
-  return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2, '0')}` };
-}
-
 export function shiftMonth(month: string, amount: number): string {
   const [year, monthNumber] = month.split('-').map(Number);
   return monthValue(new Date(year, monthNumber - 1 + amount, 1));
@@ -130,11 +109,6 @@ function validMonth(value: string | null): string | undefined {
 
 function monthValue(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function positiveInteger(value: string | null): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function clean(value: string | null): string {

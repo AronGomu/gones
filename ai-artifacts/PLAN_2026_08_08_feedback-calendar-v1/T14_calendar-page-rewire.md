@@ -86,21 +86,21 @@ Run: `npm run test -- public-calendar data-cy-coverage`
 
 ## Impl steps
 
-- [ ] 1. In `src/app/features/calendar/public-calendar.ts`, reduce `CalendarQuery` to `{ month: string; view: CalendarView; q: string; past: boolean; }` and delete `FILTER_KEYS`.
-- [ ] 2. Rewrite `readCalendarQuery(params, preferredView, now = new Date())` to read only `month`, `view`, `q` and `past`.
-- [ ] 3. Rewrite `buildCalendarQueryParams(query)` to emit `month`, `view`, `q` when non-empty and `past: 'true'` when set.
-- [ ] 4. Delete `monthBounds` from that file if `grep -rn "monthBounds" src/` shows no other caller after step 14.
-- [ ] 5. Update `src/app/features/calendar/public-calendar.test.ts` with Test plan rows 1-4 and delete the assertions covering the removed keys.
-- [ ] 6. In `public-calendar.component.ts`, replace `readonly service = inject(PublicTournamentService);` usage for listing with `private readonly catalog = inject(AllTournamentsCacheService);`, keeping `service` only for `icsUrl(...)` in the card template.
-- [ ] 7. Replace the `result` signal with `readonly allItems = signal<PublicTournamentView[]>([]);` and `readonly syncedAt = signal<string | undefined>(undefined);` and `readonly truncated = signal(false);`.
-- [ ] 8. Add `readonly items = computed(() => filterTournaments(this.allItems(), this.query().q));` and keep `groups = computed(() => groupTournamentsByVenueDate(this.items()))` and `monthDays`/`monthWeeks` unchanged.
-- [ ] 9. Delete the `draft` signal, `setDraft`, `setDraftPast`, `applyFilters`, `setPage`, `totalPages` and the pagination `<nav>` block.
-- [ ] 10. Replace `private async load(query)` with `private async load(options: { force?: boolean } = {}): Promise<void>` calling `this.catalog.load(options)` and setting `allItems`, `syncedAt`, `stale`, `truncated`, `error`, `loading`; keep the `loadId` guard.
-- [ ] 11. In `ngOnInit`, keep the `queryParamMap` subscription for `month`/`view`/`q`/`past` but call `void this.load()` **once**, outside the subscription, so a filter or month change never refetches.
-- [ ] 12. Add `sync(): void { void this.load({ force: true }); }` and `setSearch(value: string): void { void this.navigate({ ...this.query(), q: value }); }`.
-- [ ] 13. Debounce the URL write: keep the input bound to a local `searchDraft` signal for instant filtering, and push it into the URL with a 300 ms timer so back/forward still work. `items()` must read `searchDraft()`, not the URL, so typing never waits on navigation.
-- [ ] 14. Delete `list(query)` from `src/app/features/calendar/public-tournament.service.ts`, keeping `detail(slug)`, `icsUrl(slug)` and the private cache helpers; update `src/app/features/calendar/public-tournament.service.test.ts` accordingly.
-- [ ] 15. Replace the page header with:
+- [x] 1. In `src/app/features/calendar/public-calendar.ts`, reduce `CalendarQuery` to `{ month: string; view: CalendarView; q: string; past: boolean; }` and delete `FILTER_KEYS`.
+- [x] 2. Rewrite `readCalendarQuery(params, preferredView, now = new Date())` to read only `month`, `view`, `q` and `past`.
+- [x] 3. Rewrite `buildCalendarQueryParams(query)` to emit `month`, `view`, `q` when non-empty and `past: 'true'` when set.
+- [x] 4. Delete `monthBounds` from that file if `grep -rn "monthBounds" src/` shows no other caller after step 14.
+- [x] 5. Update `src/app/features/calendar/public-calendar.test.ts` with Test plan rows 1-4 and delete the assertions covering the removed keys.
+- [x] 6. In `public-calendar.component.ts`, replace `readonly service = inject(PublicTournamentService);` usage for listing with `private readonly catalog = inject(AllTournamentsCacheService);`, keeping `service` only for `icsUrl(...)` in the card template.
+- [x] 7. Replace the `result` signal with `readonly allItems = signal<PublicTournamentView[]>([]);` and `readonly syncedAt = signal<string | undefined>(undefined);` and `readonly truncated = signal(false);`.
+- [x] 8. Add `readonly items = computed(() => filterTournaments(this.allItems(), this.query().q));` and keep `groups = computed(() => groupTournamentsByVenueDate(this.items()))` and `monthDays`/`monthWeeks` unchanged.
+- [x] 9. Delete the `draft` signal, `setDraft`, `setDraftPast`, `applyFilters`, `setPage`, `totalPages` and the pagination `<nav>` block.
+- [x] 10. Replace `private async load(query)` with `private async load(options: { force?: boolean } = {}): Promise<void>` calling `this.catalog.load(options)` and setting `allItems`, `syncedAt`, `stale`, `truncated`, `error`, `loading`; keep the `loadId` guard.
+- [x] 11. In `ngOnInit`, keep the `queryParamMap` subscription for `month`/`view`/`q`/`past` but call `void this.load()` **once**, outside the subscription, so a filter or month change never refetches.
+- [x] 12. Add `sync(): void { void this.load({ force: true }); }` and `setSearch(value: string): void { void this.navigate({ ...this.query(), q: value }); }`.
+- [x] 13. Debounce the URL write: keep the input bound to a local `searchDraft` signal for instant filtering, and push it into the URL with a 300 ms timer so back/forward still work. `items()` must read `searchDraft()`, not the URL, so typing never waits on navigation.
+- [x] 14. Delete `list(query)` from `src/app/features/calendar/public-tournament.service.ts`, keeping `detail(slug)`, `icsUrl(slug)` and the private cache helpers; update `src/app/features/calendar/public-tournament.service.test.ts` accordingly.
+- [x] 15. Replace the page header with:
   ```
   <header class="section-header" data-cy="calendar-header">
     <div data-cy="calendar-header-text"><h1 id="public-calendar-title" data-cy="calendar-title">{{ i18n.t('calendar.publicTitle') }}</h1></div>
@@ -112,7 +112,7 @@ Run: `npm run test -- public-calendar data-cy-coverage`
   </header>
   ```
   The kicker paragraph is deleted.
-- [ ] 16. Replace the whole filter form with:
+- [x] 16. Replace the whole filter form with:
   ```
   <form class="panel calendar-filter-form" data-cy="calendar-filters" (ngSubmit)="$event.preventDefault()">
     <label class="calendar-search-label" for="calendar-search" data-cy="calendar-search-label">{{ i18n.t('common.search') }}</label>
@@ -121,23 +121,23 @@ Run: `npm run test -- public-calendar data-cy-coverage`
            [ngModel]="searchDraft()" (ngModelChange)="setSearchDraft($event)">
   </form>
   ```
-- [ ] 17. Replace `src/styles.css:1100` with `.calendar-filter-form { display: grid; grid-template-columns: 1fr; gap: .35rem; padding: 1rem; width: 100%; }` and add `.calendar-search-input { width: 100%; min-height: 48px; padding: .6rem .75rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }`. Delete the `:1151-1152` mobile override that only existed for the multi-column grid, and add `.calendar-header-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }`.
-- [ ] 18. Change the calendar view block so the grid always renders:
+- [x] 17. Replace `src/styles.css:1100` with `.calendar-filter-form { display: grid; grid-template-columns: 1fr; gap: .35rem; padding: 1rem; width: 100%; }` and add `.calendar-search-input { width: 100%; min-height: 48px; padding: .6rem .75rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }`. Delete the `:1151-1152` mobile override that only existed for the multi-column grid, and add `.calendar-header-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }`.
+- [x] 18. Change the calendar view block so the grid always renders:
   ```
   <section class="public-month-grid" role="grid" data-cy="public-month-grid" …>…</section>
   @if (!items().length) { <ng-container *ngTemplateOutlet="emptyState" /> }
   ```
   and keep the list view's `@if (groups().length) { … } @else { emptyState }` as is — a list with no rows has nothing to show.
-- [ ] 19. Add keys to BOTH maps in `src/app/i18n/messages.ts`: `calendar.synchronise` (en `'Synchronise'`, fr `'Synchroniser'`), `calendar.syncedAt` (en `'Last sync: {instant}'`, fr `'Dernière synchro : {instant}'`), `calendar.searchPlaceholder` (both maps get the literal French string `'Recherchez statut, pays, region, ville, nom organiation, format, date'`), `calendar.truncatedWarning` (en `'Only the first {count} tournaments are shown.'`, fr `'Seuls les {count} premiers tournois sont affichés.'`).
-- [ ] 20. Render the truncation warning as `@if (truncated()) { <p class="warning" role="status" data-cy="calendar-truncated">…</p> }` above the grid.
-- [ ] 21. Delete `calendar.publicKicker` from BOTH maps. For `calendar.status`, `calendar.allStatuses`, `calendar.organization`, `calendar.format`, `calendar.includePast` and `common.apply`, run `grep -rn "<key>" src/` first and delete only the ones with no remaining caller. **Do not** delete `calendar.city` or `calendar.country` — `organizer-tournament-create.component.ts` uses them.
-- [ ] 22. Give every remaining element in the component template a unique `data-cy` prefixed `calendar-`.
-- [ ] 23. Delete `src/app/features/calendar/public-calendar.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] 24. Note: `public-calendar.component.ts` keeps its `localStorage` view-preference access, so it stays in the `server-authority-boundary.test.ts` allowlist. Do not remove it there.
-- [ ] 25. Create `src/app/features/calendar/public-calendar.component.test.ts` with Test plan rows 5-9, stubbing `AllTournamentsCacheService` and `Router`.
-- [ ] 26. Update `cypress/e2e/public-calendar.cy.js`: drop the per-field filter interactions, type into `[data-cy=calendar-search]`, assert `[data-cy=public-month-grid]` stays visible for a no-match query, and click `[data-cy=calendar-sync]`.
-- [ ] 27. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 28. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/public-calendar.cy.js,cypress/e2e/offline-public-read.cy.js,cypress/e2e/accessibility.cy.js`.
+- [x] 19. Add keys to BOTH maps in `src/app/i18n/messages.ts`: `calendar.synchronise` (en `'Synchronise'`, fr `'Synchroniser'`), `calendar.syncedAt` (en `'Last sync: {instant}'`, fr `'Dernière synchro : {instant}'`), `calendar.searchPlaceholder` (both maps get the literal French string `'Recherchez statut, pays, region, ville, nom organiation, format, date'`), `calendar.truncatedWarning` (en `'Only the first {count} tournaments are shown.'`, fr `'Seuls les {count} premiers tournois sont affichés.'`).
+- [x] 20. Render the truncation warning as `@if (truncated()) { <p class="warning" role="status" data-cy="calendar-truncated">…</p> }` above the grid.
+- [x] 21. Delete `calendar.publicKicker` from BOTH maps. For `calendar.status`, `calendar.allStatuses`, `calendar.organization`, `calendar.format`, `calendar.includePast` and `common.apply`, run `grep -rn "<key>" src/` first and delete only the ones with no remaining caller. **Do not** delete `calendar.city` or `calendar.country` — `organizer-tournament-create.component.ts` uses them.
+- [x] 22. Give every remaining element in the component template a unique `data-cy` prefixed `calendar-`.
+- [x] 23. Delete `src/app/features/calendar/public-calendar.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
+- [x] 24. Note: `public-calendar.component.ts` keeps its `localStorage` view-preference access, so it stays in the `server-authority-boundary.test.ts` allowlist. Do not remove it there.
+- [x] 25. Create `src/app/features/calendar/public-calendar.component.test.ts` with Test plan rows 5-9, stubbing `AllTournamentsCacheService` and `Router`.
+- [x] 26. Update `cypress/e2e/public-calendar.cy.js`: drop the per-field filter interactions, type into `[data-cy=calendar-search]`, assert `[data-cy=public-month-grid]` stays visible for a no-match query, and click `[data-cy=calendar-sync]`.
+- [x] 27. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 28. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/public-calendar.cy.js,cypress/e2e/offline-public-read.cy.js,cypress/e2e/accessibility.cy.js`.
 
 ## Outputs
 
@@ -148,10 +148,10 @@ Run: `npm run test -- public-calendar data-cy-coverage`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/public-calendar.cy.js,cypress/e2e/offline-public-read.cy.js,cypress/e2e/accessibility.cy.js` passes
-- [ ] manual check: open `/calendar`, watch DevTools issue exactly one `/api/tournaments/all` request; reload within the day and see none; click Synchroniser and see one; type `lyon\,legacy` and watch the grid filter without a network call
-- [ ] manual check: type nonsense and confirm the month grid still renders with an empty-state panel below it
-- [ ] app functional — tournament detail pages and the ICS download still work
-- [ ] commit msg draft: `feat(calendar): filter a 24h-cached full catalog through one fuzzy search field`
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/public-calendar.cy.js,cypress/e2e/offline-public-read.cy.js,cypress/e2e/accessibility.cy.js` passes
+- [x] manual check: open `/calendar`, watch DevTools issue exactly one `/api/tournaments/all` request; reload within the day and see none; click Synchroniser and see one; type `lyon\,legacy` and watch the grid filter without a network call
+- [x] manual check: type nonsense and confirm the month grid still renders with an empty-state panel below it
+- [x] app functional — tournament detail pages and the ICS download still work
+- [x] commit msg draft: `feat(calendar): filter a 24h-cached full catalog through one fuzzy search field`

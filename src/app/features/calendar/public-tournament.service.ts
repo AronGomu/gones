@@ -1,9 +1,8 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { API_BASE_URL, PublicTournamentDetailResponse, PublicTournamentListResponse } from '../../api/generated/gones-api';
+import { API_BASE_URL, PublicTournamentDetailResponse } from '../../api/generated/gones-api';
 import { joinApiUrl } from '../../api/api-boundary';
-import { CalendarQuery, monthBounds } from './public-calendar';
 
 export interface CachedApiResult<T> {
   data: T;
@@ -19,26 +18,11 @@ interface CacheEntry<T> {
 }
 
 const CACHE_PREFIX = 'gones.calendar-v1.cache.';
-const PAGE_SIZE = 20;
 
 @Injectable({ providedIn: 'root' })
 export class PublicTournamentService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
-
-  list(query: CalendarQuery): Promise<CachedApiResult<PublicTournamentListResponse>> {
-    let params = new HttpParams();
-    if (query.view === 'calendar') {
-      const bounds = monthBounds(query.month);
-      params = params.set('from', bounds.from).set('to', bounds.to);
-    }
-    for (const key of ['city', 'country', 'organization', 'format', 'status', 'search'] as const) {
-      if (query[key]) params = params.set(key, query[key]);
-    }
-    if (query.past) params = params.set('past', 'true');
-    params = params.set('page', query.page).set('pageSize', PAGE_SIZE);
-    return this.getCached<PublicTournamentListResponse>('/api/tournaments', params);
-  }
 
   detail(slug: string): Promise<CachedApiResult<PublicTournamentDetailResponse>> {
     return this.getCached<PublicTournamentDetailResponse>(`/api/tournaments/${encodeURIComponent(slug)}`);

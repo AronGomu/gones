@@ -69,7 +69,7 @@ function checkA11y(label, context = undefined) {
 
 describe('accessibility', () => {
   beforeEach(() => {
-    cy.intercept('GET', '**/api/tournaments?*', { items: [tournament], page: 1, pageSize: 20, totalCount: 1 }).as('tournaments');
+    cy.intercept('GET', '**/api/tournaments/all*', { items: [tournament], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false }).as('tournaments');
     cy.intercept('GET', '**/api/tournaments/lyon-legacy', tournament).as('tournament');
     cy.intercept('GET', '**/api/tournaments/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
     cy.intercept('GET', '**/api/formats*', []);
@@ -89,7 +89,6 @@ describe('accessibility', () => {
     checkA11y('calendar (month view)');
 
     cy.get('[data-cy="list-view"]').click();
-    cy.wait('@tournaments');
     cy.get('[data-cy="calendar-list"]').should('be.visible');
     checkA11y('calendar (list view)');
   });
@@ -135,7 +134,6 @@ describe('accessibility', () => {
     cy.get('[data-cy="list-view"]').focus();
     cy.focused().should('have.attr', 'data-cy', 'list-view');
     cy.focused().type('{enter}');
-    cy.wait('@tournaments');
     cy.get('[data-cy="calendar-list"]').should('be.visible');
     cy.get('[data-cy="list-view"]').should('have.attr', 'aria-pressed', 'true');
   });
@@ -150,8 +148,8 @@ describe('accessibility', () => {
   });
 
   it('async regions announce their state to assistive technology', () => {
-    cy.intercept('GET', '**/api/tournaments?*', (request) => {
-      request.reply({ delay: 400, body: { items: [tournament], page: 1, pageSize: 20, totalCount: 1 } });
+    cy.intercept('GET', '**/api/tournaments/all*', (request) => {
+      request.reply({ delay: 400, body: { items: [tournament], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false } });
     }).as('slowTournaments');
     visit('/calendar');
     cy.get('[data-cy="calendar-loading"]')

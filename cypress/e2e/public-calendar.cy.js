@@ -30,30 +30,28 @@ function visit(path) {
 describe('public Calendar V1', () => {
   beforeEach(() => {
     cy.viewport(1280, 800);
-    cy.intercept('GET', '**/api/tournaments?*', { items: [tournament], page: 1, pageSize: 20, totalCount: 1 }).as('tournaments');
+    cy.intercept('GET', '**/api/tournaments/all*', { items: [tournament], generatedAt: '2026-08-08T10:00:00Z', count: 1, truncated: false }).as('allTournaments');
   });
 
-  it('defaults to month view, restores URL filters, persists list view, and exposes past/status state', () => {
-    visit('/calendar?month=2026-08&city=Lyon');
-    cy.wait('@tournaments').its('request.url').should('contain', 'from=2026-08-01').and('contain', 'city=Lyon');
+  it('defaults to month view, restores URL filters, persists list view, and filters locally without a network call', () => {
+    visit('/calendar?month=2026-08&q=Lyon');
+    cy.wait('@allTournaments');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="calendar-view"]').should('have.attr', 'aria-pressed', 'true');
     cy.contains('.calendar-pill', 'Cancelled').should('be.visible');
 
     cy.get('[data-cy="list-view"]').click();
     cy.location('search').should('contain', 'view=list');
-    cy.wait('@tournaments');
     cy.get('[data-cy="calendar-list"]').should('be.visible');
+    // A reload within the 24h cache TTL must not refetch: the alias stays at one call.
     visit('/calendar?month=2026-08');
-    cy.wait('@tournaments');
     cy.get('[data-cy="list-view"]').should('have.attr', 'aria-pressed', 'true');
+    cy.get('@allTournaments.all').should('have.length', 1);
 
-    cy.get('select[name="status"]').select('Cancelled');
-    cy.get('input[name="past"]').check();
-    cy.get('input[name="format"]').type('legacy');
-    cy.get('[data-cy="calendar-filters"]').submit();
-    cy.location('search').should('contain', 'status=Cancelled').and('contain', 'past=true').and('contain', 'format=legacy');
-    cy.wait('@tournaments').its('request.url').should('contain', 'status=Cancelled').and('contain', 'past=true');
+    cy.get('[data-cy="calendar-search"]').type('zzzzzz-does-not-match');
+    cy.get('[data-cy="public-month-grid"]').should('not.exist');
+    cy.get('[data-cy="calendar-empty"]').should('be.visible');
+    cy.get('@allTournaments.all').should('have.length', 1);
   });
 
   it('renders detail, server body links, ICS action, redirect, and mobile layout', () => {
@@ -72,15 +70,27 @@ describe('public Calendar V1', () => {
     cy.document().then(document => expect(document.documentElement.scrollWidth).to.be.at.most(375));
   });
 
-  it('shows empty and retryable error states', () => {
-    cy.intercept('GET', '**/api/tournaments?*', { items: [], page: 1, pageSize: 20, totalCount: 0 }).as('empty');
+  it('shows an empty state below the grid when nothing matches the catalog', () => {
+    cy.intercept('GET', '**/api/tournaments/all*', { items: [], generatedAt: '2026-08-08T10:00:00Z', count: 0, truncated: false }).as('empty');
     visit('/calendar?month=2026-08');
     cy.wait('@empty');
+    cy.get('[data-cy="public-month-grid"]').should('be.visible');
     cy.get('[data-cy="calendar-empty"]').should('be.visible');
+  });
 
-    cy.intercept('GET', '**/api/tournaments?*', { statusCode: 503, body: { title: 'Unavailable' } }).as('failed');
+  it('shows a retryable error panel when the catalog fetch fails', () => {
+    cy.intercept('GET', '**/api/tournaments/all*', { statusCode: 503, body: { title: 'Unavailable' } }).as('failed');
     visit('/calendar?month=2026-09');
     cy.wait('@failed');
     cy.get('[data-cy="calendar-error"]').find('button').should('be.visible');
+  });
+
+  it('Synchroniser forces a refetch', () => {
+    visit('/calendar?month=2026-08');
+    cy.wait('@allTournaments');
+    cy.get('[data-cy="calendar-sync"]').click();
+    cy.wait('@allTournaments');
+    cy.get('@allTournaments.all').should('have.length', 2);
+    cy.get('[data-cy="calendar-synced-at"]').should('be.visible');
   });
 });
