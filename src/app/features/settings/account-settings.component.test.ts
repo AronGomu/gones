@@ -20,6 +20,7 @@ import { AccountSettingsComponent } from './account-settings.component';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { GeoService } from '../../shared/geo.service';
 import { UserProfileResponse } from '../../api/generated/gones-api';
 
 const baseProfile = {
@@ -57,11 +58,13 @@ function makeAuthStub(): AuthStub {
 
 function createComponent(dialogAfterClosed: unknown, authStub: AuthStub = makeAuthStub()) {
   const dialogStub = { open: vi.fn(() => ({ afterClosed: () => of(dialogAfterClosed) })) };
+  const geoStub = { countries: vi.fn(async () => []), regions: vi.fn(async () => []), cities: vi.fn(async () => []) };
   const injector = Injector.create({
     providers: [
       { provide: AuthService, useValue: authStub },
       { provide: MatDialog, useValue: dialogStub },
       { provide: Router, useValue: { navigate: vi.fn() } },
+      { provide: GeoService, useValue: geoStub },
       DeckArchetypeSettingsService,
       I18nService
     ]

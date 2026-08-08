@@ -84,23 +84,23 @@ Run: `npm run test -- geo.service location-selection geo-assets`
 
 ## Impl steps
 
-- [ ] 1. Create `scripts/generate-geo.mjs`. It reads the two dev dependencies, writes the three JSON files into `src/assets/geo/`, and prints the entry count of each.
-- [ ] 2. Countries: map `country-region-data` to `{ code: countryShortCode, name: countryName }`, sort by `name`, dedupe by `code`.
-- [ ] 3. Regions: map `departements.json` to `{ code, name: nom }`, sort by `code`.
-- [ ] 4. Cities: reduce `communes.json` filtered to `type === 'commune-actuelle'` into `Record<departementCode, string[]>`, each array sorted and deduped by name.
-- [ ] 5. Add `"geo:generate": "node scripts/generate-geo.mjs"` to `package.json` `scripts`.
-- [ ] 6. Run `npm run geo:generate` and commit the three generated files.
-- [ ] 7. Add `src/assets/geo/geo-assets.test.ts`… actually place it at `src/app/shared/geo-assets.test.ts` so vitest picks it up: read the three files from disk and assert the first three Test plan rows.
-- [ ] 8. Create `src/app/shared/geo.service.ts` with `export interface GeoOption { code: string; name: string; }` and `@Injectable({ providedIn: 'root' }) export class GeoService`.
-- [ ] 9. In it, inject `HttpClient`, hold `private countriesCache?: Promise<GeoOption[]>`, `private regionsCache?: Promise<GeoOption[]>`, `private citiesCache?: Promise<Record<string, string[]>>`, each populated with `firstValueFrom(this.http.get(...))` on first call and reused thereafter.
-- [ ] 10. `countries(): Promise<GeoOption[]>` fetches `assets/geo/countries.json`. `regions(countryCode: string): Promise<GeoOption[]>` returns `[]` unless `countryCode === 'FR'`, else fetches `assets/geo/fr-regions.json`. `cities(countryCode: string, regionCode: string): Promise<string[]>` returns `[]` unless `countryCode === 'FR'` and `regionCode` is non-empty, else fetches `assets/geo/fr-cities.json` and returns `data[regionCode] ?? []`.
-- [ ] 11. Add `export function hasStructuredRegions(countryCode: string): boolean { return countryCode === 'FR'; }` to the same file so the template can switch between select and input.
-- [ ] 12. Create `src/app/shared/geo.service.test.ts` with the fourth, fifth and sixth Test plan rows. **Do not use `HttpTestingController` or `TestBed`** — neither exists here (see Inputs). Follow the repo pattern from `src/app/features/calendar/public-tournament.service.test.ts`: `import '@angular/compiler';`, build the service with `Injector.create({ providers: [GeoService, { provide: HttpClient, useValue: { get } }] })` where `const get = vi.fn().mockReturnValue(of(fixture))`, then assert on `get.mock.calls` — `expect(get).toHaveBeenCalledTimes(1)` for the fetch-once row, and `expect(get.mock.calls.some(call => String(call[0]).includes('fr-cities.json'))).toBe(false)` for the lazy-load row.
-- [ ] 13. Create `src/app/features/settings/location-selection.ts` with `applyCountry(values: AccountFormValues, code: string): AccountFormValues`, `applyRegion(values: AccountFormValues, code: string): AccountFormValues`, and `optionsWithStoredValue(options: string[], stored: string): string[]` (appends `stored` when non-empty and absent).
-- [ ] 14. Create `src/app/features/settings/location-selection.test.ts` with the last three Test plan rows.
-- [ ] 15. In `account-settings.component.ts`, inject `private readonly geo = inject(GeoService);` and add signals `readonly countryOptions = signal<GeoOption[]>([])`, `readonly regionOptions = signal<GeoOption[]>([])`, `readonly cityOptions = signal<string[]>([])`.
-- [ ] 16. In the constructor, `void this.geo.countries().then(options => this.countryOptions.set(options));` and an `effect` that reloads `regionOptions` when `form().locationCountry` changes and `cityOptions` when `form().locationRegion` changes.
-- [ ] 17. Replace the three location inputs with:
+- [x] 1. Create `scripts/generate-geo.mjs`. It reads the two dev dependencies, writes the three JSON files into `src/assets/geo/`, and prints the entry count of each. — Evidence: `npm run geo:generate` output below.
+- [x] 2. Countries: map `country-region-data` to `{ code: countryShortCode, name: countryName }`, sort by `name`, dedupe by `code`. — 249 entries generated.
+- [x] 3. Regions: map `departements.json` to `{ code, name: nom }`, sort by `code`. — filtered `zone !== 'com'` to reach the official 101 départements (metro 96 + DROM 5); logged under Assumptions.
+- [x] 4. Cities: reduce `communes.json` filtered to `type === 'commune-actuelle'` into `Record<departementCode, string[]>`, each array sorted and deduped by name.
+- [x] 5. Add `"geo:generate": "node scripts/generate-geo.mjs"` to `package.json` `scripts`.
+- [x] 6. Run `npm run geo:generate` and commit the three generated files. — files generated at `src/assets/geo/{countries,fr-regions,fr-cities}.json`.
+- [x] 7. Add `src/assets/geo/geo-assets.test.ts`… actually place it at `src/app/shared/geo-assets.test.ts` so vitest picks it up: read the three files from disk and assert the first three Test plan rows. — 3/3 passing.
+- [x] 8. Create `src/app/shared/geo.service.ts` with `export interface GeoOption { code: string; name: string; }` and `@Injectable({ providedIn: 'root' }) export class GeoService`.
+- [x] 9. In it, inject `HttpClient`, hold `private countriesCache?: Promise<GeoOption[]>`, `private regionsCache?: Promise<GeoOption[]>`, `private citiesCache?: Promise<Record<string, string[]>>`, each populated with `firstValueFrom(this.http.get(...))` on first call and reused thereafter.
+- [x] 10. `countries(): Promise<GeoOption[]>` fetches `assets/geo/countries.json`. `regions(countryCode: string): Promise<GeoOption[]>` returns `[]` unless `countryCode === 'FR'`, else fetches `assets/geo/fr-regions.json`. `cities(countryCode: string, regionCode: string): Promise<string[]>` returns `[]` unless `countryCode === 'FR'` and `regionCode` is non-empty, else fetches `assets/geo/fr-cities.json` and returns `data[regionCode] ?? []`.
+- [x] 11. Add `export function hasStructuredRegions(countryCode: string): boolean { return countryCode === 'FR'; }` to the same file so the template can switch between select and input.
+- [x] 12. Create `src/app/shared/geo.service.test.ts` with the fourth, fifth and sixth Test plan rows. **Do not use `HttpTestingController` or `TestBed`** — neither exists here (see Inputs). Follow the repo pattern from `src/app/features/calendar/public-tournament.service.test.ts`: `import '@angular/compiler';`, build the service with `Injector.create({ providers: [GeoService, { provide: HttpClient, useValue: { get } }] })` where `const get = vi.fn().mockReturnValue(of(fixture))`, then assert on `get.mock.calls` — `expect(get).toHaveBeenCalledTimes(1)` for the fetch-once row, and `expect(get.mock.calls.some(call => String(call[0]).includes('fr-cities.json'))).toBe(false)` for the lazy-load row. — 3/3 passing.
+- [x] 13. Create `src/app/features/settings/location-selection.ts` with `applyCountry(values: AccountFormValues, code: string): AccountFormValues`, `applyRegion(values: AccountFormValues, code: string): AccountFormValues`, and `optionsWithStoredValue(options: string[], stored: string): string[]` (appends `stored` when non-empty and absent).
+- [x] 14. Create `src/app/features/settings/location-selection.test.ts` with the last three Test plan rows. — 5/5 passing (added 2 extra edge cases).
+- [x] 15. In `account-settings.component.ts`, inject `private readonly geo = inject(GeoService);` and add signals `readonly countryOptions = signal<GeoOption[]>([])`, `readonly regionOptions = signal<GeoOption[]>([])`, `readonly cityOptions = signal<string[]>([])`.
+- [x] 16. In the constructor, `void this.geo.countries().then(options => this.countryOptions.set(options));` and an `effect` that reloads `regionOptions` when `form().locationCountry` changes and `cityOptions` when `form().locationRegion` changes.
+- [x] 17. Replace the three location inputs with:
   ```
   <label for="account-location-country" data-cy="account-location-country-label">{{ i18n.t('profile.locationCountry') }}</label>
   <select id="account-location-country" data-cy="account-location-country" [ngModel]="form().locationCountry" (ngModelChange)="setCountry($event)" name="locationCountry">
@@ -108,16 +108,16 @@ Run: `npm run test -- geo.service location-selection geo-assets`
     @for (country of countryOptions(); track country.code) { <option [value]="country.name" [attr.data-cy]="'account-location-country-' + country.code">{{ country.name }}</option> }
   </select>
   ```
-  and equivalents for Region and City, each wrapped in `@if (hasStructuredRegions(countryCodeOf(form().locationCountry))) { <select …> } @else { <input …> }`.
-- [ ] 18. Add `setCountry(name: string)` and `setRegion(name: string)` methods on the component delegating to `applyCountry` / `applyRegion` and then `this.form.set(...)`.
-- [ ] 19. Add `countryCodeOf(name: string): string` on the component, resolving a country **name** back to its ISO code through `countryOptions()`; store names but switch behaviour on the code.
-- [ ] 20. Feed both selects through `optionsWithStoredValue(...)` so a stored value absent from the dataset is still selectable.
-- [ ] 21. Confirm `ngsw-config.json`'s asset group glob includes `/assets/**` with `.json`; widen it if not, and note the change in the commit body.
-- [ ] 22. Verify the file still passes `npm run test -- data-cy-coverage` (every new `option` needs `[attr.data-cy]`).
-- [ ] 23. Update `cypress/e2e/auth-profile.cy.js`: select `France`, then `Rhône`, then `Lyon` via `cy.get('[data-cy=account-location-country]').select('France')` and assert the save button enables.
-- [ ] 24. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 25. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`.
-- [ ] 26. Check the built bundle: `npm run build` output must not grow the initial chunk — the JSON files ship as assets, never imported into TypeScript. If any `import … from '*.json'` slipped in, remove it.
+  and equivalents for Region and City, each wrapped in `@if (hasStructuredRegions(countryCodeOf(form().locationCountry))) { <select …> } @else { <input …> }`. — deviation: the region/city `<select>` uses `data-cy="account-location-region-select"` / `-city-select` (not the bare name) because the static `data-cy` gate (`data-cy-coverage.test.ts`) flags duplicate literal `data-cy` values across the `@if`/`@else` branches; the `<input>` fallback keeps the original `account-location-region`/`account-location-city` values so the pre-existing Cypress assertion at line ~60 (`.clear().type('Lyon')`) keeps working. Logged under Assumptions.
+- [x] 18. Add `setCountry(name: string)` and `setRegion(name: string)` methods on the component delegating to `applyCountry` / `applyRegion` and then `this.form.set(...)`.
+- [x] 19. Add `countryCodeOf(name: string): string` on the component, resolving a country **name** back to its ISO code through `countryOptions()`; store names but switch behaviour on the code.
+- [x] 20. Feed both selects through `optionsWithStoredValue(...)` so a stored value absent from the dataset is still selectable. — via `regionOptionNames`/`cityOptionNames` computed signals.
+- [x] 21. Confirm `ngsw-config.json`'s asset group glob includes `/assets/**` with `.json`; widen it if not, and note the change in the commit body. — confirmed, no edit needed (glob is unrestricted by extension).
+- [x] 22. Verify the file still passes `npm run test -- data-cy-coverage` (every new `option` needs `[attr.data-cy]`). — 6/6 passing.
+- [x] 23. Update `cypress/e2e/auth-profile.cy.js`: select `France`, then `Rhône`, then `Lyon` via `cy.get('[data-cy=account-location-country]').select('France')` and assert the save button enables. — folded into "logs in, updates…" spec (no new login), reload assertions updated to match select values.
+- [x] 24. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — all pass (393 tests, lint clean, typecheck clean, build succeeds).
+- [x] 25. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`. — run via the documented recipe (seed script + `dev:serve` + direct cypress invocation, since bare `cy:run`/`npm run dev` don't work on this host per the environment notes): 5/6 passing, only the documented `starts explicit provider linking` (`127.0.0.1:8081` hard-coded redirect) failing. Repair-loop re-run after the rate-limit window cleared; first pass (see prior report) hit a transient extra failure caused by rate-limit exhaustion from unrelated prior work, root-caused via `docker logs gones-api-1` (`429`, `endpoint_limiter`) and resolved on retry with no code change.
+- [x] 26. Check the built bundle: `npm run build` output must not grow the initial chunk — the JSON files ship as assets, never imported into TypeScript. If any `import … from '*.json'` slipped in, remove it. — grep for `from '*.json'` in `src/app/` empty; initial chunk 1.17 MB, JSON files are lazy `assets/**`.
 
 ## Outputs
 
@@ -126,12 +126,13 @@ Run: `npm run test -- geo.service location-selection geo-assets`
 - Public API / behavior change: the account location fields are now constrained selects for France.
 - Migrate / config: none; `npm run geo:generate` is a manual refresh step, documented in `src/AGENT.md`.
 
-## Validation
+- [x] `npm run test` passes — 393/393, 62 files.
+- [x] `npm run lint && npm run typecheck && npm run build` pass — lint clean, typecheck clean, build succeeds (initial 1.17 MB, no JSON in bundle).
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes — repair-loop re-run (rate-limit window elapsed) via the documented recipe: 5/6 passing, only `starts explicit provider linking` failing (the documented `127.0.0.1:8081` baseline). `shows and unlinks an explicitly linked provider`, which had failed on the first pass with a `429` from `/api/auth/login`, passed cleanly on this run with no code change — confirming the earlier failure was rate-limit exhaustion, not a defect in the T9b unlink path or this diff.
+- [x] manual check: pick France → Rhône → Lyon, save, reload, all three still selected — exercised live inside the passing "logs in, updates…" spec (`cy.get('[data-cy="account-location-country"]').select('France')` → region-select `Rhône` → city-select `Lyon` → save → reload → all three re-assert their values).
+- [x] manual check: pick Belgium and confirm Region/City fall back to text inputs — covered by `location-selection.test.ts` (`applyCountry`) and `GeoService.regions()` returning `[]` for non-FR codes (`geo.service.test.ts`, "unknown country yields no regions"), which together drive the component's `@if (hasStructuredRegions(countryCodeOf(...)))` branch; not independently re-exercised live in this repair loop (out of scope per the coordinator's instruction — no code changes, re-run cypress and publish).
+- [x] manual check: DevTools Network shows `fr-cities.json` requested only after France is selected — covered by `geo.service.test.ts` ("does not fetch cities before FR is selected"); GeoService only calls `cities()` (which fetches `fr-cities.json`) when both `countryCode === 'FR'` and a region is set.
+- [x] app functional — an account with a legacy free-text city still displays it — covered by `location-selection.test.ts` ("stored value survives an unknown option") and `optionsWithStoredValue` wiring into `cityOptionNames`/`regionOptionNames`, which appends a stored value absent from the dataset so it still renders as the selected option.
+- [x] commit msg draft: `feat(account): pick country, region and city from bundled offline datasets`
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes
-- [ ] manual check: pick France → Rhône → Lyon, save, reload, all three still selected; pick Belgium and confirm Region/City fall back to text inputs
-- [ ] manual check: DevTools Network shows `fr-cities.json` requested only after France is selected
-- [ ] app functional — an account with a legacy free-text city still displays it
-- [ ] commit msg draft: `feat(account): pick country, region and city from bundled offline datasets`
+**Residual risk (flag for T25 data-cy sweep):** `[attr.data-cy]="'account-location-city-' + city"` produces attribute values containing raw spaces and apostrophes for communes like `L'Arbresle`, `Montier-en-l'Isle`, `La Chaise` (checked: 34,875 generated city names, several hundred contain `'` or a space). Angular's `[attr.data-cy]` binding sets the DOM attribute directly (no HTML-escaping concerns since it isn't interpolated into a string template), so this renders fine and Cypress can still `cy.get('[data-cy="..."]')` against it with proper quoting. Confirmed `npm run test -- data-cy-coverage` still passes 6/6 — the coverage/duplicate-detection gate's regex (`/\sdata-cy="([^"]+)"/`) only matches literal `data-cy="..."` in source, never `[attr.data-cy]` bindings, so the generated commune names never reach it. Not changed now per instruction; worth revisiting if a future ticket wants CSS-selector-safe `data-cy` values for automated commune-level testing.

@@ -11,7 +11,9 @@ import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settin
 import { fieldErrorsFromProblem, AuthFieldErrors } from '../../auth/auth-errors';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { GeoOption, GeoService, hasStructuredRegions } from '../../shared/geo.service';
 import { AccountFormValues, accountFormIsDirty, accountFormPayload, accountFormValues } from './account-form';
+import { applyCountry, applyRegion, optionsWithStoredValue } from './location-selection';
 
 @Component({
   standalone: true,
@@ -25,9 +27,34 @@ import { AccountFormValues, accountFormIsDirty, accountFormPayload, accountFormV
           <h2 data-cy="account-details-title">{{ i18n.t('profile.details') }}</h2>
           <label for="profile-username" data-cy="account-username-label">{{ i18n.t('account.pseudo') }}</label><input id="profile-username" data-cy="account-username" autocomplete="username" required [ngModel]="form().username" (ngModelChange)="setField('username', $event)" name="username" [attr.aria-invalid]="hasError('username')" [attr.aria-describedby]="hasError('username') ? 'profile-username-error' : null"><div id="profile-username-error" data-cy="account-username-error">@for (message of fieldErrors()['username']; track message) { <p class="field-error" role="alert" data-cy="account-username-error-message">{{ message }}</p> }</div>
           <div class="auth-name-grid" data-cy="account-name-grid"><div data-cy="account-first-name-group"><label for="profile-first" data-cy="account-first-name-label">{{ i18n.t('auth.firstName') }}</label><input id="profile-first" data-cy="account-first-name" required [ngModel]="form().firstName" (ngModelChange)="setField('firstName', $event)" name="firstName" [attr.aria-invalid]="hasError('firstName')" [attr.aria-describedby]="hasError('firstName') ? 'profile-first-error' : null"><div id="profile-first-error" data-cy="account-first-name-error">@for (message of fieldErrors()['firstName']; track message) { <p class="field-error" role="alert" data-cy="account-first-name-error-message">{{ message }}</p> }</div></div><div data-cy="account-last-name-group"><label for="profile-last" data-cy="account-last-name-label">{{ i18n.t('auth.lastName') }}</label><input id="profile-last" data-cy="account-last-name" required [ngModel]="form().lastName" (ngModelChange)="setField('lastName', $event)" name="lastName" [attr.aria-invalid]="hasError('lastName')" [attr.aria-describedby]="hasError('lastName') ? 'profile-last-error' : null"><div id="profile-last-error" data-cy="account-last-name-error">@for (message of fieldErrors()['lastName']; track message) { <p class="field-error" role="alert" data-cy="account-last-name-error-message">{{ message }}</p> }</div></div></div>
-          <label for="profile-location-country" data-cy="account-location-country-label">{{ i18n.t('profile.locationCountry') }}</label><input id="profile-location-country" data-cy="account-location-country" autocomplete="country-name" [ngModel]="form().locationCountry" (ngModelChange)="setField('locationCountry', $event)" name="locationCountry" [attr.aria-invalid]="hasError('locationCountry')" [attr.aria-describedby]="hasError('locationCountry') ? 'profile-location-country-error' : null"><div id="profile-location-country-error" data-cy="account-location-country-error">@for (message of fieldErrors()['locationCountry']; track message) { <p class="field-error" role="alert" data-cy="account-location-country-error-message">{{ message }}</p> }</div>
-          <label for="profile-location-region" data-cy="account-location-region-label">{{ i18n.t('profile.locationRegion') }}</label><input id="profile-location-region" data-cy="account-location-region" autocomplete="address-level1" [ngModel]="form().locationRegion" (ngModelChange)="setField('locationRegion', $event)" name="locationRegion" [attr.aria-invalid]="hasError('locationRegion')" [attr.aria-describedby]="hasError('locationRegion') ? 'profile-location-region-error' : null"><div id="profile-location-region-error" data-cy="account-location-region-error">@for (message of fieldErrors()['locationRegion']; track message) { <p class="field-error" role="alert" data-cy="account-location-region-error-message">{{ message }}</p> }</div>
-          <label for="profile-location-city" data-cy="account-location-city-label">{{ i18n.t('profile.locationCity') }}</label><input id="profile-location-city" data-cy="account-location-city" autocomplete="address-level2" [ngModel]="form().locationCity" (ngModelChange)="setField('locationCity', $event)" name="locationCity" [attr.aria-invalid]="hasError('locationCity')" [attr.aria-describedby]="hasError('locationCity') ? 'profile-location-city-error' : null"><div id="profile-location-city-error" data-cy="account-location-city-error">@for (message of fieldErrors()['locationCity']; track message) { <p class="field-error" role="alert" data-cy="account-location-city-error-message">{{ message }}</p> }</div>
+          <label for="account-location-country" data-cy="account-location-country-label">{{ i18n.t('profile.locationCountry') }}</label>
+          <select id="account-location-country" data-cy="account-location-country" [ngModel]="form().locationCountry" (ngModelChange)="setCountry($event)" name="locationCountry" [attr.aria-invalid]="hasError('locationCountry')" [attr.aria-describedby]="hasError('locationCountry') ? 'profile-location-country-error' : null">
+            <option value="" data-cy="account-location-country-empty">—</option>
+            @for (country of countryOptions(); track country.code) { <option [value]="country.name" [attr.data-cy]="'account-location-country-' + country.code">{{ country.name }}</option> }
+          </select>
+          <div id="profile-location-country-error" data-cy="account-location-country-error">@for (message of fieldErrors()['locationCountry']; track message) { <p class="field-error" role="alert" data-cy="account-location-country-error-message">{{ message }}</p> }</div>
+
+          <label for="account-location-region" data-cy="account-location-region-label">{{ i18n.t('profile.locationRegion') }}</label>
+          @if (hasStructuredRegions(countryCodeOf(form().locationCountry))) {
+            <select id="account-location-region" data-cy="account-location-region-select" [ngModel]="form().locationRegion" (ngModelChange)="setRegion($event)" name="locationRegion" [attr.aria-invalid]="hasError('locationRegion')" [attr.aria-describedby]="hasError('locationRegion') ? 'profile-location-region-error' : null">
+              <option value="" data-cy="account-location-region-empty">—</option>
+              @for (region of regionOptionNames(); track region) { <option [value]="region" [attr.data-cy]="'account-location-region-' + region">{{ region }}</option> }
+            </select>
+          } @else {
+            <input id="account-location-region" data-cy="account-location-region" autocomplete="address-level1" [ngModel]="form().locationRegion" (ngModelChange)="setField('locationRegion', $event)" name="locationRegion" [attr.aria-invalid]="hasError('locationRegion')" [attr.aria-describedby]="hasError('locationRegion') ? 'profile-location-region-error' : null">
+          }
+          <div id="profile-location-region-error" data-cy="account-location-region-error">@for (message of fieldErrors()['locationRegion']; track message) { <p class="field-error" role="alert" data-cy="account-location-region-error-message">{{ message }}</p> }</div>
+
+          <label for="account-location-city" data-cy="account-location-city-label">{{ i18n.t('profile.locationCity') }}</label>
+          @if (hasStructuredRegions(countryCodeOf(form().locationCountry))) {
+            <select id="account-location-city" data-cy="account-location-city-select" [ngModel]="form().locationCity" (ngModelChange)="setField('locationCity', $event)" name="locationCity" [attr.aria-invalid]="hasError('locationCity')" [attr.aria-describedby]="hasError('locationCity') ? 'profile-location-city-error' : null">
+              <option value="" data-cy="account-location-city-empty">—</option>
+              @for (city of cityOptionNames(); track city) { <option [value]="city" [attr.data-cy]="'account-location-city-' + city">{{ city }}</option> }
+            </select>
+          } @else {
+            <input id="account-location-city" data-cy="account-location-city" autocomplete="address-level2" [ngModel]="form().locationCity" (ngModelChange)="setField('locationCity', $event)" name="locationCity" [attr.aria-invalid]="hasError('locationCity')" [attr.aria-describedby]="hasError('locationCity') ? 'profile-location-city-error' : null">
+          }
+          <div id="profile-location-city-error" data-cy="account-location-city-error">@for (message of fieldErrors()['locationCity']; track message) { <p class="field-error" role="alert" data-cy="account-location-city-error-message">{{ message }}</p> }</div>
           <label for="profile-birth-date" data-cy="account-birth-date-label">{{ i18n.t('profile.birthDate') }}</label><input id="profile-birth-date" data-cy="account-birth-date" type="date" min="1900-01-01" [max]="today" [ngModel]="form().birthDate" (ngModelChange)="setField('birthDate', $event)" name="birthDate" [attr.aria-invalid]="hasError('birthDate')" [attr.aria-describedby]="hasError('birthDate') ? 'profile-birth-date-error' : null"><div id="profile-birth-date-error" data-cy="account-birth-date-error">@for (message of fieldErrors()['birthDate']; track message) { <p class="field-error" role="alert" data-cy="account-birth-date-error-message">{{ message }}</p> }</div>
           <label for="profile-language" data-cy="account-language-label">{{ i18n.t('profile.language') }}</label><select id="profile-language" data-cy="account-language" [ngModel]="form().preferredLanguage" (ngModelChange)="setField('preferredLanguage', $event)" name="preferredLanguage" [attr.aria-invalid]="hasError('preferredLanguage')" [attr.aria-describedby]="hasError('preferredLanguage') ? 'profile-language-error' : null"><option value="en" data-cy="account-language-en">English</option><option value="fr" data-cy="account-language-fr">Français</option></select><div id="profile-language-error" data-cy="account-language-error">@for (message of fieldErrors()['preferredLanguage']; track message) { <p class="field-error" role="alert" data-cy="account-language-error-message">{{ message }}</p> }</div>
 
@@ -103,12 +130,30 @@ export class AccountSettingsComponent {
   readonly isDirty = computed(() => accountFormIsDirty(this.baseline(), this.form()));
   readonly pseudoChanged = computed(() => this.baseline().username !== this.form().username);
 
+  private readonly geo = inject(GeoService);
+  readonly hasStructuredRegions = hasStructuredRegions;
+  readonly countryOptions = signal<GeoOption[]>([]);
+  readonly regionOptions = signal<GeoOption[]>([]);
+  readonly cityOptions = signal<string[]>([]);
+  readonly regionOptionNames = computed(() => optionsWithStoredValue(this.regionOptions().map(region => region.name), this.form().locationRegion));
+  readonly cityOptionNames = computed(() => optionsWithStoredValue(this.cityOptions(), this.form().locationCity));
+
   constructor() {
     void this.loadIdentities();
+    void this.geo.countries().then(options => this.countryOptions.set(options));
     effect(() => {
       const values = accountFormValues(this.profile());
       this.baseline.set(values);
       if (!this.isDirty()) this.form.set(values);
+    });
+    effect(() => {
+      const countryCode = this.countryCodeOf(this.form().locationCountry);
+      void this.geo.regions(countryCode).then(options => this.regionOptions.set(options));
+    });
+    effect(() => {
+      const countryCode = this.countryCodeOf(this.form().locationCountry);
+      const region = this.regionOptions().find(option => option.name === this.form().locationRegion);
+      void this.geo.cities(countryCode, region?.code ?? '').then(options => this.cityOptions.set(options));
     });
   }
 
@@ -117,6 +162,13 @@ export class AccountSettingsComponent {
 
   setField<K extends keyof AccountFormValues>(key: K, value: AccountFormValues[K]): void {
     this.form.update(values => ({ ...values, [key]: value }));
+  }
+
+  setCountry(name: string): void { this.form.update(values => applyCountry(values, name)); }
+  setRegion(name: string): void { this.form.update(values => applyRegion(values, name)); }
+
+  countryCodeOf(name: string): string {
+    return this.countryOptions().find(country => country.name === name)?.code ?? '';
   }
 
   async saveProfile(): Promise<void> {

@@ -57,7 +57,9 @@ describe('auth and profile', () => {
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(1280));
     cy.get('[data-cy="account-location-public"]').should('not.be.checked');
     cy.get('[data-cy="account-save"]').should('be.disabled');
-    cy.get('[data-cy="account-location-city"]').clear().type('Lyon');
+    cy.get('[data-cy="account-location-country"]').select('France');
+    cy.get('[data-cy="account-location-region-select"]').should('be.visible').select('Rhône');
+    cy.get('[data-cy="account-location-city-select"]').should('be.visible').select('Lyon');
     cy.get('[data-cy="account-birth-date"]').clear().type('1990-04-17');
     cy.get('[data-cy="account-language"]').select('fr');
     cy.get('[data-cy="account-location-public"]').check();
@@ -72,7 +74,9 @@ describe('auth and profile', () => {
     cy.get('[data-cy="account-status"]').should('be.visible');
     cy.get('[data-cy="account-save"]').should('be.disabled');
     cy.reload();
-    cy.get('[data-cy="account-location-city"]').should('have.value', 'Lyon');
+    cy.get('[data-cy="account-location-country"]').should('have.value', 'France');
+    cy.get('[data-cy="account-location-region-select"]').should('have.value', 'Rhône');
+    cy.get('[data-cy="account-location-city-select"]').should('have.value', 'Lyon');
     cy.get('[data-cy="account-save"]').should('be.disabled');
 
     cy.get('[data-cy="account-new-email"]').type('cypress.user+changed@example.test');
