@@ -18,6 +18,7 @@ import { I18nService } from './i18n/i18n.service';
 import { ConfirmDialogComponent } from './shared/dialogs';
 import { saveJsonFile } from './shared/save-json-file';
 import { AuthService } from './auth/auth.service';
+import { LastVisitedUrlService } from './auth/last-visited-url.service';
 import { ApiProblemError } from './api/api-boundary';
 
 interface BreadcrumbItem {
@@ -37,64 +38,62 @@ interface HeaderTournament {
   imports: [RouterOutlet, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatToolbarModule],
   template: `
     @if (!isResultPage()) {
-      <mat-toolbar class="app-toolbar">
-        <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')"><img src="assets/gones_logo.png" alt="Gones"></a>
-        <span class="spacer"></span>
+      <mat-toolbar class="app-toolbar" data-cy="app-toolbar">
+        <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')" data-cy="app-brand-link"><img src="assets/gones_logo.png" alt="Gones" data-cy="app-brand-logo"></a>
+        <span class="spacer" data-cy="app-header-spacer"></span>
         @if (auth.enabled) {
-          <div class="auth-toolbar-actions">
+          <div class="auth-toolbar-actions" data-cy="auth-toolbar-actions">
             @if (auth.profile(); as profile) {
-              <a mat-stroked-button routerLink="/profile" data-cy="profile-link">{{ profile.username }}</a>
-              <button mat-button type="button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
-            } @else {
-              <a mat-stroked-button routerLink="/login" data-cy="login-link">{{ i18n.t('auth.signIn') }}</a>
+              <a class="toolbar-profile-link" routerLink="/profile" data-cy="profile-link">{{ profile.username }}</a>
+              <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="logout-button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
             }
           </div>
         }
         @if (showLiveTournamentActions()) {
-          <div class="header-actions live-tournament-header-actions">
+          <div class="header-actions live-tournament-header-actions" data-cy="app-live-tournament-header-actions">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="live-tournament-advanced-settings-button" (click)="openLiveTournamentAdvancedSettings()">{{ i18n.t('header.advancedSettings') }}</button>
           </div>
         } @else if (showHeaderImport()) {
-          <div class="header-actions">
+          <div class="header-actions" data-cy="app-leagues-header-actions">
             @if (canManageLeagueData()) {
-              <button mat-stroked-button class="secondary-action toolbar-import" type="button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
+              <button mat-stroked-button class="secondary-action toolbar-import" type="button" data-cy="app-leagues-import-button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
               <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
             }
-            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadFullExport()">{{ i18n.t('header.fullDataExport') }}</button>
+            <button mat-stroked-button class="secondary-action" type="button" data-cy="app-full-data-export-button" (click)="downloadFullExport()">{{ i18n.t('header.fullDataExport') }}</button>
           </div>
         } @else if (headerTournament(); as item) {
-          <div class="header-actions tournament-header-actions">
+          <div class="header-actions tournament-header-actions" data-cy="app-tournament-header-actions">
             <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
             @if (canManageLeagueData()) {
-              <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
-              <mat-menu #tournamentActionsMenu="matMenu">
-                <button mat-menu-item class="destructive-menu-item" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? i18n.t('header.deletingTournament') : i18n.t('header.deleteTournament') }}</button>
+              <button mat-icon-button class="league-actions-trigger" data-cy="app-tournament-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
+              <mat-menu #tournamentActionsMenu="matMenu" data-cy="app-tournament-actions-menu">
+                <button mat-menu-item class="destructive-menu-item" data-cy="app-delete-tournament-button" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? i18n.t('header.deletingTournament') : i18n.t('header.deleteTournament') }}</button>
               </mat-menu>
             }
           </div>
         } @else if (headerLeague(); as league) {
-          <div class="header-actions league-header-actions">
-            <button mat-stroked-button class="secondary-action" type="button" (click)="downloadLeagueExport(league)">{{ i18n.t('header.exportLeague') }}</button>
+          <div class="header-actions league-header-actions" data-cy="app-league-header-actions">
+            <button mat-stroked-button class="secondary-action" type="button" data-cy="app-export-league-button" (click)="downloadLeagueExport(league)">{{ i18n.t('header.exportLeague') }}</button>
             @if (canManageLeagueData()) {
-              <button mat-icon-button class="league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" [attr.aria-label]="i18n.t('header.leagueActions')">⋮</button>
-              <mat-menu #leagueActionsMenu="matMenu">
-                <button mat-menu-item class="destructive-menu-item" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? i18n.t('header.placeholderLeagueLocked') : i18n.t('header.deleteLeague') }}</button>
+              <button mat-icon-button class="league-actions-trigger" data-cy="app-league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" [attr.aria-label]="i18n.t('header.leagueActions')">⋮</button>
+              <mat-menu #leagueActionsMenu="matMenu" data-cy="app-league-actions-menu">
+                <button mat-menu-item class="destructive-menu-item" data-cy="app-delete-league-button" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? i18n.t('header.placeholderLeagueLocked') : i18n.t('header.deleteLeague') }}</button>
               </mat-menu>
             }
           </div>
         } @else if (showSettingsActions()) {
-          <div class="header-actions settings-header-actions" [attr.aria-label]="i18n.t('header.settingsActionsAria')">
+          <div class="header-actions settings-header-actions" data-cy="app-settings-header-actions" [attr.aria-label]="i18n.t('header.settingsActionsAria')">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="settings-export-button" [disabled]="settingsImporting()" (click)="downloadSettingsExport()">{{ i18n.t('header.exportSettings') }}</button>
             <button mat-flat-button class="home-primary-action" type="button" data-cy="settings-import-button" [disabled]="settingsImporting()" (click)="openSettingsImportPicker()">{{ settingsImporting() ? i18n.t('common.importing') : i18n.t('header.importSettings') }}</button>
             <input #settingsImportInput class="toolbar-import-input" data-cy="settings-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="settingsImporting()" (change)="importSettings($event)">
           </div>
         }
       </mat-toolbar>
-      <nav class="breadcrumb-shell breadcrumb-shell--header" [attr.aria-label]="i18n.t('nav.breadcrumb')">
+      <nav class="breadcrumb-shell breadcrumb-shell--header" data-cy="app-breadcrumb-nav" [attr.aria-label]="i18n.t('nav.breadcrumb')">
         <ol class="breadcrumbs" data-cy="breadcrumbs">
           @for (item of breadcrumbs(); track item.label + $index) {
-            <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null">
-              @if (!$last && item.link) { <a [routerLink]="item.link">{{ item.label }}</a> }
+            <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null" [attr.data-cy]="'app-breadcrumb-item-' + $index">
+              @if (!$last && item.link) { <a [routerLink]="item.link" [attr.data-cy]="'app-breadcrumb-link-' + $index">{{ item.label }}</a> }
               @else { <span [attr.data-cy]="$last ? 'breadcrumb-current' : null" [attr.lang]="item.lang">{{ item.label }}</span> }
             </li>
           }
@@ -103,14 +102,14 @@ interface HeaderTournament {
     }
     @if (auth.enabled && auth.profile() && !auth.profile()!.emailVerified) {
       <aside class="warning app-banner verification-banner" role="status" aria-live="polite" data-cy="unverified-banner">
-        <span>{{ i18n.t('auth.unverifiedBanner') }}</span>
-        <button mat-stroked-button type="button" [disabled]="resendPending()" (click)="resendBanner()">{{ resendPending() ? i18n.t('auth.resending') : i18n.t('auth.resendVerification') }}</button>
-        @if (resendStatus()) { <span>{{ resendStatus() }}</span> }
+        <span data-cy="app-unverified-banner-text">{{ i18n.t('auth.unverifiedBanner') }}</span>
+        <button mat-stroked-button type="button" data-cy="app-resend-verification-button" [disabled]="resendPending()" (click)="resendBanner()">{{ resendPending() ? i18n.t('auth.resending') : i18n.t('auth.resendVerification') }}</button>
+        @if (resendStatus()) { <span data-cy="app-resend-status-text">{{ resendStatus() }}</span> }
       </aside>
     }
-    @if (importError()) { <p class="error app-banner" role="alert">{{ importError() }}</p> }
-    @if (settingsMessage()) { <p class="settings-saved app-banner" role="status">{{ settingsMessage() }}</p> }
-    <main class="app-main"><router-outlet /></main>
+    @if (importError()) { <p class="error app-banner" role="alert" data-cy="app-import-error-banner">{{ importError() }}</p> }
+    @if (settingsMessage()) { <p class="settings-saved app-banner" role="status" data-cy="app-settings-saved-banner">{{ settingsMessage() }}</p> }
+    <main class="app-main" data-cy="app-main"><router-outlet data-cy="app-router-outlet" /></main>
   `
 })
 export class AppComponent {
@@ -121,6 +120,7 @@ export class AppComponent {
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
   readonly auth = inject(AuthService);
+  private readonly lastVisited = inject(LastVisitedUrlService);
   private readonly repo = inject(LeagueRepository);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly settings = inject(DeckArchetypeSettingsService);
@@ -148,6 +148,7 @@ export class AppComponent {
     window.addEventListener('gones-live-tournament-updated', (event) => this.handleLiveTournamentUpdated(event));
     window.addEventListener('gones-league-updated', () => void this.updateRouteState(this.router.url));
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
+      this.lastVisited.record(event.urlAfterRedirects);
       void this.updateRouteState(event.urlAfterRedirects);
     });
   }
@@ -176,7 +177,7 @@ export class AppComponent {
 
   async logout(): Promise<void> {
     await this.auth.logout();
-    await this.router.navigate(['/login']);
+    await this.router.navigate(['/']);
   }
 
   async resendBanner(): Promise<void> {

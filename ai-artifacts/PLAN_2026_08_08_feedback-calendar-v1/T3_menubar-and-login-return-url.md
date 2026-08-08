@@ -68,11 +68,11 @@ Run: `npm run test -- last-visited-url login-redirect data-cy-coverage`
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/auth/last-visited-url.service.ts` exporting `export const AUTH_PATH_PREFIXES = ['/login','/register','/verify-email','/forgot-password','/reset-password','/auth'] as const;` and `@Injectable({ providedIn: 'root' }) export class LastVisitedUrlService` with `private readonly value = signal(''); record(url: string): void; last(): string;`. `record` stores the url only when its path (everything before `?` or `#`) does not start with any entry of `AUTH_PATH_PREFIXES`.
-- [ ] 2. In the same file add `export function loginDestination(returnUrl: string | null | undefined, lastVisited: string): string { return safeReturnUrl(returnUrl, safeReturnUrl(lastVisited, '/')); }` importing `safeReturnUrl` from `./return-url`.
-- [ ] 3. Create `src/app/auth/last-visited-url.service.test.ts` and `src/app/auth/login-redirect.test.ts` covering the first seven rows of the Test plan.
-- [ ] 4. In `src/app/app.component.ts`, inject `private readonly lastVisited = inject(LastVisitedUrlService);` and call `this.lastVisited.record(event.urlAfterRedirects);` inside the existing `NavigationEnd` subscription at line 150, before `updateRouteState`.
-- [ ] 5. Replace the header auth block with:
+- [x] 1. Create `src/app/auth/last-visited-url.service.ts` exporting `export const AUTH_PATH_PREFIXES = ['/login','/register','/verify-email','/forgot-password','/reset-password','/auth'] as const;` and `@Injectable({ providedIn: 'root' }) export class LastVisitedUrlService` with `private readonly value = signal(''); record(url: string): void; last(): string;`. `record` stores the url only when its path (everything before `?` or `#`) does not start with any entry of `AUTH_PATH_PREFIXES`.
+- [x] 2. In the same file add `export function loginDestination(returnUrl: string | null | undefined, lastVisited: string): string { return safeReturnUrl(returnUrl, safeReturnUrl(lastVisited, '/')); }` importing `safeReturnUrl` from `./return-url`.
+- [x] 3. Create `src/app/auth/last-visited-url.service.test.ts` and `src/app/auth/login-redirect.test.ts` covering the first seven rows of the Test plan.
+- [x] 4. In `src/app/app.component.ts`, inject `private readonly lastVisited = inject(LastVisitedUrlService);` and call `this.lastVisited.record(event.urlAfterRedirects);` inside the existing `NavigationEnd` subscription at line 150, before `updateRouteState`.
+- [x] 5. Replace the header auth block with:
   ```
   @if (auth.enabled) {
     <div class="auth-toolbar-actions" data-cy="auth-toolbar-actions">
@@ -84,10 +84,10 @@ Run: `npm run test -- last-visited-url login-redirect data-cy-coverage`
   }
   ```
   Note the removed `mat-stroked-button` on the profile anchor and the removed `@else` branch.
-- [ ] 6. Add to `src/styles.css`, next to the other toolbar rules: `.toolbar-profile-link { color: var(--ash); text-decoration: underline; text-underline-offset: 3px; font-weight: 700; padding-inline: .35rem; min-height: 44px; display: inline-flex; align-items: center; }` and `.toolbar-profile-link:hover, .toolbar-profile-link:focus-visible { color: var(--hot-blood); }`.
-- [ ] 7. In `src/app/app.component.ts`, change `logout()` to navigate to `'/'` instead of `'/login'`.
-- [ ] 8. Add `data-cy` to every remaining element of `src/app/app.component.ts`'s template (toolbar, brand anchor, spacer, each header-actions container, breadcrumb nav/list/items, banners, `<main>`), each value unique and prefixed `app-`.
-- [ ] 9. In `src/app/features/menu/home-menu.component.ts`, inject `readonly auth = inject(AuthService);` and add, as the first card inside `<nav class="home-destinations">`:
+- [x] 6. Add to `src/styles.css`, next to the other toolbar rules: `.toolbar-profile-link { color: var(--ash); text-decoration: underline; text-underline-offset: 3px; font-weight: 700; padding-inline: .35rem; min-height: 44px; display: inline-flex; align-items: center; }` and `.toolbar-profile-link:hover, .toolbar-profile-link:focus-visible { color: var(--hot-blood); }`.
+- [x] 7. In `src/app/app.component.ts`, change `logout()` to navigate to `'/'` instead of `'/login'`.
+- [x] 8. Add `data-cy` to every remaining element of `src/app/app.component.ts`'s template (toolbar, brand anchor, spacer, each header-actions container, breadcrumb nav/list/items, banners, `<main>`), each value unique and prefixed `app-`.
+- [x] 9. In `src/app/features/menu/home-menu.component.ts`, inject `readonly auth = inject(AuthService);` and add, as the first card inside `<nav class="home-destinations">`:
   ```
   @if (auth.enabled && !auth.profile()) {
     <a class="home-destination home-destination--settings" routerLink="/login" data-cy="menu-login-card">
@@ -96,13 +96,13 @@ Run: `npm run test -- last-visited-url login-redirect data-cy-coverage`
     </a>
   }
   ```
-- [ ] 10. Add key `home.signInDesc` to both maps in `src/app/i18n/messages.ts`: en `'Sign in to register for tournaments, manage your account and propose events.'`, fr `'Connectez-vous pour vous inscrire aux tournois, gérer votre compte et proposer des évènements.'`.
-- [ ] 11. Add `data-cy` to every remaining element of `home-menu.component.ts`'s template (`section`, `nav`, each `a`, each `strong`, each `p`), unique, prefixed `menu-`.
-- [ ] 12. In `src/app/auth/auth-entry.component.ts`, inject `private readonly lastVisited = inject(LastVisitedUrlService);` and replace the navigation in `submitLogin()` with `await this.router.navigateByUrl(loginDestination(this.route.snapshot.queryParamMap.get('returnUrl'), this.lastVisited.last()));`.
-- [ ] 13. Delete `src/app/app.component.ts` and `src/app/features/menu/home-menu.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] 14. Update `cypress/e2e/auth-profile.cy.js`: replace any `[data-cy=login-link]` navigation with `cy.visit('/login')` or `[data-cy=menu-login-card]`.
-- [ ] 15. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 16. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/auth-session-persistence.cy.js`.
+- [x] 10. Add key `home.signInDesc` to both maps in `src/app/i18n/messages.ts`: en `'Sign in to register for tournaments, manage your account and propose events.'`, fr `'Connectez-vous pour vous inscrire aux tournois, gérer votre compte et proposer des évènements.'`.
+- [x] 11. Add `data-cy` to every remaining element of `home-menu.component.ts`'s template (`section`, `nav`, each `a`, each `strong`, each `p`), unique, prefixed `menu-`.
+- [x] 12. In `src/app/auth/auth-entry.component.ts`, inject `private readonly lastVisited = inject(LastVisitedUrlService);` and replace the navigation in `submitLogin()` with `await this.router.navigateByUrl(loginDestination(this.route.snapshot.queryParamMap.get('returnUrl'), this.lastVisited.last()));`.
+- [x] 13. Delete `src/app/app.component.ts` and `src/app/features/menu/home-menu.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
+- [x] 14. Update `cypress/e2e/auth-profile.cy.js`: replace any `[data-cy=login-link]` navigation with `cy.visit('/login')` or `[data-cy=menu-login-card]`. (No `[data-cy=login-link]` usages existed in this file — no-op, verified by grep. `cypress/e2e/auth-session-persistence.cy.js`, an existing T2 spec not in this ticket's Outputs list, asserted `login-link` visible for anonymous users; updated its assertion to `menu-login-card` since the ticket's own requirement removes the anonymous sign-in button — see Assumptions.)
+- [x] 15. Run `npm run test && npm run lint && npm run typecheck && npm run build`. All green — see report.
+- [ ] 16. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/auth-session-persistence.cy.js`. BLOCKED: sandbox has no Cypress runtime deps (`libglib-2.0.so.0` and friends missing); `nix-shell -p glib gtk3 nss ...` did not fix dynamic linking, and `steam-run` is blocked by an unfree-license refusal. See report.
 
 ## Outputs
 
@@ -113,9 +113,9 @@ Run: `npm run test -- last-visited-url login-redirect data-cy-coverage`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/auth-session-persistence.cy.js` passes
-- [ ] manual check: from `/calendar`, open `/login` via the home card, sign in, land back on `/calendar`; header shows a plain underlined username and a red logout button
-- [ ] app functional — anonymous header renders with no auth controls at all
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/auth-session-persistence.cy.js` passes — BLOCKED: sandbox has no Cypress runtime deps, could not execute
+- [ ] manual check: from `/calendar`, open `/login` via the home card, sign in, land back on `/calendar`; header shows a plain underlined username and a red logout button — NOT PERFORMED: no interactive browser available in this environment
+- [x] app functional — anonymous header renders with no auth controls at all (verified via `data-cy-coverage` test + template read: the `@else` login-link branch was deleted, `auth.enabled && !auth.profile()` menu card is the only anonymous entry point)
 - [ ] commit msg draft: `feat(header): plain profile link, danger logout and post-login return to the previous page`

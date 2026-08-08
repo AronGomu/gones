@@ -4,32 +4,39 @@ import { LiveTournamentRepository } from '../../data/live-tournament-repository.
 import { LiveTournamentDocument } from '../../domain/live-tournament';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
+import { AuthService } from '../../auth/auth.service';
 
 @Component({
   standalone: true,
   imports: [RouterLink],
   template: `
-    <section class="home-landing" [attr.aria-label]="i18n.t('home.aria')">
-      <nav class="home-destinations" [attr.aria-label]="i18n.t('home.navAria')">
+    <section class="home-landing" [attr.aria-label]="i18n.t('home.aria')" data-cy="menu-section">
+      <nav class="home-destinations" [attr.aria-label]="i18n.t('home.navAria')" data-cy="menu-nav">
+        @if (auth.enabled && !auth.profile()) {
+          <a class="home-destination home-destination--settings" routerLink="/login" data-cy="menu-login-card">
+            <strong data-cy="menu-login-card-title">{{ i18n.t('auth.signIn') }}</strong>
+            <p data-cy="menu-login-card-desc">{{ i18n.t('home.signInDesc') }}</p>
+          </a>
+        }
         <a class="home-destination home-destination--leagues" [class.home-destination--running-active]="hasActiveRunningTournament()" routerLink="/live-tournaments" data-cy="menu-running-tournaments-card">
-          <strong>{{ i18n.t('home.runningTournaments') }}</strong>
-          <p>{{ i18n.t('home.runningTournamentsDesc') }}</p>
+          <strong data-cy="menu-running-tournaments-card-title">{{ i18n.t('home.runningTournaments') }}</strong>
+          <p data-cy="menu-running-tournaments-card-desc">{{ i18n.t('home.runningTournamentsDesc') }}</p>
         </a>
-        <a class="home-destination home-destination--leagues" routerLink="/leagues">
-          <strong>{{ i18n.t('home.leagues') }}</strong>
-          <p>{{ i18n.t('home.leaguesDesc') }}</p>
+        <a class="home-destination home-destination--leagues" routerLink="/leagues" data-cy="menu-leagues-card">
+          <strong data-cy="menu-leagues-card-title">{{ i18n.t('home.leagues') }}</strong>
+          <p data-cy="menu-leagues-card-desc">{{ i18n.t('home.leaguesDesc') }}</p>
         </a>
-        <a class="home-destination home-destination--calendar" routerLink="/calendar">
-          <strong>{{ i18n.t('home.calendar') }}</strong>
-          <p>{{ i18n.t('home.calendarDesc') }}</p>
+        <a class="home-destination home-destination--calendar" routerLink="/calendar" data-cy="menu-calendar-card">
+          <strong data-cy="menu-calendar-card-title">{{ i18n.t('home.calendar') }}</strong>
+          <p data-cy="menu-calendar-card-desc">{{ i18n.t('home.calendarDesc') }}</p>
         </a>
         <a class="home-destination home-destination--settings" routerLink="/settings" data-cy="menu-settings-link">
-          <strong>{{ i18n.t('home.settings') }}</strong>
-          <p>{{ i18n.t('home.settingsDesc') }}</p>
+          <strong data-cy="menu-settings-link-title">{{ i18n.t('home.settings') }}</strong>
+          <p data-cy="menu-settings-link-desc">{{ i18n.t('home.settingsDesc') }}</p>
         </a>
         <a class="home-destination home-destination--about" routerLink="/about" data-cy="menu-about-link" lang="fr">
-          <strong>{{ i18n.t('home.about') }}</strong>
-          <p>{{ i18n.t('home.aboutDesc') }}</p>
+          <strong data-cy="menu-about-link-title">{{ i18n.t('home.about') }}</strong>
+          <p data-cy="menu-about-link-desc">{{ i18n.t('home.aboutDesc') }}</p>
         </a>
       </nav>
 
@@ -38,6 +45,7 @@ import { logBoundaryError } from '../../shared/app-logger';
 })
 export class HomeMenuComponent {
   readonly i18n = inject(I18nService);
+  readonly auth = inject(AuthService);
   readonly liveTournaments = signal<LiveTournamentDocument[]>([]);
   readonly hasActiveRunningTournament = computed(() => this.liveTournaments().some((tournament) => tournament.stage !== 'completed'));
 

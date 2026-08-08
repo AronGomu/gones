@@ -154,6 +154,7 @@ const en = {
   // Home menu
   'home.aria': 'Gones main menu',
   'home.navAria': 'Main menu',
+  'home.signInDesc': 'Sign in to register for tournaments, manage your account and propose events.',
   'home.runningTournaments': 'Running Tournaments',
   'home.runningTournamentsDesc': 'Resume a saved live tournament, create a new running tournament, or delete old local drafts from one place.',
   'home.leagues': 'Leagues',
@@ -1146,6 +1147,7 @@ const fr: Record<MessageKey, string> = {
 
   'home.aria': 'Menu principal Gones',
   'home.navAria': 'Menu principal',
+  'home.signInDesc': 'Connectez-vous pour vous inscrire aux tournois, gérer votre compte et proposer des évènements.',
   'home.runningTournaments': 'Tournois en cours',
   'home.runningTournamentsDesc': 'Reprendre un tournoi live sauvegardé, créer un nouveau tournoi en cours ou supprimer d’anciens brouillons locaux.',
   'home.leagues': 'Ligues',

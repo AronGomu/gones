@@ -9,7 +9,7 @@ import { I18nService } from '../i18n/i18n.service';
 import { AuthFieldErrors, fieldErrorsFromProblem } from './auth-errors';
 import { AuthService } from './auth.service';
 import { registrationDestination } from './registration-gate';
-import { safeReturnUrl } from './return-url';
+import { LastVisitedUrlService, loginDestination } from './last-visited-url.service';
 
 @Component({ selector: 'gones-field-errors', standalone: true, template: `@for (message of messages() ?? []; track message) { <p class="field-error" role="alert">{{ message }}</p> }` })
 export class FieldErrorsComponent { readonly messages = input<string[]>(); }
@@ -99,6 +99,7 @@ export class AuthEntryComponent {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly lastVisited = inject(LastVisitedUrlService);
   readonly mode = signal(this.route.snapshot.data['mode'] as AuthMode);
   readonly titleId = 'auth-page-title';
   readonly pending = signal(false);
@@ -123,7 +124,7 @@ export class AuthEntryComponent {
   async submitLogin(): Promise<void> {
     await this.run(async () => {
       await this.auth.login({ email: this.email, password: this.password, deviceLabel: deviceLabel() });
-      await this.router.navigateByUrl(safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), '/profile'));
+      await this.router.navigateByUrl(loginDestination(this.route.snapshot.queryParamMap.get('returnUrl'), this.lastVisited.last()));
     });
   }
 

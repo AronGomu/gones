@@ -33,7 +33,8 @@ describe('session persistence across a reload', () => {
 
   it('leaves anonymous browsing untouched when there is no session cookie', () => {
     cy.visit('/');
-    cy.get('[data-cy="login-link"]').should('be.visible');
+    cy.get('[data-cy="login-link"]').should('not.exist');
+    cy.get('[data-cy="menu-login-card"]').should('be.visible');
     cy.get('[data-cy="profile-link"]').should('not.exist');
   });
 });
