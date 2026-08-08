@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Gones.Application.Concurrency;
 using Gones.Domain.Leagues;
+using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -26,6 +27,18 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             await database.Database.MigrateAsync();
+            // audit_records.actor_id references asp_net_users since AllowAccountHardDelete, so the
+            // synthetic actor these commands audit against needs a real account row.
+            database.Users.Add(new ApplicationUser
+            {
+                Id = Actor,
+                UserName = "league-command-actor",
+                NormalizedUserName = "LEAGUE-COMMAND-ACTOR",
+                Email = "league-command-actor@example.test",
+                NormalizedEmail = "LEAGUE-COMMAND-ACTOR@EXAMPLE.TEST",
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            });
             database.LeagueAggregates.Add(LeagueAggregate.Create(FixtureLeague("command-league", "Command League"), Instant.FromUtc(2030, 1, 1, 12, 0)));
             database.LeagueAggregates.Add(LeagueAggregate.Create(new LeagueDocument("target-league", "Target League", "active", []), Instant.FromUtc(2030, 1, 1, 12, 0)));
             await database.SaveChangesAsync();

@@ -96,6 +96,15 @@ export class AuthService {
     }
   }
 
+  /**
+   * Hard, irreversible account deletion. The server drops the account and clears the refresh cookie,
+   * so the local session is dropped too — there is nothing left to refresh into.
+   */
+  async deleteAccount(currentPassword: string): Promise<void> {
+    await firstValueFrom(this.client.meDELETE({ currentPassword }));
+    this.clear();
+  }
+
   clear(): void {
     this.tokens.clear();
     this.profile.set(null);

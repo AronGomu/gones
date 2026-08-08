@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Gones.Domain.Leagues;
+using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -24,6 +25,18 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             await database.Database.MigrateAsync();
+            // audit_records.actor_id references asp_net_users since AllowAccountHardDelete, so the
+            // synthetic actor these commands audit against needs a real account row.
+            database.Users.Add(new ApplicationUser
+            {
+                Id = Actor,
+                UserName = "name-maintenance-actor",
+                NormalizedUserName = "NAME-MAINTENANCE-ACTOR",
+                Email = "name-maintenance-actor@example.test",
+                NormalizedEmail = "NAME-MAINTENANCE-ACTOR@EXAMPLE.TEST",
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            });
             var now = Instant.FromUtc(2030, 1, 1, 12, 0);
             database.LeagueAggregates.Add(LeagueAggregate.Create(LeagueWith("league-a", "League A", "active",
                 Match("entry-1", "Alice", "Bob"),

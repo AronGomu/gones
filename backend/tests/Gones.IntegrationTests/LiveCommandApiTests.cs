@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Gones.Application.Concurrency;
+using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -24,6 +25,18 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             await database.Database.MigrateAsync();
+            // audit_records.actor_id references asp_net_users since AllowAccountHardDelete, so the
+            // synthetic actor these commands audit against needs a real account row.
+            database.Users.Add(new ApplicationUser
+            {
+                Id = Actor,
+                UserName = "live-command-actor",
+                NormalizedUserName = "LIVE-COMMAND-ACTOR",
+                Email = "live-command-actor@example.test",
+                NormalizedEmail = "LIVE-COMMAND-ACTOR@EXAMPLE.TEST",
+                SecurityStamp = Guid.NewGuid().ToString("N"),
+                ConcurrencyStamp = Guid.NewGuid().ToString("N")
+            });
             database.LeagueAggregates.Add(Gones.Domain.Leagues.LeagueAggregate.Create(
                 new Gones.Domain.Leagues.LeagueDocument("target-league", "Target League", "active", []),
                 NodaTime.Instant.FromUtc(2030, 1, 1, 12, 0)));

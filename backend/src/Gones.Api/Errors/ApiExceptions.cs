@@ -24,7 +24,12 @@ public sealed class ConcurrencyConflictException(string? currentETag = null, lon
     public string? CurrentETag { get; } = currentETag;
     public long? CurrentDocumentVersion { get; } = currentDocumentVersion;
 }
-public sealed class ResourceConflictException() : ApiException("conflict", "Request conflicts with current resource state.", StatusCodes.Status409Conflict);
+/// <summary>
+/// The default <c>conflict</c> code stays the wire contract for every existing caller; a narrower
+/// code (for example <c>lastAdmin</c>) is passed when the client has to tell conflicts apart.
+/// </summary>
+public sealed class ResourceConflictException(string code = "conflict")
+    : ApiException(code, "Request conflicts with current resource state.", StatusCodes.Status409Conflict);
 public sealed class RequestBodyTooLargeException() : ApiException("request_too_large", "Request body exceeds the allowed size.", StatusCodes.Status413PayloadTooLarge);
 public sealed class InvalidOAuthStateException() : ApiException("invalid_oauth_state", "OAuth request is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class InvalidOAuthTicketException() : ApiException("invalid_oauth_ticket", "OAuth completion link is invalid or expired.", StatusCodes.Status400BadRequest);

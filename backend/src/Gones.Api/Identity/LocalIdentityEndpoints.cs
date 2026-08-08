@@ -10,6 +10,7 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -55,6 +56,12 @@ internal static class LocalIdentityEndpoints
         users.MapPatch("/me", PatchProfileAsync)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .Produces<UserProfileResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+        users.MapDelete("/me", DeleteAccountAsync)
+            .RequireRateLimiting(AuthRateLimiting.IpPolicy)
+            .AddEndpointFilter<DataAnnotationsValidationFilter>()
+            .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
         users.MapGet("/me/sessions", GetSessionsAsync).Produces<IReadOnlyList<RefreshSessionResponse>>();
@@ -336,6 +343,78 @@ internal static class LocalIdentityEndpoints
         }
     }
 
+    /// <summary>
+    /// Hard account deletion, per <c>docs/adr/0025-hard-account-deletion.md</c>. A wrong password is
+    /// reported as a 400 naming the field and never as a 401, so the endpoint cannot be used to tell
+    /// "bad password" apart from "not signed in".
+    /// </summary>
+    private static async Task<IResult> DeleteAccountAsync(
+        // Minimal APIs do not infer a body for DELETE, so the binding source is explicit here.
+        [FromBody] DeleteAccountRequest request,
+        ClaimsPrincipal principal,
+        HttpContext httpContext,
+        UserManager<ApplicationUser> userManager,
+        GonesDbContext database,
+        RefreshSessionService sessionService,
+        RefreshCookie cookie,
+        IClock clock,
+        OperationalMetrics metrics,
+        CancellationToken cancellationToken)
+    {
+        var userId = CurrentUserId(principal);
+        var user = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
+        if (string.IsNullOrEmpty(request.CurrentPassword) || !await userManager.CheckPasswordAsync(user, request.CurrentPassword))
+        {
+            metrics.RecordAuthRejection("account_delete");
+            throw Validation(nameof(request.CurrentPassword), "Current password is required and must be valid to delete the account.");
+        }
+
+        // An installation without an administrator cannot be recovered from the product itself.
+        if (user.GlobalRole == GlobalRoles.Admin && await database.Users.CountAsync(item => item.GlobalRole == GlobalRoles.Admin, cancellationToken) <= 1)
+        {
+            metrics.RecordAuthRejection("account_delete");
+            throw new ResourceConflictException("lastAdmin");
+        }
+
+        // Revoked outside the deletion transaction: RevokeAllAsync opens its own, and a revoked
+        // session is the safe outcome even if the deletion below fails.
+        await sessionService.RevokeAllAsync(userId, cancellationToken);
+
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        // Written before the delete and with a null actor: the row has to outlive the account it
+        // describes, and entity_id is the only place the account id belongs afterwards.
+        database.AuditRecords.Add(NewAudit(null, "account.deleted", "user", userId.ToString("D"), "{\"outcome\":\"hardDeleted\"}", clock));
+        await database.SaveChangesAsync(cancellationToken);
+        await database.AuditRecords
+            .Where(record => record.ActorId == userId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(record => record.ActorId, (Guid?)null), cancellationToken);
+        // ExecuteUpdate leaves the tracker holding audit rows that still claim this actor; deleting
+        // the account would make EF null them a second time, which the append-only guard rejects.
+        database.ChangeTracker.Clear();
+        await DeleteUserGraphAsync(database, userId, cancellationToken);
+        var target = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
+        var result = await userManager.DeleteAsync(target);
+        if (!result.Succeeded) throw IdentityValidation(result.Errors);
+        await transaction.CommitAsync(cancellationToken);
+
+        cookie.Clear(httpContext.Response);
+        metrics.RecordAuthSuccess("account_delete");
+        return Results.NoContent();
+    }
+
+    /// <summary>
+    /// Removes what the account owns but what no cascade rule covers, in dependency order. Everything
+    /// else — refresh sessions, external identities, account action tokens, organization memberships —
+    /// is cascaded by the database when the account row goes.
+    /// </summary>
+    private static async Task DeleteUserGraphAsync(GonesDbContext database, Guid userId, CancellationToken cancellationToken)
+    {
+        await database.NotificationHistory.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.ScheduledNotifications.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.TournamentRegistrationAttempts.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.UserProfiles.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+    }
+
     private static IReadOnlyList<string> ChangedFields(UserProfile profile, PatchUserProfileRequest request)
     {
         var fields = new List<string>();
@@ -455,6 +534,9 @@ internal sealed record PatchUserProfileRequest(
     bool IsBirthDatePublic,
     bool IsPreferredLanguagePublic,
     [property: StringLength(128)] string? CurrentPassword);
+
+internal sealed record DeleteAccountRequest(
+    [property: Required, StringLength(128)] string CurrentPassword);
 
 internal sealed record UserProfileResponse(
     Guid Id,

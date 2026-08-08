@@ -65,7 +65,9 @@ internal sealed class TournamentRegistrationAttemptConfiguration : VersionedEnti
         builder.HasIndex(attempt => new { attempt.UserId, attempt.RegisteredAt, attempt.Id });
         builder.HasIndex(attempt => new { attempt.TournamentId, attempt.Status });
         builder.HasOne<ScheduledTournament>().WithMany().HasForeignKey(attempt => attempt.TournamentId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.UserId).OnDelete(DeleteBehavior.Restrict);
+        // A registration belongs to the participant: a hard account deletion takes it with the account.
+        // The acting-user columns below stay restricting — they can point at a different account.
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.RegisteredByUserId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(attempt => attempt.StatusChangedByUserId).OnDelete(DeleteBehavior.Restrict);
         builder.ToTable(table =>

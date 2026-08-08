@@ -1,4 +1,5 @@
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -49,6 +50,9 @@ internal sealed class AuditRecordConfiguration : VersionedEntityConfiguration<Au
         builder.Property(entity => entity.RedactedDiff).HasColumnType("jsonb");
         builder.HasIndex(entity => entity.OccurredAt);
         builder.HasIndex(entity => new { entity.EntityType, entity.EntityId });
+        // Audit outlives the person: a hard account deletion drops the actor reference and keeps the
+        // row. The account is still identifiable through entity_id.
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(entity => entity.ActorId).OnDelete(DeleteBehavior.SetNull);
     }
 }
 

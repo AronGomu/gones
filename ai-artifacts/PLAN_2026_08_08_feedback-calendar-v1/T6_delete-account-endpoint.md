@@ -58,11 +58,11 @@ Run: `npm run backend:test`
 
 ## Impl steps
 
-- [ ] 1. Ensure the EF CLI exists: `dotnet ef --version`; install with `dotnet tool install --global dotnet-ef` if missing.
-- [ ] 2. In `backend/src/Gones.Infrastructure/Persistence/IdentityRecordConfigurations.cs`, configure the `AuditRecord.ActorId` relationship with `.OnDelete(DeleteBehavior.SetNull)` and make the FK column nullable if it is not already.
-- [ ] 3. Confirm the remaining user-owned relationships (`UserProfile`, refresh sessions, external identities, account action tokens, tournament registrations, organization memberships) are configured `DeleteBehavior.Cascade`; set any that are not.
-- [ ] 4. Run `dotnet ef migrations add AllowAccountHardDelete --project backend/src/Gones.Infrastructure --startup-project backend/src/Gones.Api --output-dir Persistence/Migrations` and review the generated FK changes.
-- [ ] 5. In `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs`, add to `MapLocalIdentityEndpoints`, immediately after the `users.MapPatch("/me", …)` registration:
+- [x] 1. Ensure the EF CLI exists: `dotnet ef --version`; install with `dotnet tool install --global dotnet-ef` if missing. → `dotnet ef --version` prints `Entity Framework Core .NET Command-line Tools 10.0.10` (tool at `~/.dotnet/tools`, needs `DOTNET_ROOT` exported).
+- [x] 2. Configure the `AuditRecord.ActorId` relationship with `.OnDelete(DeleteBehavior.SetNull)`; the FK column was already nullable (`Guid? ActorId`). → done in `SharedRecordConfigurations.cs` (`AuditRecordConfiguration`, where the audit entity is actually configured, not `IdentityRecordConfigurations.cs`); `SELECT confdeltype` on `fk_audit_records_asp_net_users_actor_id` returns `n` (SET NULL).
+- [x] 3. Confirmed: `UserProfile`, `RefreshSession`, `ExternalIdentity`, `AccountActionToken`, `UserEmailHistory`, `OAuthAttempt`, `OrganizationMember` were already `Cascade`. `TournamentRegistrationAttempt.UserId` was `Restrict` → set to `Cascade`; `SELECT confdeltype` returns `c`.
+- [x] 4. Ran with `--startup-project backend/src/Gones.Infrastructure` (`Gones.Api` has no `EntityFrameworkCore.Design` reference). → `20260808164636_AllowAccountHardDelete.cs`; `dotnet ef database update` then rollback to `SplitProfileLocationAndBirthDate` then update again all succeeded on a scratch database.
+- [x] 5. In `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs`, add to `MapLocalIdentityEndpoints`, immediately after the `users.MapPatch("/me", …)` registration: → registered verbatim; `Delete_me_requires_authentication` now reaches authorization (401) instead of 405.
   ```
   users.MapDelete("/me", DeleteAccountAsync)
       .RequireRateLimiting(AuthRateLimiting.IpPolicy)
@@ -71,22 +71,22 @@ Run: `npm run backend:test`
       .ProducesProblem(StatusCodes.Status400BadRequest)
       .ProducesProblem(StatusCodes.Status409Conflict);
   ```
-- [ ] 6. Add `internal sealed record DeleteAccountRequest([property: Required, StringLength(128)] string CurrentPassword);` next to the other request records at the bottom of the file.
-- [ ] 7. Implement `private static async Task<IResult> DeleteAccountAsync(DeleteAccountRequest request, ClaimsPrincipal principal, HttpContext httpContext, UserManager<ApplicationUser> userManager, GonesDbContext database, RefreshSessionService sessionService, IClock clock, OperationalMetrics metrics, CancellationToken cancellationToken)`.
-- [ ] 8. In it: resolve `userId = CurrentUserId(principal)`, load the user via `userManager.FindByIdAsync`, throw `AuthenticationFailedException` when null.
-- [ ] 9. Re-authenticate: `if (string.IsNullOrEmpty(request.CurrentPassword) || !await userManager.CheckPasswordAsync(user, request.CurrentPassword)) { metrics.RecordAuthRejection("account_delete"); throw Validation(nameof(request.CurrentPassword), "Current password is required and must be valid to delete the account."); }`
-- [ ] 10. Guard the last admin: when `user.GlobalRole == "Admin"` and `await database.Users.CountAsync(u => u.GlobalRole == "Admin", cancellationToken) <= 1`, throw `new ResourceConflictException("lastAdmin")` (add that constructor overload if the type has none).
-- [ ] 11. Open a transaction. Write the audit row first: `database.AuditRecords.Add(NewAudit(null, "account.deleted", "user", userId.ToString("D"), "{\"outcome\":\"hardDeleted\"}", clock));` then `await database.SaveChangesAsync(cancellationToken);`.
-- [ ] 12. Null the historical actor: `await database.AuditRecords.Where(record => record.ActorId == userId).ExecuteUpdateAsync(setters => setters.SetProperty(record => record.ActorId, (Guid?)null), cancellationToken);`
-- [ ] 13. Revoke sessions: `await sessionService.RevokeAllAsync(userId, cancellationToken);`
-- [ ] 14. Delete the graph: remove the `UserProfile` row, then `var result = await userManager.DeleteAsync(user); if (!result.Succeeded) throw IdentityValidation(result.Errors);`. Commit the transaction.
-- [ ] 15. Clear the cookie (`RefreshCookie.Clear(httpContext.Response)` or `cookie.Clear(...)` per the file's current shape), record `metrics.RecordAuthSuccess("account_delete")`, return `Results.NoContent()`.
-- [ ] 16. Add `backend/tests/Gones.IntegrationTests/AccountDeletionTests.cs` with all seven Test plan rows.
-- [ ] 17. Run `npm run backend:test`.
-- [ ] 18. Start Postgres (`docker compose up -d postgres`) and run `npm run api:generate`; commit the regenerated `src/app/api/generated/gones-api.ts`.
-- [ ] 19. Add `deleteAccount(currentPassword: string): Promise<void>` to `src/app/auth/auth.service.ts` delegating to the generated client method for `DELETE /api/users/me` (check the generated name after regeneration — NSwag derives it from the route, expect `meDELETE`).
-- [ ] 20. Add `src/app/auth/auth.service.delete-account.test.ts` asserting the service calls the client method once with the password and clears local state on success (`profile()` becomes null via `clear()`).
-- [ ] 21. Run `npm run test && npm run lint && npm run typecheck && npm run build && npm run api:check`.
+- [x] 6. Added `internal sealed record DeleteAccountRequest([property: Required, StringLength(128)] string CurrentPassword);` at the bottom of the file. → `Delete_me_rejects_an_empty_password` passes on the `[Required]` rejection.
+- [x] 7. Implement `private static async Task<IResult> DeleteAccountAsync(DeleteAccountRequest request, ClaimsPrincipal principal, HttpContext httpContext, UserManager<ApplicationUser> userManager, GonesDbContext database, RefreshSessionService sessionService, IClock clock, OperationalMetrics metrics, CancellationToken cancellationToken)`. → signature matches the ticket plus the injected `RefreshCookie cookie` (T2 landed, so `RefreshCookie` is no longer static).
+- [x] 8. In it: resolve `userId = CurrentUserId(principal)`, load the user via `userManager.FindByIdAsync`, throw `AuthenticationFailedException` when null. → 401 when the principal resolves to no account.
+- [x] 9. Re-authenticate: `if (string.IsNullOrEmpty(request.CurrentPassword) || !await userManager.CheckPasswordAsync(user, request.CurrentPassword)) { metrics.RecordAuthRejection("account_delete"); throw Validation(nameof(request.CurrentPassword), "Current password is required and must be valid to delete the account."); }` → `Delete_me_rejects_a_wrong_password` and `Delete_me_rejects_an_empty_password` pass, both 400 naming `currentPassword`.
+- [x] 10. Guard the last admin: when `user.GlobalRole == "Admin"` and `await database.Users.CountAsync(u => u.GlobalRole == "Admin", cancellationToken) <= 1`, throw `new ResourceConflictException("lastAdmin")` (add that constructor overload if the type has none). → `ResourceConflictException` gained an optional `code` parameter; `Delete_me_refuses_the_last_admin` passes with 409 and `code = lastAdmin`.
+- [x] 11. Open a transaction. Write the audit row first: `database.AuditRecords.Add(NewAudit(null, "account.deleted", "user", userId.ToString("D"), "{\"outcome\":\"hardDeleted\"}", clock));` then `await database.SaveChangesAsync(cancellationToken);`. → `Delete_me_nulls_the_audit_actor` finds exactly one `account.deleted` row with a null actor.
+- [x] 12. Null the historical actor: `await database.AuditRecords.Where(record => record.ActorId == userId).ExecuteUpdateAsync(setters => setters.SetProperty(record => record.ActorId, (Guid?)null), cancellationToken);` → required narrowing the `audit_records` append-only trigger to tolerate this single change (see Assumptions); `SELECT count(*) WHERE actor_id = user` is 0 afterwards.
+- [x] 13. Revoke sessions: `await sessionService.RevokeAllAsync(userId, cancellationToken);` → called before the transaction is opened, because `RevokeAllAsync` opens its own and EF rejects a nested one.
+- [x] 14. Delete the graph: remove the `UserProfile` row, then `var result = await userManager.DeleteAsync(user); if (!result.Succeeded) throw IdentityValidation(result.Errors);`. Commit the transaction. → extracted as `DeleteUserGraphAsync`; `Delete_me_removes_the_account` finds 0 profiles, 0 sessions, 0 action tokens, 0 external identities and no user row.
+- [x] 15. Clear the cookie (`RefreshCookie.Clear(httpContext.Response)` or `cookie.Clear(...)` per the file's current shape), record `metrics.RecordAuthSuccess("account_delete")`, return `Results.NoContent()`. → `Delete_me_clears_the_refresh_cookie` asserts `gones_refresh=;` with an expiry in the past.
+- [x] 16. Added `backend/tests/Gones.IntegrationTests/AccountDeletionTests.cs` with all seven Test plan rows, plus an eighth guarding the narrowed append-only rule. → red first (7/7 failed, route absent), then `Failed: 0, Passed: 8`.
+- [x] 17. Run `npm run backend:test`. → `Gones.UnitTests 194/194`, `Gones.ArchitectureTests 14/14`, `Gones.IntegrationTests 298/301` with the 3 stragglers failing in `InitializeAsync` on this host's rootless-Docker `bind: address already in use`; re-running `TournamentSchedulerTests|LocalIdentityApiTests` gives `Failed: 0, Passed: 39`.
+- [x] 18. Ran `npm run api:generate` against the running Postgres. → `backend/openapi/gones.json` +53 lines and `src/app/api/generated/gones-api.ts` +73 lines, both purely additive.
+- [x] 19. Added `deleteAccount(currentPassword: string): Promise<void>` to `src/app/auth/auth.service.ts`. → NSwag did generate `meDELETE(body: DeleteAccountRequest)`; the service calls it then `clear()`.
+- [x] 20. Added `src/app/auth/auth.service.delete-account.test.ts`. → 2 passing: one asserts a single `meDELETE({ currentPassword })` call plus null `profile()`, cleared token and a fired session-scope reset; one asserts a rejected password leaves the session intact.
+- [x] 21. Ran all five. → `Test Files 56 passed (56) / Tests 364 passed (364)`; `All files pass linting.`; typecheck silent; `Application bundle generation complete.`; `api:check` exits 0 with no drift.
 
 ## Outputs
 
@@ -97,9 +97,9 @@ Run: `npm run backend:test`
 
 ## Validation
 
-- [ ] `npm run backend:test` passes
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run api:check` reports no drift
-- [ ] manual check: `curl -X DELETE -H "Authorization: Bearer …" -d '{"currentPassword":"…"}' http://127.0.0.1:5080/api/users/me` returns 204 and a second `GET /api/users/me` returns 401
-- [ ] app functional — no UI calls the endpoint yet; every other auth flow unchanged
-- [ ] commit msg draft: `feat(account): allow a user to permanently delete their own account`
+- [x] `npm run backend:test` passes → 194 + 14 + 298/301 (3 Testcontainers port-bind flakes, green on re-run: `Failed: 0, Passed: 39`)
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass → 364/364 vitest, lint clean, tsc clean, bundle built
+- [x] `npm run api:check` reports no drift → exit 0, no output
+- [x] manual check against the rebuilt docker stack (API running as `gones_app`): wrong password → `400` with `errors.CurrentPassword`; correct password → `204` and `Set-Cookie: gones_refresh=; expires=Thu, 01 Jan 1970 00:00:00 GMT`; the follow-up `GET /api/users/me` with the same token → `401`; in the database `users=0`, `profiles=0`, `audit_rows=4 non_null_actor=0`, `account_deleted_actor_is_null=true`
+- [x] app functional — no UI calls the endpoint yet. `cypress/e2e/auth-session-persistence.cy.js` 2/2 and `cypress/e2e/auth-profile.cy.js` 5/6, the single failure being the known port-8081 provider-linking case that only passes under the release Docker profile.
+- [x] commit msg draft: `feat(account): allow a user to permanently delete their own account`

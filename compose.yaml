@@ -53,6 +53,9 @@ services:
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO gones_app;
         GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO gones_app;
         REVOKE UPDATE, DELETE, TRUNCATE ON audit_records FROM gones_app;
+        -- Revoking the table privilege also drops every column privilege, so the one column a hard
+        -- account deletion has to clear is granted back afterwards.
+        GRANT UPDATE (actor_id) ON audit_records TO gones_app;
         SQL
     depends_on:
       migrator: { condition: service_completed_successfully }
