@@ -2,6 +2,7 @@ import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
 import { buildRoutes, calendarRoutes } from './app.routes';
 import { organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
+import { firstVisitHomeGuard, markVisitedGuard } from './shared/first-visit.guard';
 
 const noCapabilities = { authV1: false, adminV1: false };
 const allCapabilities = { authV1: true, adminV1: true };
@@ -118,6 +119,21 @@ describe('route exposure per capability flag', () => {
   it('keeps the organizer edit path guarded by organizerGuard', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'organizer/tournaments/:id/edit');
     expect(route?.canActivate).toContain(organizerGuard);
+  });
+
+  it('redirects the home route to /about on the first visit', () => {
+    const homeRoute = buildRoutes(noCapabilities).find((route) => route.path === '');
+    expect(homeRoute?.canActivate).toContain(firstVisitHomeGuard);
+  });
+
+  it('marks the visit when landing on /about', () => {
+    const aboutRoute = buildRoutes(noCapabilities).find((route) => route.path === 'about');
+    expect(aboutRoute?.canActivate).toContain(markVisitedGuard);
+  });
+
+  it('leaves deep links like /calendar untouched by the first-visit guard', () => {
+    const calendarRoute = buildRoutes(noCapabilities).find((route) => route.path === 'calendar');
+    expect(calendarRoute?.canActivate).toBeUndefined();
   });
 
   it('exposes the tournament request review route without auth capability', () => {

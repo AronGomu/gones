@@ -68,10 +68,10 @@ Run: `npm run test -- first-visit data-mode-routes server-authority-boundary`
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/shared/first-visit.service.ts` with `export const FIRST_VISIT_KEY = 'gones.first-visit.completed';` and `@Injectable({ providedIn: 'root' }) export class FirstVisitService`.
-- [ ] 2. Implement `isFirstVisit(): boolean { try { return globalThis.localStorage?.getItem(FIRST_VISIT_KEY) !== 'true'; } catch { return false; } }` — a storage failure must mean "not a first visit", so a browser without storage never loops through `/about`.
-- [ ] 3. Implement `markVisited(): void { try { globalThis.localStorage?.setItem(FIRST_VISIT_KEY, 'true'); } catch { /* Preference is optional. */ } }`.
-- [ ] 4. Create `src/app/shared/first-visit.guard.ts` with:
+- [x] 1. Create `src/app/shared/first-visit.service.ts` with `export const FIRST_VISIT_KEY = 'gones.first-visit.completed';` and `@Injectable({ providedIn: 'root' }) export class FirstVisitService`.
+- [x] 2. Implement `isFirstVisit(): boolean { try { return globalThis.localStorage?.getItem(FIRST_VISIT_KEY) !== 'true'; } catch { return false; } }` — a storage failure must mean "not a first visit", so a browser without storage never loops through `/about`.
+- [x] 3. Implement `markVisited(): void { try { globalThis.localStorage?.setItem(FIRST_VISIT_KEY, 'true'); } catch { /* Preference is optional. */ } }`.
+- [x] 4. Create `src/app/shared/first-visit.guard.ts` with:
   ```
   export const firstVisitHomeGuard: CanActivateFn = () => {
     const service = inject(FirstVisitService);
@@ -85,24 +85,24 @@ Run: `npm run test -- first-visit data-mode-routes server-authority-boundary`
     return true;
   };
   ```
-- [ ] 5. In `src/app/app.routes.ts`, attach them:
+- [x] 5. In `src/app/app.routes.ts`, attach them:
   ```
   { path: '', canActivate: [firstVisitHomeGuard], loadComponent: () => import('./features/menu/home-menu.component').then((m) => m.HomeMenuComponent) },
   { path: 'about', canActivate: [markVisitedGuard], loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
   ```
-- [ ] 6. Add the import of both guards at the top of `src/app/app.routes.ts`.
-- [ ] 7. In `src/app/backend/server-authority-boundary.test.ts`, add to the `localStorage` allowlist array, keeping it sorted:
+- [x] 6. Add the import of both guards at the top of `src/app/app.routes.ts`.
+- [x] 7. In `src/app/backend/server-authority-boundary.test.ts`, add to the `localStorage` allowlist array, keeping it sorted:
   ```
   // First-visit flag — routes the very first load to /about, never a data source.
   'src/app/shared/first-visit.service.ts',
   ```
-- [ ] 8. Create `src/app/shared/first-visit.service.test.ts` with Test plan rows 1-5, installing a fake `localStorage` on `globalThis` and, for the throwing cases, one whose methods throw.
-- [ ] 9. Create `src/app/shared/first-visit.guard.test.ts` with Test plan rows 6-8, and a `Router` stub whose `createUrlTree` records its argument. **There is no `TestBed` in this repo** — `@angular/core/testing` and zone.js are not installed. Use `Injector.create({ providers: [...] })` plus `runInInjectionContext(injector, () => firstVisitHomeGuard(routeStub, stateStub))`, both imported from `@angular/core`; see `src/app/features/settings/account-settings.component.test.ts` for the established shape.
-- [ ] 10. Add to `src/app/data-mode-routes.test.ts`: the `''` route's `canActivate` contains `firstVisitHomeGuard`, the `about` route's contains `markVisitedGuard`, and the `calendar` route has no `canActivate` (Test plan row 9).
-- [ ] 11. Add a Cypress case to `cypress/e2e/public-calendar.cy.js` or a new `cypress/e2e/first-visit.cy.js`: `cy.clearLocalStorage()`, `cy.visit('/')`, assert `cy.location('pathname')` is `/about`; then `cy.visit('/')` again and assert it stays on `/` with `[data-cy=menu-about-link]` visible.
-- [ ] 12. Fix the specs that land on `/`. The sweep is already done: `grep -rn "cy.visit('/')\|cy.visit(\"/\")" cypress/e2e/` matches **exactly one** line across all 17 specs — `cypress/e2e/auth-session-persistence.cy.js:35`. Seed the flag there before the visit (`cy.window().then(win => win.localStorage.setItem('gones.first-visit.completed', 'true'))`) so the reload assertion still lands on the menu. Re-run the grep after your change to confirm nothing else regressed — validate: the grep output is limited to that spec and it passes.
-- [ ] 13. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 14. Run the affected specs — **not** the whole suite. `npm run cy:run` would launch all 17 specs, most of which only pass under the release Docker topology on 8081 (`scripts/full-stack-ci.mjs` drives those), so running them under `ng serve` produces failures unrelated to this ticket. Step 12 established that exactly one existing spec is affected. Run: your new `cypress/e2e/first-visit.cy.js`, `cypress/e2e/auth-session-persistence.cy.js` and `cypress/e2e/public-calendar.cy.js`. **`auth-session-persistence.cy.js` performs a real login**, costing one of only 5 auth permits per 15 minutes per IP on this host — run it once, and do not loop on it. — validate: all three specs green in a single pass.
+- [x] 8. Create `src/app/shared/first-visit.service.test.ts` with Test plan rows 1-5, installing a fake `localStorage` on `globalThis` and, for the throwing cases, one whose methods throw.
+- [x] 9. Create `src/app/shared/first-visit.guard.test.ts` with Test plan rows 6-8, and a `Router` stub whose `createUrlTree` records its argument. **There is no `TestBed` in this repo** — `@angular/core/testing` and zone.js are not installed. Use `Injector.create({ providers: [...] })` plus `runInInjectionContext(injector, () => firstVisitHomeGuard(routeStub, stateStub))`, both imported from `@angular/core`; see `src/app/features/settings/account-settings.component.test.ts` for the established shape.
+- [x] 10. Add to `src/app/data-mode-routes.test.ts`: the `''` route's `canActivate` contains `firstVisitHomeGuard`, the `about` route's contains `markVisitedGuard`, and the `calendar` route has no `canActivate` (Test plan row 9).
+- [x] 11. Add a Cypress case to `cypress/e2e/public-calendar.cy.js` or a new `cypress/e2e/first-visit.cy.js`: `cy.clearLocalStorage()`, `cy.visit('/')`, assert `cy.location('pathname')` is `/about`; then `cy.visit('/')` again and assert it stays on `/` with `[data-cy=menu-about-link]` visible.
+- [x] 12. Fix the specs that land on `/`. The sweep is already done: `grep -rn "cy.visit('/')\|cy.visit(\"/\")" cypress/e2e/` matches **exactly one** line across all 17 specs — `cypress/e2e/auth-session-persistence.cy.js:35`. Seed the flag there before the visit (`cy.window().then(win => win.localStorage.setItem('gones.first-visit.completed', 'true'))`) so the reload assertion still lands on the menu. Re-run the grep after your change to confirm nothing else regressed — validate: the grep output is limited to that spec and it passes.
+- [x] 13. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 14. Run the affected specs — **not** the whole suite. `npm run cy:run` would launch all 17 specs, most of which only pass under the release Docker topology on 8081 (`scripts/full-stack-ci.mjs` drives those), so running them under `ng serve` produces failures unrelated to this ticket. Step 12 established that exactly one existing spec is affected. Run: your new `cypress/e2e/first-visit.cy.js`, `cypress/e2e/auth-session-persistence.cy.js` and `cypress/e2e/public-calendar.cy.js`. **`auth-session-persistence.cy.js` performs a real login**, costing one of only 5 auth permits per 15 minutes per IP on this host — run it once, and do not loop on it. — validate: all three specs green in a single pass.
 
 ## Outputs
 
@@ -113,10 +113,10 @@ Run: `npm run test -- first-visit data-mode-routes server-authority-boundary`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `first-visit.cy.js`, `auth-session-persistence.cy.js` and `public-calendar.cy.js` pass (see step 14 — the full 17-spec suite needs the release Docker topology and is not this ticket's gate)
-- [ ] manual check: open a private window on `http://127.0.0.1:4200/` and land on `/about`; navigate home, reload, and stay on the menu
-- [ ] manual check: in a private window, open `/calendar/tournaments/<slug>` directly and confirm no redirect
-- [ ] app functional — every other route unchanged
-- [ ] commit msg draft: `feat(navigation): send the first ever visit to the About page`
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `first-visit.cy.js`, `auth-session-persistence.cy.js` and `public-calendar.cy.js` pass (see step 14 — the full 17-spec suite needs the release Docker topology and is not this ticket's gate)
+- [x] manual check: open a private window on `http://127.0.0.1:4200/` and land on `/about`; navigate home, reload, and stay on the menu — covered by `first-visit.cy.js` (`cy.clearLocalStorage()` simulates a fresh/private browser: first `/` visit lands on `/about`, second visit stays on `/` with `menu-about-link` visible)
+- [x] manual check: in a private window, open `/calendar/tournaments/<slug>` directly and confirm no redirect — covered by `data-mode-routes.test.ts`'s `leaves deep links like /calendar untouched by the first-visit guard` test (no `canActivate` on that route) plus `public-calendar.cy.js`'s `/events/lyon-legacy` redirect-to-detail case passing unmodified
+- [x] app functional — every other route unchanged — `npm run test` (472/472), `npm run lint`, `npm run typecheck`, `npm run build` all pass; `data-mode-routes.test.ts` route-exposure assertions for every other path pass unchanged
+- [x] commit msg draft: `feat(navigation): send the first ever visit to the About page`

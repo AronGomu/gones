@@ -2,7 +2,13 @@ const email = 'cypress.user@example.test';
 const password = 'Cypress-pass-123!';
 
 function login() {
-  cy.visit('/login');
+  // The submit redirects to '/'; seed the first-visit flag so that redirect isn't intercepted
+  // by firstVisitHomeGuard (T21) — this test asserts on the plain home route, not /about.
+  cy.visit('/login', {
+    onBeforeLoad(win) {
+      win.localStorage.setItem('gones.first-visit.completed', 'true');
+    }
+  });
   cy.get('[data-cy="auth-email"]').type(email);
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
@@ -32,7 +38,11 @@ describe('session persistence across a reload', () => {
   });
 
   it('leaves anonymous browsing untouched when there is no session cookie', () => {
-    cy.visit('/');
+    cy.visit('/', {
+      onBeforeLoad(win) {
+        win.localStorage.setItem('gones.first-visit.completed', 'true');
+      }
+    });
     cy.get('[data-cy="login-link"]').should('not.exist');
     cy.get('[data-cy="menu-login-card"]').should('be.visible');
     cy.get('[data-cy="profile-link"]').should('not.exist');

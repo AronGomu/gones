@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { DataAuthorityCapabilityFlags } from './config/data-authority';
 import { adminGuard, organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
+import { firstVisitHomeGuard, markVisitedGuard } from './shared/first-visit.guard';
 
 const authRoutes: Routes = [
   { path: 'login', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'login' } },
@@ -56,8 +57,8 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
   const adminV1 = features.adminV1;
 
   return [
-    { path: '', loadComponent: () => import('./features/menu/home-menu.component').then((m) => m.HomeMenuComponent) },
-    { path: 'about', loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
+    { path: '', canActivate: [firstVisitHomeGuard], loadComponent: () => import('./features/menu/home-menu.component').then((m) => m.HomeMenuComponent) },
+    { path: 'about', canActivate: [markVisitedGuard], loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
     ...calendarRoutes(),
     { path: 'tournament-requests/:token', loadComponent: () => import('./features/calendar/tournament-request.component').then((m) => m.TournamentRequestComponent) },
     { path: 'leagues', loadComponent: () => import('./features/leagues/league-list.component').then((m) => m.LeagueListComponent) },

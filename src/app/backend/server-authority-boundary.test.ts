@@ -89,7 +89,9 @@ describe('canonical browser store containment', () => {
       // Public read cache (C39) — anonymous GET responses only, never a mutation source.
       'src/app/features/calendar/public-tournament.service.ts',
       // Language + local Deck Archetype preference.
-      'src/app/shared/deck-archetype-settings.service.ts'
+      'src/app/shared/deck-archetype-settings.service.ts',
+      // First-visit flag — routes the very first load to /about, never a data source.
+      'src/app/shared/first-visit.service.ts'
     ]);
   });
 });
