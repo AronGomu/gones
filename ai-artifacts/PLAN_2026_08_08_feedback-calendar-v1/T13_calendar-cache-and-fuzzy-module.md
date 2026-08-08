@@ -35,7 +35,32 @@
   'src/app/shared/deck-archetype-settings.service.ts'
   ```
   A new `localStorage` caller **fails this test** until it is added to that array with a justifying comment. This is mandatory, not optional.
-- `src/app/api/generated/gones-api.ts` — after T12 it exposes a client method for `GET /api/tournaments/all` returning `PublicTournamentCatalogResponse { items, generatedAt, count, truncated }`. Check the generated method name after regeneration; NSwag derives it from the route segment (`all`).
+- `src/app/api/generated/gones-api.ts:134` — T12 has landed and the generated method is
+  `all(from: string | undefined): Observable<PublicTournamentCatalogResponse>`, with
+  `PublicTournamentCatalogResponse { items, generatedAt, count, truncated }`. Note this ticket's steps 11-12 use a
+  raw `HttpClient.get` with `observe: 'response'` instead, because the generated method does not surface response
+  headers and this service needs `ETag` / `If-None-Match`. That is deliberate — follow the steps, and do not
+  "simplify" onto the generated method.
+- **Test harness — there is no Angular `TestBed` and no zone.js in this repo.** `@angular/common/http/testing` is not
+  installed, so `HttpTestingController` and `provideHttpClientTesting()` are unavailable. Copy the working pattern in
+  `src/app/features/calendar/public-tournament.service.test.ts:1-25`:
+  ```ts
+  import '@angular/compiler';
+  import { HttpClient } from '@angular/common/http';
+  import { Injector } from '@angular/core';
+  import { of, throwError } from 'rxjs';
+  import { vi } from 'vitest';
+
+  const get = vi.fn().mockReturnValueOnce(of(new HttpResponse({ body, status: 200, headers: new HttpHeaders({ ETag: '"v1"' }) })));
+  const injector = Injector.create({ providers: [
+    AllTournamentsCacheService,
+    { provide: HttpClient, useValue: { get } },
+    { provide: API_BASE_URL, useValue: 'https://api.example' }
+  ] });
+  ```
+  That same file also shows how to fake a `304` and an offline failure (`throwError(() => new HttpErrorResponse({ status: 304 }))` / `status: 0`) — reuse it rather than inventing a new stub shape.
+- `src/app/backend/server-authority-boundary.test.ts:86-90` — the allowlist array to extend is here; the three
+  existing entries are on lines 88-90.
 - `src/app/api/api-boundary.ts` — `joinApiUrl(base, path)`; `API_BASE_URL` injection token comes from `src/app/api/generated/gones-api.ts`.
 - `fuse.js` v7 API: `new Fuse(items, { keys, threshold, ignoreLocation, getFn })`, `fuse.search(term)` returning `{ item }[]`.
 - **From Depends (T12):** `GET /api/tournaments/all?from=<ISO date>` is anonymous, returns the full catalog with a strong `ETag` and `Cache-Control: public, max-age=3600`, and answers `304` to a matching `If-None-Match`.
@@ -89,7 +114,7 @@ Run: `npm run test -- tournament-fuzzy-search all-tournaments-cache server-autho
 - [ ] 12. On failure with a usable cache, return the cached items with `stale: true`; with no cache, rethrow.
 - [ ] 13. Wrap every `localStorage` access in `try { … } catch { }` — a private-mode browser must degrade to "always fetch", never crash.
 - [ ] 14. Add `readonly cachedAt = signal<string | undefined>(undefined);` and `readonly truncated = signal(false);` on the service so T14's page can show both without re-reading storage.
-- [ ] 15. Create `src/app/features/calendar/all-tournaments-cache.service.test.ts` with Test plan rows 14-19, using `HttpTestingController` and a fake `localStorage` stub installed on `globalThis`.
+- [ ] 15. Create `src/app/features/calendar/all-tournaments-cache.service.test.ts` with Test plan rows 14-19, using a fake `localStorage` stub installed on `globalThis`. **Do not use `HttpTestingController` or `TestBed`** — see the Inputs note; build the service with `Injector.create` and a `vi.fn()` `HttpClient` stub instead, and assert request counts through `get.mock.calls.length`.
 - [ ] 16. In `src/app/backend/server-authority-boundary.test.ts`, add to the allowlist array, keeping the array sorted and each entry commented:
   ```
   // Public read cache (C39) — the 24h full-catalog snapshot, anonymous GET responses only.
