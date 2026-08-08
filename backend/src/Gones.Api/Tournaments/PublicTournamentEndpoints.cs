@@ -9,6 +9,7 @@ using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Net.Http.Headers;
 using NodaTime;
 using NodaTime.Text;
@@ -19,13 +20,21 @@ internal static partial class PublicTournamentEndpoints
 {
     public const int DefaultPageSize = 20;
     public const int MaximumPageSize = 100;
+    public const int MaximumCatalogSize = 5000;
     private const string PublicCacheControl = "public, max-age=60";
+    private const string CatalogCacheControl = "public, max-age=3600";
 
     public static void MapPublicTournamentEndpoints(this WebApplication app)
     {
         app.MapGet("/api/tournaments", ListAsync)
             .AllowAnonymous()
             .Produces<PublicTournamentListResponse>()
+            .Produces(StatusCodes.Status304NotModified)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        app.MapGet("/api/tournaments/all", ListAllAsync)
+            .AllowAnonymous()
+            .Produces<PublicTournamentCatalogResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -73,11 +82,7 @@ internal static partial class PublicTournamentEndpoints
         var organizationId = ParseOrganization(organization);
         var statuses = ParseStatuses(status);
         var showPast = past == true || includePast == true;
-        var query =
-            from tournament in database.ScheduledTournaments.AsNoTracking()
-            join org in database.Organizations.AsNoTracking() on tournament.OrganizationId equals org.Id
-            where tournament.DeletedAt == null && org.DeletedAt == null
-            select new { Tournament = tournament, Organization = org };
+        var query = VisibleTournaments(database);
 
         if (fromDate is not null) query = query.Where(item => item.Tournament.VenueStartDate >= fromDate);
         if (toDate is not null) query = query.Where(item => item.Tournament.VenueStartDate <= toDate);
@@ -147,6 +152,88 @@ internal static partial class PublicTournamentEndpoints
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
         return Results.Ok(new PublicTournamentListResponse(items, pageNumber, size, total));
     }
+
+    private static async Task<IResult> ListAllAsync(
+        string? from,
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        IClock clock,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var ceiling = configuration.GetValue("Gones:Calendar:MaximumCatalogSize", MaximumCatalogSize);
+        var fromDate = ParseDateQuery(from, nameof(from));
+        var query = VisibleTournaments(database);
+        query = fromDate is not null
+            ? query.Where(item => item.Tournament.VenueStartDate >= fromDate)
+            : query.Where(item => item.Tournament.EndsAtUtc >= clock.GetCurrentInstant());
+
+        var stamp = await query
+            .Select(item => new { item.Tournament.UpdatedAt, item.Tournament.Id })
+            .OrderByDescending(x => x.UpdatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var total = await query.CountAsync(cancellationToken);
+        var etag = "\"" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{total}:{stamp?.UpdatedAt}:{stamp?.Id}"))).ToLowerInvariant()[..32] + "\"";
+
+        if (IsNotModified(request, etag))
+        {
+            response.Headers.ETag = etag;
+            response.Headers.CacheControl = CatalogCacheControl;
+            return Results.StatusCode(StatusCodes.Status304NotModified);
+        }
+
+        var pageRows = await query
+            .OrderBy(item => item.Tournament.StartsAtUtc)
+            .ThenBy(item => item.Tournament.Id)
+            .Take(ceiling)
+            .Select(item => new TournamentRow(
+                item.Tournament.Id,
+                item.Tournament.Title,
+                item.Tournament.Slug,
+                item.Tournament.Summary,
+                item.Tournament.StreetAddress,
+                item.Tournament.PostalCode,
+                item.Tournament.City,
+                item.Tournament.Country,
+                item.Tournament.TimeZoneId,
+                item.Tournament.VenueStartDate,
+                item.Tournament.VenueStartTime,
+                item.Tournament.VenueEndDate,
+                item.Tournament.VenueEndTime,
+                item.Tournament.StartsAtUtc,
+                item.Tournament.EndsAtUtc,
+                item.Tournament.Capacity,
+                item.Tournament.Status,
+                item.Tournament.UpdatedAt,
+                item.Tournament.Version,
+                item.Organization.Id,
+                item.Organization.Name,
+                item.Organization.Description,
+                item.Organization.Website,
+                item.Organization.ContactEmail))
+            .ToListAsync(cancellationToken);
+
+        var formatsByTournament = await LoadFormatsAsync(database, pageRows.Select(row => row.Id).ToArray(), cancellationToken);
+        var items = pageRows.Select(row => ToSummary(row, formatsByTournament)).ToArray();
+        var truncated = total > ceiling;
+        if (truncated)
+        {
+            loggerFactory.CreateLogger("Gones.Api.Tournaments")
+                .LogWarning("Public tournament catalog truncated: total={Total} ceiling={Ceiling}", total, ceiling);
+        }
+
+        response.Headers.ETag = etag;
+        response.Headers.CacheControl = CatalogCacheControl;
+        return Results.Ok(new PublicTournamentCatalogResponse(items, clock.GetCurrentInstant(), items.Length, truncated));
+    }
+
+    private static IQueryable<TournamentQueryItem> VisibleTournaments(GonesDbContext database) =>
+        from tournament in database.ScheduledTournaments.AsNoTracking()
+        join org in database.Organizations.AsNoTracking() on tournament.OrganizationId equals org.Id
+        where tournament.DeletedAt == null && org.DeletedAt == null
+        select new TournamentQueryItem { Tournament = tournament, Organization = org };
 
     private static async Task<IResult> GetAsync(
         string slug,
@@ -417,7 +504,19 @@ internal static partial class PublicTournamentEndpoints
         string? OrganizationWebsite,
         string? OrganizationContactEmail,
         string? BodyHtml = null);
+
+    private sealed class TournamentQueryItem
+    {
+        public required ScheduledTournament Tournament { get; init; }
+        public required Organization Organization { get; init; }
+    }
 }
+
+internal sealed record PublicTournamentCatalogResponse(
+    IReadOnlyList<PublicTournamentSummaryResponse> Items,
+    Instant GeneratedAt,
+    int Count,
+    bool Truncated);
 
 internal sealed record PublicTournamentListResponse(
     IReadOnlyList<PublicTournamentSummaryResponse> Items,

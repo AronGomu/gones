@@ -73,6 +73,11 @@
           "gate": "dotnet",
           "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
           "detail": "public read API"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AllTournamentsEndpointTests.cs",
+          "detail": "bulk present-and-future catalog with ETag caching"
         }
       ]
     },

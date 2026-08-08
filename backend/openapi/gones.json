@@ -1077,6 +1077,47 @@
         }
       }
     },
+    "/api/tournaments/all": {
+      "get": {
+        "tags": [
+          "PublicTournamentEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTournamentCatalogResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tournaments/{slug}": {
       "get": {
         "tags": [
@@ -10131,6 +10172,37 @@
           },
           "createdAt": {
             "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
+      "PublicTournamentCatalogResponse": {
+        "required": [
+          "items",
+          "generatedAt",
+          "count",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicTournamentSummaryResponse"
+            }
+          },
+          "generatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "count": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         }
       },
