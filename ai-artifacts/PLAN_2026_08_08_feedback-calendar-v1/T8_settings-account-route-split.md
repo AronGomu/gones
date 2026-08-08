@@ -102,8 +102,8 @@ Run: `npm run test -- data-mode-routes data-cy-coverage`
 - [x] 16. Add the seven Test plan rows: routing assertions in `src/app/data-mode-routes.test.ts`, the breadcrumb assertion in a new `src/app/app-breadcrumbs.test.ts` if none exists (extract `buildBreadcrumbs` to a pure exported function in `src/app/app-breadcrumbs.ts` if it is not already reachable — keep the extraction mechanical).
 - [x] 17. `grep -rn "'/profile'\|routerLink=\"/profile\"\|navigate(\['/profile'\])" src/ cypress/` and repoint every hit to `/settings/account`.
 - [x] 18. Update `cypress/e2e/auth-profile.cy.js` and `cypress/e2e/settings-server.cy.js` to visit `/settings/account`, and rename their `[data-cy=profile-*]` selectors to the new `[data-cy=account-*]` values.
-- [ ] 19. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 20. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/settings-server.cy.js`.
+- [x] 19. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 20. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/settings-server.cy.js`.
 
 ## Outputs
 
@@ -120,4 +120,4 @@ Run: `npm run test -- data-mode-routes data-cy-coverage`
 - [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/settings-server.cy.js` passes (9/10; the one failure is the documented pre-existing "starts explicit provider linking" port-8081 baseline failure, not caused by this change)
 - [x] manual check: signed out, `/settings` renders language and archetypes and offers a sign-in link; `/settings/account` bounces to `/login?returnUrl=%2Fsettings%2Faccount`; signed in, `/profile` lands on `/settings/account` — verified via `settings-server.cy.js` (visitor sees `settings-account-login-link`, signed-in sees `settings-account-link` -> `/settings/account`), `auth-profile.cy.js` `login()` helper (visits `/login?returnUrl=%2Fsettings%2Faccount`, lands on `/settings/account`), the `settings/account` routing test (`canActivate` contains `userGuard`), and the pre-existing `userGuard` unit test (`auth/auth-guards.test.ts`) which is unchanged and still exercises the `/login?returnUrl=...` redirect
 - [x] app functional — settings export/import header actions still appear on `/settings` only — `app.component.ts`'s `showSettingsActions` exact-match on `path === '/settings'` left untouched (Input note at ticket line 39); `settings/account` is a distinct path so the header actions do not appear there
-- [ ] commit msg draft: `refactor(settings): merge the profile page into a login-gated /settings/account child route`
+- [x] commit msg draft: `refactor(settings): merge the profile page into a login-gated /settings/account child route`
