@@ -76,12 +76,14 @@ flowchart TD
   T2 --> T3[T3: menubar + login return-url]
   T1 --> T5[T5: profile schema birthDate+location]
   T1 --> T6[T6: DELETE /api/users/me]
+  T6 --> T6b[T6b: refuse deletion when the account owns records]
   T1 --> T7[T7: remove sessions feature]
   T5 --> T8[T8: settings/account route split]
   T7 --> T8
-  T8 --> T9[T9: account form UX]
+  T8 --> T9b[T9b: link/unlink without reauthentication]
+  T9b --> T9[T9: account form UX]
   T9 --> T10[T10: geo selects]
-  T6 --> T11[T11: delete account UI]
+  T6b --> T11[T11: delete account UI]
   T8 --> T11
   T1 --> T12[T12: GET /api/tournaments/all]
   T12 --> T13[T13: calendar cache + fuzzy module]
@@ -116,11 +118,13 @@ flowchart TD
 | T4 | Login/register page layout | T1 | No kicker, spaced rows, brand logos, confirm password, centred verification banner | `PLAN_2026_08_08_feedback-calendar-v1/T4_auth-pages-layout.md` |
 | T5 | Profile schema: birth date + structured location | T1 | `birth_date` and `location_country/region/city` live end to end | `PLAN_2026_08_08_feedback-calendar-v1/T5_profile-schema-birthdate-location.md` |
 | T6 | `DELETE /api/users/me` hard delete | T1 | Password-confirmed self-deletion removes the account | `PLAN_2026_08_08_feedback-calendar-v1/T6_delete-account-endpoint.md` |
+| T6b | Refuse self-deletion when the account owns records *(parent-added)* | T6 | `409 account_owns_records` instead of a raw FK 500 | `PLAN_2026_08_08_feedback-calendar-v1/T6b_delete-account-restricted-rows.md` |
 | T7 | Remove sessions feature | T1 | Sessions page and its two endpoints are gone | `PLAN_2026_08_08_feedback-calendar-v1/T7_remove-sessions-feature.md` |
 | T8 | Settings/account route split | T5, T7 | `/settings` public, `/settings/account` gated and merged; `/profile` redirects | `PLAN_2026_08_08_feedback-calendar-v1/T8_settings-account-route-split.md` |
-| T9 | Account form UX | T8 | Pseudo label, dirty-gated warning-coloured submit with confirm dialog, saves persist | `PLAN_2026_08_08_feedback-calendar-v1/T9_account-form-ux.md` |
+| T9b | Link/unlink without reauthentication *(parent-added)* | T8 | Provider linking needs only a valid access token; request bodies and password field gone | `PLAN_2026_08_08_feedback-calendar-v1/T9b_drop-link-reauthentication.md` |
+| T9 | Account form UX | T8, T9b | Pseudo label, dirty-gated warning-coloured submit with confirm dialog, saves persist | `PLAN_2026_08_08_feedback-calendar-v1/T9_account-form-ux.md` |
 | T10 | Geo dataset + country/region/city selects | T9 | Location picked from bundled selects | `PLAN_2026_08_08_feedback-calendar-v1/T10_geo-dataset-and-selects.md` |
-| T11 | Delete account UI | T6, T8 | "Supprimer Compte" with password dialog works from the account page | `PLAN_2026_08_08_feedback-calendar-v1/T11_delete-account-ui.md` |
+| T11 | Delete account UI | T6b, T8 | "Supprimer Compte" with password dialog works from the account page | `PLAN_2026_08_08_feedback-calendar-v1/T11_delete-account-ui.md` |
 | T12 | `GET /api/tournaments/all` | T1 | One request returns every present/future published tournament | `PLAN_2026_08_08_feedback-calendar-v1/T12_all-tournaments-endpoint.md` |
 | T13 | Calendar cache + fuzzy search module | T12 | 24h-cached full dataset and a tested fuzzy filter function | `PLAN_2026_08_08_feedback-calendar-v1/T13_calendar-cache-and-fuzzy-module.md` |
 | T14 | Calendar page rewire | T13 | Single full-width fuzzy input, Synchroniser button, calendar always rendered | `PLAN_2026_08_08_feedback-calendar-v1/T14_calendar-page-rewire.md` |
@@ -144,9 +148,11 @@ flowchart TD
 - [T4: Login/register page layout](PLAN_2026_08_08_feedback-calendar-v1/T4_auth-pages-layout.md) — depends: T1
 - [T5: Profile schema: birth date + structured location](PLAN_2026_08_08_feedback-calendar-v1/T5_profile-schema-birthdate-location.md) — depends: T1
 - [T6: `DELETE /api/users/me` hard delete](PLAN_2026_08_08_feedback-calendar-v1/T6_delete-account-endpoint.md) — depends: T1
+- [T6b: Refuse self-deletion when the account owns records](PLAN_2026_08_08_feedback-calendar-v1/T6b_delete-account-restricted-rows.md) — depends: T6 *(parent-added)*
 - [T7: Remove sessions feature](PLAN_2026_08_08_feedback-calendar-v1/T7_remove-sessions-feature.md) — depends: T1
 - [T8: Settings/account route split](PLAN_2026_08_08_feedback-calendar-v1/T8_settings-account-route-split.md) — depends: T5, T7
-- [T9: Account form UX](PLAN_2026_08_08_feedback-calendar-v1/T9_account-form-ux.md) — depends: T8
+- [T9b: Link/unlink without reauthentication](PLAN_2026_08_08_feedback-calendar-v1/T9b_drop-link-reauthentication.md) — depends: T8 *(parent-added)*
+- [T9: Account form UX](PLAN_2026_08_08_feedback-calendar-v1/T9_account-form-ux.md) — depends: T8, T9b
 - [T10: Geo dataset + country/region/city selects](PLAN_2026_08_08_feedback-calendar-v1/T10_geo-dataset-and-selects.md) — depends: T9
 - [T11: Delete account UI](PLAN_2026_08_08_feedback-calendar-v1/T11_delete-account-ui.md) — depends: T6, T8
 - [T12: `GET /api/tournaments/all`](PLAN_2026_08_08_feedback-calendar-v1/T12_all-tournaments-endpoint.md) — depends: T1

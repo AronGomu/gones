@@ -1,7 +1,7 @@
 # T9: Account form UX
 
 **Plan:** `./ai-artifacts/PLAN_2026_08_08_feedback-calendar-v1.md`
-**Depends:** T8
+**Depends:** T8, T9b
 **Commit outcome:** The account form labels the username "Pseudo", keeps its submit disabled until something actually changes, renames it "Modifier Information du Compte" in warning colours behind a confirmation dialog, persists the change, folds the email section into the details card, and links OAuth providers without asking for a password.
 
 ## Context (self-contained)
@@ -38,8 +38,15 @@
 - `src/app/auth/auth.service.ts:123-128` — `startLink(provider, currentPassword?)` and `unlink(provider, currentPassword?)`; both parameters are optional, so dropping the argument needs no service change.
 - `src/app/shared/dialogs.ts` — `ConfirmDialogComponent`, opened as `firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title, message, confirmLabel, destructive } }).afterClosed())`, resolving to a boolean. Example call site: `src/app/app.component.ts:313-324`.
 - `src/styles.css:115-117` — `.home-primary-action` (blood red) and `.danger-ghost-action` (hot blood). There is **no** warning-coloured button class yet; add one.
-- `src/styles.css` — the palette exposes `--rust` and the `.warning` text class; use a rust/amber value for the new button.
+- `src/styles.css` — the `:root` block (lines 3-18) does **not** define `--rust`. The only rust token is
+  `--rust-plate: oklch(30% 0.06 38)`, a dark plate fill that is unreadable as a filled-button background. Use the
+  literal `oklch(72% 0.16 62)` for the new class and do **not** introduce a `--rust` fallback that never resolves.
 - `src/app/i18n/messages.ts` — `const en = {` line 5, `const fr` line 1000; every key in BOTH.
+- **From Depends (T9b):** `AuthService.startLink(provider: string)` and `AuthService.unlink(provider: string)` now take
+  **one** argument each — the optional `currentPassword` parameter is gone from the service, the generated client and
+  both API endpoints. The `linkPassword` field and its label/input row are already deleted from
+  `account-settings.component.ts`. Step 18 is therefore a verification, not an edit. The i18n key
+  `profile.currentPasswordOptional` may now be unused; leave it for the T25 sweep.
 - **From Depends (T8):** the component lives at `src/app/features/settings/account-settings.component.ts`, its route is `settings/account` behind `userGuard`, its selectors are prefixed `account-`, and it is already out of `PENDING_DATA_CY_RETROFIT`. The profile fields are the T5 shape: `locationCountry`, `locationRegion`, `locationCity`, `birthDate` (ISO `yyyy-MM-dd`), `isBirthDatePublic`.
 
 ## TDD
@@ -89,7 +96,7 @@ Run: `npm run test -- account-form account-settings`
   then run the existing `this.run(this.pending, …)` body with `accountFormPayload(this.form(), this.currentPassword)`, and on success `this.baseline.set(accountFormValues(this.auth.profile()));` and `this.currentPassword = '';`.
 - [ ] 16. Add `account.confirmTitle` (en `'Update your account?'`, fr `'Modifier votre compte ?'`) and `account.confirmMessage` (en `'Your account information will be updated.'`, fr `'Les informations de votre compte seront mises à jour.'`) to BOTH maps.
 - [ ] 17. Move the email card's contents into the details card: delete the second `<mat-card class="panel auth-card">` wrapper and re-insert its `<h2>` and form as a `<section class="account-email-section" data-cy="account-email-section">` at the bottom of the first card, after the privacy fieldset and before the submit button.
-- [ ] 18. In the "Comptes liés" card, delete the `link-password` label and input and the `linkPassword` field; change `link(provider)` to `await this.auth.startLink(provider)` and `unlink(provider)` to `await this.auth.unlink(provider)`.
+- [ ] 18. Verify the "Comptes liés" card carries no password: **T9b already deleted** the `link-password` label and input, the `linkPassword` field and the second argument of `startLink` / `unlink` (the backend stopped accepting `currentPassword` there, so the parameter no longer exists on `AuthService`). Re-apply only what is actually missing — validate: `grep -n "linkPassword\|link-password" src/app/features/settings/account-settings.component.ts` returns nothing and `this.auth.startLink(provider)` / `this.auth.unlink(provider)` are called with one argument.
 - [ ] 19. Delete the `profile.linkHelp` sentence if it mentions the password, and replace with `account.linkHelp` (en `'Link a provider to sign in with it. You can unlink at any time.'`, fr `'Liez un fournisseur pour vous connecter avec. Vous pouvez délier à tout moment.'`) in BOTH maps.
 - [ ] 20. Re-check that every element in the file still has a unique `data-cy`, including the new email section and the conditional password row.
 - [ ] 21. Create `src/app/features/settings/account-settings.component.test.ts` with the last three Test plan rows, stubbing `AuthService` and `MatDialog`.
