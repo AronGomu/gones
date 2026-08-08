@@ -376,31 +376,111 @@ internal static class LocalIdentityEndpoints
             throw new ResourceConflictException("lastAdmin");
         }
 
+        // Pre-flight before the first mutation. RevokeAllAsync below commits its own transaction, so
+        // a refusal discovered any later would already have signed the caller out of every device.
+        var blocking = await FindBlockingRelationsAsync(database, userId, cancellationToken);
+        if (blocking.Count > 0)
+        {
+            metrics.RecordAuthRejection("account_delete");
+            throw new AccountOwnsRecordsException(blocking);
+        }
+
         // Revoked outside the deletion transaction: RevokeAllAsync opens its own, and a revoked
         // session is the safe outcome even if the deletion below fails.
         await sessionService.RevokeAllAsync(userId, cancellationToken);
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        // Written before the delete and with a null actor: the row has to outlive the account it
-        // describes, and entity_id is the only place the account id belongs afterwards.
-        database.AuditRecords.Add(NewAudit(null, "account.deleted", "user", userId.ToString("D"), "{\"outcome\":\"hardDeleted\"}", clock));
-        await database.SaveChangesAsync(cancellationToken);
-        await database.AuditRecords
-            .Where(record => record.ActorId == userId)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(record => record.ActorId, (Guid?)null), cancellationToken);
-        // ExecuteUpdate leaves the tracker holding audit rows that still claim this actor; deleting
-        // the account would make EF null them a second time, which the append-only guard rejects.
-        database.ChangeTracker.Clear();
-        await DeleteUserGraphAsync(database, userId, cancellationToken);
-        var target = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
-        var result = await userManager.DeleteAsync(target);
-        if (!result.Succeeded) throw IdentityValidation(result.Errors);
-        await transaction.CommitAsync(cancellationToken);
+        try
+        {
+            // Repeated inside the transaction so a row created since the check above cannot slip
+            // through between the pre-flight and the delete.
+            blocking = await FindBlockingRelationsAsync(database, userId, cancellationToken);
+            if (blocking.Count > 0)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                metrics.RecordAuthRejection("account_delete");
+                throw new AccountOwnsRecordsException(blocking);
+            }
+
+            // Written before the delete and with a null actor: the row has to outlive the account it
+            // describes, and entity_id is the only place the account id belongs afterwards.
+            database.AuditRecords.Add(NewAudit(null, "account.deleted", "user", userId.ToString("D"), "{\"outcome\":\"hardDeleted\"}", clock));
+            await database.SaveChangesAsync(cancellationToken);
+            await database.AuditRecords
+                .Where(record => record.ActorId == userId)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(record => record.ActorId, (Guid?)null), cancellationToken);
+            // ExecuteUpdate leaves the tracker holding audit rows that still claim this actor; deleting
+            // the account would make EF null them a second time, which the append-only guard rejects.
+            database.ChangeTracker.Clear();
+            await DeleteUserGraphAsync(database, userId, cancellationToken);
+            var target = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
+            var result = await userManager.DeleteAsync(target);
+            if (!result.Succeeded) throw IdentityValidation(result.Errors);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception exception) when (IsForeignKeyViolation(exception))
+        {
+            // Last line of defence for a relation the list below has not caught up with: the caller
+            // gets the same deterministic conflict rather than an unhandled 500.
+            await transaction.RollbackAsync(cancellationToken);
+            database.ChangeTracker.Clear();
+            metrics.RecordAuthRejection("account_delete");
+            throw new AccountOwnsRecordsException(await FindBlockingRelationsAsync(database, userId, cancellationToken));
+        }
 
         cookie.Clear(httpContext.Response);
         metrics.RecordAuthSuccess("account_delete");
         return Results.NoContent();
     }
+
+    /// <summary>
+    /// Every column that still points at <c>asp_net_users</c> with <c>DeleteBehavior.Restrict</c>,
+    /// paired with the rows that would survive <see cref="DeleteUserGraphAsync"/> and therefore break
+    /// the delete. Adding a future restricting column is one line here.
+    /// </summary>
+    private static readonly (string Relation, Func<GonesDbContext, Guid, IQueryable<Guid>> Rows)[] BlockingRelations =
+    [
+        ("scheduled_tournaments.created_by_user_id",
+            (database, userId) => database.ScheduledTournaments.Where(item => item.CreatedByUserId == userId).Select(item => item.Id)),
+        ("scheduled_tournaments.deleted_by_user_id",
+            (database, userId) => database.ScheduledTournaments.Where(item => item.DeletedByUserId == userId).Select(item => item.Id)),
+        // The account's own attempts go with it, so only an attempt filed for somebody else blocks.
+        ("tournament_registration_attempts.registered_by_user_id",
+            (database, userId) => database.TournamentRegistrationAttempts.Where(item => item.UserId != userId && item.RegisteredByUserId == userId).Select(item => item.Id)),
+        ("tournament_registration_attempts.status_changed_by_user_id",
+            (database, userId) => database.TournamentRegistrationAttempts.Where(item => item.UserId != userId && item.StatusChangedByUserId == userId).Select(item => item.Id)),
+        ("tournament_lifecycle_events.actor_user_id",
+            (database, userId) => database.TournamentLifecycleEvents.Where(item => item.ActorUserId == userId).Select(item => item.Id)),
+        // Blocks aimed at the account cascade away with it; only blocks it handed out survive.
+        ("organization_blocked_users.blocked_by_user_id",
+            (database, userId) => database.OrganizationBlockedUsers.Where(item => item.UserId != userId && item.BlockedByUserId == userId).Select(item => item.Id)),
+        ("organization_blocked_users.unblocked_by_user_id",
+            (database, userId) => database.OrganizationBlockedUsers.Where(item => item.UserId != userId && item.UnblockedByUserId == userId).Select(item => item.Id))
+    ];
+
+    /// <summary>
+    /// Names every restricting relation the account still owns. Empty means the hard delete can run.
+    /// </summary>
+    private static async Task<IReadOnlyList<string>> FindBlockingRelationsAsync(
+        GonesDbContext database,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var blocking = new List<string>();
+        foreach (var (relation, rows) in BlockingRelations)
+        {
+            if (await rows(database, userId).AnyAsync(cancellationToken)) blocking.Add(relation);
+        }
+
+        return blocking;
+    }
+
+    private static bool IsForeignKeyViolation(Exception exception) => exception switch
+    {
+        Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.ForeignKeyViolation } => true,
+        { InnerException: { } inner } => IsForeignKeyViolation(inner),
+        _ => false
+    };
 
     /// <summary>
     /// Removes what the account owns but what no cascade rule covers, in dependency order. Everything

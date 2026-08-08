@@ -30,6 +30,16 @@ public sealed class ConcurrencyConflictException(string? currentETag = null, lon
 /// </summary>
 public sealed class ResourceConflictException(string code = "conflict")
     : ApiException(code, "Request conflicts with current resource state.", StatusCodes.Status409Conflict);
+/// <summary>
+/// The account still owns rows behind a restricting foreign key, so it cannot be hard-deleted.
+/// <see cref="Relations"/> names the offending <c>table.column</c> pairs so a caller can say what
+/// has to be handed over first instead of guessing.
+/// </summary>
+public sealed class AccountOwnsRecordsException(IReadOnlyList<string> relations)
+    : ApiException("account_owns_records", "Account still owns records that must be reassigned or removed first.", StatusCodes.Status409Conflict)
+{
+    public IReadOnlyList<string> Relations { get; } = relations;
+}
 public sealed class RequestBodyTooLargeException() : ApiException("request_too_large", "Request body exceeds the allowed size.", StatusCodes.Status413PayloadTooLarge);
 public sealed class InvalidOAuthStateException() : ApiException("invalid_oauth_state", "OAuth request is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class InvalidOAuthTicketException() : ApiException("invalid_oauth_ticket", "OAuth completion link is invalid or expired.", StatusCodes.Status400BadRequest);

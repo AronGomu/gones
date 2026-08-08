@@ -35,6 +35,36 @@ The owner chose the hard delete.
   without an administrator is unrecoverable.
 - The refresh cookie is cleared and every session revoked in the same request.
 
+### Restricted relations
+
+The decision above only accounted for what a plain `User` owns. Seven columns still reference
+`asp_net_users` with `ON DELETE RESTRICT`, and every one of them records an act rather than a
+belonging — who created a tournament, who moved a registration, who blocked a member:
+
+- `scheduled_tournaments.created_by_user_id`
+- `scheduled_tournaments.deleted_by_user_id`
+- `tournament_registration_attempts.registered_by_user_id`
+- `tournament_registration_attempts.status_changed_by_user_id`
+- `tournament_lifecycle_events.actor_user_id`
+- `organization_blocked_users.blocked_by_user_id`
+- `organization_blocked_users.unblocked_by_user_id`
+
+**An account that still owns any of these rows cannot be deleted.** A pre-flight query runs after the
+password check and again inside the delete transaction; a hit returns `409` with the code
+`account_owns_records` and a `relations` array naming the offending `table.column` pairs. The refusal
+happens before the first write, so the caller keeps their sessions, their cookie and every row they
+own. Should a foreign-key violation still reach the database, it is translated into the same `409`
+rather than an unhandled `500`.
+
+Rows the deletion removes anyway do not count as blocking: an account's own registration attempts go
+with it, so registering *yourself* for a tournament never blocks your deletion. Only an act performed
+on someone else's row does.
+
+**Reassignment is deliberately deferred.** Handing organizer-authored records to another account, or
+anonymizing them, decides a data-retention policy for tournament history — a product decision that
+belongs in its own ADR, not in the deletion endpoint. Until then the refusal is explicit and the
+account survives it intact.
+
 ## Consequences
 
 - **Irreversible, and the UI says so.** The confirmation dialog states that the deletion is permanent

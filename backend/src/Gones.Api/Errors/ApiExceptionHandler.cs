@@ -40,6 +40,9 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             problem.Extensions["currentETag"] = stale.CurrentETag;
             if (stale.CurrentDocumentVersion is { } currentDocumentVersion) problem.Extensions["currentDocumentVersion"] = currentDocumentVersion;
         }
+        // The blocking relation names are the whole point of this conflict: without them the caller
+        // only learns that the deletion was refused, not what still has to be handed over.
+        if (exception is AccountOwnsRecordsException owned) problem.Extensions["relations"] = owned.Relations;
 
         context.Response.StatusCode = status;
         await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: cancellationToken);
