@@ -46,6 +46,16 @@
 - Public app origin: configuration key surfaced as `GONES_PUBLIC_APP_ORIGIN` (see `scripts/generate-api.mjs`); resolve it the same way `AccountLifecycleService` does when building verification links.
 - `backend/src/Gones.Api/Security/AuthorizationPolicies.cs` — `User`, `Organizer`, `Admin`; `AuthRateLimiting.IpPolicy` and the account rate-limit filter `AuthAccountRateLimitFilter` live in `backend/src/Gones.Api/Security/`.
 - `backend/src/Gones.Infrastructure/Persistence/GonesDbContext.cs` — add the two `DbSet`s here; `SnakeCaseModelBuilderExtensions` names the columns.
+- Verified present: `npm run notification:smoke` → `node scripts/smoke-notification.mjs` (`package.json:21`), and the
+  migrations live in `backend/src/Gones.Infrastructure/Persistence/Migrations/` alongside
+  `GonesDbContextModelSnapshot.cs`. The two most recent are `20260808161811_SplitProfileLocationAndBirthDate` and
+  `20260808164636_AllowAccountHardDelete` — follow their file shape.
+- **Known host flake, do not chase it.** A full `npm run backend:test` intermittently fails 1-3 random test *classes*
+  at `InitializeAsync` with `Docker.DotNet.DockerApiException … RootlessKit PortManager.AddPort(): bind: address
+  already in use`. Never an assertion failure, different classes each run, predates this plan. Re-run the affected
+  class alone (`dotnet test … --filter <ClassName>`) to confirm; a class that passes in isolation is green.
+- Postgres and the API are already running under docker compose (`gones-postgres-1`, `gones-api-1` on 5080). Do not
+  tear them down or recreate them — step 27 needs Postgres, and it is already up.
 - **From Depends (T15):** `/tournaments/new` exists client-side for every verified account, and the submit button for non-organizers is disabled with `data-cy="tournament-submit-pending-approval"`. Nothing in the frontend calls this ticket's endpoints yet.
 
 ## TDD
@@ -81,7 +91,15 @@ Run: `npm run backend:test`
 - [ ] 2. Create `backend/src/Gones.Domain/Calendar/TournamentProposal.cs` with `public sealed class TournamentProposal` (private ctor, `Create(...)` factory, `Approve(Guid decidedBy, Instant now)`, `Reject(Guid? decidedBy, string reason, Instant now)`), the `TournamentProposalStatus` enum, and `public sealed class TournamentProposalRecipient`.
 - [ ] 3. Add `public DbSet<TournamentProposal> TournamentProposals` and `public DbSet<TournamentProposalRecipient> TournamentProposalRecipients` to `GonesDbContext`.
 - [ ] 4. Create `backend/src/Gones.Infrastructure/Persistence/TournamentProposalConfigurations.cs`: `PayloadJson` as `jsonb`, `TokenHash` `char(64)` with a unique index, `Status` stored as a string, cascade from proposal to recipients, and an index on `(Status, ExpiresAt)`.
-- [ ] 5. Run `dotnet ef migrations add AddTournamentProposals --project backend/src/Gones.Infrastructure --startup-project backend/src/Gones.Api --output-dir Persistence/Migrations` and review the SQL.
+- [ ] 5. Run the migration with **both** project flags pointing at `Gones.Infrastructure` — `Gones.Api` does not reference `Microsoft.EntityFrameworkCore.Design`, so the `--startup-project backend/src/Gones.Api` form fails on this repo (verified: the package reference exists only in `backend/src/Gones.Infrastructure/Gones.Infrastructure.csproj:12`). Export `DOTNET_ROOT` first:
+  ```
+  export DOTNET_ROOT="$(dirname "$(readlink -f "$(which dotnet)")")"
+  dotnet ef migrations add AddTournamentProposals \
+    --project backend/src/Gones.Infrastructure \
+    --startup-project backend/src/Gones.Infrastructure \
+    --output-dir Persistence/Migrations
+  ```
+  Review the generated SQL before moving on — validate: the new file appears in `backend/src/Gones.Infrastructure/Persistence/Migrations/` and `GonesDbContextModelSnapshot.cs` is updated.
 - [ ] 6. Create `backend/src/Gones.Api/Tournaments/TournamentProposalEndpoints.cs` with `public static void MapTournamentProposalEndpoints(this WebApplication app)` and register it from `Program.cs` next to the other `Map*Endpoints` calls.
 - [ ] 7. Register `var proposals = app.MapGroup("/api/tournament-proposals").RequireAuthorization(AuthorizationPolicies.User);` then `proposals.MapGet("/approvers", ListApproversAsync).Produces<IReadOnlyList<ProposalApproverResponse>>();`
 - [ ] 8. Implement `ListApproversAsync` querying `database.Users.AsNoTracking().Where(user => user.GlobalRole == "Organizer" || user.GlobalRole == "Admin")` joined to `UserProfiles` for the username, ordered by username, projected to `internal sealed record ProposalApproverResponse(Guid Id, string Username, string GlobalRole);`.
