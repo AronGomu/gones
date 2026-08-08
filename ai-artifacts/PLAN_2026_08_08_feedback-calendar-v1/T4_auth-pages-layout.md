@@ -63,10 +63,10 @@ Run: `npm run test -- password-confirmation data-cy-coverage`
 
 ## Impl steps
 
-- [ ] 1. Create `src/assets/brand/google.svg` — the official four-colour Google "G" mark, 24×24 viewBox, no external references.
-- [ ] 2. Create `src/assets/brand/facebook.svg` — the official Facebook "f" mark on the `#1877F2` round field, 24×24 viewBox.
-- [ ] 3. Delete lines 24-27 of `src/app/auth/auth-entry.component.ts` and replace with `<header data-cy="auth-header"><h1 [id]="titleId" data-cy="auth-title">{{ title() }}</h1></header>`.
-- [ ] 4. Replace both `oauth-grid` blocks (login and register) with, per provider:
+- [x] 1. Create `src/assets/brand/google.svg` — the official four-colour Google "G" mark, 24×24 viewBox, no external references.
+- [x] 2. Create `src/assets/brand/facebook.svg` — the official Facebook "f" mark on the `#1877F2` round field, 24×24 viewBox.
+- [x] 3. Delete lines 24-27 of `src/app/auth/auth-entry.component.ts` and replace with `<header data-cy="auth-header"><h1 [id]="titleId" data-cy="auth-title">{{ title() }}</h1></header>`.
+- [x] 4. Replace both `oauth-grid` blocks (login and register) with, per provider:
   ```
   <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-google" (click)="startOAuth('google')">
     <img class="oauth-button__logo" src="assets/brand/google.svg" alt="" aria-hidden="true" data-cy="oauth-google-logo">
@@ -74,31 +74,31 @@ Run: `npm run test -- password-confirmation data-cy-coverage`
   </button>
   ```
   and the Facebook twin with `facebook` in every identifier. Give the register-mode grid `data-cy="register-oauth-grid"` and the login-mode grid `data-cy="login-oauth-grid"`.
-- [ ] 5. Add to `src/styles.css`: `.oauth-button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; }` and `.oauth-button__logo { width: 20px; height: 20px; flex: 0 0 20px; }`.
-- [ ] 6. Add to `src/styles.css`: `.auth-card .auth-form + .oauth-grid { margin-top: 1.5rem; }` and `.auth-card .oauth-grid + .auth-links, .auth-card .oauth-grid + a { margin-top: 1.5rem; display: inline-block; }`.
-- [ ] 7. Fix the banner: change `src/styles.css:1049` from `margin: 0;` to `margin: .75rem auto 0;` inside `.verification-banner`.
-- [ ] 8. Create `src/app/auth/password-confirmation.ts` exporting `export function passwordConfirmationErrors(password: string, confirmation: string, message = 'Les mots de passe ne correspondent pas.'): Record<string, string[]> { return password === confirmation && confirmation.length > 0 ? {} : { confirmPassword: [message] }; }`.
-- [ ] 9. Create `src/app/auth/password-confirmation.test.ts` with the first three Test plan rows.
-- [ ] 10. In `src/app/auth/auth-entry.component.ts`, add the field `confirmPassword = '';` next to `password = '';`.
-- [ ] 11. In register mode, immediately after the password input and its `gones-field-errors`, insert:
+- [x] 5. Add to `src/styles.css`: `.oauth-button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; }` and `.oauth-button__logo { width: 20px; height: 20px; flex: 0 0 20px; }`.
+- [x] 6. Add to `src/styles.css`: `.auth-card .auth-form + .oauth-grid { margin-top: 1.5rem; }` and `.auth-card .oauth-grid + .auth-links, .auth-card .oauth-grid + a { margin-top: 1.5rem; display: inline-block; }`.
+- [x] 7. Fix the banner: change `src/styles.css:1049` from `margin: 0;` to `margin: .75rem auto 0;` inside `.verification-banner`.
+- [x] 8. Create `src/app/auth/password-confirmation.ts` exporting `export function passwordConfirmationErrors(password: string, confirmation: string, message = 'Les mots de passe ne correspondent pas.'): Record<string, string[]> { return password === confirmation && confirmation.length > 0 ? {} : { confirmPassword: [message] }; }`.
+- [x] 9. Create `src/app/auth/password-confirmation.test.ts` with the first three Test plan rows.
+- [x] 10. In `src/app/auth/auth-entry.component.ts`, add the field `confirmPassword = '';` next to `password = '';`.
+- [x] 11. In register mode, immediately after the password input and its `gones-field-errors`, insert:
   ```
   <label for="register-confirm-password" data-cy="register-confirm-password-label">{{ i18n.t('auth.confirmPassword') }}</label>
   <input id="register-confirm-password" data-cy="auth-confirm-password" type="password" autocomplete="new-password" minlength="12" required [(ngModel)]="confirmPassword" name="confirmPassword" [attr.aria-invalid]="hasError('confirmPassword')" [attr.aria-describedby]="hasError('confirmPassword') ? 'register-confirm-password-error' : null">
   <gones-field-errors id="register-confirm-password-error" data-cy="register-confirm-password-error" [messages]="fieldErrors()['confirmPassword']" />
   ```
-- [ ] 12. Add keys `auth.confirmPassword` (en `'Confirm password'`, fr `'Confirmer le mot de passe'`) and `auth.passwordMismatch` (en `'Passwords do not match.'`, fr `'Les mots de passe ne correspondent pas.'`) to BOTH maps in `src/app/i18n/messages.ts`.
-- [ ] 13. In `submitRegister()`, insert before `await this.run(...)`:
+- [x] 12. Add keys `auth.confirmPassword` (en `'Confirm password'`, fr `'Confirmer le mot de passe'`) and `auth.passwordMismatch` (en `'Passwords do not match.'`, fr `'Les mots de passe ne correspondent pas.'`) to BOTH maps in `src/app/i18n/messages.ts`.
+- [x] 13. In `submitRegister()`, insert before `await this.run(...)`:
   ```
   const mismatch = passwordConfirmationErrors(this.password, this.confirmPassword, this.i18n.t('auth.passwordMismatch'));
   if (Object.keys(mismatch).length) { this.fieldErrors.set(mismatch); this.error.set(this.i18n.t('auth.passwordMismatch')); return; }
   ```
-- [ ] 14. Add a unique `data-cy` to every remaining element of `auth-entry.component.ts`'s template — the `section`, `mat-card`, `mat-card-content`, every `form`, `fieldset`, `label`, `input`, `select`, `button`, `nav`, `a`, `p` — prefixed by mode (`login-`, `register-`, `complete-`, `verify-`, `forgot-`, `reset-`) so values stay unique across the whole file.
-- [ ] 15. Add a unique `data-cy` to every remaining element of `src/app/app.component.ts`'s template if T3 has not already run; otherwise leave it alone.
-- [ ] 16. Delete `src/app/auth/auth-entry.component.ts` (and `src/app/app.component.ts` if still listed) from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] 17. Add `src/app/auth/auth-entry.register.test.ts` for the fourth Test plan row, stubbing `AuthService` with a `register` spy.
-- [ ] 18. Update `cypress/e2e/auth-profile.cy.js`: wherever it fills `[data-cy=auth-password]` during registration, also fill `[data-cy=auth-confirm-password]` with the same value.
-- [ ] 19. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 20. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/accessibility.cy.js`.
+- [x] 14. Add a unique `data-cy` to every remaining element of `auth-entry.component.ts`'s template — the `section`, `mat-card`, `mat-card-content`, every `form`, `fieldset`, `label`, `input`, `select`, `button`, `nav`, `a`, `p` — prefixed by mode (`login-`, `register-`, `complete-`, `verify-`, `forgot-`, `reset-`) so values stay unique across the whole file.
+- [x] 15. Add a unique `data-cy` to every remaining element of `src/app/app.component.ts`'s template if T3 has not already run; otherwise leave it alone.
+- [x] 16. Delete `src/app/auth/auth-entry.component.ts` (and `src/app/app.component.ts` if still listed) from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
+- [x] 17. Add `src/app/auth/auth-entry.register.test.ts` for the fourth Test plan row, stubbing `AuthService` with a `register` spy.
+- [x] 18. Update `cypress/e2e/auth-profile.cy.js`: wherever it fills `[data-cy=auth-password]` during registration, also fill `[data-cy=auth-confirm-password]` with the same value.
+- [x] 19. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 20. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/accessibility.cy.js`.
 
 ## Outputs
 
@@ -109,9 +109,9 @@ Run: `npm run test -- password-confirmation data-cy-coverage`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/accessibility.cy.js` passes
-- [ ] manual check: `/login` has no kicker, clear gaps between the three rows, coloured provider marks; `/register` rejects a mismatched confirmation; the unverified banner sits centred under the header
-- [ ] app functional — OAuth start still navigates to `/api/auth/oauth/{provider}/start`
-- [ ] commit msg draft: `feat(auth): drop the account kicker, space the action rows, add brand logos and a password confirmation`
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js,cypress/e2e/accessibility.cy.js` passes
+- [x] manual check: `/login` has no kicker, clear gaps between the three rows, coloured provider marks; `/register` rejects a mismatched confirmation; the unverified banner sits centred under the header
+- [x] app functional — OAuth start still navigates to `/api/auth/oauth/{provider}/start`
+- [x] commit msg draft: `feat(auth): drop the account kicker, space the action rows, add brand logos and a password confirmation`

@@ -23,6 +23,7 @@ describe('auth, profile, sessions', () => {
     cy.get('#register-first').type('Mobile');
     cy.get('#register-last').type('User');
     cy.get('[data-cy="auth-password"]').type(password, { log: false });
+    cy.get('[data-cy="auth-confirm-password"]').type(password, { log: false });
     cy.get('[data-cy="auth-submit"]').click();
     cy.location('pathname').should('eq', '/verify-email');
     cy.get('[data-cy="verify-email-address"]').should('have.value', unique);
@@ -44,6 +45,7 @@ describe('auth, profile, sessions', () => {
     cy.get('#register-first').type('Error');
     cy.get('#register-last').type('User');
     cy.get('[data-cy="auth-password"]').type(password, { log: false });
+    cy.get('[data-cy="auth-confirm-password"]').type(password, { log: false });
     cy.get('[data-cy="auth-submit"]').click();
     cy.get('#register-email').should('have.attr', 'aria-describedby', 'register-email-error').and('have.attr', 'aria-invalid', 'true');
     cy.get('#register-email-error').should('contain.text', 'Email is unavailable.');

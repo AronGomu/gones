@@ -1048,7 +1048,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .auth-toolbar-actions { display: inline-flex; align-items: center; gap: .35rem; }
 .toolbar-profile-link { color: var(--ash); text-decoration: underline; text-underline-offset: 3px; font-weight: 700; padding-inline: .35rem; min-height: 44px; display: inline-flex; align-items: center; }
 .toolbar-profile-link:hover, .toolbar-profile-link:focus-visible { color: var(--hot-blood); }
-.verification-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .75rem; margin: 0; }
+.verification-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .75rem; margin: .75rem auto 0; }
 .auth-shell { width: min(100%, 42rem); margin-inline: auto; }
 .auth-card { padding: clamp(1rem, 4vw, 2rem); }
 .auth-card mat-card-content { padding: 0; }
@@ -1072,6 +1072,10 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .auth-name-grid > div { display: grid; gap: .75rem; }
 .oauth-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .auth-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+.oauth-button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; }
+.oauth-button__logo { width: 20px; height: 20px; flex: 0 0 20px; }
+.auth-card .auth-form + .oauth-grid { margin-top: 1.5rem; }
+.auth-card .oauth-grid + .auth-links, .auth-card .oauth-grid + a { margin-top: 1.5rem; display: inline-block; }
 .field-error { margin: -.4rem 0 0; color: oklch(88% .13 55); font-size: .9rem; font-weight: 700; }
 .profile-page { width: min(100%, 52rem); margin-inline: auto; }
 .privacy-group { display: grid; gap: .7rem; margin: .5rem 0; padding: 1rem; border: 1px solid var(--soot); }

@@ -104,7 +104,6 @@ function toRepoRelative(path: string): string {
 }
 
 export const PENDING_DATA_CY_RETROFIT: string[] = [
-  'src/app/auth/auth-entry.component.ts',
   'src/app/auth/profile.component.ts',
   'src/app/auth/sessions.component.ts',
   'src/app/features/admin/admin-audit.component.ts',

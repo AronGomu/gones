@@ -10,81 +10,103 @@ import { AuthFieldErrors, fieldErrorsFromProblem } from './auth-errors';
 import { AuthService } from './auth.service';
 import { registrationDestination } from './registration-gate';
 import { LastVisitedUrlService, loginDestination } from './last-visited-url.service';
+import { passwordConfirmationErrors } from './password-confirmation';
 
-@Component({ selector: 'gones-field-errors', standalone: true, template: `@for (message of messages() ?? []; track message) { <p class="field-error" role="alert">{{ message }}</p> }` })
+@Component({
+  selector: 'gones-field-errors',
+  standalone: true,
+  template: `@for (message of messages() ?? []; track message) { <p class="field-error" role="alert" data-cy="field-error-message">{{ message }}</p> }`
+})
 export class FieldErrorsComponent { readonly messages = input<string[]>(); }
 
 @Component({
   standalone: true,
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, FieldErrorsComponent],
   template: `
-    <section class="auth-shell" [attr.aria-labelledby]="titleId">
-      <mat-card class="panel auth-card">
-        <mat-card-content class="stack">
-          <header>
-            <p class="kicker">{{ i18n.t('auth.account') }}</p>
-            <h1 [id]="titleId">{{ title() }}</h1>
+    <section class="auth-shell" data-cy="auth-shell" [attr.aria-labelledby]="titleId">
+      <mat-card class="panel auth-card" data-cy="auth-card">
+        <mat-card-content class="stack" data-cy="auth-card-content">
+          <header data-cy="auth-header">
+            <h1 [id]="titleId" data-cy="auth-title">{{ title() }}</h1>
           </header>
 
           @if (mode() === 'login') {
-            <form class="auth-form" (ngSubmit)="submitLogin()" novalidate>
-              <fieldset [disabled]="pending()">
-                <label for="auth-email">{{ i18n.t('auth.email') }}</label>
+            <form class="auth-form" data-cy="login-form" (ngSubmit)="submitLogin()" novalidate>
+              <fieldset [disabled]="pending()" data-cy="login-fieldset">
+                <label for="auth-email" data-cy="login-email-label">{{ i18n.t('auth.email') }}</label>
                 <input id="auth-email" data-cy="auth-email" type="email" autocomplete="email" required [(ngModel)]="email" name="email" [attr.aria-invalid]="hasError('email')" [attr.aria-describedby]="hasError('email') ? 'auth-email-error' : null">
-                <gones-field-errors id="auth-email-error" [messages]="fieldErrors()['email']" />
-                <label for="auth-password">{{ i18n.t('auth.password') }}</label>
+                <gones-field-errors id="auth-email-error" data-cy="login-email-error" [messages]="fieldErrors()['email']" />
+                <label for="auth-password" data-cy="login-password-label">{{ i18n.t('auth.password') }}</label>
                 <input id="auth-password" data-cy="auth-password" type="password" autocomplete="current-password" required [(ngModel)]="password" name="password" [attr.aria-invalid]="hasError('password')" [attr.aria-describedby]="hasError('password') ? 'auth-password-error' : null">
-                <gones-field-errors id="auth-password-error" [messages]="fieldErrors()['password']" />
+                <gones-field-errors id="auth-password-error" data-cy="login-password-error" [messages]="fieldErrors()['password']" />
                 <button mat-flat-button class="home-primary-action" data-cy="auth-submit" type="submit">{{ pending() ? i18n.t('auth.signingIn') : i18n.t('auth.signIn') }}</button>
               </fieldset>
             </form>
-            <div class="oauth-grid" [attr.aria-label]="i18n.t('auth.socialSignIn')">
-              <button mat-stroked-button type="button" data-cy="oauth-google" (click)="startOAuth('google')">{{ i18n.t('auth.continueGoogle') }}</button>
-              <button mat-stroked-button type="button" data-cy="oauth-facebook" (click)="startOAuth('facebook')">{{ i18n.t('auth.continueFacebook') }}</button>
+            <div class="oauth-grid" data-cy="login-oauth-grid" [attr.aria-label]="i18n.t('auth.socialSignIn')">
+              <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-google" (click)="startOAuth('google')">
+                <img class="oauth-button__logo" src="assets/brand/google.svg" alt="" aria-hidden="true" data-cy="oauth-google-logo">
+                <span data-cy="oauth-google-label">{{ i18n.t('auth.continueGoogle') }}</span>
+              </button>
+              <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-facebook" (click)="startOAuth('facebook')">
+                <img class="oauth-button__logo" src="assets/brand/facebook.svg" alt="" aria-hidden="true" data-cy="oauth-facebook-logo">
+                <span data-cy="oauth-facebook-label">{{ i18n.t('auth.continueFacebook') }}</span>
+              </button>
             </div>
-            <nav class="auth-links" [attr.aria-label]="i18n.t('auth.accountLinks')">
-              <a routerLink="/register">{{ i18n.t('auth.createAccount') }}</a>
-              <a routerLink="/forgot-password">{{ i18n.t('auth.forgotPassword') }}</a>
+            <nav class="auth-links" data-cy="login-links" [attr.aria-label]="i18n.t('auth.accountLinks')">
+              <a routerLink="/register" data-cy="login-register-link">{{ i18n.t('auth.createAccount') }}</a>
+              <a routerLink="/forgot-password" data-cy="login-forgot-link">{{ i18n.t('auth.forgotPassword') }}</a>
             </nav>
           } @else if (mode() === 'register') {
-            <form class="auth-form" (ngSubmit)="submitRegister()" novalidate>
-              <fieldset [disabled]="pending()">
-                <label for="register-email">{{ i18n.t('auth.email') }}</label>
-                <input id="register-email" data-cy="auth-email" type="email" autocomplete="email" required [(ngModel)]="email" name="email" [attr.aria-invalid]="hasError('email')" [attr.aria-describedby]="hasError('email') ? 'register-email-error' : null"><gones-field-errors id="register-email-error" [messages]="fieldErrors()['email']" />
-                <label for="register-username">{{ i18n.t('auth.username') }}</label>
-                <input id="register-username" data-cy="auth-username" autocomplete="username" required [(ngModel)]="username" name="username" [attr.aria-invalid]="hasError('username')" [attr.aria-describedby]="hasError('username') ? 'register-username-error' : null"><gones-field-errors id="register-username-error" [messages]="fieldErrors()['username']" />
-                <div class="auth-name-grid">
-                  <div><label for="register-first">{{ i18n.t('auth.firstName') }}</label><input id="register-first" required autocomplete="given-name" [(ngModel)]="firstName" name="firstName" [attr.aria-invalid]="hasError('firstName')" [attr.aria-describedby]="hasError('firstName') ? 'register-first-error' : null"><gones-field-errors id="register-first-error" [messages]="fieldErrors()['firstName']" /></div>
-                  <div><label for="register-last">{{ i18n.t('auth.lastName') }}</label><input id="register-last" required autocomplete="family-name" [(ngModel)]="lastName" name="lastName" [attr.aria-invalid]="hasError('lastName')" [attr.aria-describedby]="hasError('lastName') ? 'register-last-error' : null"><gones-field-errors id="register-last-error" [messages]="fieldErrors()['lastName']" /></div>
+            <form class="auth-form" data-cy="register-form" (ngSubmit)="submitRegister()" novalidate>
+              <fieldset [disabled]="pending()" data-cy="register-fieldset">
+                <label for="register-email" data-cy="register-email-label">{{ i18n.t('auth.email') }}</label>
+                <input id="register-email" [attr.data-cy]="'auth-email'" type="email" autocomplete="email" required [(ngModel)]="email" name="email" [attr.aria-invalid]="hasError('email')" [attr.aria-describedby]="hasError('email') ? 'register-email-error' : null"><gones-field-errors id="register-email-error" data-cy="register-email-error" [messages]="fieldErrors()['email']" />
+                <label for="register-username" data-cy="register-username-label">{{ i18n.t('auth.username') }}</label>
+                <input id="register-username" data-cy="auth-username" autocomplete="username" required [(ngModel)]="username" name="username" [attr.aria-invalid]="hasError('username')" [attr.aria-describedby]="hasError('username') ? 'register-username-error' : null"><gones-field-errors id="register-username-error" data-cy="register-username-error" [messages]="fieldErrors()['username']" />
+                <div class="auth-name-grid" data-cy="register-name-grid">
+                  <div data-cy="register-first-wrap"><label for="register-first" data-cy="register-first-label">{{ i18n.t('auth.firstName') }}</label><input id="register-first" data-cy="register-first" required autocomplete="given-name" [(ngModel)]="firstName" name="firstName" [attr.aria-invalid]="hasError('firstName')" [attr.aria-describedby]="hasError('firstName') ? 'register-first-error' : null"><gones-field-errors id="register-first-error" data-cy="register-first-error" [messages]="fieldErrors()['firstName']" /></div>
+                  <div data-cy="register-last-wrap"><label for="register-last" data-cy="register-last-label">{{ i18n.t('auth.lastName') }}</label><input id="register-last" data-cy="register-last" required autocomplete="family-name" [(ngModel)]="lastName" name="lastName" [attr.aria-invalid]="hasError('lastName')" [attr.aria-describedby]="hasError('lastName') ? 'register-last-error' : null"><gones-field-errors id="register-last-error" data-cy="register-last-error" [messages]="fieldErrors()['lastName']" /></div>
                 </div>
-                <label for="register-password">{{ i18n.t('auth.password') }}</label>
-                <input id="register-password" data-cy="auth-password" type="password" autocomplete="new-password" minlength="12" required [(ngModel)]="password" name="password" [attr.aria-invalid]="hasError('password')" [attr.aria-describedby]="hasError('password') ? 'register-password-error' : null"><gones-field-errors id="register-password-error" [messages]="fieldErrors()['password']" />
-                <button mat-flat-button class="home-primary-action" data-cy="auth-submit" type="submit">{{ pending() ? i18n.t('auth.creatingAccount') : i18n.t('auth.createAccount') }}</button>
+                <label for="register-password" data-cy="register-password-label">{{ i18n.t('auth.password') }}</label>
+                <input id="register-password" [attr.data-cy]="'auth-password'" type="password" autocomplete="new-password" minlength="12" required [(ngModel)]="password" name="password" [attr.aria-invalid]="hasError('password')" [attr.aria-describedby]="hasError('password') ? 'register-password-error' : null"><gones-field-errors id="register-password-error" data-cy="register-password-error" [messages]="fieldErrors()['password']" />
+                <label for="register-confirm-password" data-cy="register-confirm-password-label">{{ i18n.t('auth.confirmPassword') }}</label>
+                <input id="register-confirm-password" data-cy="auth-confirm-password" type="password" autocomplete="new-password" minlength="12" required [(ngModel)]="confirmPassword" name="confirmPassword" [attr.aria-invalid]="hasError('confirmPassword')" [attr.aria-describedby]="hasError('confirmPassword') ? 'register-confirm-password-error' : null">
+                <gones-field-errors id="register-confirm-password-error" data-cy="register-confirm-password-error" [messages]="fieldErrors()['confirmPassword']" />
+                <button mat-flat-button class="home-primary-action" [attr.data-cy]="'auth-submit'" type="submit">{{ pending() ? i18n.t('auth.creatingAccount') : i18n.t('auth.createAccount') }}</button>
               </fieldset>
             </form>
-            <div class="oauth-grid"><button mat-stroked-button type="button" (click)="startOAuth('google')">{{ i18n.t('auth.continueGoogle') }}</button><button mat-stroked-button type="button" (click)="startOAuth('facebook')">{{ i18n.t('auth.continueFacebook') }}</button></div>
-            <a routerLink="/login">{{ i18n.t('auth.haveAccount') }}</a>
+            <div class="oauth-grid" data-cy="register-oauth-grid">
+              <button mat-stroked-button class="oauth-button" type="button" data-cy="register-oauth-google" (click)="startOAuth('google')">
+                <img class="oauth-button__logo" src="assets/brand/google.svg" alt="" aria-hidden="true" data-cy="register-oauth-google-logo">
+                <span data-cy="register-oauth-google-label">{{ i18n.t('auth.continueGoogle') }}</span>
+              </button>
+              <button mat-stroked-button class="oauth-button" type="button" data-cy="register-oauth-facebook" (click)="startOAuth('facebook')">
+                <img class="oauth-button__logo" src="assets/brand/facebook.svg" alt="" aria-hidden="true" data-cy="register-oauth-facebook-logo">
+                <span data-cy="register-oauth-facebook-label">{{ i18n.t('auth.continueFacebook') }}</span>
+              </button>
+            </div>
+            <a routerLink="/login" data-cy="register-login-link">{{ i18n.t('auth.haveAccount') }}</a>
           } @else if (mode() === 'complete-profile') {
-            <p class="muted">{{ i18n.t('auth.completeProfileHelp') }}</p>
-            <form class="auth-form" (ngSubmit)="submitCompleteProfile()" novalidate><fieldset [disabled]="pending()">
-              <label for="complete-email">{{ i18n.t('auth.email') }}</label><input id="complete-email" type="email" required [(ngModel)]="email" name="email" [attr.aria-invalid]="hasError('email')" [attr.aria-describedby]="hasError('email') ? 'complete-email-error' : null"><gones-field-errors id="complete-email-error" [messages]="fieldErrors()['email']" />
-              <label for="complete-username">{{ i18n.t('auth.username') }}</label><input id="complete-username" required [(ngModel)]="username" name="username" [attr.aria-invalid]="hasError('username')" [attr.aria-describedby]="hasError('username') ? 'complete-username-error' : null"><gones-field-errors id="complete-username-error" [messages]="fieldErrors()['username']" />
-              <div class="auth-name-grid"><div><label for="complete-first">{{ i18n.t('auth.firstName') }}</label><input id="complete-first" required [(ngModel)]="firstName" name="firstName" [attr.aria-invalid]="hasError('firstName')" [attr.aria-describedby]="hasError('firstName') ? 'complete-first-error' : null"><gones-field-errors id="complete-first-error" [messages]="fieldErrors()['firstName']" /></div><div><label for="complete-last">{{ i18n.t('auth.lastName') }}</label><input id="complete-last" required [(ngModel)]="lastName" name="lastName" [attr.aria-invalid]="hasError('lastName')" [attr.aria-describedby]="hasError('lastName') ? 'complete-last-error' : null"><gones-field-errors id="complete-last-error" [messages]="fieldErrors()['lastName']" /></div></div>
+            <p class="muted" data-cy="complete-help">{{ i18n.t('auth.completeProfileHelp') }}</p>
+            <form class="auth-form" data-cy="complete-form" (ngSubmit)="submitCompleteProfile()" novalidate><fieldset [disabled]="pending()" data-cy="complete-fieldset">
+              <label for="complete-email" data-cy="complete-email-label">{{ i18n.t('auth.email') }}</label><input id="complete-email" data-cy="complete-email" type="email" required [(ngModel)]="email" name="email" [attr.aria-invalid]="hasError('email')" [attr.aria-describedby]="hasError('email') ? 'complete-email-error' : null"><gones-field-errors id="complete-email-error" data-cy="complete-email-error" [messages]="fieldErrors()['email']" />
+              <label for="complete-username" data-cy="complete-username-label">{{ i18n.t('auth.username') }}</label><input id="complete-username" data-cy="complete-username" required [(ngModel)]="username" name="username" [attr.aria-invalid]="hasError('username')" [attr.aria-describedby]="hasError('username') ? 'complete-username-error' : null"><gones-field-errors id="complete-username-error" data-cy="complete-username-error" [messages]="fieldErrors()['username']" />
+              <div class="auth-name-grid" data-cy="complete-name-grid"><div data-cy="complete-first-wrap"><label for="complete-first" data-cy="complete-first-label">{{ i18n.t('auth.firstName') }}</label><input id="complete-first" data-cy="complete-first" required [(ngModel)]="firstName" name="firstName" [attr.aria-invalid]="hasError('firstName')" [attr.aria-describedby]="hasError('firstName') ? 'complete-first-error' : null"><gones-field-errors id="complete-first-error" data-cy="complete-first-error" [messages]="fieldErrors()['firstName']" /></div><div data-cy="complete-last-wrap"><label for="complete-last" data-cy="complete-last-label">{{ i18n.t('auth.lastName') }}</label><input id="complete-last" data-cy="complete-last" required [(ngModel)]="lastName" name="lastName" [attr.aria-invalid]="hasError('lastName')" [attr.aria-describedby]="hasError('lastName') ? 'complete-last-error' : null"><gones-field-errors id="complete-last-error" data-cy="complete-last-error" [messages]="fieldErrors()['lastName']" /></div></div>
               <button mat-flat-button class="home-primary-action" data-cy="complete-profile-submit" type="submit">{{ pending() ? i18n.t('common.saving') : i18n.t('auth.completeProfile') }}</button>
             </fieldset></form>
           } @else if (mode() === 'verify-email') {
-            <p class="muted">{{ i18n.t('auth.verifyHelp') }}</p>
+            <p class="muted" data-cy="verify-help">{{ i18n.t('auth.verifyHelp') }}</p>
             @if (token) { <button mat-flat-button class="home-primary-action" data-cy="verify-email-submit" type="button" [disabled]="pending()" (click)="submitVerification()">{{ i18n.t('auth.verifyEmail') }}</button> }
-            <form class="auth-form" (ngSubmit)="resendVerification()"><fieldset [disabled]="pending()">
-              <label for="verify-email-address">{{ i18n.t('auth.email') }}</label><input id="verify-email-address" data-cy="verify-email-address" type="email" autocomplete="email" required [(ngModel)]="email" name="email">
+            <form class="auth-form" data-cy="verify-form" (ngSubmit)="resendVerification()"><fieldset [disabled]="pending()" data-cy="verify-fieldset">
+              <label for="verify-email-address" data-cy="verify-email-address-label">{{ i18n.t('auth.email') }}</label><input id="verify-email-address" data-cy="verify-email-address" type="email" autocomplete="email" required [(ngModel)]="email" name="email">
               <button mat-stroked-button type="submit" data-cy="resend-verification">{{ i18n.t('auth.resendVerification') }}</button>
             </fieldset></form>
-            <a routerLink="/login">{{ i18n.t('auth.backToLogin') }}</a>
+            <a routerLink="/login" data-cy="verify-login-link">{{ i18n.t('auth.backToLogin') }}</a>
           } @else if (mode() === 'forgot-password') {
-            <p class="muted">{{ i18n.t('auth.forgotHelp') }}</p>
-            <form class="auth-form" (ngSubmit)="submitForgotPassword()"><fieldset [disabled]="pending()"><label for="forgot-email">{{ i18n.t('auth.email') }}</label><input id="forgot-email" type="email" autocomplete="email" required [(ngModel)]="email" name="email"><button mat-flat-button class="home-primary-action" type="submit">{{ i18n.t('auth.sendReset') }}</button></fieldset></form>
+            <p class="muted" data-cy="forgot-help">{{ i18n.t('auth.forgotHelp') }}</p>
+            <form class="auth-form" data-cy="forgot-form" (ngSubmit)="submitForgotPassword()"><fieldset [disabled]="pending()" data-cy="forgot-fieldset"><label for="forgot-email" data-cy="forgot-email-label">{{ i18n.t('auth.email') }}</label><input id="forgot-email" data-cy="forgot-email" type="email" autocomplete="email" required [(ngModel)]="email" name="email"><button mat-flat-button class="home-primary-action" data-cy="forgot-submit" type="submit">{{ i18n.t('auth.sendReset') }}</button></fieldset></form>
           } @else if (mode() === 'reset-password') {
-            <form class="auth-form" (ngSubmit)="submitResetPassword()"><fieldset [disabled]="pending()"><label for="reset-password">{{ i18n.t('auth.newPassword') }}</label><input id="reset-password" type="password" autocomplete="new-password" minlength="12" required [(ngModel)]="password" name="password" [attr.aria-invalid]="hasError('password')" [attr.aria-describedby]="hasError('password') ? 'reset-password-error' : null"><gones-field-errors id="reset-password-error" [messages]="fieldErrors()['password']" /><button mat-flat-button class="home-primary-action" type="submit">{{ i18n.t('auth.resetPassword') }}</button></fieldset></form>
+            <form class="auth-form" data-cy="reset-form" (ngSubmit)="submitResetPassword()"><fieldset [disabled]="pending()" data-cy="reset-fieldset"><label for="reset-password" data-cy="reset-password-label">{{ i18n.t('auth.newPassword') }}</label><input id="reset-password" data-cy="reset-password" type="password" autocomplete="new-password" minlength="12" required [(ngModel)]="password" name="password" [attr.aria-invalid]="hasError('password')" [attr.aria-describedby]="hasError('password') ? 'reset-password-error' : null"><gones-field-errors id="reset-password-error" data-cy="reset-password-error" [messages]="fieldErrors()['password']" /><button mat-flat-button class="home-primary-action" data-cy="reset-submit" type="submit">{{ i18n.t('auth.resetPassword') }}</button></fieldset></form>
           }
 
           @if (error()) { <p class="error" role="alert" data-cy="auth-error">{{ error() }}</p> }
@@ -111,6 +133,7 @@ export class AuthEntryComponent {
   firstName = this.route.snapshot.queryParamMap.get('firstName') ?? '';
   lastName = this.route.snapshot.queryParamMap.get('lastName') ?? '';
   password = '';
+  confirmPassword = '';
   readonly token = this.route.snapshot.queryParamMap.get('token') ?? '';
   private readonly completionTicket = this.route.snapshot.queryParamMap.get('ticket') ?? this.route.snapshot.queryParamMap.get('completionTicket') ?? '';
 
@@ -129,6 +152,8 @@ export class AuthEntryComponent {
   }
 
   async submitRegister(): Promise<void> {
+    const mismatch = passwordConfirmationErrors(this.password, this.confirmPassword, this.i18n.t('auth.passwordMismatch'));
+    if (Object.keys(mismatch).length) { this.fieldErrors.set(mismatch); this.error.set(this.i18n.t('auth.passwordMismatch')); return; }
     await this.run(async () => {
       const profile = await this.auth.register({ email: this.email, username: this.username, password: this.password, firstName: this.firstName, lastName: this.lastName });
       await this.router.navigate([registrationDestination(profile)], { queryParams: { email: profile.email, registered: 'true' } });
