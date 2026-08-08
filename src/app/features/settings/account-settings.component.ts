@@ -10,7 +10,9 @@ import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { fieldErrorsFromProblem, AuthFieldErrors } from '../../auth/auth-errors';
 import { AuthService } from '../../auth/auth.service';
+import { ApiProblemError } from '../../api/api-boundary';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { PasswordConfirmDialogComponent } from '../../shared/password-confirm-dialog.component';
 import { GeoOption, GeoService, hasStructuredRegions } from '../../shared/geo.service';
 import { AccountFormValues, accountFormIsDirty, accountFormPayload, accountFormValues } from './account-form';
 import { applyCountry, applyRegion, optionsWithStoredValue } from './location-selection';
@@ -100,6 +102,13 @@ import { applyCountry, applyRegion, optionsWithStoredValue } from './location-se
         }
       </mat-card-content></mat-card>
 
+      <mat-card class="panel auth-card account-danger-zone" data-cy="account-danger-zone"><mat-card-content class="stack" data-cy="account-danger-zone-content">
+        <h2 data-cy="account-danger-zone-title">{{ i18n.t('account.dangerZone') }}</h2>
+        <p class="muted" data-cy="account-danger-zone-help">{{ i18n.t('account.deleteMessage') }}</p>
+        <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="account-delete" [disabled]="deletePending()" (click)="deleteAccount()">{{ i18n.t('account.delete') }}</button>
+        <div data-cy="account-delete-error">@for (message of fieldErrors()['currentPassword']; track message) { <p class="field-error" role="alert" data-cy="account-delete-error-message">{{ message }}</p> }</div>
+      </mat-card-content></mat-card>
+
       <div class="actions" data-cy="account-logout-row"><button mat-stroked-button type="button" class="danger-ghost-action" data-cy="account-logout" [disabled]="pending()" (click)="logout()">{{ i18n.t('auth.logout') }}</button></div>
       @if (error()) { <p class="error" role="alert" data-cy="account-error">{{ error() }}</p> }
       @if (status()) { <p class="settings-saved" role="status" aria-live="polite" data-cy="account-status">{{ status() }}</p> }
@@ -116,6 +125,7 @@ export class AccountSettingsComponent {
   readonly pending = signal(false);
   readonly emailPending = signal(false);
   readonly identityPending = signal(false);
+  readonly deletePending = signal(false);
   readonly error = signal('');
   readonly status = signal('');
   readonly fieldErrors = signal<AuthFieldErrors>({});
@@ -199,7 +209,35 @@ export class AccountSettingsComponent {
     await this.run(this.identityPending, async () => { await this.auth.unlink(provider); await this.loadIdentities(); this.status.set(this.i18n.t('profile.unlinked')); });
   }
 
-  async logout(): Promise<void> { await this.auth.logout(); await this.router.navigate(['/login']); }
+  async logout(): Promise<void> { await this.auth.logout(); await this.router.navigate(['/']); }
+
+  async deleteAccount(): Promise<void> {
+    const password = await firstValueFrom(this.dialog.open(PasswordConfirmDialogComponent, {
+      data: { title: this.i18n.t('account.deleteTitle'), message: this.i18n.t('account.deleteMessage'), confirmLabel: this.i18n.t('account.delete'), passwordLabel: this.i18n.t('account.deletePassword') }
+    }).afterClosed());
+    if (!password) return;
+    if (this.deletePending()) return;
+    this.deletePending.set(true); this.error.set(''); this.status.set(''); this.fieldErrors.set({});
+    try {
+      await this.auth.deleteAccount(password);
+      await this.router.navigate(['/']);
+    } catch (error) {
+      this.fieldErrors.set(fieldErrorsFromProblem(error));
+      this.error.set(this.deleteFailureMessage(error));
+    } finally {
+      this.deletePending.set(false);
+    }
+  }
+
+  private deleteFailureMessage(error: unknown): string {
+    if (!(error instanceof ApiProblemError) || error.status !== 409) return this.i18n.t('account.deleteFailed');
+    if (error.problem.code === 'lastAdmin') return this.i18n.t('account.deleteLastAdmin');
+    if (error.problem.code === 'account_owns_records') {
+      const relations = (error.problem as { relations?: string[] }).relations ?? [];
+      return relations.length ? `${this.i18n.t('account.deleteOwnsRecords')} (${relations.join(', ')})` : this.i18n.t('account.deleteOwnsRecords');
+    }
+    return this.i18n.t('account.deleteFailed');
+  }
 
   private async loadIdentities(): Promise<void> {
     try { this.identities.set(await this.auth.listExternalIdentities()); }

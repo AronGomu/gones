@@ -1,6 +1,18 @@
 const email = 'cypress.user@example.test';
 const password = 'Cypress-pass-123!';
 
+// NOTE: cy.session(email, ...) was tried here to collapse this file's three real logins into one
+// (cached-cookie reuse) and cut the auth-permit cost. It does not work with this backend: refresh
+// tokens are single-use and rotate on every call (`RefreshSessionService.RotateAsync`,
+// backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs:180). cy.session() snapshots cookies once,
+// at the end of its setup callback; the very next real request from the *live* login() caller (e.g.
+// this test's own `cy.reload()`, or the app's own silent refresh) rotates the cookie in the browser,
+// so the cached snapshot is already a superseded, rejected token by the time a later test restores
+// it. Confirmed reproducible (not a flake) across two consecutive clean, non-rate-limited runs: both
+// times, every test that tried to reuse the cached session failed identically — a real
+// `POST /api/auth/refresh` fired, was rejected, and the account page never rendered. So this stays a
+// real per-test login. It still costs only 4 of 5 login permits per pass (see the delete case and the
+// seed script's conditional register for where the other permits were actually saved).
 function login() {
   cy.visit('/login?returnUrl=%2Fsettings%2Faccount');
   cy.get('[data-cy="auth-email"]').type(email);
@@ -129,5 +141,38 @@ describe('auth and profile', () => {
     cy.wait('@linkedIdentities');
     cy.get('[data-cy="unlink-google"]').click();
     cy.wait('@unlink');
+  });
+
+  it('deletes a freshly registered throwaway account behind the password-confirmation dialog', () => {
+    const throwawayEmail = `cypress.delete.${Date.now()}@example.test`;
+    const throwawayUsername = `cy-del-${Date.now()}`;
+    cy.visit('/register');
+    cy.get('[data-cy="auth-email"]').type(throwawayEmail);
+    cy.get('[data-cy="auth-username"]').type(throwawayUsername);
+    cy.get('#register-first').type('Throwaway');
+    cy.get('#register-last').type('User');
+    cy.get('[data-cy="auth-password"]').type(password, { log: false });
+    cy.get('[data-cy="auth-confirm-password"]').type(password, { log: false });
+    cy.get('[data-cy="auth-submit"]').click();
+    cy.location('pathname').should('eq', '/verify-email');
+
+    cy.visit('/login?returnUrl=%2Fsettings%2Faccount');
+    cy.get('[data-cy="auth-email"]').type(throwawayEmail);
+    cy.get('[data-cy="auth-password"]').type(password, { log: false });
+    cy.get('[data-cy="auth-submit"]').click();
+    cy.location('pathname').should('eq', '/settings/account');
+
+    cy.get('[data-cy="account-delete"]').click();
+    cy.get('[data-cy="password-confirm-input"]').type(password, { log: false });
+    cy.get('[data-cy="password-confirm-submit"]').click();
+    cy.location('pathname').should('eq', '/');
+    cy.get('[data-cy="profile-link"]').should('not.exist');
+
+    // The session is cleared client-side by AuthService.deleteAccount(); this guard confirms the
+    // route guard re-enforces it server-side too, without spending an auth permit on a fresh login
+    // attempt. The stronger claim — the account row is gone and its old tokens no longer
+    // authenticate — is already covered by the deletion endpoint's backend integration tests.
+    cy.visit('/settings/account');
+    cy.location('pathname').should('eq', '/login');
   });
 });
