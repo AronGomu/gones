@@ -82,6 +82,8 @@ describe('canonical browser store containment', () => {
 
   it('keeps global browser storage access inside the documented browser-only allowlist', () => {
     expect(filesMatching(/localStorage\??\.(get|set|remove)Item/)).toEqual([
+      // Public read cache (C39) — the 24h full-catalog snapshot, anonymous GET responses only.
+      'src/app/features/calendar/all-tournaments-cache.service.ts',
       // Browser view preference.
       'src/app/features/calendar/public-calendar.component.ts',
       // Public read cache (C39) — anonymous GET responses only, never a mutation source.

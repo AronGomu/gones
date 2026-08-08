@@ -100,28 +100,28 @@ Run: `npm run test -- tournament-fuzzy-search all-tournaments-cache server-autho
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/features/calendar/tournament-fuzzy-search.ts`.
-- [ ] 2. Implement `export function splitSearchTerms(query: string): string[]` — walk the string character by character; on `\` take the next character literally into the current term; on `,`, `;` or whitespace close the current term; push non-empty terms.
-- [ ] 3. Implement `export function searchableText(item: PublicTournamentView): string` joining, with `' '`: `title`, `slug`, `status`, `organization?.name`, every `formats[].name`, `venue.streetAddress`, `venue.postalCode`, `venue.city`, `venue.country`, `timeZoneId`, `venueStartDate`, `venueStartTime`, `venueEndDate`, `venueEndTime`, `String(capacity ?? '')`. **`summary` is deliberately excluded.**
-- [ ] 4. Implement `export function normalizeSearchValue(value: string): string { return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase(); }`
-- [ ] 5. Implement `export function filterTournaments(items: PublicTournamentView[], query: string): PublicTournamentView[]` — return `items` when `splitSearchTerms(query)` is empty; otherwise build one `Fuse` over `items.map(item => ({ item, text: normalizeSearchValue(searchableText(item)) }))` with `keys: ['text']`, `threshold: 0.35`, `ignoreLocation: true`, `minMatchCharLength: 2`, and intersect the result sets of every normalized term, preserving the input order.
-- [ ] 6. Create `src/app/features/calendar/tournament-fuzzy-search.test.ts` with Test plan rows 1-13, using a fixture array of at least four `PublicTournamentView` objects declared in the test file.
-- [ ] 7. Create `src/app/features/calendar/all-tournaments-cache.service.ts` with `export const ALL_TOURNAMENTS_CACHE_KEY = 'gones.calendar-v1.all-tournaments';` and `export const ALL_TOURNAMENTS_TTL_MS = 24 * 60 * 60 * 1000;`.
-- [ ] 8. Define `export interface AllTournamentsResult { items: PublicTournamentView[]; fetchedAt: string; fromCache: boolean; stale: boolean; truncated: boolean; }`.
-- [ ] 9. Implement `@Injectable({ providedIn: 'root' }) export class AllTournamentsCacheService` injecting `HttpClient` and `API_BASE_URL`, with `async load(options: { force?: boolean } = {}): Promise<AllTournamentsResult>`.
-- [ ] 10. `load` reads the cache entry `{ items, etag, fetchedAt, truncated }` from `globalThis.localStorage?.getItem(ALL_TOURNAMENTS_CACHE_KEY)`; when `!options.force` and `Date.now() - Date.parse(fetchedAt) < ALL_TOURNAMENTS_TTL_MS`, return it with `fromCache: true, stale: false` and issue no request.
-- [ ] 11. Otherwise `GET joinApiUrl(base, '/api/tournaments/all')` with `observe: 'response'` and an `If-None-Match` header when an etag is cached; on `304` refresh `fetchedAt` in storage and return the cached items; on `200` write the new entry and return it.
-- [ ] 12. On failure with a usable cache, return the cached items with `stale: true`; with no cache, rethrow.
-- [ ] 13. Wrap every `localStorage` access in `try { … } catch { }` — a private-mode browser must degrade to "always fetch", never crash.
-- [ ] 14. Add `readonly cachedAt = signal<string | undefined>(undefined);` and `readonly truncated = signal(false);` on the service so T14's page can show both without re-reading storage.
-- [ ] 15. Create `src/app/features/calendar/all-tournaments-cache.service.test.ts` with Test plan rows 14-19, using a fake `localStorage` stub installed on `globalThis`. **Do not use `HttpTestingController` or `TestBed`** — see the Inputs note; build the service with `Injector.create` and a `vi.fn()` `HttpClient` stub instead, and assert request counts through `get.mock.calls.length`.
-- [ ] 16. In `src/app/backend/server-authority-boundary.test.ts`, add to the allowlist array, keeping the array sorted and each entry commented:
+- [x] 1. Create `src/app/features/calendar/tournament-fuzzy-search.ts`.
+- [x] 2. Implement `export function splitSearchTerms(query: string): string[]` — walk the string character by character; on `\` take the next character literally into the current term; on `,`, `;` or whitespace close the current term; push non-empty terms.
+- [x] 3. Implement `export function searchableText(item: PublicTournamentView): string` joining, with `' '`: `title`, `slug`, `status`, `organization?.name`, every `formats[].name`, `venue.streetAddress`, `venue.postalCode`, `venue.city`, `venue.country`, `timeZoneId`, `venueStartDate`, `venueStartTime`, `venueEndDate`, `venueEndTime`, `String(capacity ?? '')`. **`summary` is deliberately excluded.**
+- [x] 4. Implement `export function normalizeSearchValue(value: string): string { return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase(); }`
+- [x] 5. Implement `export function filterTournaments(items: PublicTournamentView[], query: string): PublicTournamentView[]` — return `items` when `splitSearchTerms(query)` is empty; otherwise build one `Fuse` over `items.map(item => ({ item, text: normalizeSearchValue(searchableText(item)) }))` with `keys: ['text']`, `threshold: 0.35`, `ignoreLocation: true`, `minMatchCharLength: 2`, and intersect the result sets of every normalized term, preserving the input order.
+- [x] 6. Create `src/app/features/calendar/tournament-fuzzy-search.test.ts` with Test plan rows 1-13, using a fixture array of at least four `PublicTournamentView` objects declared in the test file.
+- [x] 7. Create `src/app/features/calendar/all-tournaments-cache.service.ts` with `export const ALL_TOURNAMENTS_CACHE_KEY = 'gones.calendar-v1.all-tournaments';` and `export const ALL_TOURNAMENTS_TTL_MS = 24 * 60 * 60 * 1000;`.
+- [x] 8. Define `export interface AllTournamentsResult { items: PublicTournamentView[]; fetchedAt: string; fromCache: boolean; stale: boolean; truncated: boolean; }`.
+- [x] 9. Implement `@Injectable({ providedIn: 'root' }) export class AllTournamentsCacheService` injecting `HttpClient` and `API_BASE_URL`, with `async load(options: { force?: boolean } = {}): Promise<AllTournamentsResult>`.
+- [x] 10. `load` reads the cache entry `{ items, etag, fetchedAt, truncated }` from `globalThis.localStorage?.getItem(ALL_TOURNAMENTS_CACHE_KEY)`; when `!options.force` and `Date.now() - Date.parse(fetchedAt) < ALL_TOURNAMENTS_TTL_MS`, return it with `fromCache: true, stale: false` and issue no request.
+- [x] 11. Otherwise `GET joinApiUrl(base, '/api/tournaments/all')` with `observe: 'response'` and an `If-None-Match` header when an etag is cached; on `304` refresh `fetchedAt` in storage and return the cached items; on `200` write the new entry and return it.
+- [x] 12. On failure with a usable cache, return the cached items with `stale: true`; with no cache, rethrow.
+- [x] 13. Wrap every `localStorage` access in `try { … } catch { }` — a private-mode browser must degrade to "always fetch", never crash.
+- [x] 14. Add `readonly cachedAt = signal<string | undefined>(undefined);` and `readonly truncated = signal(false);` on the service so T14's page can show both without re-reading storage.
+- [x] 15. Create `src/app/features/calendar/all-tournaments-cache.service.test.ts` with Test plan rows 14-19, using a fake `localStorage` stub installed on `globalThis`. **Do not use `HttpTestingController` or `TestBed`** — see the Inputs note; build the service with `Injector.create` and a `vi.fn()` `HttpClient` stub instead, and assert request counts through `get.mock.calls.length`.
+- [x] 16. In `src/app/backend/server-authority-boundary.test.ts`, add to the allowlist array, keeping the array sorted and each entry commented:
   ```
   // Public read cache (C39) — the 24h full-catalog snapshot, anonymous GET responses only.
   'src/app/features/calendar/all-tournaments-cache.service.ts',
   ```
-- [ ] 17. Run `npm run test -- tournament-fuzzy-search all-tournaments-cache server-authority-boundary`.
-- [ ] 18. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 17. Run `npm run test -- tournament-fuzzy-search all-tournaments-cache server-authority-boundary`.
+- [x] 18. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
 
 ## Outputs
 
@@ -132,8 +132,8 @@ Run: `npm run test -- tournament-fuzzy-search all-tournaments-cache server-autho
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] manual check: none — nothing is rendered yet
-- [ ] app functional — the calendar page still uses the old paged service and behaves exactly as before
-- [ ] commit msg draft: `feat(calendar): add a 24h full-catalog cache and a fuzzy tournament filter`
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] manual check: none — nothing is rendered yet
+- [x] app functional — the calendar page still uses the old paged service and behaves exactly as before (verified: `git status --porcelain` shows no template/component file touched, only new pure modules + test files + allowlist edit)
+- [x] commit msg draft: `feat(calendar): add a 24h full-catalog cache and a fuzzy tournament filter`
