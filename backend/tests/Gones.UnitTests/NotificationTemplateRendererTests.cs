@@ -25,8 +25,48 @@ public sealed class NotificationTemplateRendererTests
             "Europe/Paris",
             "Legacy",
             "64",
-            new Uri("https://app.example/tournament-requests/secret-review-token"))
+            new Uri("https://app.example/tournament-requests/secret-review-token")),
+        new TournamentProposalRejectedTemplateModel(
+            "Alice",
+            "Legacy Lyon",
+            "Morgan",
+            "The venue is already booked that weekend.",
+            new Uri("https://app.example/calendar"))
     };
+
+    [Fact]
+    public void Tournament_proposal_rejection_renders_the_reason_in_both_locales()
+    {
+        var renderer = new NotificationTemplateRenderer();
+        var model = new TournamentProposalRejectedTemplateModel(
+            "Alice",
+            "Legacy Lyon",
+            "Morgan",
+            "The venue is already booked that weekend.",
+            new Uri("https://app.example/calendar"));
+        string[] fields = [model.SubmitterName, model.TournamentName, model.ApproverName, model.Reason, model.CalendarUrl.AbsoluteUri];
+
+        var french = renderer.Render("fr", model);
+        var english = renderer.Render("en", model);
+
+        Assert.Equal("Demande de tournoi refusée", french.Subject);
+        Assert.Equal("Tournament request declined", english.Subject);
+        foreach (var rendered in new[] { french, english })
+        {
+            foreach (var field in fields)
+            {
+                Assert.Contains(field, rendered.TextBody, StringComparison.Ordinal);
+                Assert.Contains(field, rendered.HtmlBody, StringComparison.Ordinal);
+            }
+
+            // The refusal reason is the approver's words about someone else's submission: the stored
+            // preview keeps none of it.
+            Assert.DoesNotContain("already booked", rendered.SafePreviewTextBody, StringComparison.Ordinal);
+            Assert.DoesNotContain("already booked", rendered.SafePreviewHtmlBody, StringComparison.Ordinal);
+        }
+
+        Assert.NotEqual(french.TextBody, english.TextBody);
+    }
 
     [Fact]
     public void Tournament_proposal_renders_every_submitted_field_in_both_locales()

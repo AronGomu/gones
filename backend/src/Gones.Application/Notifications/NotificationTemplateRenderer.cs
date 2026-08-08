@@ -25,7 +25,8 @@ public sealed class NotificationTemplateRenderer
             [NotificationTemplateKeys.Cancellation] = ("Tournoi annulé", "Tournament cancelled"),
             [NotificationTemplateKeys.Reminder] = ("Rappel de tournoi", "Tournament reminder"),
             [NotificationTemplateKeys.OrganizerNotice] = ("Nouvelle activité sur votre tournoi", "New activity on your tournament"),
-            [NotificationTemplateKeys.TournamentProposal] = ("Demande de validation de tournoi", "Tournament approval request")
+            [NotificationTemplateKeys.TournamentProposal] = ("Demande de validation de tournoi", "Tournament approval request"),
+            [NotificationTemplateKeys.TournamentProposalRejected] = ("Demande de tournoi refusée", "Tournament request declined")
         };
 
     public RenderedEmail Render(string? locale, NotificationTemplateModel model)
@@ -115,6 +116,15 @@ public sealed class NotificationTemplateRenderer
                 ["Capacity"] = Text(value.Capacity, safePreview),
                 // The review token lives in this URL only; the safe preview redacts it like every other link.
                 ["ReviewUrl"] = Url(safePreview ? previewUrl : value.ReviewUrl)
+            },
+            TournamentProposalRejectedTemplateModel value => new Dictionary<string, string>
+            {
+                ["SubmitterName"] = Text(value.SubmitterName, safePreview),
+                ["TournamentName"] = Text(value.TournamentName, safePreview),
+                ["ApproverName"] = Text(value.ApproverName, safePreview),
+                // The approver's own words about someone else's submission: redacted in the stored preview.
+                ["Reason"] = Text(value.Reason, safePreview),
+                ["CalendarUrl"] = Url(safePreview ? previewUrl : value.CalendarUrl)
             },
             _ => throw new NotificationTemplateException("notification_template_unknown")
         };

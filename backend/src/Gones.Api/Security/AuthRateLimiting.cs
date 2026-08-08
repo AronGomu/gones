@@ -122,7 +122,7 @@ public static class AuthRateLimiting
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (context, cancellationToken) =>
             {
-                var operation = Operation(context.HttpContext.Request.Path);
+                var operation = Operation(RouteKey(context.HttpContext));
                 context.HttpContext.RequestServices.GetRequiredService<OperationalMetrics>().RecordAuthRejection(operation);
                 await WriteRateLimitAuditAsync(context.HttpContext.RequestServices, operation, cancellationToken);
                 context.HttpContext.Response.Headers.RetryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
@@ -162,7 +162,7 @@ public static class AuthRateLimiting
             });
 
             options.AddPolicy(IpPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
-                TelemetryRedaction.HashRateLimitKey($"{context.Request.Path}:{ClientKey(context)}"),
+                TelemetryRedaction.HashRateLimitKey($"{RouteKey(context)}:{ClientKey(context)}"),
                 _ => NewWindowOptions(settings.AuthPermitLimit, Window)));
             options.AddPolicy(RefreshPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
                 TelemetryRedaction.HashRateLimitKey($"refresh:{context.Request.Cookies[RefreshCookie.Name] ?? ClientKey(context)}"),
@@ -192,8 +192,24 @@ public static class AuthRateLimiting
         context.User.FindFirst("sub")?.Value
         ?? context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
-    internal static string Operation(PathString path) =>
-        path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Replace("-", "_", StringComparison.Ordinal)
+    /// <summary>
+    /// The matched route <em>pattern</em>, falling back to the raw path when routing has not run.
+    ///
+    /// Every route this file buckets by path used to be a constant, so the two were the same string.
+    /// T17's review link is not: its token sits in the path. Keyed by the raw path, each guessed token
+    /// would get a private bucket and the limiter would never fire — and the token would end up in a
+    /// metric label and a rate-limit audit row. The pattern (<c>…/by-token/{token}</c>) is stable and
+    /// carries no secret, so it is what buckets and labels use.
+    /// </summary>
+    internal static string RouteKey(HttpContext context) =>
+        (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText
+        ?? context.Request.Path.Value
+        ?? "/";
+
+    internal static string Operation(PathString path) => Operation(path.Value);
+
+    internal static string Operation(string? route) =>
+        route?.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Replace("-", "_", StringComparison.Ordinal)
         ?? "auth";
 
     internal static FixedWindowRateLimiterOptions NewWindowOptions(int permitLimit) => NewWindowOptions(permitLimit, Window);

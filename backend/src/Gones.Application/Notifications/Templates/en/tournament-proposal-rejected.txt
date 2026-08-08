@@ -1,0 +1,9 @@
+Hello {{SubmitterName}},
+
+{{ApproverName}} declined your tournament request "{{TournamentName}}".
+
+Reason given: {{Reason}}
+
+You can correct your request and submit it again.
+
+View the calendar: {{CalendarUrl}}

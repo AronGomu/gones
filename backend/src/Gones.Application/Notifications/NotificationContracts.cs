@@ -15,6 +15,7 @@ public static class NotificationTemplateKeys
     public const string Reminder = "reminder";
     public const string OrganizerNotice = "organizer-notice";
     public const string TournamentProposal = "tournament-proposal";
+    public const string TournamentProposalRejected = "tournament-proposal-rejected";
 }
 
 public abstract record NotificationTemplateModel;
@@ -43,6 +44,18 @@ public sealed record TournamentProposalTemplateModel(
     string Formats,
     string Capacity,
     Uri ReviewUrl) : NotificationTemplateModel;
+
+/// <summary>
+/// T17. Sent to the submitter when an approver declines the request. <paramref name="Reason"/> is the
+/// approver's own words, so it reaches the submitter through the mail body and nowhere else — never
+/// an audit diff and never a log line.
+/// </summary>
+public sealed record TournamentProposalRejectedTemplateModel(
+    string SubmitterName,
+    string TournamentName,
+    string ApproverName,
+    string Reason,
+    Uri CalendarUrl) : NotificationTemplateModel;
 
 public sealed record NotificationRequest(
     string Recipient,
@@ -116,6 +129,7 @@ public static class NotificationModelSerializer
         ReminderTemplateModel => NotificationTemplateKeys.Reminder,
         OrganizerNoticeTemplateModel => NotificationTemplateKeys.OrganizerNotice,
         TournamentProposalTemplateModel => NotificationTemplateKeys.TournamentProposal,
+        TournamentProposalRejectedTemplateModel => NotificationTemplateKeys.TournamentProposalRejected,
         _ => throw new NotificationTemplateException("notification_template_unknown")
     };
 
@@ -152,6 +166,7 @@ public static class NotificationModelSerializer
                 NotificationTemplateKeys.Reminder => Required<ReminderTemplateModel>(json),
                 NotificationTemplateKeys.OrganizerNotice => Required<OrganizerNoticeTemplateModel>(json),
                 NotificationTemplateKeys.TournamentProposal => Required<TournamentProposalTemplateModel>(json),
+                NotificationTemplateKeys.TournamentProposalRejected => Required<TournamentProposalRejectedTemplateModel>(json),
                 _ => throw new NotificationTemplateException("notification_template_unknown")
             };
         }

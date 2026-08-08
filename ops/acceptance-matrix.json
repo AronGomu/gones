@@ -1412,6 +1412,27 @@
       ]
     },
     {
+      "id": "doc05-proposals",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "A non-organizer submits a tournament proposal; a mailed single-use link lets the chosen approver publish it or decline it with a reason.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentProposalTests.cs",
+          "detail": "submission stores the payload as JSON and mails one hashed token per approver"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/TournamentProposalDecisionTests.cs",
+          "detail": "token review, approval publishing exactly once across sibling tokens, and refusal mailing the reason"
+        }
+      ]
+    },
+    {
       "id": "doc06-conditions",
       "doc": "06-gestion-inscription.md",
       "capability": "Registration requires a verified account and an open, published, future tournament.",

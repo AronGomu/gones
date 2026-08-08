@@ -132,6 +132,11 @@ internal sealed class TournamentPublicationService(
     /// Publishes a normalized payload without going through HTTP. <paramref name="previewTicket"/> is
     /// null when the caller never issued one — approving a stored tournament proposal (T17) is the
     /// case: the payload was already validated at submission, so there is no preview to consume.
+    ///
+    /// <paramref name="requireMembership"/> is false only on that approval path, where the acting user
+    /// is the proposal's submitter — a plain account that is by definition not a member of the target
+    /// organization. <see cref="PublishAsync"/> keeps the default, so direct organizer publishing
+    /// still goes through the membership check.
     /// </summary>
     internal async Task<TournamentPublishOutcome> PublishTournamentAsync(
         TournamentPayloadRequest request,
@@ -139,9 +144,10 @@ internal sealed class TournamentPublicationService(
         bool isAdmin,
         string idempotencyKey,
         string? previewTicket,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireMembership = true)
     {
-        var normalized = await NormalizeAsync(actingUserId, isAdmin, request, cancellationToken);
+        var normalized = await NormalizeAsync(actingUserId, isAdmin, request, cancellationToken, requireMembership);
         var ticketHash = previewTicket is null ? string.Empty : TournamentPreviewTicketService.Hash(previewTicket);
         var scope = $"tournament-publish:{actingUserId:D}";
 

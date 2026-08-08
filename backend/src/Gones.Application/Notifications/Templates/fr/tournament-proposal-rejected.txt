@@ -1,0 +1,9 @@
+Bonjour {{SubmitterName}},
+
+{{ApproverName}} a refusé votre demande de tournoi « {{TournamentName}} ».
+
+Raison indiquée : {{Reason}}
+
+Vous pouvez corriger votre demande et la soumettre à nouveau.
+
+Voir le calendrier : {{CalendarUrl}}
