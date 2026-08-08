@@ -1,0 +1,57 @@
+# Glossary
+
+[x] Activated
+[x] Project scanned
+
+## Frontend
+
+| word | short description | ref in code |
+| ---- | ----------------- | ----------- |
+| shell | Root app layout: toolbar, breadcrumbs, export menu | `src/app/app.component.ts` |
+| routes | Lazy route table, guarded by role and authority | `src/app/app.routes.ts` |
+| authority | Startup data-authority decision, server-only, fails closed | `src/app/config/data-authority.ts` |
+| bridge | Injection-token ports the app calls instead of HTTP | `src/app/backend/application-backend.ts` |
+| adapter | ASP.NET implementation of those ports, intent commands only | `src/app/backend/aspnet-api-backend.service.ts` |
+| boundary | HTTP headers, ETag, idempotency, problem-details errors | `src/app/api/api-boundary.ts` |
+| client | Generated typed client from the committed OpenAPI contract | `src/app/api/generated/gones-api.ts` |
+| repository | Angular signal store fronting one backend port | `src/app/data/league-repository.service.ts` |
+| runner | Live tournament pairing and result-entry screen | `src/app/features/live-tournaments/live-tournament-runner.component.ts` |
+| calendar | Public tournament calendar feature and its detail page | `src/app/features/calendar/public-calendar.component.ts` |
+| guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
+| session | Access-token scope and cache purge on sign-out | `src/app/auth/session-scope.service.ts` |
+| i18n | French/English message catalogue and language signal | `src/app/i18n/i18n.service.ts` |
+| ics | Calendar export to an .ics subscription file | `src/app/domain/calendar-ics.ts` |
+
+## Backend
+
+| word | short description | ref in code |
+| ---- | ----------------- | ----------- |
+| api | ASP.NET minimal-API host wiring every endpoint group | `backend/src/Gones.Api/Program.cs` |
+| endpoints | One minimal-API group per domain capability | `backend/src/Gones.Api/Tournaments/TournamentLifecycleEndpoints.cs` |
+| commands | Server-side intent transforms mirroring the Angular runner | `backend/src/Gones.Domain/Live/LiveCommands.cs` |
+| dbcontext | EF Core context, snake_case, all aggregates | `backend/src/Gones.Infrastructure/Persistence/GonesDbContext.cs` |
+| migrations | Committed EF migration set, applied before serving | `backend/src/Gones.Infrastructure/Persistence/Migrations/` |
+| migrator | Standalone container that applies migrations idempotently | `backend/src/Gones.Migrator/Program.cs` |
+| versioned | Base entity carrying the optimistic-concurrency version | `backend/src/Gones.Domain/Persistence/SharedRecords.cs` |
+| outbox | Durable notification rows awaiting send or retry | `backend/src/Gones.Domain/Notifications/NotificationOutboxRecord.cs` |
+| processor | Drains the outbox, applies the retry ladder | `backend/src/Gones.Infrastructure/Notifications/NotificationProcessor.cs` |
+| transport | Email provider adapter: Brevo, or local file sink | `backend/src/Gones.Infrastructure/Notifications/BrevoEmailTransport.cs` |
+| worker | Background service: heartbeat, scheduling, notifications, cleanup | `backend/src/Gones.Worker/Worker.cs` |
+| reconciler | Replans tournament reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/TournamentScheduler.cs` |
+| identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
+| registration | Participant sign-up and unregistration on a tournament | `backend/src/Gones.Api/Tournaments/TournamentRegistrationEndpoints.cs` |
+
+## Other
+
+| word | short description | ref in code |
+| ---- | ----------------- | ----------- |
+| adr | Numbered architecture decision records, the binding rules | `docs/adr/` |
+| matrix | Executable V1 acceptance rows with per-gate evidence | `ops/acceptance-matrix.json` |
+| contract | Vendor-neutral runtime contract every host must satisfy | `docs/RUNTIME_CONTRACT.md` |
+| compose | Release-mode stack definition for candidate and test | `compose.release-candidate.yaml` |
+| candidate | Builds and assembles the release candidate artifacts | `scripts/release-candidate.mjs` |
+| preflight | Nine mismatch gates deciding if a candidate ships | `scripts/release-preflight.mjs` |
+| rehearsal | Full stack dress run with fake providers, TLS | `scripts/release-rehearsal.mjs` |
+| smoke | Short post-deploy checks per subsystem | `scripts/smoke-full-stack.mjs` |
+| cypress | Browser end-to-end journeys, one file per flow | `cypress/e2e/` |
+| runbook | Operator procedures for the online deployment | `docs/online-website-runbook.md` |

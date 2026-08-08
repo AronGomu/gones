@@ -14,5 +14,7 @@
 /backend/.tmp-tools/
 
 /.pi/artifacts/
+# Graphify knowledge graph: rebuilt locally with `graphify extract . --code-only`.
+/graphify-out/
 # Test CA exported by the C41 release rehearsal; recreated on every run.
 /.release-test-export/

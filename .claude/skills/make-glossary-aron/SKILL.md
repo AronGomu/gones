@@ -1,0 +1,1 @@
+/nix/store/lxclk09454300qi9vai3ng2nxwsakcns-home-manager-files/.agents/skills/make-glossary-aron/SKILL.md

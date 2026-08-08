@@ -94,7 +94,7 @@ describe('generic host requirements', () => {
     // The one-way door has to be written down where an operator will meet it.
     expect(adr).toContain('no longer any way to produce a migration bundle');
 
-    for (const document of ['README.md', 'DEPLOYMENT.md', 'CONTEXT.md']) {
+    for (const document of ['README.md', 'DEPLOYMENT.md', 'docs/CONTEXT.md']) {
       expect(read(document)).toContain('ADR 0020');
     }
   });
