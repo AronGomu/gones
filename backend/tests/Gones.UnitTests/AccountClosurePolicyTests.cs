@@ -38,14 +38,20 @@ public sealed class AccountClosurePolicyTests
     {
         var now = NodaTime.SystemClock.Instance.GetCurrentInstant();
         var profile = UserProfile.Create(Subject, "owner-user", "Ada", "Lovelace", now);
-        profile.Update("owner-user", "Ada", "Lovelace", "Paris", 1990, "en", true, true, true, true, true, 2026, now);
+        profile.Update(
+            "owner-user", "Ada", "Lovelace",
+            "France", "Île-de-France", "Paris", new NodaTime.LocalDate(1990, 4, 17),
+            "en", true, true, true, true, true,
+            now.InUtc().Date, now);
         profile.CloseAndAnonymize(AccountClosureIdentity.OpaqueUsername(Subject), now);
         Assert.True(profile.IsClosed);
         Assert.Equal(AccountClosureIdentity.OpaqueUsername(Subject), profile.Username);
         Assert.Equal("Closed", profile.FirstName);
         Assert.Equal("User", profile.LastName);
-        Assert.Null(profile.Location);
-        Assert.Null(profile.BirthYear);
+        Assert.Null(profile.LocationCountry);
+        Assert.Null(profile.LocationRegion);
+        Assert.Null(profile.LocationCity);
+        Assert.Null(profile.BirthDate);
         Assert.False(profile.IsFirstNamePublic);
         var closedAt = profile.ClosedAt;
         profile.CloseAndAnonymize("ignored", now.Plus(NodaTime.Duration.FromMinutes(1)));

@@ -112,7 +112,11 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             var currentProfile = await database.UserProfiles.SingleAsync(item => item.UserId == seed.User.Id);
-            currentProfile.Update("RenamedUser", "Current", "Private", "Lyon", 1990, "en", true, false, false, false, false, 2030, clock.GetCurrentInstant());
+            currentProfile.Update(
+                "RenamedUser", "Current", "Private",
+                "France", "Rhône", "Lyon", new LocalDate(1990, 4, 17),
+                "en", true, false, false, false, false,
+                clock.GetCurrentInstant().InUtc().Date, clock.GetCurrentInstant());
             await database.SaveChangesAsync();
         }
 
@@ -151,6 +155,48 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         var blockers = factory!.Services.GetServices<IOrganizationDeleteDependency>();
         var registrationBlocker = Assert.Single(blockers, blocker => blocker.GetType().Name.Contains("Registration", StringComparison.Ordinal));
         Assert.Contains("active_registration", await registrationBlocker.GetBlockersAsync(seed.Organization.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Public_participant_exposes_year_only()
+    {
+        var participant = await PublicParticipantAsync("Year Only Cup", birthDatePublic: true, locationPublic: true);
+
+        Assert.Equal(1990, participant.GetProperty("birthYear").GetInt32());
+        Assert.Equal("Lyon, Rhône, France", participant.GetProperty("location").GetString());
+        Assert.False(participant.TryGetProperty("birthDate", out _));
+        Assert.False(participant.TryGetProperty("locationCity", out _));
+    }
+
+    [Fact]
+    public async Task Public_participant_hides_a_private_birth_date()
+    {
+        var participant = await PublicParticipantAsync("Private Date Cup", birthDatePublic: false, locationPublic: false);
+
+        Assert.Equal(JsonValueKind.Null, participant.GetProperty("birthYear").ValueKind);
+        Assert.Equal(JsonValueKind.Null, participant.GetProperty("location").ValueKind);
+    }
+
+    private async Task<JsonElement> PublicParticipantAsync(string title, bool birthDatePublic, bool locationPublic)
+    {
+        var tournament = await CreateTournamentAsync(title, 4);
+        using var registered = await RegisterAsync(tournament.Id, seed.User.Id, $"projection-{Guid.NewGuid():N}");
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+        await using (var database = CreateContext())
+        {
+            var profile = await database.UserProfiles.SingleAsync(item => item.UserId == seed.User.Id);
+            profile.Update(
+                profile.Username, "Current", "Private",
+                "France", "Rhône", "Lyon", new LocalDate(1990, 4, 17),
+                "en", false, false, locationPublic, birthDatePublic, false,
+                clock.GetCurrentInstant().InUtc().Date, clock.GetCurrentInstant());
+            await database.SaveChangesAsync();
+        }
+
+        using var response = await Client.GetAsync($"/api/tournaments/{tournament.Slug}/participants");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return Assert.Single(body.GetProperty("items").EnumerateArray()).Clone();
     }
 
     [Fact]
@@ -356,7 +402,11 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             var profile = await database.UserProfiles.SingleAsync(item => item.UserId == seed.User.Id);
-            profile.Update("CurrentUser", "=HYPERLINK(\"https://bad.test\")", "Comma,\"Quote\"", "Lyon", 1990, "en", false, false, false, false, false, 2030, clock.GetCurrentInstant());
+            profile.Update(
+                "CurrentUser", "=HYPERLINK(\"https://bad.test\")", "Comma,\"Quote\"",
+                "France", "Rhône", "Lyon", new LocalDate(1990, 4, 17),
+                "en", false, false, false, false, false,
+                clock.GetCurrentInstant().InUtc().Date, clock.GetCurrentInstant());
             database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.Organizer.Id, clock.GetCurrentInstant()));
             await database.SaveChangesAsync();
         }
@@ -543,7 +593,11 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
     private static UserProfile Profile(Guid userId, string username, bool firstNamePublic)
     {
         var profile = UserProfile.Create(userId, username, "Current", "Private", Now);
-        profile.Update(username, "Current", "Private", "Lyon", 1990, "en", firstNamePublic, false, false, false, false, 2030, Now);
+        profile.Update(
+            username, "Current", "Private",
+            "France", "Rhône", "Lyon", new LocalDate(1990, 4, 17),
+            "en", firstNamePublic, false, false, false, false,
+            Now.InUtc().Date, Now);
         return profile;
     }
 

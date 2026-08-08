@@ -65,33 +65,33 @@ Run: `npm run backend:test`
 
 ## Impl steps
 
-- [ ] 1. Ensure the EF CLI exists: `dotnet ef --version`; if missing run `dotnet tool install --global dotnet-ef`.
-- [ ] 2. In `backend/src/Gones.Domain/Identity/UserProfile.cs`, replace `public string? Location { get; private set; }` with three properties `LocationCountry`, `LocationRegion`, `LocationCity`, all `string?` with `private set`.
-- [ ] 3. Replace `public int? BirthYear { get; private set; }` with `public LocalDate? BirthDate { get; private set; }` and `public bool IsBirthYearPublic` with `public bool IsBirthDatePublic`.
-- [ ] 4. Change the `Update(...)` signature to `Update(string username, string firstName, string lastName, string? locationCountry, string? locationRegion, string? locationCity, LocalDate? birthDate, string preferredLanguage, bool isFirstNamePublic, bool isLastNamePublic, bool isLocationPublic, bool isBirthDatePublic, bool isPreferredLanguagePublic, LocalDate today, Instant now)`.
-- [ ] 5. Replace the birth-year range check with: `if (birthDate is { } value && (value.Year < 1900 || value > today)) throw new ArgumentOutOfRangeException(nameof(birthDate), $"Birth date must be between 1900-01-01 and {today:yyyy-MM-dd}.");`
-- [ ] 6. Trim and null-empty the three location strings; cap each at 100 characters and throw `ArgumentException` naming the offending parameter beyond that.
-- [ ] 7. In `backend/src/Gones.Infrastructure/Persistence/IdentityRecordConfigurations.cs`, replace line 128 with three `HasMaxLength(100)` property configurations for `LocationCountry`, `LocationRegion`, `LocationCity`.
-- [ ] 8. Run `dotnet ef migrations add SplitProfileLocationAndBirthDate --project backend/src/Gones.Infrastructure --startup-project backend/src/Gones.Api --output-dir Persistence/Migrations`.
-- [ ] 9. Hand-edit the generated `Up(...)`: use `RenameColumn` `location` → `location_city` and `is_birth_year_public` → `is_birth_date_public`; `AddColumn<string>` for `location_country` and `location_region` (`maxLength: 100, nullable: true`); `AddColumn<DateOnly>("birth_date", nullable: true)`; then `migrationBuilder.Sql("UPDATE user_profiles SET birth_date = make_date(birth_year, 1, 1) WHERE birth_year IS NOT NULL;");` then `DropColumn("birth_year")`.
-- [ ] 10. Write the inverse in `Down(...)`: add `birth_year int`, `UPDATE user_profiles SET birth_year = EXTRACT(YEAR FROM birth_date)::int WHERE birth_date IS NOT NULL;`, drop `birth_date`, drop `location_country` and `location_region`, rename back.
-- [ ] 11. In `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs`, update `PatchUserProfileRequest` to `[property: StringLength(100)] string? LocationCountry, [property: StringLength(100)] string? LocationRegion, [property: StringLength(100)] string? LocationCity, LocalDate? BirthDate, …, bool IsLocationPublic, bool IsBirthDatePublic, …`.
-- [ ] 12. Update `UserProfileResponse` the same way: `string? LocationCountry, string? LocationRegion, string? LocationCity, LocalDate? BirthDate, …, bool IsLocationPublic, bool IsBirthDatePublic, …`.
-- [ ] 13. Update the `profile.Update(...)` call in `PatchProfileAsync` to pass the new arguments; derive `today` as `clock.GetCurrentInstant().InUtc().Date`.
-- [ ] 14. Update `ChangedFields(...)`: replace the `Location`/`BirthYear` lines with `LocationCountry`, `LocationRegion`, `LocationCity`, `BirthDate`, and rename `IsBirthYearPublic` → `IsBirthDatePublic`.
-- [ ] 15. Update `ToResponse(...)` to project the new properties in the record's positional order.
-- [ ] 16. In `backend/src/Gones.Api/Tournaments/PublicTournamentEndpoints.cs:183-184`, replace with `profile.IsLocationPublic ? JoinLocation(profile) : null,` and `profile.IsBirthDatePublic ? profile.BirthDate?.Year : null,` where `JoinLocation` is a private static helper joining the non-empty parts with `", "` in the order city, region, country. Leave the response record's `string? Location, int? BirthYear` field names unchanged — the public projection contract does not move.
-- [ ] 17. `grep -rn "BirthYear\|IsBirthYearPublic\|profile.Location" backend/src backend/tests --include=*.cs | grep -v /obj/ | grep -v /bin/ | grep -v Migrations/` and fix every remaining hit.
-- [ ] 18. Add `backend/tests/Gones.UnitTests/UserProfileBirthDateTests.cs` with the first four Test plan rows.
-- [ ] 19. Extend `backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs` with `Patch_me_round_trips_the_new_shape`, and the participant projection tests in the matching tournament integration test class.
-- [ ] 20. Run `npm run backend:test`.
-- [ ] 21. Start Postgres (`docker compose up -d postgres`), then run `npm run api:generate`. Commit the regenerated `src/app/api/generated/gones-api.ts`.
-- [ ] 22. In `src/app/auth/profile.component.ts`, replace the `location` field with `locationCountry`, `locationRegion`, `locationCity` (three plain text inputs, ids `profile-location-country|region|city`, `data-cy` `profile-location-country|region|city`), replace `birthYear` with `birthDate: string` bound to `<input type="date" id="profile-birth-date" data-cy="profile-birth-date">`, and rename `isBirthYearPublic` → `isBirthDatePublic`.
-- [ ] 23. Update `saveProfile()` in the same file to send the new payload fields, sending `undefined` for empty strings.
-- [ ] 24. Update `src/app/i18n/messages.ts` (BOTH maps): replace `profile.birthYear` with `profile.birthDate` (en `'Birth date'`, fr `'Date de naissance'`), replace `profile.publicBirthYear` with `profile.publicBirthDate` (en `'Show birth date'`, fr `'Afficher la date de naissance'`), and add `profile.locationCountry` / `profile.locationRegion` / `profile.locationCity` (en `'Country'` / `'Region'` / `'City'`, fr `'Pays'` / `'Région'` / `'Ville'`).
-- [ ] 25. Update `cypress/e2e/auth-profile.cy.js` selectors: `[data-cy=profile-location]` → `[data-cy=profile-location-city]`, `[data-cy=profile-birth-year]` → `[data-cy=profile-birth-date]` (type a full ISO date).
-- [ ] 26. Run `npm run test && npm run lint && npm run typecheck && npm run build && npm run api:check`.
-- [ ] 27. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`.
+- [x] 1. Ensure the EF CLI exists: `dotnet ef --version`; if missing run `dotnet tool install --global dotnet-ef`.
+- [x] 2. In `backend/src/Gones.Domain/Identity/UserProfile.cs`, replace `public string? Location { get; private set; }` with three properties `LocationCountry`, `LocationRegion`, `LocationCity`, all `string?` with `private set`.
+- [x] 3. Replace `public int? BirthYear { get; private set; }` with `public LocalDate? BirthDate { get; private set; }` and `public bool IsBirthYearPublic` with `public bool IsBirthDatePublic`.
+- [x] 4. Change the `Update(...)` signature to `Update(string username, string firstName, string lastName, string? locationCountry, string? locationRegion, string? locationCity, LocalDate? birthDate, string preferredLanguage, bool isFirstNamePublic, bool isLastNamePublic, bool isLocationPublic, bool isBirthDatePublic, bool isPreferredLanguagePublic, LocalDate today, Instant now)`.
+- [x] 5. Replace the birth-year range check with: `if (birthDate is { } value && (value.Year < 1900 || value > today)) throw new ArgumentOutOfRangeException(nameof(birthDate), $"Birth date must be between 1900-01-01 and {today:yyyy-MM-dd}.");`
+- [x] 6. Trim and null-empty the three location strings; cap each at 100 characters and throw `ArgumentException` naming the offending parameter beyond that.
+- [x] 7. In `backend/src/Gones.Infrastructure/Persistence/IdentityRecordConfigurations.cs`, replace line 128 with three `HasMaxLength(100)` property configurations for `LocationCountry`, `LocationRegion`, `LocationCity`.
+- [x] 8. Run `dotnet ef migrations add SplitProfileLocationAndBirthDate --project backend/src/Gones.Infrastructure --startup-project backend/src/Gones.Api --output-dir Persistence/Migrations`.
+- [x] 9. Hand-edit the generated `Up(...)`: use `RenameColumn` `location` → `location_city` and `is_birth_year_public` → `is_birth_date_public`; `AddColumn<string>` for `location_country` and `location_region` (`maxLength: 100, nullable: true`); `AddColumn<DateOnly>("birth_date", nullable: true)`; then `migrationBuilder.Sql("UPDATE user_profiles SET birth_date = make_date(birth_year, 1, 1) WHERE birth_year IS NOT NULL;");` then `DropColumn("birth_year")`.
+- [x] 10. Write the inverse in `Down(...)`: add `birth_year int`, `UPDATE user_profiles SET birth_year = EXTRACT(YEAR FROM birth_date)::int WHERE birth_date IS NOT NULL;`, drop `birth_date`, drop `location_country` and `location_region`, rename back.
+- [x] 11. In `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs`, update `PatchUserProfileRequest` to `[property: StringLength(100)] string? LocationCountry, [property: StringLength(100)] string? LocationRegion, [property: StringLength(100)] string? LocationCity, LocalDate? BirthDate, …, bool IsLocationPublic, bool IsBirthDatePublic, …`.
+- [x] 12. Update `UserProfileResponse` the same way: `string? LocationCountry, string? LocationRegion, string? LocationCity, LocalDate? BirthDate, …, bool IsLocationPublic, bool IsBirthDatePublic, …`.
+- [x] 13. Update the `profile.Update(...)` call in `PatchProfileAsync` to pass the new arguments; derive `today` as `clock.GetCurrentInstant().InUtc().Date`.
+- [x] 14. Update `ChangedFields(...)`: replace the `Location`/`BirthYear` lines with `LocationCountry`, `LocationRegion`, `LocationCity`, `BirthDate`, and rename `IsBirthYearPublic` → `IsBirthDatePublic`.
+- [x] 15. Update `ToResponse(...)` to project the new properties in the record's positional order.
+- [x] 16. In `backend/src/Gones.Api/Tournaments/PublicTournamentEndpoints.cs:183-184`, replace with `profile.IsLocationPublic ? JoinLocation(profile) : null,` and `profile.IsBirthDatePublic ? profile.BirthDate?.Year : null,` where `JoinLocation` is a private static helper joining the non-empty parts with `", "` in the order city, region, country. Leave the response record's `string? Location, int? BirthYear` field names unchanged — the public projection contract does not move.
+- [x] 17. `grep -rn "BirthYear\|IsBirthYearPublic\|profile.Location" backend/src backend/tests --include=*.cs | grep -v /obj/ | grep -v /bin/ | grep -v Migrations/` and fix every remaining hit.
+- [x] 18. Add `backend/tests/Gones.UnitTests/UserProfileBirthDateTests.cs` with the first four Test plan rows.
+- [x] 19. Extend `backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs` with `Patch_me_round_trips_the_new_shape`, and the participant projection tests in the matching tournament integration test class.
+- [x] 20. Run `npm run backend:test`.
+- [x] 21. Start Postgres (`docker compose up -d postgres`), then run `npm run api:generate`. Commit the regenerated `src/app/api/generated/gones-api.ts`.
+- [x] 22. In `src/app/auth/profile.component.ts`, replace the `location` field with `locationCountry`, `locationRegion`, `locationCity` (three plain text inputs, ids `profile-location-country|region|city`, `data-cy` `profile-location-country|region|city`), replace `birthYear` with `birthDate: string` bound to `<input type="date" id="profile-birth-date" data-cy="profile-birth-date">`, and rename `isBirthYearPublic` → `isBirthDatePublic`.
+- [x] 23. Update `saveProfile()` in the same file to send the new payload fields, sending `undefined` for empty strings.
+- [x] 24. Update `src/app/i18n/messages.ts` (BOTH maps): replace `profile.birthYear` with `profile.birthDate` (en `'Birth date'`, fr `'Date de naissance'`), replace `profile.publicBirthYear` with `profile.publicBirthDate` (en `'Show birth date'`, fr `'Afficher la date de naissance'`), and add `profile.locationCountry` / `profile.locationRegion` / `profile.locationCity` (en `'Country'` / `'Region'` / `'City'`, fr `'Pays'` / `'Région'` / `'Ville'`).
+- [x] 25. Update `cypress/e2e/auth-profile.cy.js` selectors: `[data-cy=profile-location]` → `[data-cy=profile-location-city]`, `[data-cy=profile-birth-year]` → `[data-cy=profile-birth-date]` (type a full ISO date).
+- [x] 26. Run `npm run test && npm run lint && npm run typecheck && npm run build && npm run api:check`.
+- [x] 27. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`.
 
 ## Outputs
 
@@ -102,10 +102,10 @@ Run: `npm run backend:test`
 
 ## Validation
 
-- [ ] `npm run backend:test` passes
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run api:check` reports no drift
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes
-- [ ] manual check: seed a row with `birth_year`, run the migration, confirm `birth_date = 'YYYY-01-01'` and `location_city` holds the old string
-- [ ] app functional — profile page saves and reloads the new fields
-- [ ] commit msg draft: `feat(profile): store a full birth date and a three-part location`
+- [x] `npm run backend:test` passes
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run api:check` reports no drift
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes
+- [x] manual check: seed a row with `birth_year`, run the migration, confirm `birth_date = 'YYYY-01-01'` and `location_city` holds the old string
+- [x] app functional — profile page saves and reloads the new fields
+- [x] commit msg draft: `feat(profile): store a full birth date and a three-part location`

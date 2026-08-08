@@ -74,7 +74,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         Assert.False(registered.GetProperty("isFirstNamePublic").GetBoolean());
         Assert.False(registered.GetProperty("isLastNamePublic").GetBoolean());
         Assert.False(registered.GetProperty("isLocationPublic").GetBoolean());
-        Assert.False(registered.GetProperty("isBirthYearPublic").GetBoolean());
+        Assert.False(registered.GetProperty("isBirthDatePublic").GetBoolean());
         Assert.False(registered.GetProperty("isPreferredLanguagePublic").GetBoolean());
 
         using var unauthorized = await Client.GetAsync("/api/users/me");
@@ -253,7 +253,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var username = $"Patch{suffix[..8]}";
         using var registration = await RegisterAsync(email, username, "valid-password-value");
         var token = await LoginAsync(email, "valid-password-value");
-        var ordinaryPatch = ProfilePatch(username, location: "Brussels", birthYear: 1990, currentPassword: null);
+        var ordinaryPatch = ProfilePatch(username, city: "Brussels", birthDate: "1990-04-17", currentPassword: null);
         using var ordinary = await SendAuthorizedAsync(HttpMethod.Patch, "/api/users/me", token, ordinaryPatch);
         var renamed = $"Renamed{suffix[..8]}";
         using var noPassword = await SendAuthorizedAsync(HttpMethod.Patch, "/api/users/me", token, ProfilePatch(renamed, null, null, null));
@@ -269,6 +269,46 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Patch_me_round_trips_the_new_shape()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"shape-{suffix}@example.test";
+        var username = $"Shape{suffix[..8]}";
+        using var registration = await RegisterAsync(email, username, "valid-password-value");
+        var token = await LoginAsync(email, "valid-password-value");
+
+        using var patched = await SendAuthorizedAsync(HttpMethod.Patch, "/api/users/me", token,
+            ProfilePatch(username, "France", "Rhône", "Lyon", "1990-04-17", null));
+        Assert.Equal(HttpStatusCode.OK, patched.StatusCode);
+        var patchedBody = await patched.Content.ReadFromJsonAsync<JsonElement>();
+
+        using var reloaded = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me", token);
+        Assert.Equal(HttpStatusCode.OK, reloaded.StatusCode);
+        var reloadedBody = await reloaded.Content.ReadFromJsonAsync<JsonElement>();
+
+        foreach (var (name, expected) in new[]
+        {
+            ("locationCountry", "France"),
+            ("locationRegion", "Rhône"),
+            ("locationCity", "Lyon"),
+            ("birthDate", "1990-04-17")
+        })
+        {
+            Assert.Equal(expected, patchedBody.GetProperty(name).GetString());
+            Assert.Equal(expected, reloadedBody.GetProperty(name).GetString());
+        }
+
+        Assert.False(reloadedBody.GetProperty("isBirthDatePublic").GetBoolean());
+        Assert.False(reloadedBody.TryGetProperty("location", out _));
+        Assert.False(reloadedBody.TryGetProperty("birthYear", out _));
+
+        using var futureBirthDate = await SendAuthorizedAsync(HttpMethod.Patch, "/api/users/me", token,
+            ProfilePatch(username, null, null, null, "2999-01-01", null));
+        Assert.Equal(HttpStatusCode.BadRequest, futureBirthDate.StatusCode);
+        Assert.Equal("validation_failed", await ProblemCodeAsync(futureBirthDate));
+    }
+
+    [Fact]
     public async Task Audit_diffs_and_metrics_path_do_not_persist_credentials_or_raw_pii()
     {
         var suffix = Guid.NewGuid().ToString("N");
@@ -277,7 +317,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         const string password = "audit-password-value";
         using var registration = await RegisterAsync(email, username, password);
         var token = await LoginAsync(email, password);
-        using var patch = await SendAuthorizedAsync(HttpMethod.Patch, "/api/users/me", token, ProfilePatch(username, "Secret Place", 1991, null));
+        using var patch = await SendAuthorizedAsync(HttpMethod.Patch, "/api/users/me", token, ProfilePatch(username, "Secret Place", "1991-02-03", null));
         using var failed = await Client.PostAsJsonAsync("/api/auth/login", new { email, password = "wrong-password-value" });
         Assert.Equal(HttpStatusCode.Unauthorized, failed.StatusCode);
 
@@ -814,18 +854,29 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         return await Client.SendAsync(request);
     }
 
-    private static object ProfilePatch(string username, string? location, int? birthYear, string? currentPassword) => new
+    private static object ProfilePatch(string username, string? city, string? birthDate, string? currentPassword) =>
+        ProfilePatch(username, null, null, city, birthDate, currentPassword);
+
+    private static object ProfilePatch(
+        string username,
+        string? country,
+        string? region,
+        string? city,
+        string? birthDate,
+        string? currentPassword) => new
     {
         username,
         firstName = "Alice",
         lastName = "Martin",
-        location,
-        birthYear,
+        locationCountry = country,
+        locationRegion = region,
+        locationCity = city,
+        birthDate,
         preferredLanguage = "fr",
         isFirstNamePublic = false,
         isLastNamePublic = false,
         isLocationPublic = false,
-        isBirthYearPublic = false,
+        isBirthDatePublic = false,
         isPreferredLanguagePublic = false,
         currentPassword
     };

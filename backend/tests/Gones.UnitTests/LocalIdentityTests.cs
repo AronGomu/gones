@@ -38,40 +38,13 @@ public sealed class LocalIdentityTests
         Assert.False(profile.IsFirstNamePublic);
         Assert.False(profile.IsLastNamePublic);
         Assert.False(profile.IsLocationPublic);
-        Assert.False(profile.IsBirthYearPublic);
+        Assert.False(profile.IsBirthDatePublic);
         Assert.False(profile.IsPreferredLanguagePublic);
-        Assert.Null(profile.Location);
-        Assert.Null(profile.BirthYear);
+        Assert.Null(profile.LocationCountry);
+        Assert.Null(profile.LocationRegion);
+        Assert.Null(profile.LocationCity);
+        Assert.Null(profile.BirthDate);
         Assert.Equal(now, profile.CreatedAt);
         Assert.Equal(now, profile.UpdatedAt);
-    }
-
-    [Theory]
-    [InlineData(1899)]
-    [InlineData(2027)]
-    public void Birth_year_must_be_between_1900_and_current_utc_year(int birthYear)
-    {
-        var profile = UserProfile.Create(Guid.NewGuid(), "alice", "Alice", "Martin", Instant.FromUtc(2026, 1, 1, 0, 0));
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => profile.Update(
-            "alice", "Alice", "Martin", null, birthYear, "fr",
-            false, false, false, false, false,
-            currentYear: 2026, Instant.FromUtc(2026, 2, 1, 0, 0)));
-    }
-
-    [Theory]
-    [InlineData(1900)]
-    [InlineData(2026)]
-    public void Birth_year_accepts_range_boundaries(int birthYear)
-    {
-        var profile = UserProfile.Create(Guid.NewGuid(), "alice", "Alice", "Martin", Instant.FromUtc(2026, 1, 1, 0, 0));
-
-        profile.Update(
-            "alice", "Alice", "Martin", null, birthYear, "en",
-            true, true, true, true, true,
-            currentYear: 2026, Instant.FromUtc(2026, 2, 1, 0, 0));
-
-        Assert.Equal(birthYear, profile.BirthYear);
-        Assert.Equal("en", profile.PreferredLanguage);
     }
 }

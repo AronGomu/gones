@@ -9822,6 +9822,11 @@ export interface LiveTournamentRoundEntryDocument {
     [key: string]: any;
 }
 
+export interface LocalDate {
+
+    [key: string]: any;
+}
+
 export interface LoginRequest {
     email: string;
     password: string;
@@ -9946,13 +9951,15 @@ export interface PatchUserProfileRequest {
     username: string;
     firstName: string;
     lastName: string;
-    location: string | undefined;
-    birthYear: number | undefined;
+    locationCountry: string | undefined;
+    locationRegion: string | undefined;
+    locationCity: string | undefined;
+    birthDate: LocalDate | undefined;
     preferredLanguage: string;
     isFirstNamePublic: boolean;
     isLastNamePublic: boolean;
     isLocationPublic: boolean;
-    isBirthYearPublic: boolean;
+    isBirthDatePublic: boolean;
     isPreferredLanguagePublic: boolean;
     currentPassword: string | undefined;
 
@@ -10697,13 +10704,15 @@ export interface UserProfileResponse {
     username: string;
     firstName: string;
     lastName: string;
-    location: string | undefined;
-    birthYear: number | undefined;
+    locationCountry: string | undefined;
+    locationRegion: string | undefined;
+    locationCity: string | undefined;
+    birthDate: LocalDate | undefined;
     preferredLanguage: string;
     isFirstNamePublic: boolean;
     isLastNamePublic: boolean;
     isLocationPublic: boolean;
-    isBirthYearPublic: boolean;
+    isBirthDatePublic: boolean;
     isPreferredLanguagePublic: boolean;
     createdAt: Instant;
     updatedAt: Instant;

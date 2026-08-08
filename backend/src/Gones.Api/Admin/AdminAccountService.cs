@@ -175,7 +175,7 @@ internal sealed class AdminAccountService(
             {
                 fields = new[]
                 {
-                    "email", "username", "firstName", "lastName", "location", "birthYear",
+                    "email", "username", "firstName", "lastName", "locationCountry", "locationRegion", "locationCity", "birthDate",
                     "globalRole", "securityStamp", "password", "sessions", "externalIdentities", "memberships"
                 },
                 soleOwnedOrganizationIds = soleOwned.Select(item => item.OrganizationId).ToArray(),

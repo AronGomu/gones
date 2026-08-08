@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Gones.Api.Errors;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
+using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -168,23 +169,34 @@ internal static partial class PublicTournamentEndpoints
         CancellationToken cancellationToken)
     {
         var tournament = await LoadDetailAsync(database, slug, cancellationToken);
-        var participants = await (
+        var profiles = await (
             from attempt in database.TournamentRegistrationAttempts.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on attempt.UserId equals profile.UserId
             where attempt.TournamentId == tournament.Id
                 && attempt.Status == TournamentRegistrationStatus.Confirmed
                 && profile.ClosedAt == null
             orderby profile.NormalizedUsername, profile.UserId
-            select new PublicTournamentParticipantResponse(
+            select profile
+        ).ToListAsync(cancellationToken);
+        var participants = profiles
+            .Select(profile => new PublicTournamentParticipantResponse(
                 profile.UserId,
                 profile.Username,
                 profile.IsFirstNamePublic ? profile.FirstName : null,
                 profile.IsLastNamePublic ? profile.LastName : null,
-                profile.IsLocationPublic ? profile.Location : null,
-                profile.IsBirthYearPublic ? profile.BirthYear : null,
-                profile.IsPreferredLanguagePublic ? profile.PreferredLanguage : null)
-        ).ToListAsync(cancellationToken);
+                profile.IsLocationPublic ? JoinLocation(profile) : null,
+                profile.IsBirthDatePublic ? profile.BirthDate?.Year : null,
+                profile.IsPreferredLanguagePublic ? profile.PreferredLanguage : null))
+            .ToList();
         return Results.Ok(new PublicTournamentParticipantListResponse(participants));
+    }
+
+    private static string? JoinLocation(UserProfile profile)
+    {
+        var parts = new[] { profile.LocationCity, profile.LocationRegion, profile.LocationCountry }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .ToArray();
+        return parts.Length == 0 ? null : string.Join(", ", parts);
     }
 
     private static async Task<IResult> GetIcsAsync(

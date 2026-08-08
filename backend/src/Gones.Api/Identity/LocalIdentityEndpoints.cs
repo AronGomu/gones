@@ -291,15 +291,17 @@ internal static class LocalIdentityEndpoints
                 request.Username,
                 request.FirstName,
                 request.LastName,
-                request.Location,
-                request.BirthYear,
+                request.LocationCountry,
+                request.LocationRegion,
+                request.LocationCity,
+                request.BirthDate,
                 request.PreferredLanguage,
                 request.IsFirstNamePublic,
                 request.IsLastNamePublic,
                 request.IsLocationPublic,
-                request.IsBirthYearPublic,
+                request.IsBirthDatePublic,
                 request.IsPreferredLanguagePublic,
-                clock.GetCurrentInstant().InUtc().Year,
+                clock.GetCurrentInstant().InUtc().Date,
                 clock.GetCurrentInstant());
         }
         catch (ArgumentException exception)
@@ -340,13 +342,15 @@ internal static class LocalIdentityEndpoints
         Add(nameof(request.Username), profile.Username, request.Username);
         Add(nameof(request.FirstName), profile.FirstName, request.FirstName);
         Add(nameof(request.LastName), profile.LastName, request.LastName);
-        Add(nameof(request.Location), profile.Location, request.Location);
-        Add(nameof(request.BirthYear), profile.BirthYear, request.BirthYear);
+        Add(nameof(request.LocationCountry), profile.LocationCountry, request.LocationCountry);
+        Add(nameof(request.LocationRegion), profile.LocationRegion, request.LocationRegion);
+        Add(nameof(request.LocationCity), profile.LocationCity, request.LocationCity);
+        Add(nameof(request.BirthDate), profile.BirthDate, request.BirthDate);
         Add(nameof(request.PreferredLanguage), profile.PreferredLanguage, request.PreferredLanguage);
         Add(nameof(request.IsFirstNamePublic), profile.IsFirstNamePublic, request.IsFirstNamePublic);
         Add(nameof(request.IsLastNamePublic), profile.IsLastNamePublic, request.IsLastNamePublic);
         Add(nameof(request.IsLocationPublic), profile.IsLocationPublic, request.IsLocationPublic);
-        Add(nameof(request.IsBirthYearPublic), profile.IsBirthYearPublic, request.IsBirthYearPublic);
+        Add(nameof(request.IsBirthDatePublic), profile.IsBirthDatePublic, request.IsBirthDatePublic);
         Add(nameof(request.IsPreferredLanguagePublic), profile.IsPreferredLanguagePublic, request.IsPreferredLanguagePublic);
         return fields;
 
@@ -370,13 +374,15 @@ internal static class LocalIdentityEndpoints
         profile.Username,
         profile.FirstName,
         profile.LastName,
-        profile.Location,
-        profile.BirthYear,
+        profile.LocationCountry,
+        profile.LocationRegion,
+        profile.LocationCity,
+        profile.BirthDate,
         profile.PreferredLanguage,
         profile.IsFirstNamePublic,
         profile.IsLastNamePublic,
         profile.IsLocationPublic,
-        profile.IsBirthYearPublic,
+        profile.IsBirthDatePublic,
         profile.IsPreferredLanguagePublic,
         profile.CreatedAt,
         profile.UpdatedAt);
@@ -438,13 +444,15 @@ internal sealed record PatchUserProfileRequest(
     [property: Required] string Username,
     [property: Required, StringLength(100)] string FirstName,
     [property: Required, StringLength(100)] string LastName,
-    [property: StringLength(200)] string? Location,
-    int? BirthYear,
+    [property: StringLength(100)] string? LocationCountry,
+    [property: StringLength(100)] string? LocationRegion,
+    [property: StringLength(100)] string? LocationCity,
+    LocalDate? BirthDate,
     [property: Required, RegularExpression("^(fr|en)$")] string PreferredLanguage,
     bool IsFirstNamePublic,
     bool IsLastNamePublic,
     bool IsLocationPublic,
-    bool IsBirthYearPublic,
+    bool IsBirthDatePublic,
     bool IsPreferredLanguagePublic,
     [property: StringLength(128)] string? CurrentPassword);
 
@@ -456,13 +464,15 @@ internal sealed record UserProfileResponse(
     string Username,
     string FirstName,
     string LastName,
-    string? Location,
-    int? BirthYear,
+    string? LocationCountry,
+    string? LocationRegion,
+    string? LocationCity,
+    LocalDate? BirthDate,
     string PreferredLanguage,
     bool IsFirstNamePublic,
     bool IsLastNamePublic,
     bool IsLocationPublic,
-    bool IsBirthYearPublic,
+    bool IsBirthDatePublic,
     bool IsPreferredLanguagePublic,
     Instant CreatedAt,
     Instant UpdatedAt);

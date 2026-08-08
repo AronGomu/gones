@@ -8816,6 +8816,7 @@
           }
         }
       },
+      "LocalDate": {},
       "LoginRequest": {
         "required": [
           "email",
@@ -9234,13 +9235,15 @@
           "username",
           "firstName",
           "lastName",
-          "location",
-          "birthYear",
+          "locationCountry",
+          "locationRegion",
+          "locationCity",
+          "birthDate",
           "preferredLanguage",
           "isFirstNamePublic",
           "isLastNamePublic",
           "isLocationPublic",
-          "isBirthYearPublic",
+          "isBirthDatePublic",
           "isPreferredLanguagePublic",
           "currentPassword"
         ],
@@ -9259,22 +9262,39 @@
             "minLength": 0,
             "type": "string"
           },
-          "location": {
-            "maxLength": 200,
+          "locationCountry": {
+            "maxLength": 100,
             "minLength": 0,
             "type": [
               "null",
               "string"
             ]
           },
-          "birthYear": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
+          "locationRegion": {
+            "maxLength": 100,
+            "minLength": 0,
             "type": [
               "null",
-              "integer",
               "string"
-            ],
-            "format": "int32"
+            ]
+          },
+          "locationCity": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "birthDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              }
+            ]
           },
           "preferredLanguage": {
             "pattern": "^(fr|en)$",
@@ -9289,7 +9309,7 @@
           "isLocationPublic": {
             "type": "boolean"
           },
-          "isBirthYearPublic": {
+          "isBirthDatePublic": {
             "type": "boolean"
           },
           "isPreferredLanguagePublic": {
@@ -12054,13 +12074,15 @@
           "username",
           "firstName",
           "lastName",
-          "location",
-          "birthYear",
+          "locationCountry",
+          "locationRegion",
+          "locationCity",
+          "birthDate",
           "preferredLanguage",
           "isFirstNamePublic",
           "isLastNamePublic",
           "isLocationPublic",
-          "isBirthYearPublic",
+          "isBirthDatePublic",
           "isPreferredLanguagePublic",
           "createdAt",
           "updatedAt"
@@ -12089,20 +12111,33 @@
           "lastName": {
             "type": "string"
           },
-          "location": {
+          "locationCountry": {
             "type": [
               "null",
               "string"
             ]
           },
-          "birthYear": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
+          "locationRegion": {
             "type": [
               "null",
-              "integer",
               "string"
-            ],
-            "format": "int32"
+            ]
+          },
+          "locationCity": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "birthDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              }
+            ]
           },
           "preferredLanguage": {
             "type": "string"
@@ -12116,7 +12151,7 @@
           "isLocationPublic": {
             "type": "boolean"
           },
-          "isBirthYearPublic": {
+          "isBirthDatePublic": {
             "type": "boolean"
           },
           "isPreferredLanguagePublic": {

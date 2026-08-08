@@ -3,11 +3,15 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { ExternalIdentityResponse } from '../api/generated/gones-api';
+import { ExternalIdentityResponse, LocalDate } from '../api/generated/gones-api';
 import { I18nService } from '../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../shared/deck-archetype-settings.service';
 import { fieldErrorsFromProblem, AuthFieldErrors } from './auth-errors';
 import { AuthService } from './auth.service';
+
+function isoDate(value: LocalDate | undefined): string {
+  return value === undefined || value === null ? '' : String(value).slice(0, 10);
+}
 
 @Component({
   standalone: true,
@@ -21,8 +25,10 @@ import { AuthService } from './auth.service';
           <h2>{{ i18n.t('profile.details') }}</h2>
           <label for="profile-username">{{ i18n.t('auth.username') }}</label><input id="profile-username" data-cy="profile-username" autocomplete="username" required [(ngModel)]="username" name="username" [attr.aria-invalid]="hasError('username')" [attr.aria-describedby]="hasError('username') ? 'profile-username-error' : null"><div id="profile-username-error">@for (message of fieldErrors()['username']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
           <div class="auth-name-grid"><div><label for="profile-first">{{ i18n.t('auth.firstName') }}</label><input id="profile-first" required [(ngModel)]="firstName" name="firstName" [attr.aria-invalid]="hasError('firstName')" [attr.aria-describedby]="hasError('firstName') ? 'profile-first-error' : null"><div id="profile-first-error">@for (message of fieldErrors()['firstName']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div></div><div><label for="profile-last">{{ i18n.t('auth.lastName') }}</label><input id="profile-last" required [(ngModel)]="lastName" name="lastName" [attr.aria-invalid]="hasError('lastName')" [attr.aria-describedby]="hasError('lastName') ? 'profile-last-error' : null"><div id="profile-last-error">@for (message of fieldErrors()['lastName']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div></div></div>
-          <label for="profile-location">{{ i18n.t('profile.location') }}</label><input id="profile-location" data-cy="profile-location" autocomplete="address-level2" [(ngModel)]="location" name="location" [attr.aria-invalid]="hasError('location')" [attr.aria-describedby]="hasError('location') ? 'profile-location-error' : null"><div id="profile-location-error">@for (message of fieldErrors()['location']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
-          <label for="profile-birth-year">{{ i18n.t('profile.birthYear') }}</label><input id="profile-birth-year" data-cy="profile-birth-year" type="number" min="1900" [max]="currentYear" inputmode="numeric" [(ngModel)]="birthYear" name="birthYear" [attr.aria-invalid]="hasError('birthYear')" [attr.aria-describedby]="hasError('birthYear') ? 'profile-birth-year-error' : null"><div id="profile-birth-year-error">@for (message of fieldErrors()['birthYear']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
+          <label for="profile-location-country">{{ i18n.t('profile.locationCountry') }}</label><input id="profile-location-country" data-cy="profile-location-country" autocomplete="country-name" [(ngModel)]="locationCountry" name="locationCountry" [attr.aria-invalid]="hasError('locationCountry')" [attr.aria-describedby]="hasError('locationCountry') ? 'profile-location-country-error' : null"><div id="profile-location-country-error">@for (message of fieldErrors()['locationCountry']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
+          <label for="profile-location-region">{{ i18n.t('profile.locationRegion') }}</label><input id="profile-location-region" data-cy="profile-location-region" autocomplete="address-level1" [(ngModel)]="locationRegion" name="locationRegion" [attr.aria-invalid]="hasError('locationRegion')" [attr.aria-describedby]="hasError('locationRegion') ? 'profile-location-region-error' : null"><div id="profile-location-region-error">@for (message of fieldErrors()['locationRegion']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
+          <label for="profile-location-city">{{ i18n.t('profile.locationCity') }}</label><input id="profile-location-city" data-cy="profile-location-city" autocomplete="address-level2" [(ngModel)]="locationCity" name="locationCity" [attr.aria-invalid]="hasError('locationCity')" [attr.aria-describedby]="hasError('locationCity') ? 'profile-location-city-error' : null"><div id="profile-location-city-error">@for (message of fieldErrors()['locationCity']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
+          <label for="profile-birth-date">{{ i18n.t('profile.birthDate') }}</label><input id="profile-birth-date" data-cy="profile-birth-date" type="date" min="1900-01-01" [max]="today" [(ngModel)]="birthDate" name="birthDate" [attr.aria-invalid]="hasError('birthDate')" [attr.aria-describedby]="hasError('birthDate') ? 'profile-birth-date-error' : null"><div id="profile-birth-date-error">@for (message of fieldErrors()['birthDate']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
           <label for="profile-language">{{ i18n.t('profile.language') }}</label><select id="profile-language" data-cy="profile-language" [(ngModel)]="preferredLanguage" name="preferredLanguage" [attr.aria-invalid]="hasError('preferredLanguage')" [attr.aria-describedby]="hasError('preferredLanguage') ? 'profile-language-error' : null"><option value="en">English</option><option value="fr">Français</option></select><div id="profile-language-error">@for (message of fieldErrors()['preferredLanguage']; track message) { <p class="field-error" role="alert">{{ message }}</p> }</div>
 
           <fieldset class="privacy-group">
@@ -31,7 +37,7 @@ import { AuthService } from './auth.service';
             <label class="check-row"><input type="checkbox" [(ngModel)]="isFirstNamePublic" name="isFirstNamePublic">{{ i18n.t('profile.publicFirstName') }}</label>
             <label class="check-row"><input type="checkbox" [(ngModel)]="isLastNamePublic" name="isLastNamePublic">{{ i18n.t('profile.publicLastName') }}</label>
             <label class="check-row"><input data-cy="profile-location-public" type="checkbox" [(ngModel)]="isLocationPublic" name="isLocationPublic">{{ i18n.t('profile.publicLocation') }}</label>
-            <label class="check-row"><input type="checkbox" [(ngModel)]="isBirthYearPublic" name="isBirthYearPublic">{{ i18n.t('profile.publicBirthYear') }}</label>
+            <label class="check-row"><input type="checkbox" [(ngModel)]="isBirthDatePublic" name="isBirthDatePublic">{{ i18n.t('profile.publicBirthDate') }}</label>
             <label class="check-row"><input type="checkbox" [(ngModel)]="isPreferredLanguagePublic" name="isPreferredLanguagePublic">{{ i18n.t('profile.publicLanguage') }}</label>
           </fieldset>
           <label for="profile-password">{{ i18n.t('profile.currentPasswordUsername') }}</label><input id="profile-password" type="password" autocomplete="current-password" [(ngModel)]="currentPassword" name="currentPassword">
@@ -85,17 +91,19 @@ export class ProfileComponent {
   readonly fieldErrors = signal<AuthFieldErrors>({});
   readonly identities = signal<ExternalIdentityResponse[]>([]);
   readonly providers = ['google', 'facebook'] as const;
-  readonly currentYear = new Date().getFullYear();
+  readonly today = new Date().toISOString().slice(0, 10);
   username = this.profile()?.username ?? '';
   firstName = this.profile()?.firstName ?? '';
   lastName = this.profile()?.lastName ?? '';
-  location = this.profile()?.location ?? '';
-  birthYear: number | undefined = this.profile()?.birthYear;
+  locationCountry = this.profile()?.locationCountry ?? '';
+  locationRegion = this.profile()?.locationRegion ?? '';
+  locationCity = this.profile()?.locationCity ?? '';
+  birthDate = isoDate(this.profile()?.birthDate);
   preferredLanguage = this.profile()?.preferredLanguage ?? 'fr';
   isFirstNamePublic = this.profile()?.isFirstNamePublic ?? false;
   isLastNamePublic = this.profile()?.isLastNamePublic ?? false;
   isLocationPublic = this.profile()?.isLocationPublic ?? false;
-  isBirthYearPublic = this.profile()?.isBirthYearPublic ?? false;
+  isBirthDatePublic = this.profile()?.isBirthDatePublic ?? false;
   isPreferredLanguagePublic = this.profile()?.isPreferredLanguagePublic ?? false;
   currentPassword = '';
   newEmail = '';
@@ -108,7 +116,7 @@ export class ProfileComponent {
 
   async saveProfile(): Promise<void> {
     await this.run(this.pending, async () => {
-      await this.auth.updateProfile({ username: this.username, firstName: this.firstName, lastName: this.lastName, location: this.location || undefined, birthYear: this.birthYear || undefined, preferredLanguage: this.preferredLanguage, isFirstNamePublic: this.isFirstNamePublic, isLastNamePublic: this.isLastNamePublic, isLocationPublic: this.isLocationPublic, isBirthYearPublic: this.isBirthYearPublic, isPreferredLanguagePublic: this.isPreferredLanguagePublic, currentPassword: this.currentPassword || undefined });
+      await this.auth.updateProfile({ username: this.username, firstName: this.firstName, lastName: this.lastName, locationCountry: this.locationCountry || undefined, locationRegion: this.locationRegion || undefined, locationCity: this.locationCity || undefined, birthDate: this.birthDate ? this.birthDate as unknown as LocalDate : undefined, preferredLanguage: this.preferredLanguage, isFirstNamePublic: this.isFirstNamePublic, isLastNamePublic: this.isLastNamePublic, isLocationPublic: this.isLocationPublic, isBirthDatePublic: this.isBirthDatePublic, isPreferredLanguagePublic: this.isPreferredLanguagePublic, currentPassword: this.currentPassword || undefined });
       await this.settings.setLanguage(this.preferredLanguage);
       this.currentPassword = '';
       this.status.set(this.i18n.t('profile.saved'));

@@ -125,14 +125,16 @@ internal sealed class UserProfileConfiguration : VersionedEntityConfiguration<Us
         builder.Property(profile => profile.NormalizedUsername).HasMaxLength(120);
         builder.Property(profile => profile.FirstName).HasMaxLength(100);
         builder.Property(profile => profile.LastName).HasMaxLength(100);
-        builder.Property(profile => profile.Location).HasMaxLength(200);
+        builder.Property(profile => profile.LocationCountry).HasMaxLength(100);
+        builder.Property(profile => profile.LocationRegion).HasMaxLength(100);
+        builder.Property(profile => profile.LocationCity).HasMaxLength(100);
         builder.Property(profile => profile.PreferredLanguage).HasMaxLength(2);
         builder.HasIndex(profile => profile.UserId).IsUnique();
         builder.HasIndex(profile => profile.NormalizedUsername).IsUnique();
         builder.HasOne<ApplicationUser>().WithOne().HasForeignKey<UserProfile>(profile => profile.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.ToTable(table =>
         {
-            table.HasCheckConstraint("ck_user_profile_birth_year", "birth_year IS NULL OR birth_year >= 1900");
+            table.HasCheckConstraint("ck_user_profile_birth_date", "birth_date IS NULL OR birth_date >= DATE '1900-01-01'");
             table.HasCheckConstraint("ck_user_profile_language", "preferred_language IN ('fr', 'en')");
         });
     }

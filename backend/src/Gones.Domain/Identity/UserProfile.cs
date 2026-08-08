@@ -40,13 +40,15 @@ public sealed class UserProfile : VersionedEntity
     public string NormalizedUsername { get; private set; } = string.Empty;
     public string FirstName { get; private set; } = string.Empty;
     public string LastName { get; private set; } = string.Empty;
-    public string? Location { get; private set; }
-    public int? BirthYear { get; private set; }
+    public string? LocationCountry { get; private set; }
+    public string? LocationRegion { get; private set; }
+    public string? LocationCity { get; private set; }
+    public LocalDate? BirthDate { get; private set; }
     public string PreferredLanguage { get; private set; } = "fr";
     public bool IsFirstNamePublic { get; private set; }
     public bool IsLastNamePublic { get; private set; }
     public bool IsLocationPublic { get; private set; }
-    public bool IsBirthYearPublic { get; private set; }
+    public bool IsBirthDatePublic { get; private set; }
     public bool IsPreferredLanguagePublic { get; private set; }
     public Instant CreatedAt { get; private init; }
     public Instant UpdatedAt { get; private set; }
@@ -74,35 +76,39 @@ public sealed class UserProfile : VersionedEntity
         string username,
         string firstName,
         string lastName,
-        string? location,
-        int? birthYear,
+        string? locationCountry,
+        string? locationRegion,
+        string? locationCity,
+        LocalDate? birthDate,
         string preferredLanguage,
         bool isFirstNamePublic,
         bool isLastNamePublic,
         bool isLocationPublic,
-        bool isBirthYearPublic,
+        bool isBirthDatePublic,
         bool isPreferredLanguagePublic,
-        int currentYear,
+        LocalDate today,
         Instant now)
     {
-        if (birthYear is < 1900 || birthYear > currentYear)
+        if (birthDate is { } value && (value.Year < 1900 || value > today))
         {
-            throw new ArgumentOutOfRangeException(nameof(birthYear), $"Birth year must be between 1900 and {currentYear}.");
+            throw new ArgumentOutOfRangeException(nameof(birthDate), $"Birth date must be between 1900-01-01 and {today:yyyy-MM-dd}.");
         }
 
         Username = username;
         NormalizedUsername = global::Gones.Domain.Identity.Username.Normalize(username);
         FirstName = ValidateRequired(firstName, nameof(firstName), 100);
         LastName = ValidateRequired(lastName, nameof(lastName), 100);
-        Location = ValidateOptional(location, nameof(location), 200);
-        BirthYear = birthYear;
+        LocationCountry = ValidateOptional(locationCountry, nameof(locationCountry), 100);
+        LocationRegion = ValidateOptional(locationRegion, nameof(locationRegion), 100);
+        LocationCity = ValidateOptional(locationCity, nameof(locationCity), 100);
+        BirthDate = birthDate;
         PreferredLanguage = preferredLanguage is "fr" or "en"
             ? preferredLanguage
             : throw new ArgumentException("Preferred language must be fr or en.", nameof(preferredLanguage));
         IsFirstNamePublic = isFirstNamePublic;
         IsLastNamePublic = isLastNamePublic;
         IsLocationPublic = isLocationPublic;
-        IsBirthYearPublic = isBirthYearPublic;
+        IsBirthDatePublic = isBirthDatePublic;
         IsPreferredLanguagePublic = isPreferredLanguagePublic;
         UpdatedAt = now;
     }
@@ -114,12 +120,14 @@ public sealed class UserProfile : VersionedEntity
         NormalizedUsername = global::Gones.Domain.Identity.Username.Normalize(opaqueUsername);
         FirstName = "Closed";
         LastName = "User";
-        Location = null;
-        BirthYear = null;
+        LocationCountry = null;
+        LocationRegion = null;
+        LocationCity = null;
+        BirthDate = null;
         IsFirstNamePublic = false;
         IsLastNamePublic = false;
         IsLocationPublic = false;
-        IsBirthYearPublic = false;
+        IsBirthDatePublic = false;
         IsPreferredLanguagePublic = false;
         ClosedAt = now;
         UpdatedAt = now;

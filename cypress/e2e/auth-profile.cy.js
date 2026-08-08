@@ -56,8 +56,8 @@ describe('auth, profile, sessions', () => {
     login();
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(1280));
     cy.get('[data-cy="profile-location-public"]').should('not.be.checked');
-    cy.get('[data-cy="profile-location"]').clear().type('Lyon');
-    cy.get('[data-cy="profile-birth-year"]').clear().type('1990');
+    cy.get('[data-cy="profile-location-city"]').clear().type('Lyon');
+    cy.get('[data-cy="profile-birth-date"]').clear().type('1990-04-17');
     cy.get('[data-cy="profile-language"]').select('fr');
     cy.get('[data-cy="profile-location-public"]').check();
     cy.get('[data-cy="profile-save"]').click();

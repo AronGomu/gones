@@ -19,13 +19,15 @@ WHERE normalized_email IN ('CYPRESS.USER@EXAMPLE.TEST', 'CYPRESS.USER+CHANGED@EX
    OR user_name = 'cypress-user';
 
 UPDATE user_profiles
-SET location = NULL,
-    birth_year = NULL,
+SET location_country = NULL,
+    location_region = NULL,
+    location_city = NULL,
+    birth_date = NULL,
     preferred_language = 'en',
     is_first_name_public = false,
     is_last_name_public = false,
     is_location_public = false,
-    is_birth_year_public = false,
+    is_birth_date_public = false,
     is_preferred_language_public = false
 WHERE user_id IN (
   SELECT id FROM asp_net_users WHERE normalized_email = 'CYPRESS.USER@EXAMPLE.TEST' OR user_name = 'cypress-user'

@@ -43,7 +43,7 @@ VALUES
    false, false, false, 0, '${suffix}', '${suffix}');
 INSERT INTO user_profiles
   (id, user_id, username, normalized_username, first_name, last_name, preferred_language,
-   is_first_name_public, is_last_name_public, is_location_public, is_birth_year_public,
+   is_first_name_public, is_last_name_public, is_location_public, is_birth_date_public,
    is_preferred_language_public, created_at, updated_at, version)
 VALUES
   ('${profileId}', '${userId}', 'Smoke${suffix.slice(0, 8)}', upper('Smoke${suffix.slice(0, 8)}'),
