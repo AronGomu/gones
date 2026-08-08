@@ -46,7 +46,10 @@
   **one** argument each — the optional `currentPassword` parameter is gone from the service, the generated client and
   both API endpoints. The `linkPassword` field and its label/input row are already deleted from
   `account-settings.component.ts`. Step 18 is therefore a verification, not an edit. The i18n key
-  `profile.currentPasswordOptional` may now be unused; leave it for the T25 sweep.
+  `profile.currentPasswordOptional` may now be unused; leave it for the T25 sweep. T9b also edited
+  `cypress/e2e/auth-profile.cy.js:104-106`, which used to type into the deleted `#link-password` and assert the
+  request carried `currentPassword`; that edit was **never run against a browser**, so step 24 of this ticket is
+  the first execution of it — treat a failure there as yours to fix.
 - **From Depends (T8):** the component lives at `src/app/features/settings/account-settings.component.ts`, its route is `settings/account` behind `userGuard`, its selectors are prefixed `account-`, and it is already out of `PENDING_DATA_CY_RETROFIT`. The profile fields are the T5 shape: `locationCountry`, `locationRegion`, `locationCity`, `birthDate` (ISO `yyyy-MM-dd`), `isBirthDatePublic`.
 
 ## TDD
