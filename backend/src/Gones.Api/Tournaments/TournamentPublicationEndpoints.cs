@@ -109,7 +109,11 @@ internal sealed class TournamentPublicationService(
         return new TournamentPreviewResponse(normalized.Render, ticket.Value, ticket.ExpiresAt);
     }
 
-    public async Task<TournamentPublishOutcome> PublishAsync(
+    /// <summary>
+    /// The HTTP publish path: a preview ticket is mandatory here, then the work is handed to
+    /// <see cref="PublishTournamentAsync"/>.
+    /// </summary>
+    public Task<TournamentPublishOutcome> PublishAsync(
         Guid userId,
         bool isAdmin,
         string idempotencyKey,
@@ -121,9 +125,25 @@ internal sealed class TournamentPublicationService(
             throw Validation("previewTicket", "Preview ticket is required and cannot exceed 2048 characters.");
         }
         if (request.Payload is null) throw Validation("payload", "Payload is required.");
-        var normalized = await NormalizeAsync(userId, isAdmin, request.Payload, cancellationToken);
-        var ticketHash = TournamentPreviewTicketService.Hash(request.PreviewTicket);
-        var scope = $"tournament-publish:{userId:D}";
+        return PublishTournamentAsync(request.Payload, userId, isAdmin, idempotencyKey, request.PreviewTicket, cancellationToken);
+    }
+
+    /// <summary>
+    /// Publishes a normalized payload without going through HTTP. <paramref name="previewTicket"/> is
+    /// null when the caller never issued one — approving a stored tournament proposal (T17) is the
+    /// case: the payload was already validated at submission, so there is no preview to consume.
+    /// </summary>
+    internal async Task<TournamentPublishOutcome> PublishTournamentAsync(
+        TournamentPayloadRequest request,
+        Guid actingUserId,
+        bool isAdmin,
+        string idempotencyKey,
+        string? previewTicket,
+        CancellationToken cancellationToken)
+    {
+        var normalized = await NormalizeAsync(actingUserId, isAdmin, request, cancellationToken);
+        var ticketHash = previewTicket is null ? string.Empty : TournamentPreviewTicketService.Hash(previewTicket);
+        var scope = $"tournament-publish:{actingUserId:D}";
 
         for (var attempt = 1; attempt <= MaximumPublishAttempts; attempt++)
         {
@@ -146,15 +166,19 @@ internal sealed class TournamentPublicationService(
                     return Outcome(stored.Response);
                 }
 
-                var expiresAt = tickets.Validate(
-                    request.PreviewTicket,
-                    userId,
-                    request.Payload.OrganizationId,
-                    normalized.PayloadHash);
-                if (await database.ConsumedTournamentPreviewTickets.AsNoTracking()
-                    .AnyAsync(item => item.TicketHash == ticketHash, cancellationToken))
+                Instant? expiresAt = null;
+                if (previewTicket is not null)
                 {
-                    throw new TournamentPreviewReplayException();
+                    expiresAt = tickets.Validate(
+                        previewTicket,
+                        actingUserId,
+                        request.OrganizationId,
+                        normalized.PayloadHash);
+                    if (await database.ConsumedTournamentPreviewTickets.AsNoTracking()
+                        .AnyAsync(item => item.TicketHash == ticketHash, cancellationToken))
+                    {
+                        throw new TournamentPreviewReplayException();
+                    }
                 }
 
                 await database.Database.ExecuteSqlInterpolatedAsync(
@@ -163,22 +187,25 @@ internal sealed class TournamentPublicationService(
                 var slug = await NextSlugAsync(normalized.BaseSlug, cancellationToken);
                 var now = clock.GetCurrentInstant();
                 var tournament = ScheduledTournament.Create(
-                    request.Payload.OrganizationId,
-                    userId,
-                    ToDraft(request.Payload, slug),
+                    request.OrganizationId,
+                    actingUserId,
+                    ToDraft(request, slug),
                     normalized.Formats,
                     now);
                 database.ScheduledTournaments.Add(tournament);
                 var response = new TournamentPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
                 var storedResult = new StoredPublishResult(ticketHash, normalized.PayloadHash, response);
-                database.ConsumedTournamentPreviewTickets.Add(new ConsumedTournamentPreviewTicket
+                if (expiresAt is { } ticketExpiresAt)
                 {
-                    TicketHash = ticketHash,
-                    ExpiresAt = expiresAt
-                });
+                    database.ConsumedTournamentPreviewTickets.Add(new ConsumedTournamentPreviewTicket
+                    {
+                        TicketHash = ticketHash,
+                        ExpiresAt = ticketExpiresAt
+                    });
+                }
                 database.AuditRecords.Add(new AuditRecord
                 {
-                    ActorId = userId,
+                    ActorId = actingUserId,
                     Action = "tournament.published",
                     EntityType = "scheduled_tournament",
                     EntityId = tournament.Id.ToString("D"),
@@ -210,14 +237,30 @@ internal sealed class TournamentPublicationService(
         throw new ResourceConflictException();
     }
 
+    /// <summary>
+    /// Runs every check <c>POST /api/tournaments/preview</c> runs except the organizer-membership one,
+    /// which a proposal submitter cannot satisfy by definition. A stored proposal therefore can never
+    /// carry a payload that publishing would later reject.
+    /// </summary>
+    public async Task ValidateProposalPayloadAsync(
+        Guid submitterUserId,
+        TournamentPayloadRequest request,
+        CancellationToken cancellationToken)
+    {
+        _ = await NormalizeAsync(submitterUserId, isAdmin: false, request, cancellationToken, requireMembership: false);
+    }
+
     private async Task<NormalizedTournamentPayload> NormalizeAsync(
         Guid userId,
         bool isAdmin,
         TournamentPayloadRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireMembership = true)
     {
         if (request.OrganizationId == Guid.Empty) throw Validation("organizationId", "Organization ID is required.");
-        var organization = (await access.RequireMemberAsync(request.OrganizationId, userId, isAdmin, cancellationToken)).Organization;
+        var organization = requireMembership
+            ? (await access.RequireMemberAsync(request.OrganizationId, userId, isAdmin, cancellationToken)).Organization
+            : (await access.LoadAsync(request.OrganizationId, userId, isAdmin, includeDeletedForAdmin: false, cancellationToken)).Organization;
         if (organization.DeletedAt is not null) throw new ResourceNotFoundException();
         var formatIds = request.FormatIds?.Distinct().Order().ToArray() ?? [];
         if (formatIds.Length == 0 || formatIds.Length != request.FormatIds!.Count)

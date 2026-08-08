@@ -1,0 +1,16 @@
+Hello {{ApproverName}},
+
+{{SubmitterName}} asks you to review and publish this tournament.
+
+Tournament: {{TournamentName}}
+Summary: {{TournamentSummary}}
+Venue: {{VenueAddress}}
+Starts: {{StartsAt}}
+Ends: {{EndsAt}}
+Time zone: {{TimeZoneId}}
+Formats: {{Formats}}
+Capacity: {{Capacity}}
+
+Review this request: {{ReviewUrl}}
+
+This link works once and expires after seven days.

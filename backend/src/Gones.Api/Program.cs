@@ -84,6 +84,7 @@ else
     }
     builder.Services.AddScoped<OrganizationAccessService>();
     builder.Services.AddScoped<TournamentPublicationService>();
+    builder.Services.AddScoped<TournamentProposalService>();
     builder.Services.AddScoped<TournamentLifecycleService>();
     builder.Services.AddScoped<TournamentRegistrationService>();
     builder.Services.AddScoped<TournamentRegistrationNotificationService>();
@@ -188,6 +189,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapLiveCommandEndpoints();
     app.MapPublicTournamentEndpoints();
     app.MapTournamentPublicationEndpoints();
+    app.MapTournamentProposalEndpoints();
     app.MapTournamentLifecycleEndpoints();
     app.MapTournamentRegistrationEndpoints();
     app.MapOrganizerParticipantEndpoints();

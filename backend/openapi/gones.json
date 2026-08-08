@@ -3868,6 +3868,117 @@
         }
       }
     },
+    "/api/tournament-proposals/approvers": {
+      "get": {
+        "tags": [
+          "TournamentProposalEndpoints"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProposalApproverResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tournament-proposals": {
+      "post": {
+        "tags": [
+          "TournamentProposalEndpoints"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TournamentProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentProposalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/organizer/tournaments": {
       "get": {
         "tags": [
@@ -9801,6 +9912,26 @@
           }
         }
       },
+      "ProposalApproverResponse": {
+        "required": [
+          "id",
+          "username",
+          "globalRole"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          },
+          "globalRole": {
+            "type": "string"
+          }
+        }
+      },
       "PublicDeckArchetypeResponse": {
         "required": [
           "id",
@@ -11515,6 +11646,55 @@
           }
         }
       },
+      "TournamentProposalRequest": {
+        "required": [
+          "tournament",
+          "recipientUserIds"
+        ],
+        "type": "object",
+        "properties": {
+          "tournament": {
+            "$ref": "#/components/schemas/TournamentPayloadRequest"
+          },
+          "recipientUserIds": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "TournamentProposalResponse": {
+        "required": [
+          "id",
+          "status",
+          "expiresAt",
+          "recipientCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "recipientCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "TournamentPublishResponse": {
         "required": [
           "id",
@@ -12214,6 +12394,9 @@
     },
     {
       "name": "PlayerNameMaintenanceEndpoints"
+    },
+    {
+      "name": "TournamentProposalEndpoints"
     },
     {
       "name": "TournamentLifecycleEndpoints"

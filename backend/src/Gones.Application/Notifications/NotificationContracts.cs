@@ -14,6 +14,7 @@ public static class NotificationTemplateKeys
     public const string Cancellation = "cancellation";
     public const string Reminder = "reminder";
     public const string OrganizerNotice = "organizer-notice";
+    public const string TournamentProposal = "tournament-proposal";
 }
 
 public abstract record NotificationTemplateModel;
@@ -26,6 +27,22 @@ public sealed record MajorUpdateTemplateModel(string Username, string Tournament
 public sealed record CancellationTemplateModel(string Username, string TournamentName, Uri TournamentUrl) : NotificationTemplateModel;
 public sealed record ReminderTemplateModel(string Username, string TournamentName, DateTimeOffset StartsAtUtc, string TimeZoneId, Uri TournamentUrl) : NotificationTemplateModel;
 public sealed record OrganizerNoticeTemplateModel(string OrganizerName, string ParticipantName, string TournamentName, string Notice, Uri TournamentUrl) : NotificationTemplateModel;
+/// <summary>
+/// Carries every field the submitter typed, so an approver can decide from the mail alone.
+/// <paramref name="ReviewUrl"/> holds that approver's own single-use token — one recipient, one token.
+/// </summary>
+public sealed record TournamentProposalTemplateModel(
+    string ApproverName,
+    string SubmitterName,
+    string TournamentName,
+    string TournamentSummary,
+    string VenueAddress,
+    string StartsAt,
+    string EndsAt,
+    string TimeZoneId,
+    string Formats,
+    string Capacity,
+    Uri ReviewUrl) : NotificationTemplateModel;
 
 public sealed record NotificationRequest(
     string Recipient,
@@ -98,6 +115,7 @@ public static class NotificationModelSerializer
         CancellationTemplateModel => NotificationTemplateKeys.Cancellation,
         ReminderTemplateModel => NotificationTemplateKeys.Reminder,
         OrganizerNoticeTemplateModel => NotificationTemplateKeys.OrganizerNotice,
+        TournamentProposalTemplateModel => NotificationTemplateKeys.TournamentProposal,
         _ => throw new NotificationTemplateException("notification_template_unknown")
     };
 
@@ -133,6 +151,7 @@ public static class NotificationModelSerializer
                 NotificationTemplateKeys.Cancellation => Required<CancellationTemplateModel>(json),
                 NotificationTemplateKeys.Reminder => Required<ReminderTemplateModel>(json),
                 NotificationTemplateKeys.OrganizerNotice => Required<OrganizerNoticeTemplateModel>(json),
+                NotificationTemplateKeys.TournamentProposal => Required<TournamentProposalTemplateModel>(json),
                 _ => throw new NotificationTemplateException("notification_template_unknown")
             };
         }

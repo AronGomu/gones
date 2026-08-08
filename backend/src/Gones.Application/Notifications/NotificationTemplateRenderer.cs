@@ -24,7 +24,8 @@ public sealed class NotificationTemplateRenderer
             [NotificationTemplateKeys.MajorUpdate] = ("Modification importante du tournoi", "Important tournament update"),
             [NotificationTemplateKeys.Cancellation] = ("Tournoi annulé", "Tournament cancelled"),
             [NotificationTemplateKeys.Reminder] = ("Rappel de tournoi", "Tournament reminder"),
-            [NotificationTemplateKeys.OrganizerNotice] = ("Nouvelle activité sur votre tournoi", "New activity on your tournament")
+            [NotificationTemplateKeys.OrganizerNotice] = ("Nouvelle activité sur votre tournoi", "New activity on your tournament"),
+            [NotificationTemplateKeys.TournamentProposal] = ("Demande de validation de tournoi", "Tournament approval request")
         };
 
     public RenderedEmail Render(string? locale, NotificationTemplateModel model)
@@ -99,6 +100,21 @@ public sealed class NotificationTemplateRenderer
                 ["TournamentName"] = Text(value.TournamentName, safePreview),
                 ["Notice"] = Text(value.Notice, safePreview),
                 ["TournamentUrl"] = Url(safePreview ? previewUrl : value.TournamentUrl)
+            },
+            TournamentProposalTemplateModel value => new Dictionary<string, string>
+            {
+                ["ApproverName"] = Text(value.ApproverName, safePreview),
+                ["SubmitterName"] = Text(value.SubmitterName, safePreview),
+                ["TournamentName"] = Text(value.TournamentName, safePreview),
+                ["TournamentSummary"] = Text(value.TournamentSummary, safePreview),
+                ["VenueAddress"] = Text(value.VenueAddress, safePreview),
+                ["StartsAt"] = Text(value.StartsAt, safePreview),
+                ["EndsAt"] = Text(value.EndsAt, safePreview),
+                ["TimeZoneId"] = Text(value.TimeZoneId, safePreview),
+                ["Formats"] = Text(value.Formats, safePreview),
+                ["Capacity"] = Text(value.Capacity, safePreview),
+                // The review token lives in this URL only; the safe preview redacts it like every other link.
+                ["ReviewUrl"] = Url(safePreview ? previewUrl : value.ReviewUrl)
             },
             _ => throw new NotificationTemplateException("notification_template_unknown")
         };

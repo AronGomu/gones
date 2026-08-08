@@ -1,0 +1,16 @@
+Bonjour {{ApproverName}},
+
+{{SubmitterName}} vous demande de valider et de publier ce tournoi.
+
+Tournoi : {{TournamentName}}
+Résumé : {{TournamentSummary}}
+Lieu : {{VenueAddress}}
+Début : {{StartsAt}}
+Fin : {{EndsAt}}
+Fuseau horaire : {{TimeZoneId}}
+Formats : {{Formats}}
+Capacité : {{Capacity}}
+
+Examiner cette demande : {{ReviewUrl}}
+
+Ce lien est à usage unique et expire après sept jours.

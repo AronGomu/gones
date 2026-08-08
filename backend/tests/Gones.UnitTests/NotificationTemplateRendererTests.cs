@@ -13,8 +13,64 @@ public sealed class NotificationTemplateRendererTests
         new MajorUpdateTemplateModel("Alice", "Legacy Lyon", "Venue changed", new Uri("https://app.example/tournaments/legacy-lyon")),
         new CancellationTemplateModel("Alice", "Legacy Lyon", new Uri("https://app.example/tournaments/legacy-lyon")),
         new ReminderTemplateModel("Alice", "Legacy Lyon", new DateTimeOffset(2026, 8, 15, 12, 0, 0, TimeSpan.Zero), "Europe/Paris", new Uri("https://app.example/tournaments/legacy-lyon")),
-        new OrganizerNoticeTemplateModel("Morgan", "Alice", "Legacy Lyon", "Registration received", new Uri("https://app.example/tournaments/legacy-lyon"))
+        new OrganizerNoticeTemplateModel("Morgan", "Alice", "Legacy Lyon", "Registration received", new Uri("https://app.example/tournaments/legacy-lyon")),
+        new TournamentProposalTemplateModel(
+            "Morgan",
+            "Alice",
+            "Legacy Lyon",
+            "Monthly legacy event",
+            "12 Rue de la Paix, 75001 Lyon, France",
+            "2035-03-04T10:00:00",
+            "2035-03-04T18:00:00",
+            "Europe/Paris",
+            "Legacy",
+            "64",
+            new Uri("https://app.example/tournament-requests/secret-review-token"))
     };
+
+    [Fact]
+    public void Tournament_proposal_renders_every_submitted_field_in_both_locales()
+    {
+        var renderer = new NotificationTemplateRenderer();
+        var model = new TournamentProposalTemplateModel(
+            "Morgan",
+            "Alice",
+            "Legacy Lyon",
+            "Monthly legacy event",
+            "12 Rue de la Paix, 75001 Lyon, France",
+            "2035-03-04T10:00:00",
+            "2035-03-04T18:00:00",
+            "Europe/Paris",
+            "Legacy",
+            "64",
+            new Uri("https://app.example/tournament-requests/secret-review-token"));
+        string[] fields =
+        [
+            model.ApproverName, model.SubmitterName, model.TournamentName, model.TournamentSummary,
+            model.VenueAddress, model.StartsAt, model.EndsAt, model.TimeZoneId, model.Formats, model.Capacity,
+            model.ReviewUrl.AbsoluteUri
+        ];
+
+        var french = renderer.Render("fr", model);
+        var english = renderer.Render("en", model);
+
+        Assert.Equal("Demande de validation de tournoi", french.Subject);
+        Assert.Equal("Tournament approval request", english.Subject);
+        foreach (var rendered in new[] { french, english })
+        {
+            foreach (var field in fields)
+            {
+                Assert.Contains(field, rendered.TextBody, StringComparison.Ordinal);
+                Assert.Contains(field, rendered.HtmlBody, StringComparison.Ordinal);
+            }
+
+            // The stored preview must never carry the review token.
+            Assert.DoesNotContain("secret-review-token", rendered.SafePreviewTextBody, StringComparison.Ordinal);
+            Assert.DoesNotContain("secret-review-token", rendered.SafePreviewHtmlBody, StringComparison.Ordinal);
+        }
+
+        Assert.NotEqual(french.TextBody, english.TextBody);
+    }
 
     [Theory]
     [MemberData(nameof(Models))]

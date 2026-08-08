@@ -87,11 +87,11 @@ Run: `npm run backend:test`
 
 ## Impl steps
 
-- [ ] 1. Ensure the EF CLI exists: `dotnet ef --version`; install with `dotnet tool install --global dotnet-ef` if missing.
-- [ ] 2. Create `backend/src/Gones.Domain/Calendar/TournamentProposal.cs` with `public sealed class TournamentProposal` (private ctor, `Create(...)` factory, `Approve(Guid decidedBy, Instant now)`, `Reject(Guid? decidedBy, string reason, Instant now)`), the `TournamentProposalStatus` enum, and `public sealed class TournamentProposalRecipient`.
-- [ ] 3. Add `public DbSet<TournamentProposal> TournamentProposals` and `public DbSet<TournamentProposalRecipient> TournamentProposalRecipients` to `GonesDbContext`.
-- [ ] 4. Create `backend/src/Gones.Infrastructure/Persistence/TournamentProposalConfigurations.cs`: `PayloadJson` as `jsonb`, `TokenHash` `char(64)` with a unique index, `Status` stored as a string, cascade from proposal to recipients, and an index on `(Status, ExpiresAt)`.
-- [ ] 5. Run the migration with **both** project flags pointing at `Gones.Infrastructure` — `Gones.Api` does not reference `Microsoft.EntityFrameworkCore.Design`, so the `--startup-project backend/src/Gones.Api` form fails on this repo (verified: the package reference exists only in `backend/src/Gones.Infrastructure/Gones.Infrastructure.csproj:12`). Export `DOTNET_ROOT` first:
+- [x] 1. Ensure the EF CLI exists: `dotnet ef --version`; install with `dotnet tool install --global dotnet-ef` if missing.
+- [x] 2. Create `backend/src/Gones.Domain/Calendar/TournamentProposal.cs` with `public sealed class TournamentProposal` (private ctor, `Create(...)` factory, `Approve(Guid decidedBy, Instant now)`, `Reject(Guid? decidedBy, string reason, Instant now)`), the `TournamentProposalStatus` enum, and `public sealed class TournamentProposalRecipient`.
+- [x] 3. Add `public DbSet<TournamentProposal> TournamentProposals` and `public DbSet<TournamentProposalRecipient> TournamentProposalRecipients` to `GonesDbContext`.
+- [x] 4. Create `backend/src/Gones.Infrastructure/Persistence/TournamentProposalConfigurations.cs`: `PayloadJson` as `jsonb`, `TokenHash` `char(64)` with a unique index, `Status` stored as a string, cascade from proposal to recipients, and an index on `(Status, ExpiresAt)`.
+- [x] 5. Run the migration with **both** project flags pointing at `Gones.Infrastructure` — `Gones.Api` does not reference `Microsoft.EntityFrameworkCore.Design`, so the `--startup-project backend/src/Gones.Api` form fails on this repo (verified: the package reference exists only in `backend/src/Gones.Infrastructure/Gones.Infrastructure.csproj:12`). Export `DOTNET_ROOT` first:
   ```
   export DOTNET_ROOT="$(dirname "$(readlink -f "$(which dotnet)")")"
   dotnet ef migrations add AddTournamentProposals \
@@ -100,10 +100,10 @@ Run: `npm run backend:test`
     --output-dir Persistence/Migrations
   ```
   Review the generated SQL before moving on — validate: the new file appears in `backend/src/Gones.Infrastructure/Persistence/Migrations/` and `GonesDbContextModelSnapshot.cs` is updated.
-- [ ] 6. Create `backend/src/Gones.Api/Tournaments/TournamentProposalEndpoints.cs` with `public static void MapTournamentProposalEndpoints(this WebApplication app)` and register it from `Program.cs` next to the other `Map*Endpoints` calls.
-- [ ] 7. Register `var proposals = app.MapGroup("/api/tournament-proposals").RequireAuthorization(AuthorizationPolicies.User);` then `proposals.MapGet("/approvers", ListApproversAsync).Produces<IReadOnlyList<ProposalApproverResponse>>();`
-- [ ] 8. Implement `ListApproversAsync` querying `database.Users.AsNoTracking().Where(user => user.GlobalRole == "Organizer" || user.GlobalRole == "Admin")` joined to `UserProfiles` for the username, ordered by username, projected to `internal sealed record ProposalApproverResponse(Guid Id, string Username, string GlobalRole);`.
-- [ ] 9. Register the submit route:
+- [x] 6. Create `backend/src/Gones.Api/Tournaments/TournamentProposalEndpoints.cs` with `public static void MapTournamentProposalEndpoints(this WebApplication app)` and register it from `Program.cs` next to the other `Map*Endpoints` calls.
+- [x] 7. Register `var proposals = app.MapGroup("/api/tournament-proposals").RequireAuthorization(AuthorizationPolicies.User);` then `proposals.MapGet("/approvers", ListApproversAsync).Produces<IReadOnlyList<ProposalApproverResponse>>();`
+- [x] 8. Implement `ListApproversAsync` querying `database.Users.AsNoTracking().Where(user => user.GlobalRole == "Organizer" || user.GlobalRole == "Admin")` joined to `UserProfiles` for the username, ordered by username, projected to `internal sealed record ProposalApproverResponse(Guid Id, string Username, string GlobalRole);`.
+- [x] 9. Register the submit route:
   ```
   proposals.MapPost(string.Empty, SubmitAsync)
       .RequireRateLimiting(AuthRateLimiting.IpPolicy)
@@ -113,26 +113,37 @@ Run: `npm run backend:test`
       .ProducesProblem(StatusCodes.Status403Forbidden)
       .ProducesProblem(StatusCodes.Status429TooManyRequests);
   ```
-- [ ] 10. Define `internal sealed record TournamentProposalRequest([property: Required] TournamentPublishRequest Tournament, [property: Required, MinLength(1)] IReadOnlyList<Guid> RecipientUserIds);` reusing the publish request record's exact type name from `TournamentPublicationEndpoints.cs`.
-- [ ] 11. In `SubmitAsync`: resolve the caller, reject with `403` when `!user.EmailConfirmed` or when `GlobalRole` is `Organizer`/`Admin`.
-- [ ] 12. Validate the recipients: load them, and throw `ApiValidationException` naming `recipientUserIds` when any id is unknown or is not an Organizer/Admin.
-- [ ] 13. Validate the tournament payload with the same validator `PreviewAsync` uses, so a proposal can never carry a payload that publishing would reject.
-- [ ] 14. Create the proposal with `PayloadJson = JsonSerializer.Serialize(request.Tournament, jsonOptions)` and `ExpiresAt = now.Plus(Duration.FromDays(7))`.
-- [ ] 15. For each recipient: generate 32 random bytes with `RandomNumberGenerator.GetBytes(32)`, base64url-encode them as the plaintext token, store `Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant()` as `TokenHash`.
-- [ ] 16. Add `public const string TournamentProposal = "tournament-proposal";` to `NotificationTemplateKeys`.
-- [ ] 17. Add `public sealed record TournamentProposalTemplateModel(string ApproverName, string SubmitterName, string TournamentName, string TournamentSummary, string VenueAddress, string StartsAt, string EndsAt, string TimeZoneId, string Formats, string Capacity, Uri ReviewUrl) : NotificationTemplateModel;` to `NotificationContracts.cs`.
-- [ ] 18. Register the model in `NotificationModelSerializer.TemplateKey(...)` and add the subject pair to `NotificationTemplateRenderer.Subjects`: `("Demande de validation de tournoi", "Tournament approval request")`.
-- [ ] 19. Create `backend/src/Gones.Application/Notifications/Templates/fr/tournament-proposal.html`, `.../fr/tournament-proposal.txt`, `.../en/tournament-proposal.html`, `.../en/tournament-proposal.txt`, each rendering every `{{Placeholder}}` of the model and the `{{ReviewUrl}}` link. Confirm the `.csproj` includes them as embedded resources — the folder is already globbed, so a new file is picked up automatically; verify with `dotnet build` and a render test.
-- [ ] 20. Enqueue one `NotificationRequest` per recipient with `Recipient = recipientEmail`, `Locale = recipientProfile.PreferredLanguage`, `DedupeKey = $"tournament-proposal:{proposalId}:{recipientUserId}"`, `UserId = recipientUserId`.
-- [ ] 21. Build the review URL as `new Uri($"{publicAppOrigin}/tournament-requests/{token}")` using the same origin resolution `AccountLifecycleService` uses.
-- [ ] 22. Save everything inside one transaction; enqueue only after `SaveChangesAsync` succeeds.
-- [ ] 23. Return `Results.Created($"/api/tournament-proposals/{proposal.Id}", new TournamentProposalResponse(proposal.Id, "Pending", proposal.ExpiresAt, request.RecipientUserIds.Count))`.
-- [ ] 24. Extract `internal static Task<TournamentPublishOutcome> PublishTournamentAsync(TournamentPublishRequest request, Guid actingUserId, …)` from `PublishAsync` in `TournamentPublicationEndpoints.cs`, leaving `PublishAsync` a thin wrapper. T17 depends on this.
-- [ ] 25. Write `backend/tests/Gones.IntegrationTests/TournamentProposalTests.cs` with all fourteen Test plan rows.
-- [ ] 26. Run `npm run backend:test`.
-- [ ] 27. Start Postgres (`docker compose up -d postgres`) and run `npm run api:generate`; commit `src/app/api/generated/gones-api.ts`.
-- [ ] 28. Run `npm run api:check && npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 29. Run `npm run notification:smoke` to confirm the new template renders through the file transport.
+- [x] 10. Define `internal sealed record TournamentProposalRequest([property: Required] TournamentPublishRequest Tournament, [property: Required, MinLength(1)] IReadOnlyList<Guid> RecipientUserIds);` reusing the publish request record's exact type name from `TournamentPublicationEndpoints.cs`.
+- [x] 11. In `SubmitAsync`: resolve the caller, reject with `403` when `!user.EmailConfirmed` or when `GlobalRole` is `Organizer`/`Admin`.
+- [x] 12. Validate the recipients: load them, and throw `ApiValidationException` naming `recipientUserIds` when any id is unknown or is not an Organizer/Admin.
+- [x] 13. Validate the tournament payload with the same validator `PreviewAsync` uses, so a proposal can never carry a payload that publishing would reject.
+- [x] 14. Create the proposal with `PayloadJson = JsonSerializer.Serialize(request.Tournament, jsonOptions)` and `ExpiresAt = now.Plus(Duration.FromDays(7))`.
+- [x] 15. For each recipient: generate 32 random bytes with `RandomNumberGenerator.GetBytes(32)`, base64url-encode them as the plaintext token, store `Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant()` as `TokenHash`.
+- [x] 16. Add `public const string TournamentProposal = "tournament-proposal";` to `NotificationTemplateKeys`.
+- [x] 17. Add `public sealed record TournamentProposalTemplateModel(string ApproverName, string SubmitterName, string TournamentName, string TournamentSummary, string VenueAddress, string StartsAt, string EndsAt, string TimeZoneId, string Formats, string Capacity, Uri ReviewUrl) : NotificationTemplateModel;` to `NotificationContracts.cs`.
+- [x] 18. Register the model in `NotificationModelSerializer.TemplateKey(...)` and add the subject pair to `NotificationTemplateRenderer.Subjects`: `("Demande de validation de tournoi", "Tournament approval request")`.
+- [x] 19. Create `backend/src/Gones.Application/Notifications/Templates/fr/tournament-proposal.html`, `.../fr/tournament-proposal.txt`, `.../en/tournament-proposal.html`, `.../en/tournament-proposal.txt`, each rendering every `{{Placeholder}}` of the model and the `{{ReviewUrl}}` link. Confirm the `.csproj` includes them as embedded resources — the folder is already globbed, so a new file is picked up automatically; verify with `dotnet build` and a render test.
+- [x] 20. Enqueue one `NotificationRequest` per recipient with `Recipient = recipientEmail`, `Locale = recipientProfile.PreferredLanguage`, `DedupeKey = $"tournament-proposal:{proposalId}:{recipientUserId}"`, `UserId = recipientUserId`.
+- [x] 21. Build the review URL as `new Uri($"{publicAppOrigin}/tournament-requests/{token}")` using the same origin resolution `AccountLifecycleService` uses.
+- [x] 22. Save everything inside one transaction; enqueue only after `SaveChangesAsync` succeeds.
+- [x] 23. Return `Results.Created($"/api/tournament-proposals/{proposal.Id}", new TournamentProposalResponse(proposal.Id, "Pending", proposal.ExpiresAt, request.RecipientUserIds.Count))`.
+- [x] 24. Extract `internal static Task<TournamentPublishOutcome> PublishTournamentAsync(TournamentPublishRequest request, Guid actingUserId, …)` from `PublishAsync` in `TournamentPublicationEndpoints.cs`, leaving `PublishAsync` a thin wrapper. T17 depends on this.
+- [x] 25. Write `backend/tests/Gones.IntegrationTests/TournamentProposalTests.cs` with all fourteen Test plan rows.
+- [x] 26. Run `npm run backend:test`. — 196 unit + 14 architecture + 332 integration pass. The documented
+  RootlessKit port flake hit a different class on each full run (`LocalIdentityApiTests`, `OAuthApiTests`,
+  `DeckArchetypeCatalogApiTests`, `NotificationOutboxTests`, `TournamentRegistrationApiTests`), always at
+  `InitializeAsync` and never as an assertion; every one of them passes re-run alone.
+- [x] 27. Postgres was already up (`gones-postgres-1`), so it was reused rather than recreated;
+  `npm run api:generate` regenerated `src/app/api/generated/gones-api.ts` **and** `backend/openapi/gones.json`
+  (`api:check` compares both) — 355 insertions, 0 deletions, i.e. purely additive.
+- [x] 28. Run `npm run api:check && npm run test && npm run lint && npm run typecheck && npm run build`. —
+  api:check clean; vitest 439/439; lint "All files pass linting"; typecheck clean; build produced `dist/gones`.
+- [x] 29. `npm run notification:smoke` passes ("one fake delivery, terminal payload scrubbed") against the
+  compose worker, whose transport is `GONES_EMAIL_TRANSPORT=File` writing to `/tmp/gones-email-sink` — no real
+  provider anywhere in the loop. That smoke enqueues `verify-email` only, and teaching it `tournament-proposal`
+  would mean rebuilding and recreating `gones-worker-1`, which this job forbids. The new template's both-locale
+  render is proven instead by `NotificationTemplateRendererTests.Tournament_proposal_renders_every_submitted_field_in_both_locales`
+  and `TournamentProposalTests.Submit_mail_contains_every_field`.
 
 ## Outputs
 
@@ -143,10 +154,19 @@ Run: `npm run backend:test`
 
 ## Validation
 
-- [ ] `npm run backend:test` passes
-- [ ] `npm run api:check` reports no drift
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run notification:smoke` renders `tournament-proposal` in both locales
-- [ ] manual check: submit a proposal with curl as a verified plain user; inspect the local mail sink and confirm the link and every submitted field are present
-- [ ] app functional — direct publishing by organizers unchanged; the public calendar shows no proposal
-- [ ] commit msg draft: `feat(tournaments): store tournament proposals and mail their approvers a signed review link`
+- [x] `npm run backend:test` passes (see step 26 on the host's port-bind flake)
+- [x] `npm run api:check` reports no drift
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass
+- [x] `tournament-proposal` renders in both locales — subjects "Demande de validation de tournoi" / "Tournament
+  approval request", every submitted field present in each body, and the stored safe preview redacts the review
+  token. `npm run notification:smoke` passes and confirms the File sink transport; see step 29 for why the smoke
+  itself still carries `verify-email`.
+- [ ] manual check: submit a proposal with curl as a verified plain user; inspect the local mail sink and confirm
+  the link and every submitted field are present — **not performed.** It needs an auth call against the local API
+  on 5080, which this job forbids (tight shared rate limit), and `gones-api-1` still runs a pre-change image that
+  has no such route. `TournamentProposalTests.Submit_mail_contains_every_field` covers the same ground: it renders
+  the real enqueued outbox row and asserts the review link plus every submitted field.
+- [x] app functional — direct publishing by organizers unchanged (`TournamentPublicationApiTests` 16/16 green,
+  untouched) and the public calendar shows no proposal (`Submit_creates_no_public_tournament`: `GET /api/tournaments/all`
+  count identical before and after a submit, `scheduled_tournaments` still empty).
+- [x] commit msg draft: `feat(tournaments): store tournament proposals and mail their approvers a signed review link`
