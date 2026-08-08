@@ -10,7 +10,9 @@ import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { TournamentDetailViewComponent } from './tournament-detail-view.component';
+import { ApproverSelectionDialogComponent } from './approver-selection-dialog.component';
 import { PreviewPublicationState, browserTimeZoneSuggestion, tournamentPayload } from './organizer-tournament-create';
+import { TournamentProposalService, sortApprovers } from './tournament-proposal.service';
 import { changedTournamentFields, majorTournamentChanges, managementToDetail, managementToDraft, tournamentUpdatePayload } from './tournament-management';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'refresh-preview' | 'retry';
@@ -31,7 +33,13 @@ interface RecoveryError { message: string; action: RecoveryAction; }
         <div class="error stack" role="alert" data-cy="tournament-reference-error"><span data-cy="tournament-reference-error-message">{{ referenceError() }}</span><button mat-stroked-button type="button" data-cy="tournament-reference-retry" (click)="loadReferences()">{{ i18n.t('common.retry') }}</button></div>
       }
 
-      @if (editing()) {
+      @if (proposalSentCount(); as count) {
+        <section class="panel" role="status" data-cy="tournament-proposal-sent">
+          <h2 data-cy="tournament-proposal-sent-title">{{ i18n.t('proposal.sentTitle') }}</h2>
+          <p data-cy="tournament-proposal-sent-body">{{ i18n.t('proposal.sentBody', { count }) }}</p>
+          <a mat-stroked-button routerLink="/calendar" data-cy="tournament-proposal-sent-back">{{ i18n.t('nav.returnToMenu') }}</a>
+        </section>
+      } @else if (editing()) {
         <form class="panel tournament-create-form" data-cy="tournament-create-form" [formGroup]="form" (ngSubmit)="editMode ? saveEdit() : requestPreview()" novalidate [attr.aria-busy]="formPending()">
           <p class="muted tournament-create-help" data-cy="tournament-create-zone-note">{{ i18n.t('tournamentCreate.zoneHelp') }}</p>
           <fieldset class="tournament-form-lock" data-cy="tournament-fieldset" [disabled]="formPending()">
@@ -132,7 +140,8 @@ interface RecoveryError { message: string; action: RecoveryAction; }
               <button #saveButton mat-flat-button class="home-primary-action" type="submit" [attr.data-cy]="editMode ? 'tournament-save' : 'tournament-preview-submit'" [disabled]="formPending() || loadingReferences() || !organizations().length">{{ editMode ? (saving() ? i18n.t('tournamentManage.saving') : i18n.t('common.save')) : (previewing() ? i18n.t('tournamentCreate.previewing') : i18n.t('tournamentCreate.preview')) }}</button>
             } @else {
               <p class="warning" role="status" data-cy="tournament-approval-notice">{{ i18n.t('tournamentCreate.approvalNotice') }}</p>
-              <button mat-flat-button class="home-primary-action" type="button" disabled data-cy="tournament-submit-pending-approval">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>
+              <button mat-flat-button class="home-primary-action" type="button" data-cy="tournament-submit-for-approval" [disabled]="proposalPending()" (click)="submitForApproval()">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>
+              @if (proposalError()) { <p class="error" role="alert" data-cy="tournament-proposal-error">{{ proposalError() }}</p> }
             }
           </div>
         </form>
@@ -166,6 +175,7 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly auth = inject(AuthService);
+  private readonly proposals = inject(TournamentProposalService);
   private readonly state = new PreviewPublicationState();
   private readonly tournamentId = this.route.snapshot.paramMap.get('id');
   readonly editMode = Boolean(this.tournamentId);
@@ -195,6 +205,9 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
     const role = this.auth.profile()?.globalRole;
     return role === 'Organizer' || role === 'Admin';
   });
+  readonly proposalPending = signal(false);
+  readonly proposalSentCount = signal<number | null>(null);
+  readonly proposalError = signal('');
 
   readonly form = new FormGroup({
     organizationId: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -283,6 +296,34 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
       this.submitError.set(this.recovery(error, 'preview'));
     } finally {
       this.previewing.set(false);
+    }
+  }
+
+  async submitForApproval(): Promise<void> {
+    this.form.markAllAsTouched();
+    this.fieldErrors.set({});
+    if (this.form.invalid || this.proposalPending()) return;
+    let approvers;
+    try {
+      approvers = sortApprovers(await this.proposals.listApprovers());
+    } catch {
+      this.proposalError.set(this.i18n.t('proposal.loadApproversFailed'));
+      return;
+    }
+    const recipientUserIds = await firstValueFrom(this.dialog.open(ApproverSelectionDialogComponent, {
+      data: { approvers }
+    }).afterClosed());
+    if (!recipientUserIds?.length) return;
+    this.proposalPending.set(true);
+    this.proposalError.set('');
+    try {
+      const response = await this.proposals.submit(tournamentPayload(this.form.getRawValue()), recipientUserIds);
+      this.proposalSentCount.set(response.recipientCount);
+    } catch (error) {
+      this.applyFieldErrors(error);
+      this.proposalError.set(this.i18n.t('proposal.submitFailed'));
+    } finally {
+      this.proposalPending.set(false);
     }
   }
 

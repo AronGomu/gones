@@ -59,7 +59,7 @@
 
 ## TDD
 
-1. **Red** — write `src/app/features/calendar/approver-selection-dialog.component.test.ts` and `src/app/features/calendar/tournament-proposal-submit.test.ts` against modules that do not exist.
+1. [x] **Red** — write `src/app/features/calendar/approver-selection-dialog.component.test.ts` and `src/app/features/calendar/tournament-proposal-submit.test.ts` against modules that do not exist.
 2. **Green** — add the dialog, the service wrapper and the submit path.
 3. **Refactor** — keep the payload construction in `organizer-tournament-create.ts`; the component must not build a second payload shape.
 
@@ -82,13 +82,13 @@ Run: `npm run test -- approver-selection-dialog tournament-proposal-submit data-
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/features/calendar/tournament-proposal.service.ts` with `@Injectable({ providedIn: 'root' }) export class TournamentProposalService` injecting the generated `Client`, exposing `listApprovers(): Promise<ProposalApproverResponse[]>` and `submit(tournament, recipientUserIds): Promise<TournamentProposalResponse>`, each a `firstValueFrom` around the generated method.
-- [ ] 2. Add `export function sortApprovers(approvers: ProposalApproverResponse[]): ProposalApproverResponse[]` to the same file — `Admin` before `Organizer`, then by `username` with `localeCompare`.
-- [ ] 3. Create `src/app/features/calendar/approver-selection-dialog.component.ts` exporting `ApproverSelectionDialogComponent` and `export interface ApproverSelectionDialogData { approvers: ProposalApproverResponse[]; }`.
-- [ ] 4. Its template: a title, a help paragraph, a `<fieldset>` with one `<label class="check-row">` per approver holding `<input type="checkbox" [attr.data-cy]="'approver-option-' + approver.id" [checked]="isChecked(approver.id)" (change)="toggle(approver.id)">` and the username plus a role chip, then cancel (`data-cy="approver-dialog-cancel"`, closes with `undefined`) and submit (`data-cy="approver-dialog-submit"`, `[disabled]="!selected().length"`, closes with `selected()`).
-- [ ] 5. Give every element in that template a unique `data-cy`; import `MatButtonModule`, `MatDialogModule`, `FormsModule`.
-- [ ] 6. Create `src/app/features/calendar/approver-selection-dialog.component.test.ts` with Test plan rows 1-4.
-- [ ] 7. Add these keys to BOTH maps in `src/app/i18n/messages.ts`:
+- [x] 1. Create `src/app/features/calendar/tournament-proposal.service.ts` with `@Injectable({ providedIn: 'root' }) export class TournamentProposalService` injecting the generated `Client`, exposing `listApprovers(): Promise<ProposalApproverResponse[]>` and `submit(tournament, recipientUserIds): Promise<TournamentProposalResponse>`, each a `firstValueFrom` around the generated method.
+- [x] 2. Add `export function sortApprovers(approvers: ProposalApproverResponse[]): ProposalApproverResponse[]` to the same file — `Admin` before `Organizer`, then by `username` with `localeCompare`.
+- [x] 3. Create `src/app/features/calendar/approver-selection-dialog.component.ts` exporting `ApproverSelectionDialogComponent` and `export interface ApproverSelectionDialogData { approvers: ProposalApproverResponse[]; }`.
+- [x] 4. Its template: a title, a help paragraph, a `<fieldset>` with one `<label class="check-row">` per approver holding `<input type="checkbox" [attr.data-cy]="'approver-option-' + approver.id" [checked]="isChecked(approver.id)" (change)="toggle(approver.id)">` and the username plus a role chip, then cancel (`data-cy="approver-dialog-cancel"`, closes with `undefined`) and submit (`data-cy="approver-dialog-submit"`, `[disabled]="!selected().length"`, closes with `selected()`).
+- [x] 5. Give every element in that template a unique `data-cy`; import `MatButtonModule`, `MatDialogModule`, `FormsModule`.
+- [x] 6. Create `src/app/features/calendar/approver-selection-dialog.component.test.ts` with Test plan rows 1-4.
+- [x] 7. Add these keys to BOTH maps in `src/app/i18n/messages.ts`:
   - `proposal.dialogTitle` — en `'Choose who reviews this tournament'`, fr `'Choisissez qui valide ce tournoi'`
   - `proposal.dialogHelp` — en `'Every person you check receives an email with the full event and a link to approve or decline it.'`, fr `'Chaque personne cochée reçoit un email avec l’évènement complet et un lien pour le valider ou le refuser.'`
   - `proposal.dialogSubmit` — en `'Send request'`, fr `'Envoyer la demande'`
@@ -96,23 +96,23 @@ Run: `npm run test -- approver-selection-dialog tournament-proposal-submit data-
   - `proposal.sentBody` — en `'{count} reviewer(s) received your tournament request by email.'`, fr `'{count} validateur(s) ont reçu votre demande de tournoi par email.'`
   - `proposal.loadApproversFailed` — en `'Reviewers could not be loaded. Retry.'`, fr `'Impossible de charger les validateurs. Réessayez.'`
   - `proposal.submitFailed` — en `'The request could not be sent. Check the form, then retry.'`, fr `'La demande n’a pas pu être envoyée. Vérifiez le formulaire, puis réessayez.'`
-- [ ] 8. In `organizer-tournament-create.component.ts`, inject `private readonly proposals = inject(TournamentProposalService);` and `private readonly dialog = inject(MatDialog);` (add `MatDialogModule` to imports if T15 did not).
-- [ ] 9. Add signals `readonly proposalPending = signal(false);`, `readonly proposalSentCount = signal<number | null>(null);`, `readonly proposalError = signal('');`.
-- [ ] 10. Replace the disabled `[data-cy=tournament-submit-pending-approval]` button with `<button mat-flat-button class="home-primary-action" type="button" data-cy="tournament-submit-for-approval" [disabled]="proposalPending()" (click)="submitForApproval()">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>`.
-- [ ] 11. Implement `async submitForApproval(): Promise<void>`:
+- [x] 8. In `organizer-tournament-create.component.ts`, inject `private readonly proposals = inject(TournamentProposalService);` and `private readonly dialog = inject(MatDialog);` (add `MatDialogModule` to imports if T15 did not).
+- [x] 9. Add signals `readonly proposalPending = signal(false);`, `readonly proposalSentCount = signal<number | null>(null);`, `readonly proposalError = signal('');`.
+- [x] 10. Replace the disabled `[data-cy=tournament-submit-pending-approval]` button with `<button mat-flat-button class="home-primary-action" type="button" data-cy="tournament-submit-for-approval" [disabled]="proposalPending()" (click)="submitForApproval()">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>`.
+- [x] 11. Implement `async submitForApproval(): Promise<void>`:
   - `this.form.markAllAsTouched(); if (this.form.invalid) return;`
   - guard on `proposalPending()`
   - load approvers: `let approvers; try { approvers = sortApprovers(await this.proposals.listApprovers()); } catch { this.proposalError.set(this.i18n.t('proposal.loadApproversFailed')); return; }`
   - open the dialog, `const recipientUserIds = await firstValueFrom(...afterClosed()); if (!recipientUserIds?.length) return;`
   - `this.proposalPending.set(true); this.proposalError.set('');`
   - `try { const response = await this.proposals.submit(tournamentPayload(this.form.getRawValue()), recipientUserIds); this.proposalSentCount.set(response.recipientCount); } catch (error) { this.applyFieldErrors(error); this.proposalError.set(this.i18n.t('proposal.submitFailed')); } finally { this.proposalPending.set(false); }`
-- [ ] 12. Reuse the component's existing field-error application path for `applyFieldErrors`; if none exists, map through `fieldErrorsFromProblem(error)` and push each message onto the matching control with `setErrors({ server: message })`.
-- [ ] 13. Render, above the form, `@if (proposalSentCount(); as count) { <section class="panel" role="status" data-cy="tournament-proposal-sent"><h2 data-cy="tournament-proposal-sent-title">{{ i18n.t('proposal.sentTitle') }}</h2><p data-cy="tournament-proposal-sent-body">{{ i18n.t('proposal.sentBody', { count }) }}</p><a mat-stroked-button routerLink="/calendar" data-cy="tournament-proposal-sent-back">{{ i18n.t('nav.returnToMenu') }}</a></section> }` and hide the form while it is set.
-- [ ] 14. Render `@if (proposalError()) { <p class="error" role="alert" data-cy="tournament-proposal-error">{{ proposalError() }}</p> }` next to the submit button.
-- [ ] 15. Create `src/app/features/calendar/tournament-proposal-submit.test.ts` with Test plan rows 5-9, stubbing `TournamentProposalService`, `MatDialog` and `AuthService`.
-- [ ] 16. Add a Cypress case to `cypress/e2e/organizer-tournament-create.cy.js`: sign in as a verified plain user, fill `/tournaments/new`, click `[data-cy=tournament-submit-for-approval]`, check the first `[data-cy^=approver-option-]`, submit, assert `[data-cy=tournament-proposal-sent]`.
-- [ ] 17. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 18. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js`.
+- [x] 12. Reuse the component's existing field-error application path for `applyFieldErrors`; if none exists, map through `fieldErrorsFromProblem(error)` and push each message onto the matching control with `setErrors({ server: message })`.
+- [x] 13. Render, above the form, `@if (proposalSentCount(); as count) { <section class="panel" role="status" data-cy="tournament-proposal-sent"><h2 data-cy="tournament-proposal-sent-title">{{ i18n.t('proposal.sentTitle') }}</h2><p data-cy="tournament-proposal-sent-body">{{ i18n.t('proposal.sentBody', { count }) }}</p><a mat-stroked-button routerLink="/calendar" data-cy="tournament-proposal-sent-back">{{ i18n.t('nav.returnToMenu') }}</a></section> }` and hide the form while it is set.
+- [x] 14. Render `@if (proposalError()) { <p class="error" role="alert" data-cy="tournament-proposal-error">{{ proposalError() }}</p> }` next to the submit button.
+- [x] 15. Create `src/app/features/calendar/tournament-proposal-submit.test.ts` with Test plan rows 5-9, stubbing `TournamentProposalService`, `MatDialog` and `AuthService`.
+- [x] 16. Add a Cypress case to `cypress/e2e/organizer-tournament-create.cy.js`: sign in as a verified plain user, fill `/tournaments/new`, click `[data-cy=tournament-submit-for-approval]`, check the first `[data-cy^=approver-option-]`, submit, assert `[data-cy=tournament-proposal-sent]`.
+- [x] 17. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 18. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js`. (Satisfied via the host's dev:serve + LD_LIBRARY_PATH + `node node_modules/cypress/bin/cypress run` recipe per environment facts — 7/7 passing.)
 
 ## Outputs
 
@@ -123,9 +123,9 @@ Run: `npm run test -- approver-selection-dialog tournament-proposal-submit data-
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js` passes
-- [ ] manual check: as a verified plain user, fill the form, submit, check two approvers, send, and find two mails in the local sink each with a distinct token link
-- [ ] app functional — organizers still publish directly with no dialog
-- [ ] commit msg draft: `feat(tournaments): let verified users request approval from chosen admins and organizers`
+- [x] `npm run test` passes (448/448 passed, including the 18 new tests across the two Red-first files)
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js` passes (7/7, via the host recipe)
+- [ ] manual check: as a verified plain user, fill the form, submit, check two approvers, send, and find two mails in the local sink each with a distinct token link — NOT performed; would require a real login against the live backend, and the ticket gives no mail-sink endpoint/credentials to inspect it without spending the shared auth-permit budget. Logged as residual risk.
+- [x] app functional — organizers still publish directly with no dialog (Cypress case `redirects the legacy organizer path...` still passes unmodified, asserting `tournament-preview-submit` and no dialog)
+- [x] commit msg draft: `feat(tournaments): let verified users request approval from chosen admins and organizers`

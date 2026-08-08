@@ -93,7 +93,29 @@ describe('Organizer Tournament create, preview, publish', () => {
     cy.wait(['@myOrganizations', '@formats']);
     cy.get('[data-cy="tournament-preview-submit"]').should('not.exist');
     cy.get('[data-cy="tournament-approval-notice"]').should('be.visible');
-    cy.get('[data-cy="tournament-submit-pending-approval"]').should('be.visible').and('be.disabled');
+    cy.get('[data-cy="tournament-submit-for-approval"]').should('be.visible').and('be.enabled');
+  });
+
+  it('lets a verified non-organizer request approval from chosen approvers', () => {
+    mockSession('User');
+    mockReferences();
+    cy.intercept('GET', '**/api/tournament-proposals/approvers', [
+      { id: 'aaaaaaaa-0000-0000-0000-000000000001', username: 'admin-one', globalRole: 'Admin' },
+      { id: 'aaaaaaaa-0000-0000-0000-000000000002', username: 'organizer-two', globalRole: 'Organizer' }
+    ]).as('approvers');
+    cy.intercept('POST', '**/api/tournament-proposals', {
+      statusCode: 201,
+      body: { id: 'pppppppp-0000-0000-0000-000000000001', status: 'Pending', expiresAt: '2027-08-08T00:00:00Z', recipientCount: 1 }
+    }).as('submitProposal');
+    visit();
+    cy.wait(['@myOrganizations', '@formats']);
+    fillValidForm();
+    cy.get('[data-cy="tournament-submit-for-approval"]').click();
+    cy.wait('@approvers');
+    cy.get('[data-cy^="approver-option-"]').first().check({ force: true });
+    cy.get('[data-cy="approver-dialog-submit"]').click();
+    cy.wait('@submitProposal');
+    cy.get('[data-cy="tournament-proposal-sent"]').should('be.visible');
   });
 
   it('redirects the legacy organizer path, scopes organization picker, requires explicit start/zone, focuses title, and stays usable on mobile', () => {

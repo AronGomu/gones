@@ -13,6 +13,7 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { OrganizerTournamentCreateComponent } from './organizer-tournament-create.component';
+import { TournamentProposalService } from './tournament-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
@@ -38,6 +39,7 @@ function setup(globalRole: string): OrganizerTournamentCreateComponent {
     { provide: Router, useValue: {} },
     { provide: MatDialog, useValue: {} },
     { provide: AuthService, useValue: auth },
+    { provide: TournamentProposalService, useValue: {} },
     DeckArchetypeSettingsService,
     I18nService
   ] });
