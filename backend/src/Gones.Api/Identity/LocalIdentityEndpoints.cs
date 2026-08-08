@@ -130,6 +130,7 @@ internal static class LocalIdentityEndpoints
         UserManager<ApplicationUser> userManager,
         GonesDbContext database,
         RefreshSessionService sessionService,
+        RefreshCookie cookie,
         AccessTokenIssuer tokenIssuer,
         IClock clock,
         OperationalMetrics metrics,
@@ -161,13 +162,14 @@ internal static class LocalIdentityEndpoints
         var issuedSession = await sessionService.CreateAsync(user!, NormalizeDeviceLabel(request.DeviceLabel), cancellationToken);
         metrics.RecordAuthSuccess("login");
         var token = tokenIssuer.Issue(user!);
-        RefreshCookie.Issue(httpContext.Response, issuedSession.PlaintextToken, issuedSession.Session.AbsoluteExpiresAt, clock.GetCurrentInstant());
+        cookie.Issue(httpContext.Response, issuedSession.PlaintextToken, issuedSession.Session.AbsoluteExpiresAt, clock.GetCurrentInstant());
         return Results.Ok(new AccessTokenResponse(token.Value, token.ExpiresAt, "Bearer"));
     }
 
     private static async Task<IResult> RefreshAsync(
         HttpContext httpContext,
         RefreshSessionService sessionService,
+        RefreshCookie cookie,
         AccessTokenIssuer tokenIssuer,
         IClock clock,
         CancellationToken cancellationToken)
@@ -175,22 +177,23 @@ internal static class LocalIdentityEndpoints
         var attempt = await sessionService.RotateAsync(httpContext.Request.Cookies[RefreshCookie.Name], cancellationToken);
         if (!attempt.IsSuccess)
         {
-            RefreshCookie.Clear(httpContext.Response);
+            cookie.Clear(httpContext.Response);
             throw new AuthenticationFailedException();
         }
 
         var token = tokenIssuer.Issue(attempt.User!);
-        RefreshCookie.Issue(httpContext.Response, attempt.PlaintextToken!, attempt.Session!.AbsoluteExpiresAt, clock.GetCurrentInstant());
+        cookie.Issue(httpContext.Response, attempt.PlaintextToken!, attempt.Session!.AbsoluteExpiresAt, clock.GetCurrentInstant());
         return Results.Ok(new AccessTokenResponse(token.Value, token.ExpiresAt, "Bearer"));
     }
 
     private static async Task<IResult> LogoutAsync(
         HttpContext httpContext,
         RefreshSessionService sessionService,
+        RefreshCookie cookie,
         CancellationToken cancellationToken)
     {
         await sessionService.RevokeCurrentAsync(httpContext.Request.Cookies[RefreshCookie.Name], cancellationToken);
-        RefreshCookie.Clear(httpContext.Response);
+        cookie.Clear(httpContext.Response);
         return Results.NoContent();
     }
 
@@ -198,10 +201,11 @@ internal static class LocalIdentityEndpoints
         HttpContext httpContext,
         ClaimsPrincipal principal,
         RefreshSessionService sessionService,
+        RefreshCookie cookie,
         CancellationToken cancellationToken)
     {
         await sessionService.RevokeAllAsync(CurrentUserId(principal), cancellationToken);
-        RefreshCookie.Clear(httpContext.Response);
+        cookie.Clear(httpContext.Response);
         return Results.NoContent();
     }
 

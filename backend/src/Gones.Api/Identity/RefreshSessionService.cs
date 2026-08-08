@@ -6,6 +6,7 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NodaTime;
 
 namespace Gones.Api.Identity;
@@ -255,29 +256,46 @@ internal sealed record RefreshAttempt(bool IsSuccess, ApplicationUser? User, Ref
         new(true, user, session, plaintextToken);
 }
 
-internal static class RefreshCookie
+/// <summary>
+/// The browser's half of the refresh session. <see cref="Name"/> and <see cref="Path"/> are part of
+/// the wire contract and stay constant; the attributes that decide whether a browser will store and
+/// replay the cookie at all are deployment topology, so they come from <see cref="RefreshCookieOptions"/>.
+/// </summary>
+internal sealed class RefreshCookie(IOptions<RefreshCookieOptions> options)
 {
     public const string Name = "gones_refresh";
     public const string Path = "/api/auth";
-    public static void Issue(HttpResponse response, string plaintextToken, Instant absoluteExpiry, Instant now)
+
+    public void Issue(HttpResponse response, string plaintextToken, Instant absoluteExpiry, Instant now)
     {
         response.Cookies.Append(Name, plaintextToken, Options(absoluteExpiry, now));
     }
 
-    public static void Clear(HttpResponse response)
+    public void Clear(HttpResponse response)
     {
         response.Cookies.Delete(Name, Options(null, null));
     }
 
-    private static CookieOptions Options(Instant? absoluteExpiry, Instant? now) => new()
+    private CookieOptions Options(Instant? absoluteExpiry, Instant? now) => new()
     {
-        Secure = true,
+        // "None" without "Secure" is rejected by every current browser, so the flag is forced on.
+        Secure = IsCrossSite || options.Value.Secure,
         HttpOnly = true,
-        SameSite = SameSiteMode.Lax,
+        SameSite = SameSite,
         Path = Path,
         IsEssential = true,
         Expires = absoluteExpiry?.ToDateTimeOffset(),
         MaxAge = absoluteExpiry is not null && now is not null ? (absoluteExpiry.Value - now.Value).ToTimeSpan() : null
         // Domain intentionally omitted: cookie remains host-only.
+    };
+
+    private bool IsCrossSite => SameSite == SameSiteMode.None;
+
+    /// <summary>An unrecognised value falls back to the same-site default rather than to "None".</summary>
+    private SameSiteMode SameSite => options.Value.SameSite switch
+    {
+        "None" => SameSiteMode.None,
+        "Strict" => SameSiteMode.Strict,
+        _ => SameSiteMode.Lax
     };
 }

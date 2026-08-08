@@ -54,6 +54,10 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddGonesAuthorization(runtimeConfiguration, builder.Configuration);
 builder.Services.AddExactOriginCors(builder.Configuration);
+// Registered unconditionally: the auth endpoints are mapped on the feature flag alone, so the cookie
+// helper must resolve even in the configurations that skip the persistence-backed identity services.
+builder.Services.Configure<RefreshCookieOptions>(builder.Configuration.GetSection("Gones:Auth:RefreshCookie"));
+builder.Services.AddSingleton<RefreshCookie>();
 // Locked V1 endpoint rate policies are always installed: the global limiter must cover public reads
 // and authenticated writes even when the auth feature flag is off.
 builder.Services.AddGonesAuthRateLimiting(RateLimitSettings.Load(

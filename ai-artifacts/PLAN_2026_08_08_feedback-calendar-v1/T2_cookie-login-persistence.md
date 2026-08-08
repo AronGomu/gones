@@ -53,22 +53,22 @@ Run: `npm run backend:test` and `npm run cy:run --spec cypress/e2e/auth-session-
 
 ## Impl steps
 
-- [ ] 1. Add `backend/src/Gones.Infrastructure/Identity/RefreshCookieOptions.cs` with `public sealed class RefreshCookieOptions { public string SameSite { get; set; } = "Lax"; public bool Secure { get; set; } = true; }` in namespace `Gones.Infrastructure.Identity`.
-- [ ] 2. In `backend/src/Gones.Api/Program.cs`, bind it next to the other options registrations: `builder.Services.Configure<RefreshCookieOptions>(builder.Configuration.GetSection("Gones:Auth:RefreshCookie"));`
-- [ ] 3. In `backend/src/Gones.Api/Identity/RefreshSessionService.cs`, change `RefreshCookie` from `internal static class` to `internal sealed class RefreshCookie(IOptions<RefreshCookieOptions> options)` registered as a singleton; keep `public const string Name = "gones_refresh";` and `public const string Path = "/api/auth";` as statics.
-- [ ] 4. In `RefreshCookie.Options(...)`, replace `SameSite = SameSiteMode.Lax` with a parse of `options.Value.SameSite` (`"None"` → `SameSiteMode.None`, `"Strict"` → `SameSiteMode.Strict`, anything else → `SameSiteMode.Lax`) and `Secure = options.Value.SameSite == "None" || options.Value.Secure`.
-- [ ] 5. Register it: `builder.Services.AddSingleton<RefreshCookie>();` in `Program.cs`.
-- [ ] 6. Inject `RefreshCookie cookie` into `LoginAsync`, `RefreshAsync`, `LogoutAsync`, `LogoutAllAsync` in `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` and change the four call sites from `RefreshCookie.Issue(...)` / `RefreshCookie.Clear(...)` to `cookie.Issue(...)` / `cookie.Clear(...)`.
-- [ ] 7. Update every other `RefreshCookie.Issue`/`Clear` call site — run `grep -rn "RefreshCookie\." backend/src` and convert each (notably `backend/src/Gones.Api/Identity/ExternalOAuthEndpoints.cs`).
-- [ ] 8. Add to `backend/src/Gones.Api/appsettings.Development.json`: `"Gones": { "Auth": { "RefreshCookie": { "SameSite": "Lax", "Secure": false } } }` merged into the existing `Gones` section — dev serves the API over plain HTTP.
-- [ ] 9. Document the two keys in `.env.example` as `GONES__AUTH__REFRESHCOOKIE__SAMESITE` and `GONES__AUTH__REFRESHCOOKIE__SECURE`, with a comment that a cross-site frontend origin requires `None` + `true` + HTTPS.
-- [ ] 10. Write `backend/tests/Gones.IntegrationTests/RefreshCookieTests.cs` with the five backend rows of the Test plan, following the fixture pattern of `LocalIdentityApiTests.cs`.
-- [ ] 11. In `src/app/auth/auth.service.ts`, leave `bootstrap()` logic as is but add a `readonly bootstrapFailed = signal(false);` set to `true` in the `catch`, so T3 can distinguish "never signed in" from "session expired".
-- [ ] 12. Add `src/app/auth/auth.service.bootstrap.test.ts`: with a `Client` stub whose `refresh()` resolves and `meGET()` returns a profile, `await service.bootstrap()` leaves `profile()` non-null and `bootstrapped()` true; with a rejecting `refresh()`, `profile()` is null, `bootstrapFailed()` true, `bootstrapped()` still true.
-- [ ] 13. Write `cypress/e2e/auth-session-persistence.cy.js`: register+verify a user via the same helpers `auth-profile.cy.js` uses, sign in through `[data-cy=auth-email]` / `[data-cy=auth-password]` / `[data-cy=auth-submit]`, assert `[data-cy=profile-link]` exists, `cy.reload()`, assert `[data-cy=profile-link]` still exists.
-- [ ] 14. Run `npm run backend:test`.
-- [ ] 15. Run `npm run dev`, then `npm run cy:run -- --spec cypress/e2e/auth-session-persistence.cy.js`.
-- [ ] 16. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 1. Add `backend/src/Gones.Infrastructure/Identity/RefreshCookieOptions.cs` with `public sealed class RefreshCookieOptions { public string SameSite { get; set; } = "Lax"; public bool Secure { get; set; } = true; }` in namespace `Gones.Infrastructure.Identity`.
+- [x] 2. In `backend/src/Gones.Api/Program.cs`, bind it next to the other options registrations: `builder.Services.Configure<RefreshCookieOptions>(builder.Configuration.GetSection("Gones:Auth:RefreshCookie"));`
+- [x] 3. In `backend/src/Gones.Api/Identity/RefreshSessionService.cs`, change `RefreshCookie` from `internal static class` to `internal sealed class RefreshCookie(IOptions<RefreshCookieOptions> options)` registered as a singleton; keep `public const string Name = "gones_refresh";` and `public const string Path = "/api/auth";` as statics.
+- [x] 4. In `RefreshCookie.Options(...)`, replace `SameSite = SameSiteMode.Lax` with a parse of `options.Value.SameSite` (`"None"` → `SameSiteMode.None`, `"Strict"` → `SameSiteMode.Strict`, anything else → `SameSiteMode.Lax`) and `Secure = options.Value.SameSite == "None" || options.Value.Secure`.
+- [x] 5. Register it: `builder.Services.AddSingleton<RefreshCookie>();` in `Program.cs`.
+- [x] 6. Inject `RefreshCookie cookie` into `LoginAsync`, `RefreshAsync`, `LogoutAsync`, `LogoutAllAsync` in `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` and change the four call sites from `RefreshCookie.Issue(...)` / `RefreshCookie.Clear(...)` to `cookie.Issue(...)` / `cookie.Clear(...)`.
+- [x] 7. Update every other `RefreshCookie.Issue`/`Clear` call site — run `grep -rn "RefreshCookie\." backend/src` and convert each (notably `backend/src/Gones.Api/Identity/ExternalOAuthEndpoints.cs`).
+- [x] 8. Add to `backend/src/Gones.Api/appsettings.Development.json`: `"Gones": { "Auth": { "RefreshCookie": { "SameSite": "Lax", "Secure": false } } }` merged into the existing `Gones` section — dev serves the API over plain HTTP.
+- [x] 9. Document the two keys in `.env.example` as `GONES__AUTH__REFRESHCOOKIE__SAMESITE` and `GONES__AUTH__REFRESHCOOKIE__SECURE`, with a comment that a cross-site frontend origin requires `None` + `true` + HTTPS.
+- [x] 10. Write `backend/tests/Gones.IntegrationTests/RefreshCookieTests.cs` with the five backend rows of the Test plan, following the fixture pattern of `LocalIdentityApiTests.cs`.
+- [x] 11. In `src/app/auth/auth.service.ts`, leave `bootstrap()` logic as is but add a `readonly bootstrapFailed = signal(false);` set to `true` in the `catch`, so T3 can distinguish "never signed in" from "session expired".
+- [x] 12. Add `src/app/auth/auth.service.bootstrap.test.ts`: with a `Client` stub whose `refresh()` resolves and `meGET()` returns a profile, `await service.bootstrap()` leaves `profile()` non-null and `bootstrapped()` true; with a rejecting `refresh()`, `profile()` is null, `bootstrapFailed()` true, `bootstrapped()` still true.
+- [x] 13. Write `cypress/e2e/auth-session-persistence.cy.js`: register+verify a user via the same helpers `auth-profile.cy.js` uses, sign in through `[data-cy=auth-email]` / `[data-cy=auth-password]` / `[data-cy=auth-submit]`, assert `[data-cy=profile-link]` exists, `cy.reload()`, assert `[data-cy=profile-link]` still exists.
+- [x] 14. Run `npm run backend:test`.
+- [x] 15. Run `npm run dev`, then `npm run cy:run -- --spec cypress/e2e/auth-session-persistence.cy.js`.
+- [x] 16. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
 
 ## Outputs
 
@@ -79,10 +79,10 @@ Run: `npm run backend:test` and `npm run cy:run --spec cypress/e2e/auth-session-
 
 ## Validation
 
-- [ ] `npm run backend:test` passes
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-session-persistence.cy.js` passes
-- [ ] manual check: `npm run dev`, sign in at `http://127.0.0.1:4200/login`, hard-reload, header still shows the username
-- [ ] app functional — anonymous browsing unaffected (no cookie, `bootstrap()` clears silently)
-- [ ] commit msg draft: `fix(auth): keep the session across reloads with a configurable refresh cookie`
+- [x] `npm run backend:test` passes
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-session-persistence.cy.js` passes
+- [x] manual check: `npm run dev`, sign in at `http://127.0.0.1:4200/login`, hard-reload, header still shows the username
+- [x] app functional — anonymous browsing unaffected (no cookie, `bootstrap()` clears silently)
+- [x] commit msg draft: `fix(auth): keep the session across reloads with a configurable refresh cookie`

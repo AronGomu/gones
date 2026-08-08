@@ -29,6 +29,11 @@ export class AuthService {
   readonly enabled = dataAuthority().authV1;
   readonly profile = signal<UserProfileResponse | null>(null);
   readonly bootstrapped = signal(!this.enabled);
+  /**
+   * Startup refresh was attempted and rejected. Distinguishes "session expired" from "never signed
+   * in": both leave `profile()` null, but only the former should be reported to the user.
+   */
+  readonly bootstrapFailed = signal(false);
 
   async bootstrap(): Promise<void> {
     if (!this.enabled || this.bootstrapped()) return;
@@ -36,6 +41,7 @@ export class AuthService {
       await firstValueFrom(this.refreshAccessToken());
       await this.loadProfile();
     } catch {
+      this.bootstrapFailed.set(true);
       this.clear();
     } finally {
       this.bootstrapped.set(true);

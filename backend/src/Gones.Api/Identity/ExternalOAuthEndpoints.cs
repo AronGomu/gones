@@ -105,6 +105,7 @@ internal static class ExternalOAuthEndpoints
         ExternalOAuthService service,
         AccessTokenIssuer tokenIssuer,
         RefreshSessionService sessions,
+        RefreshCookie cookie,
         AccountLifecycleOptions lifecycleOptions,
         CancellationToken cancellationToken)
     {
@@ -115,13 +116,13 @@ internal static class ExternalOAuthEndpoints
         {
             if (result.User is not null)
             {
-                await IssueBrowserSessionAsync(result.User, result.DeviceLabel, context, sessions, cancellationToken);
+                await IssueBrowserSessionAsync(result.User, result.DeviceLabel, context, sessions, cookie, cancellationToken);
                 return Results.Redirect(AppUri(lifecycleOptions.PublicOrigin, "/profile").ToString());
             }
             return Results.Redirect(AppUri(lifecycleOptions.PublicOrigin, "/auth/complete-profile", "ticket", result.CompletionTicket!).ToString());
         }
         if (result.Linked) return Results.NoContent();
-        if (result.User is not null) return await AuthenticatedAsync(result.User, result.DeviceLabel, context, sessions, tokenIssuer, cancellationToken);
+        if (result.User is not null) return await AuthenticatedAsync(result.User, result.DeviceLabel, context, sessions, cookie, tokenIssuer, cancellationToken);
         return Results.Ok(new OAuthFlowResponse(
             "completion_required",
             null,
@@ -140,6 +141,7 @@ internal static class ExternalOAuthEndpoints
         ExternalOAuthService service,
         AccessTokenIssuer tokenIssuer,
         RefreshSessionService sessions,
+        RefreshCookie cookie,
         CancellationToken cancellationToken)
     {
         var result = await service.CompleteAsync(request, cancellationToken);
@@ -147,7 +149,7 @@ internal static class ExternalOAuthEndpoints
         {
             return Results.Accepted(value: new OAuthFlowResponse("email_verification_required", null, null, null, null, null, false, null, null));
         }
-        return await AuthenticatedAsync(result.User!, request.DeviceLabel, context, sessions, tokenIssuer, cancellationToken);
+        return await AuthenticatedAsync(result.User!, request.DeviceLabel, context, sessions, cookie, tokenIssuer, cancellationToken);
     }
 
     private static async Task<IResult> VerifyEmailAsync(
@@ -156,10 +158,11 @@ internal static class ExternalOAuthEndpoints
         ExternalOAuthService service,
         AccessTokenIssuer tokenIssuer,
         RefreshSessionService sessions,
+        RefreshCookie cookie,
         CancellationToken cancellationToken)
     {
         var user = await service.VerifyEmailAsync(request.Token, cancellationToken);
-        return await AuthenticatedAsync(user, request.DeviceLabel, context, sessions, tokenIssuer, cancellationToken);
+        return await AuthenticatedAsync(user, request.DeviceLabel, context, sessions, cookie, tokenIssuer, cancellationToken);
     }
 
     private static async Task<IResult> AuthenticatedAsync(
@@ -167,10 +170,11 @@ internal static class ExternalOAuthEndpoints
         string? deviceLabel,
         HttpContext context,
         RefreshSessionService sessions,
+        RefreshCookie cookie,
         AccessTokenIssuer tokenIssuer,
         CancellationToken cancellationToken)
     {
-        await IssueBrowserSessionAsync(user, deviceLabel, context, sessions, cancellationToken);
+        await IssueBrowserSessionAsync(user, deviceLabel, context, sessions, cookie, cancellationToken);
         var token = tokenIssuer.Issue(user);
         return Results.Ok(new OAuthFlowResponse("authenticated", token.Value, token.ExpiresAt, "Bearer", null, null, false, null, null));
     }
@@ -180,10 +184,11 @@ internal static class ExternalOAuthEndpoints
         string? deviceLabel,
         HttpContext context,
         RefreshSessionService sessions,
+        RefreshCookie cookie,
         CancellationToken cancellationToken)
     {
         var session = await sessions.CreateAsync(user, NormalizeDeviceLabel(deviceLabel), cancellationToken);
-        RefreshCookie.Issue(context.Response, session.PlaintextToken, session.Session.AbsoluteExpiresAt, SystemClock.Instance.GetCurrentInstant());
+        cookie.Issue(context.Response, session.PlaintextToken, session.Session.AbsoluteExpiresAt, SystemClock.Instance.GetCurrentInstant());
     }
 
     private static bool IsBrowserNavigation(HttpRequest request) =>
