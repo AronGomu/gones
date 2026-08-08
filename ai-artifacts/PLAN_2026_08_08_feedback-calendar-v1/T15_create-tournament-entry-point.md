@@ -40,6 +40,18 @@
 - `src/app/auth/auth.service.ts` — `readonly profile = signal<UserProfileResponse | null>(null);` with `emailVerified: boolean` and `globalRole: string` on the response; `readonly enabled` reflects the `authV1` flag.
 - `src/app/i18n/messages.ts` — `const en = {` line 5, `const fr` line 1000; both maps.
 - `src/app/data-mode-routes.test.ts` — asserts route exposure per capability flag; extend it.
+- Verified present, so none of these is a blocker: `userGuard` (`auth.guards.ts:5`), `organizerGuard` (`:18`),
+  `verifiedEmailGuard` (`:20`), `AuthService.enabled` (`auth.service.ts:28`), and the existing spec files
+  `src/app/features/calendar/organizer-tournament-create.test.ts` and
+  `cypress/e2e/organizer-tournament-create.cy.js`.
+- **Test harness — there is no Angular `TestBed` and no zone.js in this repo.** Component tests build a bare
+  `Injector` with `runInInjectionContext` and stub `effect()` to a no-op — copy
+  `src/app/features/settings/account-settings.component.test.ts` or the `public-calendar.component.test.ts` that
+  T14 just added. Assert on component state and spy calls, never on rendered DOM.
+- **Cypress cost: zero auth permits.** `cypress/e2e/organizer-tournament-create.cy.js:39` intercepts
+  `POST **/api/auth/refresh` and fakes the session outright — it never calls a real auth endpoint, and neither does
+  `public-calendar.cy.js`. Re-run these specs as often as needed; the 15-minute auth rate limit does not apply. Do
+  not add a spec that performs a real login or registration.
 - **From Depends (T14):** the calendar header actions container exists with that exact `data-cy`, and the calendar page is already out of `PENDING_DATA_CY_RETROFIT`.
 
 ## TDD
