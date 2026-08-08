@@ -30,6 +30,30 @@
 - `@etalab/decoupage-administratif` exposes `require('@etalab/decoupage-administratif/data/departements.json')` (objects with `code`, `nom`, `region`) and `.../data/communes.json` (objects with `code`, `nom`, `departement`, `type`). Filter communes to `type === 'commune-actuelle'`.
 - `angular.json` — `src/assets` is already a declared asset folder; files under it are served at `assets/…` relative to the base href.
 - `src/app/features/calendar/public-tournament.service.ts:51-65` — the existing pattern for fetching JSON with `HttpClient` and caching; follow its shape, but cache in memory only (these files are immutable build artifacts, the service worker already caches `assets/**`).
+- **Test harness — there is no Angular `TestBed` and no zone.js in this repo.** `@angular/common/http/testing` is not
+  installed and `node_modules/@angular/common` ships only `fesm2022`/`types`, so `HttpTestingController` and
+  `provideHttpClientTesting()` are unavailable. Service tests build their own injector. Working example to copy,
+  `src/app/features/calendar/public-tournament.service.test.ts:1-25`:
+  ```ts
+  import '@angular/compiler';
+  import { HttpClient } from '@angular/common/http';
+  import { Injector } from '@angular/core';
+  import { of } from 'rxjs';
+  import { vi } from 'vitest';
+
+  const get = vi.fn().mockReturnValue(of(fixture));
+  const injector = Injector.create({ providers: [GeoService, { provide: HttpClient, useValue: { get } }] });
+  const service = injector.get(GeoService);
+  ```
+  Assert request counts and URLs through `get.mock.calls`. The same constraint applies to any component-level test:
+  T9 added `src/app/features/settings/account-settings.component.test.ts`, which builds a bare `Injector` with
+  `runInInjectionContext` and stubs `effect()` to a no-op because no `ChangeDetectionScheduler` is registered outside
+  `bootstrapApplication`. Extend that file the same way rather than reaching for `TestBed`.
+- `src/assets/` currently holds `brand/`, `config/` and image files — there is no `geo/` directory yet; create it.
+- `ngsw-config.json:13-16` — the `assets` asset group already declares `"files": ["/assets/**"]`, which covers
+  `.json`. Step 21 is therefore a confirmation, not an edit.
+- `package.json:43,47` — `@etalab/decoupage-administratif ^6.0.0` and `country-region-data ^4.1.0` are already
+  installed as dev dependencies by T1. Do **not** install anything.
 - `ngsw-config.json` — asset groups already cover `assets/**`, so the files are available offline once installed. Confirm the glob covers `.json`; widen it if it does not.
 - `src/app/features/settings/account-form.ts` — created by T9: `AccountFormValues` with `locationCountry`, `locationRegion`, `locationCity`; `accountFormValues(profile)`, `accountFormIsDirty(baseline, current)`, `accountFormPayload(values, currentPassword)`.
 - `src/app/features/settings/account-settings.component.ts` — after T9 it binds each field with `[ngModel]="form().x"` / `(ngModelChange)="setField('x', $event)"`, has `readonly form` and `readonly baseline` signals, `isDirty()`, a warning-coloured submit gated by a confirm dialog, and a unique `data-cy` on every element. It is **not** in `PENDING_DATA_CY_RETROFIT`.
@@ -71,7 +95,7 @@ Run: `npm run test -- geo.service location-selection geo-assets`
 - [ ] 9. In it, inject `HttpClient`, hold `private countriesCache?: Promise<GeoOption[]>`, `private regionsCache?: Promise<GeoOption[]>`, `private citiesCache?: Promise<Record<string, string[]>>`, each populated with `firstValueFrom(this.http.get(...))` on first call and reused thereafter.
 - [ ] 10. `countries(): Promise<GeoOption[]>` fetches `assets/geo/countries.json`. `regions(countryCode: string): Promise<GeoOption[]>` returns `[]` unless `countryCode === 'FR'`, else fetches `assets/geo/fr-regions.json`. `cities(countryCode: string, regionCode: string): Promise<string[]>` returns `[]` unless `countryCode === 'FR'` and `regionCode` is non-empty, else fetches `assets/geo/fr-cities.json` and returns `data[regionCode] ?? []`.
 - [ ] 11. Add `export function hasStructuredRegions(countryCode: string): boolean { return countryCode === 'FR'; }` to the same file so the template can switch between select and input.
-- [ ] 12. Create `src/app/shared/geo.service.test.ts` with the fourth, fifth and sixth Test plan rows using `HttpTestingController`.
+- [ ] 12. Create `src/app/shared/geo.service.test.ts` with the fourth, fifth and sixth Test plan rows. **Do not use `HttpTestingController` or `TestBed`** — neither exists here (see Inputs). Follow the repo pattern from `src/app/features/calendar/public-tournament.service.test.ts`: `import '@angular/compiler';`, build the service with `Injector.create({ providers: [GeoService, { provide: HttpClient, useValue: { get } }] })` where `const get = vi.fn().mockReturnValue(of(fixture))`, then assert on `get.mock.calls` — `expect(get).toHaveBeenCalledTimes(1)` for the fetch-once row, and `expect(get.mock.calls.some(call => String(call[0]).includes('fr-cities.json'))).toBe(false)` for the lazy-load row.
 - [ ] 13. Create `src/app/features/settings/location-selection.ts` with `applyCountry(values: AccountFormValues, code: string): AccountFormValues`, `applyRegion(values: AccountFormValues, code: string): AccountFormValues`, and `optionsWithStoredValue(options: string[], stored: string): string[]` (appends `stored` when non-empty and absent).
 - [ ] 14. Create `src/app/features/settings/location-selection.test.ts` with the last three Test plan rows.
 - [ ] 15. In `account-settings.component.ts`, inject `private readonly geo = inject(GeoService);` and add signals `readonly countryOptions = signal<GeoOption[]>([])`, `readonly regionOptions = signal<GeoOption[]>([])`, `readonly cityOptions = signal<string[]>([])`.
