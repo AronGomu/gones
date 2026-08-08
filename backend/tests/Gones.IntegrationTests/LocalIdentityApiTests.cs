@@ -437,7 +437,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Logout_all_revokes_every_family_and_session_list_discloses_no_token_or_ip()
+    public async Task Logout_all_still_works()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"logout-all-{suffix}@example.test";
@@ -445,15 +445,8 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var first = await LoginWithSessionAsync(email, "valid-password-value", "Laptop");
         var second = await LoginWithSessionAsync(email, "valid-password-value", "Phone");
 
-        using var before = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/sessions", first.AccessToken);
-        var beforeJson = await before.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, before.StatusCode);
-        Assert.Contains("Laptop", beforeJson, StringComparison.Ordinal);
-        Assert.Contains("Phone", beforeJson, StringComparison.Ordinal);
-        Assert.DoesNotContain("token", beforeJson, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("ip", beforeJson, StringComparison.OrdinalIgnoreCase);
-
         using var logoutAll = await SendAuthorizedAsync(HttpMethod.Post, "/api/auth/logout-all", first.AccessToken);
+
         Assert.Equal(HttpStatusCode.NoContent, logoutAll.StatusCode);
         using var firstRejected = await RefreshAsync(first.Cookie);
         using var secondRejected = await RefreshAsync(second.Cookie);
@@ -462,56 +455,34 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task User_can_revoke_one_owned_session_without_revoking_another()
+    public async Task Sessions_list_endpoint_is_gone()
     {
         var suffix = Guid.NewGuid().ToString("N");
-        var email = $"single-revoke-{suffix}@example.test";
-        using var registration = await RegisterAsync(email, $"Single{suffix[..8]}", "valid-password-value");
-        var laptop = await LoginWithSessionAsync(email, "valid-password-value", "Laptop revoke");
-        var phone = await LoginWithSessionAsync(email, "valid-password-value", "Phone keep");
-        using var sessions = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/sessions", laptop.AccessToken);
-        var sessionList = await sessions.Content.ReadFromJsonAsync<JsonElement>();
-        var laptopId = sessionList.EnumerateArray().Single(item => item.GetProperty("deviceLabel").GetString() == "Laptop revoke").GetProperty("id").GetGuid();
+        var email = $"sessions-list-gone-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"ListGone{suffix[..6]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Sessions list");
 
-        using var revoked = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/users/me/sessions/{laptopId}", laptop.AccessToken);
-        using var laptopRejected = await RefreshAsync(laptop.Cookie);
-        using var phoneAccepted = await RefreshAsync(phone.Cookie);
+        using var response = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/sessions", login.AccessToken);
 
-        Assert.Equal(HttpStatusCode.NoContent, revoked.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, laptopRejected.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, phoneAccepted.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-    public async Task Session_revocation_racing_refresh_never_leaves_a_usable_family()
+    public async Task Sessions_revoke_endpoint_is_gone()
     {
         var suffix = Guid.NewGuid().ToString("N");
-        var email = $"revoke-race-{suffix}@example.test";
-        using var registration = await RegisterAsync(email, $"Race{suffix[..8]}", "valid-password-value");
-        var login = await LoginWithSessionAsync(email, "valid-password-value", "Revocation race");
+        var email = $"sessions-revoke-gone-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"RevGone{suffix[..7]}", "valid-password-value");
+        var login = await LoginWithSessionAsync(email, "valid-password-value", "Sessions revoke");
         await using var database = CreateContext();
         var sessionId = await database.RefreshSessions.Where(item => item.UserId == login.UserId).Select(item => item.Id).SingleAsync();
 
-        var attempts = await Task.WhenAll(
-            SendAuthorizedAsync(HttpMethod.Delete, $"/api/users/me/sessions/{sessionId}", login.AccessToken),
-            RefreshAsync(login.Cookie));
-        try
-        {
-            Assert.Equal(HttpStatusCode.NoContent, attempts[0].StatusCode);
-            Assert.Contains(attempts[1].StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.Unauthorized });
-            if (attempts[1].StatusCode == HttpStatusCode.OK)
-            {
-                using var successorRejected = await RefreshAsync(CookieFrom(attempts[1]));
-                Assert.Equal(HttpStatusCode.Unauthorized, successorRejected.StatusCode);
-            }
-        }
-        finally
-        {
-            foreach (var attempt in attempts) attempt.Dispose();
-        }
+        using var response = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/users/me/sessions/{sessionId}", login.AccessToken);
 
-        database.ChangeTracker.Clear();
-        Assert.NotNull((await database.RefreshSessions.SingleAsync(item => item.Id == sessionId)).RevokedAt);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        // The session itself is untouched: only the endpoint went, not the underlying revocation capability.
+        using var stillUsable = await RefreshAsync(login.Cookie);
+        Assert.Equal(HttpStatusCode.OK, stillUsable.StatusCode);
     }
 
     [Fact]

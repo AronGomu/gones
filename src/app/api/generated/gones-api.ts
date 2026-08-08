@@ -203,14 +203,6 @@ export interface IClient {
      */
     meDELETE(body: DeleteAccountRequest): Observable<void>;
     /**
-     * @return OK
-     */
-    sessionsAll(): Observable<RefreshSessionResponse[]>;
-    /**
-     * @return No Content
-     */
-    sessions(id: string): Observable<void>;
-    /**
      * @return Accepted
      */
     emailChange(body: EmailChangeRequest): Observable<GenericAccountActionResponse>;
@@ -3162,112 +3154,6 @@ export class Client implements IClient {
             let result409: any = null;
             result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Conflict", status, _responseText, _headers, result409);
-            }));
-        } else if (status !== 200 && status !== 204) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            }));
-        }
-        return _observableOf(null as any);
-    }
-
-    /**
-     * @return OK
-     */
-    sessionsAll(): Observable<RefreshSessionResponse[]> {
-        let url_ = this.baseUrl + "/api/users/me/sessions";
-        url_ = url_.replace(/[?&]$/, "");
-
-        let options_ : any = {
-            observe: "response",
-            responseType: "blob",
-            headers: new HttpHeaders({
-                "Accept": "application/json"
-            })
-        };
-
-        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processSessionsAll(response_);
-        })).pipe(_observableCatch((response_: any) => {
-            if (response_ instanceof HttpResponseBase) {
-                try {
-                    return this.processSessionsAll(response_ as any);
-                } catch (e) {
-                    return _observableThrow(e) as any as Observable<RefreshSessionResponse[]>;
-                }
-            } else
-                return _observableThrow(response_) as any as Observable<RefreshSessionResponse[]>;
-        }));
-    }
-
-    protected processSessionsAll(response: HttpResponseBase): Observable<RefreshSessionResponse[]> {
-        const status = response.status;
-        const responseBlob =
-            response instanceof HttpResponse ? response.body :
-            (response as any).error instanceof Blob ? (response as any).error : undefined;
-
-        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
-        if (status === 200) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as RefreshSessionResponse[];
-            return _observableOf(result200);
-            }));
-        } else if (status !== 200 && status !== 204) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            }));
-        }
-        return _observableOf(null as any);
-    }
-
-    /**
-     * @return No Content
-     */
-    sessions(id: string): Observable<void> {
-        let url_ = this.baseUrl + "/api/users/me/sessions/{id}";
-        if (id === undefined || id === null)
-            throw new globalThis.Error("The parameter 'id' must be defined.");
-        url_ = url_.replace("{id}", encodeURIComponent("" + id));
-        url_ = url_.replace(/[?&]$/, "");
-
-        let options_ : any = {
-            observe: "response",
-            responseType: "blob",
-            headers: new HttpHeaders({
-            })
-        };
-
-        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processSessions(response_);
-        })).pipe(_observableCatch((response_: any) => {
-            if (response_ instanceof HttpResponseBase) {
-                try {
-                    return this.processSessions(response_ as any);
-                } catch (e) {
-                    return _observableThrow(e) as any as Observable<void>;
-                }
-            } else
-                return _observableThrow(response_) as any as Observable<void>;
-        }));
-    }
-
-    protected processSessions(response: HttpResponseBase): Observable<void> {
-        const status = response.status;
-        const responseBlob =
-            response instanceof HttpResponse ? response.body :
-            (response as any).error instanceof Blob ? (response as any).error : undefined;
-
-        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
-        if (status === 204) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return _observableOf(null as any);
-            }));
-        } else if (status === 404) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result404: any = null;
-            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
-            return throwException("Not Found", status, _responseText, _headers, result404);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -10384,17 +10270,6 @@ export interface RankingRow {
     opponentsMatchWinPercentage: number;
     opponentsGameWinPercentage: number;
     archetype?: string | undefined;
-
-    [key: string]: any;
-}
-
-export interface RefreshSessionResponse {
-    id: string;
-    deviceLabel: string;
-    createdAt: Instant;
-    lastUsedAt: Instant;
-    idleExpiresAt: Instant;
-    absoluteExpiresAt: Instant;
 
     [key: string]: any;
 }

@@ -18,7 +18,7 @@ function isoDate(value: LocalDate | undefined): string {
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="profile-page stack" aria-labelledby="profile-title">
-      <header class="page-heading"><div><p class="kicker">{{ i18n.t('auth.account') }}</p><h1 id="profile-title">{{ i18n.t('profile.title') }}</h1></div><div class="actions"><a mat-stroked-button routerLink="/registrations">{{ i18n.t('registration.myRegistrations') }}</a><a mat-stroked-button routerLink="/profile/sessions">{{ i18n.t('profile.sessions') }}</a></div></header>
+      <header class="page-heading"><div><p class="kicker">{{ i18n.t('auth.account') }}</p><h1 id="profile-title">{{ i18n.t('profile.title') }}</h1></div><div class="actions"><a mat-stroked-button routerLink="/registrations">{{ i18n.t('registration.myRegistrations') }}</a></div></header>
 
       <mat-card class="panel auth-card"><mat-card-content>
         <form class="auth-form" (ngSubmit)="saveProfile()" novalidate><fieldset [disabled]="pending()">

@@ -43,6 +43,10 @@ describe('route exposure per capability flag', () => {
     expect(buildRoutes(allCapabilities).find((route) => route.path === 'events/:slug')?.redirectTo).toBeTruthy();
   });
 
+  it('serves no sessions page, the feature was removed', () => {
+    expect(paths(allCapabilities)).not.toContain('profile/sessions');
+  });
+
   it('exposes no auth, registration, organizer or admin route while the flags are off', () => {
     const disabled = paths(noCapabilities);
 

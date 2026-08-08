@@ -165,42 +165,6 @@ internal sealed class RefreshSessionService(
             $"{{\"count\":{active.Count}}}", now));
     }
 
-    public async Task<IReadOnlyList<RefreshSession>> ListAsync(Guid userId, string securityStamp, CancellationToken cancellationToken)
-    {
-        var now = clock.GetCurrentInstant();
-        return await database.RefreshSessions.AsNoTracking()
-            .Where(item => item.UserId == userId
-                && item.RevokedAt == null
-                && item.SecurityStamp == securityStamp
-                && item.IdleExpiresAt > now
-                && item.AbsoluteExpiresAt > now)
-            .OrderByDescending(item => item.LastUsedAt)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<bool> RevokeAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken)
-    {
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var session = await database.RefreshSessions
-            .FromSqlInterpolated($"SELECT * FROM refresh_sessions WHERE id = {sessionId} AND user_id = {userId} FOR UPDATE")
-            .SingleOrDefaultAsync(cancellationToken);
-        if (session is null)
-        {
-            await transaction.CommitAsync(cancellationToken);
-            return false;
-        }
-        if (session.RevokedAt is null)
-        {
-            var now = clock.GetCurrentInstant();
-            session.Revoke(now, RefreshSessionRevocationReason.SessionRevoked);
-            database.AuditRecords.Add(NewAudit(userId, "auth.session.revoked", "refresh_session", session.Id,
-                "{\"reason\":\"user_request\"}", now));
-            await database.SaveChangesAsync(cancellationToken);
-        }
-        await transaction.CommitAsync(cancellationToken);
-        return true;
-    }
-
     private Task<List<RefreshSession>> LockActiveSessionsAsync(Guid userId, CancellationToken cancellationToken) =>
         database.RefreshSessions
             .FromSqlInterpolated($"SELECT * FROM refresh_sessions WHERE user_id = {userId} AND revoked_at IS NULL FOR UPDATE")

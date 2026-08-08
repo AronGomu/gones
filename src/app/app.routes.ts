@@ -9,8 +9,7 @@ const authRoutes: Routes = [
   { path: 'verify-email', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'verify-email' } },
   { path: 'forgot-password', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'forgot-password' } },
   { path: 'reset-password', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'reset-password' } },
-  { path: 'profile', canActivate: [userGuard], loadComponent: () => import('./auth/profile.component').then((m) => m.ProfileComponent) },
-  { path: 'profile/sessions', canActivate: [userGuard], loadComponent: () => import('./auth/sessions.component').then((m) => m.SessionsComponent) }
+  { path: 'profile', canActivate: [userGuard], loadComponent: () => import('./auth/profile.component').then((m) => m.ProfileComponent) }
 ];
 
 const registrationAndOrganizerRoutes: Routes = [

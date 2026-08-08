@@ -64,10 +64,6 @@ internal static class LocalIdentityEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
-        users.MapGet("/me/sessions", GetSessionsAsync).Produces<IReadOnlyList<RefreshSessionResponse>>();
-        users.MapDelete("/me/sessions/{id:guid}", DeleteSessionAsync)
-            .Produces(StatusCodes.Status204NoContent)
-            .ProducesProblem(StatusCodes.Status404NotFound);
         auth.MapAccountLifecycleEndpoints(users);
     }
 
@@ -241,34 +237,6 @@ internal static class LocalIdentityEndpoints
         var profile = await database.UserProfiles.AsNoTracking().SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         return Results.Ok(ToResponse(user, profile));
-    }
-
-    private static async Task<IResult> GetSessionsAsync(
-        ClaimsPrincipal principal,
-        UserManager<ApplicationUser> userManager,
-        RefreshSessionService sessionService,
-        CancellationToken cancellationToken)
-    {
-        var userId = CurrentUserId(principal);
-        var user = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
-        var sessions = await sessionService.ListAsync(userId, user.SecurityStamp ?? string.Empty, cancellationToken);
-        return Results.Ok(sessions.Select(session => new RefreshSessionResponse(
-            session.Id,
-            session.DeviceLabel,
-            session.CreatedAt,
-            session.LastUsedAt,
-            session.IdleExpiresAt,
-            session.AbsoluteExpiresAt)));
-    }
-
-    private static async Task<IResult> DeleteSessionAsync(
-        Guid id,
-        ClaimsPrincipal principal,
-        RefreshSessionService sessionService,
-        CancellationToken cancellationToken)
-    {
-        if (!await sessionService.RevokeAsync(CurrentUserId(principal), id, cancellationToken)) throw new ResourceNotFoundException();
-        return Results.NoContent();
     }
 
     private static async Task<IResult> PatchProfileAsync(
@@ -640,11 +608,3 @@ internal sealed record UserProfileResponse(
     Instant UpdatedAt);
 
 internal sealed record AccessTokenResponse(string AccessToken, Instant ExpiresAt, string TokenType);
-
-internal sealed record RefreshSessionResponse(
-    Guid Id,
-    string DeviceLabel,
-    Instant CreatedAt,
-    Instant LastUsedAt,
-    Instant IdleExpiresAt,
-    Instant AbsoluteExpiresAt);

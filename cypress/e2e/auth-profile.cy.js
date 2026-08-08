@@ -9,7 +9,7 @@ function login() {
   cy.location('pathname').should('eq', '/profile');
 }
 
-describe('auth, profile, sessions', () => {
+describe('auth and profile', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
   it('registers behind email verification gate at phone viewport', () => {
@@ -52,7 +52,7 @@ describe('auth, profile, sessions', () => {
     cy.get('[data-cy="auth-error"]').should('be.visible');
   });
 
-  it('logs in, updates private-by-default profile, changes email, manages sessions', () => {
+  it('logs in, updates private-by-default profile, changes email, signs out', () => {
     login();
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(1280));
     cy.get('[data-cy="profile-location-public"]').should('not.be.checked');
@@ -63,14 +63,6 @@ describe('auth, profile, sessions', () => {
     cy.get('[data-cy="profile-save"]').click();
     cy.get('[data-cy="profile-status"]').should('be.visible');
 
-    cy.visit('/profile/sessions');
-    cy.get('[data-cy="session-row"]').should('have.length.at.least', 1).then(($rows) => {
-      const before = $rows.length;
-      cy.wrap($rows).first().find('button').click();
-      cy.get('[data-cy="session-row"]').should('have.length', before - 1);
-    });
-
-    login();
     cy.get('[data-cy="profile-new-email"]').type('cypress.user+changed@example.test');
     cy.get('#profile-email-password').type(password, { log: false });
     cy.get('[data-cy="profile-change-email"]').click();
@@ -82,10 +74,9 @@ describe('auth, profile, sessions', () => {
       expect(storage.toLowerCase()).not.to.contain('accesstoken');
     });
 
-    cy.get('a[href="/profile/sessions"]').click();
-    cy.location('pathname').should('eq', '/profile/sessions');
-    cy.get('[data-cy="logout-all"]').click();
-    cy.location('pathname').should('eq', '/login');
+    cy.get('[data-cy="logout-button"]').click();
+    cy.location('pathname').should('eq', '/');
+    cy.get('[data-cy="logout-button"]').should('not.exist');
   });
 
   it('completes provider profile through the SPA without exposing an access token in the URL', () => {

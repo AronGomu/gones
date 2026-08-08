@@ -12,7 +12,6 @@ import {
   LoginRequest,
   OAuthFlowResponse,
   PatchUserProfileRequest,
-  RefreshSessionResponse,
   RegisterRequest,
   ResetPasswordRequest,
   UserProfileResponse
@@ -132,8 +131,6 @@ export class AuthService {
   resendVerification(request: EmailAccountRequest): Promise<unknown> { return firstValueFrom(this.client.resendVerification(request)); }
   forgotPassword(request: EmailAccountRequest): Promise<unknown> { return firstValueFrom(this.client.forgotPassword(request)); }
   resetPassword(request: ResetPasswordRequest): Promise<void> { return firstValueFrom(this.client.resetPassword(request)); }
-  listSessions(): Promise<RefreshSessionResponse[]> { return firstValueFrom(this.client.sessionsAll()); }
-  revokeSession(id: string): Promise<void> { return firstValueFrom(this.client.sessions(id)); }
   listExternalIdentities(): Promise<ExternalIdentityResponse[]> { return firstValueFrom(this.client.externalIdentitiesAll()); }
   async startLink(provider: string, currentPassword?: string): Promise<string> {
     return (await firstValueFrom(this.client.startPOST(provider, { currentPassword }))).authorizationUrl;

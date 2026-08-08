@@ -63,25 +63,25 @@ Run: `npm run backend:test` and `npm run test -- data-mode-routes data-cy-covera
 
 ## Impl steps
 
-- [ ] 1. `git rm src/app/auth/sessions.component.ts`.
-- [ ] 2. Delete the `profile/sessions` route object from `authRoutes` in `src/app/app.routes.ts`.
-- [ ] 3. Delete the `/profile/sessions` anchor from the header of `src/app/auth/profile.component.ts:17`.
-- [ ] 4. Delete `listSessions()` and `revokeSession()` from `src/app/auth/auth.service.ts` and drop `RefreshSessionResponse` from the import list at the top of that file.
-- [ ] 5. Delete `src/app/auth/sessions.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] 6. Delete the nine i18n keys (`sessions.*` and `profile.sessions`) from BOTH the `en` and `fr` maps in `src/app/i18n/messages.ts`.
-- [ ] 7. Add an assertion to `src/app/data-mode-routes.test.ts`: `expect(paths(allCapabilities)).not.toContain('profile/sessions');`
-- [ ] 8. In `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs`, delete the two `MapGet`/`MapDelete` registrations at lines 60-63.
-- [ ] 9. Delete the `GetSessionsAsync` and `DeleteSessionAsync` handlers (lines 235-261).
-- [ ] 10. Delete the `RefreshSessionResponse` record (lines 468-475).
-- [ ] 11. Delete `ListAsync` and `RevokeAsync` from `backend/src/Gones.Api/Identity/RefreshSessionService.cs`; keep `CreateAsync`, `RotateAsync`, `RevokeCurrentAsync`, `RevokeAllAsync`.
-- [ ] 12. Run `dotnet build backend/Gones.sln` and delete every test that no longer compiles because it only covered the removed methods; `grep -rn "ListAsync\|RevokeAsync\|RefreshSessionResponse" backend/tests --include=*.cs`.
-- [ ] 13. Add `Sessions_list_endpoint_is_gone`, `Sessions_revoke_endpoint_is_gone` and `Logout_all_still_works` to `backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs`.
-- [ ] 14. Run `npm run backend:test`.
-- [ ] 15. Start Postgres (`docker compose up -d postgres`) and run `npm run api:generate`; confirm `sessionsAll` and `sessions(` no longer appear in `src/app/api/generated/gones-api.ts`.
-- [ ] 16. `grep -rn "profile/sessions\|sessions.component\|listSessions\|revokeSession\|sessions\." src/ cypress/ --include=*.ts --include=*.js` and clean every remaining hit, including `cypress/e2e/auth-profile.cy.js`.
-- [ ] 17. Check `ops/acceptance-matrix.json` for sessions evidence; repoint or reword any row that referenced it, then run `npm run acceptance:matrix`.
-- [ ] 18. Run `npm run test && npm run lint && npm run typecheck && npm run build && npm run api:check`.
-- [ ] 19. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`.
+- [x] 1. `git rm src/app/auth/sessions.component.ts`.
+- [x] 2. Delete the `profile/sessions` route object from `authRoutes` in `src/app/app.routes.ts`.
+- [x] 3. Delete the `/profile/sessions` anchor from the header of `src/app/auth/profile.component.ts:17`.
+- [x] 4. Delete `listSessions()` and `revokeSession()` from `src/app/auth/auth.service.ts` and drop `RefreshSessionResponse` from the import list at the top of that file.
+- [x] 5. Delete `src/app/auth/sessions.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
+- [x] 6. Delete the nine i18n keys (`sessions.*` and `profile.sessions`) from BOTH the `en` and `fr` maps in `src/app/i18n/messages.ts`.
+- [x] 7. Add an assertion to `src/app/data-mode-routes.test.ts`: `expect(paths(allCapabilities)).not.toContain('profile/sessions');`
+- [x] 8. In `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs`, delete the two `MapGet`/`MapDelete` registrations at lines 60-63.
+- [x] 9. Delete the `GetSessionsAsync` and `DeleteSessionAsync` handlers (lines 235-261).
+- [x] 10. Delete the `RefreshSessionResponse` record (lines 468-475).
+- [x] 11. Delete `ListAsync` and `RevokeAsync` from `backend/src/Gones.Api/Identity/RefreshSessionService.cs`; keep `CreateAsync`, `RotateAsync`, `RevokeCurrentAsync`, `RevokeAllAsync`.
+- [x] 12. Run `dotnet build backend/Gones.sln` and delete every test that no longer compiles because it only covered the removed methods; `grep -rn "ListAsync\|RevokeAsync\|RefreshSessionResponse" backend/tests --include=*.cs`.
+- [x] 13. Add `Sessions_list_endpoint_is_gone`, `Sessions_revoke_endpoint_is_gone` and `Logout_all_still_works` to `backend/tests/Gones.IntegrationTests/LocalIdentityApiTests.cs`.
+- [x] 14. Run `npm run backend:test`.
+- [x] 15. Start Postgres (`docker compose up -d postgres`) and run `npm run api:generate`; confirm `sessionsAll` and `sessions(` no longer appear in `src/app/api/generated/gones-api.ts`.
+- [x] 16. `grep -rn "profile/sessions\|sessions.component\|listSessions\|revokeSession\|sessions\." src/ cypress/ --include=*.ts --include=*.js` and clean every remaining hit, including `cypress/e2e/auth-profile.cy.js`.
+- [x] 17. Check `ops/acceptance-matrix.json` for sessions evidence; repoint or reword any row that referenced it, then run `npm run acceptance:matrix`.
+- [x] 18. Run `npm run test && npm run lint && npm run typecheck && npm run build && npm run api:check`.
+- [x] 19. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js`.
 
 ## Outputs
 
@@ -92,12 +92,12 @@ Run: `npm run backend:test` and `npm run test -- data-mode-routes data-cy-covera
 
 ## Validation
 
-- [ ] `npm run backend:test` passes
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run api:check` reports no drift
-- [ ] `npm run acceptance:matrix` passes
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes
-- [ ] manual check: `/profile/sessions` renders the not-found page; signing out still works
-- [ ] app functional — session rotation and logout-all unaffected
-- [ ] commit msg draft: `refactor(auth): remove the sessions page and its listing endpoints`
+- [x] `npm run backend:test` passes
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run api:check` reports no drift
+- [x] `npm run acceptance:matrix` passes
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes
+- [x] manual check: `/profile/sessions` renders the not-found page; signing out still works
+- [x] app functional — session rotation and logout-all unaffected
+- [x] commit msg draft: `refactor(auth): remove the sessions page and its listing endpoints`

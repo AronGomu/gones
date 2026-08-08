@@ -1796,61 +1796,6 @@
         }
       }
     },
-    "/api/users/me/sessions": {
-      "get": {
-        "tags": [
-          "LocalIdentityEndpoints"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/RefreshSessionResponse"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/users/me/sessions/{id}": {
-      "delete": {
-        "tags": [
-          "LocalIdentityEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/users/me/email-change": {
       "post": {
         "tags": [
@@ -10747,38 +10692,6 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "RefreshSessionResponse": {
-        "required": [
-          "id",
-          "deviceLabel",
-          "createdAt",
-          "lastUsedAt",
-          "idleExpiresAt",
-          "absoluteExpiresAt"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "deviceLabel": {
-            "type": "string"
-          },
-          "createdAt": {
-            "$ref": "#/components/schemas/Instant"
-          },
-          "lastUsedAt": {
-            "$ref": "#/components/schemas/Instant"
-          },
-          "idleExpiresAt": {
-            "$ref": "#/components/schemas/Instant"
-          },
-          "absoluteExpiresAt": {
-            "$ref": "#/components/schemas/Instant"
           }
         }
       },
