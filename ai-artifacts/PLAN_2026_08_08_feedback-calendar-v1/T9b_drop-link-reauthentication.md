@@ -157,4 +157,4 @@ Run: `npm run backend:test` then `npm run test -- auth.service`
 - [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass
 - [x] `grep -rn "RequireReauthenticationAsync\|ExternalIdentityRequest\|linkPassword" backend/src/ src/` returns nothing
 - [x] app functional — the account page still lists linked providers and both buttons compile and fire
-- [ ] commit msg draft: `feat(auth): link and unlink providers without re-entering the password`
+- [x] commit msg draft: `feat(auth): link and unlink providers without re-entering the password`
