@@ -1241,3 +1241,8 @@ mat-dialog-content input:focus-visible { border-color: var(--hot-blood); outline
   .participant-card-list { display: grid; gap: .75rem; }
   .participant-actions { display: grid; grid-template-columns: 1fr; }
 }
+
+.tournament-request-body { white-space: pre-wrap; word-break: break-word; padding: 1rem; border: 1px solid var(--steel); background: var(--black-metal); }
+.tournament-request-facts { display: grid; grid-template-columns: minmax(8rem, auto) 1fr; gap: .35rem .75rem; margin: 0 0 1rem; }
+.tournament-request-facts dt { font-weight: 700; color: var(--dim-ash); }
+.tournament-request-facts dd { margin: 0; }

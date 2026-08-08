@@ -1,6 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { Client, ProposalApproverResponse, TournamentPayloadRequest, TournamentProposalResponse } from '../../api/generated/gones-api';
+import {
+  Client,
+  ProposalApproverResponse,
+  TournamentPayloadRequest,
+  TournamentProposalDecisionResponse,
+  TournamentProposalResponse,
+  TournamentProposalReviewResponse
+} from '../../api/generated/gones-api';
 
 export function sortApprovers(approvers: ProposalApproverResponse[]): ProposalApproverResponse[] {
   return [...approvers].sort((a, b) => {
@@ -19,5 +26,17 @@ export class TournamentProposalService {
 
   submit(tournament: TournamentPayloadRequest, recipientUserIds: string[]): Promise<TournamentProposalResponse> {
     return firstValueFrom(this.client.tournamentProposals({ tournament, recipientUserIds }));
+  }
+
+  reviewByToken(token: string): Promise<TournamentProposalReviewResponse> {
+    return firstValueFrom(this.client.byToken(token));
+  }
+
+  approveByToken(token: string): Promise<TournamentProposalDecisionResponse> {
+    return firstValueFrom(this.client.approve(token));
+  }
+
+  rejectByToken(token: string, reason: string): Promise<void> {
+    return firstValueFrom(this.client.reject(token, { reason }));
   }
 }

@@ -116,6 +116,10 @@ try {
     if (abuseSurface.status !== 0) process.exitCode = abuseSurface.status ?? 1;
   }
   if (!process.exitCode) {
+    const tournamentProposalBrowser = runCypress('cypress/e2e/tournament-proposal.cy.js');
+    if (tournamentProposalBrowser.status !== 0) process.exitCode = tournamentProposalBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const accessibility = runCypress('cypress/e2e/accessibility.cy.js');
     if (accessibility.status !== 0) process.exitCode = accessibility.status ?? 1;
   }

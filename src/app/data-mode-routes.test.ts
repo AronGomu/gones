@@ -119,4 +119,13 @@ describe('route exposure per capability flag', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'organizer/tournaments/:id/edit');
     expect(route?.canActivate).toContain(organizerGuard);
   });
+
+  it('exposes the tournament request review route without auth capability', () => {
+    expect(paths(noCapabilities)).toContain('tournament-requests/:token');
+  });
+
+  it('leaves the tournament request review route unguarded', () => {
+    const route = buildRoutes(noCapabilities).find((route) => route.path === 'tournament-requests/:token');
+    expect(route?.canActivate).toBeUndefined();
+  });
 });

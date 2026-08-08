@@ -48,6 +48,7 @@ export async function buildBreadcrumbs(
     return [{ label: menu, link: ['/'] }, { label: t('crumb.settings') }];
   }
   if (segments[0] === 'registrations') return [{ label: menu, link: ['/'] }, { label: t('registration.myRegistrations') }];
+  if (segments[0] === 'tournament-requests') return [{ label: menu, link: ['/'] }, { label: t('crumb.tournamentRequest') }];
   if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: t('auth.account') }];
   if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: t('crumb.player') }];
   if (segments[0] === 'live-tournaments') {

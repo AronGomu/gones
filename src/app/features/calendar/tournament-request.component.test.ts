@@ -1,0 +1,166 @@
+import '@angular/compiler';
+import { describe, expect, it, vi } from 'vitest';
+
+// Same rationale as organizer-tournament-create.component.test.ts: no TestBed / zone.js in this
+// repo, so `effect()` is stubbed to a no-op and the component is built with a bare Injector.
+// These tests assert on component state and spy calls, never on rendered DOM.
+vi.mock('@angular/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@angular/core')>();
+  return { ...actual, effect: () => ({ destroy: () => {} }) };
+});
+
+import { Injector, runInInjectionContext, signal } from '@angular/core';
+import { ActivatedRoute, ParamMap } from '@angular/router';
+import { ApiProblemError } from '../../api/api-boundary';
+import { TournamentRequestComponent } from './tournament-request.component';
+import { TournamentProposalService } from './tournament-proposal.service';
+import { AuthService } from '../../auth/auth.service';
+import { I18nService } from '../../i18n/i18n.service';
+import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { TournamentProposalReviewResponse, UserProfileResponse } from '../../api/generated/gones-api';
+
+function paramMap(values: Record<string, string> = {}): ParamMap {
+  return {
+    keys: Object.keys(values),
+    has: name => Object.prototype.hasOwnProperty.call(values, name),
+    get: name => values[name] ?? null,
+    getAll: name => (values[name] ? [values[name]] : [])
+  };
+}
+
+const baseReview: TournamentProposalReviewResponse = {
+  id: 'p1',
+  tournament: {
+    organizationId: 'org1',
+    title: 'Modern Cup',
+    summary: 'A fun cup',
+    bodyHtml: '<script>alert(1)</script>plain body',
+    streetAddress: '1 rue Test',
+    postalCode: '69001',
+    city: 'Lyon',
+    country: 'France',
+    timeZoneId: 'Europe/Paris',
+    startsAtLocal: '2027-08-01T10:00',
+    endsAtLocal: '2027-08-01T18:00',
+    capacity: 32,
+    formatIds: ['fmt1', 'fmt2']
+  },
+  status: 'Pending',
+  submittedByUsername: 'alice',
+  approverUsername: 'bob',
+  expiresAt: '2027-08-08T00:00:00Z',
+  organizationName: 'Gones',
+  formatNames: ['Legacy', 'Modern']
+} as unknown as TournamentProposalReviewResponse;
+
+function setup(reviewResult: unknown = baseReview) {
+  const profile = null as unknown as UserProfileResponse | null;
+  const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
+  const route = { snapshot: { paramMap: paramMap({ token: 'tok123' }) } } as unknown as ActivatedRoute;
+
+  const reviewByToken = vi.fn(async () => {
+    if (reviewResult instanceof Error) throw reviewResult;
+    return reviewResult as TournamentProposalReviewResponse;
+  });
+  const approveByToken = vi.fn(async () => ({ proposalId: 'p1', status: 'Approved', slug: 'x' }));
+  const rejectByToken = vi.fn(async () => undefined);
+
+  const proposalsStub = { reviewByToken, approveByToken, rejectByToken };
+
+  const injector = Injector.create({ providers: [
+    { provide: ActivatedRoute, useValue: route },
+    { provide: AuthService, useValue: auth },
+    { provide: TournamentProposalService, useValue: proposalsStub },
+    DeckArchetypeSettingsService,
+    I18nService
+  ] });
+
+  const component = runInInjectionContext(injector, () => new TournamentRequestComponent());
+  return { component, proposalsStub };
+}
+
+async function flush() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+describe('TournamentRequestComponent', () => {
+  it('renders the proposal', async () => {
+    const { component } = setup();
+    await flush();
+    expect(component.state()).toBe('review');
+    expect(component.proposal()?.tournament.title).toBe('Modern Cup');
+    expect(component.proposal()?.organizationName).toBe('Gones');
+    expect(component.proposal()?.formatNames).toEqual(['Legacy', 'Modern']);
+  });
+
+  it('renders a dash for a deleted organization', async () => {
+    const { component } = setup({ ...baseReview, organizationName: '' });
+    await flush();
+    expect(component.state()).toBe('review');
+    expect(component.proposal()?.organizationName).toBe('');
+  });
+
+  it('expired token shows the expired panel', async () => {
+    const { component } = setup(new ApiProblemError(404, { status: 404 }));
+    await flush();
+    expect(component.state()).toBe('expired');
+    expect(component.proposal()).toBeNull();
+  });
+
+  it('decided proposal shows the handled panel', async () => {
+    const { component } = setup(new ApiProblemError(409, { status: 409 }));
+    await flush();
+    expect(component.state()).toBe('handled');
+  });
+
+  it('validate publishes and links to the tournament', async () => {
+    const { component, proposalsStub } = setup();
+    await flush();
+    await component.approve();
+    expect(proposalsStub.approveByToken).toHaveBeenCalledWith('tok123');
+    expect(component.state()).toBe('approved');
+    expect(component.slug()).toBe('x');
+  });
+
+  it('refuse opens the reason state', async () => {
+    const { component, proposalsStub } = setup();
+    await flush();
+    component.state.set('reason');
+    expect(component.state()).toBe('reason');
+    expect(proposalsStub.rejectByToken).not.toHaveBeenCalled();
+  });
+
+  it('send is disabled without a reason', async () => {
+    const { component } = setup();
+    await flush();
+    component.state.set('reason');
+    component.reason.set('   ');
+    expect(!component.reason().trim() || component.pending()).toBe(true);
+  });
+
+  it('send posts the reason', async () => {
+    const { component, proposalsStub } = setup();
+    await flush();
+    component.state.set('reason');
+    component.reason.set('Not a good fit');
+    await component.sendReason();
+    expect(proposalsStub.rejectByToken).toHaveBeenCalledTimes(1);
+    expect(proposalsStub.rejectByToken).toHaveBeenCalledWith('tok123', 'Not a good fit');
+  });
+
+  it('send shows the confirmation', async () => {
+    const { component } = setup();
+    await flush();
+    component.state.set('reason');
+    component.reason.set('Not a good fit');
+    await component.sendReason();
+    expect(component.state()).toBe('refused');
+  });
+
+  it('renders while signed out', async () => {
+    const { component } = setup();
+    await flush();
+    expect(component.state()).toBe('review');
+  });
+});

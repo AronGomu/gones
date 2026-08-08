@@ -1429,6 +1429,11 @@
           "gate": "dotnet",
           "target": "backend/tests/Gones.IntegrationTests/TournamentProposalDecisionTests.cs",
           "detail": "token review, approval publishing exactly once across sibling tokens, and refusal mailing the reason"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/tournament-proposal.cy.js",
+          "detail": "the anonymous /tournament-requests/:token page: review, validate, refuse-with-reason and an expired-token panel, all intercept-based and signed out"
         }
       ]
     },
