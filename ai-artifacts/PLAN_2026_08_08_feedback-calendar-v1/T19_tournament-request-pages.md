@@ -1,0 +1,131 @@
+# T19: `/tournament-requests/:token` pages
+
+**Plan:** `./ai-artifacts/PLAN_2026_08_08_feedback-calendar-v1.md`
+**Depends:** T17
+**Commit outcome:** The link in the approver's email opens a page showing the whole proposed event with Validate and Refuse actions; refusing opens a reason page whose "Envoyer Email Raisons Annulation" button mails the submitter.
+
+## Context (self-contained)
+
+- Goal: land the whole `feedback.md` list on Gones Calendar V1. This ticket is the last part of Tournament Event Creation §2: the dedicated page with the event description, a Validate button that publishes it, and a Cancel path leading to a reason textarea and a send button.
+- This slice: two routes, one component with two states, no auth.
+- Out of scope here: the submit side (T18), the backend (T16/T17).
+- Assumptions in force: **A8** — the token in the URL is the credential; the page is anonymous and must never require a login. It must therefore render correctly with `auth.profile()` null.
+
+## Requirements
+
+- Route `tournament-requests/:token` is anonymous and registered unconditionally, so the link works even in a build with `authV1` off.
+- The page loads the proposal by token and renders every submitted field plus the description body, using the same presentation component the public tournament detail uses.
+- Two actions: `Valider` (publishes, then shows a success panel linking to the published tournament) and `Refuser` (switches the page to the reason state).
+- The reason state shows a `<textarea>` and a button labelled `Envoyer Email Raisons Annulation`, disabled while the textarea is empty; sending posts the reason and shows a confirmation.
+- An unknown or expired token renders a clear "link expired" panel; an already-decided proposal renders an "already handled" panel. Neither leaks the payload.
+- The page renders and is readable while signed out and while signed in.
+- Every element carries a unique `data-cy`.
+
+## Inputs
+
+- `src/app/app.routes.ts:53-77` — `buildRoutes(features)` returns the unconditional routes (`''`, `about`, calendar routes, `leagues`, `live-tournaments`, `settings`, …) then spreads `authRoutes`, `registrationAndOrganizerRoutes` and `adminRoutes` behind the capability flags, then `app-error` and `**`. Register the new route in the **unconditional** section, before `app-error`.
+- `src/app/features/calendar/tournament-detail-view.component.ts` — 56 lines, a presentational component (`gones-tournament-detail-view`) already used by `organizer-tournament-create.component.ts` to preview an unpublished tournament. Reuse it here; check its `@Input` shape and map the proposal payload to it.
+- `src/app/features/calendar/server-sanitized-html.component.ts` — 67 lines, renders server-sanitized description HTML. The proposal's `bodyHtml` has **not** been through the server sanitizer, so render it through the same preview path `organizer-tournament-create.component.ts` uses (`POST /api/tournaments/preview`) or, if that requires an organizer, render the body as plain text. **Choose plain text**: the review page is anonymous and must not call an organizer-only endpoint.
+- `src/app/api/generated/gones-api.ts` — after T17 it exposes client methods for `GET /api/tournament-proposals/by-token/{token}` (returning `{ id, tournament, status, submittedByUsername, approverUsername, expiresAt }`), `POST .../{token}/approve` (returning `{ proposalId, status, slug }`) and `POST .../{token}/reject` (taking `{ reason }`, returning 204). Confirm the generated names after regeneration.
+- `src/app/api/api-boundary.ts` — `ApiProblemError` with `status`; a `404` means unknown/expired, a `409` means already decided.
+- `src/app/shared/back-button.component.ts` — `<gones-back-button [link]="['/']" [label]="…" position="top|bottom" />`, the standard top/bottom return control.
+- `src/app/app.component.ts:225-265` — `buildBreadcrumbs(path)`; add a branch for `tournament-requests`.
+- `src/app/i18n/messages.ts` — `const en = {` line 5, `const fr` line 1000; both maps.
+- `src/app/shared/data-cy-coverage.test.ts` — new component files are not in `PENDING_DATA_CY_RETROFIT`, so every element must carry a `data-cy` from the first commit.
+- **From Depends (T17):** the three token endpoints exist, are anonymous, IP rate-limited, and return `404` for unknown/expired and `409` for already-decided proposals. Approve publishes with the submitter as the acting user and returns the public slug. Reject requires a reason of 1..2000 characters and mails the submitter.
+
+## TDD
+
+1. **Red** — write `src/app/features/calendar/tournament-request.component.test.ts` and add the routing assertions to `src/app/data-mode-routes.test.ts`; both fail.
+2. **Green** — add the component, the route and the breadcrumb branch.
+3. **Refactor** — none.
+
+## Test plan
+
+| Test | Input | Expect |
+| --- | --- | --- |
+| `route exists without auth capability` | `buildRoutes({authV1:false, adminV1:false}).map(r => r.path)` | contains `'tournament-requests/:token'` |
+| `route has no guard` | that route object | `canActivate` is undefined |
+| `renders the proposal` | service resolving a payload | `[data-cy=tournament-request-title]` shows the title; venue, dates and formats are present |
+| `expired token shows the expired panel` | service rejecting with `404` | `[data-cy=tournament-request-expired]` present, no payload rendered |
+| `decided proposal shows the handled panel` | reject with `409` | `[data-cy=tournament-request-handled]` present |
+| `validate publishes and links to the tournament` | approve resolving `{ slug: 'x' }` | `[data-cy=tournament-request-approved]` present with a link to `/calendar/tournaments/x` |
+| `refuse opens the reason state` | click `[data-cy=tournament-request-refuse]` | `[data-cy=tournament-request-reason]` textarea present; no request sent yet |
+| `send is disabled without a reason` | reason state, empty textarea | `[data-cy=tournament-request-send-reason]` disabled |
+| `send posts the reason` | type a reason, click send | reject client method called once with that reason |
+| `send shows the confirmation` | reject resolving | `[data-cy=tournament-request-refused]` present |
+| `renders while signed out` | `auth.profile()` null | no redirect, page renders |
+| `data-cy coverage` | new files | suite green |
+
+Run: `npm run test -- tournament-request data-mode-routes data-cy-coverage`
+
+## Impl steps
+
+- [ ] 1. Extend `src/app/features/calendar/tournament-proposal.service.ts` (created in T18; create it here if T18 has not landed) with `reviewByToken(token: string)`, `approveByToken(token: string)` and `rejectByToken(token: string, reason: string)`, each a `firstValueFrom` around the generated client method.
+- [ ] 2. Create `src/app/features/calendar/tournament-request.component.ts` exporting `TournamentRequestComponent`, standalone, importing `RouterLink`, `FormsModule`, `MatButtonModule`, `BackButtonComponent` and `TournamentDetailViewComponent`.
+- [ ] 3. Read the token with `private readonly token = this.route.snapshot.paramMap.get('token') ?? '';`.
+- [ ] 4. Define the page state as `readonly state = signal<'loading' | 'review' | 'reason' | 'approved' | 'refused' | 'expired' | 'handled' | 'error'>('loading');` plus `readonly proposal = signal<TournamentProposalReviewResponse | null>(null)`, `readonly slug = signal('')`, `readonly reason = signal('')`, `readonly pending = signal(false)`.
+- [ ] 5. In the constructor, `void this.load();` — `load()` calls `reviewByToken(this.token)`, sets `proposal` and `state='review'`; on `ApiProblemError` with `status === 404` set `'expired'`, with `409` set `'handled'`, otherwise `'error'`.
+- [ ] 6. Template skeleton, each branch with its own `data-cy`:
+  ```
+  <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="tournament-request-back-top" />
+  <section class="info-page" data-cy="tournament-request-page" aria-labelledby="tournament-request-title">
+    @switch (state()) {
+      @case ('loading') { <p role="status" data-cy="tournament-request-loading">…</p> }
+      @case ('expired') { <section class="panel" data-cy="tournament-request-expired">…</section> }
+      @case ('handled') { <section class="panel" data-cy="tournament-request-handled">…</section> }
+      @case ('error')   { <section class="panel" role="alert" data-cy="tournament-request-error">… + retry button …</section> }
+      @case ('review')  { …header + detail view + actions… }
+      @case ('reason')  { …textarea + send button… }
+      @case ('approved'){ <section class="panel" role="status" data-cy="tournament-request-approved">… link to /calendar/tournaments/{{ slug() }} …</section> }
+      @case ('refused') { <section class="panel" role="status" data-cy="tournament-request-refused">…</section> }
+    }
+  </section>
+  <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="tournament-request-back-bottom" />
+  ```
+- [ ] 7. In the `review` branch, render `<h1 id="tournament-request-title" data-cy="tournament-request-title">{{ proposal()!.tournament.title }}</h1>`, a paragraph naming the submitter, the `<gones-tournament-detail-view>` fed from the payload, the description rendered as **plain text** inside `<pre class="tournament-request-body" data-cy="tournament-request-body">`, then two buttons: `[data-cy=tournament-request-validate]` (`class="home-primary-action"`, `(click)="approve()"`) and `[data-cy=tournament-request-refuse]` (`class="danger-ghost-action"`, `(click)="state.set('reason')"`).
+- [ ] 8. In the `reason` branch, render a label, `<textarea data-cy="tournament-request-reason" maxlength="2000" [ngModel]="reason()" (ngModelChange)="reason.set($event)">`, a cancel button returning to `review`, and `<button data-cy="tournament-request-send-reason" [disabled]="!reason().trim() || pending()" (click)="sendReason()">{{ i18n.t('proposal.sendCancellationReasons') }}</button>`.
+- [ ] 9. Implement `approve()` — guard `pending()`, call `approveByToken`, set `slug` and `state='approved'`; on `409` set `'handled'`, on `404` set `'expired'`.
+- [ ] 10. Implement `sendReason()` — guard `pending()`, call `rejectByToken(this.token, this.reason().trim())`, set `state='refused'`; map `404`/`409` the same way.
+- [ ] 11. Add these keys to BOTH maps in `src/app/i18n/messages.ts`:
+  - `proposal.reviewTitle` — en `'Tournament request'`, fr `'Demande de tournoi'`
+  - `proposal.submittedBy` — en `'Submitted by {username}'`, fr `'Proposé par {username}'`
+  - `proposal.validate` — en `'Approve'`, fr `'Valider'`
+  - `proposal.refuse` — en `'Decline'`, fr `'Refuser'`
+  - `proposal.reasonLabel` — en `'Why are you declining?'`, fr `'Pourquoi refusez-vous ?'`
+  - `proposal.sendCancellationReasons` — en `'Send cancellation reasons email'`, fr `'Envoyer Email Raisons Annulation'`
+  - `proposal.approvedTitle` / `proposal.approvedBody` — en `'Tournament published'` / `'The tournament is now on the public calendar.'`, fr `'Tournoi publié'` / `'Le tournoi est désormais sur le calendrier public.'`
+  - `proposal.refusedTitle` / `proposal.refusedBody` — en `'Request declined'` / `'The submitter received your reasons by email.'`, fr `'Demande refusée'` / `'Le proposant a reçu vos raisons par email.'`
+  - `proposal.expiredTitle` / `proposal.expiredBody` — en `'Link expired'` / `'This review link is no longer valid.'`, fr `'Lien expiré'` / `'Ce lien de validation n’est plus valide.'`
+  - `proposal.handledTitle` / `proposal.handledBody` — en `'Already handled'` / `'Another reviewer already decided on this request.'`, fr `'Déjà traitée'` / `'Un autre validateur a déjà décidé pour cette demande.'`
+  - `crumb.tournamentRequest` — en `'Tournament request'`, fr `'Demande de tournoi'`
+- [ ] 12. Register the route in the unconditional block of `buildRoutes` in `src/app/app.routes.ts`, immediately after the calendar routes:
+  ```
+  { path: 'tournament-requests/:token', loadComponent: () => import('./features/calendar/tournament-request.component').then((m) => m.TournamentRequestComponent) },
+  ```
+- [ ] 13. Add the two routing assertions to `src/app/data-mode-routes.test.ts`.
+- [ ] 14. Add a breadcrumb branch in `src/app/app.component.ts`'s `buildBreadcrumbs`: `if (segments[0] === 'tournament-requests') return [{ label: menu, link: ['/'] }, { label: this.i18n.t('crumb.tournamentRequest') }];`
+- [ ] 15. Add `.tournament-request-body { white-space: pre-wrap; word-break: break-word; padding: 1rem; border: 1px solid var(--steel); background: var(--black-metal); }` to `src/styles.css`.
+- [ ] 16. Create `src/app/features/calendar/tournament-request.component.test.ts` with Test plan rows 3-11, stubbing `TournamentProposalService`, `ActivatedRoute` and `AuthService`.
+- [ ] 17. Create `cypress/e2e/tournament-proposal.cy.js`: as a verified plain user submit a proposal, read the token from the local mail sink the way `cypress/e2e/auth-profile.cy.js` reads verification links, `cy.visit('/tournament-requests/' + token)` **signed out**, approve, and assert the tournament appears on `/calendar`. Add a second case that refuses and asserts `[data-cy=tournament-request-refused]`.
+- [ ] 18. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [ ] 19. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/tournament-proposal.cy.js,cypress/e2e/accessibility.cy.js`.
+- [ ] 20. Add the Cypress spec to the proposal row of `ops/acceptance-matrix.json` created in T17, then run `npm run acceptance:matrix`.
+
+## Outputs
+
+- Files created: `src/app/features/calendar/tournament-request.component.ts`, `src/app/features/calendar/tournament-request.component.test.ts`, `cypress/e2e/tournament-proposal.cy.js`.
+- Files touched: `src/app/features/calendar/tournament-proposal.service.ts`, `src/app/app.routes.ts`, `src/app/app.component.ts`, `src/app/data-mode-routes.test.ts`, `src/app/i18n/messages.ts`, `src/styles.css`, `ops/acceptance-matrix.json`.
+- Public API / behavior change: new anonymous route `/tournament-requests/:token`.
+- Migrate / config: none.
+
+## Validation
+
+- [ ] `npm run test` passes
+- [ ] `npm run lint && npm run typecheck && npm run build` pass
+- [ ] `npm run cy:run -- --spec cypress/e2e/tournament-proposal.cy.js,cypress/e2e/accessibility.cy.js` passes
+- [ ] `npm run acceptance:matrix` passes
+- [ ] manual check: open a token link in a private window, approve it, and see the tournament on `/calendar`; open a second token link, refuse it with a reason, and find the reason mail in the sink
+- [ ] manual check: replay a used token and see the "already handled" panel
+- [ ] app functional — the page renders signed out with no redirect
+- [ ] commit msg draft: `feat(tournaments): review, approve or decline a tournament request from its mail link`

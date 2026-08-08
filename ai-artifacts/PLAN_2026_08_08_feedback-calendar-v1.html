@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Plan: Feedback Calendar V1</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.4rem;margin-bottom:2rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0 0 .6rem;font-size:2.1rem}
+  h2{margin:2.75rem 0 .9rem;font-size:1.28rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.5rem 0 .5rem;font-size:1rem}
+  p{max-width:82ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:82ch}
+  code{font-family:var(--mono);font-size:.87em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  a{color:var(--hot)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:.75rem;margin:1.5rem 0}
+  .stat{background:var(--panel);border:1px solid var(--steel);padding:.9rem 1rem}
+  .stat b{display:block;font-size:1.75rem;font-family:var(--mono);color:var(--hot);line-height:1.1}
+  .stat span{color:var(--dim);font-size:.78rem;text-transform:uppercase;letter-spacing:.1em}
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+  th,td{border:1px solid var(--steel);padding:.55rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;position:sticky;top:0}
+  tbody tr:hover{background:var(--panel)}
+  td.id{font-family:var(--mono);color:var(--hot);white-space:nowrap;font-weight:700}
+  td.dep{font-family:var(--mono);color:var(--dim);white-space:nowrap;font-size:.82rem}
+  .lane{display:inline-block;font-size:.68rem;letter-spacing:.07em;text-transform:uppercase;
+        padding:.12rem .45rem;border:1px solid var(--steel);color:var(--dim);white-space:nowrap}
+  .l-found{border-color:var(--rust);color:var(--rust)}
+  .l-auth{border-color:#5c7ea8;color:#8fb2dc}
+  .l-acct{border-color:var(--green);color:#6fae7d}
+  .l-cal{border-color:var(--hot);color:var(--hot)}
+  .l-prop{border-color:#8a6bb0;color:#b494dd}
+  .l-misc{border-color:var(--steel);color:var(--dim)}
+  ul{max-width:82ch} li{margin:.3rem 0}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .graph{background:var(--panel);border:1px solid var(--steel);padding:1.1rem;margin:1.25rem 0;overflow-x:auto}
+  .graph pre{margin:0;font-family:var(--mono);font-size:.8rem;line-height:1.5;color:var(--dim);white-space:pre}
+  .graph pre b{color:var(--hot);font-weight:700}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;margin:1.25rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.05rem}
+  .card h3{margin-top:0;color:var(--ash)}
+  .card ul{margin:.4rem 0 0;padding-left:1.1rem}
+  .in{border-left:3px solid var(--green)}
+  .out{border-left:3px solid var(--hot)}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Implementation plan · 2026-08-08</p>
+  <h1>Feedback Calendar V1</h1>
+  <p class="lede">Every line of <code>feedback.md</code>, decomposed into 25 commit-sized slices.
+  Each ticket compiles, tests and ships on its own. Index:
+  <a href="PLAN_2026_08_08_feedback-calendar-v1.md">PLAN_2026_08_08_feedback-calendar-v1.md</a>.</p>
+</header>
+
+<div class="stats">
+  <div class="stat"><b>25</b><span>tickets</span></div>
+  <div class="stat"><b>6</b><span>ADRs</span></div>
+  <div class="stat"><b>5</b><span>EF migrations</span></div>
+  <div class="stat"><b>5</b><span>new endpoints</span></div>
+  <div class="stat"><b>3</b><span>new deps</span></div>
+</div>
+
+<h2>Goal</h2>
+<p>Land the whole feedback list: header and menubar polish, cookie-backed login persistence, a merged
+Settings + Account surface, structured geo profile fields, hard account deletion, a full-catalog
+calendar with one fuzzy filter, open tournament creation with signed-token approval, a role-scoped
+local Live store, a full-stack <code>leagues-archive</code> rename, and repo-wide <code>data-cy</code>
+coverage.</p>
+<p><strong>Done means:</strong> <code>npm run test &amp;&amp; npm run lint &amp;&amp; npm run typecheck
+&amp;&amp; npm run build &amp;&amp; npm run backend:test &amp;&amp; npm run cy:run</code> green, and
+<code>npm run acceptance:matrix</code> still proved.</p>
+
+<div class="cols">
+  <div class="card in"><h3>In scope</h3><ul>
+    <li><code>src/**</code>, <code>backend/**</code>, <code>cypress/e2e/**</code></li>
+    <li><code>docs/**</code>, <code>ops/acceptance-matrix.json</code>, <code>scripts/**</code>, <code>package.json</code></li>
+    <li>6 ADRs (<code>docs/adr/0021</code>…<code>0026</code>) + 3 architecture HTML docs</li>
+  </ul></div>
+  <div class="card out"><h3>Out of scope</h3><ul>
+    <li>Deployment topology, Docker / compose, Brevo provider config</li>
+    <li>New OAuth providers</li>
+    <li>Any new private migration-bundle producer — the one-way door of ADR 0020 stands</li>
+    <li>Retiring the Leagues archive; it is renamed, not removed</li>
+  </ul></div>
+</div>
+
+<h2>Decisions taken before planning</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>Fork</th><th>Chosen</th><th>Record</th></tr></thead>
+  <tbody>
+    <tr><td>Live tournaments for anonymous / plain users</td><td>Browser-local IndexedDB, no sync ever. Sync is an Organizer/Admin privilege.</td><td><a href="../docs/adr/0021-role-scoped-browser-live-store.md">ADR 0021</a></td></tr>
+    <tr><td>Settings vs Profile merge</td><td>Split: <code>/settings</code> stays anonymous, <code>/settings/account</code> is gated</td><td>plan assumption A3</td></tr>
+    <tr><td>Geo data source</td><td>Bundled offline JSON, generated at build time</td><td><a href="../docs/adr/0026-structured-profile-location-and-birth-date.md">ADR 0026</a></td></tr>
+    <tr><td>Archive rename depth</td><td>Full stack: routes, types, tables. Export format frozen.</td><td><a href="../docs/adr/0022-rename-the-archived-league-feature.md">ADR 0022</a></td></tr>
+    <tr><td>Approval page auth</td><td>Signed single-use token in the mail link, 7-day expiry, no login</td><td><a href="../docs/adr/0024-tournament-proposal-signed-token-approval.md">ADR 0024</a></td></tr>
+    <tr><td>Fetching all tournaments</td><td>New bulk endpoint <code>GET /api/tournaments/all</code></td><td><a href="../docs/adr/0023-full-catalog-calendar-cache.md">ADR 0023</a></td></tr>
+    <tr><td><code>data-cy</code> enforcement</td><td>Rule + full retrofit, staged behind a shrinking allowlist</td><td>assumptions A1, A13</td></tr>
+    <tr><td>Sessions page</td><td>Removed, frontend <em>and</em> the two endpoints</td><td>T7</td></tr>
+    <tr><td>Birth date</td><td>Migrate <code>birth_year</code> → <code>birth_date</code>; public views still show the year only</td><td><a href="../docs/adr/0026-structured-profile-location-and-birth-date.md">ADR 0026</a></td></tr>
+    <tr><td>Account deletion</td><td>Hard delete; audit actor set null</td><td><a href="../docs/adr/0025-hard-account-deletion.md">ADR 0025</a></td></tr>
+    <tr><td>Dependencies</td><td><code>fuse.js</code> runtime; two geo datasets dev-only</td><td>assumption A10</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Dependency graph</h2>
+<div class="graph"><pre><b>T1</b> deps · agent contract · data-cy gate
+ ├─ <b>T2</b> cookie login persistence ── <b>T3</b> menubar + login return-url ─────────────┐
+ ├─ <b>T4</b> auth pages layout ───────────────────────────────────────────────────────────┤
+ ├─ <b>T5</b> profile schema ─┐                                                            │
+ ├─ <b>T7</b> remove sessions ┴─ <b>T8</b> settings/account split ─┬─ <b>T9</b> account form UX ─ <b>T10</b> geo selects ┤
+ ├─ <b>T6</b> DELETE /users/me ────────────────────────────────────┴─ <b>T11</b> delete account UI ──────────┤
+ ├─ <b>T12</b> /api/tournaments/all ─ <b>T13</b> cache + fuzzy ─ <b>T14</b> calendar rewire ─ <b>T15</b> Créer Tournoi │
+ │                                                                     └─ <b>T16</b> proposal backend    │
+ │                                                                          ├─ <b>T17</b> approve/deny ─ <b>T19</b> ┤
+ │                                                                          └─ <b>T18</b> approver dialog    │
+ ├─ <b>T20</b> local Live store ─ <b>T23</b> backend archive rename ─ <b>T24</b> frontend archive rename ────────┤
+ ├─ <b>T21</b> first-visit About ───────────────────────────────────────────────────────────┤
+ └─ <b>T22</b> registrations polish ────────────────────────────────────────────────────────┤
+                                                                                           ↓
+                                                              <b>T25</b> data-cy sweep + acceptance matrix</pre></div>
+
+<h2>Tickets</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Area</th><th>Title</th><th>Depends</th><th>Commit outcome</th></tr></thead>
+  <tbody>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T1_deps-agent-contract-data-cy-gate.md">T1</a></td><td><span class="lane l-found">foundation</span></td><td>Deps, frontend agent contract, data-cy gate</td><td class="dep">—</td><td>New deps installed; <code>src/AGENT.md</code> and the kicker rule exist; the coverage test runs green with an allowlist</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T2_cookie-login-persistence.md">T2</a></td><td><span class="lane l-auth">auth</span></td><td>Cookie login persistence + auto-connect</td><td class="dep">T1</td><td>Reload keeps you signed in, proved at both layers</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T3_menubar-and-login-return-url.md">T3</a></td><td><span class="lane l-auth">auth</span></td><td>Menubar polish + login return-url</td><td class="dep">T2</td><td>Plain profile link, red logout, no sign-in button; login returns to the previous page</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T4_auth-pages-layout.md">T4</a></td><td><span class="lane l-auth">auth</span></td><td>Login/register page layout</td><td class="dep">T1</td><td>No kicker, spaced rows, brand logos, confirm password, centred banner</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T5_profile-schema-birthdate-location.md">T5</a></td><td><span class="lane l-acct">account</span></td><td>Profile schema: birth date + structured location</td><td class="dep">T1</td><td><code>birth_date</code> and <code>location_country/region/city</code> live end to end</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T6_delete-account-endpoint.md">T6</a></td><td><span class="lane l-acct">account</span></td><td><code>DELETE /api/users/me</code> hard delete</td><td class="dep">T1</td><td>Password-confirmed self-deletion removes the account</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T7_remove-sessions-feature.md">T7</a></td><td><span class="lane l-acct">account</span></td><td>Remove the sessions feature</td><td class="dep">T1</td><td>Sessions page and its two endpoints are gone</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T8_settings-account-route-split.md">T8</a></td><td><span class="lane l-acct">account</span></td><td>Settings/account route split</td><td class="dep">T5, T7</td><td><code>/settings</code> public, <code>/settings/account</code> gated and merged; <code>/profile</code> redirects</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T9_account-form-ux.md">T9</a></td><td><span class="lane l-acct">account</span></td><td>Account form UX</td><td class="dep">T8</td><td>Pseudo label, dirty-gated warning-coloured submit with a confirm dialog, saves persist</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T10_geo-dataset-and-selects.md">T10</a></td><td><span class="lane l-acct">account</span></td><td>Geo dataset + country/region/city selects</td><td class="dep">T9</td><td>Location picked from bundled offline selects</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T11_delete-account-ui.md">T11</a></td><td><span class="lane l-acct">account</span></td><td>Delete account UI</td><td class="dep">T6, T8</td><td>"Supprimer Compte" with a password dialog works</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T12_all-tournaments-endpoint.md">T12</a></td><td><span class="lane l-cal">calendar</span></td><td><code>GET /api/tournaments/all</code></td><td class="dep">T1</td><td>One request returns every present/future published tournament</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T13_calendar-cache-and-fuzzy-module.md">T13</a></td><td><span class="lane l-cal">calendar</span></td><td>Calendar cache + fuzzy search module</td><td class="dep">T12</td><td>24 h-cached catalog and a tested fuzzy filter</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T14_calendar-page-rewire.md">T14</a></td><td><span class="lane l-cal">calendar</span></td><td>Calendar page rewire</td><td class="dep">T13</td><td>Single full-width fuzzy input, Synchroniser, calendar always rendered</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T15_create-tournament-entry-point.md">T15</a></td><td><span class="lane l-cal">calendar</span></td><td>"Créer Tournoi" entry point</td><td class="dep">T14</td><td>Every verified user reaches the creation page</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T16_tournament-proposal-backend.md">T16</a></td><td><span class="lane l-prop">proposals</span></td><td>Proposal entity, submit endpoint, mail</td><td class="dep">T15</td><td>Non-organizer submission stores a proposal and mails the chosen approvers</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T17_proposal-approval-endpoints.md">T17</a></td><td><span class="lane l-prop">proposals</span></td><td>Approve/deny + cancellation mail</td><td class="dep">T16</td><td>Token approval publishes; denial mails the reason</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T18_approver-selection-dialog.md">T18</a></td><td><span class="lane l-prop">proposals</span></td><td>Approver-selection dialog</td><td class="dep">T16</td><td>Submit opens the admin/organizer checkbox dialog</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T19_tournament-request-pages.md">T19</a></td><td><span class="lane l-prop">proposals</span></td><td><code>/tournament-requests/:token</code> pages</td><td class="dep">T17</td><td>Approver validates or refuses from the mail link</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T20_local-live-store.md">T20</a></td><td><span class="lane l-misc">live</span></td><td>Role-scoped local Live store</td><td class="dep">T1</td><td>Anonymous and plain users run Live tournaments fully offline</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T21_first-visit-about.md">T21</a></td><td><span class="lane l-misc">misc</span></td><td>First-visit About redirect</td><td class="dep">T1</td><td>First ever visit lands on <code>/about</code>, later visits on <code>/</code></td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T22_registrations-page-polish.md">T22</a></td><td><span class="lane l-misc">misc</span></td><td>Registrations page polish</td><td class="dep">T1</td><td>Home card when logged in, top/bottom return buttons, no kicker</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T23_backend-archive-rename.md">T23</a></td><td><span class="lane l-misc">archive</span></td><td>Backend archive rename</td><td class="dep">T20</td><td>API and DB speak <code>leagues-archive</code> / <code>tournaments-archive</code></td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T24_frontend-archive-rename.md">T24</a></td><td><span class="lane l-misc">archive</span></td><td>Frontend archive rename</td><td class="dep">T23</td><td>Routes, folders and copy renamed; old paths redirect</td></tr>
+    <tr><td class="id"><a href="PLAN_2026_08_08_feedback-calendar-v1/T25_data-cy-sweep-and-matrix.md">T25</a></td><td><span class="lane l-found">foundation</span></td><td>data-cy sweep + acceptance matrix</td><td class="dep">T3 T4 T10 T11 T19 T21 T22 T24</td><td>Allowlist empty; the rule is enforced repo-wide</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Ordering constraints that are not negotiable</h2>
+<ul>
+  <li><strong>T1 first.</strong> It is the only ticket with human-blocking steps (<code>npm install</code>) and it installs the conventions every later ticket writes against.</li>
+  <li><strong>T5 and T7 before T8.</strong> The account page is a literal move; moving it before the schema and the sessions removal settle means doing it twice.</li>
+  <li><strong>T12 → T13 → T14.</strong> Endpoint, then modules with their own tests, then the page. Each layer ships behind the previous one's tests.</li>
+  <li><strong>T23 → T24, back to back.</strong> Regenerating the client renames the operation methods; the frontend does not compile in between. Do not interleave another ticket there.</li>
+  <li><strong>T25 last.</strong> Sweeping identifiers into components that later tickets rewrite is wasted work.</li>
+</ul>
+
+<div class="note">
+  <strong>Two tests will bite anyone who skips the Inputs section.</strong>
+  <code>src/app/backend/server-authority-boundary.test.ts</code> pins the exact list of files allowed to
+  touch <code>localStorage</code> / <code>indexedDB</code> — T13, T20 and T21 each add one and must say
+  why in that file. And T1's coverage test asserts every allowlist path still exists, so deleting or
+  renaming a component (T7, T24) means editing the allowlist in the same commit.
+</div>
+
+<h2>New surface, at a glance</h2>
+<div class="scroll">
+<table>
+  <thead><tr><th>Kind</th><th>Item</th><th>Ticket</th></tr></thead>
+  <tbody>
+    <tr><td>Endpoint</td><td><code>DELETE /api/users/me</code></td><td class="dep">T6</td></tr>
+    <tr><td>Endpoint</td><td><code>GET /api/tournaments/all</code></td><td class="dep">T12</td></tr>
+    <tr><td>Endpoint</td><td><code>GET /api/tournament-proposals/approvers</code>, <code>POST /api/tournament-proposals</code></td><td class="dep">T16</td></tr>
+    <tr><td>Endpoint</td><td><code>GET|POST /api/tournament-proposals/by-token/{token}[/approve|/reject]</code></td><td class="dep">T17</td></tr>
+    <tr><td>Route</td><td><code>/settings/account</code>, <code>/tournaments/new</code>, <code>/tournament-requests/:token</code>, <code>/leagues-archive/**</code></td><td class="dep">T8, T15, T19, T24</td></tr>
+    <tr><td>Migration</td><td>profile birth date + location · account hard delete · tournament proposals · archive table rename</td><td class="dep">T5, T6, T16, T23</td></tr>
+    <tr><td>Storage</td><td>IndexedDB <code>gones-live</code> · <code>localStorage</code> catalog cache · first-visit flag</td><td class="dep">T20, T13, T21</td></tr>
+    <tr><td>Templates</td><td><code>tournament-proposal</code>, <code>tournament-proposal-rejected</code> (fr + en, html + txt)</td><td class="dep">T16, T17</td></tr>
+  </tbody>
+</table>
+</div>
+
+<footer>
+  Gones · <code>ai-artifacts/PLAN_2026_08_08_feedback-calendar-v1.html</code> ·
+  index: <a href="PLAN_2026_08_08_feedback-calendar-v1.md">markdown plan</a> ·
+  architecture: <a href="../docs/live-tournament-authority.html">Live authority</a>,
+  <a href="../docs/tournament-proposal-flow.html">proposal flow</a>,
+  <a href="../docs/calendar-data-flow.html">calendar data flow</a>.
+</footer>
+
+</div>
+</body>
+</html>

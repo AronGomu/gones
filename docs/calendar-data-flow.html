@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Calendar Data Flow</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.6rem 0 .5rem;font-size:1.02rem}
+  p{max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .pipeline{display:grid;gap:.5rem;margin:1.5rem 0;font-family:var(--mono);font-size:.83rem}
+  .pipeline div{background:var(--panel);border:1px solid var(--steel);padding:.6rem .85rem;position:relative}
+  .pipeline div::after{content:'↓';position:absolute;left:1rem;bottom:-.95rem;color:var(--blood);font-size:.9rem}
+  .pipeline div:last-child::after{content:''}
+  .pipeline .net{border-left:3px solid var(--rust)}
+  .pipeline .local{border-left:3px solid var(--green)}
+  .badge{float:right;font-size:.7rem;letter-spacing:.06em;color:var(--dim)}
+  .before-after{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--old{border-color:var(--steel);opacity:.85}
+  .card--new{border-color:var(--green)}
+  .card h3{margin-top:0}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  ul{max-width:76ch} li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Calendar Data Flow</h1>
+  <p class="lede">One request a day fetches every present-and-future tournament. Everything the user
+  types after that filters a local array. The month grid never disappears.</p>
+</header>
+
+<h2>Before and after</h2>
+
+<div class="before-after">
+  <div class="card card--old">
+    <h3>Was</h3>
+    <ul>
+      <li>Six filter inputs + an <em>Appliquer</em> button</li>
+      <li>Each apply = a router navigation + a paged request</li>
+      <li>Server-side <code>WHERE</code> per field, exact match</li>
+      <li>Month change = another request</li>
+      <li>Zero results = no calendar at all</li>
+    </ul>
+  </div>
+  <div class="card card--new">
+    <h3>Is</h3>
+    <ul>
+      <li>One search input, full page width</li>
+      <li>One request per 24 h, plus a manual <em>Synchroniser</em></li>
+      <li>Client-side fuzzy match across every field but the description</li>
+      <li>Month change = zero network</li>
+      <li>Zero results = the grid renders, empty, with a notice below it</li>
+    </ul>
+  </div>
+</div>
+
+<h2>The read pipeline</h2>
+
+<div class="pipeline">
+  <div class="local">PublicCalendarComponent — <code>searchDraft()</code>, month, view <span class="badge">signals</span></div>
+  <div class="local">filterTournaments(allItems(), q) — fuse.js over normalized text <span class="badge">pure</span></div>
+  <div class="local">AllTournamentsCacheService.load() <span class="badge">24 h TTL</span></div>
+  <div class="net">localStorage <code>gones.calendar-v1.all-tournaments</code> — items + etag + fetchedAt</div>
+  <div class="net">GET /api/tournaments/all?from=… — If-None-Match <span class="badge">only on miss / force</span></div>
+  <div class="net">PostgreSQL scheduled_tournaments ⋈ organizations</div>
+</div>
+
+<h2>When a request actually happens</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>User action</th><th>Network</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>First page load of the day</td><td><code>GET /api/tournaments/all</code></td><td>cache empty or older than 24 h</td></tr>
+    <tr><td>Reload, same day</td><td><em>none</em></td><td>cache is fresh</td></tr>
+    <tr><td>Typing in the search field</td><td><em>none</em></td><td>filtering is local</td></tr>
+    <tr><td>Next / previous month</td><td><em>none</em></td><td>the whole catalog is already in memory</td></tr>
+    <tr><td>Calendar ⇄ list toggle</td><td><em>none</em></td><td>same array, different projection</td></tr>
+    <tr><td>Click <em>Synchroniser</em></td><td><code>GET …/all</code> with <code>If-None-Match</code></td><td><code>force: true</code>; a <code>304</code> just restamps the cache</td></tr>
+    <tr><td>Offline, cache present</td><td>attempt, fails</td><td>returns the cache flagged <code>stale</code></td></tr>
+    <tr><td>Offline, no cache</td><td>attempt, fails</td><td>rejects; the page shows its error panel with a retry</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Search-term grammar</h2>
+
+<p>Separators are <code>,</code>, <code>;</code> and whitespace. A backslash escapes the next
+character, so a separator can be part of a term. Terms are <strong>ANDed</strong>.</p>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Input</th><th>Terms</th><th>Matches</th></tr></thead>
+  <tbody>
+    <tr><td><code>lyon</code></td><td><code>['lyon']</code></td><td>anything in Lyon</td></tr>
+    <tr><td><code>lyon, legacy</code></td><td><code>['lyon','legacy']</code></td><td>Legacy events in Lyon</td></tr>
+    <tr><td><code>saint\,étienne</code></td><td><code>['saint,étienne']</code></td><td>the literal string, comma included</td></tr>
+    <tr><td><code>grand\ prix</code></td><td><code>['grand prix']</code></td><td>the phrase, not two words</td></tr>
+    <tr><td><code>RHONE</code></td><td><code>['rhone']</code></td><td>matches <em>Rhône</em> — accents and case folded</td></tr>
+    <tr><td><code>2026-09-12</code></td><td><code>['2026-09-12']</code></td><td>that venue date</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Searchable corpus</h3>
+
+<pre>title · slug · status · organization.name · formats[].name
+venue.streetAddress · venue.postalCode · venue.city · venue.country
+timeZoneId · venueStartDate · venueStartTime · venueEndDate · venueEndTime · capacity
+
+EXCLUDED: summary / description  ← long free text, deliberately not searched</pre>
+
+<h2>The bulk endpoint</h2>
+
+<pre>GET /api/tournaments/all?from=2026-08-08          # anonymous
+
+200 OK
+ETag: "9f2c…"                                     # sha256(count : maxUpdatedAt : lastId)
+Cache-Control: public, max-age=3600
+{
+  "items":       [ …PublicTournamentSummaryResponse… ],
+  "generatedAt": "2026-08-08T09:14:02Z",
+  "count":       137,
+  "truncated":   false
+}
+
+304 Not Modified                                  # when If-None-Match matches</pre>
+
+<div class="note">
+  <strong>Ceiling, not a cliff.</strong> <code>Gones:Calendar:MaximumCatalogSize</code> defaults to
+  5000. Past it the response is capped, <code>truncated</code> flips to <code>true</code>, the server
+  logs a warning and the page renders a visible notice. Silent truncation would read as
+  "you have seen everything" when you have not.
+</div>
+
+<h2>Boundary rules this respects</h2>
+
+<ul>
+  <li>Read-only. Nothing here writes; publication still goes through the organizer endpoints or the
+  proposal flow.</li>
+  <li><code>localStorage</code> holds a cache of anonymous <code>GET</code> responses and nothing else —
+  the same justification the pre-existing entries in the
+  <code>server-authority-boundary.test.ts</code> allowlist carry. It is never a mutation source.</li>
+  <li>The paged <code>GET /api/tournaments</code> stays, contract-tested. It is the documented public
+  read API; this application simply no longer calls it.</li>
+</ul>
+
+<footer>
+  Gones · <code>docs/calendar-data-flow.html</code> · decision record:
+  <a href="adr/0023-full-catalog-calendar-cache.md">ADR 0023</a>.
+</footer>
+
+</div>
+</body>
+</html>

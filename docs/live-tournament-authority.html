@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Live Tournament Authority</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--local{border-color:var(--rust)}
+  .card--server{border-color:var(--green)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--local{border-color:var(--rust);color:var(--rust)}
+  .tag--server{border-color:var(--green);color:var(--green)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Live Tournament Authority</h1>
+  <p class="lede">Live Tournament has two data authorities. Which one you get depends on your role,
+  and the two never talk to each other. Everything else in Gones still has exactly one.</p>
+</header>
+
+<h2>The rule, in one table</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Caller</th><th>Live adapter</th><th>Storage</th><th>Sync</th><th>Everything else</th></tr></thead>
+  <tbody>
+    <tr><td>Anonymous visitor</td><td><code>LocalLiveBackend</code></td><td>IndexedDB <code>gones-live</code></td><td><span class="tag tag--danger">never</span></td><td>API, read-only</td></tr>
+    <tr><td><code>User</code></td><td><code>LocalLiveBackend</code></td><td>IndexedDB <code>gones-live</code></td><td><span class="tag tag--danger">never</span></td><td>API</td></tr>
+    <tr><td><code>Organizer</code></td><td><code>AspNetApiBackend</code></td><td>PostgreSQL</td><td><span class="tag tag--server">full</span></td><td>API</td></tr>
+    <tr><td><code>Admin</code></td><td><code>AspNetApiBackend</code></td><td>PostgreSQL</td><td><span class="tag tag--server">full</span></td><td>API</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Synchronisation <em>is</em> the privilege. Being able to put a Live Tournament on the server is
+what <code>Organizer</code> means. See <a href="adr/0021-role-scoped-browser-live-store.md">ADR 0021</a>.</p>
+
+<h2>Two paths from one facade</h2>
+
+<div class="split">
+  <div class="card card--local">
+    <h3><span class="tag tag--local">browser-local</span> Anonymous &amp; User</h3>
+    <div class="flow">
+      <div>runner component</div>
+      <div>LiveTournamentRepository</div>
+      <div>LIVE_BACKEND → LocalLiveBackend</div>
+      <div>src/app/domain/live-tournament.ts <em>(pure rules)</em></div>
+      <div>IndexedDB gones-live / tournaments</div>
+    </div>
+    <p>No <code>fetch</code>. No token. No version header. Concurrency is guarded in the adapter by
+    comparing <code>documentVersion</code> before every mutation, so the runner's conflict handling
+    is identical on both paths.</p>
+  </div>
+  <div class="card card--server">
+    <h3><span class="tag tag--server">aspnet-api</span> Organizer &amp; Admin</h3>
+    <div class="flow">
+      <div>runner component</div>
+      <div>LiveTournamentRepository</div>
+      <div>LIVE_BACKEND → AspNetApiBackend</div>
+      <div>POST/PATCH /api/live-tournaments/… + If-Match</div>
+      <div>PostgreSQL live_aggregates</div>
+    </div>
+    <p>Unchanged from Calendar V1. Intent commands, optimistic concurrency, authorization, audit.</p>
+  </div>
+</div>
+
+<h2>Where the decision is made</h2>
+
+<pre>// src/app/backend/application-backend.ts
+
+export type LiveBackendMode = 'aspnet-api' | 'browser-local';
+
+export function resolveLiveBackendMode(
+  authority: DataAuthority,
+  globalRole: string | undefined
+): LiveBackendMode {
+  if (!authority.serverAuthority) throw new Error('serverAuthorityRequired');
+  return globalRole === 'Organizer' || globalRole === 'Admin'
+    ? 'aspnet-api'
+    : 'browser-local';
+}
+
+export const LIVE_BACKEND = new InjectionToken&lt;LiveBackendPort&gt;('Gones Live Tournament backend bridge', {
+  providedIn: 'root',
+  factory: () =&gt; {
+    const role = inject(AuthService).profile()?.globalRole;
+    return resolveLiveBackendMode(dataAuthority(), role) === 'aspnet-api'
+      ? inject(AspNetApiBackend)
+      : inject(LocalLiveBackend);
+  }
+});</pre>
+
+<div class="note">
+  <strong>Resolved once.</strong> The profile is loaded by <code>AuthService.bootstrap()</code> in a
+  <code>provideAppInitializer</code>, before the first route renders. A role granted mid-session takes
+  effect on the next reload. That is a deliberate simplification, not an oversight.
+</div>
+
+<h2>What did <em>not</em> move</h2>
+
+<ul>
+  <li><strong>Leagues.</strong> <code>LEAGUE_ARCHIVE_BACKEND</code> binds to the API and nothing else.</li>
+  <li><strong>Calendar, auth, organizer, admin.</strong> Server-authoritative, per ADR 0020.</li>
+  <li><strong>The domain rules.</strong> Pairing, standings, checkpoints and finalize live in one pure
+  module that both adapters compose. Neither adapter reimplements a rule.</li>
+</ul>
+
+<h2>Finalize is the one behavioural fork</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th></th><th>Server path</th><th>Local path</th></tr></thead>
+  <tbody>
+    <tr><td>Produces</td><td><code>TournamentDocument</code></td><td><code>TournamentDocument</code></td></tr>
+    <tr><td>Writes into</td><td>a League Archive</td><td>nothing</td></tr>
+    <tr><td>User gets</td><td>a link to the archived result</td><td>a JSON download</td></tr>
+    <tr><td><code>leagueId</code> in the result</td><td>the archive id</td><td><code>''</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The runner branches on an empty <code>leagueId</code> and calls <code>saveJsonFile(...)</code>
+instead of navigating. Copy on <code>/live-tournaments</code> tells local users, up front, that their
+tournaments live in this browser only.</p>
+
+<h2>Guardrails in the test suite</h2>
+
+<div class="note warn">
+  <strong>server-authority-boundary.test.ts is the enforcement point.</strong> It asserts, by exact file
+  list, that <code>indexedDB</code> appears only in <code>src/app/backend/indexed-db.ts</code> and
+  <code>src/app/backend/local-live-backend.service.ts</code>; that <code>localStorage</code> stays
+  inside its documented allowlist; that the retired <code>local-frontend-backend.service</code> name is
+  never imported; and that the retired browser-store keys are never named. Adding a browser-storage
+  caller anywhere else fails the build until it is justified in that file.
+</div>
+
+<h2>Accepted costs</h2>
+
+<ul>
+  <li>A local tournament lives in one browser profile. Clearing site data destroys it.</li>
+  <li>No cross-device recovery, no organizer rescue of a plain user's tournament.</li>
+  <li>No migration in either direction — a plain user's server-side Live tournaments are not pulled
+  down, and local ones are never pushed up.</li>
+</ul>
+
+<footer>
+  Gones · <code>docs/live-tournament-authority.html</code> · decision record:
+  <a href="adr/0021-role-scoped-browser-live-store.md">ADR 0021</a> ·
+  narrows <a href="adr/0020-retire-the-legacy-browser-data-authority.md">ADR 0020</a> for Live only.
+</footer>
+
+</div>
+</body>
+</html>
