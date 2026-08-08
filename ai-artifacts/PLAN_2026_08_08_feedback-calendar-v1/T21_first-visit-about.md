@@ -97,12 +97,12 @@ Run: `npm run test -- first-visit data-mode-routes server-authority-boundary`
   'src/app/shared/first-visit.service.ts',
   ```
 - [ ] 8. Create `src/app/shared/first-visit.service.test.ts` with Test plan rows 1-5, installing a fake `localStorage` on `globalThis` and, for the throwing cases, one whose methods throw.
-- [ ] 9. Create `src/app/shared/first-visit.guard.test.ts` with Test plan rows 6-8, using `TestBed.runInInjectionContext` and a `Router` stub whose `createUrlTree` records its argument.
+- [ ] 9. Create `src/app/shared/first-visit.guard.test.ts` with Test plan rows 6-8, and a `Router` stub whose `createUrlTree` records its argument. **There is no `TestBed` in this repo** — `@angular/core/testing` and zone.js are not installed. Use `Injector.create({ providers: [...] })` plus `runInInjectionContext(injector, () => firstVisitHomeGuard(routeStub, stateStub))`, both imported from `@angular/core`; see `src/app/features/settings/account-settings.component.test.ts` for the established shape.
 - [ ] 10. Add to `src/app/data-mode-routes.test.ts`: the `''` route's `canActivate` contains `firstVisitHomeGuard`, the `about` route's contains `markVisitedGuard`, and the `calendar` route has no `canActivate` (Test plan row 9).
 - [ ] 11. Add a Cypress case to `cypress/e2e/public-calendar.cy.js` or a new `cypress/e2e/first-visit.cy.js`: `cy.clearLocalStorage()`, `cy.visit('/')`, assert `cy.location('pathname')` is `/about`; then `cy.visit('/')` again and assert it stays on `/` with `[data-cy=menu-about-link]` visible.
-- [ ] 12. Check every existing Cypress spec that starts with `cy.visit('/')`: after this change a cleared-storage run redirects them to `/about`. Either have those specs seed the flag in a `beforeEach` (`cy.window().then(win => win.localStorage.setItem('gones.first-visit.completed', 'true'))`) or navigate to their target path directly. Fix all of them — `grep -rn "cy.visit('/')" cypress/e2e/`.
+- [ ] 12. Fix the specs that land on `/`. The sweep is already done: `grep -rn "cy.visit('/')\|cy.visit(\"/\")" cypress/e2e/` matches **exactly one** line across all 17 specs — `cypress/e2e/auth-session-persistence.cy.js:35`. Seed the flag there before the visit (`cy.window().then(win => win.localStorage.setItem('gones.first-visit.completed', 'true'))`) so the reload assertion still lands on the menu. Re-run the grep after your change to confirm nothing else regressed — validate: the grep output is limited to that spec and it passes.
 - [ ] 13. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 14. Run `npm run dev` then `npm run cy:run` (the whole suite — step 12 touches many specs).
+- [ ] 14. Run the affected specs — **not** the whole suite. `npm run cy:run` would launch all 17 specs, most of which only pass under the release Docker topology on 8081 (`scripts/full-stack-ci.mjs` drives those), so running them under `ng serve` produces failures unrelated to this ticket. Step 12 established that exactly one existing spec is affected. Run: your new `cypress/e2e/first-visit.cy.js`, `cypress/e2e/auth-session-persistence.cy.js` and `cypress/e2e/public-calendar.cy.js`. **`auth-session-persistence.cy.js` performs a real login**, costing one of only 5 auth permits per 15 minutes per IP on this host — run it once, and do not loop on it. — validate: all three specs green in a single pass.
 
 ## Outputs
 
@@ -115,7 +115,7 @@ Run: `npm run test -- first-visit data-mode-routes server-authority-boundary`
 
 - [ ] `npm run test` passes
 - [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run` passes in full
+- [ ] `first-visit.cy.js`, `auth-session-persistence.cy.js` and `public-calendar.cy.js` pass (see step 14 — the full 17-spec suite needs the release Docker topology and is not this ticket's gate)
 - [ ] manual check: open a private window on `http://127.0.0.1:4200/` and land on `/about`; navigate home, reload, and stay on the menu
 - [ ] manual check: in a private window, open `/calendar/tournaments/<slug>` directly and confirm no redirect
 - [ ] app functional — every other route unchanged
