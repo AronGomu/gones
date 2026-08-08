@@ -9,7 +9,7 @@ vi.mock('@angular/core', async (importOriginal) => {
   return { ...actual, effect: () => ({ destroy: () => {} }) };
 });
 
-import { Injector, runInInjectionContext } from '@angular/core';
+import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { PublicCalendarComponent } from './public-calendar.component';
@@ -17,7 +17,9 @@ import { AllTournamentsCacheService, AllTournamentsResult } from './all-tourname
 import { PublicTournamentService } from './public-tournament.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { AuthService } from '../../auth/auth.service';
 import { PublicTournamentView } from './public-calendar';
+import { UserProfileResponse } from '../../api/generated/gones-api';
 
 const tournament: PublicTournamentView = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -47,7 +49,7 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setup(options: { params?: Record<string, string>; result?: Partial<AllTournamentsResult> } = {}) {
+function setup(options: { params?: Record<string, string>; result?: Partial<AllTournamentsResult>; profile?: UserProfileResponse | null; authEnabled?: boolean } = {}) {
   const result: AllTournamentsResult = {
     items: [tournament],
     fetchedAt: '2026-08-08T10:00:00.000Z',
@@ -66,11 +68,14 @@ function setup(options: { params?: Record<string, string>; result?: Partial<AllT
     queryParamMap: of(initialParams)
   } as unknown as ActivatedRoute;
 
+  const auth = { enabled: options.authEnabled ?? true, profile: signal<UserProfileResponse | null>(options.profile ?? null) } as unknown as AuthService;
+
   const injector = Injector.create({ providers: [
     { provide: AllTournamentsCacheService, useValue: catalog },
     { provide: PublicTournamentService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics') } },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
+    { provide: AuthService, useValue: auth },
     DeckArchetypeSettingsService,
     I18nService
   ] });
@@ -78,6 +83,22 @@ function setup(options: { params?: Record<string, string>; result?: Partial<AllT
   const component = runInInjectionContext(injector, () => new PublicCalendarComponent());
   return { component, load, navigate };
 }
+
+const verifiedUserProfile = {
+  id: '44444444-4444-4444-4444-444444444444',
+  email: 'plain-user@example.test',
+  emailVerified: true,
+  globalRole: 'User',
+  username: 'plain-user',
+  firstName: 'Plain',
+  lastName: 'User',
+  preferredLanguage: 'en',
+  isFirstNamePublic: false,
+  isLastNamePublic: false,
+  isLocationPublic: false,
+  isBirthDatePublic: false,
+  isPreferredLanguagePublic: false
+} as unknown as UserProfileResponse;
 
 describe('PublicCalendarComponent', () => {
   it('renders the grid with zero matches: filtering to nothing keeps the catalog untouched', async () => {
@@ -136,5 +157,20 @@ describe('PublicCalendarComponent', () => {
     component.moveMonth(1);
 
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it('hides the create button when anonymous', () => {
+    const { component } = setup({ profile: null });
+    expect(component.canCreateTournament()).toBe(false);
+  });
+
+  it('hides the create button when unverified', () => {
+    const { component } = setup({ profile: { ...verifiedUserProfile, emailVerified: false } });
+    expect(component.canCreateTournament()).toBe(false);
+  });
+
+  it('shows the create button when signed in with a verified email', () => {
+    const { component } = setup({ profile: verifiedUserProfile });
+    expect(component.canCreateTournament()).toBe(true);
   });
 });

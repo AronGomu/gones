@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
 import { buildRoutes, calendarRoutes } from './app.routes';
-import { userGuard } from './auth/auth.guards';
+import { organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
 
 const noCapabilities = { authV1: false, adminV1: false };
 const allCapabilities = { authV1: true, adminV1: true };
@@ -97,5 +97,26 @@ describe('route exposure per capability flag', () => {
     expect(authOnly).toContain('login');
     expect(authOnly).not.toContain('admin');
     expect(authOnly).not.toContain('admin/users');
+  });
+
+  it('exposes tournaments/new when auth is on', () => {
+    expect(paths(allCapabilities)).toContain('tournaments/new');
+  });
+
+  it('guards tournaments/new with userGuard and verifiedEmailGuard', () => {
+    const route = buildRoutes(allCapabilities).find((route) => route.path === 'tournaments/new');
+    expect(route).toBeDefined();
+    expect(route!.canActivate).toContain(userGuard);
+    expect(route!.canActivate).toContain(verifiedEmailGuard);
+  });
+
+  it('redirects the organizer create path to tournaments/new', () => {
+    const route = buildRoutes(allCapabilities).find((route) => route.path === 'organizer/tournaments/new');
+    expect(route?.redirectTo).toBe('tournaments/new');
+  });
+
+  it('keeps the organizer edit path guarded by organizerGuard', () => {
+    const route = buildRoutes(allCapabilities).find((route) => route.path === 'organizer/tournaments/:id/edit');
+    expect(route?.canActivate).toContain(organizerGuard);
   });
 });

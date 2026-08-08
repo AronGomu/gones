@@ -115,7 +115,6 @@ export const PENDING_DATA_CY_RETROFIT: string[] = [
   'src/app/features/calendar/admin-deleted-tournaments.component.ts',
   'src/app/features/calendar/my-registrations.component.ts',
   'src/app/features/calendar/organizer-participants.component.ts',
-  'src/app/features/calendar/organizer-tournament-create.component.ts',
   'src/app/features/calendar/organizer-tournament-list.component.ts',
   'src/app/features/calendar/public-tournament-detail.component.ts',
   'src/app/features/calendar/server-sanitized-html.component.ts',

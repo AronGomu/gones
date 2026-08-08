@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { DataAuthorityCapabilityFlags } from './config/data-authority';
-import { adminGuard, organizerGuard, userGuard } from './auth/auth.guards';
+import { adminGuard, organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
 
 const authRoutes: Routes = [
   { path: 'login', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'login' } },
@@ -16,7 +16,8 @@ const authRoutes: Routes = [
 const registrationAndOrganizerRoutes: Routes = [
   { path: 'registrations', canActivate: [userGuard], loadComponent: () => import('./features/calendar/my-registrations.component').then((m) => m.MyRegistrationsComponent) },
   { path: 'organizer/tournaments', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-list.component').then((m) => m.OrganizerTournamentListComponent) },
-  { path: 'organizer/tournaments/new', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) },
+  { path: 'tournaments/new', canActivate: [userGuard, verifiedEmailGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) },
+  { path: 'organizer/tournaments/new', pathMatch: 'full', redirectTo: 'tournaments/new' },
   { path: 'organizer/tournaments/:id/edit', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) },
   { path: 'organizer/tournaments/:id/participants', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-participants.component').then((m) => m.OrganizerParticipantsComponent) }
 ];

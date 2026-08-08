@@ -47,7 +47,7 @@ function mockReferences() {
   cy.intercept('GET', '**/api/formats', [{ id: formatId, name: 'Legacy', slug: 'legacy', sortOrder: 1 }]).as('formats');
 }
 
-function visit(path = '/organizer/tournaments/new') {
+function visit(path = '/tournaments/new') {
   cy.visit(path, {
     onBeforeLoad(win) {
       win.localStorage.setItem('gones.settings.language', 'en');
@@ -85,16 +85,23 @@ function openValidPreview() {
 describe('Organizer Tournament create, preview, publish', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
-  it('guards role, scopes organization picker, requires explicit start/zone, focuses title, and stays usable on mobile', () => {
+  it('lets a verified non-organizer reach the form with submission disabled behind an approval notice', () => {
     mockSession('User');
+    mockReferences();
     visit();
-    cy.location('pathname').should('eq', '/');
-    cy.location('search').should('contain', 'denied=');
+    cy.location('pathname').should('eq', '/tournaments/new');
+    cy.wait(['@myOrganizations', '@formats']);
+    cy.get('[data-cy="tournament-preview-submit"]').should('not.exist');
+    cy.get('[data-cy="tournament-approval-notice"]').should('be.visible');
+    cy.get('[data-cy="tournament-submit-pending-approval"]').should('be.visible').and('be.disabled');
+  });
 
+  it('redirects the legacy organizer path, scopes organization picker, requires explicit start/zone, focuses title, and stays usable on mobile', () => {
     mockSession('Organizer');
     mockReferences();
     cy.viewport(375, 812);
-    visit();
+    visit('/organizer/tournaments/new');
+    cy.location('pathname').should('eq', '/tournaments/new');
     cy.wait(['@myOrganizations', '@formats']);
     cy.get('[data-cy="tournament-title"]').should('have.focus');
     cy.get('[data-cy="tournament-organization"] option').should('have.length', 1).and('contain.text', 'Owned Club');

@@ -79,25 +79,25 @@ Run: `npm run test -- data-mode-routes public-calendar organizer-tournament-crea
 
 ## Impl steps
 
-- [ ] 1. In `src/app/app.routes.ts`, add to `registrationAndOrganizerRoutes`:
+- [x] 1. In `src/app/app.routes.ts`, add to `registrationAndOrganizerRoutes`:
   ```
   { path: 'tournaments/new', canActivate: [userGuard, verifiedEmailGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) },
   ```
-- [ ] 2. Replace the existing `organizer/tournaments/new` entry with `{ path: 'organizer/tournaments/new', pathMatch: 'full', redirectTo: 'tournaments/new' }`.
-- [ ] 3. Import `verifiedEmailGuard` from `./auth/auth.guards` at the top of `src/app/app.routes.ts`.
-- [ ] 4. Add the four routing assertions from the Test plan to `src/app/data-mode-routes.test.ts`.
-- [ ] 5. In `src/app/features/calendar/public-calendar.component.ts`, inject `readonly auth = inject(AuthService);` and add `readonly canCreateTournament = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);`.
-- [ ] 6. Add inside `<div class="calendar-header-actions">`, immediately after the Synchroniser button:
+- [x] 2. Replace the existing `organizer/tournaments/new` entry with `{ path: 'organizer/tournaments/new', pathMatch: 'full', redirectTo: 'tournaments/new' }`.
+- [x] 3. Import `verifiedEmailGuard` from `./auth/auth.guards` at the top of `src/app/app.routes.ts`.
+- [x] 4. Add the four routing assertions from the Test plan to `src/app/data-mode-routes.test.ts`.
+- [x] 5. In `src/app/features/calendar/public-calendar.component.ts`, inject `readonly auth = inject(AuthService);` and add `readonly canCreateTournament = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);`.
+- [x] 6. Add inside `<div class="calendar-header-actions">`, immediately after the Synchroniser button:
   ```
   @if (canCreateTournament()) {
     <a mat-flat-button class="home-primary-action" routerLink="/tournaments/new" data-cy="calendar-create-tournament">{{ i18n.t('calendar.createTournament') }}</a>
   }
   ```
-- [ ] 7. Add `calendar.createTournament` to BOTH maps in `src/app/i18n/messages.ts`: en `'Create tournament'`, fr `'Créer Tournoi'`.
-- [ ] 8. Add Test plan rows 5-7 to `src/app/features/calendar/public-calendar.component.test.ts`.
-- [ ] 9. In `src/app/features/calendar/organizer-tournament-create.component.ts`, delete the `<p class="kicker">…</p>` line from the header and give the header elements `data-cy` values prefixed `tournament-create-`.
-- [ ] 10. Inject `readonly auth = inject(AuthService);` and add `readonly canPublishDirectly = computed(() => { const role = this.auth.profile()?.globalRole; return role === 'Organizer' || role === 'Admin'; });`.
-- [ ] 11. Wrap the existing submit control:
+- [x] 7. Add `calendar.createTournament` to BOTH maps in `src/app/i18n/messages.ts`: en `'Create tournament'`, fr `'Créer Tournoi'`.
+- [x] 8. Add Test plan rows 5-7 to `src/app/features/calendar/public-calendar.component.test.ts`.
+- [x] 9. In `src/app/features/calendar/organizer-tournament-create.component.ts`, delete the `<p class="kicker">…</p>` line from the header and give the header elements `data-cy` values prefixed `tournament-create-`.
+- [x] 10. Inject `readonly auth = inject(AuthService);` and add `readonly canPublishDirectly = computed(() => { const role = this.auth.profile()?.globalRole; return role === 'Organizer' || role === 'Admin'; });`.
+- [x] 11. Wrap the existing submit control:
   ```
   @if (canPublishDirectly()) {
     …existing submit button, unchanged…
@@ -106,15 +106,15 @@ Run: `npm run test -- data-mode-routes public-calendar organizer-tournament-crea
     <button mat-flat-button class="home-primary-action" type="button" disabled data-cy="tournament-submit-pending-approval">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>
   }
   ```
-- [ ] 12. Add to BOTH maps: `tournamentCreate.approvalNotice` (en `'Your account cannot publish directly. Submitting will send an approval request to the administrators and organizers you choose.'`, fr `'Votre compte ne peut pas publier directement. La soumission enverra une demande de validation aux administrateurs et organisateurs que vous choisirez.'`) and `tournamentCreate.submitForApproval` (en `'Submit for approval'`, fr `'Soumettre pour validation'`).
-- [ ] 13. Delete `tournamentCreate.kicker` from BOTH maps if `grep -rn "tournamentCreate.kicker" src/` shows no remaining caller.
-- [ ] 14. Change the `editMode` back-link target from `/organizer/tournaments` only if it breaks; it does not — organizers keep their list page.
-- [ ] 15. Give every remaining element of `organizer-tournament-create.component.ts`'s template a unique `data-cy`, prefixed `tournament-`. The file is 439 lines; work field by field.
-- [ ] 16. Delete `src/app/features/calendar/organizer-tournament-create.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] 17. Add Test plan rows 8-9 to `src/app/features/calendar/organizer-tournament-create.test.ts` (the existing spec file) or a new `organizer-tournament-create.component.test.ts` if the existing one only covers pure helpers.
-- [ ] 18. Update `cypress/e2e/organizer-tournament-create.cy.js` to visit `/tournaments/new` and assert the redirect from `/organizer/tournaments/new`.
-- [ ] 19. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 20. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js,cypress/e2e/public-calendar.cy.js`.
+- [x] 12. Add to BOTH maps: `tournamentCreate.approvalNotice` (en `'Your account cannot publish directly. Submitting will send an approval request to the administrators and organizers you choose.'`, fr `'Votre compte ne peut pas publier directement. La soumission enverra une demande de validation aux administrateurs et organisateurs que vous choisirez.'`) and `tournamentCreate.submitForApproval` (en `'Submit for approval'`, fr `'Soumettre pour validation'`).
+- [x] 13. Delete `tournamentCreate.kicker` from BOTH maps if `grep -rn "tournamentCreate.kicker" src/` shows no remaining caller. (Kept: `organizer-tournament-list.component.ts:20` still calls it.)
+- [x] 14. Change the `editMode` back-link target from `/organizer/tournaments` only if it breaks; it does not — organizers keep their list page.
+- [x] 15. Give every remaining element of `organizer-tournament-create.component.ts`'s template a unique `data-cy`, prefixed `tournament-`. The file is 439 lines; work field by field.
+- [x] 16. Delete `src/app/features/calendar/organizer-tournament-create.component.ts` from `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`.
+- [x] 17. Add Test plan rows 8-9 to `src/app/features/calendar/organizer-tournament-create.test.ts` (the existing spec file) or a new `organizer-tournament-create.component.test.ts` if the existing one only covers pure helpers. (Added new `organizer-tournament-create.component.test.ts`; existing file only covers pure helpers.)
+- [x] 18. Update `cypress/e2e/organizer-tournament-create.cy.js` to visit `/tournaments/new` and assert the redirect from `/organizer/tournaments/new`.
+- [x] 19. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 20. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js,cypress/e2e/public-calendar.cy.js`. (Satisfied via the host's documented library-path recipe: `npm run dev:serve` + `node node_modules/cypress/bin/cypress run --spec ...` — 11/11 passing.)
 
 ## Outputs
 
@@ -124,9 +124,9 @@ Run: `npm run test -- data-mode-routes public-calendar organizer-tournament-crea
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js,cypress/e2e/public-calendar.cy.js` passes
-- [ ] manual check: anonymous `/calendar` shows no create button; a verified plain user sees it, reaches the form, and finds the submit disabled with the approval notice; an organizer still publishes as before
-- [ ] app functional — organizer edit and publish flows unchanged
-- [ ] commit msg draft: `feat(calendar): open the tournament creation page to every verified account`
+- [x] `npm run test` passes (439/439)
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/organizer-tournament-create.cy.js,cypress/e2e/public-calendar.cy.js` passes (run via the host's LD_LIBRARY_PATH recipe: 11/11)
+- [x] manual check: anonymous `/calendar` shows no create button; a verified plain user sees it, reaches the form, and finds the submit disabled with the approval notice; an organizer still publishes as before — covered by `hides the create button when anonymous`/`shows the create button when signed in with a verified email` (public-calendar.component.test.ts), `disables submit for a plain user`/`keeps submit enabled for an organizer` (organizer-tournament-create.component.test.ts), and the new Cypress test `lets a verified non-organizer reach the form with submission disabled behind an approval notice`
+- [x] app functional — organizer edit and publish flows unchanged — all 6 pre-existing organizer-tournament-create.cy.js scenarios (preview, validation errors, idempotent publish, 401/409 recovery) still pass unmodified in behavior
+- [x] commit msg draft: `feat(calendar): open the tournament creation page to every verified account`

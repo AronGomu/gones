@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { I18nService } from '../../i18n/i18n.service';
+import { AuthService } from '../../auth/auth.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { OfflineBannerComponent } from '../../shared/offline-banner.component';
 import {
@@ -47,6 +48,9 @@ const SEARCH_DEBOUNCE_MS = 300;
             <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'list'" data-cy="list-view" (click)="setView('list')">{{ i18n.t('calendar.listView') }}</button>
           </div>
           <button mat-stroked-button type="button" class="secondary-action" data-cy="calendar-sync" [disabled]="loading()" (click)="sync()">{{ i18n.t('calendar.synchronise') }}</button>
+          @if (canCreateTournament()) {
+            <a mat-flat-button class="home-primary-action" routerLink="/tournaments/new" data-cy="calendar-create-tournament">{{ i18n.t('calendar.createTournament') }}</a>
+          }
           @if (syncedAt(); as instant) { <span class="muted" data-cy="calendar-synced-at">{{ i18n.t('calendar.syncedAt', { instant: i18n.formatDateTime(instant) }) }}</span> }
         </div>
       </header>
@@ -112,6 +116,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly i18n = inject(I18nService);
   readonly service = inject(PublicTournamentService);
+  readonly auth = inject(AuthService);
   private readonly catalog = inject(AllTournamentsCacheService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -135,6 +140,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly monthDays = computed(() => buildMonthDays(this.query().month, this.groups()));
   // ARIA requires grid > row > gridcell; the rows use `display: contents` so the CSS grid is unchanged.
   readonly monthWeeks = computed(() => chunkIntoWeeks(this.monthDays()));
+  readonly canCreateTournament = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);
 
   ngOnInit(): void {
     this.subscription = this.route.queryParamMap.subscribe(params => {
