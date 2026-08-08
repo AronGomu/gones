@@ -114,7 +114,7 @@ Run: `npm run test -- password-confirm-dialog account-delete data-cy-coverage`
     }
   }
   ```
-- [ ] 8b. Add the failure-message mapper next to it — the two `409` codes mean different things and must not share a message:
+- [x] 8b. Add the failure-message mapper next to it — the two `409` codes mean different things and must not share a message:
   ```
   private deleteFailureMessage(error: unknown): string {
     if (!(error instanceof ApiProblemError) || error.status !== 409) return this.i18n.t('account.deleteFailed');
@@ -131,7 +131,7 @@ Run: `npm run test -- password-confirm-dialog account-delete data-cy-coverage`
 - [x] 10. Add `.account-danger-zone { border-color: var(--hot-blood); }` to `src/styles.css`. Evidence: rule appended after `.calendar-status`.
 - [x] 11. Confirm `logout()` in this component navigates to `'/'`, not `'/login'`. Evidence: `logout()` changed to `this.router.navigate(['/'])` (T3 had not already done it).
 - [x] 12. Create `src/app/features/settings/account-delete.test.ts` with Test plan rows four to seven, stubbing `AuthService`, `MatDialog` and `Router`. Evidence: Red captured (`component.deleteAccount is not a function`, 5 failed) then Green (`npm run test -- account-delete` → 5 passed).
-- [ ] 13. Add a Cypress case to `cypress/e2e/auth-profile.cy.js`: register a throwaway user, open `/settings/account`, click `[data-cy=account-delete]`, type the password into `[data-cy=password-confirm-input]`, submit, assert the URL is `/` and `[data-cy=profile-link]` is absent; then assert signing in with the deleted credentials fails.
+- [x] 13. Add a Cypress case to `cypress/e2e/auth-profile.cy.js`: register a throwaway user, open `/settings/account`, click `[data-cy=account-delete]`, type the password into `[data-cy=password-confirm-input]`, submit, assert the URL is `/` and `[data-cy=profile-link]` is absent; then assert signing in with the deleted credentials fails. **Amended mid-ticket by the parent:** the trailing sign-in attempt was replaced with a route-guard assertion (`cy.visit('/settings/account')` redirects to `/login`), which costs no auth permit. The stronger "the credentials are dead" claim is already proved server-side by T6's integration tests, so the e2e does not re-buy it.
   **Two hard constraints on this step.** (a) The account it deletes MUST be a freshly registered throwaway with a
   unique email — never the shared `cypress.user@example.test` fixture, which every other spec in the suite logs in
   with; deleting it would break the whole Cypress suite for good. (b) This case costs three auth calls (register,
@@ -175,4 +175,4 @@ Run: `npm run test -- password-confirm-dialog account-delete data-cy-coverage`
 - [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes — 6/7, only the documented `127.0.0.1:8081` baseline failure (`starts explicit provider linking`). See step 15 evidence.
 - [x] manual check: a wrong password keeps the user signed in and shows the field error; the right password lands on `/` signed out and the credentials no longer work — confirmed live in the delete case: right password → account row gone (`account.deleted` audit row, 0 rows on re-select), lands on `/`, `[data-cy=profile-link]` absent, `/settings/account` then redirects to `/login`. The wrong-password / stays-signed-in / field-error half is covered at the unit level (`account-delete.test.ts`, "a bad password shows a field error" — `fieldErrors()['currentPassword']` populated, no navigation) since the Cypress case only exercises the success path per the ticket's own permit budget.
 - [x] app functional — logout, email change and provider linking still work — all confirmed in the same clean pass: `logs in, updates private-by-default profile, changes email, signs out` passed (logout + email change), `shows and unlinks an explicitly linked provider` passed (provider linking). Only the documented pre-existing `starts explicit provider linking` baseline case (unrelated 8081-redirect limitation) did not pass, as expected under `ng serve`.
-- [ ] commit msg draft: `feat(account): delete your own account behind a password-confirmation dialog`
+- [x] commit msg draft: `feat(account): delete your own account behind a password-confirmation dialog` — landed as `ad701dd`
