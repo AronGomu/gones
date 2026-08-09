@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — League Archive Authority</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--local{border-color:var(--rust)}
+  .card--server{border-color:var(--green)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--local{border-color:var(--rust);color:var(--rust)}
+  .tag--server{border-color:var(--green);color:var(--green)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>League Archive Authority</h1>
+  <p class="lede">The League Archive reads from two stores and writes to one. Which one is decided by
+  the league's own id, not by who is asking. That is the difference from Live Tournaments, and it
+  exists for exactly one reason: export must not lose what the browser holds.</p>
+</header>
+
+<h2>The rule, in one table</h2>
+
+<div class="scroll">
+<table>
+  <tr><th>Operation</th><th>Anonymous / <code>User</code></th><th><code>Organizer</code> / <code>Admin</code></th></tr>
+  <tr><td>List leagues</td><td colspan="2">Union of both stores. A failing server read degrades to local only, and says so.</td></tr>
+  <tr><td>Read one league</td><td colspan="2">Routed by <code>isLocalLeagueId(id)</code>. Same rule for everyone.</td></tr>
+  <tr><td>Create a league</td><td><span class="tag tag--local">local</span> <code>gones-leagues</code></td><td><span class="tag tag--server">server</span> API</td></tr>
+  <tr><td>Edit a <code>local-…</code> league</td><td>Allowed</td><td>Allowed</td></tr>
+  <tr><td>Edit a server league</td><td>Refused, read-only</td><td>Allowed</td></tr>
+  <tr><td>Move a tournament across stores</td><td colspan="2"><span class="tag tag--danger">refused</span> <code>crossAuthorityMoveNotSupported</code></td></tr>
+  <tr><td>Full data export</td><td colspan="2">Both stores, minus both placeholders</td></tr>
+  <tr><td>Import a bundle</td><td><span class="tag tag--local">local</span>, ids rewritten</td><td><span class="tag tag--server">server</span></td></tr>
+</table>
+</div>
+
+<h2>Origin lives in the id</h2>
+
+<p>There is no origin column, no lookup table, no second source of truth about where a league lives.
+A league's id says it:</p>
+
+<pre>local-9f2c1a7e-…       browser-local league
+local-placeholder-league   browser-local "Unassigned Tournaments" bucket
+placeholder-league         the server's fixed bucket
+7f3a…                      server league</pre>
+
+<p>One predicate is the whole routing layer:</p>
+
+<pre>// src/app/data/league-archive-origin.ts
+export function isLocalLeagueId(id) { return id?.startsWith('local-') ?? false; }</pre>
+
+<div class="note">
+  <strong>Why an id prefix.</strong> Any other marker — a field on the document, a set held beside the
+  store, a probe of both backends — can drift out of sync with reality. A prefix cannot: it travels
+  with every reference to the league, including router URLs, export bundles and error messages, and
+  it is impossible to hold a league id without also holding its origin.
+</div>
+
+<h2>Two stores, one facade</h2>
+
+<div class="split">
+  <div class="card card--server">
+    <h3><span class="tag tag--server">server</span> AspNetApiBackend</h3>
+    <p>Bound to <code>LEAGUE_ARCHIVE_BACKEND</code>. Unchanged by ADR 0028. Every mutation is an intent
+    command guarded by an <code>If-Match</code> ETag. Audited, shareable, survives the browser.</p>
+  </div>
+  <div class="card card--local">
+    <h3><span class="tag tag--local">local</span> LocalLeagueArchiveBackend</h3>
+    <p>IndexedDB <code>gones-leagues</code> / <code>leagues</code>, key path <code>id</code>. Strictly
+    offline — no HTTP dependency exists to inject. Every write passes one <code>mutate()</code> helper
+    that guards <code>documentVersion</code> and stamps <code>updatedAt</code>.</p>
+  </div>
+</div>
+
+<p><code>LeagueArchiveRepository</code> is where the two meet. It is the only place that knows there
+are two:</p>
+
+<div class="flow">
+  <div>listLeagues() → Promise.allSettled([server.list(), local.list()]) → concat</div>
+  <div>server rejected + local ok  → local rows only, serverUnavailable = true</div>
+  <div>both rejected               → rethrow</div>
+  <div>getLeague(id) / every write → port(id) = isLocalLeagueId(id) ? local : server</div>
+  <div>createLeague(name)          → createLeagueTarget(role) — the one call with no id to route on</div>
+</div>
+
+<h2>Parity is a compiler check, not a promise</h2>
+
+<pre>export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort { … }</pre>
+
+<p>All 22 methods, no <code>Partial</code>. If someone adds a capability to the port and implements it
+only on the server, <code>npm run typecheck</code> fails. A feature cannot quietly become
+"signed-in only".</p>
+
+<h2>Permission is per league, not per session</h2>
+
+<pre>export function canManageLeague(leagueId, role) {
+  return isLocalLeagueId(leagueId) || canManageLeagues(role);
+}</pre>
+
+<p>A plain <code>User</code> therefore sees one grid holding two kinds of row: server leagues they can
+only read, and their own browser leagues they fully own. The <code>Local only</code> badge is not
+decoration — it is the user-facing form of this rule.</p>
+
+<h2>How this differs from Live Tournaments</h2>
+
+<div class="scroll">
+<table>
+  <tr><th></th><th>Live Tournament (ADR 0021)</th><th>League Archive (ADR 0028)</th></tr>
+  <tr><td>Adapters</td><td>Two, <strong>exclusive</strong></td><td>Two, <strong>merged</strong></td></tr>
+  <tr><td>Chosen by</td><td>Role, once, at injection time</td><td>The league's id, per call</td></tr>
+  <tr><td>An Organizer sees</td><td>Server tournaments only</td><td>Server leagues <em>and</em> local ones</td></tr>
+  <tr><td>Export reaches</td><td>The bound adapter only</td><td>Both stores</td></tr>
+  <tr><td>Sync</td><td>None, ever</td><td>None, ever</td></tr>
+</table>
+</div>
+
+<div class="note warn">
+  <strong>Do not harmonise these.</strong> The shapes differ because the requirements differ: League
+  export had to include browser-held data, Live export did not. Making one look like the other needs a
+  new ADR, not a refactor.
+</div>
+
+<h2>What "the database always prevails" means here</h2>
+
+<p>It is a command discipline, not a background reconciler:</p>
+
+<ul>
+  <li>Every mutation is an explicit intent command guarded by <code>documentVersion</code>.</li>
+  <li>Every command returns the store's own persisted document, and the caller replaces its in-memory
+      state with that value. No whole-document save, no optimistic edit kept afterwards.</li>
+  <li>A rejected command (412) is surfaced as "reload and reapply", never merged.</li>
+</ul>
+
+<p>Both adapters raise the same conflict shape, so the UX is identical on either side:</p>
+
+<pre>LeagueConcurrencyError { status: 412, message: 'staleLeagueDocument' }
+  → leagueCommandError(error) === 'stale'</pre>
+
+<h2>Guardrails in the test suite</h2>
+
+<ul>
+  <li><code>server-authority-boundary.test.ts</code> allowlists exactly three files for IndexedDB:
+      <code>indexed-db.ts</code>, <code>local-live-backend.service.ts</code>,
+      <code>local-league-archive-backend.service.ts</code>. A fourth is an ADR decision.</li>
+  <li><code>local-league-archive-backend.service.test.ts</code> drives all 22 methods against a fake
+      IndexedDB, including a stale-version rejection per method.</li>
+  <li><code>league-archive-repository.service.test.ts</code> asserts, one method at a time, that a
+      <code>local-</code> id reaches the local fake and never the server fake, and the reverse.</li>
+  <li><code>cypress/e2e/league-local.cy.js</code> runs the whole signed-out flow with every
+      <code>/api/league-archives</code> call stubbed 401, then reloads to prove IndexedDB held it.</li>
+  <li><code>ops/acceptance-matrix.json</code> row <code>doc-league-local</code> maps the capability to
+      those gates.</li>
+</ul>
+
+<h2>Accepted costs</h2>
+
+<ul>
+  <li><strong>The stores never converge.</strong> A league created signed out stays in that browser
+      unless it is exported and re-imported while signed in. That round trip is the only bridge, and it
+      is deliberate, explicit and user-driven.</li>
+  <li><strong>Clearing site data destroys local leagues.</strong> There is no server copy. The list page
+      says so; export is the backup.</li>
+  <li><strong>A local move is not atomic.</strong> The IndexedDB wrapper runs one request per
+      transaction, so a move's two writes cannot share one. Both versions are guarded before either
+      write, so a stale move is refused cleanly — but a crash between the two writes can leave the
+      tournament in both leagues. Acceptable for a single-writer browser store.</li>
+</ul>
+
+<footer>
+  <p>Decision: <a href="adr/0028-dual-source-league-archive.md">ADR 0028 — Dual-Source League Archive</a>.
+  Related: <a href="adr/0021-role-scoped-browser-live-store.md">ADR 0021</a>,
+  <a href="adr/0020-retire-the-legacy-browser-data-authority.md">ADR 0020</a>,
+  <a href="live-tournament-authority.html">Live Tournament Authority</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>

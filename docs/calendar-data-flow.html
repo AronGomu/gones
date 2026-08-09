@@ -160,11 +160,66 @@ Cache-Control: public, max-age=3600
   "you have seen everything" when you have not.
 </div>
 
+<h2>Page layout — what the pipeline feeds</h2>
+
+<p>The catalogue above is one fetch. The page then splits it across two tabs that consume it very
+differently. Document order on <code>/calendar</code>:</p>
+
+<pre>[ back to menu ]                          [ synchronised 12:04 ] [ ⟳ Synchronise ]
+Public tournaments                                              [ Create tournament ]
+&lt;search input — no label, no border, no background&gt;
+[ Calendar ] [ List ]
+────────────────────────────────────────────────────────────────────────────────
+calendar tab                              │  list tab
+  [ Previous ]      August 2026   [ Next ]│    venue-date group headings
+  ┌─────┬─────┬─────┬─────┬─────┬─────┐   │    tournament cards, 20 per page
+  │  1  │  2  │  3  │  4  │  5  │  6  │   │    [ Previous ]  Page 1 of 3  [ Next ]
+  └─────┴─────┴─────┴─────┴─────┴─────┘   │</pre>
+
+<div class="note">
+  <strong>The month grid holds day numbers and nothing else.</strong> Tournament entries were removed
+  from the day cells deliberately: the calendar tab is a date surface, the list tab is the discovery
+  surface. <code>buildMonthDays(month)</code> therefore takes only a month and no longer depends on the
+  filtered set, so typing in the search box does not re-render the grid.
+</div>
+
+<h2>What the filter still drives</h2>
+
+<div class="pipeline">
+  <div class="local">searchDraft() → filterTournaments(allItems(), q) → <code>items()</code></div>
+  <div class="local">items() → empty-state panel <span class="badge">both tabs</span></div>
+  <div class="local">items() → sortTournamentsForList() → paginateTournaments(…, page) → <code>groups()</code> <span class="badge">list tab</span></div>
+  <div class="net">the month grid reads none of the above — only <code>query().month</code></div>
+</div>
+
+<p>The search text is debounced 300 ms into the <code>q</code> query parameter. Changing <code>q</code>,
+<code>month</code> or <code>view</code> resets <code>page</code> to 1; page 1 is never written to the
+URL, so a shared link stays clean.</p>
+
+<h3>Pagination</h3>
+
+<div class="scroll">
+<table>
+  <tr><th>Symbol</th><th>Where</th><th>Rule</th></tr>
+  <tr><td><code>PAGE_SIZE</code></td><td><code>public-calendar.ts</code></td><td>20</td></tr>
+  <tr><td><code>sortTournamentsForList</code></td><td>same</td><td>venue date, then start time, then title, then id — a stable flat order is what makes paging deterministic</td></tr>
+  <tr><td><code>calendarPageCount</code></td><td>same</td><td><code>max(1, ceil(total / 20))</code> — an empty list is still one page</td></tr>
+  <tr><td><code>clampCalendarPage</code></td><td>same</td><td>out-of-range, fractional and <code>NaN</code> pages resolve to a real page</td></tr>
+  <tr><td><code>paginateTournaments</code></td><td>same</td><td>slices after clamping, so a hand-edited URL never renders an empty list</td></tr>
+</table>
+</div>
+
+<p>Grouping happens <em>after</em> paging: the 20 tournaments of the current page are then split into
+venue-date sections. Paging by group would give pages of wildly different sizes.</p>
+
 <h2>Boundary rules this respects</h2>
 
 <ul>
   <li>Read-only. Nothing here writes; publication still goes through the organizer endpoints or the
   proposal flow.</li>
+  <li>Filtering, sorting and paging are pure functions over the cached snapshot. No request is issued
+  by typing, by turning a page or by changing month — only <code>Synchronise</code> and a cache miss
+  reach the network.</li>
   <li><code>localStorage</code> holds a cache of anonymous <code>GET</code> responses and nothing else —
   the same justification the pre-existing entries in the
   <code>server-authority-boundary.test.ts</code> allowlist carry. It is never a mutation source.</li>
