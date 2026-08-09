@@ -11,7 +11,7 @@ vi.mock('@angular/core', async (importOriginal) => {
 
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { PublicCalendarComponent } from './public-calendar.component';
 import { AllTournamentsCacheService, AllTournamentsResult } from './all-tournaments-cache.service';
 import { PublicTournamentService } from './public-tournament.service';
@@ -60,12 +60,22 @@ function setup(options: { params?: Record<string, string>; result?: Partial<AllT
   };
   const load = vi.fn(async () => result);
   const catalog = { load } as unknown as AllTournamentsCacheService;
-  const navigate = vi.fn(async () => true);
-  const router = { navigate } as unknown as Router;
   const initialParams = paramMap({ month: '2026-08', view: 'calendar', ...options.params });
+
+  // The router stub feeds the query params it is handed straight back into `queryParamMap`, the way
+  // a real navigation does. A `of(initialParams)` stub emits once and completes, so the `ngOnInit`
+  // subscription can never re-fire and *every* claim about what happens after a navigation — month
+  // navigation not refetching, above all — holds for any implementation whatsoever. With the loop
+  // closed the subscription runs again on each navigate, so those claims constrain something.
+  const params$ = new BehaviorSubject<ParamMap>(initialParams);
+  const navigate = vi.fn(async (_commands: unknown[], extras?: { queryParams?: Record<string, string> }) => {
+    params$.next(paramMap(extras?.queryParams ?? {}));
+    return true;
+  });
+  const router = { navigate } as unknown as Router;
   const route = {
     snapshot: { queryParamMap: initialParams },
-    queryParamMap: of(initialParams)
+    queryParamMap: params$.asObservable()
   } as unknown as ActivatedRoute;
 
   const auth = { enabled: options.authEnabled ?? true, profile: signal<UserProfileResponse | null>(options.profile ?? null) } as unknown as AuthService;
@@ -112,17 +122,60 @@ describe('PublicCalendarComponent', () => {
     expect(component.items()).toHaveLength(0);
   });
 
-  it('filters without navigating: typing never triggers router.navigate', async () => {
-    const { component, navigate } = setup();
-    component.ngOnInit();
-    await Promise.resolve();
-    await Promise.resolve();
-    navigate.mockClear();
+  // The claim is *debounced*, not *silent*: the visible list narrows on the keystroke while the URL
+  // write waits out SEARCH_DEBOUNCE_MS. Checking `navigate` synchronously proves only that the write
+  // is not synchronous, which is true for a debounce of 0 ms — a value that churns the URL on every
+  // keystroke. The window is spelled out here rather than imported from the component, so that
+  // shortening the debounce fails the test instead of moving the goalposts with it.
+  const SEARCH_DEBOUNCE_MS = 300;
 
-    component.setSearchDraft('lyon');
+  it('filters on the keystroke but debounces the URL write by 300 ms', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+      navigate.mockClear();
 
-    expect(component.items()).toHaveLength(1);
-    expect(navigate).not.toHaveBeenCalled();
+      component.setSearchDraft('lyon');
+
+      // The list is filtered immediately — no wait, no request.
+      expect(component.items()).toHaveLength(1);
+      expect(navigate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1);
+      expect(navigate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate.mock.calls[0][1]?.queryParams).toMatchObject({ q: 'lyon' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('coalesces a burst of keystrokes into a single URL write', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+      navigate.mockClear();
+
+      for (const draft of ['l', 'ly', 'lyo', 'lyon']) {
+        component.setSearchDraft(draft);
+        vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 1);
+      }
+      expect(navigate).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(1);
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate.mock.calls[0][1]?.queryParams).toMatchObject({ q: 'lyon' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('synchronise forces a refetch', async () => {
@@ -147,8 +200,11 @@ describe('PublicCalendarComponent', () => {
     expect(component.syncedAt()).toBe('2026-08-08T12:34:00.000Z');
   });
 
-  it('month navigation does not refetch', async () => {
-    const { component, load } = setup();
+  // ADR 0023 / acceptance row `doc05-full-catalog-cache`: the catalog is fetched once and month
+  // navigation re-slices it in the browser. The navigation has to actually round-trip through the
+  // `ngOnInit` subscription for that to mean anything, which is what the router stub now arranges.
+  it('month navigation re-slices the cached catalog without refetching', async () => {
+    const { component, load, navigate } = setup();
     component.ngOnInit();
     await Promise.resolve();
     await Promise.resolve();
@@ -156,6 +212,14 @@ describe('PublicCalendarComponent', () => {
 
     component.moveMonth(1);
 
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(component.query().month).toBe('2026-09');
+    expect(component.allItems()).toHaveLength(1);
+    expect(load).not.toHaveBeenCalled();
+
+    component.moveMonth(-1);
+
+    expect(component.query().month).toBe('2026-08');
     expect(load).not.toHaveBeenCalled();
   });
 

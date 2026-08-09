@@ -1457,9 +1457,14 @@
           "detail": "the catalog is fetched once and served from cache"
         },
         {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/public-calendar.component.test.ts",
+          "detail": "the router stub feeds navigations back into queryParamMap, so month navigation is shown not to call the catalog loader and typing is shown to be debounced rather than merely asynchronous"
+        },
+        {
           "gate": "cypress",
           "target": "cypress/e2e/public-calendar.cy.js",
-          "detail": "month navigation and filters over the cached catalog"
+          "detail": "clicking month-next and month-prev behind a request counter leaves the catalog call count at one, and a non-matching filter removes the card in list view"
         }
       ]
     },

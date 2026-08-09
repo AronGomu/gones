@@ -165,7 +165,7 @@ const MaximumPublicOrganizationPages = 20;
           <div class="error tournament-create-recovery" role="alert" data-cy="tournament-publish-error">
             <span data-cy="tournament-publish-error-message">{{ error.message }}</span>
             @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/organizer/tournaments/new' }" target="_blank" rel="noopener noreferrer" data-cy="tournament-publish-error-login">{{ i18n.t('tournamentCreate.signInAgain') }}</a> }
-            @if (error.action === 'reload') { <button mat-stroked-button type="button" [attr.data-cy]="'reload-organizations'" (click)="reloadOrganizationAccess()">{{ i18n.t('tournamentCreate.reloadOrganizations') }}</button> }
+            @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="tournament-publish-error-reload" (click)="reloadOrganizationAccess()">{{ i18n.t('tournamentCreate.reloadOrganizations') }}</button> }
             @if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/calendar" data-cy="tournament-review-calendar">{{ i18n.t('tournamentCreate.reviewCalendar') }}</a> }
             @if (error.action === 'refresh-preview') { <button mat-stroked-button type="button" data-cy="tournament-refresh-preview" (click)="refreshPreview()">{{ i18n.t('tournamentCreate.refreshPreview') }}</button> }
           </div>

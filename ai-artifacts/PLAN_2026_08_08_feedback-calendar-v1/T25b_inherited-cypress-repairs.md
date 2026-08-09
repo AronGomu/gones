@@ -211,7 +211,10 @@ only then edit. Say which one you concluded and why.
 
 ## Validation
 
-- [x] `npm run e2e:ci` passes in full, every spec green — `GATE_EXIT=0`, 18 `✔`, 0 `✖`.
+- [x] `npm run e2e:ci` passes in full — `GATE_EXIT=0`, 18 `✔`, 0 `✖`. *(Corrected by T27: this read
+  "every spec green". The gate enumerated 18 of the 19 specs in `cypress/e2e/`; `first-visit.cy.js` was
+  not among them and was therefore never executed. T27 wired it in and added `ops/e2e-spec-coverage.test.ts`
+  so the count can no longer drift from the directory.)*
 - [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass — `77 files / 505 tests
   passed`, `All files pass linting.`, `tsc --noEmit` clean on both projects, `Application bundle
   generation complete.`

@@ -59,6 +59,12 @@ try {
       }
     }
   }
+  // Runs before every other spec: it is the only one that asserts on a browser that has never
+  // visited the app, and `ops/e2e-spec-coverage.test.ts` keeps this list level with `cypress/e2e/`.
+  if (!process.exitCode) {
+    const firstVisit = runCypress('cypress/e2e/first-visit.cy.js');
+    if (firstVisit.status !== 0) process.exitCode = firstVisit.status ?? 1;
+  }
   if (!process.exitCode) {
     const serverAuthority = runCypress('cypress/e2e/server-data-authority.cy.js');
     if (serverAuthority.status !== 0) process.exitCode = serverAuthority.status ?? 1;

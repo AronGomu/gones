@@ -49,8 +49,33 @@ describe('public Calendar V1', () => {
     cy.get('@allTournaments.all').should('have.length', 1);
 
     cy.get('[data-cy="calendar-search"]').type('zzzzzz-does-not-match');
-    cy.get('[data-cy="public-month-grid"]').should('not.exist');
+    // This line used to assert `public-month-grid` did not exist. The view was switched to list four
+    // lines earlier, where the grid cannot exist however the filter behaves, so the assertion held for
+    // any implementation. What the filter is actually responsible for is the card going away.
+    cy.get('[data-cy="tournament-lyon-legacy"]').should('not.exist');
     cy.get('[data-cy="calendar-empty"]').should('be.visible');
+    cy.get('@allTournaments.all').should('have.length', 1);
+  });
+
+  // ADR 0023 / acceptance row `doc05-full-catalog-cache`: the catalog is fetched once and month
+  // navigation re-slices it in the browser. The request counter is the whole point — assert it here
+  // and the row has a gate that fails when month navigation starts hitting the API again.
+  it('navigates months over the cached catalog without re-querying the API', () => {
+    visit('/calendar?month=2026-08&view=calendar');
+    cy.wait('@allTournaments');
+    // The August tournament's own pill is the locale-independent witness that the grid moved: the
+    // month label is translated, and on the release build the ngsw worker can answer the navigation
+    // from cache so `onBeforeLoad`'s language seed never runs.
+    cy.get('[data-cy="calendar-pill-lyon-legacy"]').should('be.visible');
+
+    cy.get('[data-cy="calendar-month-next"]').click();
+    cy.location('search').should('contain', 'month=2026-09');
+    cy.get('[data-cy="calendar-pill-lyon-legacy"]').should('not.exist');
+
+    cy.get('[data-cy="calendar-month-prev"]').click();
+    cy.location('search').should('contain', 'month=2026-08');
+    cy.get('[data-cy="calendar-pill-lyon-legacy"]').should('be.visible');
+
     cy.get('@allTournaments.all').should('have.length', 1);
   });
 

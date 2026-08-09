@@ -185,7 +185,9 @@ Run: `npm run test -- data-cy-coverage` then `npm run acceptance:matrix` then `n
 - [x] `npm run test` passes with an empty allowlist — 77 files, 507 tests; `PENDING_DATA_CY_RETROFIT = []`
 - [x] `npm run lint && npm run typecheck && npm run build` pass
 - [x] `npm run backend:test` passes — only the documented `InitializeAsync` Docker port-bind flake; both classes green run alone
-- [x] `npm run e2e:ci` passes in full, 18/18 specs (this replaces `npm run cy:run`, unrunnable on this host)
+- [x] `npm run e2e:ci` passes in full, the 18 specs it enumerated at the time (this replaces `npm run cy:run`,
+  unrunnable on this host). *(Corrected by T27: "18/18" read as full coverage of `cypress/e2e/`, which held 19
+  specs — `first-visit.cy.js` was wired into no gate. T27 wired it in and added `ops/e2e-spec-coverage.test.ts`.)*
 - [x] `npm run acceptance:matrix` passes with no new `deferred` row — 98/98 proved, the same 3 pre-existing deferred rows
 - [x] `npm run api:check` reports no drift — exit 0
 - [x] `npm run e2e:ci` passes

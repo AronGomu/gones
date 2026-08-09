@@ -77,9 +77,10 @@ export function findMissingDataCy(source: string): string[] {
  * flow, because branch-awareness would not actually cover the cases that need covering:
  *
  * - Mutually exclusive branches — `auth-entry.component.ts` renders `auth-email` / `auth-password`
- *   / `auth-submit` from either the login or the register arm, and `player-detail.component.ts`
- *   renders `stat-nemesis` / `stat-rival` from either a filter button or an "n/a" span. A branch
- *   parser would handle these.
+ *   / `auth-submit` from either the login or the register arm, `player-detail.component.ts`
+ *   renders `stat-nemesis` / `stat-rival` from either a filter button or an "n/a" span, and
+ *   `organizer-participants.component.ts` renders `participant-error` from either the load-failure
+ *   arm or the action-failure arm of the same page. A branch parser would handle these.
  * - Simultaneously rendered duplicates — `organizer-participants.component.ts` renders the desktop
  *   `<table>` and the mobile card list at the same time and hides one with CSS, so
  *   `participant-remove` / `participant-block` / `participant-remove-block` are genuinely in the
@@ -91,6 +92,11 @@ export function findMissingDataCy(source: string): string[] {
  * has no Angular compiler to borrow (no `TestBed`, no zone.js); every template claim here is made
  * by reading source text. So: the binding form is the marker. Reach for it only when the repeat is
  * intentional, and leave a reason at the call site.
+ *
+ * T27 removed the one use that was not intentional: `organizer-tournament-create.component.ts` wore
+ * the hatch on a second `reload-organizations` button whose click handler was a *different* method,
+ * so the marker was silencing an ambiguity rather than recording a deliberate repeat. That button is
+ * now `tournament-publish-error-reload`. Two elements that do different things never share a name.
  */
 export function findDuplicateDataCy(source: string): string[] {
   const seen = new Map<string, number>();

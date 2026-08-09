@@ -153,3 +153,42 @@ approve**. Check both halves, and check that neither ate the other.
 ### The empty-picker dead click is gone
 
 - [ ] Force an empty organization list (stop the API after login, or point at an instance with no organizations). The **Submit for approval** button must be **disabled**, and an explanatory message shown. Before T26 the button was clickable and silently did nothing, which is how the original defect hid.
+
+## T27 review-gate-honesty
+
+This ticket changed no shipped behaviour. One identifier moved and the rest is test and gate work, so
+the manual pass is short: confirm the two things a human can see, and confirm the gates now bite.
+
+### The one identifier that moved
+
+- [ ] Sign in as an **Organizer**, go to `/tournaments/new`, complete a preview, then make the publish
+      call fail with a 403 (stop your membership, or intercept `POST /api/tournaments`). The recovery
+      panel must still offer a working **Reload organizations** button — it is now
+      `data-cy="tournament-publish-error-reload"`, and clicking it must refresh the preview *and*
+      reload the reference lists, not just one of them.
+- [ ] Force the *form*-side 403 instead (fail `POST /api/tournaments/preview`). That panel's button is
+      still `data-cy="reload-organizations"` and must only reload the references. The point of the
+      rename is that these two are no longer the same name — if both panels ever appear with the same
+      identifier again, `npm run test` fails on the duplicate.
+
+### The sign-in affordance, which the spec now really checks
+
+- [ ] Signed in, on `/`: there must be **no** link to `/login` anywhere on the page — not in the
+      toolbar, not in the menu. Signed out, on `/`: there must be at least one.
+- [ ] This is the assertion that was dead for the whole of T2→T26. If you add a sign-in link to the
+      toolbar for a signed-in user, `cypress/e2e/auth-session-persistence.cy.js` must now go red.
+
+### First visit
+
+- [ ] In a browser profile that has never opened the app, load `/`. You must land on `/about`. Load `/`
+      again: you must stay on `/`. This is `cypress/e2e/first-visit.cy.js`, which until T27 was executed
+      by no committed gate at all — it now runs first in `npm run e2e:ci`.
+
+### Migration safety (do this before any future entity rename)
+
+- [ ] Before shipping a migration that renames a table, run `npm run backend:test` and confirm
+      `MigrationSafetyTests` is green. It fails if an `Up` both drops and creates a table (EF's rename
+      scaffold, which destroys every existing row) and if the model has changes no migration carries.
+- [ ] The guard is a source check, not a data check. It does **not** prove a rename preserves rows on a
+      populated database. If you rename a table that holds production data, still take a backup and still
+      restore-test it — see `scripts/backup-restore-rehearsal.mjs`.

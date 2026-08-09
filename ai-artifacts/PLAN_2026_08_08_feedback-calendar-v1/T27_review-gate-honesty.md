@@ -121,18 +121,88 @@ would go. For each item below, the fix is to make the assertion capable of faili
 
 ## Impl steps
 
-- [ ] 1. Wire `cypress/e2e/first-visit.cy.js` into `scripts/full-stack-ci.mjs`, and add the spec-enumeration assertion so this cannot recur — validate: `e2e:ci` reports **19** specs; the new test fails when a spec is unwired.
-- [ ] 2. Fix the three `login-link` assertions against the selector the toolbar really renders — validate: re-adding a sign-in link for a signed-in user fails the spec.
-- [ ] 3. Fix `public-calendar.cy.js:52` so the assertion does work at that point — validate: breaking `filterTournaments` fails it.
-- [ ] 4. Rewrite the debounce test with fake timers to prove *debounced* — validate: debounce 0 fails it.
-- [ ] 5. Settle `doc05-full-catalog-cache`: add a test that fails when the guard at `public-calendar.component.ts:148` is removed, **or** downgrade the row with a written reason — validate: whichever you choose, the matrix claim and the evidence agree.
-- [ ] 6. Replace the `app-breadcrumbs` source-string assertions with behavioural ones and correct the false comment — validate: forcing `showHeaderImport` true fails it.
-- [ ] 7. Give the second reload button its own `data-cy` and update selectors — validate: the duplicate is gone and `data-cy-coverage` is green. Re-read the component first; T26 edited it.
-- [ ] 8. Add the two migration guards (no destructive op in a rename migration; no pending model changes) — validate: each fails when its condition is violated.
-- [ ] 9. Fix `docs/GLOSSARY.md:17`.
-- [ ] 10. Correct the two overstated checkboxes in `T25b_inherited-cypress-repairs.md` and `T25_data-cy-sweep-and-matrix.md`.
-- [ ] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build && npm run backend:test && npm run api:check && npm run acceptance:matrix`.
-- [ ] 12. Run `npm run e2e:ci`.
+- [x] 1. Wire `cypress/e2e/first-visit.cy.js` into `scripts/full-stack-ci.mjs`, and add the spec-enumeration assertion so this cannot recur — validate: `e2e:ci` reports **19** specs; the new test fails when a spec is unwired.
+  - Red (worse than the ticket states): with `canActivate: [firstVisitHomeGuard]` deleted from `app.routes.ts:79`,
+    `first-visit.guard.test.ts` **and** `data-mode-routes.test.ts` both stayed green (31/31). See "Residual" below —
+    `data-mode-routes.test.ts:146` is vacuous for a chai reason, and is *not* fixed here (not an enumerated item).
+  - Green: new `ops/e2e-spec-coverage.test.ts` failed on the unwired tree ("expected [ …(18) ] to deeply equal [ …(19) ]",
+    diff naming `cypress/e2e/first-visit.cy.js`); passes after the wiring. `e2e:ci` now runs `first-visit.cy.js` first,
+    and against the unwired guard that spec fails ("Failing: 1"), so the hole is now covered by a gate that can fail.
+- [x] 2. Fix the three `login-link` assertions against the selector the toolbar really renders — validate: re-adding a sign-in link for a signed-in user fails the spec.
+  - The toolbar renders **no** sign-in affordance for a signed-in user, so there is no single `data-cy` to name.
+    The claim is "no route to /login is offered", asserted as `a[href="/login"], a[href^="/login?"]`.
+  - Red: with `<a routerLink="/login" data-cy="toolbar-login-link">` added to the signed-in toolbar arm, the old
+    spec passed **2/2**. Green: the new spec fails on that same build — "Expected <a> not to exist in the DOM,
+    but it was continuously found." The anonymous case now asserts the mirror (`should('exist')`).
+- [x] 3. Fix `public-calendar.cy.js:52` so the assertion does work at that point — validate: breaking `filterTournaments` fails it.
+  - Red: with `filterTournaments` returning the whole catalog on a non-match, the old spec failed at **line 53**
+    (`calendar-empty` never found) — line 52 passed, exactly as the ticket predicted.
+  - Green: line 52 is now `[data-cy="tournament-lyon-legacy"]').should('not.exist')`, and on the same broken build
+    the failure moves to that line ("Expected <article.panel.public-tournament-card> not to exist in the DOM").
+- [x] 4. Rewrite the debounce test with fake timers to prove *debounced* — validate: debounce 0 fails it.
+  - Red: with `SEARCH_DEBOUNCE_MS = 0` the old `:115` test passed (8/8 green). Green: the two new fake-timer
+    tests fail against that same break ("expected vi.fn() to not be called at all, but actually been called
+    1 times" / "4 times"); restored to 300 → 9/9 green.
+- [x] 5. Settle `doc05-full-catalog-cache`: add a test that fails when the guard at `public-calendar.component.ts:148` is removed, **or** downgrade the row with a written reason — validate: whichever you choose, the matrix claim and the evidence agree.
+  - **Chose: add the tests, keep the row `proved`.** The row's claim ("month navigation and filtering never
+    re-query the API") is true of the shipped code — it was the *evidence* that was missing, not the behaviour,
+    and downgrading a true claim would have made the matrix less accurate, not more.
+  - Red, vitest: the stub route was `of(initialParams)`, which emits once and completes, so the `ngOnInit`
+    subscription could never re-fire. Proof it constrained nothing: with `void this.load();` added to the
+    subscription — month navigation refetching, the exact regression — the old test **passed 8/8**.
+  - Green, vitest: the router stub now feeds `queryParams` back into a `BehaviorSubject`, closing the loop.
+    The rewritten test fails against that same break, and against removing the guard at `:148` it fails with
+    `RangeError: Maximum call stack size exceeded` (unguarded canonicalisation navigates forever) — the ticket's
+    named break, 3 failures where the old file had 0.
+  - Green, cypress: new case `navigates months over the cached catalog without re-querying the API` clicks
+    `calendar-month-next` / `-prev` behind the request counter. With `moveMonth` forcing a reload it fails
+    `-3 / +1` on the call count. `calendar-month-prev` / `-next` now appear in a spec for the first time.
+  - Matrix row evidence updated to name both.
+- [x] 6. Replace the `app-breadcrumbs` source-string assertions with behavioural ones and correct the false comment — validate: forcing `showHeaderImport` true fails it.
+  - Red (a): a dead `this.showHeaderImport.set(true);` added after the real line → button always on, old test 6/6 green.
+    Red (b): `if (path==='/leagues') this.showHeaderImport.set(true);` → old test still 6/6 green (whitespace).
+    Green: new `updateRouteState` tests fail on both ("`/`: expected true to be false", "`/leagues`: expected true to be false");
+    restored → 7/7 green. Comment corrected: `league-server.cy.js:199` only asserts the button *exists* on `/leagues-archive`.
+- [x] 7. Give the second reload button its own `data-cy` and update selectors — validate: the duplicate is gone and `data-cy-coverage` is green. Re-read the component first; T26 edited it.
+  - Red: swapping `[attr.data-cy]="'reload-organizations'"` (now line 168) for the literal form made `data-cy-coverage`
+    report `duplicate data-cy values reload-organizations` — proof the hatch was silencing it, not sanctioning it.
+    Green: the publish-error button is `tournament-publish-error-reload`; no spec selected it, and
+    `organizer-tournament-create.cy.js:199` now unambiguously means the form-error button. 8/8 green.
+- [x] 8. Add the two migration guards (no destructive op in a rename migration; no pending model changes) — validate: each fails when its condition is violated.
+  - New file `backend/tests/Gones.ArchitectureTests/MigrationSafetyTests.cs`.
+  - Red: `20260809122735_RenameLeagueArchiveTables.cs` re-scaffolded to the EF shape (`DropTable` +
+    `CreateTable` + `InsertData` + five `CreateIndex`) — production would lose every archived League —
+    and `LeagueArchiveRouteTests` still **passed 8/8** (39 s, docker). Both new source guards failed on
+    that same tree. Restored → 17/17.
+  - Red (pending changes): `HasMaxLength(201)` on `LeagueArchiveAggregate.Name` with no migration →
+    `Committed_migrations_fully_describe_the_model` failed. Restored → 17/17.
+  - Note: the guard is scoped to the `Up` body. Every migration drops in `Down`, and a rule keyed on a
+    surviving `RenameTable` would go quiet on exactly the full re-scaffold it exists to catch.
+- [x] 9. Fix `docs/GLOSSARY.md:17` — now `src/app/data/league-archive-repository.service.ts`; `ls` confirms the file exists.
+- [x] 10. Correct the two overstated checkboxes in `T25b_inherited-cypress-repairs.md` and `T25_data-cy-sweep-and-matrix.md`
+  — both now state 18 *enumerated* specs and name the spec that was missing.
+- [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build && npm run backend:test && npm run api:check && npm run acceptance:matrix`.
+  - `test` 78 files / 518 tests passed. `lint` "All files pass linting." `typecheck` clean on both projects.
+    `build` "Application bundle generation complete." `api:check` exit 0. `acceptance:matrix` 98/98 non-deferred
+    proved, 24/24 checklist, same 3 pre-existing deferred rows.
+  - `backend:test`: ArchitectureTests 17/17, UnitTests 198/198, IntegrationTests 362/366 — the 4 reds are all
+    the documented `InitializeAsync` Docker `bind: address already in use` flake, never an assertion; all four
+    classes pass alone (`LeagueCommandApiTests` 7/7, `TournamentProposalDecisionTests` 21/21,
+    `TournamentProposalTests` 19/19, `TournamentPublicationApiTests` 16/16).
+- [x] 12. Run `npm run e2e:ci` — `GATE_EXIT=0`, **19** `✔`, 0 `✖`. `first-visit.cy.js` runs first (1/1);
+  `public-calendar.cy.js` is now 6 tests; `auth-session-persistence.cy.js` 2/2.
+
+## Residual — found while executing, not fixed (not an enumerated item)
+
+`data-mode-routes.test.ts` guards route wiring with `expect(route?.canActivate).toContain(someGuard)`. When the
+route has no `canActivate` at all the expression is `expect(undefined).toContain(fn)`, and chai **passes** that:
+`expect(undefined).toContain('x')` throws "the given combination of arguments (undefined and string) is invalid",
+but with a *function* argument it silently succeeds. Verified directly on vitest 4.1.10. So every one of those
+assertions is vacuous in exactly the case it exists to catch — deleting `canActivate: [firstVisitHomeGuard]` from
+`app.routes.ts:79` left the whole file green (28/28). `first-visit.cy.js`, now wired, does catch that particular
+break, but the pattern is repeated across the file for `userGuard`, `verifiedEmailGuard`, `organizerGuard`,
+`markVisitedGuard`. The fix is `expect(route?.canActivate ?? []).toContain(...)` or `toEqual(expect.arrayContaining(...))`
+on a non-optional read. Dropped as out of ticket scope; worth its own ticket.
 
 ## Outputs
 
@@ -144,10 +214,15 @@ would go. For each item below, the fix is to make the assertion capable of faili
 
 ## Validation
 
-- [ ] `npm run e2e:ci` runs **19** specs, all green
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run backend:test` passes
-- [ ] `npm run api:check` and `npm run acceptance:matrix` pass
-- [ ] every rewritten assertion was shown to fail against a deliberately broken implementation, and the report says so per item
-- [ ] app functional — no shipped behaviour changed
-- [ ] commit msg draft: `test: make the gates fail when the behaviour they name breaks`
+- [x] `npm run e2e:ci` runs **19** specs, all green — `GATE_EXIT=0`, 19 `✔`, 0 `✖`
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass — 78 files / 518 tests;
+  "All files pass linting."; `tsc --noEmit` clean on both projects; "Application bundle generation complete."
+- [x] `npm run backend:test` passes — 17 + 198 + 362/366; the 4 reds are the documented Docker port-bind flake at
+  `InitializeAsync`, and all four classes pass when re-run alone
+- [x] `npm run api:check` and `npm run acceptance:matrix` pass — exit 0; 98/98 non-deferred proved, 24/24 checklist
+- [x] every rewritten assertion was shown to fail against a deliberately broken implementation, and the report says so per item
+  — see the per-step Red/Green notes above; item 1's vacuity turned out to be broader than stated (see Residual)
+- [x] app functional — no shipped behaviour changed. The only non-test source edit is one `data-cy` value
+  (`reload-organizations` → `tournament-publish-error-reload`); every deliberate break was reverted and
+  `git diff` over `src/app` shows no logic change
+- [x] commit msg draft: `test: make the gates fail when the behaviour they name breaks`
