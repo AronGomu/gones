@@ -99,7 +99,8 @@ flowchart TD
   T1 --> T22[T22: registrations page polish]
   T20 --> T23[T23: backend archive rename]
   T23 --> T24[T24: frontend archive rename]
-  T24 --> T25[T25: data-cy sweep + matrix]
+  T24 --> T25b[T25b: repair inherited cypress failures]
+  T25b --> T25[T25: data-cy sweep + matrix]
   T10 --> T25
   T11 --> T25
   T19 --> T25
@@ -140,7 +141,8 @@ flowchart TD
 | T22 | Registrations page polish | T1 | Home card when logged in, top/bottom return buttons, no kicker | `PLAN_2026_08_08_feedback-calendar-v1/T22_registrations-page-polish.md` |
 | T23 | Backend archive rename | T20 | API and DB speak `leagues-archive` / `tournaments-archive` | `PLAN_2026_08_08_feedback-calendar-v1/T23_backend-archive-rename.md` |
 | T24 | Frontend archive rename | T23 | Routes, folders and copy renamed; old paths redirect | `PLAN_2026_08_08_feedback-calendar-v1/T24_frontend-archive-rename.md` |
-| T25 | data-cy sweep + acceptance matrix | T3, T4, T10, T11, T19, T21, T22, T24 | Allowlist empty, coverage test enforces the rule repo-wide | `PLAN_2026_08_08_feedback-calendar-v1/T25_data-cy-sweep-and-matrix.md` |
+| T25b | Repair the five inherited Cypress failures *(parent-added)* | T24 | `npm run e2e:ci` green so T25's release gate is reachable | `PLAN_2026_08_08_feedback-calendar-v1/T25b_inherited-cypress-repairs.md` |
+| T25 | data-cy sweep + acceptance matrix | T3, T4, T10, T11, T19, T21, T22, T24, T25b | Allowlist empty, coverage test enforces the rule repo-wide | `PLAN_2026_08_08_feedback-calendar-v1/T25_data-cy-sweep-and-matrix.md` |
 
 ## Tickets
 
@@ -171,4 +173,5 @@ flowchart TD
 - [T22: Registrations page polish](PLAN_2026_08_08_feedback-calendar-v1/T22_registrations-page-polish.md) — depends: T1
 - [T23: Backend archive rename](PLAN_2026_08_08_feedback-calendar-v1/T23_backend-archive-rename.md) — depends: T20
 - [T24: Frontend archive rename](PLAN_2026_08_08_feedback-calendar-v1/T24_frontend-archive-rename.md) — depends: T23
-- [T25: data-cy sweep + acceptance matrix](PLAN_2026_08_08_feedback-calendar-v1/T25_data-cy-sweep-and-matrix.md) — depends: T3, T4, T10, T11, T19, T21, T22, T24
+- [T25b: Repair the five inherited Cypress failures](PLAN_2026_08_08_feedback-calendar-v1/T25b_inherited-cypress-repairs.md) — depends: T24 *(parent-added)*
+- [T25: data-cy sweep + acceptance matrix](PLAN_2026_08_08_feedback-calendar-v1/T25_data-cy-sweep-and-matrix.md) — depends: T3, T4, T10, T11, T19, T21, T22, T24, T25b

@@ -1,7 +1,7 @@
 # T25: data-cy sweep + acceptance matrix
 
 **Plan:** `./ai-artifacts/PLAN_2026_08_08_feedback-calendar-v1.md`
-**Depends:** T3, T4, T10, T11, T19, T21, T22, T24
+**Depends:** T3, T4, T10, T11, T19, T21, T22, T24, T25b
 **Commit outcome:** Every element of every component template carries a unique `data-cy`, the retrofit allowlist is empty, and the acceptance matrix proves the whole feedback release.
 
 ## Context (self-contained)
