@@ -161,6 +161,7 @@ const en = {
   'home.leaguesDesc': 'Create leagues, open tournaments, enter rounds, import results, and review standings.',
   'home.calendar': 'Calendar',
   'home.calendarDesc': 'Upcoming tournaments, league nights, special formats, and future organized play.',
+  'home.registrationsDesc': 'Review the tournaments you signed up for and cancel a registration.',
   'home.settings': 'Settings',
   'home.settingsDesc': 'Manage archetype labels, import tools, and local app configuration.',
   'home.about': 'À propos',
@@ -522,7 +523,6 @@ const en = {
   'calendar.organizationWebsite': 'Organization website',
 
   // Tournament registration
-  'registration.accountKicker': 'Account',
   'registration.title': 'Registration',
   'registration.register': 'Register',
   'registration.unregister': 'Cancel registration',
@@ -1194,6 +1194,7 @@ const fr: Record<MessageKey, string> = {
   'home.leaguesDesc': 'Créer des ligues, ouvrir des tournois, saisir des rondes, importer des résultats et consulter les classements.',
   'home.calendar': 'Calendrier',
   'home.calendarDesc': 'Prochains tournois, soirées de ligue, formats spéciaux et futurs événements.',
+  'home.registrationsDesc': 'Consultez les tournois auxquels vous êtes inscrit et annulez une inscription.',
   'home.settings': 'Paramètres',
   'home.settingsDesc': 'Gérer les archétypes, les outils d’import et la configuration locale de l’application.',
   'home.about': 'À propos',
@@ -1548,7 +1549,6 @@ const fr: Record<MessageKey, string> = {
   'calendar.organizationWebsite': 'Site de l’organisation',
 
   // Inscription aux tournois
-  'registration.accountKicker': 'Compte',
   'registration.title': 'Inscription',
   'registration.register': 'S’inscrire',
   'registration.unregister': 'Annuler l’inscription',

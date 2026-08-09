@@ -116,17 +116,17 @@ Run: `npm run test -- my-registrations home-menu data-cy-coverage`
 
 ## Impl steps
 
-- [ ] 1. In `src/app/features/calendar/my-registrations.component.ts`, add `BackButtonComponent` to the component `imports` array and import it from `../../shared/back-button.component`.
-- [ ] 2. Wrap the template: put `<gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="registrations-back-top" />` before the page `<section>` and the `position="bottom"` twin (`data-cy="registrations-back-bottom"`) after it.
-- [ ] 3. Delete **only** the `<p class="kicker">{{ i18n.t('registration.accountKicker') }}</p>` element inside
+- [x] 1. In `src/app/features/calendar/my-registrations.component.ts`, add `BackButtonComponent` to the component `imports` array and import it from `../../shared/back-button.component`.
+- [x] 2. Wrap the template: put `<gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="registrations-back-top" />` before the page `<section>` and the `position="bottom"` twin (`data-cy="registrations-back-bottom"`) after it.
+- [x] 3. Delete **only** the `<p class="kicker">{{ i18n.t('registration.accountKicker') }}</p>` element inside
   `<header class="page-heading">` (line 16). **Do not touch the `<p class="kicker">{{ attempt.organizationName }}</p>` on
   line 40 inside `<ng-template #attemptCard>`** — that is a card label, not a page kicker.
-  - [ ] 3b. Delete the now-orphaned `'registration.accountKicker'` key from BOTH maps in `src/app/i18n/messages.ts`
+  - [x] 3b. Delete the now-orphaned `'registration.accountKicker'` key from BOTH maps in `src/app/i18n/messages.ts`
     (`:525` en, `:1551` fr) — validate: `grep -rn "accountKicker" src/ cypress/` returns nothing.
-- [ ] 4. Add a unique `data-cy` to every remaining element of the template, prefixed `registrations-`.
-- [ ] 5. **Confirmation only** — verify `src/app/features/menu/home-menu.component.ts:48` already reads
+- [x] 4. Add a unique `data-cy` to every remaining element of the template, prefixed `registrations-`.
+- [x] 5. **Confirmation only** — verify `src/app/features/menu/home-menu.component.ts:48` already reads
   `readonly auth = inject(AuthService);`. T3 added it. Do not re-add.
-- [ ] 6. Add, immediately after the calendar card:
+- [x] 6. Add, immediately after the calendar card:
   ```
   @if (auth.profile()) {
     <a class="home-destination home-destination--calendar" routerLink="/registrations" data-cy="menu-registrations-card">
@@ -135,25 +135,32 @@ Run: `npm run test -- my-registrations home-menu data-cy-coverage`
     </a>
   }
   ```
-- [ ] 7. Add `home.registrationsDesc` to BOTH maps in `src/app/i18n/messages.ts`: en `'Review the tournaments you signed up for and cancel a registration.'`, fr `'Consultez les tournois auxquels vous êtes inscrit et annulez une inscription.'`
-- [ ] 8. **Confirmation only** — `home-menu.component.ts` already has a unique `data-cy` on every element (T3).
+- [x] 7. Add `home.registrationsDesc` to BOTH maps in `src/app/i18n/messages.ts`: en `'Review the tournaments you signed up for and cancel a registration.'`, fr `'Consultez les tournois auxquels vous êtes inscrit et annulez une inscription.'`
+- [x] 8. **Confirmation only** — `home-menu.component.ts` already has a unique `data-cy` on every element (T3).
   Your new card must keep that true: `menu-registrations-card`, `-title`, `-desc` are all unused so far.
-- [ ] 9. Delete the single line `'src/app/features/calendar/my-registrations.component.ts',` (line 116) from
+- [x] 9. Delete the single line `'src/app/features/calendar/my-registrations.component.ts',` (line 116) from
   `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`. **`home-menu.component.ts` is not in the list**
   — T3 already removed it. The list goes 29 → 28 entries.
-- [ ] 10. Create `src/app/features/calendar/my-registrations.component.test.ts` with Test plan rows 1-2 —
+- [x] 10. Create `src/app/features/calendar/my-registrations.component.test.ts` with Test plan rows 1-2 —
   source-string assertions via `readFileSync`, **not** a rendered DOM (see environment facts).
-- [ ] 11. Create `src/app/features/menu/home-menu.component.test.ts` with rows 3-4 — same source-string technique.
+- [x] 11. Create `src/app/features/menu/home-menu.component.test.ts` with rows 3-4 — same source-string technique.
   (No such file exists yet; `src/app/features/menu/` holds only `about.component.ts` and `home-menu.component.ts`.)
-- [ ] 12. Update `cypress/e2e/tournament-registration.cy.js` so the existing `My Registrations` describe block reaches
+- [x] 12. Update `cypress/e2e/tournament-registration.cy.js` so the existing `My Registrations` describe block reaches
   `/registrations` through `[data-cy=menu-registrations-card]` at least once instead of `visit('/registrations')`.
-  - [ ] 12a. Add `win.localStorage.setItem('gones.first-visit.completed', 'true');` to the `visit()` helper's
+  - [x] 12a. Add `win.localStorage.setItem('gones.first-visit.completed', 'true');` to the `visit()` helper's
     `onBeforeLoad` (line 23) — otherwise `visit('/')` redirects to `/about` and the card is never on screen.
-  - [ ] 12b. Use the existing `authenticated()` helper for the session. **Add no real login** — this spec currently
+  - [x] 12b. Use the existing `authenticated()` helper for the session. **Add no real login** — this spec currently
     costs zero auth permits and must stay that way.
-- [ ] 13. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 14. Run the two Cypress specs using the **NixOS recipe in the environment facts above** (not `npm run dev` /
-  `npm run cy:run`, both of which fail on this host).
+- [x] 13. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 14. Run the two Cypress specs using the **NixOS recipe in the environment facts above** (not `npm run dev` /
+  `npm run cy:run`, both of which fail on this host). **Ran: `tournament-registration.cy.js` 5/5 green,
+  `accessibility.cy.js` 11/11 green, "All specs passed! 16 16".**
+  - [x] 14a. The 4 earlier failures were a pre-existing defect in the spec itself, not in `src/`: its `visit()` helper
+    seeded `gones.settings` with `language: 'en'`, but every text assertion in the spec is French
+    (`'Vérifiez votre e-mail'`, `'complet'`, `'Annulée par vous'`, …). `loadSettingsLanguage()`
+    (`src/app/shared/deck-archetype-settings.service.ts:252-255`) reads the `gones.settings` JSON first, so the UI
+    rendered English and the assertions were unsatisfiable. Fixed by seeding `fr` in both
+    `gones.settings.language` and the `gones.settings` JSON. No `src/` change was needed.
 
 ## Outputs
 
@@ -165,10 +172,20 @@ Run: `npm run test -- my-registrations home-menu data-cy-coverage`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `cypress/e2e/tournament-registration.cy.js` + `cypress/e2e/accessibility.cy.js` pass under the NixOS recipe
-- [ ] `grep -rn "accountKicker" src/ cypress/` returns nothing, and `grep -c "home.registrationsDesc" src/app/i18n/messages.ts` returns 2
-- [ ] manual check: signed in, the home menu shows "Mes inscriptions"; the page has a return button above and below its content and no kicker
-- [ ] app functional — signed out, the card is absent and `/registrations` still bounces to `/login`
-- [ ] commit msg draft: `feat(registrations): add a home card and return-to-menu buttons, drop the kicker`
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `cypress/e2e/tournament-registration.cy.js` + `cypress/e2e/accessibility.cy.js` pass under the NixOS recipe —
+  `tournament-registration.cy.js` **5/5**, `accessibility.cy.js` **11/11**, run finished "All specs passed! 16 16".
+- [x] `grep -rn "accountKicker" src/ cypress/` returns nothing, and `grep -c "home.registrationsDesc" src/app/i18n/messages.ts` returns 2
+- [ ] manual check: signed in, the home menu shows "Mes inscriptions"; the page has a return button above and below its
+  content and no kicker — **left unchecked, no human observation yet.** Cypress covers only part of it: the
+  `My Registrations` spec signs in, visits `/`, clicks `[data-cy=menu-registrations-card]` and lands on the
+  registrations page, so the card exists and routes. The card's rendered label, the two return buttons and the
+  absent kicker are asserted only against the template source in
+  `src/app/features/calendar/my-registrations.component.test.ts` and
+  `src/app/features/menu/home-menu.component.test.ts` — never in a real browser. Queued in
+  `ai-artifacts/manual_test_checklist.md`.
+- [ ] app functional — signed out, the card is absent and `/registrations` still bounces to `/login` —
+  **left unchecked, not observed.** No spec exercises the signed-out home menu or the `userGuard` redirect.
+  Queued in `ai-artifacts/manual_test_checklist.md`.
+- [x] commit msg draft: `feat(registrations): add a home card and return-to-menu buttons, drop the kicker`

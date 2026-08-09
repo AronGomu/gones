@@ -30,6 +30,12 @@ import { AuthService } from '../../auth/auth.service';
           <strong data-cy="menu-calendar-card-title">{{ i18n.t('home.calendar') }}</strong>
           <p data-cy="menu-calendar-card-desc">{{ i18n.t('home.calendarDesc') }}</p>
         </a>
+        @if (auth.profile()) {
+          <a class="home-destination home-destination--calendar" routerLink="/registrations" data-cy="menu-registrations-card">
+            <strong data-cy="menu-registrations-card-title">{{ i18n.t('registration.myRegistrations') }}</strong>
+            <p data-cy="menu-registrations-card-desc">{{ i18n.t('home.registrationsDesc') }}</p>
+          </a>
+        }
         <a class="home-destination home-destination--settings" routerLink="/settings" data-cy="menu-settings-link">
           <strong data-cy="menu-settings-link-title">{{ i18n.t('home.settings') }}</strong>
           <p data-cy="menu-settings-link-desc">{{ i18n.t('home.settingsDesc') }}</p>

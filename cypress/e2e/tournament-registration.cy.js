@@ -19,10 +19,15 @@ function authenticated(overrides = {}) {
   cy.intercept('GET', '**/api/users/me', { ...profile, ...overrides });
 }
 
+// Seed 'fr': every text assertion in this spec is French ('Vérifiez votre e-mail', 'complet',
+// 'Annulée par vous', …). loadSettingsLanguage() reads the 'gones.settings' JSON first and only falls
+// back to 'gones.settings.language', so seeding 'en' renders an English UI and makes those assertions
+// unsatisfiable. Both keys must agree.
 function visit(path) {
   cy.visit(path, { onBeforeLoad(win) {
-    win.localStorage.setItem('gones.settings.language', 'en');
-    win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+    win.localStorage.setItem('gones.first-visit.completed', 'true');
+    win.localStorage.setItem('gones.settings.language', 'fr');
+    win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: [] }));
   } });
 }
 
@@ -117,7 +122,8 @@ describe('My Registrations', () => {
         { attemptId: 'old', tournamentId: tournament.id, tournamentSlug: tournament.slug, tournamentTitle: tournament.title, organizationName: 'Gones', startsAtUtc: tournament.startsAtUtc, timeZoneId: tournament.timeZoneId, status: 'CancelledByUser', isCurrent: false, registeredByUserId: 'user', registeredAt: '2029-01-01T00:00:00Z', statusChangedAt: '2029-01-02T00:00:00Z' }
       ], page: 1, pageSize: 100, totalCount: 2 });
     }).as('registrations');
-    visit('/registrations');
+    visit('/');
+    cy.get('[data-cy="menu-registrations-card"]').click();
     cy.get('[data-cy="registrations-error"]').find('button').click();
     cy.get('[data-cy="registration-attempt"]').should('have.length', 2).and('contain.text', 'Europe/Paris').and('contain.text', 'Annulée par vous');
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(375));

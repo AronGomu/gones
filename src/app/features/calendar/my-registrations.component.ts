@@ -7,38 +7,41 @@ import { I18nService } from '../../i18n/i18n.service';
 import { partitionRegistrationAttempts, registrationVenueTime } from './my-registrations';
 import { TournamentRegistrationService } from './tournament-registration.service';
 import { LatestRequest } from '../../shared/async-guards';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [NgTemplateOutlet, RouterLink, MatButtonModule],
+  imports: [NgTemplateOutlet, RouterLink, MatButtonModule, BackButtonComponent],
   template: `
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="registrations-back-top" />
     <section class="registrations-page stack" aria-labelledby="registrations-title" data-cy="registrations-page">
-      <header class="page-heading"><div><p class="kicker">{{ i18n.t('registration.accountKicker') }}</p><h1 id="registrations-title">{{ i18n.t('registration.myRegistrations') }}</h1></div></header>
+      <header class="page-heading" data-cy="registrations-header"><div data-cy="registrations-header-text"><h1 id="registrations-title" data-cy="registrations-title">{{ i18n.t('registration.myRegistrations') }}</h1></div></header>
       @if (loading()) {
-        <section class="panel calendar-state" aria-busy="true" data-cy="registrations-loading"><p>{{ i18n.t('common.loading') }}</p></section>
+        <section class="panel calendar-state" aria-busy="true" data-cy="registrations-loading"><p data-cy="registrations-loading-label">{{ i18n.t('common.loading') }}</p></section>
       } @else if (error()) {
-        <section class="panel calendar-state" role="alert" data-cy="registrations-error"><p>{{ i18n.t('registration.loadFailed') }}</p><button mat-stroked-button type="button" (click)="load()">{{ i18n.t('common.retry') }}</button></section>
+        <section class="panel calendar-state" role="alert" data-cy="registrations-error"><p data-cy="registrations-error-label">{{ i18n.t('registration.loadFailed') }}</p><button mat-stroked-button type="button" data-cy="registrations-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></section>
       } @else {
-        <section class="stack" aria-labelledby="upcoming-registrations-title">
-          <h2 id="upcoming-registrations-title">{{ i18n.t('registration.upcoming') }}</h2>
-          @if (!groups().upcoming.length) { <p class="panel registration-empty">{{ i18n.t('registration.noUpcoming') }}</p> }
+        <section class="stack" aria-labelledby="upcoming-registrations-title" data-cy="registrations-upcoming">
+          <h2 id="upcoming-registrations-title" data-cy="registrations-upcoming-title">{{ i18n.t('registration.upcoming') }}</h2>
+          @if (!groups().upcoming.length) { <p class="panel registration-empty" data-cy="registrations-upcoming-empty">{{ i18n.t('registration.noUpcoming') }}</p> }
           @for (attempt of groups().upcoming; track attempt.attemptId) { <ng-container [ngTemplateOutlet]="attemptCard" [ngTemplateOutletContext]="{ $implicit: attempt }" /> }
         </section>
-        <section class="stack" aria-labelledby="registration-history-title">
-          <h2 id="registration-history-title">{{ i18n.t('registration.history') }}</h2>
-          @if (!groups().history.length) { <p class="panel registration-empty">{{ i18n.t('registration.noHistory') }}</p> }
+        <section class="stack" aria-labelledby="registration-history-title" data-cy="registrations-history">
+          <h2 id="registration-history-title" data-cy="registrations-history-title">{{ i18n.t('registration.history') }}</h2>
+          @if (!groups().history.length) { <p class="panel registration-empty" data-cy="registrations-history-empty">{{ i18n.t('registration.noHistory') }}</p> }
           @for (attempt of groups().history; track attempt.attemptId) { <ng-container [ngTemplateOutlet]="attemptCard" [ngTemplateOutletContext]="{ $implicit: attempt }" /> }
         </section>
         @if (totalCount() > pageSize) {
-          <nav class="pagination" [attr.aria-label]="i18n.t('registration.pagesAria')"><button mat-stroked-button type="button" [disabled]="page() === 1" (click)="changePage(page() - 1)">{{ i18n.t('common.previous') }}</button><span>{{ page() }} / {{ pageCount() }}</span><button mat-stroked-button type="button" [disabled]="page() >= pageCount()" (click)="changePage(page() + 1)">{{ i18n.t('common.next') }}</button></nav>
+          <nav class="pagination" [attr.aria-label]="i18n.t('registration.pagesAria')" data-cy="registrations-pagination"><button mat-stroked-button type="button" data-cy="registrations-page-prev" [disabled]="page() === 1" (click)="changePage(page() - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="registrations-page-label">{{ page() }} / {{ pageCount() }}</span><button mat-stroked-button type="button" data-cy="registrations-page-next" [disabled]="page() >= pageCount()" (click)="changePage(page() + 1)">{{ i18n.t('common.next') }}</button></nav>
         }
       }
     </section>
+    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="registrations-back-bottom" />
 
     <ng-template #attemptCard let-attempt>
       <article class="panel registration-card" data-cy="registration-attempt">
-        <div><p class="kicker">{{ attempt.organizationName }}</p><h3><a [routerLink]="['/calendar/tournaments', attempt.tournamentSlug]">{{ attempt.tournamentTitle }}</a></h3></div>
-        <dl><div><dt>{{ i18n.t('calendar.venueTime') }}</dt><dd>{{ venueTime(attempt) }}</dd></div><div><dt>{{ i18n.t('registration.status') }}</dt><dd>{{ statusLabel(attempt.status) }}</dd></div></dl>
+        <div data-cy="registration-attempt-header"><p class="kicker" data-cy="registration-attempt-org">{{ attempt.organizationName }}</p><h3 data-cy="registration-attempt-title"><a [routerLink]="['/calendar/tournaments', attempt.tournamentSlug]" data-cy="registration-attempt-link">{{ attempt.tournamentTitle }}</a></h3></div>
+        <dl data-cy="registration-attempt-details"><div data-cy="registration-attempt-venue-row"><dt data-cy="registration-attempt-venue-time-label">{{ i18n.t('calendar.venueTime') }}</dt><dd data-cy="registration-attempt-venue-time">{{ venueTime(attempt) }}</dd></div><div data-cy="registration-attempt-status-row"><dt data-cy="registration-attempt-status-label">{{ i18n.t('registration.status') }}</dt><dd data-cy="registration-attempt-status">{{ statusLabel(attempt.status) }}</dd></div></dl>
       </article>
     </ng-template>
   `
