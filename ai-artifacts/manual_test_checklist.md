@@ -192,3 +192,14 @@ the manual pass is short: confirm the two things a human can see, and confirm th
 - [ ] The guard is a source check, not a data check. It does **not** prove a rename preserves rows on a
       populated database. If you rename a table that holds production data, still take a backup and still
       restore-test it — see `scripts/backup-restore-rehearsal.mjs`.
+
+## T28 route-guard-assertions
+
+This ticket changed no shipped behaviour and no route wiring — `app.routes.ts` ends byte-identical to
+before. It only made six existing assertions in `src/app/data-mode-routes.test.ts` capable of failing
+(they previously passed even when their guard was unwired, because `expect(undefined).toContain(fn)`
+does not throw on vitest 4.1.10). No manual check applies.
+
+- [ ] Nothing to click. If you want to sanity-check by hand anyway: temporarily remove `canActivate:
+      [userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
+      data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.

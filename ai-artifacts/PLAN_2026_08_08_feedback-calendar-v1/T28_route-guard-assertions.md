@@ -82,13 +82,13 @@ Run: `npm run test -- data-mode-routes`
 
 ## Impl steps
 
-- [ ] 1. Reproduce the defect: drop `userGuard` from its route and confirm `data-mode-routes.test.ts` still passes — validate: record the passing count with the guard removed.
-- [ ] 2. Confirm the mechanism in this exact vitest version — validate: show that `expect(undefined).toContain(fn)` passes while `expect(undefined).toContain('x')` throws.
-- [ ] 3. Rewrite all six assertions so a missing `canActivate` fails, with a message naming the route and the guard — validate: the step-1 removal now fails.
-- [ ] 4. Grep the repo for the same possibly-undefined `toContain` shape and fix any other instance — validate: name what you searched and what you found, including "nothing else" if that is the answer.
-- [ ] 5. Restore `app.routes.ts` byte-for-byte — validate: `git diff src/app/app.routes.ts` is empty.
-- [ ] 6. Repeat the Red for `organizerGuard`, `verifiedEmailGuard`, `firstVisitHomeGuard` and `markVisitedGuard`, restoring each — validate: each fails, then the suite is green.
-- [ ] 7. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 1. Reproduce the defect: drop `userGuard` from its route and confirm `data-mode-routes.test.ts` still passes — validate: record the passing count with the guard removed.
+- [x] 2. Confirm the mechanism in this exact vitest version — validate: show that `expect(undefined).toContain(fn)` passes while `expect(undefined).toContain('x')` throws.
+- [x] 3. Rewrite all six assertions so a missing `canActivate` fails, with a message naming the route and the guard — validate: the step-1 removal now fails.
+- [x] 4. Grep the repo for the same possibly-undefined `toContain` shape and fix any other instance — validate: name what you searched and what you found, including "nothing else" if that is the answer.
+- [x] 5. Restore `app.routes.ts` byte-for-byte — validate: `git diff src/app/app.routes.ts` is empty.
+- [x] 6. Repeat the Red for `organizerGuard`, `verifiedEmailGuard`, `firstVisitHomeGuard` and `markVisitedGuard`, restoring each — validate: each fails, then the suite is green.
+- [x] 7. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
 
 ## Outputs
 
@@ -98,8 +98,8 @@ Run: `npm run test -- data-mode-routes`
 
 ## Validation
 
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] each of the five guards was shown to fail the suite when unwired, and the report says so per guard
-- [ ] `git diff src/app/app.routes.ts` is empty at the end
-- [ ] app functional — no shipped behaviour changed
-- [ ] commit msg draft: `test(routes): fail when a route guard is unwired`
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass
+- [x] each of the five guards was shown to fail the suite when unwired, and the report says so per guard
+- [x] `git diff src/app/app.routes.ts` is empty at the end
+- [x] app functional — no shipped behaviour changed
+- [x] commit msg draft: `test(routes): fail when a route guard is unwired`

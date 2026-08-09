@@ -90,7 +90,7 @@ describe('route exposure per capability flag', () => {
 
   it('guards the account route', () => {
     const accountRoute = buildRoutes(allCapabilities).find((route) => route.path === 'settings/account');
-    expect(accountRoute?.canActivate).toContain(userGuard);
+    expect(accountRoute?.canActivate ?? [], 'settings/account should be guarded by userGuard').toContain(userGuard);
   });
 
   it('exposes no auth, registration, organizer or admin route while the flags are off', () => {
@@ -127,8 +127,8 @@ describe('route exposure per capability flag', () => {
   it('guards tournaments/new with userGuard and verifiedEmailGuard', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'tournaments/new');
     expect(route).toBeDefined();
-    expect(route!.canActivate).toContain(userGuard);
-    expect(route!.canActivate).toContain(verifiedEmailGuard);
+    expect(route!.canActivate ?? [], 'tournaments/new should be guarded by userGuard').toContain(userGuard);
+    expect(route!.canActivate ?? [], 'tournaments/new should be guarded by verifiedEmailGuard').toContain(verifiedEmailGuard);
   });
 
   it('redirects the organizer create path to tournaments/new', () => {
@@ -138,17 +138,17 @@ describe('route exposure per capability flag', () => {
 
   it('keeps the organizer edit path guarded by organizerGuard', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'organizer/tournaments/:id/edit');
-    expect(route?.canActivate).toContain(organizerGuard);
+    expect(route?.canActivate ?? [], 'organizer/tournaments/:id/edit should be guarded by organizerGuard').toContain(organizerGuard);
   });
 
   it('redirects the home route to /about on the first visit', () => {
     const homeRoute = buildRoutes(noCapabilities).find((route) => route.path === '');
-    expect(homeRoute?.canActivate).toContain(firstVisitHomeGuard);
+    expect(homeRoute?.canActivate ?? [], "'' should be guarded by firstVisitHomeGuard").toContain(firstVisitHomeGuard);
   });
 
   it('marks the visit when landing on /about', () => {
     const aboutRoute = buildRoutes(noCapabilities).find((route) => route.path === 'about');
-    expect(aboutRoute?.canActivate).toContain(markVisitedGuard);
+    expect(aboutRoute?.canActivate ?? [], "about should be guarded by markVisitedGuard").toContain(markVisitedGuard);
   });
 
   it('leaves deep links like /calendar untouched by the first-visit guard', () => {
