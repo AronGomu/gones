@@ -57,6 +57,58 @@
 - Cypress selectors currently asserted: `grep -rhno "data-cy=[^]\"']*" cypress/e2e/ | sort -u` gives the exact set that must not change.
 - **From Depends:** T3, T4, T10, T11, T19, T21, T22 and T24 each removed their own file from the allowlist and left their components compliant. T24 also renamed several paths, so the allowlist entries were repathed there.
 
+### Environment facts inlined by the parent — verified at `7479ab9`
+
+- **The allowlist holds 24 entries, not the 25 listed above.**
+  `src/app/shared/offline-banner.component.ts` is **already compliant and absent from the array** — do not go looking
+  for it. Read the array itself; it is the work list. `live-tournament-runner.component.ts` is **1028** lines (the
+  ticket says 999), `about.component.ts` 246, `public-tournament-detail.component.ts` 226, `dialogs.ts` only 33.
+- **`npm run cy:run` cannot run on this host** — bare `cypress run` dies with
+  `libglib-2.0.so.0: cannot open shared object file`, and most specs only pass under the release topology on 8081.
+  Wherever this ticket says `npm run cy:run` (Test plan row 6, Impl step 11, the Validation line), the real gate is
+  **`npm run e2e:ci`**, which rebuilds the release profile, resolves the NixOS `LD_LIBRARY_PATH` itself and seeds the
+  auth fixture. Impl step 17 already names it. **T25b left it green: 18 specs, 18 pass, 0 fail.** Your job is to keep
+  it that way — any red spec after your sweep is yours.
+- **The auth rate limit does not constrain `e2e:ci`** (`scripts/full-stack-ci.mjs:14` sets
+  `GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: '1000'`). Run the gate as often as you need. The 5-per-15-minute limit only
+  bites specs hand-run against the dev API on 5080.
+- **The ngsw trap that cost this plan five red specs — know it before you touch a spec.** On the release build the
+  service worker answers the navigation request from its own cache, so the document never travels through the Cypress
+  proxy and **`cy.visit`'s `onBeforeLoad` is silently never called** — no error, no seed. T25b's fix pattern is to seed
+  from the loaded window via `cy.window()` as well. If your sweep obliges you to touch a spec, follow that pattern; do
+  not re-introduce an `onBeforeLoad`-only seed.
+- **Two carried questions this ticket owns and must decide, not inherit:**
+  1. `findDuplicateDataCy` is **textual** and does not understand mutually exclusive `@if` branches. The login and
+     register arms of `auth-entry.component.ts` legitimately render the same ids (`auth-email`, `auth-password`,
+     `auth-submit`) and Cypress selects on them; T4 kept the rendered DOM identical by switching the register arm to
+     `[attr.data-cy]="'auth-email'"` bindings, which the static scan cannot see. That is a workaround, not a fix.
+     **Decide: teach the check about exclusive branches, or accept the binding form as intentional and say so in the
+     test.** Either is defensible; leaving it undocumented is not.
+  2. T10 emits `[attr.data-cy]="'account-location-city-' + city"`, so attribute values contain spaces and apostrophes
+     (`L'Arbresle`, `Montier-en-l'Isle`). **Decide whether to slugify.** Note a slugified value changes what a future
+     spec would select on — no spec selects these today.
+- **Two carried items are already resolved — do not spend time on them:**
+  - `profile.location` is **still used** (`account-settings.component.ts:11`); T10 reused it. **Do not delete it.**
+  - `profile.currentPasswordOptional` appears **only** in `src/app/i18n/messages.ts` (both maps) and is genuinely
+    dead. Safe to delete if you want the tidy-up; it is optional.
+- **Out of scope — record in the release notes as known gaps, do not fix here:**
+  - `readOnly()`, `live.readOnly` and the `live-read-only` / `live-list-read-only` selectors became unreachable after
+    T20. Removing unreachable UI is a behaviour change, which this ticket's Context forbids. `live-server.cy.js:378`
+    still asserts `live-list-read-only` `should('not.exist')`, so it stays green either way.
+  - `scripts/smoke-notification.mjs` deletes the outbox row but not its `notification_history` child, so the **second**
+    run in any database fails on the FK.
+  - **The tournament proposal flow has never been proved end to end against the live stack.** The two proposal tables
+    have no grants for the local `gones_app` role — the compose `permissions` service ran before those tables existed
+    (fix would be `docker compose up -d permissions`). T19's Cypress is intercept-based precisely because of this.
+- **Step 15 lists six ADRs; there are seven.** T9b added
+  `docs/adr/0027-external-identity-link-without-reauthentication.md`, which records a real security trade-off (the
+  OAuth link/unlink password step-up was removed). The release notes must name it too.
+- **There is no en/fr key-parity test** in this repo, so a one-sided i18n addition ships silently. Several tickets
+  proved parity by grep only. Adding such a test is cheap and squarely in this ticket's "prove the release" spirit —
+  optional, but say whether you did.
+- **No Angular `TestBed`, no zone.js**, `@angular/common/http/testing` not installed. Template-shape claims are
+  asserted by reading the source with `readFileSync` (see `data-cy-coverage.test.ts` itself).
+
 ## TDD
 
 1. **Red** — set `PENDING_DATA_CY_RETROFIT = []` and run `npm run test -- data-cy-coverage`; the failure list is the work list.
@@ -72,9 +124,9 @@
 | `no duplicate identifiers per file` | all component files | no duplicates |
 | `existing cypress selectors survive` | the selector set captured before the sweep | every one still found in `src/app/**` |
 | `acceptance matrix is valid` | `npm run acceptance:matrix` | exit 0, no `deferred` row introduced by this plan |
-| `full cypress suite` | `npm run cy:run` | green |
+| `full cypress suite` | `npm run e2e:ci` | green — 18 specs, 18 pass (T25b's baseline) |
 
-Run: `npm run test -- data-cy-coverage` then `npm run acceptance:matrix` then `npm run cy:run`
+Run: `npm run test -- data-cy-coverage` then `npm run acceptance:matrix` then `npm run e2e:ci`
 
 ## Impl steps
 
@@ -82,17 +134,19 @@ Run: `npm run test -- data-cy-coverage` then `npm run acceptance:matrix` then `n
 - [ ] 2. Set `PENDING_DATA_CY_RETROFIT = []` in `src/app/shared/data-cy-coverage.test.ts`.
 - [ ] 3. Run `npm run test -- data-cy-coverage` and save the failing file list.
 - [ ] 4. Sweep the files one at a time, in the order listed in Inputs. For each: add `data-cy` to every element the test names, using a kebab-case value prefixed by the component's feature (`admin-users-`, `live-runner-`, `about-`, `ranking-`, …), and `[attr.data-cy]` with an interpolated key for elements inside `@for` blocks.
-- [ ] 5. `src/app/features/live-tournaments/live-tournament-runner.component.ts` is 999 lines — sweep it in a dedicated pass and re-run the coverage test after it alone, before moving on.
+- [ ] 5. `src/app/features/live-tournaments/live-tournament-runner.component.ts` is **1028** lines — sweep it in a dedicated pass and re-run the coverage test after it alone, before moving on.
 - [ ] 6. `src/app/features/menu/about.component.ts` is 246 lines of marketing markup — prefix everything `about-` and number repeated blocks by index.
 - [ ] 7. `src/app/shared/dialogs.ts` holds `ConfirmDialogComponent`, used by many call sites; give it stable values (`confirm-dialog-title`, `confirm-dialog-message`, `confirm-dialog-cancel`, `confirm-dialog-confirm`) and check no Cypress spec already asserts different ones.
 - [ ] 8. After each file, re-run `npm run test -- data-cy-coverage` so the failure list only ever shrinks.
 - [ ] 9. When the suite is green, re-run the baseline capture and `diff` it against `/tmp/gones-cy-selectors.txt`; the diff must be empty.
 - [ ] 10. Run `npm run lint && npm run typecheck && npm run build`.
-- [ ] 11. Run `npm run dev` then `npm run cy:run` in full and fix any spec the sweep disturbed by restoring the original identifier value, never by editing the spec.
+- [ ] 11. Run **`npm run e2e:ci`** in full (not `npm run dev` + `npm run cy:run`, which cannot run on this host) and fix
+  any spec the sweep disturbed by restoring the original identifier value, never by editing the spec. T25b left the
+  gate at 18/18 green — any red spec here is your sweep's doing.
 - [ ] 12. Update `ops/acceptance-matrix.json`: confirm a `proved` row exists for each capability this plan added — cookie session persistence (T2), account deletion (T6), the full-catalog calendar (T12/T13/T14), the tournament proposal flow (T16/T17/T19), the local Live store (T20), the first-visit redirect (T21) and the archive rename (T23/T24). Add any missing row with real evidence targets.
 - [ ] 13. Add a matrix row for the `data-cy` contract itself: gate `vitest`, target `src/app/shared/data-cy-coverage.test.ts`, detail "every rendered element carries a unique test identifier".
 - [ ] 14. Run `npm run acceptance:matrix`.
-- [ ] 15. Add a "Feedback release" section to `docs/RELEASE_NOTES_V1.md` listing, grouped by area, every user-visible change this plan shipped, and naming the six ADRs it rests on: `docs/adr/0021-role-scoped-browser-live-store.md`, `0022-rename-the-archived-league-feature.md`, `0023-full-catalog-calendar-cache.md`, `0024-tournament-proposal-signed-token-approval.md`, `0025-hard-account-deletion.md`, `0026-structured-profile-location-and-birth-date.md`.
+- [ ] 15. Add a "Feedback release" section to `docs/RELEASE_NOTES_V1.md` listing, grouped by area, every user-visible change this plan shipped, and naming the six ADRs it rests on: `docs/adr/0021-role-scoped-browser-live-store.md`, `0022-rename-the-archived-league-feature.md`, `0023-full-catalog-calendar-cache.md`, `0024-tournament-proposal-signed-token-approval.md`, `0025-hard-account-deletion.md`, `0026-structured-profile-location-and-birth-date.md` — **and `0027-external-identity-link-without-reauthentication.md`, which the step's list omits.** Seven, not six. 0027 records a real security trade-off (the OAuth link/unlink password step-up was removed) and belongs in a release note. Also record, under a "known gaps" heading, the three items the parent listed as out of scope in the environment facts.
 - [ ] 16. Run the full gate set: `npm run test && npm run lint && npm run typecheck && npm run build && npm run backend:test && npm run acceptance:matrix && npm run api:check`.
 - [ ] 17. Run `npm run e2e:ci` for the end-to-end release gate.
 
@@ -107,7 +161,7 @@ Run: `npm run test -- data-cy-coverage` then `npm run acceptance:matrix` then `n
 - [ ] `npm run test` passes with an empty allowlist
 - [ ] `npm run lint && npm run typecheck && npm run build` pass
 - [ ] `npm run backend:test` passes
-- [ ] `npm run cy:run` passes in full
+- [ ] `npm run e2e:ci` passes in full, 18/18 specs (this replaces `npm run cy:run`, unrunnable on this host)
 - [ ] `npm run acceptance:matrix` passes with no new `deferred` row
 - [ ] `npm run api:check` reports no drift
 - [ ] `npm run e2e:ci` passes
