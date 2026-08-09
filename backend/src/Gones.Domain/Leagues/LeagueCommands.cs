@@ -215,7 +215,7 @@ public static class LeagueCommands
     private static void RequireMutableName(string? name, string field)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name is required.", field);
-        if (name.Trim().Length > LeagueAggregate.MaximumNameLength) throw new ArgumentException($"Name cannot exceed {LeagueAggregate.MaximumNameLength} characters.", field);
+        if (name.Trim().Length > LeagueArchiveAggregate.MaximumNameLength) throw new ArgumentException($"Name cannot exceed {LeagueArchiveAggregate.MaximumNameLength} characters.", field);
     }
 
     private static void RequireLeagueName(string? name, string field)
@@ -226,7 +226,7 @@ public static class LeagueCommands
 
     private static void RequireNewId(IEnumerable<string> existing, string? id, string field)
     {
-        if (string.IsNullOrWhiteSpace(id) || id.Length > LeagueAggregate.MaximumDocumentIdLength) throw new ArgumentException("ID is invalid.", field);
+        if (string.IsNullOrWhiteSpace(id) || id.Length > LeagueArchiveAggregate.MaximumDocumentIdLength) throw new ArgumentException("ID is invalid.", field);
         if (existing.Contains(id, StringComparer.Ordinal)) throw new InvalidOperationException("ID already exists.");
     }
 

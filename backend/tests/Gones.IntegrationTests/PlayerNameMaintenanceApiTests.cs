@@ -38,15 +38,15 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });
             var now = Instant.FromUtc(2030, 1, 1, 12, 0);
-            database.LeagueAggregates.Add(LeagueAggregate.Create(LeagueWith("league-a", "League A", "active",
+            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(LeagueWith("league-a", "League A", "active",
                 Match("entry-1", "Alice", "Bob"),
                 new ByeRoundEntry("entry-2", "2", "alice", string.Empty)), now));
-            database.LeagueAggregates.Add(LeagueAggregate.Create(LeagueWith("league-b", "League B", "completed",
+            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(LeagueWith("league-b", "League B", "completed",
                 Match("entry-3", "Alice", "Cara")), now));
-            var deleted = LeagueAggregate.Create(LeagueWith("league-deleted", "Deleted League", "active",
+            var deleted = LeagueArchiveAggregate.Create(LeagueWith("league-deleted", "Deleted League", "active",
                 Match("entry-4", "Alice", "Dana")), now);
             deleted.SoftDelete(now);
-            database.LeagueAggregates.Add(deleted);
+            database.LeagueArchiveAggregates.Add(deleted);
             await database.SaveChangesAsync();
         }
 
@@ -114,7 +114,7 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.False(noMerge.GetProperty("mergesWithExistingPlayer").GetBoolean());
 
         await using var database = CreateContext();
-        Assert.True(await database.LeagueAggregates.AllAsync(item => item.Version == 1), "preview must not mutate League documents");
+        Assert.True(await database.LeagueArchiveAggregates.AllAsync(item => item.Version == 1), "preview must not mutate League documents");
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         await using (var database = CreateContext())
         {
-            Assert.True(await database.LeagueAggregates.AllAsync(item => item.Version == 1), "failed rename must not mutate any League");
+            Assert.True(await database.LeagueArchiveAggregates.AllAsync(item => item.Version == 1), "failed rename must not mutate any League");
         }
 
         using var missing = await SendAsync(HttpMethod.Post, "/api/maintenance/player-names/rename", new { fromName = "Nobody Here", toName = "Someone" }, "Organizer");
@@ -141,9 +141,9 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
 
         await using (var database = CreateContext())
         {
-            var leagueA = await database.LeagueAggregates.SingleAsync(item => item.DocumentId == "league-a");
-            var leagueB = await database.LeagueAggregates.SingleAsync(item => item.DocumentId == "league-b");
-            var deleted = await database.LeagueAggregates.SingleAsync(item => item.DocumentId == "league-deleted");
+            var leagueA = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "league-a");
+            var leagueB = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "league-b");
+            var deleted = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "league-deleted");
             Assert.Equal(2, leagueA.Version);
             Assert.Equal(2, leagueB.Version);
             Assert.Equal(1, deleted.Version);

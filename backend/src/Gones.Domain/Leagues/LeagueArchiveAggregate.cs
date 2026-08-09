@@ -5,7 +5,7 @@ using NodaTime;
 
 namespace Gones.Domain.Leagues;
 
-public sealed class LeagueAggregate : VersionedEntity
+public sealed class LeagueArchiveAggregate : VersionedEntity
 {
     public const int MaximumDocumentIdLength = 200;
     public const int MaximumNameLength = 200;
@@ -22,10 +22,10 @@ public sealed class LeagueAggregate : VersionedEntity
     public Instant? DeletedAt { get; private set; }
     public string CanonicalDocument { get; private set; } = null!;
 
-    public static LeagueAggregate Create(LeagueDocument document, Instant now)
+    public static LeagueArchiveAggregate Create(LeagueDocument document, Instant now)
     {
         ValidateDocument(document);
-        return new LeagueAggregate
+        return new LeagueArchiveAggregate
         {
             DocumentId = document.Id,
             Name = document.Name,
@@ -35,7 +35,7 @@ public sealed class LeagueAggregate : VersionedEntity
         };
     }
 
-    public static LeagueAggregate FromCanonicalDocument(
+    public static LeagueArchiveAggregate FromCanonicalDocument(
         string documentId,
         string name,
         string status,

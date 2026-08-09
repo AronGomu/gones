@@ -74,7 +74,7 @@ function census() {
   const ids = (values) => values.map((value) => `'${value}'`).join(',');
   return psql(`
     SELECT
-      (SELECT count(*) FROM league_aggregates WHERE document_id IN (${ids(sources.map((source) => source.leagueId))})) || '|' ||
+      (SELECT count(*) FROM league_archive_aggregates WHERE document_id IN (${ids(sources.map((source) => source.leagueId))})) || '|' ||
       (SELECT count(*) FROM live_aggregates WHERE document_id IN (${ids(sources.map((source) => source.liveId))})) || '|' ||
       (SELECT count(*) FROM scheduled_tournaments WHERE slug IN (${ids(sources.map((source) => source.slug))})) || '|' ||
       (SELECT count(*) FROM deck_archetypes WHERE normalized_name IN (${ids(sources.map((source) => source.archetypeKey))})) || '|' ||

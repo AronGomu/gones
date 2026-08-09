@@ -8,7 +8,7 @@ using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
-public sealed class LeagueAggregatePersistenceTests : IAsyncLifetime
+public sealed class LeagueArchiveAggregatePersistenceTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
 
@@ -21,18 +21,18 @@ public sealed class LeagueAggregatePersistenceTests : IAsyncLifetime
         await using var database = CreateContext();
         await database.Database.MigrateAsync();
         var document = FixtureLeague("roundtrip-league");
-        var aggregate = LeagueAggregate.Create(document, Instant.FromUtc(2026, 8, 3, 10, 0));
-        database.LeagueAggregates.Add(aggregate);
+        var aggregate = LeagueArchiveAggregate.Create(document, Instant.FromUtc(2026, 8, 3, 10, 0));
+        database.LeagueArchiveAggregates.Add(aggregate);
         await database.SaveChangesAsync();
         database.ChangeTracker.Clear();
 
-        var persisted = await database.LeagueAggregates.SingleAsync(item => item.DocumentId == document.Id);
+        var persisted = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == document.Id);
         Assert.True(JsonNode.DeepEquals(LeagueJson.ToNode(document), LeagueJson.ToNode(persisted.ReadDocument())));
         Assert.True(JsonNode.DeepEquals(JsonNode.Parse(LeagueJson.Serialize(document)), JsonNode.Parse(persisted.CanonicalDocument)));
         Assert.Equal(document.Name, persisted.Name);
         Assert.Equal(document.Status, persisted.Status);
         Assert.Equal(1, persisted.Version);
-        Assert.Equal("jsonb", await ScalarAsync(database, "SELECT udt_name FROM information_schema.columns WHERE table_name = 'league_aggregates' AND column_name = 'canonical_document'"));
+        Assert.Equal("jsonb", await ScalarAsync(database, "SELECT udt_name FROM information_schema.columns WHERE table_name = 'league_archive_aggregates' AND column_name = 'canonical_document'"));
         var indexes = await IndexesAsync(database);
         Assert.Contains(indexes, value => value.Contains("document_id", StringComparison.Ordinal) && value.Contains("UNIQUE", StringComparison.Ordinal));
         Assert.Contains(indexes, value => value.Contains("deleted_at", StringComparison.Ordinal) && value.Contains("updated_at", StringComparison.Ordinal));
@@ -46,17 +46,17 @@ public sealed class LeagueAggregatePersistenceTests : IAsyncLifetime
         await using var database = CreateContext();
         await database.Database.MigrateAsync();
 
-        var placeholders = await database.LeagueAggregates.Where(item => item.DocumentId == LeagueNormalizer.PlaceholderLeagueId).ToListAsync();
+        var placeholders = await database.LeagueArchiveAggregates.Where(item => item.DocumentId == LeagueNormalizer.PlaceholderLeagueId).ToListAsync();
         var placeholder = Assert.Single(placeholders);
         Assert.True(JsonNode.DeepEquals(
             LeagueJson.ToNode(LeagueNormalizer.CreatePlaceholderLeague()),
             LeagueJson.ToNode(placeholder.ReadDocument())));
-        Assert.False(await database.LeagueAggregates.AnyAsync(item => item.Name == "Tournois non assignés"));
-        Assert.Throws<ArgumentException>(() => LeagueAggregate.Create(
+        Assert.False(await database.LeagueArchiveAggregates.AnyAsync(item => item.Name == "Tournois non assignés"));
+        Assert.Throws<ArgumentException>(() => LeagueArchiveAggregate.Create(
             new LeagueDocument("translated-placeholder", "Tournois non assignés", "active", []),
             SystemClock.Instance.GetCurrentInstant()));
 
-        database.LeagueAggregates.Add(LeagueAggregate.Create(LeagueNormalizer.CreatePlaceholderLeague(), SystemClock.Instance.GetCurrentInstant()));
+        database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(LeagueNormalizer.CreatePlaceholderLeague(), SystemClock.Instance.GetCurrentInstant()));
         var duplicate = await Assert.ThrowsAsync<DbUpdateException>(() => database.SaveChangesAsync());
         Assert.Equal(PostgresErrorCodes.UniqueViolation, ((PostgresException)duplicate.InnerException!).SqlState);
     }
@@ -66,8 +66,8 @@ public sealed class LeagueAggregatePersistenceTests : IAsyncLifetime
     {
         await using var database = CreateContext();
         await database.Database.MigrateAsync();
-        var aggregate = LeagueAggregate.Create(FixtureLeague("deleted-league"), Instant.FromUtc(2026, 8, 3, 10, 0));
-        database.LeagueAggregates.Add(aggregate);
+        var aggregate = LeagueArchiveAggregate.Create(FixtureLeague("deleted-league"), Instant.FromUtc(2026, 8, 3, 10, 0));
+        database.LeagueArchiveAggregates.Add(aggregate);
         await database.SaveChangesAsync();
 
         aggregate.SoftDelete(Instant.FromUtc(2026, 8, 3, 11, 0));
@@ -75,20 +75,20 @@ public sealed class LeagueAggregatePersistenceTests : IAsyncLifetime
 
         Assert.Equal(2, aggregate.Version);
         Assert.Equal(Instant.FromUtc(2026, 8, 3, 11, 0), aggregate.DeletedAt);
-        Assert.Equal(0, await database.LeagueAggregates.CountAsync(item => item.DeletedAt == null && item.DocumentId == "deleted-league"));
+        Assert.Equal(0, await database.LeagueArchiveAggregates.CountAsync(item => item.DeletedAt == null && item.DocumentId == "deleted-league"));
     }
 
     [Fact]
     public void Malformed_mismatched_and_oversized_documents_are_rejected()
     {
-        Assert.Throws<ArgumentException>(() => LeagueAggregate.Create(
+        Assert.Throws<ArgumentException>(() => LeagueArchiveAggregate.Create(
             new LeagueDocument("bad", "", "unknown", []), SystemClock.Instance.GetCurrentInstant()));
-        Assert.Throws<ArgumentException>(() => LeagueAggregate.FromCanonicalDocument(
+        Assert.Throws<ArgumentException>(() => LeagueArchiveAggregate.FromCanonicalDocument(
             "expected", "Expected", "active", "{\"id\":", SystemClock.Instance.GetCurrentInstant()));
-        Assert.Throws<ArgumentException>(() => LeagueAggregate.FromCanonicalDocument(
+        Assert.Throws<ArgumentException>(() => LeagueArchiveAggregate.FromCanonicalDocument(
             "expected", "Expected", "active", "{\"id\":\"other\",\"name\":\"Expected\",\"status\":\"active\",\"tournaments\":[]}", SystemClock.Instance.GetCurrentInstant()));
-        Assert.Throws<ArgumentException>(() => LeagueAggregate.FromCanonicalDocument(
-            "large", "Large", "active", $"{{\"id\":\"large\",\"name\":\"Large\",\"status\":\"active\",\"tournaments\":[],\"padding\":\"{new string('x', LeagueAggregate.MaximumDocumentBytes)}\"}}", SystemClock.Instance.GetCurrentInstant()));
+        Assert.Throws<ArgumentException>(() => LeagueArchiveAggregate.FromCanonicalDocument(
+            "large", "Large", "active", $"{{\"id\":\"large\",\"name\":\"Large\",\"status\":\"active\",\"tournaments\":[],\"padding\":\"{new string('x', LeagueArchiveAggregate.MaximumDocumentBytes)}\"}}", SystemClock.Instance.GetCurrentInstant()));
     }
 
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>()
@@ -114,7 +114,7 @@ public sealed class LeagueAggregatePersistenceTests : IAsyncLifetime
     {
         await database.Database.OpenConnectionAsync();
         await using var command = database.Database.GetDbConnection().CreateCommand();
-        command.CommandText = "SELECT indexdef FROM pg_indexes WHERE tablename = 'league_aggregates' ORDER BY indexname";
+        command.CommandText = "SELECT indexdef FROM pg_indexes WHERE tablename = 'league_archive_aggregates' ORDER BY indexname";
         await using var reader = await command.ExecuteReaderAsync();
         var values = new List<string>();
         while (await reader.ReadAsync()) values.Add(reader.GetString(0));

@@ -105,7 +105,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         Assert.True(outcome.Verification.DerivedResultSamples > 0);
 
         await using var verify = CreateContext();
-        Assert.Equal(1, await verify.LeagueAggregates.CountAsync(aggregate => aggregate.DocumentId == "league-1"));
+        Assert.Equal(1, await verify.LeagueArchiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "league-1"));
         Assert.Equal(1, await verify.LiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "live-1"));
         var scheduled = await verify.ScheduledTournaments.Include(item => item.Formats).SingleAsync(item => item.Slug == "summer-cup");
         Assert.Equal(seed.Organization.Id, scheduled.OrganizationId);
@@ -144,7 +144,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         Assert.Equal(imported.ResultJson, rerun.ResultJson);
 
         await using var verify = CreateContext();
-        Assert.Equal(1, await verify.LeagueAggregates.CountAsync(aggregate => aggregate.DocumentId == "league-1"));
+        Assert.Equal(1, await verify.LeagueArchiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "league-1"));
         Assert.Equal(1, await verify.LiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "live-1"));
         Assert.Equal(1, await verify.ScheduledTournaments.CountAsync(item => item.Slug == "summer-cup"));
         Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(record => record.Scope == MigrationImportService.IdempotencyScope));
@@ -204,7 +204,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
     {
         await using var db = CreateContext();
         return new RowCensus(
-            await db.LeagueAggregates.CountAsync(),
+            await db.LeagueArchiveAggregates.CountAsync(),
             await db.LiveAggregates.CountAsync(),
             await db.ScheduledTournaments.CountAsync(),
             await db.DeckArchetypes.CountAsync(),
@@ -217,7 +217,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
     {
         Assert.Equal(baseline, await CensusAsync());
         await using var db = CreateContext();
-        Assert.False(await db.LeagueAggregates.AnyAsync(aggregate => aggregate.DocumentId == "league-1"));
+        Assert.False(await db.LeagueArchiveAggregates.AnyAsync(aggregate => aggregate.DocumentId == "league-1"));
         Assert.False(await db.LiveAggregates.AnyAsync(aggregate => aggregate.DocumentId == "live-1"));
         Assert.False(await db.ScheduledTournaments.AnyAsync(item => item.Slug == "summer-cup"));
         Assert.False(await db.DeckArchetypes.AnyAsync(archetype => archetype.NormalizedName == "tempo"));

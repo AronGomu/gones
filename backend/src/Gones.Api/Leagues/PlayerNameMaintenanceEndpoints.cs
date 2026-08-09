@@ -113,12 +113,12 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
     {
         var (from, to) = RequireNames(fromName, toName);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var aggregates = await database.LeagueAggregates
-            .FromSqlRaw("SELECT * FROM league_aggregates WHERE deleted_at IS NULL ORDER BY document_id FOR UPDATE")
+        var aggregates = await database.LeagueArchiveAggregates
+            .FromSqlRaw("SELECT * FROM league_archive_aggregates WHERE deleted_at IS NULL ORDER BY document_id FOR UPDATE")
             .ToListAsync(cancellationToken);
 
         var now = clock.GetCurrentInstant();
-        var affected = new List<LeagueAggregate>();
+        var affected = new List<LeagueArchiveAggregate>();
         var affectedOccurrences = 0;
         foreach (var aggregate in aggregates)
         {
@@ -157,8 +157,8 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
         return new PlayerRenameCommitResponse(from, to, results.Length, affectedOccurrences, results);
     }
 
-    private async Task<IReadOnlyList<LeagueAggregate>> ActiveAggregatesAsync(CancellationToken cancellationToken) =>
-        await database.LeagueAggregates.AsNoTracking()
+    private async Task<IReadOnlyList<LeagueArchiveAggregate>> ActiveAggregatesAsync(CancellationToken cancellationToken) =>
+        await database.LeagueArchiveAggregates.AsNoTracking()
             .Where(item => item.DeletedAt == null)
             .OrderBy(item => item.DocumentId)
             .ToListAsync(cancellationToken);

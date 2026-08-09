@@ -74,7 +74,7 @@
         }
       }
     },
-    "/api/leagues": {
+    "/api/leagues-archive": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
@@ -149,7 +149,7 @@
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "CreateLeague",
+        "operationId": "CreateLeagueArchive",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -183,7 +183,7 @@
         }
       }
     },
-    "/api/leagues/{id}": {
+    "/api/leagues-archive/{id}": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
@@ -238,7 +238,7 @@
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "DeleteLeague",
+        "operationId": "DeleteLeagueArchive",
         "parameters": [
           {
             "name": "id",
@@ -270,7 +270,7 @@
         }
       }
     },
-    "/api/leagues/{id}/result": {
+    "/api/leagues-archive/{id}/result": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
@@ -312,7 +312,7 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
@@ -365,7 +365,7 @@
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "EditResultTournament",
+        "operationId": "EditArchiveTournament",
         "parameters": [
           {
             "name": "id",
@@ -418,7 +418,7 @@
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "DeleteResultTournament",
+        "operationId": "DeleteArchiveTournament",
         "parameters": [
           {
             "name": "id",
@@ -458,7 +458,7 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/result": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/result": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
@@ -508,7 +508,7 @@
         }
       }
     },
-    "/api/leagues/{id}/players/{playerName}/statistics": {
+    "/api/leagues-archive/{id}/players/{playerName}/statistics": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
@@ -582,7 +582,7 @@
         }
       }
     },
-    "/api/leagues/{id}/export": {
+    "/api/leagues-archive/{id}/export": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
@@ -2237,12 +2237,12 @@
         }
       }
     },
-    "/api/leagues/{id}/name": {
+    "/api/leagues-archive/{id}/name": {
       "patch": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "RenameLeague",
+        "operationId": "RenameLeagueArchive",
         "parameters": [
           {
             "name": "id",
@@ -2284,12 +2284,12 @@
         }
       }
     },
-    "/api/leagues/{id}/status": {
+    "/api/leagues-archive/{id}/status": {
       "patch": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "ChangeLeagueStatus",
+        "operationId": "ChangeLeagueArchiveStatus",
         "parameters": [
           {
             "name": "id",
@@ -2331,12 +2331,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments": {
+    "/api/leagues-archive/{id}/tournaments-archive": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "CreateResultTournament",
+        "operationId": "CreateArchiveTournament",
         "parameters": [
           {
             "name": "id",
@@ -2378,12 +2378,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/move": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/move": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "MoveResultTournament",
+        "operationId": "MoveArchiveTournament",
         "parameters": [
           {
             "name": "id",
@@ -2440,12 +2440,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/rounds": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "AddResultRound",
+        "operationId": "AddArchiveRound",
         "parameters": [
           {
             "name": "id",
@@ -2485,12 +2485,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}": {
       "delete": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "DeleteResultRound",
+        "operationId": "DeleteArchiveRound",
         "parameters": [
           {
             "name": "id",
@@ -2538,12 +2538,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/import": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/import": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "ImportResultRound",
+        "operationId": "ImportArchiveRound",
         "parameters": [
           {
             "name": "id",
@@ -2601,12 +2601,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/replace": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/replace": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "ReplaceResultRound",
+        "operationId": "ReplaceArchiveRound",
         "parameters": [
           {
             "name": "id",
@@ -2664,12 +2664,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "AddResultEntry",
+        "operationId": "AddArchiveEntry",
         "parameters": [
           {
             "name": "id",
@@ -2727,12 +2727,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries/{entryId}": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries/{entryId}": {
       "patch": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "EditResultEntry",
+        "operationId": "EditArchiveEntry",
         "parameters": [
           {
             "name": "id",
@@ -2801,7 +2801,7 @@
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "DeleteResultEntry",
+        "operationId": "DeleteArchiveEntry",
         "parameters": [
           {
             "name": "id",
@@ -2857,12 +2857,12 @@
         }
       }
     },
-    "/api/leagues/{id}/tournaments/{tournamentId}/archetypes/{playerName}": {
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/archetypes/{playerName}": {
       "patch": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "UpdateResultPlayerArchetype",
+        "operationId": "UpdateArchivePlayerArchetype",
         "parameters": [
           {
             "name": "id",
@@ -2920,12 +2920,12 @@
         }
       }
     },
-    "/api/leagues/{id}/players/rename": {
+    "/api/leagues-archive/{id}/players/rename": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "RenameLeaguePlayerName",
+        "operationId": "RenameLeagueArchivePlayerName",
         "parameters": [
           {
             "name": "id",
@@ -2967,12 +2967,12 @@
         }
       }
     },
-    "/api/leagues/restore": {
+    "/api/leagues-archive/restore": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "RestoreLeague",
+        "operationId": "RestoreLeagueArchive",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -3006,12 +3006,12 @@
         }
       }
     },
-    "/api/leagues/restore-full": {
+    "/api/leagues-archive/restore-full": {
       "post": {
         "tags": [
           "LeagueCommandEndpoints"
         ],
-        "operationId": "RestoreFullLeagueData",
+        "operationId": "RestoreFullLeagueArchiveData",
         "parameters": [
           {
             "name": "Idempotency-Key",

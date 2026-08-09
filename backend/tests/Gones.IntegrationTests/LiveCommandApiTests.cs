@@ -37,7 +37,7 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });
-            database.LeagueAggregates.Add(Gones.Domain.Leagues.LeagueAggregate.Create(
+            database.LeagueArchiveAggregates.Add(Gones.Domain.Leagues.LeagueArchiveAggregate.Create(
                 new Gones.Domain.Leagues.LeagueDocument("target-league", "Target League", "active", []),
                 NodaTime.Instant.FromUtc(2030, 1, 1, 12, 0)));
             await database.SaveChangesAsync();
@@ -318,7 +318,7 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
             var live = await database.LiveAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == id);
             Assert.NotNull(live.DeletedAt);
             Assert.Equal("completed", live.Stage);
-            var target = await database.LeagueAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == "target-league");
+            var target = await database.LeagueArchiveAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == "target-league");
             var tournament = target.ReadDocument().Tournaments.Single(item => item.Id == tournamentId);
             Assert.Equal("target-league", tournament.LeagueId);
             Assert.Single(tournament.Rounds);
@@ -357,7 +357,7 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
         var body = await Body(finalized);
         Assert.Equal("placeholder-league", body.GetProperty("leagueId").GetString());
         await using var database = CreateContext();
-        var placeholder = await database.LeagueAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == "placeholder-league");
+        var placeholder = await database.LeagueArchiveAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == "placeholder-league");
         Assert.Contains(placeholder.ReadDocument().Tournaments, item => item.Id == body.GetProperty("finalizedTournamentId").GetString());
     }
 

@@ -24,6 +24,16 @@ _Avoid_: Running league
 A League whose tournament source data is preserved for review and no longer receives normal tournament source-data edits.
 _Avoid_: Finished league
 
+**League Archive**:
+The stored archive of Leagues and their past Tournament results, kept for standings and Player Statistics. It is served under `/api/leagues-archive` and persisted in `league_archive_aggregates` (ADR 0022). **League** stays the word for a single collection inside it.
+_Formerly_: the Leagues feature, `/api/leagues`
+_Avoid_: Calendar, Live Tournament
+
+**Archive Tournament**:
+A historical result Tournament stored inside the League Archive, served under the `/tournaments-archive` path segment (ADR 0022). Distinct from the Calendar Tournament people register for and from a Live Tournament being run.
+_Formerly_: Result Tournament
+_Avoid_: Scheduled Tournament
+
 **Tournament Import**:
 The act of bringing externally formatted tournament data into Gones.
 _Avoid_: Scrapping, crawl, raw text

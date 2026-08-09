@@ -21,39 +21,39 @@ internal static class PublicLeagueEndpoints
 
     public static void MapPublicLeagueEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/leagues", ListAsync)
+        app.MapGet("/api/leagues-archive", ListAsync)
             .AllowAnonymous()
             .Produces<PublicLeagueListResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest);
-        app.MapGet("/api/leagues/{id}", GetAsync)
+        app.MapGet("/api/leagues-archive/{id}", GetAsync)
             .AllowAnonymous()
             .Produces<PublicLeagueDetailResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
-        app.MapGet("/api/leagues/{id}/result", GetLeagueResultAsync)
+        app.MapGet("/api/leagues-archive/{id}/result", GetLeagueResultAsync)
             .AllowAnonymous()
             .Produces<LeagueResult>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status404NotFound);
-        app.MapGet("/api/leagues/{id}/tournaments/{tournamentId}", GetTournamentAsync)
+        app.MapGet("/api/leagues-archive/{id}/tournaments-archive/{tournamentId}", GetTournamentAsync)
             .AllowAnonymous()
             .Produces<TournamentDocument>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status404NotFound);
-        app.MapGet("/api/leagues/{id}/tournaments/{tournamentId}/result", GetTournamentResultAsync)
+        app.MapGet("/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/result", GetTournamentResultAsync)
             .AllowAnonymous()
             .Produces<TournamentResult>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status404NotFound);
-        app.MapGet("/api/leagues/{id}/players/{playerName}/statistics", GetPlayerStatisticsAsync)
+        app.MapGet("/api/leagues-archive/{id}/players/{playerName}/statistics", GetPlayerStatisticsAsync)
             .AllowAnonymous()
             .Produces<PlayerStatistics>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound);
-        app.MapGet("/api/leagues/{id}/export", ExportLeagueAsync)
+        app.MapGet("/api/leagues-archive/{id}/export", ExportLeagueAsync)
             .AllowAnonymous()
             .Produces<LeagueExportResponse>()
             .Produces(StatusCodes.Status304NotModified)
@@ -77,7 +77,7 @@ internal static class PublicLeagueEndpoints
         if (search?.Length > MaximumSearchLength) throw Validation("search", $"Search must be at most {MaximumSearchLength} characters.");
         if (status is not null && status is not ("active" or "completed")) throw Validation("status", "Status must be active or completed.");
 
-        var query = database.LeagueAggregates.AsNoTracking().Where(aggregate => aggregate.DeletedAt == null);
+        var query = database.LeagueArchiveAggregates.AsNoTracking().Where(aggregate => aggregate.DeletedAt == null);
         if (status is not null) query = query.Where(aggregate => aggregate.Status == status);
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -210,17 +210,17 @@ internal static class PublicLeagueEndpoints
             document));
     }
 
-    private static IResult Derived<T>(HttpRequest request, HttpResponse response, LeagueAggregate aggregate, string representation, T value)
+    private static IResult Derived<T>(HttpRequest request, HttpResponse response, LeagueArchiveAggregate aggregate, string representation, T value)
     {
         var etag = HashETag($"{aggregate.Version}:{representation}");
         SetPublicCache(response, etag);
         return IsNotModified(request, etag) ? Results.StatusCode(StatusCodes.Status304NotModified) : Results.Ok(value);
     }
 
-    private static async Task<LeagueAggregate> LoadAsync(string id, GonesDbContext database, CancellationToken cancellationToken)
+    private static async Task<LeagueArchiveAggregate> LoadAsync(string id, GonesDbContext database, CancellationToken cancellationToken)
     {
         ValidateRouteValue(id, nameof(id));
-        return await database.LeagueAggregates.AsNoTracking()
+        return await database.LeagueArchiveAggregates.AsNoTracking()
             .SingleOrDefaultAsync(aggregate => aggregate.DocumentId == id && aggregate.DeletedAt == null, cancellationToken)
             ?? throw new ResourceNotFoundException();
     }
@@ -229,7 +229,7 @@ internal static class PublicLeagueEndpoints
         league.Tournaments.SingleOrDefault(tournament => tournament.Id == tournamentId)
         ?? throw new ResourceNotFoundException();
 
-    private static void ValidateRouteValue(string value, string field, int maximumLength = LeagueAggregate.MaximumDocumentIdLength)
+    private static void ValidateRouteValue(string value, string field, int maximumLength = LeagueArchiveAggregate.MaximumDocumentIdLength)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length > maximumLength)
             throw Validation(field, $"Value must contain 1 to {maximumLength} characters.");

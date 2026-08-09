@@ -41,6 +41,8 @@
 | reconciler | Replans tournament reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/TournamentScheduler.cs` |
 | identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
 | registration | Participant sign-up and unregistration on a tournament | `backend/src/Gones.Api/Tournaments/TournamentRegistrationEndpoints.cs` |
+| league archive | Archived Leagues and their result Tournaments, `/api/leagues-archive` (formerly `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs` |
+| archive tournament | A result Tournament inside the League Archive, `/tournaments-archive` (formerly Result Tournament) | `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs` |
 
 ## Other
 

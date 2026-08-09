@@ -304,7 +304,7 @@ internal sealed class LiveCommandService(GonesDbContext database, IClock clock)
                 if (document.Stage != "standings")
                     throw new ResourceConflictException();
                 var targetLeagueId = document.LeagueId.Length > 0 ? document.LeagueId : LeagueNormalizer.PlaceholderLeagueId;
-                var league = await database.LeagueAggregates
+                var league = await database.LeagueArchiveAggregates
                     .SingleOrDefaultAsync(item => item.DocumentId == targetLeagueId && item.DeletedAt == null, cancellationToken)
                     ?? throw Validation("leagueId", "Target League was not found.");
 
@@ -358,7 +358,7 @@ internal sealed class LiveCommandService(GonesDbContext database, IClock clock)
     public async Task RequireLeagueReferenceAsync(string? leagueId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(leagueId)) return;
-        var exists = await database.LeagueAggregates.AsNoTracking()
+        var exists = await database.LeagueArchiveAggregates.AsNoTracking()
             .AnyAsync(item => item.DocumentId == leagueId && item.DeletedAt == null, cancellationToken);
         if (!exists) throw Validation("leagueId", "League was not found.");
     }

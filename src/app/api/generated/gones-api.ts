@@ -34,21 +34,21 @@ export interface IClient {
      * @param search (optional)
      * @return OK
      */
-    leagues(page: number | undefined, pageSize: number | undefined, status: string | undefined, search: string | undefined): Observable<PublicLeagueListResponse>;
+    leaguesArchive(page: number | undefined, pageSize: number | undefined, status: string | undefined, search: string | undefined): Observable<PublicLeagueListResponse>;
     /**
      * @param idempotency_Key (optional)
      * @return Created
      */
-    createLeague(idempotency_Key: string | undefined, body: CreateLeagueRequest): Observable<LeagueCommandResponse>;
+    createLeagueArchive(idempotency_Key: string | undefined, body: CreateLeagueRequest): Observable<LeagueCommandResponse>;
     /**
      * @return OK
      */
-    leagues2(id: string): Observable<PublicLeagueDetailResponse>;
+    leaguesArchive2(id: string): Observable<PublicLeagueDetailResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    deleteLeague(id: string, if_Match: string | undefined): Observable<LeagueDeleteResponse>;
+    deleteLeagueArchive(id: string, if_Match: string | undefined): Observable<LeagueDeleteResponse>;
     /**
      * @return OK
      */
@@ -56,17 +56,17 @@ export interface IClient {
     /**
      * @return OK
      */
-    tournamentsGET(id: string, tournamentId: string): Observable<TournamentDocument>;
+    tournamentsArchive(id: string, tournamentId: string): Observable<TournamentDocument>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    editResultTournament(id: string, tournamentId: string, if_Match: string | undefined, body: EditResultTournamentRequest): Observable<LeagueCommandResponse>;
+    editArchiveTournament(id: string, tournamentId: string, if_Match: string | undefined, body: EditResultTournamentRequest): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    deleteResultTournament(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
+    deleteArchiveTournament(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
     /**
      * @return OK
      */
@@ -122,7 +122,7 @@ export interface IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    tournamentsGET2(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicTournamentListResponse>;
+    tournamentsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicTournamentListResponse>;
     /**
      * @return Created
      */
@@ -135,7 +135,7 @@ export interface IClient {
     /**
      * @return OK
      */
-    tournamentsGET3(slug: string): Observable<PublicTournamentDetailResponse>;
+    tournamentsGET2(slug: string): Observable<PublicTournamentDetailResponse>;
     /**
      * @return OK
      */
@@ -143,7 +143,7 @@ export interface IClient {
     /**
      * @return OK
      */
-    tournamentsGET4(slug: string): Observable<void>;
+    tournamentsGET3(slug: string): Observable<void>;
     /**
      * @param search (optional)
      * @param page (optional)
@@ -246,78 +246,78 @@ export interface IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    renameLeague(id: string, if_Match: string | undefined, body: RenameLeagueRequest): Observable<LeagueCommandResponse>;
+    renameLeagueArchive(id: string, if_Match: string | undefined, body: RenameLeagueRequest): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    changeLeagueStatus(id: string, if_Match: string | undefined, body: ChangeLeagueStatusRequest): Observable<LeagueCommandResponse>;
+    changeLeagueArchiveStatus(id: string, if_Match: string | undefined, body: ChangeLeagueStatusRequest): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    createResultTournament(id: string, if_Match: string | undefined, body: CreateResultTournamentRequest): Observable<LeagueCommandResponse>;
+    createArchiveTournament(id: string, if_Match: string | undefined, body: CreateResultTournamentRequest): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @param target_If_Match (optional)
      * @return OK
      */
-    moveResultTournament(id: string, tournamentId: string, if_Match: string | undefined, target_If_Match: string | undefined, body: MoveResultTournamentRequest): Observable<MoveTournamentResponse>;
+    moveArchiveTournament(id: string, tournamentId: string, if_Match: string | undefined, target_If_Match: string | undefined, body: MoveResultTournamentRequest): Observable<MoveTournamentResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    addResultRound(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
+    addArchiveRound(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    deleteResultRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
+    deleteArchiveRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    importResultRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ImportRoundRequest): Observable<LeagueCommandResponse>;
+    importArchiveRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ImportRoundRequest): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    replaceResultRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ReplaceRoundRequest): Observable<LeagueCommandResponse>;
+    replaceArchiveRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ReplaceRoundRequest): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    addResultEntry(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse>;
+    addArchiveEntry(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    editResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse>;
+    editArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    deleteResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
+    deleteArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    updateResultPlayerArchetype(id: string, tournamentId: string, playerName: string, if_Match: string | undefined, body: UpdatePlayerArchetypeRequest): Observable<LeagueCommandResponse>;
+    updateArchivePlayerArchetype(id: string, tournamentId: string, playerName: string, if_Match: string | undefined, body: UpdatePlayerArchetypeRequest): Observable<LeagueCommandResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    renameLeaguePlayerName(id: string, if_Match: string | undefined, body: RenamePlayerRequest): Observable<LeagueCommandResponse>;
+    renameLeagueArchivePlayerName(id: string, if_Match: string | undefined, body: RenamePlayerRequest): Observable<LeagueCommandResponse>;
     /**
      * @param idempotency_Key (optional)
      * @return Created
      */
-    restoreLeague(idempotency_Key: string | undefined, body: LeagueRestoreRequest): Observable<LeagueCommandResponse>;
+    restoreLeagueArchive(idempotency_Key: string | undefined, body: LeagueRestoreRequest): Observable<LeagueCommandResponse>;
     /**
      * @param idempotency_Key (optional)
      * @return Created
      */
-    restoreFullLeagueData(idempotency_Key: string | undefined, body: FullDataRestoreRequest): Observable<FullRestoreResponse>;
+    restoreFullLeagueArchiveData(idempotency_Key: string | undefined, body: FullDataRestoreRequest): Observable<FullRestoreResponse>;
     /**
      * @param search (optional)
      * @return OK
@@ -841,8 +841,8 @@ export class Client implements IClient {
      * @param search (optional)
      * @return OK
      */
-    leagues(page: number | undefined, pageSize: number | undefined, status: string | undefined, search: string | undefined): Observable<PublicLeagueListResponse> {
-        let url_ = this.baseUrl + "/api/leagues?";
+    leaguesArchive(page: number | undefined, pageSize: number | undefined, status: string | undefined, search: string | undefined): Observable<PublicLeagueListResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive?";
         if (page === null)
             throw new globalThis.Error("The parameter 'page' cannot be null.");
         else if (page !== undefined)
@@ -870,11 +870,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processLeagues(response_);
+            return this.processLeaguesArchive(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processLeagues(response_ as any);
+                    return this.processLeaguesArchive(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<PublicLeagueListResponse>;
                 }
@@ -883,7 +883,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processLeagues(response: HttpResponseBase): Observable<PublicLeagueListResponse> {
+    protected processLeaguesArchive(response: HttpResponseBase): Observable<PublicLeagueListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -918,8 +918,8 @@ export class Client implements IClient {
      * @param idempotency_Key (optional)
      * @return Created
      */
-    createLeague(idempotency_Key: string | undefined, body: CreateLeagueRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues";
+    createLeagueArchive(idempotency_Key: string | undefined, body: CreateLeagueRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -936,11 +936,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processCreateLeague(response_);
+            return this.processCreateLeagueArchive(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processCreateLeague(response_ as any);
+                    return this.processCreateLeagueArchive(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -949,7 +949,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processCreateLeague(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processCreateLeagueArchive(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -973,8 +973,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    leagues2(id: string): Observable<PublicLeagueDetailResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}";
+    leaguesArchive2(id: string): Observable<PublicLeagueDetailResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -989,11 +989,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processLeagues2(response_);
+            return this.processLeaguesArchive2(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processLeagues2(response_ as any);
+                    return this.processLeaguesArchive2(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<PublicLeagueDetailResponse>;
                 }
@@ -1002,7 +1002,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processLeagues2(response: HttpResponseBase): Observable<PublicLeagueDetailResponse> {
+    protected processLeaguesArchive2(response: HttpResponseBase): Observable<PublicLeagueDetailResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -1043,8 +1043,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    deleteLeague(id: string, if_Match: string | undefined): Observable<LeagueDeleteResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}";
+    deleteLeagueArchive(id: string, if_Match: string | undefined): Observable<LeagueDeleteResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1060,11 +1060,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processDeleteLeague(response_);
+            return this.processDeleteLeagueArchive(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processDeleteLeague(response_ as any);
+                    return this.processDeleteLeagueArchive(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueDeleteResponse>;
                 }
@@ -1073,7 +1073,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processDeleteLeague(response: HttpResponseBase): Observable<LeagueDeleteResponse> {
+    protected processDeleteLeagueArchive(response: HttpResponseBase): Observable<LeagueDeleteResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -1098,7 +1098,7 @@ export class Client implements IClient {
      * @return OK
      */
     result(id: string): Observable<LeagueResult> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/result";
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/result";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1160,8 +1160,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    tournamentsGET(id: string, tournamentId: string): Observable<TournamentDocument> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}";
+    tournamentsArchive(id: string, tournamentId: string): Observable<TournamentDocument> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1179,11 +1179,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsGET(response_);
+            return this.processTournamentsArchive(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsGET(response_ as any);
+                    return this.processTournamentsArchive(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<TournamentDocument>;
                 }
@@ -1192,7 +1192,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processTournamentsGET(response: HttpResponseBase): Observable<TournamentDocument> {
+    protected processTournamentsArchive(response: HttpResponseBase): Observable<TournamentDocument> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -1227,8 +1227,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    editResultTournament(id: string, tournamentId: string, if_Match: string | undefined, body: EditResultTournamentRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}";
+    editArchiveTournament(id: string, tournamentId: string, if_Match: string | undefined, body: EditResultTournamentRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1251,11 +1251,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processEditResultTournament(response_);
+            return this.processEditArchiveTournament(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processEditResultTournament(response_ as any);
+                    return this.processEditArchiveTournament(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -1264,7 +1264,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processEditResultTournament(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processEditArchiveTournament(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -1289,8 +1289,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    deleteResultTournament(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}";
+    deleteArchiveTournament(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1309,11 +1309,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processDeleteResultTournament(response_);
+            return this.processDeleteArchiveTournament(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processDeleteResultTournament(response_ as any);
+                    return this.processDeleteArchiveTournament(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -1322,7 +1322,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processDeleteResultTournament(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processDeleteArchiveTournament(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -1347,7 +1347,7 @@ export class Client implements IClient {
      * @return OK
      */
     result2(id: string, tournamentId: string): Observable<TournamentResult> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/result";
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/result";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1415,7 +1415,7 @@ export class Client implements IClient {
      * @return OK
      */
     statistics(id: string, playerName: string, tournamentId: string | undefined, opponentName: string | undefined): Observable<PlayerStatistics> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/players/{playerName}/statistics?";
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/players/{playerName}/statistics?";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1495,7 +1495,7 @@ export class Client implements IClient {
      * @return OK
      */
     export(id: string): Observable<LeagueExportResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/export";
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/export";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -1892,7 +1892,7 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    tournamentsGET2(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicTournamentListResponse> {
+    tournamentsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicTournamentListResponse> {
         let url_ = this.baseUrl + "/api/tournaments?";
         if (from === null)
             throw new globalThis.Error("The parameter 'from' cannot be null.");
@@ -1953,11 +1953,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsGET2(response_);
+            return this.processTournamentsGET(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsGET2(response_ as any);
+                    return this.processTournamentsGET(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<PublicTournamentListResponse>;
                 }
@@ -1966,7 +1966,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processTournamentsGET2(response: HttpResponseBase): Observable<PublicTournamentListResponse> {
+    protected processTournamentsGET(response: HttpResponseBase): Observable<PublicTournamentListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -2150,7 +2150,7 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    tournamentsGET3(slug: string): Observable<PublicTournamentDetailResponse> {
+    tournamentsGET2(slug: string): Observable<PublicTournamentDetailResponse> {
         let url_ = this.baseUrl + "/api/tournaments/{slug}";
         if (slug === undefined || slug === null)
             throw new globalThis.Error("The parameter 'slug' must be defined.");
@@ -2166,11 +2166,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsGET3(response_);
+            return this.processTournamentsGET2(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsGET3(response_ as any);
+                    return this.processTournamentsGET2(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<PublicTournamentDetailResponse>;
                 }
@@ -2179,7 +2179,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processTournamentsGET3(response: HttpResponseBase): Observable<PublicTournamentDetailResponse> {
+    protected processTournamentsGET2(response: HttpResponseBase): Observable<PublicTournamentDetailResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -2272,7 +2272,7 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    tournamentsGET4(slug: string): Observable<void> {
+    tournamentsGET3(slug: string): Observable<void> {
         let url_ = this.baseUrl + "/api/tournaments/{slug}.ics";
         if (slug === undefined || slug === null)
             throw new globalThis.Error("The parameter 'slug' must be defined.");
@@ -2287,11 +2287,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsGET4(response_);
+            return this.processTournamentsGET3(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsGET4(response_ as any);
+                    return this.processTournamentsGET3(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<void>;
                 }
@@ -2300,7 +2300,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processTournamentsGET4(response: HttpResponseBase): Observable<void> {
+    protected processTournamentsGET3(response: HttpResponseBase): Observable<void> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -3826,8 +3826,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    renameLeague(id: string, if_Match: string | undefined, body: RenameLeagueRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/name";
+    renameLeagueArchive(id: string, if_Match: string | undefined, body: RenameLeagueRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/name";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -3847,11 +3847,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRenameLeague(response_);
+            return this.processRenameLeagueArchive(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRenameLeague(response_ as any);
+                    return this.processRenameLeagueArchive(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -3860,7 +3860,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processRenameLeague(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processRenameLeagueArchive(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -3885,8 +3885,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    changeLeagueStatus(id: string, if_Match: string | undefined, body: ChangeLeagueStatusRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/status";
+    changeLeagueArchiveStatus(id: string, if_Match: string | undefined, body: ChangeLeagueStatusRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/status";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -3906,11 +3906,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processChangeLeagueStatus(response_);
+            return this.processChangeLeagueArchiveStatus(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processChangeLeagueStatus(response_ as any);
+                    return this.processChangeLeagueArchiveStatus(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -3919,7 +3919,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processChangeLeagueStatus(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processChangeLeagueArchiveStatus(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -3944,8 +3944,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    createResultTournament(id: string, if_Match: string | undefined, body: CreateResultTournamentRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments";
+    createArchiveTournament(id: string, if_Match: string | undefined, body: CreateResultTournamentRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -3965,11 +3965,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processCreateResultTournament(response_);
+            return this.processCreateArchiveTournament(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processCreateResultTournament(response_ as any);
+                    return this.processCreateArchiveTournament(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -3978,7 +3978,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processCreateResultTournament(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processCreateArchiveTournament(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4004,8 +4004,8 @@ export class Client implements IClient {
      * @param target_If_Match (optional)
      * @return OK
      */
-    moveResultTournament(id: string, tournamentId: string, if_Match: string | undefined, target_If_Match: string | undefined, body: MoveResultTournamentRequest): Observable<MoveTournamentResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/move";
+    moveArchiveTournament(id: string, tournamentId: string, if_Match: string | undefined, target_If_Match: string | undefined, body: MoveResultTournamentRequest): Observable<MoveTournamentResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/move";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4029,11 +4029,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processMoveResultTournament(response_);
+            return this.processMoveArchiveTournament(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processMoveResultTournament(response_ as any);
+                    return this.processMoveArchiveTournament(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<MoveTournamentResponse>;
                 }
@@ -4042,7 +4042,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processMoveResultTournament(response: HttpResponseBase): Observable<MoveTournamentResponse> {
+    protected processMoveArchiveTournament(response: HttpResponseBase): Observable<MoveTournamentResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4067,8 +4067,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    addResultRound(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/rounds";
+    addArchiveRound(id: string, tournamentId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4087,11 +4087,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processAddResultRound(response_);
+            return this.processAddArchiveRound(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processAddResultRound(response_ as any);
+                    return this.processAddArchiveRound(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4100,7 +4100,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processAddResultRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processAddArchiveRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4125,8 +4125,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    deleteResultRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}";
+    deleteArchiveRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4148,11 +4148,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processDeleteResultRound(response_);
+            return this.processDeleteArchiveRound(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processDeleteResultRound(response_ as any);
+                    return this.processDeleteArchiveRound(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4161,7 +4161,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processDeleteResultRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processDeleteArchiveRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4186,8 +4186,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    importResultRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ImportRoundRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/import";
+    importArchiveRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ImportRoundRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/import";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4213,11 +4213,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processImportResultRound(response_);
+            return this.processImportArchiveRound(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processImportResultRound(response_ as any);
+                    return this.processImportArchiveRound(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4226,7 +4226,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processImportResultRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processImportArchiveRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4251,8 +4251,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    replaceResultRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ReplaceRoundRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/replace";
+    replaceArchiveRound(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: ReplaceRoundRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/replace";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4278,11 +4278,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processReplaceResultRound(response_);
+            return this.processReplaceArchiveRound(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processReplaceResultRound(response_ as any);
+                    return this.processReplaceArchiveRound(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4291,7 +4291,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processReplaceResultRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processReplaceArchiveRound(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4316,8 +4316,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    addResultEntry(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries";
+    addArchiveEntry(id: string, tournamentId: string, roundId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4343,11 +4343,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processAddResultEntry(response_);
+            return this.processAddArchiveEntry(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processAddResultEntry(response_ as any);
+                    return this.processAddArchiveEntry(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4356,7 +4356,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processAddResultEntry(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processAddArchiveEntry(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4381,8 +4381,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    editResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries/{entryId}";
+    editArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined, body: RoundEntry): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries/{entryId}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4411,11 +4411,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processEditResultEntry(response_);
+            return this.processEditArchiveEntry(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processEditResultEntry(response_ as any);
+                    return this.processEditArchiveEntry(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4424,7 +4424,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processEditResultEntry(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processEditArchiveEntry(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4449,8 +4449,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    deleteResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries/{entryId}";
+    deleteArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, if_Match: string | undefined): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries/{entryId}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4475,11 +4475,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processDeleteResultEntry(response_);
+            return this.processDeleteArchiveEntry(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processDeleteResultEntry(response_ as any);
+                    return this.processDeleteArchiveEntry(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4488,7 +4488,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processDeleteResultEntry(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processDeleteArchiveEntry(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4513,8 +4513,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    updateResultPlayerArchetype(id: string, tournamentId: string, playerName: string, if_Match: string | undefined, body: UpdatePlayerArchetypeRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/tournaments/{tournamentId}/archetypes/{playerName}";
+    updateArchivePlayerArchetype(id: string, tournamentId: string, playerName: string, if_Match: string | undefined, body: UpdatePlayerArchetypeRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/archetypes/{playerName}";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4540,11 +4540,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processUpdateResultPlayerArchetype(response_);
+            return this.processUpdateArchivePlayerArchetype(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processUpdateResultPlayerArchetype(response_ as any);
+                    return this.processUpdateArchivePlayerArchetype(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4553,7 +4553,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processUpdateResultPlayerArchetype(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processUpdateArchivePlayerArchetype(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4578,8 +4578,8 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    renameLeaguePlayerName(id: string, if_Match: string | undefined, body: RenamePlayerRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/{id}/players/rename";
+    renameLeagueArchivePlayerName(id: string, if_Match: string | undefined, body: RenamePlayerRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/players/rename";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4599,11 +4599,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRenameLeaguePlayerName(response_);
+            return this.processRenameLeagueArchivePlayerName(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRenameLeaguePlayerName(response_ as any);
+                    return this.processRenameLeagueArchivePlayerName(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4612,7 +4612,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processRenameLeaguePlayerName(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processRenameLeagueArchivePlayerName(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4637,8 +4637,8 @@ export class Client implements IClient {
      * @param idempotency_Key (optional)
      * @return Created
      */
-    restoreLeague(idempotency_Key: string | undefined, body: LeagueRestoreRequest): Observable<LeagueCommandResponse> {
-        let url_ = this.baseUrl + "/api/leagues/restore";
+    restoreLeagueArchive(idempotency_Key: string | undefined, body: LeagueRestoreRequest): Observable<LeagueCommandResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/restore";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -4655,11 +4655,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRestoreLeague(response_);
+            return this.processRestoreLeagueArchive(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRestoreLeague(response_ as any);
+                    return this.processRestoreLeagueArchive(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<LeagueCommandResponse>;
                 }
@@ -4668,7 +4668,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processRestoreLeague(response: HttpResponseBase): Observable<LeagueCommandResponse> {
+    protected processRestoreLeagueArchive(response: HttpResponseBase): Observable<LeagueCommandResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -4693,8 +4693,8 @@ export class Client implements IClient {
      * @param idempotency_Key (optional)
      * @return Created
      */
-    restoreFullLeagueData(idempotency_Key: string | undefined, body: FullDataRestoreRequest): Observable<FullRestoreResponse> {
-        let url_ = this.baseUrl + "/api/leagues/restore-full";
+    restoreFullLeagueArchiveData(idempotency_Key: string | undefined, body: FullDataRestoreRequest): Observable<FullRestoreResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/restore-full";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -4711,11 +4711,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRestoreFullLeagueData(response_);
+            return this.processRestoreFullLeagueArchiveData(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRestoreFullLeagueData(response_ as any);
+                    return this.processRestoreFullLeagueArchiveData(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<FullRestoreResponse>;
                 }
@@ -4724,7 +4724,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processRestoreFullLeagueData(response: HttpResponseBase): Observable<FullRestoreResponse> {
+    protected processRestoreFullLeagueArchiveData(response: HttpResponseBase): Observable<FullRestoreResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :

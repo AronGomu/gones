@@ -20,28 +20,28 @@ internal static class LeagueCommandEndpoints
 {
     public static void MapLeagueCommandEndpoints(this WebApplication app)
     {
-        var organizer = app.MapGroup("/api/leagues").RequireAuthorization(AuthorizationPolicies.Organizer);
+        var organizer = app.MapGroup("/api/leagues-archive").RequireAuthorization(AuthorizationPolicies.Organizer);
 
-        organizer.MapPost(string.Empty, CreateAsync).WithName("CreateLeague").Produces<LeagueCommandResponse>(StatusCodes.Status201Created);
-        organizer.MapPatch("/{id}/name", RenameAsync).WithName("RenameLeague").Produces<LeagueCommandResponse>();
-        organizer.MapPatch("/{id}/status", ChangeStatusAsync).WithName("ChangeLeagueStatus").Produces<LeagueCommandResponse>();
-        organizer.MapDelete("/{id}", DeleteAsync).WithName("DeleteLeague").Produces<LeagueDeleteResponse>();
-        organizer.MapPost("/{id}/tournaments", CreateTournamentAsync).WithName("CreateResultTournament").Produces<LeagueCommandResponse>();
-        organizer.MapPatch("/{id}/tournaments/{tournamentId}", EditTournamentAsync).WithName("EditResultTournament").Produces<LeagueCommandResponse>();
-        organizer.MapDelete("/{id}/tournaments/{tournamentId}", DeleteTournamentAsync).WithName("DeleteResultTournament").Produces<LeagueCommandResponse>();
-        organizer.MapPost("/{id}/tournaments/{tournamentId}/move", MoveTournamentAsync).WithName("MoveResultTournament").Produces<MoveTournamentResponse>();
-        organizer.MapPost("/{id}/tournaments/{tournamentId}/rounds", AddRoundAsync).WithName("AddResultRound").Produces<LeagueCommandResponse>();
-        organizer.MapDelete("/{id}/tournaments/{tournamentId}/rounds/{roundId}", DeleteRoundAsync).WithName("DeleteResultRound").Produces<LeagueCommandResponse>();
-        organizer.MapPost("/{id}/tournaments/{tournamentId}/rounds/{roundId}/import", ImportRoundAsync).WithName("ImportResultRound").Produces<LeagueCommandResponse>();
-        organizer.MapPost("/{id}/tournaments/{tournamentId}/rounds/{roundId}/replace", ReplaceRoundAsync).WithName("ReplaceResultRound").Produces<LeagueCommandResponse>();
-        organizer.MapPost("/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries", AddEntryAsync).WithName("AddResultEntry").Produces<LeagueCommandResponse>();
-        organizer.MapPatch("/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries/{entryId}", EditEntryAsync).WithName("EditResultEntry").Produces<LeagueCommandResponse>();
-        organizer.MapDelete("/{id}/tournaments/{tournamentId}/rounds/{roundId}/entries/{entryId}", DeleteEntryAsync).WithName("DeleteResultEntry").Produces<LeagueCommandResponse>();
-        organizer.MapPatch("/{id}/tournaments/{tournamentId}/archetypes/{playerName}", UpdateArchetypeAsync).WithName("UpdateResultPlayerArchetype").Produces<LeagueCommandResponse>();
-        organizer.MapPost("/{id}/players/rename", RenamePlayerAsync).WithName("RenameLeaguePlayerName").Produces<LeagueCommandResponse>();
-        organizer.MapPost("/restore", RestoreLeagueAsync).WithName("RestoreLeague").Produces<LeagueCommandResponse>(StatusCodes.Status201Created);
+        organizer.MapPost(string.Empty, CreateAsync).WithName("CreateLeagueArchive").Produces<LeagueCommandResponse>(StatusCodes.Status201Created);
+        organizer.MapPatch("/{id}/name", RenameAsync).WithName("RenameLeagueArchive").Produces<LeagueCommandResponse>();
+        organizer.MapPatch("/{id}/status", ChangeStatusAsync).WithName("ChangeLeagueArchiveStatus").Produces<LeagueCommandResponse>();
+        organizer.MapDelete("/{id}", DeleteAsync).WithName("DeleteLeagueArchive").Produces<LeagueDeleteResponse>();
+        organizer.MapPost("/{id}/tournaments-archive", CreateTournamentAsync).WithName("CreateArchiveTournament").Produces<LeagueCommandResponse>();
+        organizer.MapPatch("/{id}/tournaments-archive/{tournamentId}", EditTournamentAsync).WithName("EditArchiveTournament").Produces<LeagueCommandResponse>();
+        organizer.MapDelete("/{id}/tournaments-archive/{tournamentId}", DeleteTournamentAsync).WithName("DeleteArchiveTournament").Produces<LeagueCommandResponse>();
+        organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/move", MoveTournamentAsync).WithName("MoveArchiveTournament").Produces<MoveTournamentResponse>();
+        organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/rounds", AddRoundAsync).WithName("AddArchiveRound").Produces<LeagueCommandResponse>();
+        organizer.MapDelete("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}", DeleteRoundAsync).WithName("DeleteArchiveRound").Produces<LeagueCommandResponse>();
+        organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/import", ImportRoundAsync).WithName("ImportArchiveRound").Produces<LeagueCommandResponse>();
+        organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/replace", ReplaceRoundAsync).WithName("ReplaceArchiveRound").Produces<LeagueCommandResponse>();
+        organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries", AddEntryAsync).WithName("AddArchiveEntry").Produces<LeagueCommandResponse>();
+        organizer.MapPatch("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries/{entryId}", EditEntryAsync).WithName("EditArchiveEntry").Produces<LeagueCommandResponse>();
+        organizer.MapDelete("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/entries/{entryId}", DeleteEntryAsync).WithName("DeleteArchiveEntry").Produces<LeagueCommandResponse>();
+        organizer.MapPatch("/{id}/tournaments-archive/{tournamentId}/archetypes/{playerName}", UpdateArchetypeAsync).WithName("UpdateArchivePlayerArchetype").Produces<LeagueCommandResponse>();
+        organizer.MapPost("/{id}/players/rename", RenamePlayerAsync).WithName("RenameLeagueArchivePlayerName").Produces<LeagueCommandResponse>();
+        organizer.MapPost("/restore", RestoreLeagueAsync).WithName("RestoreLeagueArchive").Produces<LeagueCommandResponse>(StatusCodes.Status201Created);
         organizer.MapPost("/restore-full", RestoreFullAsync)
-            .WithName("RestoreFullLeagueData")
+            .WithName("RestoreFullLeagueArchiveData")
             .RequireAuthorization(AuthorizationPolicies.Admin)
             .Produces<FullRestoreResponse>(StatusCodes.Status201Created);
     }
@@ -56,7 +56,7 @@ internal static class LeagueCommandEndpoints
     {
         var response = await service.CreateAsync(OrganizationPrincipal.UserId(principal), RequiredIdempotencyKey(idempotencyKey), request, cancellationToken);
         httpResponse.Headers.ETag = response.ETag;
-        return Results.Created($"/api/leagues/{response.Id}", response);
+        return Results.Created($"/api/leagues-archive/{response.Id}", response);
     }
 
     private static Task<IResult> RenameAsync(string id, RenameLeagueRequest request, [FromHeader(Name = "If-Match")] string? ifMatch, HttpResponse response, ClaimsPrincipal principal, LeagueCommandService service, CancellationToken cancellationToken) =>
@@ -156,7 +156,7 @@ internal static class LeagueCommandEndpoints
     {
         var result = await service.RestoreLeagueAsync(OrganizationPrincipal.UserId(principal), RequiredIdempotencyKey(idempotencyKey), request, cancellationToken);
         response.Headers.ETag = result.ETag;
-        return Results.Created($"/api/leagues/{result.Id}", result);
+        return Results.Created($"/api/leagues-archive/{result.Id}", result);
     }
 
     private static async Task<IResult> RestoreFullAsync(FullDataRestoreRequest request, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey, ClaimsPrincipal principal, LeagueCommandService service, CancellationToken cancellationToken)
@@ -204,8 +204,8 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
             {
                 var name = ValidateNewLeagueName(request.Name);
                 var document = new LeagueDocument(NewId(), name, "active", []);
-                var aggregate = LeagueAggregate.Create(document, clock.GetCurrentInstant());
-                database.LeagueAggregates.Add(aggregate);
+                var aggregate = LeagueArchiveAggregate.Create(document, clock.GetCurrentInstant());
+                database.LeagueArchiveAggregates.Add(aggregate);
                 AddAudit(actorId, "league.created", aggregate.DocumentId, ["league"]);
                 await database.SaveChangesAsync(cancellationToken);
                 return Response(aggregate);
@@ -280,7 +280,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var aggregates = await database.LeagueAggregates
+        var aggregates = await database.LeagueArchiveAggregates
             .Where(item => (item.DocumentId == sourceId || item.DocumentId == targetId) && item.DeletedAt == null)
             .OrderBy(item => item.DocumentId)
             .ToListAsync(cancellationToken);
@@ -342,7 +342,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
             request,
             async () =>
             {
-                var restored = new List<LeagueAggregate>();
+                var restored = new List<LeagueArchiveAggregate>();
                 foreach (var source in request.Leagues) restored.Add(await RestoreOneAsync(source, actorId, cancellationToken));
                 await database.SaveChangesAsync(cancellationToken);
                 return new FullRestoreResponse(restored.Select(Response).ToArray());
@@ -350,16 +350,16 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
             cancellationToken);
     }
 
-    private async Task<LeagueAggregate> RestoreOneAsync(LeagueDocument source, Guid actorId, CancellationToken cancellationToken)
+    private async Task<LeagueArchiveAggregate> RestoreOneAsync(LeagueDocument source, Guid actorId, CancellationToken cancellationToken)
     {
-        LeagueAggregate.Create(source, clock.GetCurrentInstant());
-        var names = await database.LeagueAggregates.AsNoTracking().Select(item => item.Name).ToListAsync(cancellationToken);
-        names.AddRange(database.ChangeTracker.Entries<LeagueAggregate>().Where(item => item.State == EntityState.Added).Select(item => item.Entity.Name));
+        LeagueArchiveAggregate.Create(source, clock.GetCurrentInstant());
+        var names = await database.LeagueArchiveAggregates.AsNoTracking().Select(item => item.Name).ToListAsync(cancellationToken);
+        names.AddRange(database.ChangeTracker.Entries<LeagueArchiveAggregate>().Where(item => item.State == EntityState.Added).Select(item => item.Entity.Name));
         var baseName = LeagueNormalizer.IsUnassignedLeagueName(source.Name) ? $"{source.Name} (restored)" : source.Name;
         var name = UniqueName(baseName, names);
         var restored = LeagueCommands.Restore(source, NewId(), name, NewId);
-        var aggregate = LeagueAggregate.Create(restored, clock.GetCurrentInstant());
-        database.LeagueAggregates.Add(aggregate);
+        var aggregate = LeagueArchiveAggregate.Create(restored, clock.GetCurrentInstant());
+        database.LeagueArchiveAggregates.Add(aggregate);
         AddAudit(actorId, "league.restored", aggregate.DocumentId, ["league"]);
         return aggregate;
     }
@@ -396,11 +396,11 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
         return response;
     }
 
-    private async Task<LeagueAggregate> RequireActiveAsync(string documentId, CancellationToken cancellationToken) =>
-        await database.LeagueAggregates.SingleOrDefaultAsync(item => item.DocumentId == documentId && item.DeletedAt == null, cancellationToken)
+    private async Task<LeagueArchiveAggregate> RequireActiveAsync(string documentId, CancellationToken cancellationToken) =>
+        await database.LeagueArchiveAggregates.SingleOrDefaultAsync(item => item.DocumentId == documentId && item.DeletedAt == null, cancellationToken)
         ?? throw new ResourceNotFoundException();
 
-    private static void RequireVersion(LeagueAggregate aggregate, long expectedVersion)
+    private static void RequireVersion(LeagueArchiveAggregate aggregate, long expectedVersion)
     {
         if (aggregate.Version != expectedVersion) throw new ConcurrencyConflictException();
     }
@@ -427,7 +427,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
         OccurredAt = clock.GetCurrentInstant()
     });
 
-    private static LeagueCommandResponse Response(LeagueAggregate aggregate)
+    private static LeagueCommandResponse Response(LeagueArchiveAggregate aggregate)
     {
         var document = aggregate.ReadDocument();
         return new LeagueCommandResponse(document.Id, document.Name, document.Status, document.Tournaments, aggregate.Version, aggregate.UpdatedAt, StrongETag.Encode(aggregate.Version));
@@ -435,7 +435,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
 
     private static string ValidateNewLeagueName(string name)
     {
-        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > LeagueAggregate.MaximumNameLength || LeagueNormalizer.IsUnassignedLeagueName(name))
+        if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > LeagueArchiveAggregate.MaximumNameLength || LeagueNormalizer.IsUnassignedLeagueName(name))
             throw Validation("name", "League name is required, bounded, and cannot use reserved placeholder labels.");
         return name.Trim();
     }

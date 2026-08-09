@@ -45,7 +45,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<TournamentRegistrationAttempt> TournamentRegistrationAttempts => Set<TournamentRegistrationAttempt>();
     public DbSet<ScheduledNotification> ScheduledNotifications => Set<ScheduledNotification>();
     public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();
-    public DbSet<LeagueAggregate> LeagueAggregates => Set<LeagueAggregate>();
+    public DbSet<LeagueArchiveAggregate> LeagueArchiveAggregates => Set<LeagueArchiveAggregate>();
     public DbSet<LiveAggregate> LiveAggregates => Set<LiveAggregate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -130,12 +130,12 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
 
         foreach (var league in plan.LeaguesToCreate)
         {
-            database.LeagueAggregates.Add(LeagueAggregate.Create(league, now));
+            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(league, now));
         }
 
         if (plan.PlaceholderLeagueTarget == LeagueNormalizer.PlaceholderLeagueId && plan.TournamentsForPlaceholderTarget.Count > 0)
         {
-            var placeholder = await database.LeagueAggregates
+            var placeholder = await database.LeagueArchiveAggregates
                 .SingleAsync(aggregate => aggregate.DocumentId == LeagueNormalizer.PlaceholderLeagueId && aggregate.DeletedAt == null, cancellationToken);
             var document = placeholder.ReadDocument();
             placeholder.Apply(document with { Tournaments = [.. document.Tournaments, .. plan.TournamentsForPlaceholderTarget] }, now);
@@ -234,7 +234,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
         database.ChangeTracker.Clear();
 
         var leagueIds = plan.LeaguesToCreate.Select(league => league.Id).ToArray();
-        var storedLeagues = await database.LeagueAggregates
+        var storedLeagues = await database.LeagueArchiveAggregates
             .AsNoTracking()
             .Where(aggregate => leagueIds.Contains(aggregate.DocumentId) && aggregate.DeletedAt == null)
             .ToListAsync(cancellationToken);
@@ -273,7 +273,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
 
         if (plan.PlaceholderLeagueTarget == LeagueNormalizer.PlaceholderLeagueId && plan.TournamentsForPlaceholderTarget.Count > 0)
         {
-            var placeholder = await database.LeagueAggregates
+            var placeholder = await database.LeagueArchiveAggregates
                 .AsNoTracking()
                 .SingleAsync(aggregate => aggregate.DocumentId == LeagueNormalizer.PlaceholderLeagueId && aggregate.DeletedAt == null, cancellationToken);
             var placeholderTournamentIds = placeholder.ReadDocument().Tournaments.Select(tournament => tournament.Id).ToHashSet(StringComparer.Ordinal);
@@ -336,12 +336,12 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
         var connection = database.Database.GetDbConnection();
         var databaseIdentity = $"{connection.DataSource}/{connection.Database}";
 
-        var leagueIds = await database.LeagueAggregates
+        var leagueIds = await database.LeagueArchiveAggregates
             .AsNoTracking()
             .Where(aggregate => aggregate.DeletedAt == null)
             .Select(aggregate => aggregate.DocumentId)
             .ToListAsync(cancellationToken);
-        var placeholder = await database.LeagueAggregates
+        var placeholder = await database.LeagueArchiveAggregates
             .AsNoTracking()
             .SingleOrDefaultAsync(aggregate => aggregate.DocumentId == LeagueNormalizer.PlaceholderLeagueId && aggregate.DeletedAt == null, cancellationToken);
         var placeholderTournamentIds = placeholder is null
