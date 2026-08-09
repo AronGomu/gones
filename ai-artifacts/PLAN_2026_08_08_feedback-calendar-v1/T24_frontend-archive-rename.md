@@ -54,6 +54,59 @@
 - `src/app/shared/data-cy-coverage.test.ts` — `PENDING_DATA_CY_RETROFIT` holds the league and tournament component paths under their **old** names; renaming a file without updating the allowlist breaks T1's "allowlist holds only files that still exist" test. Update every entry.
 - **From Depends (T23):** the API now serves `/api/leagues-archive/...` with `…Archive…` operation names, the table is `league_archive_aggregates`, and `src/app/api/generated/gones-api.ts` is regenerated. The export bundle format is unchanged.
 
+### Environment facts inlined by the parent — verified against the repo at `3796103`
+
+- **THE BRANCH IS CURRENTLY RED. Fix this first, before anything else.** T23 landed the regenerated client and
+  deliberately deferred the frontend fallout to you. `npm run typecheck` reports **exactly 19 errors, all TS4111, all in
+  one file the ticket never names: `src/app/backend/aspnet-api-backend.service.test.ts` (lines 57-75).** They are stale
+  mock-client keys that must take the new `…Archive…` names:
+  `createLeague`→`createLeagueArchive`, `renameLeague`→`renameLeagueArchive`,
+  `changeLeagueStatus`→`changeLeagueArchiveStatus`, `deleteLeague`→`deleteLeagueArchive`,
+  `createResultTournament`→`createArchiveTournament`, `editResultTournament`→`editArchiveTournament`,
+  `deleteResultTournament`→`deleteArchiveTournament`, `moveResultTournament`→`moveArchiveTournament`,
+  `addResultRound`→`addArchiveRound`, `deleteResultRound`→`deleteArchiveRound`,
+  `importResultRound`→`importArchiveRound`, `replaceResultRound`→`replaceArchiveRound`,
+  `addResultEntry`→`addArchiveEntry`, `editResultEntry`→`editArchiveEntry`,
+  `deleteResultEntry`→`deleteArchiveEntry`, `updateResultPlayerArchetype`→`updateArchivePlayerArchetype`,
+  `renameLeaguePlayerName`→`renameLeagueArchivePlayerName`, `restoreLeague`→`restoreLeagueArchive`,
+  `restoreFullLeagueData`→`restoreFullLeagueArchiveData`.
+  Confirm the exact names against `src/app/api/generated/gones-api.ts` rather than trusting this list verbatim.
+  Until this file is fixed, `npm run test` and `npm run typecheck` are red and you cannot tell your own Red from T23's.
+  **Record the pre-existing 19 as your baseline before you write a line, so your TDD Red is honest.**
+- **Step 22's `npm run cy:run` is wrong and will fail twice over.** `cy:run` is a bare `cypress run`, which dies on this
+  NixOS host with `libglib-2.0.so.0: cannot open shared object file`; and most of the 17 specs only pass under the
+  **release Docker topology on 8081**, not under `ng serve`. The correct full-suite gate is:
+  ```sh
+  npm run e2e:ci        # = node scripts/full-stack-ci.mjs
+  ```
+  It rebuilds the release profile (`docker compose --profile release up --build -d --wait`), resolves the NixOS
+  `LD_LIBRARY_PATH` itself, seeds the auth fixture, and drives every spec against `http://127.0.0.1:8081`.
+  Use this for step 22 and for the `npm run cy:run` Validation line. `npm run dev` is `node scripts/dev.mjs`.
+- **The auth rate limit does NOT constrain `e2e:ci`.** Every earlier ticket in this plan was throttled by
+  `AuthRateLimiting.PermitLimit = 5` per 15-minute window, but `scripts/full-stack-ci.mjs:14` sets
+  `GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: '1000'` in the release compose env. So you may run the full suite freely.
+  The limit still bites if you run a spec by hand against the **dev** API on 5080 — prefer `e2e:ci`.
+- **Route line numbers drifted.** The five routes are at `src/app/app.routes.ts:64` (`leagues`), `:68`
+  (`leagues/:leagueId`) and `:69-71` (the three `tournaments` paths) — not `61,65-68`. Note `:65-67` in between are
+  **`live-tournaments` routes that must not be touched.** The functional-redirect idiom to copy is at `:47`.
+- **Requirement "no source file still contains the bare word `leagues` as a route or symbol" has three exemptions**,
+  otherwise it contradicts this ticket's own steps: the five `path: 'leagues…'` **redirect sources** added in step 8;
+  `src/legacy-pages/leagues.html` (static, not routed — Inputs already says leave it); and the frozen
+  `src/app/domain/models.ts` bundle-shape names. Read the requirement as "no live route target and no non-frozen symbol".
+- **`PENDING_DATA_CY_RETROFIT` now holds 28 entries** (T22 removed one). The four you must delete are at lines
+  **121, 122, 127, 128**: `features/leagues/league-detail.component.ts`, `features/leagues/league-list.component.ts`,
+  `features/tournaments/tournament-detail.component.ts`, `features/tournaments/tournament-result.component.ts`.
+  Deleting an entry means that component must reach **full unique `data-cy` coverage** — that is real work, not
+  bookkeeping, and it is what step 15 is for. `src/app/shared/back-button.component.ts` stays on the allowlist, so
+  step 12 does not oblige you to retrofit it.
+- **`src/app/app-breadcrumbs.test.ts` and `docs/leagues-page-layout.md` both exist** — steps 18 and 20 are edits, not
+  creations.
+- **`data-mode-routes.test.ts`** asserts `'leagues'` inside the list on the line beginning
+  `for (const path of ['', 'about', 'calendar', …])` — that is the assertion step 17 must update.
+- **No Angular `TestBed`, no zone.js.** `@angular/common/http/testing` is not installed. Services →
+  `Injector.create` + `vi.fn()` stubs; components → bare `Injector` + `runInInjectionContext` with `effect()` stubbed;
+  template-shape claims → `readFileSync` on the source. Four earlier tickets tripped on this.
+
 ## TDD
 
 1. **Red** — update `src/app/data-mode-routes.test.ts` to expect the new paths and the redirects; the suite fails.
@@ -80,6 +133,10 @@ Run: `npm run test -- data-mode-routes app-breadcrumbs data-cy-coverage`
 
 ## Impl steps
 
+- [ ] 0. **First, clear T23's deferred fallout.** Fix the 19 stale mock keys in
+  `src/app/backend/aspnet-api-backend.service.test.ts:57-75` to the regenerated client's `…Archive…` names (list in the
+  environment facts; verify against `src/app/api/generated/gones-api.ts`). Validate: `npm run typecheck` goes from
+  **19 errors to 0** and `npm run test` is green — that is your true starting baseline.
 - [ ] 1. `git mv src/app/features/leagues src/app/features/leagues-archive` and `git mv src/app/features/tournaments src/app/features/tournaments-archive`.
 - [ ] 2. `git mv` the four components to their new names: `league-archive-list.component.ts`, `league-archive-detail.component.ts`, `tournament-archive-detail.component.ts`, `tournament-archive-result.component.ts`; rename their exported classes to match (`LeagueArchiveListComponent`, …).
 - [ ] 3. `git mv src/app/data/league-repository.service.ts src/app/data/league-archive-repository.service.ts` and rename `LeagueRepository` → `LeagueArchiveRepository`; same for `league-import.service.ts` → `league-archive-import.service.ts` (`LeagueImportService` → `LeagueArchiveImportService`) and `league-command-ux.ts` → `league-archive-command-ux.ts` with its `.test.ts` sibling.
@@ -107,7 +164,9 @@ Run: `npm run test -- data-mode-routes app-breadcrumbs data-cy-coverage`
 - [ ] 19. Update `cypress/e2e/league-server.cy.js`, `server-data-authority.cy.js`, `offline-public-read.cy.js` and `accessibility.cy.js` to the new paths and selectors; add one assertion that `cy.visit('/leagues')` ends on `/leagues-archive`.
 - [ ] 20. Update `docs/leagues-page-layout.md` and any other `docs/` file naming the old route.
 - [ ] 21. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 22. Run `npm run dev` then `npm run cy:run`.
+- [ ] 22. Run the full Cypress suite with **`npm run e2e:ci`** (see the environment facts — `npm run cy:run` dies on
+  this host and most specs need the release topology on 8081). `e2e:ci` rebuilds the release stack itself, so no
+  separate `npm run dev` is needed, and it raises the auth permit limit to 1000 so real-login specs are not throttled.
 - [ ] 23. Run `npm run acceptance:matrix` and repoint any evidence target this ticket moved.
 
 ## Outputs
@@ -121,7 +180,7 @@ Run: `npm run test -- data-mode-routes app-breadcrumbs data-cy-coverage`
 
 - [ ] `npm run test` passes
 - [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run` passes in full
+- [ ] `npm run e2e:ci` passes in full (this replaces `npm run cy:run`, which cannot run on this host)
 - [ ] `npm run acceptance:matrix` passes
 - [ ] manual check: open `/leagues/abc/tournaments/def` and land on `/leagues-archive/abc/tournaments-archive/def` with the page rendered
 - [ ] manual check: the header import button still appears on the archive list, and a league export/restore round-trips
