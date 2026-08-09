@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { LeagueRepository } from '../../data/league-repository.service';
+import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -321,7 +321,7 @@ export class PlayerDetailComponent {
   });
 
   constructor(
-    private readonly repo: LeagueRepository,
+    private readonly repo: LeagueArchiveRepository,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
   ) {
@@ -393,7 +393,7 @@ export class PlayerDetailComponent {
 
   openMatchTournament(match: PlayerMatch): void {
     void this.router.navigate(
-      ['/leagues', match.league.id, 'tournaments', match.tournament.id],
+      ['/leagues-archive', match.league.id, 'tournaments-archive', match.tournament.id],
       { queryParams: { round: match.roundIndex + 1 } },
     );
   }

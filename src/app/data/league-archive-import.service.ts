@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { LeagueRepository } from './league-repository.service';
+import { LeagueArchiveRepository } from './league-archive-repository.service';
 import { normalizeExportFile } from '../domain/export-restore';
 import { EXPORT_LIMITS, verifyExportChecksum } from '../domain/export-schemas';
 import { logBoundaryError } from '../shared/app-logger';
@@ -17,8 +17,8 @@ function importKey(): string {
 }
 
 @Injectable({ providedIn: 'root' })
-export class LeagueImportService {
-  constructor(private readonly repo: LeagueRepository) {}
+export class LeagueArchiveImportService {
+  constructor(private readonly repo: LeagueArchiveRepository) {}
 
   async importFile(file: File): Promise<LeagueImportResult> {
     if (file.size > MAX_IMPORT_FILE_BYTES) throw new Error('gonesImportFileTooLarge');

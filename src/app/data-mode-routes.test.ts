@@ -1,4 +1,6 @@
 import '@angular/compiler';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildRoutes, calendarRoutes } from './app.routes';
 import { organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
@@ -9,6 +11,24 @@ const allCapabilities = { authV1: true, adminV1: true };
 
 const paths = (features: { authV1: boolean; adminV1: boolean }): string[] =>
   buildRoutes(features).map((route) => route.path ?? '');
+
+const routeFor = (path: string) => buildRoutes(noCapabilities).find((route) => route.path === path);
+
+/** Invokes a parameter-preserving functional `redirectTo` the way the Router does. */
+const redirectWith = (path: string, params: Record<string, string>): string => {
+  const redirect = routeFor(path)?.redirectTo;
+  if (typeof redirect !== 'function') throw new Error(`route ${path} has no functional redirectTo`);
+  return String((redirect as (input: { params: Record<string, string> }) => string)({ params }));
+};
+
+/** Application sources only. Tests are excluded: they name the retired path to prove it is gone. */
+function appSourceFiles(directory = join(__dirname)): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(directory, entry.name);
+    if (entry.isDirectory()) return entry.name === 'generated' ? [] : appSourceFiles(full);
+    return entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts') ? [full] : [];
+  });
+}
 
 describe('calendar routes', () => {
   it('serves the Calendar V1 pages plus the retired Event detail redirect', () => {
@@ -29,8 +49,8 @@ describe('calendar routes', () => {
 });
 
 describe('route exposure per capability flag', () => {
-  it('always serves the public browsing, League, Live and Settings surface', () => {
-    for (const path of ['', 'about', 'calendar', 'calendar/tournaments/:slug', 'leagues', 'live-tournaments', 'settings']) {
+  it('always serves the public browsing, League archive, Live and Settings surface', () => {
+    for (const path of ['', 'about', 'calendar', 'calendar/tournaments/:slug', 'leagues-archive', 'live-tournaments', 'settings']) {
       expect(paths(noCapabilities)).toContain(path);
     }
   });
@@ -134,6 +154,50 @@ describe('route exposure per capability flag', () => {
   it('leaves deep links like /calendar untouched by the first-visit guard', () => {
     const calendarRoute = buildRoutes(noCapabilities).find((route) => route.path === 'calendar');
     expect(calendarRoute?.canActivate).toBeUndefined();
+  });
+
+  it('serves the archive list route', () => {
+    expect(paths(noCapabilities)).toContain('leagues-archive');
+  });
+
+  it('serves the archive detail route', () => {
+    expect(paths(noCapabilities)).toContain('leagues-archive/:leagueId');
+  });
+
+  it('serves the archive tournament routes', () => {
+    for (const path of [
+      'leagues-archive/:leagueId/tournaments-archive/:tournamentId',
+      'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result',
+      'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result/metagames'
+    ]) {
+      expect(paths(noCapabilities)).toContain(path);
+    }
+  });
+
+  it('redirects the old list path', () => {
+    expect(routeFor('leagues')?.redirectTo).toBe('leagues-archive');
+    expect(routeFor('leagues')?.pathMatch).toBe('full');
+  });
+
+  it('redirects the old detail path with its parameter', () => {
+    expect(redirectWith('leagues/:leagueId', { leagueId: 'abc' })).toBe('/leagues-archive/abc');
+  });
+
+  it('redirects the old tournament path with both parameters', () => {
+    expect(redirectWith('leagues/:leagueId/tournaments/:tournamentId', { leagueId: 'a', tournamentId: 'b' }))
+      .toBe('/leagues-archive/a/tournaments-archive/b');
+    expect(redirectWith('leagues/:leagueId/tournaments/:tournamentId/result', { leagueId: 'a', tournamentId: 'b' }))
+      .toBe('/leagues-archive/a/tournaments-archive/b/result');
+    expect(redirectWith('leagues/:leagueId/tournaments/:tournamentId/result/metagames', { leagueId: 'a', tournamentId: 'b' }))
+      .toBe('/leagues-archive/a/tournaments-archive/b/result/metagames');
+  });
+
+  it('serves no bare leagues route target anywhere in the app source', () => {
+    const offenders = appSourceFiles()
+      .filter((file) => /routerLink="\/leagues"|routerLink="\/leagues\/|'\/leagues'|"\/leagues"|\['\/leagues',/.test(readFileSync(file, 'utf8')))
+      .map((file) => file.slice(__dirname.length + 1));
+
+    expect(offenders).toEqual([]);
   });
 
   it('exposes the tournament request review route without auth capability', () => {

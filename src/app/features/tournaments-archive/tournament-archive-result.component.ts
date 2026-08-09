@@ -2,7 +2,7 @@ import { Component, ElementRef, ViewChild, computed, signal, inject } from '@ang
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { LeagueRepository } from '../../data/league-repository.service';
+import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { formatPlayerWithArchetype, PersistedLeague, TournamentDocument } from '../../domain/models';
 import { ArchetypeShare, buildTournamentSummary, TournamentSummary } from '../../domain/tournament-summary';
 import { logBoundaryError } from '../../shared/app-logger';
@@ -12,42 +12,43 @@ import { I18nService } from '../../i18n/i18n.service';
   standalone: true,
   imports: [MatButtonModule, MatCardModule, RouterLink],
   template: `
-    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    @if (error()) { <p class="error" role="alert" data-cy="tournament-archive-result-error">{{ error() }}</p> }
     @if (summary(); as report) {
-      <section #resultSection class="tournament-result-page" [class.result-page--metagame]="page() === 'metagames'" data-cy="tournament-result-page">
-        <section class="result-hero">
-          <div class="result-title-block">
-            <h1><span>{{ league()?.name || i18n.t('result.unknownLeague') }}</span><span>&nbsp;</span><span>{{ report.tournamentName }}</span><span class="result-page-separator" aria-hidden="true"> — </span><span class="result-page-label">{{ pageLabel() }}</span></h1>
-            <p class="result-subtitle">{{ formatTournamentDate(report.tournamentDate) }}</p>
+      <section #resultSection class="tournament-result-page" [class.result-page--metagame]="page() === 'metagames'" data-cy="tournament-archive-result-page">
+        <section class="result-hero" data-cy="tournament-archive-result-hero">
+          <div class="result-title-block" data-cy="tournament-archive-result-title-block">
+            <h1 data-cy="tournament-archive-result-title"><span data-cy="tournament-archive-result-league-name">{{ league()?.name || i18n.t('result.unknownLeague') }}</span><span data-cy="tournament-archive-result-title-gap">&nbsp;</span><span data-cy="tournament-archive-result-tournament-name">{{ report.tournamentName }}</span><span class="result-page-separator" aria-hidden="true" data-cy="tournament-archive-result-title-separator"> — </span><span class="result-page-label" data-cy="tournament-archive-result-page-label">{{ pageLabel() }}</span></h1>
+            <p class="result-subtitle" data-cy="tournament-archive-result-subtitle">{{ formatTournamentDate(report.tournamentDate) }}</p>
           </div>
           @if (page() === 'standings') {
-            <div class="result-counts" [attr.aria-label]="i18n.t('result.statsAria')">
-              <div class="result-player-badge"><span>{{ i18n.t('common.players') }}</span><strong>{{ report.stats.playerCount }}</strong></div>
-              <div class="result-player-badge"><span>{{ i18n.t('common.rounds') }}</span><strong>{{ report.stats.roundCount }}</strong></div>
-              <div class="result-player-badge"><span>{{ i18n.t('common.matches') }}</span><strong>{{ report.stats.matchCount }}</strong></div>
+            <div class="result-counts" data-cy="tournament-archive-result-counts" [attr.aria-label]="i18n.t('result.statsAria')">
+              <div class="result-player-badge" data-cy="tournament-archive-result-player-badge"><span data-cy="tournament-archive-result-player-badge-label">{{ i18n.t('common.players') }}</span><strong data-cy="tournament-archive-result-player-badge-value">{{ report.stats.playerCount }}</strong></div>
+              <div class="result-player-badge" data-cy="tournament-archive-result-round-badge"><span data-cy="tournament-archive-result-round-badge-label">{{ i18n.t('common.rounds') }}</span><strong data-cy="tournament-archive-result-round-badge-value">{{ report.stats.roundCount }}</strong></div>
+              <div class="result-player-badge" data-cy="tournament-archive-result-match-badge"><span data-cy="tournament-archive-result-match-badge-label">{{ i18n.t('common.matches') }}</span><strong data-cy="tournament-archive-result-match-badge-value">{{ report.stats.matchCount }}</strong></div>
             </div>
           }
         </section>
 
-        <section class="result-page-body">
+        <section class="result-page-body" data-cy="tournament-archive-result-body">
           @if (page() === 'standings') {
-            <section class="result-panel result-standings" [attr.aria-label]="i18n.t('result.standings')">
-              <table>
-                <thead><tr><th>#</th><th>{{ i18n.t('common.player') }}</th><th>{{ i18n.t('common.record') }}</th></tr></thead>
-                <tbody>
+            <section class="result-panel result-standings" data-cy="tournament-archive-result-standings-panel" [attr.aria-label]="i18n.t('result.standings')">
+              <table data-cy="tournament-archive-result-standings-table">
+                <thead data-cy="tournament-archive-result-standings-head"><tr data-cy="tournament-archive-result-standings-head-row"><th data-cy="tournament-archive-result-standings-rank-header">#</th><th data-cy="tournament-archive-result-standings-player-header">{{ i18n.t('common.player') }}</th><th data-cy="tournament-archive-result-standings-record-header">{{ i18n.t('common.record') }}</th></tr></thead>
+                <tbody data-cy="tournament-archive-result-standings-body">
                   @for (row of topStandingRows(); track row.playerName) {
-                    <tr><td class="rank">{{ row.rank }}</td><td><strong>{{ playerLabel(row.playerName, row.archetype) }}</strong></td><td>{{ row.record }}</td></tr>
+                    <tr data-cy="tournament-archive-result-standings-row"><td class="rank" data-cy="tournament-archive-result-standings-rank">{{ row.rank }}</td><td data-cy="tournament-archive-result-standings-player"><strong data-cy="tournament-archive-result-standings-player-name">{{ playerLabel(row.playerName, row.archetype) }}</strong></td><td data-cy="tournament-archive-result-standings-record">{{ row.record }}</td></tr>
                   } @empty {
-                    <tr><td colspan="3" class="empty">{{ i18n.t('result.noValidResults') }}</td></tr>
+                    <tr data-cy="tournament-archive-result-standings-empty-row"><td colspan="3" class="empty" data-cy="tournament-archive-result-standings-empty">{{ i18n.t('result.noValidResults') }}</td></tr>
                   }
                 </tbody>
               </table>
             </section>
           } @else {
-            <section class="result-panel result-metagame" [attr.aria-label]="i18n.t('result.metagame')">
+            <section class="result-panel result-metagame" data-cy="tournament-archive-result-metagame-panel" [attr.aria-label]="i18n.t('result.metagame')">
               @if (metagameBars().length) {
                 <div
                   class="metagame-bar-columns"
+                  data-cy="tournament-archive-result-metagame-columns"
                   [class.metagame-bar-columns--sparse]="metagameBars().length <= 8"
                   [class.metagame-bar-columns--comfortable]="metagameBars().length > 8 && metagameBars().length <= 18"
                   [class.metagame-bar-columns--dense]="metagameBars().length > 18"
@@ -55,47 +56,47 @@ import { I18nService } from '../../i18n/i18n.service';
                   [attr.aria-label]="i18n.t('result.metagameBarsAria')"
                 >
                   @for (column of metagameColumns(); track $index) {
-                    <div class="metagame-bar-column">
+                    <div class="metagame-bar-column" data-cy="tournament-archive-result-metagame-column">
                       @for (bar of column; track bar.archetype) {
-                        <article class="metagame-bar-row" role="listitem" [attr.aria-label]="bar.ariaLabel">
-                          <strong>{{ bar.archetype }}</strong>
-                          <div class="metagame-bar-track" aria-hidden="true">
-                            <span [style.width.%]="bar.percentageValue"></span>
+                        <article class="metagame-bar-row" role="listitem" data-cy="tournament-archive-result-metagame-row" [attr.aria-label]="bar.ariaLabel">
+                          <strong data-cy="tournament-archive-result-metagame-archetype">{{ bar.archetype }}</strong>
+                          <div class="metagame-bar-track" aria-hidden="true" data-cy="tournament-archive-result-metagame-track">
+                            <span data-cy="tournament-archive-result-metagame-fill" [style.width.%]="bar.percentageValue"></span>
                           </div>
-                          <span class="metagame-bar-row__percent">{{ bar.percentageLabel }}</span>
-                          <span class="metagame-bar-row__count">{{ bar.playerCount }}/{{ bar.totalPlayerCount }}</span>
+                          <span class="metagame-bar-row__percent" data-cy="tournament-archive-result-metagame-percent">{{ bar.percentageLabel }}</span>
+                          <span class="metagame-bar-row__count" data-cy="tournament-archive-result-metagame-count">{{ bar.playerCount }}/{{ bar.totalPlayerCount }}</span>
                         </article>
                       }
                     </div>
                   }
                 </div>
               } @else {
-                <p class="empty">{{ i18n.t('result.noArchetypeData') }}</p>
+                <p class="empty" data-cy="tournament-archive-result-metagame-empty">{{ i18n.t('result.noArchetypeData') }}</p>
               }
-              <div class="result-player-badge metagame-player-badge"><span>{{ i18n.t('common.players') }}</span><strong>{{ report.stats.playerCount }}</strong></div>
+              <div class="result-player-badge metagame-player-badge" data-cy="tournament-archive-result-metagame-player-badge"><span data-cy="tournament-archive-result-metagame-player-label">{{ i18n.t('common.players') }}</span><strong data-cy="tournament-archive-result-metagame-player-value">{{ report.stats.playerCount }}</strong></div>
             </section>
           }
         </section>
       </section>
     } @else if (!loading()) {
-      <mat-card class="panel"><mat-card-title>{{ i18n.t('result.notFoundTitle') }}</mat-card-title><mat-card-content><p>{{ i18n.t('result.notFoundBody') }}</p></mat-card-content></mat-card>
+      <mat-card class="panel" data-cy="tournament-archive-result-not-found"><mat-card-title data-cy="tournament-archive-result-not-found-title">{{ i18n.t('result.notFoundTitle') }}</mat-card-title><mat-card-content data-cy="tournament-archive-result-not-found-body"><p data-cy="tournament-archive-result-not-found-text">{{ i18n.t('result.notFoundBody') }}</p></mat-card-content></mat-card>
     }
     @if (!loading() && leagueId()) {
-      <footer class="back-button-row back-button-row--bottom result-footer" [attr.aria-label]="i18n.t('result.navAria')">
-        <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId()]">{{ i18n.t('nav.backToTournament') }}</a>
+      <footer class="back-button-row back-button-row--bottom result-footer" data-cy="tournament-archive-result-footer" [attr.aria-label]="i18n.t('result.navAria')">
+        <a mat-stroked-button class="back-button secondary-action" data-cy="tournament-archive-result-back-to-tournament" [routerLink]="['/leagues-archive', leagueId(), 'tournaments-archive', tournamentId()]">{{ i18n.t('nav.backToTournament') }}</a>
         @if (page() === 'standings') {
-          <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId(), 'result', 'metagames']">{{ i18n.t('result.seeArchetypeShare') }}</a>
+          <a mat-stroked-button class="back-button secondary-action" data-cy="tournament-archive-result-see-metagames" [routerLink]="['/leagues-archive', leagueId(), 'tournaments-archive', tournamentId(), 'result', 'metagames']">{{ i18n.t('result.seeArchetypeShare') }}</a>
         } @else {
-          <a mat-stroked-button class="back-button secondary-action" [routerLink]="['/leagues', leagueId(), 'tournaments', tournamentId(), 'result']">{{ i18n.t('result.seeStandings') }}</a>
+          <a mat-stroked-button class="back-button secondary-action" data-cy="tournament-archive-result-see-standings" [routerLink]="['/leagues-archive', leagueId(), 'tournaments-archive', tournamentId(), 'result']">{{ i18n.t('result.seeStandings') }}</a>
         }
-        <span class="result-footer__spacer"></span>
-        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadResultImage()">{{ i18n.t('result.downloadImage') }}</button>
-        <button mat-stroked-button class="back-button secondary-action" type="button" [disabled]="downloading()" (click)="downloadAllResultImages()">{{ i18n.t('result.downloadAll') }}</button>
+        <span class="result-footer__spacer" data-cy="tournament-archive-result-footer-spacer"></span>
+        <button mat-stroked-button class="back-button secondary-action" type="button" data-cy="tournament-archive-result-download-image" [disabled]="downloading()" (click)="downloadResultImage()">{{ i18n.t('result.downloadImage') }}</button>
+        <button mat-stroked-button class="back-button secondary-action" type="button" data-cy="tournament-archive-result-download-all" [disabled]="downloading()" (click)="downloadAllResultImages()">{{ i18n.t('result.downloadAll') }}</button>
       </footer>
     }
   `
 })
-export class TournamentResultComponent {
+export class TournamentArchiveResultComponent {
   readonly i18n = inject(I18nService);
   @ViewChild('resultSection') private resultSection?: ElementRef<HTMLElement>;
 
@@ -113,7 +114,7 @@ export class TournamentResultComponent {
   readonly metagameBars = computed(() => buildMetagameBars(this.summary()?.archetypeShares.slice(0, 30) ?? []));
   readonly metagameColumns = computed(() => splitMetagameBars(this.metagameBars()));
 
-  constructor(private readonly repo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
+  constructor(private readonly repo: LeagueArchiveRepository, private readonly route: ActivatedRoute, private readonly router: Router) { void this.load(); }
 
   playerLabel(playerName: string, archetype: string): string {
     return formatPlayerWithArchetype(playerName, archetype);

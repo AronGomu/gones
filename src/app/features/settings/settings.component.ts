@@ -13,8 +13,8 @@ import { dataAuthority } from '../../config/data-authority';
 import { ApiProblemError } from '../../api/api-boundary';
 import { AdminDeckArchetypeResponse, Client, MyOrganizationResponse, OrganizationNotificationSettingsResponse, PlayerNameSummary } from '../../api/generated/gones-api';
 import { AuthService } from '../../auth/auth.service';
-import { leagueCommandError } from '../../data/league-command-ux';
-import { LeagueRepository } from '../../data/league-repository.service';
+import { leagueCommandError } from '../../data/league-archive-command-ux';
+import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { playerNameKey } from '../../domain/rename-player';
 import { trimPlayerName } from '../../domain/models';
@@ -281,7 +281,7 @@ interface OwnedOrganizationSettings {
 export class SettingsComponent {
   readonly i18n = inject(I18nService);
   private readonly deckArchetypes = inject(DeckArchetypeSettingsService);
-  readonly leagueRepo = inject(LeagueRepository);
+  readonly leagueRepo = inject(LeagueArchiveRepository);
   readonly auth = inject(AuthService);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly client = inject(Client);

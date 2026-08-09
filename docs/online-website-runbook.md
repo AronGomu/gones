@@ -13,13 +13,13 @@ GitHub Pages is the active production host. A push to `main` triggers `.github/w
 | Build output directory | `dist/gones/browser` |
 | Production URL | `https://arongomu.github.io/gones/` |
 
-The Pages artifact includes a `404.html` SPA fallback for direct route refreshes. The historical `/pages/leagues.html` URL redirects to `/leagues`. No backend environment variables are required while the app uses the local frontend backend bridge.
+The Pages artifact includes a `404.html` SPA fallback for direct route refreshes. The historical `/pages/leagues.html` URL redirects to `/leagues`, which in turn redirects to `/leagues-archive` (ADR 0022). No backend environment variables are required while the app uses the local frontend backend bridge.
 
 ## 2. Smoke test
 
 After deployment:
 
-1. Open `https://arongomu.github.io/gones/leagues`.
+1. Open `https://arongomu.github.io/gones/leagues-archive`.
 2. Confirm the Leagues page and header Import control load.
 3. Open the demo League.
 4. Confirm no login/account/role-management controls are visible.

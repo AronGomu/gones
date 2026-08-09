@@ -23,28 +23,28 @@ export interface MoveResultTournamentResult {
   toLeague: PersistedLeague;
 }
 
-export interface LeagueBackendPort {
-  listLeagues(): Promise<PersistedLeague[]>;
-  getLeague(id: string): Promise<PersistedLeague | null>;
-  createLeague(name: string, idempotencyKey?: string): Promise<PersistedLeague>;
-  renameLeague(id: string, expectedVersion: number, name: string): Promise<PersistedLeague>;
-  changeLeagueStatus(id: string, expectedVersion: number, status: LeagueStatus): Promise<PersistedLeague>;
-  deleteLeague(id: string, expectedVersion: number): Promise<void>;
-  createResultTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague>;
-  editResultTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague>;
-  deleteResultTournament(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
-  moveResultTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult>;
-  addResultRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
-  deleteResultRound(id: string, tournamentId: string, roundId: string, expectedVersion: number): Promise<PersistedLeague>;
-  importResultRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, text: string): Promise<PersistedLeague>;
-  replaceResultRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, entries: RoundEntry[]): Promise<PersistedLeague>;
-  addResultEntry(id: string, tournamentId: string, roundId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague>;
-  editResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague>;
-  deleteResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number): Promise<PersistedLeague>;
-  updateResultPlayerArchetype(id: string, tournamentId: string, playerName: string, expectedVersion: number, archetype: string): Promise<PersistedLeague>;
-  renameLeaguePlayerName(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedLeague>;
-  restoreLeague(command: LeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague>;
-  restoreFullLeagueData(command: FullLeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague[]>;
+export interface LeagueArchiveBackendPort {
+  listLeagueArchives(): Promise<PersistedLeague[]>;
+  getLeagueArchive(id: string): Promise<PersistedLeague | null>;
+  createLeagueArchive(name: string, idempotencyKey?: string): Promise<PersistedLeague>;
+  renameLeagueArchive(id: string, expectedVersion: number, name: string): Promise<PersistedLeague>;
+  changeLeagueArchiveStatus(id: string, expectedVersion: number, status: LeagueStatus): Promise<PersistedLeague>;
+  deleteLeagueArchive(id: string, expectedVersion: number): Promise<void>;
+  createArchiveTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague>;
+  editArchiveTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague>;
+  deleteArchiveTournament(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
+  moveArchiveTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult>;
+  addArchiveRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
+  deleteArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number): Promise<PersistedLeague>;
+  importArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, text: string): Promise<PersistedLeague>;
+  replaceArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, entries: RoundEntry[]): Promise<PersistedLeague>;
+  addArchiveEntry(id: string, tournamentId: string, roundId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague>;
+  editArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague>;
+  deleteArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number): Promise<PersistedLeague>;
+  updateArchivePlayerArchetype(id: string, tournamentId: string, playerName: string, expectedVersion: number, archetype: string): Promise<PersistedLeague>;
+  renameLeagueArchivePlayerName(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedLeague>;
+  restoreLeagueArchive(command: LeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague>;
+  restoreFullLeagueArchiveData(command: FullLeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague[]>;
 }
 
 export interface LiveSettingsCommand {
@@ -123,7 +123,7 @@ export function resolveLiveBackendMode(authority: DataAuthority, globalRole: str
   return globalRole === 'Organizer' || globalRole === 'Admin' ? 'aspnet-api' : 'browser-local';
 }
 
-export const LEAGUE_BACKEND = new InjectionToken<LeagueBackendPort>('Gones League backend bridge', {
+export const LEAGUE_ARCHIVE_BACKEND = new InjectionToken<LeagueArchiveBackendPort>('Gones League Archive backend bridge', {
   providedIn: 'root',
   factory: () => {
     resolveBackendMode(dataAuthority());

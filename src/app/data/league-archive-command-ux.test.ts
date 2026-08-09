@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
 import { ApiProblemError } from '../api/api-boundary';
-import { canManageLeagues, leagueCommandError } from './league-command-ux';
+import { canManageLeagues, leagueCommandError } from './league-archive-command-ux';
 
 describe('League server access and stale UX', () => {
   it('limits League commands to Organizer and Admin', () => {

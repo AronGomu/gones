@@ -4,7 +4,7 @@ import { ApiProblemError } from '../api/api-boundary';
 import { Client, LeagueCommandResponse, LiveCommandResponse, LiveTournamentDocumentResponse, PublicLeagueDetailResponse, PublicLiveTournamentDetailResponse, LiveTournamentDocument as ApiLiveTournamentDocument } from '../api/generated/gones-api';
 import { LiveTournamentDocument, normalizeLiveTournament } from '../domain/live-tournament';
 import { LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
-import type { BackendMode, FullLeagueRestoreCommand, LeagueBackendPort, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
+import type { BackendMode, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Server-authority adapter. It carries intent commands only: no whole-document League or Live save
@@ -12,12 +12,12 @@ import type { BackendMode, FullLeagueRestoreCommand, LeagueBackendPort, LeagueRe
  * and those paths only ever existed to write the browser store (ADR 0019).
  */
 @Injectable({ providedIn: 'root' })
-export class AspNetApiBackend implements LeagueBackendPort, LiveBackendPort {
+export class AspNetApiBackend implements LeagueArchiveBackendPort, LiveBackendPort {
   readonly mode: BackendMode = 'aspnet-api';
 
   constructor(private readonly client: Client) {}
 
-  async listLeagues(): Promise<PersistedLeague[]> {
+  async listLeagueArchives(): Promise<PersistedLeague[]> {
     const summaries = [];
     const pageSize = 100;
     for (let page = 1; ; page++) {
@@ -28,7 +28,7 @@ export class AspNetApiBackend implements LeagueBackendPort, LiveBackendPort {
     return Promise.all(summaries.map(async item => this.toPersisted(await firstValueFrom(this.client.leaguesArchive2(item.id)))));
   }
 
-  async getLeague(id: string): Promise<PersistedLeague | null> {
+  async getLeagueArchive(id: string): Promise<PersistedLeague | null> {
     try { return this.toPersisted(await firstValueFrom(this.client.leaguesArchive2(id))); }
     catch (error) {
       if (error instanceof ApiProblemError && error.status === 404) return null;
@@ -36,80 +36,80 @@ export class AspNetApiBackend implements LeagueBackendPort, LiveBackendPort {
     }
   }
 
-  async createLeague(name: string, idempotencyKey = newIdempotencyKey()): Promise<PersistedLeague> {
+  async createLeagueArchive(name: string, idempotencyKey = newIdempotencyKey()): Promise<PersistedLeague> {
     return this.command(this.client.createLeagueArchive(idempotencyKey, { name }));
   }
 
-  renameLeague(id: string, expectedVersion: number, name: string): Promise<PersistedLeague> {
+  renameLeagueArchive(id: string, expectedVersion: number, name: string): Promise<PersistedLeague> {
     return this.command(this.client.renameLeagueArchive(id, encodeLeagueETag(expectedVersion), { name }));
   }
 
-  changeLeagueStatus(id: string, expectedVersion: number, status: LeagueStatus): Promise<PersistedLeague> {
+  changeLeagueArchiveStatus(id: string, expectedVersion: number, status: LeagueStatus): Promise<PersistedLeague> {
     return this.command(this.client.changeLeagueArchiveStatus(id, encodeLeagueETag(expectedVersion), { status }));
   }
 
-  async deleteLeague(id: string, expectedVersion: number): Promise<void> {
+  async deleteLeagueArchive(id: string, expectedVersion: number): Promise<void> {
     await firstValueFrom(this.client.deleteLeagueArchive(id, encodeLeagueETag(expectedVersion)));
   }
 
-  createResultTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
+  createArchiveTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
     return this.command(this.client.createArchiveTournament(id, encodeLeagueETag(expectedVersion), { name, tournamentDate }));
   }
 
-  editResultTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
+  editArchiveTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
     return this.command(this.client.editArchiveTournament(id, tournamentId, encodeLeagueETag(expectedVersion), { name, tournamentDate }));
   }
 
-  deleteResultTournament(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {
+  deleteArchiveTournament(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {
     return this.command(this.client.deleteArchiveTournament(id, tournamentId, encodeLeagueETag(expectedVersion)));
   }
 
-  async moveResultTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult> {
+  async moveArchiveTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult> {
     const response = await firstValueFrom(this.client.moveArchiveTournament(id, tournamentId, encodeLeagueETag(expectedVersion), encodeLeagueETag(targetExpectedVersion), { targetLeagueId }));
     return { fromLeague: this.toPersisted(response.source), toLeague: this.toPersisted(response.target) };
   }
 
-  addResultRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {
+  addArchiveRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {
     return this.command(this.client.addArchiveRound(id, tournamentId, encodeLeagueETag(expectedVersion)));
   }
 
-  deleteResultRound(id: string, tournamentId: string, roundId: string, expectedVersion: number): Promise<PersistedLeague> {
+  deleteArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number): Promise<PersistedLeague> {
     return this.command(this.client.deleteArchiveRound(id, tournamentId, roundId, encodeLeagueETag(expectedVersion)));
   }
 
-  importResultRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, text: string): Promise<PersistedLeague> {
+  importArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, text: string): Promise<PersistedLeague> {
     return this.command(this.client.importArchiveRound(id, tournamentId, roundId, encodeLeagueETag(expectedVersion), { text }));
   }
 
-  replaceResultRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, entries: RoundEntry[]): Promise<PersistedLeague> {
+  replaceArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, entries: RoundEntry[]): Promise<PersistedLeague> {
     return this.command(this.client.replaceArchiveRound(id, tournamentId, roundId, encodeLeagueETag(expectedVersion), { entries: entries as never }));
   }
 
-  addResultEntry(id: string, tournamentId: string, roundId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague> {
+  addArchiveEntry(id: string, tournamentId: string, roundId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague> {
     return this.command(this.client.addArchiveEntry(id, tournamentId, roundId, encodeLeagueETag(expectedVersion), entry as never));
   }
 
-  editResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague> {
+  editArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague> {
     return this.command(this.client.editArchiveEntry(id, tournamentId, roundId, entryId, encodeLeagueETag(expectedVersion), entry as never));
   }
 
-  deleteResultEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number): Promise<PersistedLeague> {
+  deleteArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number): Promise<PersistedLeague> {
     return this.command(this.client.deleteArchiveEntry(id, tournamentId, roundId, entryId, encodeLeagueETag(expectedVersion)));
   }
 
-  updateResultPlayerArchetype(id: string, tournamentId: string, playerName: string, expectedVersion: number, archetype: string): Promise<PersistedLeague> {
+  updateArchivePlayerArchetype(id: string, tournamentId: string, playerName: string, expectedVersion: number, archetype: string): Promise<PersistedLeague> {
     return this.command(this.client.updateArchivePlayerArchetype(id, tournamentId, playerName, encodeLeagueETag(expectedVersion), { archetype }));
   }
 
-  renameLeaguePlayerName(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedLeague> {
+  renameLeagueArchivePlayerName(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedLeague> {
     return this.command(this.client.renameLeagueArchivePlayerName(id, encodeLeagueETag(expectedVersion), { fromName, toName }));
   }
 
-  restoreLeague(command: LeagueRestoreCommand, idempotencyKey = newIdempotencyKey()): Promise<PersistedLeague> {
+  restoreLeagueArchive(command: LeagueRestoreCommand, idempotencyKey = newIdempotencyKey()): Promise<PersistedLeague> {
     return this.command(this.client.restoreLeagueArchive(idempotencyKey, command as never));
   }
 
-  async restoreFullLeagueData(command: FullLeagueRestoreCommand, idempotencyKey = newIdempotencyKey()): Promise<PersistedLeague[]> {
+  async restoreFullLeagueArchiveData(command: FullLeagueRestoreCommand, idempotencyKey = newIdempotencyKey()): Promise<PersistedLeague[]> {
     const response = await firstValueFrom(this.client.restoreFullLeagueArchiveData(idempotencyKey, command as never));
     return response.leagues.map(league => this.toPersisted(league));
   }

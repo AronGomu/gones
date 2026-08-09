@@ -51,6 +51,6 @@ export class BackButtonComponent {
       return;
     }
 
-    void this.router.navigate(['/leagues']);
+    void this.router.navigate(['/leagues-archive']);
   }
 }

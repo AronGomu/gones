@@ -22,9 +22,9 @@ import { AuthService } from '../../auth/auth.service';
           <strong data-cy="menu-running-tournaments-card-title">{{ i18n.t('home.runningTournaments') }}</strong>
           <p data-cy="menu-running-tournaments-card-desc">{{ i18n.t('home.runningTournamentsDesc') }}</p>
         </a>
-        <a class="home-destination home-destination--leagues" routerLink="/leagues" data-cy="menu-leagues-card">
-          <strong data-cy="menu-leagues-card-title">{{ i18n.t('home.leagues') }}</strong>
-          <p data-cy="menu-leagues-card-desc">{{ i18n.t('home.leaguesDesc') }}</p>
+        <a class="home-destination home-destination--leagues" routerLink="/leagues-archive" data-cy="menu-leagues-archive-card">
+          <strong data-cy="menu-leagues-archive-card-title">{{ i18n.t('home.leagues') }}</strong>
+          <p data-cy="menu-leagues-archive-card-desc">{{ i18n.t('home.leaguesDesc') }}</p>
         </a>
         <a class="home-destination home-destination--calendar" routerLink="/calendar" data-cy="menu-calendar-card">
           <strong data-cy="menu-calendar-card-title">{{ i18n.t('home.calendar') }}</strong>

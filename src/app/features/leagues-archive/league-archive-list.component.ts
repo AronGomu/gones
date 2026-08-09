@@ -9,8 +9,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
-import { canManageLeagues, leagueCommandError } from '../../data/league-command-ux';
-import { LeagueRepository } from '../../data/league-repository.service';
+import { canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
+import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
 import { I18nService } from '../../i18n/i18n.service';
@@ -22,42 +22,42 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
   standalone: true,
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
+    <gones-back-button data-cy="leagues-archive-list-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
-    <section class="page-heading league-list-heading">
-      <div><h1>{{ i18n.t('leagues.title') }}</h1></div>
+    <section class="page-heading league-list-heading" data-cy="leagues-archive-list-heading">
+      <div data-cy="leagues-archive-list-heading-block"><h1 data-cy="leagues-archive-list-title">{{ i18n.t('leagues.title') }}</h1></div>
     </section>
-    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    @if (error()) { <p class="error" role="alert" data-cy="leagues-archive-list-error">{{ error() }}</p> }
     @if (showLeagueFilter()) {
-      <div class="league-toolbar">
-        <mat-form-field appearance="outline" class="search"><mat-label>{{ i18n.t('leagues.search') }}</mat-label><input matInput [(ngModel)]="searchTerm"></mat-form-field>
+      <div class="league-toolbar" data-cy="leagues-archive-list-toolbar">
+        <mat-form-field appearance="outline" class="search" data-cy="leagues-archive-list-search-field"><mat-label data-cy="leagues-archive-list-search-label">{{ i18n.t('leagues.search') }}</mat-label><input matInput data-cy="leagues-archive-list-search-input" [(ngModel)]="searchTerm"></mat-form-field>
       </div>
     }
-    @if (loading()) { <mat-spinner diameter="40" /> }
+    @if (loading()) { <mat-spinner diameter="40" data-cy="leagues-archive-list-spinner" /> }
     @else {
-      @if (!filteredLeagues().length) { <p class="muted">{{ i18n.t('leagues.noneMatch') }}</p> }
-      <div class="league-grid">
+      @if (!filteredLeagues().length) { <p class="muted" data-cy="leagues-archive-list-empty">{{ i18n.t('leagues.noneMatch') }}</p> }
+      <div class="league-grid" data-cy="leagues-archive-list-grid">
         @for (league of filteredLeagues(); track league.id) {
-          <a class="league-card" [routerLink]="['/leagues', league.id]" data-cy="league-list-item">
-            <span class="status league-card-status" [class.completed]="league.status === 'completed'"><span class="status-dot" aria-hidden="true"></span>{{ league.status === 'completed' ? i18n.t('common.completed') : i18n.t('common.active') }}</span>
-            <h2>{{ leagueDisplayName(league) }}</h2>
-            <p>{{ leagueMeta(league) }}</p>
-            <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.view') }}</span>
+          <a class="league-card" [routerLink]="['/leagues-archive', league.id]" data-cy="leagues-archive-list-item">
+            <span class="status league-card-status" data-cy="leagues-archive-list-item-status" [class.completed]="league.status === 'completed'"><span class="status-dot" aria-hidden="true" data-cy="leagues-archive-list-item-status-dot"></span>{{ league.status === 'completed' ? i18n.t('common.completed') : i18n.t('common.active') }}</span>
+            <h2 data-cy="leagues-archive-list-item-name">{{ leagueDisplayName(league) }}</h2>
+            <p data-cy="leagues-archive-list-item-meta">{{ leagueMeta(league) }}</p>
+            <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-item-view">{{ i18n.t('common.view') }}</span>
           </a>
         }
         @if (canManage()) {
-          <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="create-league-card">
-            <h2>{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
-            <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
+          <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="leagues-archive-list-create-card">
+            <h2 data-cy="leagues-archive-list-create-card-title">{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
+            <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-create-card-action">{{ i18n.t('common.create') }}</span>
           </button>
-        } @else { <p class="muted" data-cy="league-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+        } @else { <p class="muted" data-cy="leagues-archive-list-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       </div>
     }
 
-    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
+    <gones-back-button data-cy="leagues-archive-list-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
 })
-export class LeagueListComponent {
+export class LeagueArchiveListComponent {
   readonly i18n = inject(I18nService);
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly loading = signal(true);
@@ -73,7 +73,7 @@ export class LeagueListComponent {
       .filter((league) => !search || this.leagueDisplayName(league).toLowerCase().includes(search) || league.name.toLowerCase().includes(search));
   });
 
-  constructor(readonly repo: LeagueRepository, private readonly auth: AuthService, private readonly router: Router, private readonly dialog: MatDialog) {
+  constructor(readonly repo: LeagueArchiveRepository, private readonly auth: AuthService, private readonly router: Router, private readonly dialog: MatDialog) {
     void this.load();
   }
 
@@ -106,7 +106,7 @@ export class LeagueListComponent {
     try {
       const league = await this.repo.createLeague(name);
       this.error.set('');
-      await this.router.navigate(['/leagues', league.id]);
+      await this.router.navigate(['/leagues-archive', league.id]);
     } catch (error) {
       logBoundaryError('league-list.create', error);
       this.error.set(leagueCommandError(error) === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('leagues.createFailed'));

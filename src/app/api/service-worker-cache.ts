@@ -17,12 +17,12 @@ const PUBLIC_CACHEABLE_API_PATHS: readonly RegExp[] = [
   /^\/api\/tournaments\/[^/]+$/,
   /^\/api\/organizations$/,
   /^\/api\/organizations\/[^/]+$/,
-  /^\/api\/leagues$/,
-  /^\/api\/leagues\/[^/]+$/,
-  /^\/api\/leagues\/[^/]+\/result$/,
-  /^\/api\/leagues\/[^/]+\/tournaments\/[^/]+$/,
-  /^\/api\/leagues\/[^/]+\/tournaments\/[^/]+\/result$/,
-  /^\/api\/leagues\/[^/]+\/players\/[^/]+\/statistics$/,
+  /^\/api\/leagues-archive$/,
+  /^\/api\/leagues-archive\/[^/]+$/,
+  /^\/api\/leagues-archive\/[^/]+\/result$/,
+  /^\/api\/leagues-archive\/[^/]+\/tournaments-archive\/[^/]+$/,
+  /^\/api\/leagues-archive\/[^/]+\/tournaments-archive\/[^/]+\/result$/,
+  /^\/api\/leagues-archive\/[^/]+\/players\/[^/]+\/statistics$/,
   /^\/api\/formats$/,
   /^\/api\/deck-archetypes$/
 ];

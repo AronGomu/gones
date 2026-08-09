@@ -6,7 +6,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
-import { LeagueRepository } from '../../data/league-repository.service';
+import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { canManageLive } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { LiveTournamentDocument, LiveTournamentStage } from '../../domain/live-tournament';
@@ -87,7 +87,7 @@ export class LiveTournamentListComponent {
   /** In the browser-local store the visitor owns everything they can see, so they always manage it. */
   readonly canManage = computed(() => this.localMode || canManageLive(this.auth.profile()?.globalRole));
 
-  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueRepository, private readonly router: Router) { void this.load(); }
+  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly router: Router) { void this.load(); }
 
   async load(): Promise<void> {
     this.loading.set(true);

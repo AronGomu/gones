@@ -56,11 +56,11 @@ function mockLiveServer() {
     if (!live.customRoundCount && live.stage === 'registration') live.roundCount = autoRoundCount(live.players);
   };
 
-  cy.intercept('GET', /\/api\/leagues\?.*/, (req) => req.reply({
+  cy.intercept('GET', /\/api\/leagues-archive\?.*/, (req) => req.reply({
     items: [{ id: state.league.id, name: state.league.name, status: state.league.status, documentVersion: state.league.documentVersion, updatedAt: '2026-08-05T00:00:00Z' }],
     page: 1, pageSize: 100, totalCount: 1
   })).as('leagueList');
-  cy.intercept('GET', /\/api\/leagues\/[^/?]+$/, (req) => req.reply({ ...clone(state.league), updatedAt: '2026-08-05T00:00:00Z', eTag: etag(state.league.documentVersion) })).as('leagueDetail');
+  cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, (req) => req.reply({ ...clone(state.league), updatedAt: '2026-08-05T00:00:00Z', eTag: etag(state.league.documentVersion) })).as('leagueDetail');
 
   cy.intercept('GET', /\/api\/live-tournaments\?.*/, (req) => req.reply({
     items: state.lives.filter((live) => live.stage !== 'completed').map((live) => ({ id: live.id, name: live.name, tournamentDate: live.tournamentDate, stage: live.stage, updatedAt: live.updatedAt, documentVersion: live.documentVersion })),
@@ -340,8 +340,8 @@ function runServerLifecycle({ label, width, height }) {
     cy.get('[data-cy="live-archive-tournament-button"]').should('be.enabled').click();
     cy.contains('mat-dialog-container button', 'Archive Tournament').click();
     cy.wait('@finalizeLive');
-    cy.location('pathname').should('eq', `/leagues/league-1/tournaments/final-live-1`);
-    cy.get('[data-cy="tournament-detail-page"]').should('contain', 'Server Live Cup');
+    cy.location('pathname').should('eq', `/leagues-archive/league-1/tournaments-archive/final-live-1`);
+    cy.get('[data-cy="tournament-archive-detail-page"]').should('contain', 'Server Live Cup');
     cy.then(() => expect(state.finalized).to.not.eq(null));
   });
 }

@@ -59,7 +59,7 @@ export async function buildBreadcrumbs(
       : t('crumb.liveSuffix', { name: liveTournament?.name || t('crumb.liveTournament') });
     return [{ label: menu, link: ['/'] }, { label: t('crumb.runningTournaments'), link: ['/live-tournaments'] }, { label }];
   }
-  if (segments[0] !== 'leagues') return [{ label: menu, link: ['/'] }, { label: t('nav.notFound') }];
+  if (segments[0] !== 'leagues-archive') return [{ label: menu, link: ['/'] }, { label: t('nav.notFound') }];
   if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues') }];
 
   const leagueId = decodeURIComponent(segments[1]);
@@ -67,10 +67,10 @@ export async function buildBreadcrumbs(
   const leagueLabel = league
     ? (league.id === PLACEHOLDER_LEAGUE_ID ? t('liveList.unassigned') : league.name)
     : t('crumb.league');
-  if (segments[2] !== 'tournaments' || !segments[3]) return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel }];
+  if (segments[2] !== 'tournaments-archive' || !segments[3]) return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues-archive'] }, { label: leagueLabel }];
 
   const tournamentId = decodeURIComponent(segments[3]);
   const tournamentLabel = league?.tournaments.find((item: TournamentDocument) => item.id === tournamentId)?.name || t('crumb.tournament');
-  if (segments[4] === 'result') return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel, link: ['/leagues', leagueId, 'tournaments', tournamentId] }, { label: t('crumb.result') }];
-  return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues'] }, { label: leagueLabel, link: ['/leagues', leagueId] }, { label: tournamentLabel }];
+  if (segments[4] === 'result') return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues-archive'] }, { label: leagueLabel, link: ['/leagues-archive', leagueId] }, { label: tournamentLabel, link: ['/leagues-archive', leagueId, 'tournaments-archive', tournamentId] }, { label: t('crumb.result') }];
+  return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues-archive'] }, { label: leagueLabel, link: ['/leagues-archive', leagueId] }, { label: tournamentLabel }];
 }

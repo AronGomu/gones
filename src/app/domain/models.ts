@@ -1,3 +1,4 @@
+// Export bundle shape — frozen by ADR 0022. The archive rename does not touch these names.
 export const GONES_DATA_VERSION = 4;
 export const SUPPORTED_IMPORT_DATA_VERSIONS = [1, 2, 3, 4] as const;
 export const PLACEHOLDER_LEAGUE_ID = 'placeholder-league';

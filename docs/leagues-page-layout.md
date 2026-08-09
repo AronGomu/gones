@@ -1,5 +1,12 @@
 # Leagues Page Layout
 
+> **Route note (ADR 0022).** The page described here is the *league archive*. It is served at
+> `/leagues-archive`, its detail page at `/leagues-archive/:leagueId` and its tournament pages at
+> `/leagues-archive/:leagueId/tournaments-archive/:tournamentId`. The retired `/leagues…` URLs still
+> redirect. The components live in `src/app/features/leagues-archive/` and
+> `src/app/features/tournaments-archive/`. The `leagues.html` references below are the historical
+> static prototype in `src/legacy-pages/`, not a live route; the app homepage is now `/`.
+
 This document captures the agreed layout direction for the Gones Leagues page. It is intentionally limited to layout and information hierarchy. It does not define visual style, colors, typography, or final component styling.
 
 ## Product Context

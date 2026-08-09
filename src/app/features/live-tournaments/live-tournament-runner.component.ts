@@ -17,7 +17,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
-import { LeagueRepository } from '../../data/league-repository.service';
+import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { canManageLive, liveCommandError } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { activeLivePlayers, autoLiveSwissRoundCount, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, currentLiveRound, currentRoundComplete, finalizeLiveTournament as finalizeLiveTournamentDocument, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, unpaidActivePlayers } from '../../domain/live-tournament';
@@ -270,7 +270,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     return !leagueId || leagueId === PLACEHOLDER_LEAGUE_ID ? '' : leagueId;
   }
 
-  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) {
+  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) {
     window.addEventListener('gones-open-live-tournament-advanced-settings', this.openAdvancedSettingsListener);
     void this.load();
   }
@@ -610,7 +610,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
         await this.load();
         return;
       }
-      await this.router.navigate(['/leagues', result.leagueId, 'tournaments', result.finalizedTournamentId]);
+      await this.router.navigate(['/leagues-archive', result.leagueId, 'tournaments-archive', result.finalizedTournamentId]);
     } catch (error) {
       logBoundaryError('live-tournament.finalize', error, { liveTournamentId: live.id, leagueId: live.leagueId });
       if (liveCommandError(error) === 'stale') {

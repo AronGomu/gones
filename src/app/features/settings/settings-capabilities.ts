@@ -1,4 +1,4 @@
-import type { GlobalRole } from '../../data/league-command-ux';
+import type { GlobalRole } from '../../data/league-archive-command-ux';
 
 export interface SettingsFeatureFlags {
   authV1: boolean;

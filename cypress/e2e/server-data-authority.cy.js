@@ -47,8 +47,8 @@ describe('server data authority', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
   it('reads League, Live and Calendar from the API and ignores a canonical browser store', () => {
-    visitWithGhostStores('/leagues');
-    cy.get('[data-cy="create-league-card"], [data-cy="league-list-item"], [data-cy="league-read-only"]', { timeout: 15000 }).should('exist');
+    visitWithGhostStores('/leagues-archive');
+    cy.get('[data-cy="leagues-archive-list-create-card"], [data-cy="leagues-archive-list-item"], [data-cy="leagues-archive-list-read-only"]', { timeout: 15000 }).should('exist');
     cy.contains('Ghost Browser League').should('not.exist');
 
     cy.visit('/live-tournaments');
@@ -82,33 +82,33 @@ describe('server data authority', () => {
     let next = 1;
     cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'memory-token', expiresAt: '2030-01-01T01:00:00Z', tokenType: 'Bearer' });
     cy.intercept('GET', '**/api/users/me', profile);
-    cy.intercept('GET', /\/api\/leagues\?.*/, (req) => req.reply({
+    cy.intercept('GET', /\/api\/leagues-archive\?.*/, (req) => req.reply({
       items: leagues.map(({ id, name, status, documentVersion }) => ({ id, name, status, documentVersion, updatedAt: '2026-08-02T00:00:00Z' })),
       page: 1, pageSize: 100, totalCount: leagues.length
     }));
-    cy.intercept('GET', /\/api\/leagues\/[^/?]+$/, (req) => {
+    cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, (req) => {
       const league = leagues.find((item) => item.id === decodeURIComponent(req.url.split('/').pop()));
       req.reply(league
         ? { ...league, updatedAt: '2026-08-02T00:00:00Z', eTag: etag(league.documentVersion) }
         : { statusCode: 404, body: { code: 'not_found', message: 'Missing.' } });
     });
-    cy.intercept('POST', /\/api\/leagues$/, (req) => {
+    cy.intercept('POST', /\/api\/leagues-archive$/, (req) => {
       const league = { id: `league-${next++}`, name: req.body.name, status: 'active', tournaments: [], documentVersion: 1 };
       leagues.push(league);
       req.reply({ statusCode: 201, body: { ...league, updatedAt: '2026-08-02T00:00:00Z', eTag: etag(1) } });
     }).as('createLeague');
 
-    visitWithGhostStores('/leagues');
+    visitWithGhostStores('/leagues-archive');
     cy.window().then((win) => {
       const seeded = { frontend: win.localStorage.getItem(STORE_KEY), live: win.localStorage.getItem(LIVE_STORE_KEY) };
 
-      cy.get('[data-cy="create-league-card"]').click();
+      cy.get('[data-cy="leagues-archive-list-create-card"]').click();
       cy.contains('mat-dialog-container', 'New League').within(() => {
         cy.get('input').type('Server Authority League');
         cy.contains('button', 'Create League').click();
       });
       cy.wait('@createLeague');
-      cy.contains('[data-cy="league-list-item"], h1 button', 'Server Authority League').should('exist');
+      cy.contains('[data-cy="leagues-archive-list-item"], h1 button', 'Server Authority League').should('exist');
 
       cy.window().then((after) => expectCanonicalStoresUntouched(after, seeded));
     });

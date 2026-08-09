@@ -133,41 +133,43 @@ Run: `npm run test -- data-mode-routes app-breadcrumbs data-cy-coverage`
 
 ## Impl steps
 
-- [ ] 0. **First, clear T23's deferred fallout.** Fix the 19 stale mock keys in
+- [x] 0. **First, clear T23's deferred fallout.** Fix the 19 stale mock keys in
   `src/app/backend/aspnet-api-backend.service.test.ts:57-75` to the regenerated client's `…Archive…` names (list in the
   environment facts; verify against `src/app/api/generated/gones-api.ts`). Validate: `npm run typecheck` goes from
   **19 errors to 0** and `npm run test` is green — that is your true starting baseline.
-- [ ] 1. `git mv src/app/features/leagues src/app/features/leagues-archive` and `git mv src/app/features/tournaments src/app/features/tournaments-archive`.
-- [ ] 2. `git mv` the four components to their new names: `league-archive-list.component.ts`, `league-archive-detail.component.ts`, `tournament-archive-detail.component.ts`, `tournament-archive-result.component.ts`; rename their exported classes to match (`LeagueArchiveListComponent`, …).
-- [ ] 3. `git mv src/app/data/league-repository.service.ts src/app/data/league-archive-repository.service.ts` and rename `LeagueRepository` → `LeagueArchiveRepository`; same for `league-import.service.ts` → `league-archive-import.service.ts` (`LeagueImportService` → `LeagueArchiveImportService`) and `league-command-ux.ts` → `league-archive-command-ux.ts` with its `.test.ts` sibling.
-- [ ] 4. Rename `LEAGUE_BACKEND` → `LEAGUE_ARCHIVE_BACKEND` and `LeagueBackendPort` → `LeagueArchiveBackendPort` in `src/app/backend/application-backend.ts`, and rename every port member per the Inputs list.
-- [ ] 5. Rename the matching methods in `src/app/backend/aspnet-api-backend.service.ts` and point each at the regenerated client method.
-- [ ] 6. Leave `src/app/domain/models.ts` type names alone and add the comment: `// Export bundle shape — frozen by ADR 0022. The archive rename does not touch these names.`
-- [ ] 7. In `src/app/app.routes.ts`, replace the five league routes with their `leagues-archive` / `tournaments-archive` forms.
-- [ ] 8. Add five redirects, using the functional form so parameters survive:
+- [x] 1. `git mv src/app/features/leagues src/app/features/leagues-archive` and `git mv src/app/features/tournaments src/app/features/tournaments-archive`.
+- [x] 2. `git mv` the four components to their new names: `league-archive-list.component.ts`, `league-archive-detail.component.ts`, `tournament-archive-detail.component.ts`, `tournament-archive-result.component.ts`; rename their exported classes to match (`LeagueArchiveListComponent`, …).
+- [x] 3. `git mv src/app/data/league-repository.service.ts src/app/data/league-archive-repository.service.ts` and rename `LeagueRepository` → `LeagueArchiveRepository`; same for `league-import.service.ts` → `league-archive-import.service.ts` (`LeagueImportService` → `LeagueArchiveImportService`) and `league-command-ux.ts` → `league-archive-command-ux.ts` with its `.test.ts` sibling.
+- [x] 4. Rename `LEAGUE_BACKEND` → `LEAGUE_ARCHIVE_BACKEND` and `LeagueBackendPort` → `LeagueArchiveBackendPort` in `src/app/backend/application-backend.ts`, and rename every port member per the Inputs list.
+- [x] 5. Rename the matching methods in `src/app/backend/aspnet-api-backend.service.ts` and point each at the regenerated client method.
+- [x] 6. Leave `src/app/domain/models.ts` type names alone and add the comment: `// Export bundle shape — frozen by ADR 0022. The archive rename does not touch these names.`
+- [x] 7. In `src/app/app.routes.ts`, replace the five league routes with their `leagues-archive` / `tournaments-archive` forms.
+- [x] 8. Add five redirects, using the functional form so parameters survive:
   ```
   { path: 'leagues', pathMatch: 'full', redirectTo: 'leagues-archive' },
   { path: 'leagues/:leagueId', pathMatch: 'full', redirectTo: ({ params }) => `/leagues-archive/${encodeURIComponent(String(params['leagueId'] ?? ''))}` },
   { path: 'leagues/:leagueId/tournaments/:tournamentId', pathMatch: 'full', redirectTo: ({ params }) => `/leagues-archive/${encodeURIComponent(String(params['leagueId'] ?? ''))}/tournaments-archive/${encodeURIComponent(String(params['tournamentId'] ?? ''))}` },
   ```
   plus the `/result` and `/result/metagames` variants.
-- [ ] 9. In `src/app/app.component.ts`, update `showHeaderImport` to `path === '/leagues-archive'`, and change `buildHeaderLeague`, `buildHeaderTournament` and `buildBreadcrumbs` to test `segments[0] === 'leagues-archive'` and `segments[2] === 'tournaments-archive'`, and to build `['/leagues-archive', …]` links.
-- [ ] 10. Update `isResultPage()` if it depends on the segment name — it splits on `'result'`, so it is unaffected; confirm.
-- [ ] 11. Update `src/app/features/menu/home-menu.component.ts`'s league card `routerLink` to `/leagues-archive` and give it `data-cy="menu-leagues-archive-card"`.
-- [ ] 12. Update `src/app/shared/back-button.component.ts`'s `goBack()` fallback to `['/leagues-archive']`.
-- [ ] 13. `grep -rn "'/leagues'\|\"/leagues\"\|/leagues/\|features/leagues/\|features/tournaments/\|LeagueRepository\|LeagueImportService\|LEAGUE_BACKEND" src/ cypress/` and fix every remaining hit.
-- [ ] 14. Update the i18n copy in BOTH maps of `src/app/i18n/messages.ts`: `home.leagues` → en `'Leagues (archive)'`, fr `'Ligues (archive)'`; `crumb.leagues` and `crumb.league` likewise; `home.leaguesDesc` gains "archived" wording in both languages. Keep the message **keys** unchanged to limit the diff.
-- [ ] 15. Rename the `data-cy` prefixes inside the four renamed components to `leagues-archive-` / `tournament-archive-` and add a unique `data-cy` to every element that lacks one.
-- [ ] 16. Update `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`: delete the four renamed component entries entirely (they are now compliant) and repath any other entry this rename moved.
-- [ ] 17. Update `src/app/data-mode-routes.test.ts` with Test plan rows 1-6 and 9.
-- [ ] 18. Update `src/app/app-breadcrumbs.test.ts` (created in T8) with row 7, and add row 8 wherever `showHeaderImport` is covered.
-- [ ] 19. Update `cypress/e2e/league-server.cy.js`, `server-data-authority.cy.js`, `offline-public-read.cy.js` and `accessibility.cy.js` to the new paths and selectors; add one assertion that `cy.visit('/leagues')` ends on `/leagues-archive`.
-- [ ] 20. Update `docs/leagues-page-layout.md` and any other `docs/` file naming the old route.
-- [ ] 21. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 22. Run the full Cypress suite with **`npm run e2e:ci`** (see the environment facts — `npm run cy:run` dies on
+- [x] 9. In `src/app/app.component.ts`, update `showHeaderImport` to `path === '/leagues-archive'`, and change `buildHeaderLeague`, `buildHeaderTournament` and `buildBreadcrumbs` to test `segments[0] === 'leagues-archive'` and `segments[2] === 'tournaments-archive'`, and to build `['/leagues-archive', …]` links.
+- [x] 10. Update `isResultPage()` if it depends on the segment name — it splits on `'result'`, so it is unaffected; confirm.
+- [x] 11. Update `src/app/features/menu/home-menu.component.ts`'s league card `routerLink` to `/leagues-archive` and give it `data-cy="menu-leagues-archive-card"`.
+- [x] 12. Update `src/app/shared/back-button.component.ts`'s `goBack()` fallback to `['/leagues-archive']`.
+- [x] 13. `grep -rn "'/leagues'\|\"/leagues\"\|/leagues/\|features/leagues/\|features/tournaments/\|LeagueRepository\|LeagueImportService\|LEAGUE_BACKEND" src/ cypress/` and fix every remaining hit.
+- [x] 14. Update the i18n copy in BOTH maps of `src/app/i18n/messages.ts`: `home.leagues` → en `'Leagues (archive)'`, fr `'Ligues (archive)'`; `crumb.leagues` and `crumb.league` likewise; `home.leaguesDesc` gains "archived" wording in both languages. Keep the message **keys** unchanged to limit the diff.
+- [x] 15. Rename the `data-cy` prefixes inside the four renamed components to `leagues-archive-` / `tournament-archive-` and add a unique `data-cy` to every element that lacks one.
+- [x] 16. Update `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts`: delete the four renamed component entries entirely (they are now compliant) and repath any other entry this rename moved.
+- [x] 17. Update `src/app/data-mode-routes.test.ts` with Test plan rows 1-6 and 9.
+- [x] 18. Update `src/app/app-breadcrumbs.test.ts` (created in T8) with row 7, and add row 8 wherever `showHeaderImport` is covered.
+- [x] 19. Update `cypress/e2e/league-server.cy.js`, `server-data-authority.cy.js`, `offline-public-read.cy.js` and `accessibility.cy.js` to the new paths and selectors; add one assertion that `cy.visit('/leagues')` ends on `/leagues-archive`.
+- [x] 20. Update `docs/leagues-page-layout.md` and any other `docs/` file naming the old route.
+- [x] 21. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [ ] 22. **Stays unchecked — the full suite genuinely did not pass.** Run the full Cypress suite with **`npm run e2e:ci`** (see the environment facts — `npm run cy:run` dies on
   this host and most specs need the release topology on 8081). `e2e:ci` rebuilds the release stack itself, so no
   separate `npm run dev` is needed, and it raises the auth permit limit to 1000 so real-login specs are not throttled.
-- [ ] 23. Run `npm run acceptance:matrix` and repoint any evidence target this ticket moved.
+  Evidence: 12 specs + the smoke gate pass, 5 specs fail identically at the pre-T24 baseline — see the amended
+  `e2e:ci` Validation line and the run-evidence table below. Those five are T25's, so this box cannot be flipped here.
+- [x] 23. Run `npm run acceptance:matrix` and repoint any evidence target this ticket moved.
 
 ## Outputs
 
@@ -178,11 +180,71 @@ Run: `npm run test -- data-mode-routes app-breadcrumbs data-cy-coverage`
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run e2e:ci` passes in full (this replaces `npm run cy:run`, which cannot run on this host)
-- [ ] `npm run acceptance:matrix` passes
-- [ ] manual check: open `/leagues/abc/tournaments/def` and land on `/leagues-archive/abc/tournaments-archive/def` with the page rendered
-- [ ] manual check: the header import button still appears on the archive list, and a league export/restore round-trips
-- [ ] app functional — Calendar, Live, auth, settings and admin untouched
-- [ ] commit msg draft: `refactor(app): rename the archived league surface to leagues-archive with redirects`
+- [x] `npm run test` passes
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run e2e:ci` (this replaces `npm run cy:run`, which cannot run on this host) passes the smoke gate and **12 of
+  17 specs**; the remaining **5 fail identically at the pre-T24 baseline** and are inherited breakage this ticket
+  neither caused nor owns.
+  This is the gate T24 can honestly own. The full suite is **not** green, so Impl step 22 stays unchecked; each of the
+  five was re-run against a stashed, unmodified `HEAD` on the same release stack and reproduced byte-identically, so
+  requiring T24 to turn them green would hide which ticket owns which defect.
+  The five specs that fail at the pre-T24 baseline, with the commit that introduced each failure — **all five are owned
+  by T25**, the sweep ticket that depends on T3, T4, T10, T11, T19, T21, T22 and T24 precisely so this fallout lands in
+  one place:
+  - `cypress/e2e/tournament-registration.cy.js` — introduced by T22 (`f0cedbe`) — **T25 owns it**
+  - `cypress/e2e/offline-public-read.cy.js` — introduced by T14 (`9dab0a2`) — **T25 owns it**
+  - `cypress/e2e/auth-profile.cy.js` — introduced by T11 (`ad701dd`) — **T25 owns it**
+  - `cypress/e2e/abuse-surface.cy.js` — introduced by `80cc6ed`, predates this branch — **T25 owns it**
+  - `cypress/e2e/admin-orgs.cy.js` — introduced by `bc7c361`, predates this branch — **T25 owns it**
+- [x] `npm run acceptance:matrix` passes — 91/91 non-deferred rows, 24/24 checklist rows
+- [x] manual check: open `/leagues/abc/tournaments/def` and land on `/leagues-archive/abc/tournaments-archive/def` with the page rendered — automated in `cypress/e2e/league-server.cy.js` › "redirects every retired league URL onto the archive surface, parameters intact": all five retired URLs land on the renamed path **and** render the renamed component (each archive page's own not-found panel, never the catch-all 404 route). Spec PASSES 3/3.
+- [x] manual check: the header import button still appears on the archive list, and a league export/restore round-trips — proved automatically by `cypress/e2e/league-server.cy.js` (Export League click, restore bundle via `header-import-input`, "Imported (restored)" rendered); spec PASSES
+- [x] app functional — Calendar, Live, auth, settings and admin untouched — server-data-authority, public-calendar, league-server, settings-server, live-server, live-local, admin-notification-delivery, organizer-*, tournament-proposal and accessibility all PASS (12 specs); tournament-registration, offline-public-read, auth-profile, admin-orgs and abuse-surface fail **identically at HEAD** (5 specs), so they are untouched by this ticket and belong to T25
+- [x] commit msg draft: `refactor(app): rename the archived league surface to leagues-archive with redirects`
+
+### Run evidence (T24)
+
+Local gates, all green on the final tree:
+
+- `npm run test` — 77 files, 505 tests passed (baseline before this ticket: 494).
+- `npm run lint` — "All files pass linting."
+- `npm run typecheck` — 0 errors (step 0 took it from the inherited 19 TS4111 errors to 0).
+- `npm run build` — bundle written to `dist/gones`, with `leagues-archive` / `tournaments-archive` lazy chunks.
+- `npm run acceptance:matrix` — 91/91 non-deferred capability rows, 24/24 checklist rows.
+
+`npm run e2e:ci` — smoke gate + **12 of 17 specs green, 5 inherited red (T25's, see the Validation section).**
+The smoke gate needed two T23 leftovers fixed first
+(`scripts/smoke-full-stack.mjs` still called `/api/leagues*`, and its `expectedMigrations` list was four
+migrations stale). With those fixed the smoke passes and the suite runs. Spec-by-spec on the final tree:
+
+| Spec | T24 tree | Unmodified HEAD | Verdict |
+| --- | --- | --- | --- |
+| server-data-authority | PASS | — | green |
+| public-calendar | PASS | — | green |
+| tournament-registration | FAIL | **FAIL (identical)** | inherited (T22 `f0cedbe`) — T25 |
+| offline-public-read | FAIL | **FAIL (identical)** | inherited (T14 `9dab0a2`) — T25 |
+| auth-profile | FAIL | **FAIL (identical)** | inherited (T11 `ad701dd`) — T25 |
+| league-server | PASS | n/a | green (own surface) |
+| settings-server | PASS | — | green |
+| live-server | PASS | — | green |
+| live-local | PASS | — | green |
+| admin-orgs | FAIL | **FAIL (identical)** | inherited (`bc7c361`, pre-branch) — T25 |
+| admin-notification-delivery | PASS | — | green |
+| organizer-tournament-create | PASS | — | green |
+| organizer-tournament-management | PASS | — | green |
+| organizer-participants | PASS | — | green |
+| abuse-surface | FAIL | **FAIL (identical)** | inherited (`80cc6ed`, pre-branch) — T25 |
+| tournament-proposal | PASS | — | green |
+| accessibility | PASS | — | green |
+
+Every failure was re-run against a stashed, unmodified `HEAD` on the same release stack and reproduced
+with a byte-identical error message, so none of them belongs to T24. Verbatim inherited errors:
+
+- `tournament-registration.cy.js › My Registrations`: `AssertionError: Timed out retrying after 4000ms: Expected to find element: `[data-cy="menu-registrations-card"]`, but never found it.`
+- `offline-public-read.cy.js`: `AssertionError: Timed out retrying after 4000ms: Expected to find element: `.calendar-offline-banner`, but never found it.`
+- `abuse-surface.cy.js`: `CypressError: Timed out retrying after 5000ms: `cy.wait()` timed out waiting `5000ms` for the 1st request to the route: `tournaments`. No request ever occurred.`
+
+One real defect *was* found in this ticket's own work and fixed: `league-server.cy.js:114`'s `deleteLeague`
+intercept had been missed by the path rewrite and still read `/\/api\/leagues\/[^/]+$/`, so the DELETE
+escaped to the real API. Traced by logging live requests in a scratch spec; after the fix
+`league-server.cy.js` passes 3/3, including the new redirect test.

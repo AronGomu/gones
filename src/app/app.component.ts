@@ -6,8 +6,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { canManageLeagues, leagueCommandError } from './data/league-command-ux';
-import { LeagueRepository } from './data/league-repository.service';
+import { canManageLeagues, leagueCommandError } from './data/league-archive-command-ux';
+import { LeagueArchiveRepository } from './data/league-archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
 import { attachExportChecksum } from './domain/export-schemas';
@@ -58,7 +58,7 @@ interface HeaderTournament {
           </div>
         } @else if (headerTournament(); as item) {
           <div class="header-actions tournament-header-actions" data-cy="app-tournament-header-actions">
-            <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues', item.league.id, 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
+            <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues-archive', item.league.id, 'tournaments-archive', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
             @if (canManageLeagueData()) {
               <button mat-icon-button class="league-actions-trigger" data-cy="app-tournament-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
               <mat-menu #tournamentActionsMenu="matMenu" data-cy="app-tournament-actions-menu">
@@ -116,7 +116,7 @@ export class AppComponent {
   private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   private readonly lastVisited = inject(LastVisitedUrlService);
-  private readonly repo = inject(LeagueRepository);
+  private readonly repo = inject(LeagueArchiveRepository);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly settings = inject(DeckArchetypeSettingsService);
   private readonly dialog = inject(MatDialog);
@@ -130,7 +130,7 @@ export class AppComponent {
   readonly resendPending = signal(false);
   readonly resendStatus = signal('');
   readonly canManageLeagueData = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
-  readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues');
+  readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues-archive');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
   readonly headerLeague = signal<PersistedLeague | null>(null);
@@ -156,7 +156,7 @@ export class AppComponent {
     const request = ++this.routeStateRequest;
     this.currentUrl.set(url);
     const path = this.pathOnly(url);
-    this.showHeaderImport.set(path === '/leagues');
+    this.showHeaderImport.set(path === '/leagues-archive');
     this.showLiveTournamentActions.set(this.isLiveTournamentRunnerPath(path));
     this.showSettingsActions.set(path === '/settings');
     if (path !== '/settings') this.settingsMessage.set('');
@@ -206,13 +206,13 @@ export class AppComponent {
 
   private async buildHeaderLeague(path: string): Promise<PersistedLeague | null> {
     const segments = path.split('/').filter(Boolean);
-    if (segments[0] !== 'leagues' || !segments[1] || segments.length !== 2) return null;
+    if (segments[0] !== 'leagues-archive' || !segments[1] || segments.length !== 2) return null;
     return this.safeGetLeague(decodeURIComponent(segments[1]));
   }
 
   private async buildHeaderTournament(path: string): Promise<HeaderTournament | null> {
     const segments = path.split('/').filter(Boolean);
-    if (segments[0] !== 'leagues' || !segments[1] || segments[2] !== 'tournaments' || !segments[3]) return null;
+    if (segments[0] !== 'leagues-archive' || !segments[1] || segments[2] !== 'tournaments-archive' || !segments[3]) return null;
     const league = await this.safeGetLeague(decodeURIComponent(segments[1]));
     const tournament = league?.tournaments.find((item) => item.id === decodeURIComponent(segments[3]));
     return league && tournament ? { league, tournament } : null;
@@ -320,7 +320,7 @@ export class AppComponent {
     try {
       await this.repo.deleteLeague(league.id);
       this.headerLeague.set(null);
-      await this.router.navigate(['/leagues']);
+      await this.router.navigate(['/leagues-archive']);
     } catch (error) {
       logBoundaryError('app-header.deleteLeague', error, { leagueId: league.id });
       const kind = leagueCommandError(error);
@@ -337,7 +337,7 @@ export class AppComponent {
     try {
       await this.repo.deleteResultTournament(league, tournament.id);
       this.headerTournament.set(null);
-      await this.router.navigate(['/leagues', league.id]);
+      await this.router.navigate(['/leagues-archive', league.id]);
     } catch (error) {
       logBoundaryError('app-header.deleteTournament', error, { leagueId: league.id, tournamentId: tournament.id });
       const kind = leagueCommandError(error);
@@ -353,12 +353,12 @@ export class AppComponent {
     if (!file || this.importing()) return;
     this.importing.set(true);
     try {
-      const { LeagueImportService } = await import('./data/league-import.service');
-      const result = await this.injector.get(LeagueImportService).importFile(file);
+      const { LeagueArchiveImportService } = await import('./data/league-archive-import.service');
+      const result = await this.injector.get(LeagueArchiveImportService).importFile(file);
       this.importError.set('');
       const firstImportedLeagueId = result.importedLeagueIds[0];
       logBoundaryInfo('app-header.importLeague.success', { kind: result.kind, importedLeagueCount: result.importedLeagueIds.length, destinationLeagueId: firstImportedLeagueId ?? null });
-      await this.router.navigate(firstImportedLeagueId ? ['/leagues', firstImportedLeagueId] : ['/leagues']);
+      await this.router.navigate(firstImportedLeagueId ? ['/leagues-archive', firstImportedLeagueId] : ['/leagues-archive']);
     } catch (error) {
       logBoundaryError('app-header.importLeague', error, { fileName: file.name });
       this.importError.set(importErrorMessage(error, this.i18n));
