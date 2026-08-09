@@ -48,6 +48,51 @@
 - Regeneration: start Postgres (`docker compose up -d postgres`) then `npm run api:generate`; `npm run api:check` verifies.
 - **From Depends (T20):** `LIVE_BACKEND` now selects between `AspNetApiBackend` and `LocalLiveBackend`; the local adapter returns an empty `leagueId` from finalize. Nothing in this ticket changes that contract.
 
+### Environment facts inlined by the parent — verified against the repo, do not rediscover
+
+- **Step 6's `dotnet ef` command as written will fail.** `--startup-project backend/src/Gones.Api` is wrong:
+  `Gones.Api` does **not** reference `Microsoft.EntityFrameworkCore.Design` — only
+  `backend/src/Gones.Infrastructure/Gones.Infrastructure.csproj:12` does. **Both** `--project` and
+  `--startup-project` must point at `backend/src/Gones.Infrastructure`. `dotnet ef` is also **not on the default
+  PATH** (a bare `dotnet ef --version` prints "dotnet-ef does not exist"). Export both of these first — with them it
+  reports `10.0.10`:
+  ```sh
+  export DOTNET_ROOT="$(dirname "$(readlink -f "$(which dotnet)")")"
+  export PATH="$PATH:$HOME/.dotnet/tools"
+  dotnet ef migrations add RenameLeagueArchiveTables \
+    --project backend/src/Gones.Infrastructure \
+    --startup-project backend/src/Gones.Infrastructure \
+    --output-dir Persistence/Migrations
+  ```
+  Step 1 ("install with `dotnet tool install --global dotnet-ef`") is therefore a **no-op — it is already installed.**
+  Do not install anything.
+- **The blanket `sed` in step 2 would rewrite migration history.** `grep -rl "LeagueAggregate" backend/src backend/tests
+  --include=*.cs` matches **23** files, and **8 of them live under
+  `backend/src/Gones.Infrastructure/Persistence/Migrations/`** — historical migration bodies, their `.Designer.cs`
+  snapshots, and `GonesDbContextModelSnapshot.cs`. Rewriting applied migrations is not a rename, it is falsifying
+  history. **Exclude that directory from the sed** (e.g. pipe through `grep -v '/Persistence/Migrations/'`) and let
+  `dotnet ef migrations add` regenerate `GonesDbContextModelSnapshot.cs` on its own.
+- **Expect EF to emit a destructive migration, and expect it.** Because the snapshot still carries the old CLR name at
+  diff time, EF **cannot** recognise an entity-type rename and will emit `DropTable` + `CreateTable`, which silently
+  drops every archived league. That is exactly what step 7 is defending against. Hand-edit the migration down to
+  `RenameTable` + `RenameIndex` calls and assert `Up` contains **no** `DropTable` before running anything.
+- **Prove the migration Up → Down → Up on a throwaway Postgres container.** T5, T6 and T16 each did this and each
+  caught a real problem that the unit tests missed. **Never** run an unproven migration against the user's running
+  `gones-postgres-1` — start a scratch container, seed a `league_aggregates` row before migrating, and prove the row is
+  still readable from `league_archive_aggregates` after `Up` and back again after `Down` (Test plan row
+  `Table_rename_preserves_rows`).
+- **`GonesDbContext.cs` — the `DbSet` is on line 48**, not 46: `public DbSet<LeagueAggregate> LeagueAggregates => Set<LeagueAggregate>();`
+- **`ops/acceptance-matrix.json` contains no `/api/leagues` route strings** — `grep -n "/api/leagues"` returns **zero**
+  hits. Step 21 has no route text to update. The only league references are prose in the `doc09-league-live` row
+  (lines ~2176-2202) and the `product-league-live-parity` checklist entry (~2348), plus file `target` paths that this
+  ticket does not move. Adjust prose only if it names a renamed route; then still run `npm run acceptance:matrix`.
+- **Backend test flake — do not chase it.** A full `npm run backend:test` intermittently fails 1-3 random test
+  *classes* at `InitializeAsync` with `Docker.DotNet.DockerApiException … RootlessKit PortManager.AddPort(): bind:
+  address already in use`. Never an assertion, different classes each run, predates this plan. Re-run the failing
+  class alone to confirm before treating a full-suite red as real.
+- **`npm run api:generate` needs Postgres up** (`docker compose up -d postgres`). `npm run api:check` is the same
+  script with `--check`.
+
 ## TDD
 
 1. **Red** — update the existing league integration tests to the new routes; they fail with 404.
@@ -73,13 +118,30 @@ Run: `npm run backend:test`
 
 ## Impl steps
 
-- [ ] 1. Ensure the EF CLI exists: `dotnet ef --version`; install with `dotnet tool install --global dotnet-ef` if missing.
-- [ ] 2. Rename the domain type: `LeagueAggregate` → `LeagueArchiveAggregate` in `backend/src/Gones.Domain/Leagues/`, using an IDE rename or `grep -rln "LeagueAggregate" backend/src backend/tests --include=*.cs | xargs sed -i 's/LeagueAggregate/LeagueArchiveAggregate/g'` followed by `dotnet build backend/Gones.sln` to catch collisions.
+- [ ] 1. **Already satisfied — verify, do not install.** `dotnet ef` is present at `10.0.10` once
+  `DOTNET_ROOT` and `$HOME/.dotnet/tools` are exported (see the environment facts). Validate: `dotnet ef --version`.
+- [ ] 2. Rename the domain type: `LeagueAggregate` → `LeagueArchiveAggregate` in `backend/src/Gones.Domain/Leagues/`,
+  then across the solution — but **exclude the migrations directory**, which must keep its history:
+  ```sh
+  grep -rl "LeagueAggregate" backend/src backend/tests --include=*.cs \
+    | grep -v '/Persistence/Migrations/' \
+    | xargs sed -i 's/LeagueAggregate/LeagueArchiveAggregate/g'
+  ```
+  then `dotnet build backend/Gones.sln` to catch collisions. Validate: the build succeeds and
+  `git status backend/src/Gones.Infrastructure/Persistence/Migrations/` shows **no** modified pre-existing file.
 - [ ] 3. Rename `backend/src/Gones.Infrastructure/Persistence/LeagueAggregateConfiguration.cs` to `LeagueArchiveAggregateConfiguration.cs` and its class accordingly.
 - [ ] 4. Change `builder.ToTable("league_aggregates")` to `builder.ToTable("league_archive_aggregates")`.
 - [ ] 5. Update `GonesDbContext.cs:46` to `public DbSet<LeagueArchiveAggregate> LeagueArchiveAggregates => Set<LeagueArchiveAggregate>();` and fix every usage the build reports.
-- [ ] 6. Run `dotnet ef migrations add RenameLeagueArchiveTables --project backend/src/Gones.Infrastructure --startup-project backend/src/Gones.Api --output-dir Persistence/Migrations`.
-- [ ] 7. Hand-edit the migration so it is a pure `RenameTable` plus `RenameIndex` calls — EF may emit a drop/create pair, which would lose data. Verify the `Up` contains no `DropTable`.
+- [ ] 6. Run the `dotnet ef migrations add RenameLeagueArchiveTables` command **exactly as given in the environment
+  facts** (both project flags on `Gones.Infrastructure`; the ticket's original `--startup-project …Gones.Api` fails).
+- [ ] 7. Hand-edit the migration so it is a pure `RenameTable` plus `RenameIndex` calls. EF **will** emit a
+  drop/create pair here (it cannot see an entity-type rename), which would destroy every archived league.
+  - [ ] 7a. Assert `Up` contains no `DropTable` and no `CreateTable` — validate: `grep -n "DropTable\|CreateTable"` on
+    the new migration returns nothing.
+  - [ ] 7b. Write the mirror-image `Down` so the rename reverses.
+  - [ ] 7c. Prove **Up → Down → Up** on a throwaway Postgres container seeded with a `league_aggregates` row before
+    migrating (never `gones-postgres-1`) — validate: the row is readable from `league_archive_aggregates` after `Up`
+    and from `league_aggregates` again after `Down`. This is Test plan row `Table_rename_preserves_rows`.
 - [ ] 8. In `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs`, change all seven route templates to the `leagues-archive` / `tournaments-archive` forms listed in Requirements.
 - [ ] 9. In `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs`, change the group to `app.MapGroup("/api/leagues-archive")` and every `/tournaments` segment to `/tournaments-archive`.
 - [ ] 10. Rename every `WithName(...)` in that file: `CreateLeague` → `CreateLeagueArchive`, `RenameLeague` → `RenameLeagueArchive`, `ChangeLeagueStatus` → `ChangeLeagueArchiveStatus`, `DeleteLeague` → `DeleteLeagueArchive`, `CreateResultTournament` → `CreateArchiveTournament`, `EditResultTournament` → `EditArchiveTournament`, `DeleteResultTournament` → `DeleteArchiveTournament`, `MoveResultTournament` → `MoveArchiveTournament`, `AddResultRound` → `AddArchiveRound`, `DeleteResultRound` → `DeleteArchiveRound`, `ImportResultRound` → `ImportArchiveRound`, `ReplaceResultRound` → `ReplaceArchiveRound`, `AddResultEntry` → `AddArchiveEntry`, `EditResultEntry` → `EditArchiveEntry`, `DeleteResultEntry` → `DeleteArchiveEntry`, `UpdateResultPlayerArchetype` → `UpdateArchivePlayerArchetype`, `RenameLeaguePlayerName` → `RenameLeagueArchivePlayerName`, `RestoreLeague` → `RestoreLeagueArchive`, and the restore-full name likewise.
@@ -93,7 +155,9 @@ Run: `npm run backend:test`
 - [ ] 18. Start Postgres (`docker compose up -d postgres`) and run `npm run api:generate`; commit `src/app/api/generated/gones-api.ts`. **The frontend will not compile after this step** — that is expected and is T24's job. Verify with `npm run typecheck` and hand the error list to T24; do not fix them here beyond what is needed to make `npm run build` succeed. If the build must be green for this commit, do the minimum mechanical call-site rename in `src/app/backend/aspnet-api-backend.service.ts` only, and leave every feature-level rename to T24.
 - [ ] 19. `docs/adr/0022-rename-the-archived-league-feature.md` is **already written** as part of this plan. Read it before coding — it names exactly what is renamed, what is frozen (the export bundle format, `/api/maintenance/player-names*`) and why there are no API path aliases.
 - [ ] 20. Update `docs/CONTEXT.md` and `docs/GLOSSARY.md` with the new vocabulary (`League Archive`, `Archive Tournament`), keeping the old words as "formerly" notes.
-- [ ] 21. Update `ops/acceptance-matrix.json` details that name the old routes, then run `npm run acceptance:matrix`.
+- [ ] 21. `ops/acceptance-matrix.json` has **zero** `/api/leagues` route strings (parent-verified) — there is nothing
+  mechanical to update. Adjust only prose that names a renamed route (`doc09-league-live` ~2176-2202,
+  `product-league-live-parity` ~2348); leave file `target` paths alone. Then run `npm run acceptance:matrix`.
 - [ ] 22. Run `npm run backend:test && npm run api:check`.
 
 ## Outputs
