@@ -43,7 +43,22 @@
 - `src/app/auth/auth.service.ts` — `readonly profile = signal<UserProfileResponse | null>(null)` with `globalRole: string`; `readonly enabled`; `bootstrap()` is an `provideAppInitializer` in `src/main.ts:69`, so a profile is loaded before the first route renders.
 - `docs/adr/` — lowercase, latest is `0020-retire-the-legacy-browser-data-authority.md`. Follow its heading structure exactly.
 - `AGENT.md` — "There is exactly one data authority and every build declares it (ADR 0020): `dataMode: server`… The browser keeps only language, view preference, filters and the anonymous public read cache." That paragraph must be updated to name the Live exception.
-- **From Depends (T1):** the `data-cy` rule and the coverage test exist; this ticket adds no template markup, so the allowlist is untouched.
+- **Test harness — there is no Angular `TestBed`, no zone.js, and `@angular/common/http/testing` is not installed**, so
+  `HttpTestingController` does not exist here. Test plan row `no network call is made` must be satisfied differently:
+  construct the adapter through `Injector.create` with `{ provide: HttpClient, useValue: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() } }` and assert every spy has zero calls after driving a full
+  command sequence. Better still, the adapter should not inject `HttpClient` at all — if it does not, say so and
+  assert that structurally instead. Copy the injector pattern from
+  `src/app/features/calendar/public-tournament.service.test.ts`.
+- **`fake-indexeddb` is NOT a dependency** (verified — it is absent from `package.json`) and A10 does not authorise a
+  new one. Take step 16's second branch: write an in-memory `IDBFactory` stub installed on `globalThis.indexedDB`
+  inside the test file. Do not `npm install` anything.
+- `cypress/e2e/live-server.cy.js:18` already fakes its session with
+  `cy.intercept('POST', '**/api/auth/refresh', …)`, so it costs **zero** auth permits — and your new
+  `cypress/e2e/live-local.cy.js` is signed out, so it costs none either. Both may be re-run freely. Do not add a spec
+  that performs a real login: this host allows only 5 auth permits per 15 minutes per IP, shared with other tickets.
+- `docs/adr/0021-role-scoped-browser-live-store.md` **already exists** (63 lines). Read it before coding — it is the
+  specification for steps 1-14 — and change it only if implementation forces a different decision.
+- **From Depends (T1):** the `data-cy` rule and the coverage test exist; this ticket adds template markup in steps 13-14, so those two elements need `data-cy` values, but the runner and list components remain in `PENDING_DATA_CY_RETROFIT` and stay there — T25 owns emptying it.
 
 ## TDD
 
