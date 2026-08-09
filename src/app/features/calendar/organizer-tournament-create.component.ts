@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { Client, MyOrganizationResponse, PublicFormatResponse, TournamentManagementResponse, TournamentPreviewRenderResponse } from '../../api/generated/gones-api';
+import { Client, PublicFormatResponse, TournamentManagementResponse, TournamentPreviewRenderResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -17,6 +17,16 @@ import { changedTournamentFields, majorTournamentChanges, managementToDetail, ma
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'refresh-preview' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
+
+/**
+ * The picker needs an id and a label and nothing else, which lets the two lists behind it — the
+ * caller's own memberships and the anonymous public catalogue — feed the same `<select>`.
+ */
+export interface TournamentOrganizationOption { id: string; name: string; }
+
+/** The public list is paginated and the picker is not, so pages are pulled at the endpoint's cap. */
+const PublicOrganizationPageSize = 100;
+const MaximumPublicOrganizationPages = 20;
 
 @Component({
   standalone: true,
@@ -140,7 +150,7 @@ interface RecoveryError { message: string; action: RecoveryAction; }
               <button #saveButton mat-flat-button class="home-primary-action" type="submit" [attr.data-cy]="editMode ? 'tournament-save' : 'tournament-preview-submit'" [disabled]="formPending() || loadingReferences() || !organizations().length">{{ editMode ? (saving() ? i18n.t('tournamentManage.saving') : i18n.t('common.save')) : (previewing() ? i18n.t('tournamentCreate.previewing') : i18n.t('tournamentCreate.preview')) }}</button>
             } @else {
               <p class="warning" role="status" data-cy="tournament-approval-notice">{{ i18n.t('tournamentCreate.approvalNotice') }}</p>
-              <button mat-flat-button class="home-primary-action" type="button" data-cy="tournament-submit-for-approval" [disabled]="proposalPending()" (click)="submitForApproval()">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>
+              <button mat-flat-button class="home-primary-action" type="button" data-cy="tournament-submit-for-approval" [disabled]="proposalPending() || loadingReferences() || !organizationSelected()" (click)="submitForApproval()">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>
               @if (proposalError()) { <p class="error" role="alert" data-cy="tournament-proposal-error">{{ proposalError() }}</p> }
             }
           </div>
@@ -183,7 +193,7 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
   @ViewChild('streetInput') private streetInput?: ElementRef<HTMLInputElement>;
   @ViewChild('saveButton') private saveButton?: ElementRef<HTMLButtonElement>;
 
-  readonly organizations = signal<MyOrganizationResponse[]>([]);
+  readonly organizations = signal<TournamentOrganizationOption[]>([]);
   readonly formats = signal<PublicFormatResponse[]>([]);
   readonly loadingReferences = signal(true);
   readonly referenceError = signal('');
@@ -208,6 +218,15 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
   readonly proposalPending = signal(false);
   readonly proposalSentCount = signal<number | null>(null);
   readonly proposalError = signal('');
+  /** Mirrors the form control so the template can react to it; a `FormControl` value is not a signal. */
+  readonly selectedOrganizationId = signal('');
+  /**
+   * T26: the approval button used to stay clickable with an empty picker, so it ran, found the form
+   * invalid and returned in silence. Nothing can be proposed without an organization to propose it
+   * for, so say so in the control rather than in a dead click.
+   */
+  readonly organizationSelected = computed(() =>
+    this.organizations().some(option => option.id === this.selectedOrganizationId()));
 
   readonly form = new FormGroup({
     organizationId: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -227,6 +246,7 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
 
   ngOnInit(): void {
     this.form.valueChanges.subscribe(() => {
+      this.syncSelectedOrganization();
       this.fieldErrors.set({});
       this.submitError.set(null);
       this.success.set('');
@@ -250,32 +270,59 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
       this.formats.set(formats);
       if (this.editMode) {
         const tournament = await this.findTournament(this.tournamentId!);
-        this.organizations.set([{
-          id: tournament.organizationId,
-          name: tournament.organizationName,
-          description: undefined,
-          website: undefined,
-          contactEmail: undefined,
-          role: 'Organizer',
-          createdAt: tournament.startsAtUtc
-        }]);
+        this.organizations.set([{ id: tournament.organizationId, name: tournament.organizationName }]);
         this.form.controls.organizationId.disable({ emitEvent: false });
         this.applyCanonical(tournament);
       } else {
-        const organizations = await firstValueFrom(this.client.organizationsAll());
+        // T26. Two different questions, two different lists. Publishing directly is gated on the
+        // caller's own membership, so an organizer is only offered organizations they belong to —
+        // anything else would only earn a 403 at publish time. Proposing is the opposite case: the
+        // submitter is by definition not a member of the organization they are proposing for, so
+        // the picker reads the anonymous public catalogue. Offering it costs nothing, because the
+        // approver on the other end must represent that organization before anything is published.
+        const organizations = this.canPublishDirectly()
+          ? (await firstValueFrom(this.client.organizationsAll())).map(item => ({ id: item.id, name: item.name }))
+          : await this.loadPublicOrganizations();
         this.organizations.set(organizations);
         if (!organizations.some(item => item.id === this.form.controls.organizationId.value)) {
           this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
         }
         if (!organizations.length) this.referenceError.set(this.i18n.t('tournamentCreate.noOrganizations'));
       }
+      this.syncSelectedOrganization();
     } catch {
       this.organizations.set([]);
       this.formats.set([]);
+      this.syncSelectedOrganization();
       this.referenceError.set(this.editMode ? this.i18n.t('tournamentManage.loadFailed') : this.i18n.t('tournamentCreate.referencesFailed'));
     } finally {
       this.loadingReferences.set(false);
     }
+  }
+
+  /**
+   * The picked organization drives both the submit button's disabled state and the approver
+   * request, so it is mirrored into a signal wherever the control can move: user edits, and the
+   * default selection loading the references applies.
+   */
+  private syncSelectedOrganization(): void {
+    this.selectedOrganizationId.set(this.form.getRawValue().organizationId);
+  }
+
+  /**
+   * Pages are pulled at the endpoint's maximum size until the reported total is covered, so an
+   * organization never becomes unproposable just because its name sorts past the first page. The
+   * page ceiling is a stop, not a limit: it bounds a loop against a server that keeps claiming a
+   * total it never delivers.
+   */
+  private async loadPublicOrganizations(): Promise<TournamentOrganizationOption[]> {
+    const options: TournamentOrganizationOption[] = [];
+    for (let page = 1; page <= MaximumPublicOrganizationPages; page++) {
+      const response = await firstValueFrom(this.client.organizationsGET(undefined, page, PublicOrganizationPageSize));
+      options.push(...response.items.map(item => ({ id: item.id, name: item.name })));
+      if (!response.items.length || options.length >= response.totalCount) break;
+    }
+    return options;
   }
 
   async requestPreview(): Promise<void> {
@@ -303,11 +350,20 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
     if (this.form.invalid || this.proposalPending()) return;
+    // T26: the chosen organization decides who may review, so it travels with the request that
+    // fills the dialog. The dialog then only ever shows people who represent it.
+    const organizationId = this.form.getRawValue().organizationId;
     let approvers;
     try {
-      approvers = sortApprovers(await this.proposals.listApprovers());
+      approvers = sortApprovers(await this.proposals.listApprovers(organizationId));
     } catch {
       this.proposalError.set(this.i18n.t('proposal.loadApproversFailed'));
+      return;
+    }
+    // Global Admins back every organization, so an empty list means something is wrong rather than
+    // that nobody is entitled. An empty checkbox dialog would be a dead end; say it instead.
+    if (!approvers.length) {
+      this.proposalError.set(this.i18n.t('proposal.noApprovers'));
       return;
     }
     const recipientUserIds = await firstValueFrom(this.dialog.open(ApproverSelectionDialogComponent, {

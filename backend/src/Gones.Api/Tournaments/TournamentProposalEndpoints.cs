@@ -34,6 +34,7 @@ internal static class TournamentProposalEndpoints
 
         proposals.MapGet("/approvers", ListApproversAsync)
             .Produces<IReadOnlyList<ProposalApproverResponse>>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
         proposals.MapPost(string.Empty, SubmitAsync)
@@ -76,21 +77,51 @@ internal static class TournamentProposalEndpoints
     /// <summary>
     /// The submitter has to pick who reviews the request, so the candidates are public to any signed-in
     /// account — but only as an identity, never as a mailbox: no email leaves this endpoint.
+    ///
+    /// T26: the candidates are scoped to the organization the tournament would be published under.
+    /// The list used to be every global Organizer and Admin regardless of the target, which let one
+    /// unrelated organizer publish a live public tournament carrying another organization's name,
+    /// website and contact email.
     /// </summary>
     private static async Task<IResult> ListApproversAsync(
+        Guid organizationId,
         GonesDbContext database,
         CancellationToken cancellationToken)
     {
+        if (organizationId == Guid.Empty) throw Validation("organizationId", "Organization ID is required.");
+        var authorized = ApproverUserIds(database, organizationId);
         var approvers = await (
             from user in database.Users.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
-            where (user.GlobalRole == GlobalRoles.Organizer || user.GlobalRole == GlobalRoles.Admin)
-                && profile.ClosedAt == null
+            where authorized.Contains(user.Id)
             orderby profile.Username
             select new ProposalApproverResponse(user.Id, profile.Username, user.GlobalRole)
         ).ToListAsync(cancellationToken);
         return Results.Ok(approvers);
     }
+
+    /// <summary>
+    /// T26. The single rule for who may decide a proposal aimed at <paramref name="organizationId"/>,
+    /// applied identically when the candidates are listed, when a submission names them, and again
+    /// when a mailed token is presented: an Organizer or Admin holding an
+    /// <c>organization_members</c> row for that organization, plus every global Admin.
+    ///
+    /// Global Admins are unconditional on purpose. Without that fallback an organization whose
+    /// members are all plain accounts — or which has no members at all — would have nobody able to
+    /// decide, and every proposal naming it would expire unread. Because they are unconditional, an
+    /// Admin who *is* a member is already covered and needs no separate clause.
+    ///
+    /// A closed profile is excluded either way: a closed account is not someone who can consent.
+    /// </summary>
+    internal static IQueryable<Guid> ApproverUserIds(GonesDbContext database, Guid organizationId) =>
+        from user in database.Users.AsNoTracking()
+        join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
+        where profile.ClosedAt == null
+            && (user.GlobalRole == GlobalRoles.Admin
+                || (user.GlobalRole == GlobalRoles.Organizer
+                    && database.OrganizationMembers.Any(member =>
+                        member.OrganizationId == organizationId && member.UserId == user.Id)))
+        select user.Id;
 
     private static async Task<IResult> SubmitAsync(
         TournamentProposalRequest request,
@@ -142,11 +173,16 @@ internal static class TournamentProposalEndpoints
     /// Publishes the stored payload as the **submitter**, so ownership and the tournament audit row
     /// name whoever proposed it; the approver is recorded in this endpoint's own audit diff instead.
     ///
-    /// Publishing commits before the proposal is marked decided, and the two cannot be one
-    /// transaction because <c>PublishTournamentAsync</c> owns its own. That ordering is deliberate:
-    /// the idempotency key is derived from the proposal, so a retry after a half-finished approval
-    /// returns the tournament that already exists instead of creating a second one. The reverse order
-    /// would leave a spent proposal with nothing published.
+    /// T26: the proposal's row lock is taken **before** anything is published, and publishing joins
+    /// this transaction rather than opening a second one. The previous order published first, so an
+    /// approve that lost the race to a reject left a live, registerable tournament hanging off a
+    /// <c>Rejected</c> proposal — the submitter mailed a refusal, the approver shown a 409, and
+    /// nothing anywhere to take the tournament back down. Holding the lock across the publish makes
+    /// the two decisions strictly serial: the loser sees the winner's status and publishes nothing.
+    ///
+    /// One transaction also means the tournament and the decision commit together or not at all. The
+    /// idempotency key stays derived from the proposal, so a retry after a failed attempt re-enters
+    /// the same key rather than creating a second tournament.
     /// </summary>
     private static async Task<IResult> ApproveAsync(
         string token,
@@ -163,6 +199,14 @@ internal static class TournamentProposalEndpoints
         var payload = Payload(proposal);
 
         database.ChangeTracker.Clear();
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        var claimed = await LockAsync(database, proposalId, cancellationToken);
+        if (!claimed.IsPending)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw new ResourceConflictException();
+        }
+
         var outcome = await publication.PublishTournamentAsync(
             payload,
             submitterUserId,
@@ -170,19 +214,18 @@ internal static class TournamentProposalEndpoints
             $"tournament-proposal:{proposalId:D}",
             previewTicket: null,
             cancellationToken,
-            // The submitter is not a member of the target organization — that is the whole reason the
-            // proposal exists. Only this path relaxes the check; PublishAsync keeps the default.
+            // The *submitter* is not a member of the target organization — that is the whole reason
+            // the proposal exists, and T26 kept it that way. What T26 narrowed is the other side:
+            // the token above resolves only for someone who represents this organization, so the
+            // consent this publish acts on is the organization's. Only this path relaxes the check;
+            // PublishAsync keeps the default. ADR 0024 records the split.
             requireMembership: false);
 
+        // Publishing may have cleared the change tracker on a slug retry, so the proposal is read
+        // again rather than carried across that boundary. The row lock this transaction already
+        // holds makes the second read free of races.
         database.ChangeTracker.Clear();
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         var locked = await LockAsync(database, proposalId, cancellationToken);
-        if (!locked.IsPending)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw new ResourceConflictException();
-        }
-
         var now = clock.GetCurrentInstant();
         locked.Approve(approverUserId, now);
         database.AuditRecords.Add(Audit(
@@ -271,8 +314,15 @@ internal static class TournamentProposalEndpoints
 
     /// <summary>
     /// Resolves the mailed plaintext to its recipient row. The plaintext is hashed immediately and
-    /// never logged, echoed or stored. An unknown token and an expired proposal fail identically:
-    /// a 404 must not confirm that a proposal ever existed.
+    /// never logged, echoed or stored. An unknown token, an expired proposal and a holder who no
+    /// longer represents the target organization fail identically: a 404 must not confirm that a
+    /// proposal ever existed, nor that the reader was once entitled to decide it.
+    ///
+    /// T26: authority is re-read here, not trusted from submission time. A link is live for seven
+    /// days, and in that window an approver can be demoted to <c>User</c>, have their profile closed,
+    /// or lose the organization membership that made them an approver at all. Any of those and the
+    /// link stops publishing — checking only at submission meant a stale mail outlived the standing
+    /// that justified it.
     /// </summary>
     private static async Task<(TournamentProposal Proposal, TournamentProposalRecipient Recipient)> ResolveTokenAsync(
         string token,
@@ -292,6 +342,14 @@ internal static class TournamentProposalEndpoints
             .SingleOrDefaultAsync(item => item.Id == recipient.ProposalId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (proposal.ExpiresAt <= clock.GetCurrentInstant()) throw new ResourceNotFoundException();
+
+        var organizationId = Payload(proposal).OrganizationId;
+        if (!await ApproverUserIds(database, organizationId)
+            .AnyAsync(userId => userId == recipient.UserId, cancellationToken))
+        {
+            throw new ResourceNotFoundException();
+        }
+
         return (proposal, recipient);
     }
 
@@ -354,8 +412,19 @@ internal static class TournamentProposalEndpoints
         OccurredAt = now
     };
 
+    private static ApiValidationException Validation(string field, string message) =>
+        new(new Dictionary<string, string[]> { [field] = [message] });
+
     /// <summary>Bounds the work an anonymous caller can make the hash do; a real token is 43 characters.</summary>
     private const int MaximumTokenLength = 512;
+
+    /// <summary>
+    /// T26. An upper bound on how many mailboxes one submission can reach. The list had a floor of
+    /// one and no ceiling, which made a single request an arbitrarily large mail fan-out. Ten is far
+    /// above what a submitter choosing reviewers needs, and far below anything worth using as an
+    /// amplifier.
+    /// </summary>
+    internal const int MaximumRecipientCount = 10;
 
     /// <summary>
     /// The single serializer contract for the stored payload: submission writes it and every decision
@@ -391,8 +460,10 @@ internal sealed class TournamentProposalService(
             .SingleOrDefaultAsync(profile => profile.UserId == submitterUserId, cancellationToken)
             ?? throw new ResourceNotFoundException();
 
-        var recipients = await LoadRecipientsAsync(request.RecipientUserIds, cancellationToken);
+        // Shape first: the recipient rule below is scoped to the target organization, so the payload
+        // has to be a well-formed one before it can say which organization that is.
         ValidatePayloadShape(request.Tournament);
+        var recipients = await LoadRecipientsAsync(request.Tournament.OrganizationId, request.RecipientUserIds, cancellationToken);
         await publication.ValidateProposalPayloadAsync(submitterUserId, request.Tournament, cancellationToken);
 
         var formatNames = await database.TournamentFormats.AsNoTracking()
@@ -450,6 +521,7 @@ internal sealed class TournamentProposalService(
     }
 
     private async Task<IReadOnlyList<ProposalRecipient>> LoadRecipientsAsync(
+        Guid organizationId,
         IReadOnlyList<Guid> recipientUserIds,
         CancellationToken cancellationToken)
     {
@@ -458,19 +530,30 @@ internal sealed class TournamentProposalService(
         {
             throw Validation("recipientUserIds", "At least one unique approver is required.");
         }
+        // Refused before the lookup runs, so an oversized list costs one comparison rather than a
+        // query. The annotation on the request record says the same thing to the OpenAPI contract.
+        if (requested.Length > TournamentProposalEndpoints.MaximumRecipientCount)
+        {
+            throw Validation(
+                "recipientUserIds",
+                $"At most {TournamentProposalEndpoints.MaximumRecipientCount} approvers can be chosen.");
+        }
 
+        // T26: the same org-scoped rule the picker was populated from. A global Organizer with no
+        // standing over this organization is not a valid recipient, whatever the client sent.
+        var authorized = TournamentProposalEndpoints.ApproverUserIds(database, organizationId);
         var found = await (
             from user in database.Users.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
             where requested.Contains(user.Id)
-                && (user.GlobalRole == GlobalRoles.Organizer || user.GlobalRole == GlobalRoles.Admin)
-                && profile.ClosedAt == null
+                && authorized.Contains(user.Id)
                 && user.Email != null
             orderby profile.Username
             select new ProposalRecipient(user.Id, profile.Username, user.Email!, profile.PreferredLanguage)
         ).ToListAsync(cancellationToken);
-        // An unknown id and a non-approver id fail identically: a submitter must not be able to
-        // probe which accounts exist.
+        // An unknown id, a non-approver id and an approver who does not represent this organization
+        // fail identically: a submitter must not be able to probe which accounts exist, nor map out
+        // who belongs to which organization.
         if (found.Count != requested.Length)
         {
             throw Validation("recipientUserIds", "One or more approvers are invalid.");
@@ -525,7 +608,8 @@ internal sealed record ProposalApproverResponse(Guid Id, string Username, string
 
 internal sealed record TournamentProposalRequest(
     [property: Required] TournamentPayloadRequest Tournament,
-    [property: Required, MinLength(1)] IReadOnlyList<Guid> RecipientUserIds);
+    [property: Required, MinLength(1), MaxLength(TournamentProposalEndpoints.MaximumRecipientCount)]
+    IReadOnlyList<Guid> RecipientUserIds);
 
 internal sealed record TournamentProposalResponse(Guid Id, string Status, Instant ExpiresAt, int RecipientCount);
 

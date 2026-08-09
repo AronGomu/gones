@@ -135,8 +135,15 @@ internal sealed class TournamentPublicationService(
     ///
     /// <paramref name="requireMembership"/> is false only on that approval path, where the acting user
     /// is the proposal's submitter — a plain account that is by definition not a member of the target
-    /// organization. <see cref="PublishAsync"/> keeps the default, so direct organizer publishing
-    /// still goes through the membership check.
+    /// organization. The consent that path acts on is the *approver's*, and T26 made that approver
+    /// someone who represents the organization. <see cref="PublishAsync"/> keeps the default, so
+    /// direct organizer publishing still goes through the membership check.
+    ///
+    /// T26: when the caller already owns a transaction, this joins it instead of opening a second
+    /// one on the same connection. Approving a proposal takes the proposal's row lock first and must
+    /// keep holding it while the tournament is written, so that an approve and a reject cannot both
+    /// believe they won. Nothing else calls in with a transaction open, and with none open the flow
+    /// is exactly what it was: own transaction, own commit.
     /// </summary>
     internal async Task<TournamentPublishOutcome> PublishTournamentAsync(
         TournamentPayloadRequest request,
@@ -151,9 +158,16 @@ internal sealed class TournamentPublicationService(
         var ticketHash = previewTicket is null ? string.Empty : TournamentPreviewTicketService.Hash(previewTicket);
         var scope = $"tournament-publish:{actingUserId:D}";
 
+        // Null unless a caller is already inside a transaction (approving a proposal, T26). When it
+        // is set this method neither commits nor disposes it — the owner does — and the slug-collision
+        // retry unwinds to a savepoint instead of throwing away the caller's work.
+        var ambient = database.Database.CurrentTransaction;
+
         for (var attempt = 1; attempt <= MaximumPublishAttempts; attempt++)
         {
-            await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+            var transaction = ambient ?? await database.Database.BeginTransactionAsync(cancellationToken);
+            var savepoint = ambient is null ? null : $"tournament_publish_attempt_{attempt}";
+            if (savepoint is not null) await transaction.CreateSavepointAsync(savepoint, cancellationToken);
             try
             {
                 var existing = await database.IdempotencyRecords.AsNoTracking()
@@ -168,7 +182,7 @@ internal sealed class TournamentPublicationService(
                         throw new IdempotencyConflictException();
                     }
 
-                    await transaction.CommitAsync(cancellationToken);
+                    if (ambient is null) await transaction.CommitAsync(cancellationToken);
                     return Outcome(stored.Response);
                 }
 
@@ -228,15 +242,20 @@ internal sealed class TournamentPublicationService(
                     ExpiresAt = now + Duration.FromHours(24)
                 });
                 await database.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
+                if (ambient is null) await transaction.CommitAsync(cancellationToken);
                 return Outcome(response);
             }
             catch (DbUpdateException exception) when (
                 exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
             {
-                await transaction.RollbackAsync(cancellationToken);
+                if (savepoint is null) await transaction.RollbackAsync(cancellationToken);
+                else await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
                 database.ChangeTracker.Clear();
                 if (attempt == MaximumPublishAttempts) throw new ResourceConflictException();
+            }
+            finally
+            {
+                if (ambient is null) await transaction.DisposeAsync();
             }
         }
 

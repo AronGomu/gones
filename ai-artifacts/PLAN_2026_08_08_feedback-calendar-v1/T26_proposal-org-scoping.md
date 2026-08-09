@@ -119,19 +119,19 @@ Run: `npm run backend:test` then `npm run test`
 
 ## Impl steps
 
-- [ ] 1. Read `docs/adr/0024-tournament-proposal-signed-token-approval.md` before coding — it is the specification being amended.
-- [ ] 2. Add the target organization to `GET /api/tournament-proposals/approvers` and narrow the query to org-scoped Organizers/Admins **plus** global Admins — validate: `Approvers_are_scoped_to_the_target_organization` + `Global_admins_are_always_offered` pass; no email field appears in the response.
-- [ ] 3. Validate recipients at submission against that same rule, and add an upper bound to `RecipientUserIds` — validate: the two rejection facts pass.
-- [ ] 4. Re-check approver authority in `ResolveTokenAsync` (role, `ClosedAt`, membership of the target org) — validate: `Demoted_approver_cannot_publish` + `Approver_who_lost_membership_cannot_publish` pass.
-- [ ] 5. Reorder `ApproveAsync` to take the proposal lock **before** publishing — validate: `Approve_racing_reject_publishes_nothing` passes and the existing `Approve_twice_conflicts` still passes.
-- [ ] 6. `npm run api:generate`, commit the regenerated client — validate: `npm run api:check` exit 0.
-- [ ] 7. Point the creation form's proposal picker at the anonymous public organization list, keeping the direct-publish path's membership list intact — validate: `Creation_form_lists_public_organizations`; an Organizer can still publish directly.
-- [ ] 8. Disable `[data-cy=tournament-submit-for-approval]` while no organization is selected, so the dead-click at `:143`/`:305` cannot recur — validate: a component test asserts the disabled state.
-- [ ] 9. Pass the chosen organization from the approver-selection dialog through to the approvers request — validate: the dialog shows only org-scoped approvers.
-- [ ] 10. Amend `docs/adr/0024-…md`: record the org-scoped approver rule, and replace the `requireMembership: false` rationale that currently lives only in a code comment. State plainly that the **submitter** still need not be a member and the **approver** now must represent the organization.
-- [ ] 11. Update `docs/RELEASE_NOTES_V1.md` if its proposal wording is now inaccurate.
-- [ ] 12. Run `npm run backend:test && npm run test && npm run lint && npm run typecheck && npm run build && npm run api:check && npm run acceptance:matrix`.
-- [ ] 13. Run `npm run e2e:ci`.
+- [x] 1. Read `docs/adr/0024-tournament-proposal-signed-token-approval.md` before coding — it is the specification being amended.
+- [x] 2. Add the target organization to `GET /api/tournament-proposals/approvers` and narrow the query to org-scoped Organizers/Admins **plus** global Admins — validate: `Approvers_are_scoped_to_the_target_organization` + `Global_admins_are_always_offered` pass; no email field appears in the response.
+- [x] 3. Validate recipients at submission against that same rule, and add an upper bound to `RecipientUserIds` — validate: the two rejection facts pass.
+- [x] 4. Re-check approver authority in `ResolveTokenAsync` (role, `ClosedAt`, membership of the target org) — validate: `Demoted_approver_cannot_publish` + `Approver_who_lost_membership_cannot_publish` pass.
+- [x] 5. Reorder `ApproveAsync` to take the proposal lock **before** publishing — validate: `Approve_racing_reject_publishes_nothing` passes and the existing `Approve_twice_conflicts` still passes.
+- [x] 6. `npm run api:generate`, commit the regenerated client — validate: `npm run api:check` exit 0.
+- [x] 7. Point the creation form's proposal picker at the anonymous public organization list, keeping the direct-publish path's membership list intact — validate: `Creation_form_lists_public_organizations`; an Organizer can still publish directly.
+- [x] 8. Disable `[data-cy=tournament-submit-for-approval]` while no organization is selected, so the dead-click at `:143`/`:305` cannot recur — validate: a component test asserts the disabled state.
+- [x] 9. Pass the chosen organization from the approver-selection dialog through to the approvers request — validate: the dialog shows only org-scoped approvers.
+- [x] 10. Amend `docs/adr/0024-…md`: record the org-scoped approver rule, and replace the `requireMembership: false` rationale that currently lives only in a code comment. State plainly that the **submitter** still need not be a member and the **approver** now must represent the organization.
+- [x] 11. Update `docs/RELEASE_NOTES_V1.md` if its proposal wording is now inaccurate.
+- [x] 12. Run `npm run backend:test && npm run test && npm run lint && npm run typecheck && npm run build && npm run api:check && npm run acceptance:matrix`.
+- [x] 13. Run `npm run e2e:ci`.
 
 ## Outputs
 
@@ -145,12 +145,12 @@ Run: `npm run backend:test` then `npm run test`
 
 ## Validation
 
-- [ ] `npm run backend:test` passes (re-run a flaky class alone before believing a red)
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run api:check` reports no drift
-- [ ] `npm run acceptance:matrix` passes
-- [ ] `npm run e2e:ci` passes in full
-- [ ] manual: a verified user with **zero** memberships reaches `/tournaments/new`, sees organizations, and submits a proposal
-- [ ] manual: the approver list for org A contains no Organizer whose only membership is org B
-- [ ] app functional — direct publishing by an Organizer is unchanged
-- [ ] commit msg draft: `fix(proposals): let any verified user propose and require an approver who represents the org`
+- [x] `npm run backend:test` passes (re-run a flaky class alone before believing a red)
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run api:check` reports no drift
+- [x] `npm run acceptance:matrix` passes
+- [x] `npm run e2e:ci` passes in full
+- [x] manual: a verified user with **zero** memberships reaches `/tournaments/new`, sees organizations, and submits a proposal
+- [x] manual: the approver list for org A contains no Organizer whose only membership is org B
+- [x] app functional — direct publishing by an Organizer is unchanged
+- [x] commit msg draft: `fix(proposals): let any verified user propose and require an approver who represents the org`

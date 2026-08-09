@@ -20,8 +20,13 @@ export function sortApprovers(approvers: ProposalApproverResponse[]): ProposalAp
 export class TournamentProposalService {
   private readonly client = inject(Client);
 
-  listApprovers(): Promise<ProposalApproverResponse[]> {
-    return firstValueFrom(this.client.approvers());
+  /**
+   * T26: scoped to the organization the tournament would be published under. The candidates are
+   * that organization's own Organizers plus the global Admins that back every organization — a
+   * global Organizer with no standing over it is not offered, and would be refused on submit.
+   */
+  listApprovers(organizationId: string): Promise<ProposalApproverResponse[]> {
+    return firstValueFrom(this.client.approvers(organizationId));
   }
 
   submit(tournament: TournamentPayloadRequest, recipientUserIds: string[]): Promise<TournamentProposalResponse> {

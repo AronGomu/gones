@@ -3873,6 +3873,17 @@
         "tags": [
           "TournamentProposalEndpoints"
         ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -3883,6 +3894,16 @@
                   "items": {
                     "$ref": "#/components/schemas/ProposalApproverResponse"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -11883,6 +11904,7 @@
             "$ref": "#/components/schemas/TournamentPayloadRequest"
           },
           "recipientUserIds": {
+            "maxItems": 10,
             "minItems": 1,
             "type": "array",
             "items": {

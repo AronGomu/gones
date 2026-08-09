@@ -111,4 +111,45 @@ notes do not understate a problem.
 
 - [ ] Read-only Live UI: sign in as every role in turn (anonymous, plain user, Organizer, Admin) and confirm none of them can reach a read-only Live surface — `live-read-only` / `live-list-read-only` really are unreachable. If any role still hits it, the release notes are wrong and the elements are live code.
 - [ ] `npm run notification:smoke` twice in a row against the same database: the first run passes, the second fails on the `notification_history` foreign key. Confirm the failure is exactly that and nothing worse.
-- [ ] Tournament proposals: the flow is proved by backend integration tests, **not** by a live-stack journey, because the proposal tables have no grants for the local `gones_app` role. Try `docker compose up -d permissions` and then a real end-to-end proposal → mailed link → publish against the running stack. If that fixes it, say so on the follow-up ticket; do not silently upgrade the release note.
+- [ ] ~~Tournament proposals: the flow is proved by backend integration tests, **not** by a live-stack journey, because the proposal tables have no grants for the local `gones_app` role.~~ **Resolved in T26.** `docker compose up -d postgres migrator permissions api` (with `GONES_FEATURES__ADMIN_V1=true`, `GONES_FEATURES__AUTH_V1=true`) does fix it: a full journey — register → verify → public organization list → org-scoped approvers → submit → mailed review link → approve → `Published` on `/api/tournaments/all` — runs green against the live stack. Re-run it to confirm; the grant gap this entry described no longer blocks anything, so the release note may be upgraded.
+
+## T26 proposal-org-scoping
+
+Two halves of one decision: **anyone may propose**, **only someone who represents the organization may
+approve**. Check both halves, and check that neither ate the other.
+
+### The submitter side — a stranger can propose
+
+- [ ] Register a brand-new account, verify its email, and sign in. Do **not** add it to any organization. Go to `/tournaments/new`. The organization `<select>` must list **every** public organization, not an empty list. Before T26 this account saw zero options and the page was unusable for the one role it exists for.
+- [ ] With that same zero-membership account, fill the form and click **Submit for approval**. The reviewer dialog opens, you pick someone, and you land on the "Request sent" panel. Confirm in the database that a `tournament_proposals` row exists and **no** `scheduled_tournaments` row was created.
+- [ ] Watch the network tab while the page loads. It must call the anonymous `GET /api/organizations`, **not** `GET /api/users/me/organizations`. Those are different lists and the whole ticket turns on which one the picker reads.
+- [ ] If your instance has more than 100 organizations: confirm the picker still lists all of them. The public endpoint pages at 100 and the component pulls every page — an organization must never become unproposable because its name sorts late.
+
+### The approver side — the list is scoped
+
+- [ ] Set up two organizations, A and B, with a different Organizer in each, plus one global Admin. As a plain user, start a proposal **for A** and open the reviewer dialog. It must show A's organizer and the global Admin, and must **not** show B's organizer. Repeat for B and confirm the mirror image.
+- [ ] Confirm the dialog still shows only a username and a role chip. No email address may appear anywhere in the response — check the raw JSON, not just the rendering.
+- [ ] Create an organization with no members at all and propose for it. The dialog must still be usable: global Admins are an unconditional fallback, so no organization can become unreachable.
+- [ ] Try to route around the picker: `POST /api/tournament-proposals` by hand, naming B's organizer as the recipient on a proposal whose `organizationId` is A. Expect `400` with `recipientUserIds`, and confirm no proposal row and no queued mail. This is the security half — the client is not trusted to have used the scoped list.
+- [ ] Send a `recipientUserIds` array of 11 entries. Expect `400`. Eleven is one over the cap; ten is allowed.
+
+### The mailed link expires with the authority behind it
+
+- [ ] Submit a proposal, take the review link from the reviewer's mail, and confirm it opens (`200`).
+- [ ] Now remove that reviewer from the target organization (or demote them to `User`, or close their profile — check all three if you have time). Re-open the same link. It must return `404`, identically to an unknown token: it must not reveal that a proposal is sitting there. Confirm nothing was published.
+- [ ] Confirm a **global Admin's** link on the same proposal still works after the organizer lost their membership. The Admin fallback must not be collateral damage.
+
+### Approve and reject cannot both win
+
+- [ ] Two reviewers on one proposal. Approve from the first link, then approve from the second: the second gets `409` and exactly **one** tournament exists.
+- [ ] Approve from the first link, then reject from the second: `409`, the proposal stays `Approved`, and no rejection mail is queued.
+- [ ] The one that used to break: reject from the second link *while* an approve is in flight. Whatever the outcome, a `Rejected` proposal must **never** leave a published, registerable tournament behind. Check `scheduled_tournaments` and `/api/tournaments/all`, not just the HTTP codes.
+
+### Direct publishing is untouched
+
+- [ ] Sign in as an **Organizer** and go to `/tournaments/new`. The picker must show only the organizations you belong to — **not** the full public list. Offering more would only earn a 403 at publish time.
+- [ ] Complete a normal Organizer preview → publish. It must behave exactly as before T26. The publish path now shares a transaction when a proposal approval calls it; confirm the ordinary path is unaffected, including publishing two tournaments whose titles produce the same slug.
+
+### The empty-picker dead click is gone
+
+- [ ] Force an empty organization list (stop the API after login, or point at an instance with no organizations). The **Submit for approval** button must be **disabled**, and an explanatory message shown. Before T26 the button was clickable and silently did nothing, which is how the original defect hid.

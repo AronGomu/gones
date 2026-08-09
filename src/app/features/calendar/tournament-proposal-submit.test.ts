@@ -89,6 +89,25 @@ describe('OrganizerTournamentCreateComponent.submitForApproval', () => {
     expect(proposalsStub.submit).not.toHaveBeenCalled();
   });
 
+  // T26. The dialog may only ever offer people who represent the chosen organization, so the
+  // request that fills it has to carry that organization.
+  it('scopes the approver request to the chosen organization', async () => {
+    const { component, proposalsStub } = setup(['id1']);
+    fillValidForm(component);
+    await component.submitForApproval();
+    expect(proposalsStub.listApprovers).toHaveBeenCalledWith('org1');
+  });
+
+  it('an organization with no reviewer opens no dialog', async () => {
+    const { component, dialogStub, proposalsStub } = setup(['id1']);
+    proposalsStub.listApprovers = vi.fn(async () => []);
+    fillValidForm(component);
+    await component.submitForApproval();
+    expect(dialogStub.open).not.toHaveBeenCalled();
+    expect(proposalsStub.submit).not.toHaveBeenCalled();
+    expect(component.proposalError()).toBeTruthy();
+  });
+
   it('confirming posts the payload and recipients', async () => {
     const { component, proposalsStub } = setup(['id1']);
     fillValidForm(component);

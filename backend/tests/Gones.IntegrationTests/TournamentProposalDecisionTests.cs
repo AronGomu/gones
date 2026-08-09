@@ -292,6 +292,97 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(1, await database.AuditRecords.CountAsync(record => record.Action == "tournament-proposal.approved"));
     }
 
+    /// <summary>
+    /// T26. A review link lives for seven days, so authority has to be re-read when it is used, not
+    /// only when it was mailed. An approver demoted to a plain account publishes nothing.
+    /// </summary>
+    [Fact]
+    public async Task Demoted_approver_cannot_publish()
+    {
+        var proposal = await SeedProposalAsync();
+        await using (var database = CreateContext())
+        {
+            var organizer = await database.Users.SingleAsync(user => user.Id == seed.Organizer.Id);
+            organizer.AssignGlobalRole(GlobalRoles.User);
+            await database.SaveChangesAsync();
+        }
+
+        using var review = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
+        using var approve = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+
+        output.WriteLine($"demoted approver -> GET {(int)review.StatusCode}, POST approve {(int)approve.StatusCode}");
+        // A spent link and a link whose holder lost their standing fail identically: neither may
+        // confirm that a proposal is sitting there waiting.
+        Assert.Equal(HttpStatusCode.NotFound, review.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, approve.StatusCode);
+        await using var stored = CreateContext();
+        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+    }
+
+    /// <summary>
+    /// T26. Same rule from the other side: the role survived, the membership did not. The global
+    /// Admin on the same proposal keeps their standing, because the fallback is not collateral.
+    /// </summary>
+    [Fact]
+    public async Task Approver_who_lost_membership_cannot_publish()
+    {
+        var proposal = await SeedProposalAsync();
+        await using (var database = CreateContext())
+        {
+            var membership = await database.OrganizationMembers
+                .SingleAsync(member => member.OrganizationId == seed.Alpha.Id && member.UserId == seed.Organizer.Id);
+            database.OrganizationMembers.Remove(membership);
+            await database.SaveChangesAsync();
+        }
+
+        using var approve = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+        using var adminReview = await Client.GetAsync(ReviewUrl(proposal.AdminToken));
+
+        output.WriteLine($"de-membered organizer approve -> {(int)approve.StatusCode}; global admin review -> {(int)adminReview.StatusCode}");
+        Assert.Equal(HttpStatusCode.NotFound, approve.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, adminReview.StatusCode);
+        await using var stored = CreateContext();
+        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+    }
+
+    /// <summary>
+    /// T26. The race made deterministic: an outside transaction holds the proposal's row lock, so
+    /// approve stalls wherever it first needs that row, and the refusal commits while it waits.
+    /// Publishing before the lock leaves a live, registerable tournament hanging off a rejected
+    /// proposal with nothing to take it down; publishing after it leaves nothing at all.
+    /// </summary>
+    [Fact]
+    public async Task Approve_racing_reject_publishes_nothing()
+    {
+        var proposal = await SeedProposalAsync();
+
+        await using var blocker = CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        var held = (await blocker.TournamentProposals
+            .FromSql($"SELECT * FROM tournament_proposals WHERE id = {proposal.Id} FOR UPDATE")
+            .ToListAsync()).Single();
+
+        var approving = Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        held.Reject(seed.Admin.Id, Reason, clock.GetCurrentInstant());
+        await blocker.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        using var response = await approving;
+
+        output.WriteLine($"approve losing the race -> {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await using var stored = CreateContext();
+        var decided = await stored.TournamentProposals.AsNoTracking().SingleAsync();
+        Assert.Equal(TournamentProposalStatus.Rejected, decided.Status);
+        Assert.Equal(seed.Admin.Id, decided.DecidedByUserId);
+        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
+        using var all = await Client.GetAsync("/api/tournaments/all");
+        Assert.Equal(0, (await all.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength());
+    }
+
     [Fact]
     public async Task Reject_requires_a_reason()
     {

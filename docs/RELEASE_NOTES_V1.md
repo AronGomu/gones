@@ -87,9 +87,12 @@ Everything below is user-visible unless it says otherwise.
 
 ### Tournaments
 
-- **Anyone can propose a tournament.** A non-organizer submits a proposal; the chosen approver gets a
-  mail carrying a single-use signed link that lets them publish it or decline it with a reason, with
-  no account needed to act on the link (ADR 0024).
+- **Anyone can propose a tournament, for any organization.** A non-organizer picks an organization
+  from the public list — no membership required — and submits a proposal. The reviewers they may
+  choose from are that organization's own organizers and admins, plus the site administrators, so
+  nothing is published under an organization without someone who represents it agreeing. Each chosen
+  reviewer gets a mail carrying a single-use signed link that lets them publish it or decline it with
+  a reason, with no account needed to act on the link (ADR 0024).
 
 ### Live Tournaments
 

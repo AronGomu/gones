@@ -65,7 +65,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
     [Fact]
     public async Task Approvers_lists_organizers_and_admins()
     {
-        using var response = await SendAsync(HttpMethod.Get, "/api/tournament-proposals/approvers", seed.Submitter.Id, GlobalRoles.User);
+        using var response = await SendAsync(HttpMethod.Get, ApproversUrl(seed.Alpha.Id), seed.Submitter.Id, GlobalRoles.User);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var items = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -79,10 +79,49 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Equal(new[] { GlobalRoles.Admin, GlobalRoles.Organizer }, roles);
     }
 
+    /// <summary>
+    /// T26. Publishing into an organization is consent given on its behalf, so the candidates for a
+    /// proposal aimed at Alpha are Alpha's own Organizers plus the global Admins that back every
+    /// organization. An Organizer whose only membership is Beta has no standing over Alpha at all.
+    /// </summary>
+    [Fact]
+    public async Task Approvers_are_scoped_to_the_target_organization()
+    {
+        using var response = await SendAsync(HttpMethod.Get, ApproversUrl(seed.Alpha.Id), seed.Submitter.Id, GlobalRoles.User);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var raw = await response.Content.ReadAsStringAsync();
+        output.WriteLine($"GET approvers for Alpha -> {raw}");
+        var ids = JsonDocument.Parse(raw).RootElement.EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ToArray();
+        Assert.Contains(seed.Organizer.Id, ids);
+        Assert.Contains(seed.Admin.Id, ids);
+        Assert.DoesNotContain(seed.BetaOrganizer.Id, ids);
+        // Narrowing the list must not widen what it exposes: still an identity, never a mailbox.
+        Assert.DoesNotContain("@", raw, StringComparison.Ordinal);
+        Assert.DoesNotContain(seed.BetaOrganizer.Email!, raw, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// T26. The Admin fallback is what keeps every organization reachable: Gamma has no members at
+    /// all, and a proposal for it still has someone who can decide it.
+    /// </summary>
+    [Fact]
+    public async Task Global_admins_are_always_offered()
+    {
+        using var response = await SendAsync(HttpMethod.Get, ApproversUrl(seed.Gamma.Id), seed.Submitter.Id, GlobalRoles.User);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var raw = await response.Content.ReadAsStringAsync();
+        output.WriteLine($"GET approvers for Gamma (no members) -> {raw}");
+        var ids = JsonDocument.Parse(raw).RootElement.EnumerateArray().Select(item => item.GetProperty("id").GetGuid()).ToArray();
+        Assert.NotEmpty(ids);
+        Assert.Equal(new[] { seed.Admin.Id }, ids);
+    }
+
     [Fact]
     public async Task Approvers_never_returns_emails()
     {
-        using var response = await SendAsync(HttpMethod.Get, "/api/tournament-proposals/approvers", seed.Submitter.Id, GlobalRoles.User);
+        using var response = await SendAsync(HttpMethod.Get, ApproversUrl(seed.Alpha.Id), seed.Submitter.Id, GlobalRoles.User);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var raw = await response.Content.ReadAsStringAsync();
@@ -148,6 +187,80 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         await using var database = CreateContext();
         Assert.Equal(0, await database.TournamentProposals.CountAsync());
         Assert.Equal(0, await database.TournamentProposalRecipients.CountAsync());
+    }
+
+    /// <summary>
+    /// T26. Being a global Organizer is no longer enough to be picked: the recipient has to
+    /// represent the organization the tournament would be published under. Beta's organizer is a
+    /// perfectly real approver — for Beta.
+    /// </summary>
+    [Fact]
+    public async Task Submission_rejects_an_unrelated_recipient()
+    {
+        using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), [seed.BetaOrganizer.Id]);
+        using var mixed = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), [seed.Organizer.Id, seed.BetaOrganizer.Id]);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("recipientUserIds", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        // One unrelated name poisons the whole submission: no partial send.
+        Assert.Equal(HttpStatusCode.BadRequest, mixed.StatusCode);
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.TournamentProposals.CountAsync());
+        Assert.Equal(0, await database.TournamentProposalRecipients.CountAsync());
+        Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync());
+    }
+
+    /// <summary>
+    /// T26. The list had a floor and no ceiling, which made one request an arbitrarily large mail
+    /// fan-out. The cap is refused before the lookup runs, which is what the two bodies prove.
+    /// </summary>
+    [Fact]
+    public async Task Submission_rejects_an_oversized_recipient_list()
+    {
+        var oversized = Enumerable.Range(0, MaximumRecipients + 1).Select(_ => Guid.NewGuid()).ToArray();
+
+        using var over = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), oversized);
+        using var atCap = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), oversized.Take(MaximumRecipients).ToArray());
+
+        var overBody = await over.Content.ReadAsStringAsync();
+        var atCapBody = await atCap.Content.ReadAsStringAsync();
+        output.WriteLine($"{oversized.Length} recipients -> {(int)over.StatusCode} {overBody}");
+        output.WriteLine($"{MaximumRecipients} recipients -> {(int)atCap.StatusCode} {atCapBody}");
+        Assert.Equal(HttpStatusCode.BadRequest, over.StatusCode);
+        Assert.Contains("recipientUserIds", overBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(MaximumRecipients.ToString(System.Globalization.CultureInfo.InvariantCulture), overBody, StringComparison.Ordinal);
+        // A list at the cap gets as far as the lookup and fails there instead; an oversized one is
+        // turned away before it, so it can never report the lookup's verdict.
+        Assert.DoesNotContain("approvers are invalid", overBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.BadRequest, atCap.StatusCode);
+        Assert.Contains("approvers are invalid", atCapBody, StringComparison.OrdinalIgnoreCase);
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.TournamentProposals.CountAsync());
+    }
+
+    /// <summary>
+    /// T26, the whole point of the flow: the submitter belongs to no organization whatsoever, and
+    /// the organization they propose for is one the anonymous public list offers them.
+    /// </summary>
+    [Fact]
+    public async Task Non_member_can_submit_for_a_public_organization()
+    {
+        await using (var premise = CreateContext())
+        {
+            Assert.Equal(0, await premise.OrganizationMembers.CountAsync(member => member.UserId == seed.Submitter.Id));
+        }
+
+        // The other half — that the anonymous `GET /api/organizations` the picker now reads from
+        // offers Alpha to an account with no memberships — is `OrganizationApiTests`; that endpoint
+        // lives behind ADMIN_V1, which this suite deliberately leaves off.
+        using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), [seed.Organizer.Id]);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await using var database = CreateContext();
+        var proposal = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        Assert.Equal(seed.Submitter.Id, proposal.SubmittedByUserId);
+        Assert.Contains(seed.Alpha.Id.ToString("D"), proposal.PayloadJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, await database.TournamentProposalRecipients.CountAsync());
     }
 
     [Fact]
@@ -324,6 +437,9 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
     private Task<HttpResponseMessage> SubmitAsync(Guid userId, string role, TournamentPayload payload, IReadOnlyList<Guid> recipientUserIds) =>
         SendAsync(HttpMethod.Post, "/api/tournament-proposals", userId, role, new { tournament = payload, recipientUserIds });
 
+    private static string ApproversUrl(Guid organizationId) =>
+        $"/api/tournament-proposals/approvers?organizationId={organizationId:D}";
+
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, Guid userId, string role, object? body = null)
     {
         using var request = new HttpRequestMessage(method, url);
@@ -380,12 +496,17 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         var unverified = User("Unverified", GlobalRoles.User, emailConfirmed: false);
         var bystander = User("Bystander", GlobalRoles.User, emailConfirmed: true);
         var organizer = User("Organizer", GlobalRoles.Organizer, emailConfirmed: true);
+        var betaOrganizer = User("BetaOrganizer", GlobalRoles.Organizer, emailConfirmed: true);
         var admin = User("Admin", GlobalRoles.Admin, emailConfirmed: true);
         var alpha = Organization.Create("Alpha Club", "Public alpha", "https://alpha.example", "alpha@example.test", Now);
+        // T26 needs three shapes of organization: one with an organizer, one with a *different*
+        // organizer, and one with nobody at all.
+        var beta = Organization.Create("Beta Club", "Public beta", "https://beta.example", "beta@example.test", Now);
+        var gamma = Organization.Create("Gamma Club", "Public gamma", "https://gamma.example", "gamma@example.test", Now);
         var legacy = await database.TournamentFormats.SingleOrDefaultAsync(format => format.Slug == TournamentFormat.LegacySlug)
             ?? TournamentFormat.CreateLegacy(Now);
-        database.Users.AddRange(submitter, unverified, bystander, organizer, admin);
-        database.Organizations.Add(alpha);
+        database.Users.AddRange(submitter, unverified, bystander, organizer, betaOrganizer, admin);
+        database.Organizations.AddRange(alpha, beta, gamma);
         if (database.Entry(legacy).State == EntityState.Detached) database.TournamentFormats.Add(legacy);
         await database.SaveChangesAsync();
 
@@ -395,10 +516,13 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
             Profile(unverified.Id, "unverified-ugo", "fr"),
             Profile(bystander.Id, "bystander-bea", "fr"),
             Profile(organizer.Id, "organizer-olga", "fr"),
+            Profile(betaOrganizer.Id, "organizer-bruno", "fr"),
             Profile(admin.Id, "admin-adam", "en"));
-        database.OrganizationMembers.Add(OrganizationMember.Create(alpha.Id, organizer.Id, OrganizationRoles.Organizer, Now));
+        database.OrganizationMembers.AddRange(
+            OrganizationMember.Create(alpha.Id, organizer.Id, OrganizationRoles.Organizer, Now),
+            OrganizationMember.Create(beta.Id, betaOrganizer.Id, OrganizationRoles.Organizer, Now));
         await database.SaveChangesAsync();
-        return new SeedRows(alpha, submitter, submitterProfile, unverified, bystander, organizer, admin, legacy);
+        return new SeedRows(alpha, beta, gamma, submitter, submitterProfile, unverified, bystander, organizer, betaOrganizer, admin, legacy);
     }
 
     private static UserProfile Profile(Guid userId, string username, string language)
@@ -450,13 +574,19 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
     private HttpClient Client => client ?? throw new InvalidOperationException("Client not initialized.");
     private static readonly Instant Now = Instant.FromUtc(2030, 1, 1, 12, 0);
 
+    /// <summary>Mirrors <c>TournamentProposalEndpoints.MaximumRecipientCount</c>, which is internal to the API assembly.</summary>
+    private const int MaximumRecipients = 10;
+
     private sealed record SeedRows(
         Organization Alpha,
+        Organization Beta,
+        Organization Gamma,
         ApplicationUser Submitter,
         UserProfile SubmitterProfile,
         ApplicationUser Unverified,
         ApplicationUser Bystander,
         ApplicationUser Organizer,
+        ApplicationUser BetaOrganizer,
         ApplicationUser Admin,
         TournamentFormat Legacy);
 

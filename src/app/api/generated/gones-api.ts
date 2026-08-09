@@ -408,7 +408,7 @@ export interface IClient {
     /**
      * @return OK
      */
-    approvers(): Observable<ProposalApproverResponse[]>;
+    approvers(organizationId: string): Observable<ProposalApproverResponse[]>;
     /**
      * @return Created
      */
@@ -5828,8 +5828,12 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    approvers(): Observable<ProposalApproverResponse[]> {
-        let url_ = this.baseUrl + "/api/tournament-proposals/approvers";
+    approvers(organizationId: string): Observable<ProposalApproverResponse[]> {
+        let url_ = this.baseUrl + "/api/tournament-proposals/approvers?";
+        if (organizationId === undefined || organizationId === null)
+            throw new globalThis.Error("The parameter 'organizationId' must be defined and cannot be null.");
+        else
+            url_ += "organizationId=" + encodeURIComponent("" + organizationId) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -5866,6 +5870,12 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProposalApproverResponse[];
             return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
             }));
         } else if (status === 401) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
