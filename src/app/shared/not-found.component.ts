@@ -7,12 +7,12 @@ import { BackButtonComponent } from './back-button.component';
   standalone: true,
   imports: [MatCardModule, BackButtonComponent],
   template: `
-    <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="top" />
+    <gones-back-button data-cy="not-found-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
     <mat-card class="panel" data-cy="not-found">
-      <mat-card-title>{{ i18n.t('notFound.title') }}</mat-card-title>
-      <mat-card-content><p>{{ i18n.t('notFound.body') }}</p></mat-card-content>
+      <mat-card-title data-cy="not-found-title">{{ i18n.t('notFound.title') }}</mat-card-title>
+      <mat-card-content data-cy="not-found-content"><p data-cy="not-found-body">{{ i18n.t('notFound.body') }}</p></mat-card-content>
     </mat-card>
-    <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="bottom" />
+    <gones-back-button data-cy="not-found-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class NotFoundComponent {

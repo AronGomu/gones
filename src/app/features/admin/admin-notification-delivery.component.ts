@@ -13,37 +13,37 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="admin-page stack" data-cy="admin-notification-delivery" aria-labelledby="notification-delivery-title">
-      <header class="page-heading">
-        <div><p class="kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="notification-delivery-title">{{ title() }}</h1></div>
-        <a mat-stroked-button routerLink="/admin">{{ i18n.t('admin.back') }}</a>
+      <header class="page-heading" data-cy="notification-heading">
+        <div data-cy="notification-heading-text"><p class="kicker" data-cy="notification-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="notification-delivery-title" data-cy="notification-title">{{ title() }}</h1></div>
+        <a mat-stroked-button routerLink="/admin" data-cy="notification-back">{{ i18n.t('admin.back') }}</a>
       </header>
-      <nav class="admin-nav" [attr.aria-label]="i18n.t('admin.notificationNav')">
-        <a mat-stroked-button routerLink="/admin/notifications/history">{{ i18n.t('admin.notificationHistory') }}</a>
-        <a mat-stroked-button routerLink="/admin/notifications/dead-letters">{{ i18n.t('admin.notificationDeadLetters') }}</a>
+      <nav class="admin-nav" data-cy="notification-nav" [attr.aria-label]="i18n.t('admin.notificationNav')">
+        <a mat-stroked-button routerLink="/admin/notifications/history" data-cy="notification-nav-history">{{ i18n.t('admin.notificationHistory') }}</a>
+        <a mat-stroked-button routerLink="/admin/notifications/dead-letters" data-cy="notification-nav-dead-letters">{{ i18n.t('admin.notificationDeadLetters') }}</a>
       </nav>
-      <form class="filter-bar auth-form" (ngSubmit)="applyFilters()">
-        <label for="notification-status">{{ i18n.t('admin.notificationStatus') }}</label>
+      <form class="filter-bar auth-form" data-cy="notification-filters" (ngSubmit)="applyFilters()">
+        <label for="notification-status" data-cy="notification-status-label">{{ i18n.t('admin.notificationStatus') }}</label>
         <select id="notification-status" data-cy="notification-status" name="status" [(ngModel)]="status">
-          <option value="">{{ i18n.t('admin.notificationAll') }}</option>
-          <option value="Pending">Pending</option><option value="Sending">Sending</option><option value="Sent">Sent</option>
-          <option value="Reconciliation">Reconciliation</option><option value="DeadLetter">DeadLetter</option>
+          <option value="" data-cy="notification-status-option-all">{{ i18n.t('admin.notificationAll') }}</option>
+          <option value="Pending" data-cy="notification-status-option-pending">Pending</option><option value="Sending" data-cy="notification-status-option-sending">Sending</option><option value="Sent" data-cy="notification-status-option-sent">Sent</option>
+          <option value="Reconciliation" data-cy="notification-status-option-reconciliation">Reconciliation</option><option value="DeadLetter" data-cy="notification-status-option-dead-letter">DeadLetter</option>
         </select>
-        <button mat-flat-button type="submit">{{ i18n.t('common.apply') }}</button>
+        <button mat-flat-button type="submit" data-cy="notification-filter-submit">{{ i18n.t('common.apply') }}</button>
       </form>
-      @if (loading()) { <p>{{ i18n.t('common.loading') }}</p> }
-      @else if (error()) { <div class="stack"><p class="error" role="alert">{{ error() }}</p><button mat-stroked-button type="button" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
+      @if (loading()) { <p data-cy="notification-loading">{{ i18n.t('common.loading') }}</p> }
+      @else if (error()) { <div class="stack" data-cy="notification-error-panel"><p class="error" role="alert" data-cy="notification-error">{{ error() }}</p><button mat-stroked-button type="button" data-cy="notification-retry-load" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
       @else if (!items().length) { <p data-cy="notification-empty">{{ i18n.t('common.empty') }}</p> }
       @else {
-        <div class="admin-table" role="table" [attr.aria-label]="title()">
+        <div class="admin-table" role="table" data-cy="notification-table" [attr.aria-label]="title()">
           @for (item of items(); track item.id) {
-            <mat-card class="panel admin-row" role="row" data-cy="notification-row"><mat-card-content class="stack">
-              <div class="admin-row-grid">
-                <div><strong>{{ item.templateKey }}</strong><p class="muted">{{ item.id }}</p></div>
-                <div><strong>{{ item.status }}</strong><p class="muted">{{ item.deliveryStatus || i18n.t('common.na') }}</p></div>
-                <time [dateTime]="instantText(item.createdAt)">{{ formatInstant(item.createdAt) }}</time>
+            <mat-card class="panel admin-row" role="row" data-cy="notification-row"><mat-card-content class="stack" [attr.data-cy]="'notification-row-content-' + item.id">
+              <div class="admin-row-grid" [attr.data-cy]="'notification-row-grid-' + item.id">
+                <div [attr.data-cy]="'notification-row-template-' + item.id"><strong [attr.data-cy]="'notification-row-template-key-' + item.id">{{ item.templateKey }}</strong><p class="muted" [attr.data-cy]="'notification-row-id-' + item.id">{{ item.id }}</p></div>
+                <div [attr.data-cy]="'notification-row-state-' + item.id"><strong [attr.data-cy]="'notification-row-status-' + item.id">{{ item.status }}</strong><p class="muted" [attr.data-cy]="'notification-row-delivery-status-' + item.id">{{ item.deliveryStatus || i18n.t('common.na') }}</p></div>
+                <time [attr.data-cy]="'notification-row-created-' + item.id" [dateTime]="instantText(item.createdAt)">{{ formatInstant(item.createdAt) }}</time>
               </div>
-              <p class="muted">{{ i18n.t('admin.notificationAttempts') }}: {{ item.attemptCount }} · {{ i18n.t('admin.notificationProviderId') }}: {{ item.providerMessageId || i18n.t('common.na') }}</p>
-              @if (item.lastErrorCode) { <p class="error">{{ item.lastErrorCode }}</p> }
+              <p class="muted" [attr.data-cy]="'notification-row-attempts-' + item.id">{{ i18n.t('admin.notificationAttempts') }}: {{ item.attemptCount }} · {{ i18n.t('admin.notificationProviderId') }}: {{ item.providerMessageId || i18n.t('common.na') }}</p>
+              @if (item.lastErrorCode) { <p class="error" [attr.data-cy]="'notification-row-error-' + item.id">{{ item.lastErrorCode }}</p> }
               @if (item.canRetry) {
                 <button mat-flat-button type="button" data-cy="notification-retry" [disabled]="retrying().has(item.id)" [attr.aria-busy]="retrying().has(item.id)" (click)="retry(item)">
                   {{ retrying().has(item.id) ? i18n.t('common.loading') : i18n.t('admin.notificationRetry') }}
@@ -52,7 +52,7 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
             </mat-card-content></mat-card>
           }
         </div>
-        <div class="pager"><button mat-stroked-button type="button" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span>{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
+        <div class="pager" data-cy="notification-pager"><button mat-stroked-button type="button" data-cy="notification-page-previous" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="notification-page">{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="notification-page-next" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
       }
     </section>
   `

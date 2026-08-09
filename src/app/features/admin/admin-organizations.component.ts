@@ -13,57 +13,57 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="admin-page stack" data-cy="admin-organizations" aria-labelledby="admin-orgs-title">
-      <header class="page-heading"><div><p class="kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-orgs-title">{{ i18n.t('admin.organizations') }}</h1></div><a mat-stroked-button routerLink="/admin">{{ i18n.t('admin.back') }}</a></header>
-      <form class="filter-bar auth-form" (ngSubmit)="applyFilters()">
-        <label for="admin-org-search">{{ i18n.t('common.search') }}</label>
+      <header class="page-heading" data-cy="admin-orgs-heading"><div data-cy="admin-orgs-heading-text"><p class="kicker" data-cy="admin-orgs-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-orgs-title" data-cy="admin-orgs-title">{{ i18n.t('admin.organizations') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="admin-orgs-back">{{ i18n.t('admin.back') }}</a></header>
+      <form class="filter-bar auth-form" data-cy="admin-orgs-filters" (ngSubmit)="applyFilters()">
+        <label for="admin-org-search" data-cy="admin-org-search-label">{{ i18n.t('common.search') }}</label>
         <input id="admin-org-search" data-cy="admin-org-search" name="search" [(ngModel)]="search" />
-        <label><input type="checkbox" name="includeDeleted" [(ngModel)]="includeDeleted" /> {{ i18n.t('admin.includeDeleted') }}</label>
-        <button mat-flat-button type="submit">{{ i18n.t('common.apply') }}</button>
+        <label data-cy="admin-org-include-deleted-label"><input type="checkbox" data-cy="admin-org-include-deleted" name="includeDeleted" [(ngModel)]="includeDeleted" /> {{ i18n.t('admin.includeDeleted') }}</label>
+        <button mat-flat-button type="submit" data-cy="admin-org-search-submit">{{ i18n.t('common.apply') }}</button>
       </form>
 
-      <mat-card class="panel"><mat-card-content>
+      <mat-card class="panel" data-cy="admin-create-org-card"><mat-card-content data-cy="admin-create-org-card-content">
         <form class="auth-form" data-cy="admin-create-org" (ngSubmit)="create()">
-          <h2>{{ i18n.t('admin.createOrganization') }}</h2>
-          <label for="org-name">{{ i18n.t('org.name') }}</label><input id="org-name" name="name" [(ngModel)]="draft.name" required />
-          <label for="org-owner">{{ i18n.t('admin.ownerUserId') }}</label><input id="org-owner" name="ownerUserId" [(ngModel)]="draft.ownerUserId" required />
-          <label for="org-description">{{ i18n.t('org.description') }}</label><textarea id="org-description" name="description" [(ngModel)]="draft.description"></textarea>
-          <label for="org-website">{{ i18n.t('org.website') }}</label><input id="org-website" name="website" [(ngModel)]="draft.website" />
-          <label for="org-contact">{{ i18n.t('org.contactEmail') }}</label><input id="org-contact" name="contactEmail" [(ngModel)]="draft.contactEmail" />
-          <button mat-flat-button type="submit" [disabled]="pending()">{{ i18n.t('common.create') }}</button>
+          <h2 data-cy="admin-create-org-title">{{ i18n.t('admin.createOrganization') }}</h2>
+          <label for="org-name" data-cy="admin-create-org-name-label">{{ i18n.t('org.name') }}</label><input id="org-name" data-cy="admin-create-org-name" name="name" [(ngModel)]="draft.name" required />
+          <label for="org-owner" data-cy="admin-create-org-owner-label">{{ i18n.t('admin.ownerUserId') }}</label><input id="org-owner" data-cy="admin-create-org-owner" name="ownerUserId" [(ngModel)]="draft.ownerUserId" required />
+          <label for="org-description" data-cy="admin-create-org-description-label">{{ i18n.t('org.description') }}</label><textarea id="org-description" data-cy="admin-create-org-description" name="description" [(ngModel)]="draft.description"></textarea>
+          <label for="org-website" data-cy="admin-create-org-website-label">{{ i18n.t('org.website') }}</label><input id="org-website" data-cy="admin-create-org-website" name="website" [(ngModel)]="draft.website" />
+          <label for="org-contact" data-cy="admin-create-org-contact-label">{{ i18n.t('org.contactEmail') }}</label><input id="org-contact" data-cy="admin-create-org-contact" name="contactEmail" [(ngModel)]="draft.contactEmail" />
+          <button mat-flat-button type="submit" data-cy="admin-create-org-submit" [disabled]="pending()">{{ i18n.t('common.create') }}</button>
         </form>
       </mat-card-content></mat-card>
 
-      @if (loading()) { <p>{{ i18n.t('common.loading') }}</p> }
-      @else if (error()) { <div class="stack"><p class="error" role="alert">{{ error() }}</p><button mat-stroked-button type="button" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
-      @else if (!items().length) { <p>{{ i18n.t('common.empty') }}</p> }
+      @if (loading()) { <p data-cy="admin-orgs-loading">{{ i18n.t('common.loading') }}</p> }
+      @else if (error()) { <div class="stack" data-cy="admin-orgs-error-panel"><p class="error" role="alert" data-cy="admin-orgs-error">{{ error() }}</p><button mat-stroked-button type="button" data-cy="admin-orgs-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
+      @else if (!items().length) { <p data-cy="admin-orgs-empty">{{ i18n.t('common.empty') }}</p> }
       @else {
-        <div class="admin-table" role="table" [attr.aria-label]="i18n.t('admin.organizations')">
+        <div class="admin-table" role="table" data-cy="admin-orgs-table" [attr.aria-label]="i18n.t('admin.organizations')">
           @for (org of items(); track org.id) {
             <mat-card class="panel admin-row" role="row" [attr.data-cy]="'admin-org-row-' + org.name">
-              <mat-card-content class="stack">
-                <div class="admin-row-grid">
-                  <div><strong>{{ org.name }}</strong><p class="muted">{{ org.id }}</p></div>
-                  <div>@if (org.deletedAt) { <span class="warning">{{ i18n.t('admin.deleted') }}</span> } @else { <span>{{ i18n.t('common.active') }}</span> }</div>
-                  <div class="admin-actions">
-                    <button mat-stroked-button type="button" [disabled]="pending()" (click)="edit(org)">{{ i18n.t('common.edit') }}</button>
-                    @if (org.deletedAt) { <button mat-stroked-button type="button" [disabled]="pending()" (click)="restore(org)">{{ i18n.t('admin.restore') }}</button> }
-                    @else { <button mat-stroked-button type="button" class="danger-ghost-action" [disabled]="pending()" (click)="delete(org)">{{ i18n.t('common.delete') }}</button> }
+              <mat-card-content class="stack" [attr.data-cy]="'admin-org-row-content-' + org.id">
+                <div class="admin-row-grid" [attr.data-cy]="'admin-org-row-grid-' + org.id">
+                  <div [attr.data-cy]="'admin-org-row-summary-' + org.id"><strong [attr.data-cy]="'admin-org-row-name-' + org.id">{{ org.name }}</strong><p class="muted" [attr.data-cy]="'admin-org-row-id-' + org.id">{{ org.id }}</p></div>
+                  <div [attr.data-cy]="'admin-org-row-state-' + org.id">@if (org.deletedAt) { <span class="warning" [attr.data-cy]="'admin-org-row-deleted-' + org.id">{{ i18n.t('admin.deleted') }}</span> } @else { <span [attr.data-cy]="'admin-org-row-active-' + org.id">{{ i18n.t('common.active') }}</span> }</div>
+                  <div class="admin-actions" [attr.data-cy]="'admin-org-row-actions-' + org.id">
+                    <button mat-stroked-button type="button" [attr.data-cy]="'admin-org-edit-' + org.id" [disabled]="pending()" (click)="edit(org)">{{ i18n.t('common.edit') }}</button>
+                    @if (org.deletedAt) { <button mat-stroked-button type="button" [attr.data-cy]="'admin-org-restore-' + org.id" [disabled]="pending()" (click)="restore(org)">{{ i18n.t('admin.restore') }}</button> }
+                    @else { <button mat-stroked-button type="button" class="danger-ghost-action" [attr.data-cy]="'admin-org-delete-' + org.id" [disabled]="pending()" (click)="delete(org)">{{ i18n.t('common.delete') }}</button> }
                   </div>
                 </div>
                 @if (editing()?.id === org.id) {
                   <form class="auth-form" data-cy="admin-edit-org" (ngSubmit)="saveEdit()">
-                    <label for="edit-org-name">{{ i18n.t('org.name') }}</label><input id="edit-org-name" name="editName" [(ngModel)]="editDraft.name" required />
-                    <label for="edit-org-description">{{ i18n.t('org.description') }}</label><textarea id="edit-org-description" name="editDescription" [(ngModel)]="editDraft.description"></textarea>
-                    <label for="edit-org-website">{{ i18n.t('org.website') }}</label><input id="edit-org-website" name="editWebsite" [(ngModel)]="editDraft.website" />
-                    <label for="edit-org-contact">{{ i18n.t('org.contactEmail') }}</label><input id="edit-org-contact" name="editContact" [(ngModel)]="editDraft.contactEmail" />
-                    <div class="actions"><button mat-stroked-button type="button" (click)="editing.set(null)">{{ i18n.t('common.cancel') }}</button><button mat-flat-button type="submit" [disabled]="pending()">{{ i18n.t('common.save') }}</button></div>
+                    <label for="edit-org-name" data-cy="admin-edit-org-name-label">{{ i18n.t('org.name') }}</label><input id="edit-org-name" data-cy="admin-edit-org-name" name="editName" [(ngModel)]="editDraft.name" required />
+                    <label for="edit-org-description" data-cy="admin-edit-org-description-label">{{ i18n.t('org.description') }}</label><textarea id="edit-org-description" data-cy="admin-edit-org-description" name="editDescription" [(ngModel)]="editDraft.description"></textarea>
+                    <label for="edit-org-website" data-cy="admin-edit-org-website-label">{{ i18n.t('org.website') }}</label><input id="edit-org-website" data-cy="admin-edit-org-website" name="editWebsite" [(ngModel)]="editDraft.website" />
+                    <label for="edit-org-contact" data-cy="admin-edit-org-contact-label">{{ i18n.t('org.contactEmail') }}</label><input id="edit-org-contact" data-cy="admin-edit-org-contact" name="editContact" [(ngModel)]="editDraft.contactEmail" />
+                    <div class="actions" data-cy="admin-edit-org-actions"><button mat-stroked-button type="button" data-cy="admin-edit-org-cancel" (click)="editing.set(null)">{{ i18n.t('common.cancel') }}</button><button mat-flat-button type="submit" data-cy="admin-edit-org-save" [disabled]="pending()">{{ i18n.t('common.save') }}</button></div>
                   </form>
                 }
               </mat-card-content>
             </mat-card>
           }
         </div>
-        <div class="pager"><button mat-stroked-button type="button" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span>{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
+        <div class="pager" data-cy="admin-orgs-pager"><button mat-stroked-button type="button" data-cy="admin-orgs-page-previous" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="admin-orgs-page">{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="admin-orgs-page-next" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
       }
       @if (status()) { <p role="status" data-cy="admin-org-status">{{ status() }}</p> }
     </section>

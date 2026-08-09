@@ -16,27 +16,27 @@ import { canCancelTournament, canEditTournament } from './tournament-management'
   imports: [RouterLink, MatButtonModule, MatCardModule, MatDialogModule],
   template: `
     <section class="tournament-management-page stack" data-cy="organizer-tournaments" aria-labelledby="organizer-tournaments-title">
-      <header class="page-heading">
-        <div><p class="kicker">{{ i18n.t('tournamentCreate.kicker') }}</p><h1 id="organizer-tournaments-title">{{ i18n.t('tournamentManage.title') }}</h1></div>
-        <a mat-flat-button class="home-primary-action" routerLink="/organizer/tournaments/new">{{ i18n.t('tournamentManage.create') }}</a>
+      <header class="page-heading" data-cy="organizer-tournaments-heading">
+        <div data-cy="organizer-tournaments-heading-text"><p class="kicker" data-cy="organizer-tournaments-kicker">{{ i18n.t('tournamentCreate.kicker') }}</p><h1 id="organizer-tournaments-title" data-cy="organizer-tournaments-title">{{ i18n.t('tournamentManage.title') }}</h1></div>
+        <a mat-flat-button class="home-primary-action" routerLink="/organizer/tournaments/new" data-cy="organizer-tournaments-create">{{ i18n.t('tournamentManage.create') }}</a>
       </header>
-      <p class="muted">{{ i18n.t('tournamentManage.scopeHelp') }}</p>
+      <p class="muted" data-cy="organizer-tournaments-scope-help">{{ i18n.t('tournamentManage.scopeHelp') }}</p>
 
       @if (loading()) { <p role="status" data-cy="tournament-management-loading">{{ i18n.t('common.loading') }}</p> }
       @else if (error()) {
-        <div class="error stack" role="alert" data-cy="tournament-management-error"><span>{{ error() }}</span><button mat-stroked-button type="button" (click)="load()">{{ i18n.t('common.retry') }}</button></div>
+        <div class="error stack" role="alert" data-cy="tournament-management-error"><span data-cy="tournament-management-error-text">{{ error() }}</span><button mat-stroked-button type="button" data-cy="tournament-management-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></div>
       } @else if (!items().length) {
-        <div class="panel stack tournament-management-empty" data-cy="tournament-management-empty"><h2>{{ i18n.t('tournamentManage.emptyTitle') }}</h2><p>{{ i18n.t('tournamentManage.emptyBody') }}</p></div>
+        <div class="panel stack tournament-management-empty" data-cy="tournament-management-empty"><h2 data-cy="tournament-management-empty-title">{{ i18n.t('tournamentManage.emptyTitle') }}</h2><p data-cy="tournament-management-empty-body">{{ i18n.t('tournamentManage.emptyBody') }}</p></div>
       } @else {
-        <div class="tournament-management-list" role="list">
+        <div class="tournament-management-list" role="list" data-cy="tournament-management-list">
           @for (tournament of items(); track tournament.id) {
             <mat-card class="panel tournament-management-row" role="listitem" [attr.data-cy]="'tournament-row-' + tournament.id">
-              <mat-card-content class="stack">
-                <div class="tournament-management-row-grid">
-                  <div><p class="kicker">{{ tournament.organizationName }}</p><h2>{{ tournament.title }}</h2><p class="muted">{{ tournament.venueStartDate }} · {{ tournament.venueStartTime.slice(0, 5) }} · {{ tournament.city }}</p></div>
-                  <span [class]="'calendar-status calendar-status--' + tournament.status.toLowerCase()">{{ tournament.status }}</span>
-                  <div class="admin-actions tournament-management-actions">
-                    <a mat-stroked-button [routerLink]="['/calendar/tournaments', tournament.slug]">{{ i18n.t('tournamentManage.publicView') }}</a>
+              <mat-card-content class="stack" [attr.data-cy]="'tournament-row-content-' + tournament.id">
+                <div class="tournament-management-row-grid" [attr.data-cy]="'tournament-row-grid-' + tournament.id">
+                  <div [attr.data-cy]="'tournament-row-summary-' + tournament.id"><p class="kicker" [attr.data-cy]="'tournament-row-organization-' + tournament.id">{{ tournament.organizationName }}</p><h2 [attr.data-cy]="'tournament-row-title-' + tournament.id">{{ tournament.title }}</h2><p class="muted" [attr.data-cy]="'tournament-row-when-' + tournament.id">{{ tournament.venueStartDate }} · {{ tournament.venueStartTime.slice(0, 5) }} · {{ tournament.city }}</p></div>
+                  <span [attr.data-cy]="'tournament-row-status-' + tournament.id" [class]="'calendar-status calendar-status--' + tournament.status.toLowerCase()">{{ tournament.status }}</span>
+                  <div class="admin-actions tournament-management-actions" [attr.data-cy]="'tournament-row-actions-' + tournament.id">
+                    <a mat-stroked-button [attr.data-cy]="'tournament-row-public-view-' + tournament.id" [routerLink]="['/calendar/tournaments', tournament.slug]">{{ i18n.t('tournamentManage.publicView') }}</a>
                     <a mat-stroked-button data-cy="tournament-participants" [routerLink]="['/organizer/tournaments', tournament.id, 'participants']">{{ i18n.t('registration.participants') }}</a>
                     @if (canEdit(tournament)) { <a mat-stroked-button data-cy="tournament-edit" [routerLink]="['/organizer/tournaments', tournament.id, 'edit']">{{ i18n.t('common.edit') }}</a> }
                     @if (canCancel(tournament)) { <button mat-stroked-button type="button" data-cy="tournament-cancel" [disabled]="!!pendingId()" (click)="cancel(tournament)">{{ pendingId() === tournament.id ? i18n.t('tournamentManage.cancelling') : i18n.t('tournamentManage.cancel') }}</button> }
@@ -47,7 +47,7 @@ import { canCancelTournament, canEditTournament } from './tournament-management'
             </mat-card>
           }
         </div>
-        <nav class="pager" [attr.aria-label]="i18n.t('calendar.pagesAria')"><button mat-stroked-button type="button" [disabled]="page() <= 1 || !!pendingId()" (click)="goPage(page() - 1)">{{ i18n.t('common.previous') }}</button><span>{{ page() }} / {{ pages() }}</span><button mat-stroked-button type="button" [disabled]="page() >= pages() || !!pendingId()" (click)="goPage(page() + 1)">{{ i18n.t('common.next') }}</button></nav>
+        <nav class="pager" data-cy="organizer-tournaments-pager" [attr.aria-label]="i18n.t('calendar.pagesAria')"><button mat-stroked-button type="button" data-cy="organizer-tournaments-page-previous" [disabled]="page() <= 1 || !!pendingId()" (click)="goPage(page() - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="organizer-tournaments-page">{{ page() }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="organizer-tournaments-page-next" [disabled]="page() >= pages() || !!pendingId()" (click)="goPage(page() + 1)">{{ i18n.t('common.next') }}</button></nav>
       }
       @if (status()) { <p role="status" data-cy="tournament-management-status">{{ status() }}</p> }
     </section>

@@ -19,29 +19,29 @@ import { LatestRequest } from '../../shared/async-guards';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="admin-page stack" data-cy="admin-users" aria-labelledby="admin-users-title">
-      <header class="page-heading">
-        <div><p class="kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-users-title">{{ i18n.t('admin.users') }}</h1></div>
-        <a mat-stroked-button routerLink="/admin">{{ i18n.t('admin.back') }}</a>
+      <header class="page-heading" data-cy="admin-users-heading">
+        <div data-cy="admin-users-heading-text"><p class="kicker" data-cy="admin-users-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-users-title" data-cy="admin-users-title">{{ i18n.t('admin.users') }}</h1></div>
+        <a mat-stroked-button routerLink="/admin" data-cy="admin-users-back">{{ i18n.t('admin.back') }}</a>
       </header>
 
-      <form class="filter-bar auth-form" (ngSubmit)="applyFilters()">
-        <label for="admin-user-search">{{ i18n.t('common.search') }}</label>
+      <form class="filter-bar auth-form" data-cy="admin-users-filters" (ngSubmit)="applyFilters()">
+        <label for="admin-user-search" data-cy="admin-user-search-label">{{ i18n.t('common.search') }}</label>
         <input id="admin-user-search" data-cy="admin-user-search" name="search" [(ngModel)]="search" />
         <button mat-flat-button type="submit" data-cy="admin-user-search-submit">{{ i18n.t('common.apply') }}</button>
       </form>
 
       @if (loading()) { <p data-cy="admin-users-loading">{{ i18n.t('common.loading') }}</p> }
       @else if (error()) {
-        <div class="stack"><p class="error" role="alert">{{ error() }}</p><button mat-stroked-button type="button" data-cy="admin-users-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></div>
+        <div class="stack" data-cy="admin-users-error-panel"><p class="error" role="alert" data-cy="admin-users-error">{{ error() }}</p><button mat-stroked-button type="button" data-cy="admin-users-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></div>
       } @else if (!items().length) { <p data-cy="admin-users-empty">{{ i18n.t('common.empty') }}</p> }
       @else {
-        <div class="admin-table" role="table" [attr.aria-label]="i18n.t('admin.users')">
+        <div class="admin-table" role="table" data-cy="admin-users-table" [attr.aria-label]="i18n.t('admin.users')">
           @for (user of items(); track user.id) {
             <mat-card class="panel admin-row" role="row" [attr.data-cy]="'admin-user-row-' + user.username">
-              <mat-card-content class="admin-row-grid">
-                <div><strong>{{ user.username }}</strong><p class="muted">{{ user.email }}</p></div>
-                <div>{{ user.globalRole }}@if (user.isClosed) { <span class="warning"> · {{ i18n.t('admin.closed') }}</span> }</div>
-                <div class="admin-actions">
+              <mat-card-content class="admin-row-grid" [attr.data-cy]="'admin-user-row-grid-' + user.id">
+                <div [attr.data-cy]="'admin-user-row-summary-' + user.id"><strong [attr.data-cy]="'admin-user-row-username-' + user.id">{{ user.username }}</strong><p class="muted" [attr.data-cy]="'admin-user-row-email-' + user.id">{{ user.email }}</p></div>
+                <div [attr.data-cy]="'admin-user-row-role-' + user.id">{{ user.globalRole }}@if (user.isClosed) { <span class="warning" [attr.data-cy]="'admin-user-row-closed-' + user.id"> · {{ i18n.t('admin.closed') }}</span> }</div>
+                <div class="admin-actions" [attr.data-cy]="'admin-user-row-actions-' + user.id">
                   @if (!user.isClosed) {
                     <button mat-stroked-button type="button" [attr.data-cy]="'grant-organizer-' + user.username" (click)="grant(user, 'Organizer')">{{ i18n.t('admin.grantOrganizer') }}</button>
                     <button mat-stroked-button type="button" [attr.data-cy]="'grant-admin-' + user.username" (click)="grant(user, 'Admin')">{{ i18n.t('admin.grantAdmin') }}</button>
@@ -54,7 +54,7 @@ import { LatestRequest } from '../../shared/async-guards';
             </mat-card>
           }
         </div>
-        <div class="pager">
+        <div class="pager" data-cy="admin-users-pager">
           <button mat-stroked-button type="button" data-cy="admin-users-prev" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button>
           <span data-cy="admin-users-page">{{ page }} / {{ pages() }}</span>
           <button mat-stroked-button type="button" data-cy="admin-users-next" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button>
@@ -63,29 +63,29 @@ import { LatestRequest } from '../../shared/async-guards';
 
       @if (closing(); as target) {
         <mat-card class="panel auth-card" data-cy="admin-close-dialog">
-          <mat-card-content class="stack">
-            <h2>{{ i18n.t('admin.closeTitle') }}</h2>
-            <p>{{ i18n.t('admin.closeHelp', { username: target.username }) }}</p>
+          <mat-card-content class="stack" data-cy="admin-close-dialog-content">
+            <h2 data-cy="admin-close-title">{{ i18n.t('admin.closeTitle') }}</h2>
+            <p data-cy="admin-close-help">{{ i18n.t('admin.closeHelp', { username: target.username }) }}</p>
             @if (impact(); as impact) {
               <p class="warning" data-cy="admin-close-impact">{{ i18n.t('admin.closeImpact', { orgs: impact.soleOwnedOrganizations.length, memberships: impact.otherMembershipOrganizationIds.length }) }}</p>
               @if (impact.blockReason === 'self_close' || impact.blockReason === 'last_admin' || impact.isClosed) {
-                <p class="error" role="alert">{{ i18n.t('admin.closeBlocked') }}</p>
+                <p class="error" role="alert" data-cy="admin-close-blocked">{{ i18n.t('admin.closeBlocked') }}</p>
               } @else {
                 @for (org of impact.soleOwnedOrganizations; track org.organizationId) {
-                  <label [attr.for]="'transfer-' + org.organizationId">{{ i18n.t('admin.transferOwner', { name: org.organizationName }) }}</label>
+                  <label [attr.for]="'transfer-' + org.organizationId" [attr.data-cy]="'transfer-owner-label-' + org.organizationId">{{ i18n.t('admin.transferOwner', { name: org.organizationName }) }}</label>
                   <input [id]="'transfer-' + org.organizationId" [attr.data-cy]="'transfer-owner-' + org.organizationId" [(ngModel)]="transfers[org.organizationId]" [name]="'transfer-' + org.organizationId" [placeholder]="org.suggestedNewOwnerUserId || ''" />
                 }
-                <label for="confirm-username">{{ i18n.t('admin.confirmUsername') }}</label>
+                <label for="confirm-username" data-cy="admin-close-username-label">{{ i18n.t('admin.confirmUsername') }}</label>
                 <input id="confirm-username" data-cy="admin-close-username" [(ngModel)]="confirmUsername" name="confirmUsername" />
-                <div class="actions">
-                  <button mat-stroked-button type="button" (click)="cancelClose()">{{ i18n.t('common.cancel') }}</button>
+                <div class="actions" data-cy="admin-close-actions">
+                  <button mat-stroked-button type="button" data-cy="admin-close-cancel" (click)="cancelClose()">{{ i18n.t('common.cancel') }}</button>
                   <button mat-flat-button type="button" class="danger-ghost-action" data-cy="admin-close-confirm" [disabled]="pending()" (click)="confirmClose()">{{ i18n.t('admin.closeConfirm') }}</button>
                 </div>
               }
             } @else if (impactError()) {
-              <p class="error" role="alert">{{ impactError() }}</p>
-              <button mat-stroked-button type="button" (click)="openClose(target)">{{ i18n.t('common.retry') }}</button>
-            } @else { <p>{{ i18n.t('common.loading') }}</p> }
+              <p class="error" role="alert" data-cy="admin-close-impact-error">{{ impactError() }}</p>
+              <button mat-stroked-button type="button" data-cy="admin-close-impact-retry" (click)="openClose(target)">{{ i18n.t('common.retry') }}</button>
+            } @else { <p data-cy="admin-close-loading">{{ i18n.t('common.loading') }}</p> }
             @if (closeError()) { <p class="error" role="alert" data-cy="admin-close-error">{{ closeError() }}</p> }
           </mat-card-content>
         </mat-card>

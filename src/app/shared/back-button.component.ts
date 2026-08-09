@@ -10,20 +10,20 @@ import { I18nService } from '../i18n/i18n.service';
   imports: [RouterLink, MatButtonModule, NgTemplateOutlet],
   template: `
     @if (position === 'bottom') {
-      <footer class="back-button-row back-button-row--bottom" [attr.aria-label]="i18n.t('nav.footerNav')">
+      <footer class="back-button-row back-button-row--bottom" data-cy="back-button-row-bottom" [attr.aria-label]="i18n.t('nav.footerNav')">
         <ng-container *ngTemplateOutlet="backButton" />
       </footer>
     } @else {
-      <div class="back-button-row back-button-row--top">
+      <div class="back-button-row back-button-row--top" data-cy="back-button-row-top">
         <ng-container *ngTemplateOutlet="backButton" />
       </div>
     }
 
     <ng-template #backButton>
       @if (link) {
-        <a mat-stroked-button class="back-button secondary-action" [routerLink]="link" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ displayLabel }}</span></a>
+        <a mat-stroked-button class="back-button secondary-action" [attr.data-cy]="'back-button-link-' + position" [routerLink]="link" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span [attr.data-cy]="'back-button-link-label-' + position">{{ displayLabel }}</span></a>
       } @else {
-        <button mat-stroked-button class="back-button secondary-action" type="button" (click)="goBack()" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span>{{ displayLabel }}</span></button>
+        <button mat-stroked-button class="back-button secondary-action" type="button" [attr.data-cy]="'back-button-action-' + position" (click)="goBack()" [attr.aria-label]="accessibleLabel"><svg class="back-button__icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M15.5 5.5 9 12l6.5 6.5" /></svg><span [attr.data-cy]="'back-button-action-label-' + position">{{ displayLabel }}</span></button>
       }
     </ng-template>
   `

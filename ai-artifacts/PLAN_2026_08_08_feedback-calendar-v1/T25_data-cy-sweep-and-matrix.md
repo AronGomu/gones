@@ -130,25 +130,49 @@ Run: `npm run test -- data-cy-coverage` then `npm run acceptance:matrix` then `n
 
 ## Impl steps
 
-- [ ] 1. Capture the selector baseline: `grep -rhno "data-cy=[\"'][^\"']*" cypress/e2e/ | sed 's/.*data-cy=.//' | sort -u > /tmp/gones-cy-selectors.txt`. Keep it open; nothing in it may change value.
-- [ ] 2. Set `PENDING_DATA_CY_RETROFIT = []` in `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] 3. Run `npm run test -- data-cy-coverage` and save the failing file list.
-- [ ] 4. Sweep the files one at a time, in the order listed in Inputs. For each: add `data-cy` to every element the test names, using a kebab-case value prefixed by the component's feature (`admin-users-`, `live-runner-`, `about-`, `ranking-`, …), and `[attr.data-cy]` with an interpolated key for elements inside `@for` blocks.
-- [ ] 5. `src/app/features/live-tournaments/live-tournament-runner.component.ts` is **1028** lines — sweep it in a dedicated pass and re-run the coverage test after it alone, before moving on.
-- [ ] 6. `src/app/features/menu/about.component.ts` is 246 lines of marketing markup — prefix everything `about-` and number repeated blocks by index.
-- [ ] 7. `src/app/shared/dialogs.ts` holds `ConfirmDialogComponent`, used by many call sites; give it stable values (`confirm-dialog-title`, `confirm-dialog-message`, `confirm-dialog-cancel`, `confirm-dialog-confirm`) and check no Cypress spec already asserts different ones.
-- [ ] 8. After each file, re-run `npm run test -- data-cy-coverage` so the failure list only ever shrinks.
-- [ ] 9. When the suite is green, re-run the baseline capture and `diff` it against `/tmp/gones-cy-selectors.txt`; the diff must be empty.
-- [ ] 10. Run `npm run lint && npm run typecheck && npm run build`.
-- [ ] 11. Run **`npm run e2e:ci`** in full (not `npm run dev` + `npm run cy:run`, which cannot run on this host) and fix
+- [x] 1. Capture the selector baseline (saved to `scratchpad/gones-cy-selectors.txt`, 215 unique selectors): `grep -rhno "data-cy=[\"'][^\"']*" cypress/e2e/ | sed 's/.*data-cy=.//' | sort -u > /tmp/gones-cy-selectors.txt`. Keep it open; nothing in it may change value.
+- [x] 2. Set `PENDING_DATA_CY_RETROFIT = []` in `src/app/shared/data-cy-coverage.test.ts`.
+- [x] 3. Run `npm run test -- data-cy-coverage` and save the failing file list. — 26 violations across the 24 allowlisted files (2 files also reported duplicates).
+- [x] 4. Sweep the files one at a time, in the order listed in Inputs. For each: add `data-cy` to every element the test names, using a kebab-case value prefixed by the component's feature (`admin-users-`, `live-runner-`, `about-`, `ranking-`, …), and `[attr.data-cy]` with an interpolated key for elements inside `@for` blocks.
+  - [x] 4.1 `admin-audit.component.ts`
+  - [x] 4.2 `admin-home.component.ts`
+  - [x] 4.3 `admin-notification-delivery.component.ts`
+  - [x] 4.4 `admin-organizations.component.ts`
+  - [x] 4.5 `admin-users.component.ts`
+  - [x] 4.6 `organization-detail.component.ts`
+  - [x] 4.7 `organization-list.component.ts`
+  - [x] 4.8 `organizer-organizations.component.ts`
+  - [x] 4.9 `admin-deleted-tournaments.component.ts`
+  - [x] 4.10 `organizer-participants.component.ts`
+  - [x] 4.11 `organizer-tournament-list.component.ts`
+  - [x] 4.12 `public-tournament-detail.component.ts`
+  - [x] 4.13 `server-sanitized-html.component.ts`
+  - [x] 4.14 `tournament-detail-view.component.ts`
+  - [x] 4.15 `live-tournament-list.component.ts`
+  - [x] 4.16 `live-tournament-runner.component.ts`
+  - [x] 4.17 `about.component.ts`
+  - [x] 4.18 `player-detail.component.ts`
+  - [x] 4.19 `back-button.component.ts`
+  - [x] 4.20 `deck-archetype-input.component.ts`
+  - [x] 4.21 `dialogs.ts`
+  - [x] 4.22 `not-found.component.ts`
+  - [x] 4.23 `ranking-table.component.ts`
+  - [x] 4.24 `route-error-boundary.ts`
+- [x] 5. `src/app/features/live-tournaments/live-tournament-runner.component.ts` is **1028** lines — sweep it in a dedicated pass and re-run the coverage test after it alone, before moving on.
+- [x] 6. `src/app/features/menu/about.component.ts` is 246 lines of marketing markup — prefix everything `about-` and number repeated blocks by index.
+- [x] 7. `src/app/shared/dialogs.ts` holds `ConfirmDialogComponent`, used by many call sites; give it stable values (`confirm-dialog-title`, `confirm-dialog-message`, `confirm-dialog-cancel`, `confirm-dialog-confirm`) and check no Cypress spec already asserts different ones.
+- [x] 8. After each file, re-run `npm run test -- data-cy-coverage` so the failure list only ever shrinks.
+- [x] 9. When the suite is green — diff empty; and a HEAD-vs-now comparison of every literal/bound `data-cy` value in `src/app` is purely additive (1079 -> 1891, zero removed or changed), re-run the baseline capture and `diff` it against `/tmp/gones-cy-selectors.txt`; the diff must be empty.
+- [x] 10. Run `npm run lint && npm run typecheck && npm run build`. — all three pass; `npm run test` also green at 77 files / 507 tests with the allowlist empty.
+- [x] 11. Ran **`npm run e2e:ci`** in full — exit 0, 18 specs, 18 pass, 0 fail; no spec was edited and no identifier was restored, because none broke. Original step text: (not `npm run dev` + `npm run cy:run`, which cannot run on this host) and fix
   any spec the sweep disturbed by restoring the original identifier value, never by editing the spec. T25b left the
   gate at 18/18 green — any red spec here is your sweep's doing.
-- [ ] 12. Update `ops/acceptance-matrix.json`: confirm a `proved` row exists for each capability this plan added — cookie session persistence (T2), account deletion (T6), the full-catalog calendar (T12/T13/T14), the tournament proposal flow (T16/T17/T19), the local Live store (T20), the first-visit redirect (T21) and the archive rename (T23/T24). Add any missing row with real evidence targets.
-- [ ] 13. Add a matrix row for the `data-cy` contract itself: gate `vitest`, target `src/app/shared/data-cy-coverage.test.ts`, detail "every rendered element carries a unique test identifier".
-- [ ] 14. Run `npm run acceptance:matrix`.
-- [ ] 15. Add a "Feedback release" section to `docs/RELEASE_NOTES_V1.md` listing, grouped by area, every user-visible change this plan shipped, and naming the six ADRs it rests on: `docs/adr/0021-role-scoped-browser-live-store.md`, `0022-rename-the-archived-league-feature.md`, `0023-full-catalog-calendar-cache.md`, `0024-tournament-proposal-signed-token-approval.md`, `0025-hard-account-deletion.md`, `0026-structured-profile-location-and-birth-date.md` — **and `0027-external-identity-link-without-reauthentication.md`, which the step's list omits.** Seven, not six. 0027 records a real security trade-off (the OAuth link/unlink password step-up was removed) and belongs in a release note. Also record, under a "known gaps" heading, the three items the parent listed as out of scope in the environment facts.
-- [ ] 16. Run the full gate set: `npm run test && npm run lint && npm run typecheck && npm run build && npm run backend:test && npm run acceptance:matrix && npm run api:check`.
-- [ ] 17. Run `npm run e2e:ci` for the end-to-end release gate.
+- [x] 12. Update `ops/acceptance-matrix.json`: — added `doc03-cookie-session`, `doc04-account-deletion`, `doc04-structured-profile`, `doc05-full-catalog-cache`, `doc09-first-visit`, `doc09-archive-rename`; the proposal flow (`doc05-proposals`) and the local Live store (`doc09-local-live-store`) were already proved. Diff is 162 insertions, 0 deletions. confirm a `proved` row exists for each capability this plan added — cookie session persistence (T2), account deletion (T6), the full-catalog calendar (T12/T13/T14), the tournament proposal flow (T16/T17/T19), the local Live store (T20), the first-visit redirect (T21) and the archive rename (T23/T24). Add any missing row with real evidence targets.
+- [x] 13. Added `doc09-test-identifiers`. Matrix row for the `data-cy` contract itself: gate `vitest`, target `src/app/shared/data-cy-coverage.test.ts`, detail "every rendered element carries a unique test identifier".
+- [x] 14. Run `npm run acceptance:matrix`. — `98/98 non-deferred capability rows proved (3 deferred)`, `24/24 final acceptance checklist rows proved`; the 3 deferred are the pre-existing live-infrastructure rows, none added by this plan.
+- [x] 15. Added the "The feedback release" section to `docs/RELEASE_NOTES_V1.md` (all seven ADRs named, three known gaps recorded). Original step text: to `docs/RELEASE_NOTES_V1.md` listing, grouped by area, every user-visible change this plan shipped, and naming the six ADRs it rests on: `docs/adr/0021-role-scoped-browser-live-store.md`, `0022-rename-the-archived-league-feature.md`, `0023-full-catalog-calendar-cache.md`, `0024-tournament-proposal-signed-token-approval.md`, `0025-hard-account-deletion.md`, `0026-structured-profile-location-and-birth-date.md` — **and `0027-external-identity-link-without-reauthentication.md`, which the step's list omits.** Seven, not six. 0027 records a real security trade-off (the OAuth link/unlink password step-up was removed) and belongs in a release note. Also record, under a "known gaps" heading, the three items the parent listed as out of scope in the environment facts.
+- [x] 16. Ran the full gate set — `test` 77 files/507 tests, `lint` clean, `typecheck` clean, `build` OK, `backend:test` 198 unit + 14 architecture + 356/358 integration (the 2 were the documented `InitializeAsync` container-bind flake; `LocalIdentityApiTests` 34/34 and `TournamentSchedulerTests` 5/5 both pass run alone), `acceptance:matrix` 98/98, `api:check` exit 0. Original step: `npm run test && npm run lint && npm run typecheck && npm run build && npm run backend:test && npm run acceptance:matrix && npm run api:check`.
+- [x] 17. Ran `npm run e2e:ci` for the end-to-end release gate — exit 0, 18 specs, 18 pass, 0 fail.
 
 ## Outputs
 
@@ -158,13 +182,13 @@ Run: `npm run test -- data-cy-coverage` then `npm run acceptance:matrix` then `n
 
 ## Validation
 
-- [ ] `npm run test` passes with an empty allowlist
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run backend:test` passes
-- [ ] `npm run e2e:ci` passes in full, 18/18 specs (this replaces `npm run cy:run`, unrunnable on this host)
-- [ ] `npm run acceptance:matrix` passes with no new `deferred` row
-- [ ] `npm run api:check` reports no drift
-- [ ] `npm run e2e:ci` passes
-- [ ] manual check: the captured Cypress selector list is unchanged
-- [ ] app functional — nothing renders differently
-- [ ] commit msg draft: `test(frontend): finish the data-cy sweep and prove the feedback release in the acceptance matrix`
+- [x] `npm run test` passes with an empty allowlist — 77 files, 507 tests; `PENDING_DATA_CY_RETROFIT = []`
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run backend:test` passes — only the documented `InitializeAsync` Docker port-bind flake; both classes green run alone
+- [x] `npm run e2e:ci` passes in full, 18/18 specs (this replaces `npm run cy:run`, unrunnable on this host)
+- [x] `npm run acceptance:matrix` passes with no new `deferred` row — 98/98 proved, the same 3 pre-existing deferred rows
+- [x] `npm run api:check` reports no drift — exit 0
+- [x] `npm run e2e:ci` passes
+- [x] manual check: the captured Cypress selector list is unchanged — `diff` empty; and every literal/bound `data-cy` value in `src/app` compared against HEAD `01edbce` is purely additive (1079 -> 1891, zero removed, zero changed)
+- [x] app functional — nothing renders differently: identifiers only, no markup structure changed, 18/18 Cypress specs green, and the additive-only identifier diff above is the proof. Hand-verification steps appended to `ai-artifacts/manual_test_checklist.md`.
+- [x] commit msg draft: `test(frontend): finish the data-cy sweep and prove the feedback release in the acceptance matrix`

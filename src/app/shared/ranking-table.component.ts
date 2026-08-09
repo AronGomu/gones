@@ -22,22 +22,22 @@ let nextRankingTableId = 0;
         (click)="toggleCollapsed()"
         data-cy="ranking-table-toggle"
       >
-        <span class="collapsible-table__chevron" aria-hidden="true">{{ collapsed ? '▸' : '▾' }}</span>
-        <span class="muted collapsible-table__summary">{{ rankingSummary }}</span>
+        <span class="collapsible-table__chevron" data-cy="ranking-toggle-chevron" aria-hidden="true">{{ collapsed ? '▸' : '▾' }}</span>
+        <span class="muted collapsible-table__summary" data-cy="ranking-toggle-summary">{{ rankingSummary }}</span>
       </button>
-      <div [id]="panelId" class="collapsible-table__content" [hidden]="collapsed">
+      <div [id]="panelId" class="collapsible-table__content" data-cy="ranking-panel" [hidden]="collapsed">
         @if (!rows.length) {
           <p class="muted" data-cy="empty-ranking">{{ emptyText || i18n.t('ranking.empty') }}</p>
         } @else {
-          <div class="table-wrap">
+          <div class="table-wrap" data-cy="ranking-table-wrap">
             <table mat-table [dataSource]="rows" class="ranking-table" data-cy="ranking-table">
-              <ng-container matColumnDef="rank"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.rank') }}</th><td mat-cell *matCellDef="let row">{{ row.rank }}</td></ng-container>
-              <ng-container matColumnDef="player"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.player') }}</th><td mat-cell *matCellDef="let row"><a [routerLink]="['/players', row.playerName]">{{ playerLabel(row) }}</a></td></ng-container>
-              <ng-container matColumnDef="points"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.pts') }}</th><td mat-cell *matCellDef="let row">{{ row.points }}</td></ng-container>
-              <ng-container matColumnDef="record"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.record') }}</th><td mat-cell *matCellDef="let row"><span class="record-win">{{ row.matchWins }}</span>-<span class="record-loss">{{ row.matchLosses }}</span>-<span class="record-draw">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes">{{ i18n.t('ranking.bye', { count: row.byes }) }}</span> }</td></ng-container>
-              <ng-container matColumnDef="omw"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.omw') }}</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td></ng-container>
-              <ng-container matColumnDef="gw"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.gw') }}</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.gameWinPercentage) }}</td></ng-container>
-              <ng-container matColumnDef="ogw"><th mat-header-cell *matHeaderCellDef>{{ i18n.t('common.ogw') }}</th><td mat-cell *matCellDef="let row">{{ formatPercentage(row.opponentsGameWinPercentage) }}</td></ng-container>
+              <ng-container matColumnDef="rank"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-rank">{{ i18n.t('common.rank') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-rank-' + row.rank">{{ row.rank }}</td></ng-container>
+              <ng-container matColumnDef="player"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-player">{{ i18n.t('common.player') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-player-' + row.rank"><a [attr.data-cy]="'ranking-player-link-' + row.rank" [routerLink]="['/players', row.playerName]">{{ playerLabel(row) }}</a></td></ng-container>
+              <ng-container matColumnDef="points"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-points">{{ i18n.t('common.pts') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-points-' + row.rank">{{ row.points }}</td></ng-container>
+              <ng-container matColumnDef="record"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-record">{{ i18n.t('common.record') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-record-' + row.rank"><span class="record-win" [attr.data-cy]="'ranking-cell-record-wins-' + row.rank">{{ row.matchWins }}</span>-<span class="record-loss" [attr.data-cy]="'ranking-cell-record-losses-' + row.rank">{{ row.matchLosses }}</span>-<span class="record-draw" [attr.data-cy]="'ranking-cell-record-draws-' + row.rank">{{ row.matchDraws }}</span> @if (row.byes) { <span class="record-byes" [attr.data-cy]="'ranking-cell-record-byes-' + row.rank">{{ i18n.t('ranking.bye', { count: row.byes }) }}</span> }</td></ng-container>
+              <ng-container matColumnDef="omw"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-omw">{{ i18n.t('common.omw') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-omw-' + row.rank">{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td></ng-container>
+              <ng-container matColumnDef="gw"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-gw">{{ i18n.t('common.gw') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-gw-' + row.rank">{{ formatPercentage(row.gameWinPercentage) }}</td></ng-container>
+              <ng-container matColumnDef="ogw"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-ogw">{{ i18n.t('common.ogw') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-ogw-' + row.rank">{{ formatPercentage(row.opponentsGameWinPercentage) }}</td></ng-container>
               <tr
                 mat-header-row
                 *matHeaderRowDef="columns"
@@ -58,6 +58,7 @@ let nextRankingTableId = 0;
                 class="ranking-table__clickable-row"
                 tabindex="0"
                 role="link"
+                [attr.data-cy]="'ranking-row-' + row.rank"
                 [attr.aria-label]="i18n.t('ranking.openPlayerAria', { name: row.playerName })"
                 (click)="openPlayerStats(row)"
                 (keydown.enter)="openPlayerStats(row)"

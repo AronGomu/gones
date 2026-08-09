@@ -61,6 +61,88 @@ mode, feature flag — and needs no credential, registry account or public domai
 - League/Result/Live behaviour preserved against the TypeScript golden fixtures under PostgreSQL.
 - Public Export v4 and the private migration bundle with an atomic, dry-run-first offline CLI.
 
+## The feedback release
+
+The `feedback-calendar-v1` plan worked through the `feedback.md` list on top of the V1 candidate.
+Everything below is user-visible unless it says otherwise.
+
+### Accounts and profile
+
+- **A reload no longer signs you out.** The refresh session moved into an HttpOnly cookie, so the
+  browser keeps the session without the single-page application holding a token it could leak.
+- **You can delete your own account.** The deletion sits behind a password confirmation, removes the
+  row rather than tombstoning it, clears the refresh cookie and nulls the audit actor so the trail
+  survives without naming a deleted person (ADR 0025).
+- **Location and birth date are structured.** Location is a country → region → city selection instead
+  of free text, and the birth date is validated (ADR 0026).
+- **Linking or unlinking an external identity no longer asks for the password again.** This is a
+  deliberate trade-off, not an oversight: read ADR 0027 before changing it, because it lowers the bar
+  for an attacker who already holds a live session.
+
+### Calendar
+
+- **The calendar loads once.** One anonymous full-catalog endpoint feeds a client-side cache, so
+  changing month or filter is instant and does not re-query the API (ADR 0023). Offline stale reads
+  keep working.
+
+### Tournaments
+
+- **Anyone can propose a tournament.** A non-organizer submits a proposal; the chosen approver gets a
+  mail carrying a single-use signed link that lets them publish it or decline it with a reason, with
+  no account needed to act on the link (ADR 0024).
+
+### Live Tournaments
+
+- **Anonymous visitors and plain users get a working Live Tournaments surface** backed by a strictly
+  offline browser-local store. Organizer and Admin sessions keep the server adapter, so no local
+  store can ever become the authority for shared data (ADR 0021).
+
+### Navigation and naming
+
+- **The first ever visit lands on the About page**, so a newcomer meets the association before the
+  calendar. Every later visit goes straight to the normal landing surface.
+- **The retired League feature now reads as an archive** everywhere — routes, breadcrumbs, page
+  titles and component names all say `leagues-archive` / `tournaments-archive` (ADR 0022).
+- The home menu carries a card into a **My Registrations** page.
+
+### Testing (not user-visible)
+
+- **Every element rendered by a component template now carries a unique `data-cy`.** The retrofit
+  allowlist in `src/app/shared/data-cy-coverage.test.ts` is empty, and `npm run test` fails if a new
+  untagged element appears. Identifiers already asserted by `cypress/e2e/**` kept their exact values:
+  the sweep was purely additive.
+- `ops/acceptance-matrix.json` gained a row per capability above, so `npm run acceptance:matrix`
+  proves the feedback release and not only the original V1 surface.
+
+### Decisions recorded
+
+Seven ADRs carry this release: `docs/adr/0021-role-scoped-browser-live-store.md`,
+`0022-rename-the-archived-league-feature.md`, `0023-full-catalog-calendar-cache.md`,
+`0024-tournament-proposal-signed-token-approval.md`, `0025-hard-account-deletion.md`,
+`0026-structured-profile-location-and-birth-date.md` and
+`0027-external-identity-link-without-reauthentication.md`.
+
+### Known gaps in the feedback release
+
+These were found while shipping it, are deliberately **not** fixed here, and each needs its own
+ticket.
+
+1. **Dead read-only Live UI.** After the browser-local Live store landed (ADR 0021), `readOnly()`,
+   the `live.readOnly` message and the `live-read-only` / `live-list-read-only` elements became
+   unreachable — no session can now reach a read-only Live surface. They were left in place because
+   deleting unreachable UI is a behaviour change, and the `data-cy` sweep that found them was
+   explicitly identifier-only. `cypress/e2e/live-server.cy.js` asserts `live-list-read-only` does not
+   exist, which stays true either way, so nothing is hiding a regression.
+2. **`npm run notification:smoke` is not re-runnable.** `scripts/smoke-notification.mjs` deletes the
+   outbox row but not its `notification_history` child, so the **second** run against any given
+   database fails on the foreign key. First run on a fresh database is unaffected.
+3. **The tournament proposal flow has never been proved end to end against the live stack.** The two
+   proposal tables carry no grants for the local `gones_app` role, because the compose `permissions`
+   service ran before those tables existed; re-running `docker compose up -d permissions` is the
+   likely fix. The committed Cypress coverage is intercept-based precisely because of this, so the
+   flow's server path is proved by the backend integration tests
+   (`TournamentProposalTests`, `TournamentProposalDecisionTests`) and **not** by a live-stack journey.
+
 ## Portability
 
 - No cloud SDK, no vendor runtime, no managed service is required or referenced.

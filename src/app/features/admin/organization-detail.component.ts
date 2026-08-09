@@ -18,49 +18,49 @@ import { I18nService } from '../../i18n/i18n.service';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="admin-page stack" data-cy="organization-detail" aria-labelledby="org-detail-title">
-      <a mat-stroked-button routerLink="/organizations">{{ i18n.t('org.backToList') }}</a>
-      @if (loading()) { <p>{{ i18n.t('common.loading') }}</p> }
-      @else if (error()) { <div class="stack"><p class="error" role="alert">{{ error() }}</p><button mat-stroked-button type="button" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
+      <a mat-stroked-button routerLink="/organizations" data-cy="org-detail-back">{{ i18n.t('org.backToList') }}</a>
+      @if (loading()) { <p data-cy="org-detail-loading">{{ i18n.t('common.loading') }}</p> }
+      @else if (error()) { <div class="stack" data-cy="org-detail-error-panel"><p class="error" role="alert" data-cy="org-detail-error">{{ error() }}</p><button mat-stroked-button type="button" data-cy="org-detail-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
       @else if (organization(); as org) {
-        <header class="page-heading"><div><p class="kicker">{{ i18n.t('org.kicker') }}</p><h1 id="org-detail-title">{{ org.name }}</h1></div></header>
-        <mat-card class="panel"><mat-card-content class="stack">
-          @if (org.description) { <p>{{ org.description }}</p> }
-          @if (org.website) { <p><a [href]="org.website" rel="noreferrer">{{ org.website }}</a></p> }
-          @if (org.contactEmail) { <p class="muted">{{ org.contactEmail }}</p> }
+        <header class="page-heading" data-cy="org-detail-heading"><div data-cy="org-detail-heading-text"><p class="kicker" data-cy="org-detail-kicker">{{ i18n.t('org.kicker') }}</p><h1 id="org-detail-title" data-cy="org-detail-title">{{ org.name }}</h1></div></header>
+        <mat-card class="panel" data-cy="org-detail-card"><mat-card-content class="stack" data-cy="org-detail-card-content">
+          @if (org.description) { <p data-cy="org-detail-description">{{ org.description }}</p> }
+          @if (org.website) { <p data-cy="org-detail-website"><a [href]="org.website" rel="noreferrer" data-cy="org-detail-website-link">{{ org.website }}</a></p> }
+          @if (org.contactEmail) { <p class="muted" data-cy="org-detail-contact-email">{{ org.contactEmail }}</p> }
         </mat-card-content></mat-card>
 
         @if (auth.profile()) {
-          <mat-card class="panel" data-cy="org-owner-panel"><mat-card-content class="stack">
-            <h2>{{ i18n.t('org.ownerTools') }}</h2>
-            @if (manageLoading()) { <p>{{ i18n.t('common.loading') }}</p> }
+          <mat-card class="panel" data-cy="org-owner-panel"><mat-card-content class="stack" data-cy="org-owner-panel-content">
+            <h2 data-cy="org-owner-tools-title">{{ i18n.t('org.ownerTools') }}</h2>
+            @if (manageLoading()) { <p data-cy="org-manage-loading">{{ i18n.t('common.loading') }}</p> }
             @else if (manageError()) { <p class="error" role="alert" data-cy="org-manage-denied">{{ manageError() }}</p> }
             @else {
               <div class="stack" data-cy="org-members">
-                <h3>{{ i18n.t('org.members') }}</h3>
+                <h3 data-cy="org-members-title">{{ i18n.t('org.members') }}</h3>
                 @for (member of members(); track member.userId) {
                   <div class="admin-row-grid member-row" [attr.data-cy]="'org-member-' + member.username">
-                    <div><strong>{{ member.username }}</strong><p class="muted">{{ member.userId }}</p></div>
-                    <select [ngModel]="member.role" [attr.aria-label]="i18n.t('org.roleFor', { username: member.username })" (ngModelChange)="changeRole(member, $event)">
-                      <option value="Owner">Owner</option>
-                      <option value="Organizer">Organizer</option>
+                    <div [attr.data-cy]="'org-member-summary-' + member.userId"><strong [attr.data-cy]="'org-member-username-' + member.userId">{{ member.username }}</strong><p class="muted" [attr.data-cy]="'org-member-id-' + member.userId">{{ member.userId }}</p></div>
+                    <select [ngModel]="member.role" [attr.data-cy]="'org-member-role-' + member.userId" [attr.aria-label]="i18n.t('org.roleFor', { username: member.username })" (ngModelChange)="changeRole(member, $event)">
+                      <option value="Owner" [attr.data-cy]="'org-member-role-owner-' + member.userId">Owner</option>
+                      <option value="Organizer" [attr.data-cy]="'org-member-role-organizer-' + member.userId">Organizer</option>
                     </select>
-                    <button mat-stroked-button type="button" class="danger-ghost-action" [disabled]="pending()" (click)="remove(member)">{{ i18n.t('common.remove') }}</button>
+                    <button mat-stroked-button type="button" class="danger-ghost-action" [attr.data-cy]="'org-member-remove-' + member.userId" [disabled]="pending()" (click)="remove(member)">{{ i18n.t('common.remove') }}</button>
                   </div>
                 }
-                <form class="auth-form admin-inline-form" (ngSubmit)="addMember()">
-                  <label for="org-member-user">{{ i18n.t('org.addUserId') }}</label>
+                <form class="auth-form admin-inline-form" data-cy="org-add-member-form" (ngSubmit)="addMember()">
+                  <label for="org-member-user" data-cy="org-member-user-label">{{ i18n.t('org.addUserId') }}</label>
                   <input id="org-member-user" data-cy="org-member-user" name="newMemberUserId" [(ngModel)]="newMemberUserId" />
-                  <label for="org-member-role">{{ i18n.t('org.role') }}</label>
-                  <select id="org-member-role" name="newMemberRole" [(ngModel)]="newMemberRole"><option value="Organizer">Organizer</option><option value="Owner">Owner</option></select>
-                  <button mat-flat-button type="submit" [disabled]="pending()">{{ i18n.t('common.add') }}</button>
+                  <label for="org-member-role" data-cy="org-new-member-role-label">{{ i18n.t('org.role') }}</label>
+                  <select id="org-member-role" data-cy="org-new-member-role" name="newMemberRole" [(ngModel)]="newMemberRole"><option value="Organizer" data-cy="org-new-member-role-organizer">Organizer</option><option value="Owner" data-cy="org-new-member-role-owner">Owner</option></select>
+                  <button mat-flat-button type="submit" data-cy="org-add-member-submit" [disabled]="pending()">{{ i18n.t('common.add') }}</button>
                 </form>
               </div>
               @if (settings(); as prefs) {
                 <form class="auth-form" data-cy="org-notification-settings" (ngSubmit)="saveSettings()">
-                  <h3>{{ i18n.t('org.notifications') }}</h3>
-                  <label><input type="checkbox" name="notifyOnRegistration" [(ngModel)]="prefs.notifyOnRegistration" /> {{ i18n.t('org.notifyRegistration') }}</label>
-                  <label><input type="checkbox" name="notifyOnUnregistration" [(ngModel)]="prefs.notifyOnUnregistration" /> {{ i18n.t('org.notifyUnregistration') }}</label>
-                  <button mat-flat-button type="submit" [disabled]="pending()">{{ i18n.t('common.save') }}</button>
+                  <h3 data-cy="org-notification-settings-title">{{ i18n.t('org.notifications') }}</h3>
+                  <label data-cy="org-notify-registration-label"><input type="checkbox" data-cy="org-notify-registration" name="notifyOnRegistration" [(ngModel)]="prefs.notifyOnRegistration" /> {{ i18n.t('org.notifyRegistration') }}</label>
+                  <label data-cy="org-notify-unregistration-label"><input type="checkbox" data-cy="org-notify-unregistration" name="notifyOnUnregistration" [(ngModel)]="prefs.notifyOnUnregistration" /> {{ i18n.t('org.notifyUnregistration') }}</label>
+                  <button mat-flat-button type="submit" data-cy="org-notification-settings-save" [disabled]="pending()">{{ i18n.t('common.save') }}</button>
                 </form>
               }
             }

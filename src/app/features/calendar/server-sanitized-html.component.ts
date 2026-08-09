@@ -12,7 +12,7 @@ const ALLOWED_ATTRIBUTES: Record<string, ReadonlySet<string>> = { a: new Set(['h
 @Component({
   selector: 'gones-server-sanitized-html',
   standalone: true,
-  template: `<div class="rich-content" [innerHTML]="trustedHtml()"></div>`
+  template: `<div class="rich-content" data-cy="server-sanitized-html" [innerHTML]="trustedHtml()"></div>`
 })
 export class ServerSanitizedHtmlComponent {
   readonly html = input.required<string>();

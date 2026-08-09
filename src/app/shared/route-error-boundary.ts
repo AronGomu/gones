@@ -29,9 +29,9 @@ export class GonesErrorHandler implements ErrorHandler {
   imports: [MatButtonModule, RouterLink],
   template: `
     <section class="page stack" role="alert" data-cy="route-error">
-      <h1>{{ i18n.t('routeError.title') }}</h1>
-      <p>{{ i18n.t('routeError.body') }}</p>
-      <div class="stack-row">
+      <h1 data-cy="route-error-title">{{ i18n.t('routeError.title') }}</h1>
+      <p data-cy="route-error-body">{{ i18n.t('routeError.body') }}</p>
+      <div class="stack-row" data-cy="route-error-actions">
         <button mat-flat-button type="button" data-cy="route-error-reload" (click)="reload()">{{ i18n.t('common.retry') }}</button>
         <a mat-stroked-button routerLink="/" data-cy="route-error-home">{{ i18n.t('routeError.home') }}</a>
       </div>

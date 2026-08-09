@@ -13,9 +13,10 @@ let nextDeckArchetypeInputId = 1;
   standalone: true,
   imports: [FormsModule, MatAutocompleteModule, MatButtonModule],
   template: `
-    <div class="deck-archetype-input">
+    <div class="deck-archetype-input" data-cy="deck-archetype-input">
       <input
         [attr.id]="inputId"
+        [attr.data-cy]="inputId"
         [attr.aria-label]="label || i18n.t('archetype.label')"
         autocomplete="off"
         spellcheck="false"
@@ -23,13 +24,13 @@ let nextDeckArchetypeInputId = 1;
         [matAutocomplete]="archetypeAutocomplete"
         [ngModel]="value"
         (ngModelChange)="setValue($event)">
-      <mat-autocomplete #archetypeAutocomplete="matAutocomplete" class="deck-archetype-input__panel" [autoActiveFirstOption]="suggestions().length > 0" (optionSelected)="selectSuggestion($event)">
+      <mat-autocomplete #archetypeAutocomplete="matAutocomplete" class="deck-archetype-input__panel" data-cy="deck-archetype-autocomplete" [autoActiveFirstOption]="suggestions().length > 0" (optionSelected)="selectSuggestion($event)">
         @for (archetype of suggestions(); track archetype) {
-          <mat-option [value]="archetype">
-            <span class="deck-archetype-input__option">
+          <mat-option [attr.data-cy]="'deck-archetype-option-' + archetype" [value]="archetype">
+            <span class="deck-archetype-input__option" [attr.data-cy]="'deck-archetype-option-label-' + archetype">
               @for (segment of highlightedSegments(archetype); track $index) {
-                @if (segment.highlighted) { <strong>{{ segment.text }}</strong> }
-                @else { <span>{{ segment.text }}</span> }
+                @if (segment.highlighted) { <strong [attr.data-cy]="'deck-archetype-option-highlight-' + archetype + '-' + $index">{{ segment.text }}</strong> }
+                @else { <span [attr.data-cy]="'deck-archetype-option-plain-' + archetype + '-' + $index">{{ segment.text }}</span> }
               }
             </span>
           </mat-option>

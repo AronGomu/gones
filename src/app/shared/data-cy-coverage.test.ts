@@ -23,9 +23,15 @@ const EXEMPT_TAGS = [
 const repoRoot = join(__dirname, '..', '..', '..');
 const appRoot = join(repoRoot, 'src', 'app');
 
+// A template literal ends at its own first unescaped backtick — nothing else. An earlier form of
+// this pattern also demanded a `})` right after the closing backtick, which silently matched
+// *nothing* in a component that declares `styles:` after `template:` (only
+// `player-detail.component.ts` does today). With no block found, `blocksOf` fell back to scanning
+// the whole file, so TypeScript generics such as `Map<PersistedLeague>` were reported as untagged
+// elements. Terminating on the backtick keeps the scan inside the markup.
 function templateBlocks(source: string): string[] {
   const blocks: string[] = [];
-  const pattern = /template:\s*`([\s\S]*?)`\s*\n\s*\}\)/g;
+  const pattern = /template:\s*`((?:[^`\\]|\\[\s\S])*)`/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(source)) !== null) {
     blocks.push(match[1]);
@@ -61,6 +67,31 @@ export function findMissingDataCy(source: string): string[] {
   return missing;
 }
 
+/**
+ * Static `data-cy="..."` values must be unique inside a file. Only the *static* form is counted,
+ * and that is deliberate: `[attr.data-cy]="'some-id'"` is this repo's documented escape hatch for
+ * an identifier that is rendered more than once **on purpose**, and Cypress cannot tell the two
+ * forms apart because Angular emits the same attribute either way.
+ *
+ * The rule was reviewed in T25 and kept as-is rather than teaching this scan about Angular control
+ * flow, because branch-awareness would not actually cover the cases that need covering:
+ *
+ * - Mutually exclusive branches — `auth-entry.component.ts` renders `auth-email` / `auth-password`
+ *   / `auth-submit` from either the login or the register arm, and `player-detail.component.ts`
+ *   renders `stat-nemesis` / `stat-rival` from either a filter button or an "n/a" span. A branch
+ *   parser would handle these.
+ * - Simultaneously rendered duplicates — `organizer-participants.component.ts` renders the desktop
+ *   `<table>` and the mobile card list at the same time and hides one with CSS, so
+ *   `participant-remove` / `participant-block` / `participant-remove-block` are genuinely in the
+ *   DOM twice. `organizer-participants.cy.js` relies on exactly that and disambiguates with
+ *   `:visible`. A branch parser would still flag these, correctly by its own rule and wrongly by
+ *   intent.
+ *
+ * One marker therefore covers both, while a control-flow parser covers only half — and this suite
+ * has no Angular compiler to borrow (no `TestBed`, no zone.js); every template claim here is made
+ * by reading source text. So: the binding form is the marker. Reach for it only when the repeat is
+ * intentional, and leave a reason at the call site.
+ */
 export function findDuplicateDataCy(source: string): string[] {
   const seen = new Map<string, number>();
   for (const block of blocksOf(source)) {
@@ -103,32 +134,11 @@ function toRepoRelative(path: string): string {
   return path.slice(repoRoot.length + 1).split('\\').join('/');
 }
 
-export const PENDING_DATA_CY_RETROFIT: string[] = [
-  'src/app/features/admin/admin-audit.component.ts',
-  'src/app/features/admin/admin-home.component.ts',
-  'src/app/features/admin/admin-notification-delivery.component.ts',
-  'src/app/features/admin/admin-organizations.component.ts',
-  'src/app/features/admin/admin-users.component.ts',
-  'src/app/features/admin/organization-detail.component.ts',
-  'src/app/features/admin/organization-list.component.ts',
-  'src/app/features/admin/organizer-organizations.component.ts',
-  'src/app/features/calendar/admin-deleted-tournaments.component.ts',
-  'src/app/features/calendar/organizer-participants.component.ts',
-  'src/app/features/calendar/organizer-tournament-list.component.ts',
-  'src/app/features/calendar/public-tournament-detail.component.ts',
-  'src/app/features/calendar/server-sanitized-html.component.ts',
-  'src/app/features/calendar/tournament-detail-view.component.ts',
-  'src/app/features/live-tournaments/live-tournament-list.component.ts',
-  'src/app/features/live-tournaments/live-tournament-runner.component.ts',
-  'src/app/features/menu/about.component.ts',
-  'src/app/features/players/player-detail.component.ts',
-  'src/app/shared/back-button.component.ts',
-  'src/app/shared/deck-archetype-input.component.ts',
-  'src/app/shared/dialogs.ts',
-  'src/app/shared/not-found.component.ts',
-  'src/app/shared/ranking-table.component.ts',
-  'src/app/shared/route-error-boundary.ts'
-];
+/**
+ * Empty since T25: every component template in `src/app/**` tags every element it renders.
+ * Re-adding a path here is a regression, not a workflow — fix the template instead.
+ */
+export const PENDING_DATA_CY_RETROFIT: string[] = [];
 
 describe('data-cy coverage helpers', () => {
   it('rejects an element without data-cy', () => {
@@ -149,6 +159,24 @@ describe('data-cy coverage helpers', () => {
 
   it('rejects duplicate static data-cy in one file', () => {
     expect(findDuplicateDataCy('<a data-cy="x"></a><b data-cy="x"></b>')).toEqual(['x']);
+  });
+
+  it('treats the binding form as the deliberate-duplicate escape hatch', () => {
+    expect(findDuplicateDataCy(`<a data-cy="x"></a><b [attr.data-cy]="'x'"></b>`)).toEqual([]);
+  });
+
+  it('stops scanning at the end of the template literal, not the end of the file', () => {
+    // A component that declares `styles:` after `template:` used to match no template block at
+    // all, so the whole source — TypeScript included — was scanned and generics such as
+    // `Map<PersistedLeague>` were reported as untagged elements.
+    const source = [
+      '@Component({',
+      '  template: `<div data-cy="a"></div>`,',
+      '  styles: [`.x { color: red; }`]',
+      '})',
+      'export class C { m(): Map<PersistedLeague> { return new Map<PersistedLeague>(); } }'
+    ].join('\n');
+    expect(findMissingDataCy(source)).toEqual([]);
   });
 });
 

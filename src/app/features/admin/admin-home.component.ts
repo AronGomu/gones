@@ -10,11 +10,11 @@ import { I18nService } from '../../i18n/i18n.service';
   imports: [RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="admin-page stack" data-cy="admin-home" aria-labelledby="admin-title">
-      <header class="page-heading"><div><p class="kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-title">{{ i18n.t('admin.title') }}</h1></div></header>
+      <header class="page-heading" data-cy="admin-home-heading"><div data-cy="admin-home-heading-text"><p class="kicker" data-cy="admin-home-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-title" data-cy="admin-home-title">{{ i18n.t('admin.title') }}</h1></div></header>
       @if (!enabled) {
-        <p class="error" role="alert">{{ i18n.t('admin.disabled') }}</p>
+        <p class="error" role="alert" data-cy="admin-home-disabled">{{ i18n.t('admin.disabled') }}</p>
       } @else {
-        <nav class="admin-nav" [attr.aria-label]="i18n.t('admin.navAria')">
+        <nav class="admin-nav" data-cy="admin-home-nav" [attr.aria-label]="i18n.t('admin.navAria')">
           <a mat-stroked-button routerLink="/admin/users" data-cy="admin-nav-users">{{ i18n.t('admin.users') }}</a>
           <a mat-stroked-button routerLink="/admin/organizations" data-cy="admin-nav-organizations">{{ i18n.t('admin.organizations') }}</a>
           <a mat-stroked-button routerLink="/admin/audit" data-cy="admin-nav-audit">{{ i18n.t('admin.audit') }}</a>

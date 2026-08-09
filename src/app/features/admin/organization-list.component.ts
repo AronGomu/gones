@@ -13,29 +13,29 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="admin-page stack" data-cy="organizations" aria-labelledby="organizations-title">
-      <header class="page-heading"><div><p class="kicker">{{ i18n.t('org.kicker') }}</p><h1 id="organizations-title">{{ i18n.t('org.publicList') }}</h1></div></header>
-      <form class="filter-bar auth-form" (ngSubmit)="applyFilters()">
-        <label for="org-search">{{ i18n.t('common.search') }}</label>
+      <header class="page-heading" data-cy="orgs-heading"><div data-cy="orgs-heading-text"><p class="kicker" data-cy="orgs-kicker">{{ i18n.t('org.kicker') }}</p><h1 id="organizations-title" data-cy="orgs-title">{{ i18n.t('org.publicList') }}</h1></div></header>
+      <form class="filter-bar auth-form" data-cy="orgs-filters" (ngSubmit)="applyFilters()">
+        <label for="org-search" data-cy="orgs-search-label">{{ i18n.t('common.search') }}</label>
         <input id="org-search" data-cy="org-search" name="search" [(ngModel)]="search" />
         <button mat-flat-button type="submit" data-cy="org-search-submit">{{ i18n.t('common.apply') }}</button>
       </form>
       @if (loading()) { <p data-cy="orgs-loading">{{ i18n.t('common.loading') }}</p> }
-      @else if (error()) { <div class="stack"><p class="error" role="alert">{{ error() }}</p><button mat-stroked-button type="button" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
+      @else if (error()) { <div class="stack" data-cy="orgs-error-panel"><p class="error" role="alert" data-cy="orgs-error">{{ error() }}</p><button mat-stroked-button type="button" data-cy="orgs-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
       @else if (!items().length) { <p data-cy="orgs-empty">{{ i18n.t('common.empty') }}</p> }
       @else {
-        <div class="card-grid" role="list" [attr.aria-label]="i18n.t('org.publicList')">
+        <div class="card-grid" role="list" data-cy="orgs-list" [attr.aria-label]="i18n.t('org.publicList')">
           @for (org of items(); track org.id) {
             <a class="panel organization-card" role="listitem" [routerLink]="['/organizations', org.id]" [attr.data-cy]="'org-card-' + org.name">
-              <h2>{{ org.name }}</h2>
-              @if (org.description) { <p>{{ org.description }}</p> }
-              @if (org.website) { <p class="muted">{{ org.website }}</p> }
+              <h2 [attr.data-cy]="'orgs-card-name-' + org.id">{{ org.name }}</h2>
+              @if (org.description) { <p [attr.data-cy]="'orgs-card-description-' + org.id">{{ org.description }}</p> }
+              @if (org.website) { <p class="muted" [attr.data-cy]="'orgs-card-website-' + org.id">{{ org.website }}</p> }
             </a>
           }
         </div>
-        <div class="pager">
-          <button mat-stroked-button type="button" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button>
+        <div class="pager" data-cy="orgs-pager">
+          <button mat-stroked-button type="button" data-cy="orgs-page-previous" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button>
           <span data-cy="orgs-page">{{ page }} / {{ pages() }}</span>
-          <button mat-stroked-button type="button" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button>
+          <button mat-stroked-button type="button" data-cy="orgs-page-next" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button>
         </div>
       }
     </section>

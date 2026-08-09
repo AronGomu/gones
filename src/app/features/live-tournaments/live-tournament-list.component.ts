@@ -19,43 +19,43 @@ import { I18nService } from '../../i18n/i18n.service';
   standalone: true,
   imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatProgressSpinnerModule, BackButtonComponent],
   template: `
-    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
+    <gones-back-button data-cy="live-list-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
-    <section class="page-heading live-tournament-heading running-tournament-heading">
-      <div>
-        <h1>{{ i18n.t('liveList.title') }}</h1>
+    <section class="page-heading live-tournament-heading running-tournament-heading" data-cy="live-list-heading">
+      <div data-cy="live-list-heading-text">
+        <h1 data-cy="live-list-title">{{ i18n.t('liveList.title') }}</h1>
       </div>
     </section>
 
     @if (localMode) { <p class="muted" role="status" data-cy="live-local-mode-notice">{{ i18n.t('live.localModeNotice') }}</p> }
-    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
-    @if (loading()) { <mat-spinner diameter="40" /> }
+    @if (error()) { <p class="error" role="alert" data-cy="live-list-error">{{ error() }}</p> }
+    @if (loading()) { <mat-spinner diameter="40" data-cy="live-list-spinner" /> }
     @else {
-      <section class="running-tournament-list" [attr.aria-label]="i18n.t('liveList.aria')">
+      <section class="running-tournament-list" data-cy="live-list-section" [attr.aria-label]="i18n.t('liveList.aria')">
         @if (!runningTournaments().length) {
           <mat-card class="panel running-tournament-empty" data-cy="running-tournament-empty-state">
-            <mat-card-title>{{ i18n.t('liveList.emptyTitle') }}</mat-card-title>
-            <mat-card-content><p>{{ i18n.t('liveList.emptyBody') }}</p></mat-card-content>
+            <mat-card-title data-cy="live-list-empty-title">{{ i18n.t('liveList.emptyTitle') }}</mat-card-title>
+            <mat-card-content data-cy="live-list-empty-content"><p data-cy="live-list-empty-body">{{ i18n.t('liveList.emptyBody') }}</p></mat-card-content>
           </mat-card>
         }
         @for (tournament of runningTournaments(); track tournament.id) {
           <a class="panel running-tournament-card" [routerLink]="['/live-tournaments', tournament.id]" [attr.aria-label]="i18n.t('liveList.resumeAria', { name: tournament.name || i18n.t('liveList.liveTournament') })" data-cy="running-tournament-card">
-            <div class="running-tournament-card-header">
-              <div class="running-tournament-title-row">
-                <h2>{{ tournament.name || i18n.t('liveList.liveTournament') }}</h2>
-                <span class="running-tournament-league">{{ leagueName(tournament.leagueId) }}</span>
-                <span class="running-tournament-rounds">{{ i18n.t('liveList.swissRounds', { count: tournament.roundCount }) }}</span>
+            <div class="running-tournament-card-header" [attr.data-cy]="'live-list-card-header-' + tournament.id">
+              <div class="running-tournament-title-row" [attr.data-cy]="'live-list-card-title-row-' + tournament.id">
+                <h2 [attr.data-cy]="'live-list-card-name-' + tournament.id">{{ tournament.name || i18n.t('liveList.liveTournament') }}</h2>
+                <span class="running-tournament-league" [attr.data-cy]="'live-list-card-league-' + tournament.id">{{ leagueName(tournament.leagueId) }}</span>
+                <span class="running-tournament-rounds" [attr.data-cy]="'live-list-card-rounds-' + tournament.id">{{ i18n.t('liveList.swissRounds', { count: tournament.roundCount }) }}</span>
               </div>
-              <span class="running-tournament-status" [ngClass]="statusClass(tournament.stage)">{{ statusLabel(tournament.stage, tournament.currentRoundNumber) }}</span>
+              <span class="running-tournament-status" [attr.data-cy]="'live-list-card-status-' + tournament.id" [ngClass]="statusClass(tournament.stage)">{{ statusLabel(tournament.stage, tournament.currentRoundNumber) }}</span>
             </div>
-            <div class="running-tournament-card-content">
-              <dl class="running-tournament-meta" [attr.aria-label]="i18n.t('liveList.detailsAria')">
-                <div><dt>{{ i18n.t('common.date') }}</dt><dd>{{ formatDate(tournament.tournamentDate) }}</dd></div>
-                <div><dt>{{ i18n.t('common.players') }}</dt><dd>{{ tournament.players.length }}</dd></div>
-                <div><dt>{{ i18n.t('liveList.lastSaved') }}</dt><dd>{{ formatDateTime(tournament.updatedAt) }}</dd></div>
+            <div class="running-tournament-card-content" [attr.data-cy]="'live-list-card-content-' + tournament.id">
+              <dl class="running-tournament-meta" [attr.data-cy]="'live-list-card-meta-' + tournament.id" [attr.aria-label]="i18n.t('liveList.detailsAria')">
+                <div [attr.data-cy]="'live-list-card-date-' + tournament.id"><dt [attr.data-cy]="'live-list-card-date-term-' + tournament.id">{{ i18n.t('common.date') }}</dt><dd [attr.data-cy]="'live-list-card-date-value-' + tournament.id">{{ formatDate(tournament.tournamentDate) }}</dd></div>
+                <div [attr.data-cy]="'live-list-card-players-' + tournament.id"><dt [attr.data-cy]="'live-list-card-players-term-' + tournament.id">{{ i18n.t('common.players') }}</dt><dd [attr.data-cy]="'live-list-card-players-value-' + tournament.id">{{ tournament.players.length }}</dd></div>
+                <div [attr.data-cy]="'live-list-card-saved-' + tournament.id"><dt [attr.data-cy]="'live-list-card-saved-term-' + tournament.id">{{ i18n.t('liveList.lastSaved') }}</dt><dd [attr.data-cy]="'live-list-card-saved-value-' + tournament.id">{{ formatDateTime(tournament.updatedAt) }}</dd></div>
               </dl>
             </div>
-            <div class="running-tournament-actions">
+            <div class="running-tournament-actions" [attr.data-cy]="'live-list-card-actions-' + tournament.id">
               <span class="running-tournament-resume" data-cy="resume-running-tournament">{{ i18n.t('liveList.resume') }}</span>
             </div>
           </a>
@@ -63,14 +63,14 @@ import { I18nService } from '../../i18n/i18n.service';
 
         @if (canManage()) {
           <button class="running-tournament-card running-tournament-create-card league-create-card" type="button" [disabled]="creating()" (click)="createTournament()" data-cy="create-running-tournament-card">
-            <h2>{{ creating() ? i18n.t('common.creating') : i18n.t('liveList.create') }}</h2>
-            <span class="card-view-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
+            <h2 data-cy="live-list-create-label">{{ creating() ? i18n.t('common.creating') : i18n.t('liveList.create') }}</h2>
+            <span class="card-view-action" data-cy="live-list-create-action" aria-hidden="true">{{ i18n.t('common.create') }}</span>
           </button>
         } @else { <p class="muted" data-cy="live-list-read-only">{{ i18n.t('live.readOnly') }}</p> }
       </section>
     }
 
-    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
+    <gones-back-button data-cy="live-list-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
 })
 export class LiveTournamentListComponent {

@@ -995,6 +995,27 @@
       ]
     },
     {
+      "id": "doc03-cookie-session",
+      "doc": "03-authentification.md",
+      "capability": "The refresh session lives in an HttpOnly cookie, so a browser reload keeps the user signed in without the SPA storing a token.",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/RefreshCookieTests.cs",
+          "detail": "the cookie is issued on login, is the only accepted refresh credential, rotates on use and is cleared on logout"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/auth-session-persistence.cy.js",
+          "detail": "a reloaded browser is still signed in"
+        }
+      ]
+    },
+    {
       "id": "doc03-audit",
       "doc": "03-authentification.md",
       "capability": "Authentication events are audited without storing credentials or raw email bodies.",
@@ -1146,6 +1167,32 @@
       ]
     },
     {
+      "id": "doc04-structured-profile",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "Profile location is a structured country/region/city selection and the birth date is a validated date, instead of free text (ADR 0026).",
+      "status": "proved",
+      "acceptance": [
+        "eng-no-pii"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.UnitTests/UserProfileBirthDateTests.cs",
+          "detail": "birth-date validation rules"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/settings/location-selection.test.ts",
+          "detail": "country, region and city narrow each other"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/settings/account-form.test.ts",
+          "detail": "the account form round-trips the structured location and birth date"
+        }
+      ]
+    },
+    {
       "id": "doc04-profile-history",
       "doc": "04-utilisateurs-et-organisation.md",
       "capability": "Profile modification is recorded and the email history is retained then redacted.",
@@ -1184,6 +1231,32 @@
           "gate": "dotnet",
           "target": "backend/tests/Gones.IntegrationTests/AdminAuditAndClosureTests.cs",
           "detail": "closure endpoints"
+        }
+      ]
+    },
+    {
+      "id": "doc04-account-deletion",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "A user deletes their own account behind a password confirmation; the row is removed and the audit actor is nulled rather than retained (ADR 0025).",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AccountDeletionTests.cs",
+          "detail": "authentication and password required, account removed, refresh cookie cleared, audit actor nulled"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/settings/account-delete.test.ts",
+          "detail": "the delete flow refuses to submit without the confirmation password"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/auth-profile.cy.js",
+          "detail": "a throwaway account is deleted through the password-confirmation dialog"
         }
       ]
     },
@@ -1361,6 +1434,32 @@
           "gate": "cypress",
           "target": "cypress/e2e/public-calendar.cy.js",
           "detail": "browser filters"
+        }
+      ]
+    },
+    {
+      "id": "doc05-full-catalog-cache",
+      "doc": "05-gestion-tournoi.md",
+      "capability": "The calendar reads one anonymous full-catalog endpoint and caches it client-side, so month navigation and filtering never re-query the API (ADR 0023).",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/AllTournamentsEndpointTests.cs",
+          "detail": "the endpoint is anonymous, ignores paging, orders by start then id and excludes deleted rows"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/all-tournaments-cache.service.test.ts",
+          "detail": "the catalog is fetched once and served from cache"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/public-calendar.cy.js",
+          "detail": "month navigation and filters over the cached catalog"
         }
       ]
     },
@@ -2100,6 +2199,27 @@
       ]
     },
     {
+      "id": "doc09-first-visit",
+      "doc": "09-frontend-angular.md",
+      "capability": "The very first visit lands on the About page; every later visit goes straight to the normal landing surface.",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/shared/first-visit.guard.test.ts",
+          "detail": "the guard redirects on the first visit and passes afterwards"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/shared/first-visit.service.test.ts",
+          "detail": "the flag survives a new service instance and unavailable storage counts as visited"
+        }
+      ]
+    },
+    {
       "id": "doc09-interceptor",
       "doc": "09-frontend-angular.md",
       "capability": "The HTTP interceptor attaches the session, refreshes it and surfaces errors consistently.",
@@ -2173,6 +2293,22 @@
       ]
     },
     {
+      "id": "doc09-test-identifiers",
+      "doc": "09-frontend-angular.md",
+      "capability": "Every element rendered by a component template carries a unique test identifier, with no retrofit allowlist left.",
+      "status": "proved",
+      "acceptance": [
+        "eng-suites-green"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/shared/data-cy-coverage.test.ts",
+          "detail": "every rendered element carries a unique test identifier"
+        }
+      ]
+    },
+    {
       "id": "doc09-league-live",
       "doc": "09-frontend-angular.md",
       "capability": "Existing League/Result/Live behavior matches the TypeScript golden fixtures over the API.",
@@ -2205,6 +2341,32 @@
           "gate": "cypress",
           "target": "cypress/e2e/live-server.cy.js",
           "detail": "Live over the API"
+        }
+      ]
+    },
+    {
+      "id": "doc09-archive-rename",
+      "doc": "09-frontend-angular.md",
+      "capability": "The retired League feature is presented as an archive: routes, breadcrumbs and component names all read 'leagues-archive' / 'tournaments-archive' (ADR 0022).",
+      "status": "proved",
+      "acceptance": [
+        "product-league-live-parity"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/data-mode-routes.test.ts",
+          "detail": "the renamed archive list and detail routes are served in every data mode"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/app-breadcrumbs.test.ts",
+          "detail": "every archive breadcrumb links into the renamed segments"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/league-server.cy.js",
+          "detail": "the archive surface still drives the server-backed League journey"
         }
       ]
     },

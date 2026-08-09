@@ -13,33 +13,33 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
   template: `
     <section class="admin-page stack" data-cy="admin-audit" aria-labelledby="admin-audit-title">
-      <header class="page-heading"><div><p class="kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-audit-title">{{ i18n.t('admin.audit') }}</h1></div><a mat-stroked-button routerLink="/admin">{{ i18n.t('admin.back') }}</a></header>
-      <form class="filter-bar auth-form audit-filter-grid" (ngSubmit)="applyFilters()">
-        <label for="audit-action">{{ i18n.t('admin.auditAction') }}</label><input id="audit-action" data-cy="audit-action" name="action" [(ngModel)]="action" />
-        <label for="audit-entity-type">{{ i18n.t('admin.auditEntityType') }}</label><input id="audit-entity-type" name="entityType" [(ngModel)]="entityType" />
-        <label for="audit-entity-id">{{ i18n.t('admin.auditEntityId') }}</label><input id="audit-entity-id" name="entityId" [(ngModel)]="entityId" />
-        <label for="audit-actor-id">{{ i18n.t('admin.auditActor') }}</label><input id="audit-actor-id" name="actorId" [(ngModel)]="actorId" />
-        <label for="audit-from">{{ i18n.t('admin.auditFrom') }}</label><input id="audit-from" name="from" [(ngModel)]="from" placeholder="2026-08-01T00:00:00Z" />
-        <label for="audit-to">{{ i18n.t('admin.auditTo') }}</label><input id="audit-to" name="to" [(ngModel)]="to" placeholder="2026-08-02T00:00:00Z" />
+      <header class="page-heading" data-cy="audit-heading"><div data-cy="audit-heading-text"><p class="kicker" data-cy="audit-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-audit-title" data-cy="audit-title">{{ i18n.t('admin.audit') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="audit-back">{{ i18n.t('admin.back') }}</a></header>
+      <form class="filter-bar auth-form audit-filter-grid" data-cy="audit-filters" (ngSubmit)="applyFilters()">
+        <label for="audit-action" data-cy="audit-action-label">{{ i18n.t('admin.auditAction') }}</label><input id="audit-action" data-cy="audit-action" name="action" [(ngModel)]="action" />
+        <label for="audit-entity-type" data-cy="audit-entity-type-label">{{ i18n.t('admin.auditEntityType') }}</label><input id="audit-entity-type" data-cy="audit-entity-type" name="entityType" [(ngModel)]="entityType" />
+        <label for="audit-entity-id" data-cy="audit-entity-id-label">{{ i18n.t('admin.auditEntityId') }}</label><input id="audit-entity-id" data-cy="audit-entity-id" name="entityId" [(ngModel)]="entityId" />
+        <label for="audit-actor-id" data-cy="audit-actor-id-label">{{ i18n.t('admin.auditActor') }}</label><input id="audit-actor-id" data-cy="audit-actor-id" name="actorId" [(ngModel)]="actorId" />
+        <label for="audit-from" data-cy="audit-from-label">{{ i18n.t('admin.auditFrom') }}</label><input id="audit-from" data-cy="audit-from" name="from" [(ngModel)]="from" placeholder="2026-08-01T00:00:00Z" />
+        <label for="audit-to" data-cy="audit-to-label">{{ i18n.t('admin.auditTo') }}</label><input id="audit-to" data-cy="audit-to" name="to" [(ngModel)]="to" placeholder="2026-08-02T00:00:00Z" />
         <button mat-flat-button type="submit" data-cy="audit-filter-submit">{{ i18n.t('common.apply') }}</button>
       </form>
-      @if (loading()) { <p>{{ i18n.t('common.loading') }}</p> }
-      @else if (error()) { <div class="stack"><p class="error" role="alert">{{ error() }}</p><button mat-stroked-button type="button" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
+      @if (loading()) { <p data-cy="audit-loading">{{ i18n.t('common.loading') }}</p> }
+      @else if (error()) { <div class="stack" data-cy="audit-error-panel"><p class="error" role="alert" data-cy="audit-error">{{ error() }}</p><button mat-stroked-button type="button" data-cy="audit-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
       @else if (!items().length) { <p data-cy="audit-empty">{{ i18n.t('common.empty') }}</p> }
       @else {
-        <div class="admin-table" role="table" [attr.aria-label]="i18n.t('admin.audit')">
+        <div class="admin-table" role="table" data-cy="audit-table" [attr.aria-label]="i18n.t('admin.audit')">
           @for (record of items(); track record.id) {
-            <mat-card class="panel admin-row" role="row" data-cy="audit-row"><mat-card-content class="stack">
-              <div class="admin-row-grid">
-                <div><strong>{{ record.action }}</strong><p class="muted">{{ record.entityType }} · {{ record.entityId }}</p></div>
-                <div>{{ record.actorId || i18n.t('common.na') }}</div>
-                <time [dateTime]="instantText(record.occurredAt)">{{ formatInstant(record.occurredAt) }}</time>
+            <mat-card class="panel admin-row" role="row" data-cy="audit-row"><mat-card-content class="stack" [attr.data-cy]="'audit-row-content-' + record.id">
+              <div class="admin-row-grid" [attr.data-cy]="'audit-row-grid-' + record.id">
+                <div [attr.data-cy]="'audit-row-summary-' + record.id"><strong [attr.data-cy]="'audit-row-action-' + record.id">{{ record.action }}</strong><p class="muted" [attr.data-cy]="'audit-row-entity-' + record.id">{{ record.entityType }} · {{ record.entityId }}</p></div>
+                <div [attr.data-cy]="'audit-row-actor-' + record.id">{{ record.actorId || i18n.t('common.na') }}</div>
+                <time [attr.data-cy]="'audit-row-occurred-' + record.id" [dateTime]="instantText(record.occurredAt)">{{ formatInstant(record.occurredAt) }}</time>
               </div>
               <pre class="redacted-diff" data-cy="audit-redacted-diff">{{ safeDiff(record) }}</pre>
             </mat-card-content></mat-card>
           }
         </div>
-        <div class="pager"><button mat-stroked-button type="button" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span>{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
+        <div class="pager" data-cy="audit-pager"><button mat-stroked-button type="button" data-cy="audit-page-previous" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="audit-page">{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="audit-page-next" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
       }
     </section>
   `

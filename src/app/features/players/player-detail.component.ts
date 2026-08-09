@@ -20,55 +20,55 @@ interface HighlightPart {
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, BackButtonComponent],
   template: `
-    <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="top" />
-    <section class="page-heading"><div><p class="kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
+    <gones-back-button data-cy="player-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+    <section class="page-heading" data-cy="player-heading"><div data-cy="player-heading-text"><p class="kicker" data-cy="player-kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
     <div class="stat-grid" data-cy="player-stat-grid">
-      <div class="stat-grid__row stat-grid__row--numbers">
-        <div class="player-stat-cell">
-          <p class="player-stat-label">{{ i18n.t('player.playedMatches') }}</p>
-          <mat-card class="player-stat-card"><mat-card-content class="stat-number" data-cy="stat-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card>
+      <div class="stat-grid__row stat-grid__row--numbers" data-cy="player-stat-row-numbers">
+        <div class="player-stat-cell" data-cy="player-stat-cell-played-matches">
+          <p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p>
+          <mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="stat-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card>
         </div>
-        <div class="player-stat-cell">
-          <p class="player-stat-label">{{ i18n.t('player.matchWinRate') }}</p>
-          <mat-card class="player-stat-card"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="stat-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate">
+          <p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p>
+          <mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="stat-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card>
         </div>
-        <div class="player-stat-cell">
-          <p class="player-stat-label">{{ i18n.t('player.gameWinRate') }}</p>
-          <mat-card class="player-stat-card"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="stat-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-winrate">
+          <p class="player-stat-label" data-cy="player-stat-label-game-winrate">{{ i18n.t('player.gameWinRate') }}</p>
+          <mat-card class="player-stat-card" data-cy="player-stat-card-game-winrate"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="stat-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card>
         </div>
       </div>
-      <div class="stat-grid__row stat-grid__row--names">
-        <div class="player-stat-cell">
-          <p class="player-stat-label">{{ i18n.t('player.nemesis') }}</p>
-          <mat-card class="player-stat-card">
-            <mat-card-content class="player-stat-card__name">
+      <div class="stat-grid__row stat-grid__row--names" data-cy="player-stat-row-names">
+        <div class="player-stat-cell" data-cy="player-stat-cell-nemesis">
+          <p class="player-stat-label" data-cy="player-stat-label-nemesis">{{ i18n.t('player.nemesis') }}</p>
+          <mat-card class="player-stat-card" data-cy="player-stat-card-nemesis">
+            <mat-card-content class="player-stat-card__name" data-cy="player-stat-content-nemesis">
               @if (stats().nemesis; as nemesis) {
                 <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" [attr.title]="nemesis" [attr.aria-label]="nemesis" (click)="filterByExact(nemesis)">{{ nemesis }}</button>
               } @else {
-                <span data-cy="stat-nemesis">{{ i18n.t('common.na') }}</span>
+                <span [attr.data-cy]="'stat-nemesis'">{{ i18n.t('common.na') }}</span>
               }
             </mat-card-content>
           </mat-card>
         </div>
-        <div class="player-stat-cell">
-          <p class="player-stat-label">{{ i18n.t('player.rival') }}</p>
-          <mat-card class="player-stat-card">
-            <mat-card-content class="player-stat-card__name">
+        <div class="player-stat-cell" data-cy="player-stat-cell-rival">
+          <p class="player-stat-label" data-cy="player-stat-label-rival">{{ i18n.t('player.rival') }}</p>
+          <mat-card class="player-stat-card" data-cy="player-stat-card-rival">
+            <mat-card-content class="player-stat-card__name" data-cy="player-stat-content-rival">
               @if (stats().rival; as rival) {
                 <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival === stats().nemesis" [class.stat-filter-button--rival]="rival !== stats().nemesis" data-cy="stat-rival" [attr.title]="rival" [attr.aria-label]="rival" (click)="filterByExact(rival)">{{ rival }}</button>
               } @else {
-                <span data-cy="stat-rival">{{ i18n.t('common.na') }}</span>
+                <span [attr.data-cy]="'stat-rival'">{{ i18n.t('common.na') }}</span>
               }
             </mat-card-content>
           </mat-card>
         </div>
       </div>
     </div>
-    <section class="stack">
-      <div class="matches-heading">
-        <h2>{{ i18n.t('player.matches') }}</h2>
-        <div class="match-filter-controls">
-          <mat-form-field appearance="outline" class="match-filter" subscriptSizing="dynamic">
+    <section class="stack" data-cy="player-matches-section">
+      <div class="matches-heading" data-cy="player-matches-heading">
+        <h2 data-cy="player-matches-title">{{ i18n.t('player.matches') }}</h2>
+        <div class="match-filter-controls" data-cy="match-filter-controls">
+          <mat-form-field appearance="outline" class="match-filter" subscriptSizing="dynamic" data-cy="match-filter-field">
             <input matInput data-cy="match-filter-input" [placeholder]="i18n.t('player.filterPlaceholder')" [value]="matchSearch()" (input)="matchSearch.set($any($event.target).value)" [attr.aria-label]="i18n.t('player.filterAria')">
           </mat-form-field>
           @if (matchSearch()) {
@@ -76,13 +76,13 @@ interface HighlightPart {
           }
         </div>
         <button type="button" class="order-toggle" data-cy="match-order-toggle" (click)="invertMatchOrder()" [attr.aria-label]="newestFirst() ? i18n.t('player.sortOldest') : i18n.t('player.sortNewest')">
-          <span class="order-toggle__icon" aria-hidden="true">{{ newestFirst() ? '↓' : '↑' }}</span>
-          <span>{{ newestFirst() ? i18n.t('player.newestFirst') : i18n.t('player.oldestFirst') }}</span>
+          <span class="order-toggle__icon" data-cy="match-order-toggle-icon" aria-hidden="true">{{ newestFirst() ? '↓' : '↑' }}</span>
+          <span data-cy="match-order-toggle-label">{{ newestFirst() ? i18n.t('player.newestFirst') : i18n.t('player.oldestFirst') }}</span>
         </button>
         <span class="match-count" data-cy="match-count" aria-live="polite">{{ i18n.plural(filteredMatches().length, 'player.matchCountOne', 'player.matchCountMany') }}</span>
       </div>
       @if (!filteredMatches().length) { <p class="muted" data-cy="no-matches">{{ i18n.t('player.noMatches') }}</p> }
-      @for (match of filteredMatches(); track match.tournament.id + match.roundIndex + match.opponentName) {
+      @for (match of filteredMatches(); track match.tournament.id + match.roundIndex + match.opponentName; let matchIndex = $index) {
         <mat-card
           class="match-card"
           data-cy="match-card"
@@ -96,19 +96,19 @@ interface HighlightPart {
           (keydown.enter)="openMatchTournament(match)"
           (keydown.space)="$event.preventDefault(); openMatchTournament(match)"
         >
-          <mat-card-title>
-            <span class="match-card__line match-card__line--meta">
-              <button type="button" class="match-filter-token match-card__date" data-cy="match-date" (click)="filterByExact(matchDateLabel(match), $event)">@for (part of highlightParts(matchDateReadable(match)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
-              <button type="button" class="match-filter-token match-card__league" data-cy="match-league" (click)="filterByExact(leagueDisplayName(match.league), $event)">@for (part of highlightParts(leagueDisplayName(match.league)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
-              <button type="button" class="match-filter-token match-card__tournament" data-cy="match-tournament" (click)="filterByExact(match.tournament.name, $event)">@for (part of highlightParts(match.tournament.name); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
-              <button type="button" class="match-filter-token match-card__round" data-cy="match-round" (click)="filterByExact(matchRoundLabel(match), $event)">@for (part of highlightParts(matchRoundLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
+          <mat-card-title [attr.data-cy]="'match-card-title-' + matchIndex">
+            <span class="match-card__line match-card__line--meta" [attr.data-cy]="'match-card-meta-' + matchIndex">
+              <button type="button" class="match-filter-token match-card__date" data-cy="match-date" (click)="filterByExact(matchDateLabel(match), $event)">@for (part of highlightParts(matchDateReadable(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-date-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+              <button type="button" class="match-filter-token match-card__league" data-cy="match-league" (click)="filterByExact(leagueDisplayName(match.league), $event)">@for (part of highlightParts(leagueDisplayName(match.league)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-league-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+              <button type="button" class="match-filter-token match-card__tournament" data-cy="match-tournament" (click)="filterByExact(match.tournament.name, $event)">@for (part of highlightParts(match.tournament.name); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-tournament-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+              <button type="button" class="match-filter-token match-card__round" data-cy="match-round" (click)="filterByExact(matchRoundLabel(match), $event)">@for (part of highlightParts(matchRoundLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-round-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
             </span>
           </mat-card-title>
-          <mat-card-content>
-            <span class="match-card__line match-card__line--result">
-              <button type="button" class="match-filter-token match-card__result-pill" data-cy="match-result" (click)="filterByExact(matchResultLabel(match), $event)">@for (part of highlightParts(matchResultLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
-              <span class="match-card__opponent-group">
-                <strong class="match-card__vs">VS</strong>
+          <mat-card-content [attr.data-cy]="'match-card-content-' + matchIndex">
+            <span class="match-card__line match-card__line--result" [attr.data-cy]="'match-card-result-line-' + matchIndex">
+              <button type="button" class="match-filter-token match-card__result-pill" data-cy="match-result" (click)="filterByExact(matchResultLabel(match), $event)">@for (part of highlightParts(matchResultLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-result-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+              <span class="match-card__opponent-group" [attr.data-cy]="'match-card-opponent-group-' + matchIndex">
+                <strong class="match-card__vs" [attr.data-cy]="'match-card-vs-' + matchIndex">VS</strong>
                 <button
                   type="button"
                   class="match-filter-token match-card__opponent"
@@ -116,12 +116,12 @@ interface HighlightPart {
                   [class.match-card__opponent--nemesis]="opponentTone(match.opponentName) === 'nemesis'"
                   [class.match-card__opponent--rival]="opponentTone(match.opponentName) === 'rival'"
                   (click)="filterByExact(match.opponentName, $event)"
-                >@for (part of highlightParts(match.opponentName); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</button>
+                >@for (part of highlightParts(match.opponentName); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-opponent-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
               </span>
               <span class="match-card__score" data-cy="match-score">
-                <span [class.score-number--win]="match.ownScore !== match.opponentScore">@for (part of highlightParts(matchWinningScore(match)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</span>
-                <span class="match-card__score-separator">–</span>
-                <span [class.score-number--loss]="match.ownScore !== match.opponentScore">@for (part of highlightParts(matchLosingScore(match)); track $index) { <span [class.match-highlight]="part.highlighted">{{ part.text }}</span> }</span>
+                <span [class.score-number--win]="match.ownScore !== match.opponentScore" [attr.data-cy]="'match-score-winning-' + matchIndex">@for (part of highlightParts(matchWinningScore(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-score-winning-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</span>
+                <span class="match-card__score-separator" [attr.data-cy]="'match-score-separator-' + matchIndex">–</span>
+                <span [class.score-number--loss]="match.ownScore !== match.opponentScore" [attr.data-cy]="'match-score-losing-' + matchIndex">@for (part of highlightParts(matchLosingScore(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-score-losing-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</span>
               </span>
             </span>
           </mat-card-content>
@@ -129,7 +129,7 @@ interface HighlightPart {
       }
     </section>
     <footer class="live-tournament-footer player-detail-footer" data-cy="player-footer">
-      <gones-back-button [label]="i18n.t('nav.backToPrevious')" position="top" />
+      <gones-back-button data-cy="player-back-footer" [label]="i18n.t('nav.backToPrevious')" position="top" />
       <button mat-stroked-button class="secondary-action live-scroll-top-button" type="button" data-cy="player-scroll-top-button" (click)="scrollToTop()" [attr.aria-label]="i18n.t('live.backToTop')">↑</button>
     </footer>
   `,

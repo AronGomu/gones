@@ -28,25 +28,25 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
   standalone: true,
   imports: [RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent, TournamentDetailViewComponent],
   template: `
-    <gones-back-button [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="top" />
-    <gones-offline-banner [stale]="stale()" [cachedAt]="cachedAt()" />
-    @if (loading()) { <section class="panel event-section calendar-detail-skeleton" aria-busy="true" data-cy="calendar-loading"><div></div><div></div><div></div></section> }
-    @else if (error()) { <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h1>{{ i18n.t('calendar.detailLoadFailed') }}</h1><button mat-stroked-button type="button" (click)="load()">{{ i18n.t('common.retry') }}</button></section> }
-    @else if (notFound()) { <section class="panel calendar-state" data-cy="calendar-not-found"><h1>{{ i18n.t('event.notFoundTitle') }}</h1><p>{{ i18n.t('event.notFoundBody') }}</p></section> }
+    <gones-back-button data-cy="public-tournament-detail-back-top" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="top" />
+    <gones-offline-banner data-cy="public-tournament-detail-offline-banner" [stale]="stale()" [cachedAt]="cachedAt()" />
+    @if (loading()) { <section class="panel event-section calendar-detail-skeleton" aria-busy="true" data-cy="calendar-loading"><div data-cy="calendar-loading-line-1"></div><div data-cy="calendar-loading-line-2"></div><div data-cy="calendar-loading-line-3"></div></section> }
+    @else if (error()) { <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h1 data-cy="calendar-error-title">{{ i18n.t('calendar.detailLoadFailed') }}</h1><button mat-stroked-button type="button" data-cy="calendar-error-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></section> }
+    @else if (notFound()) { <section class="panel calendar-state" data-cy="calendar-not-found"><h1 data-cy="calendar-not-found-title">{{ i18n.t('event.notFoundTitle') }}</h1><p data-cy="calendar-not-found-body">{{ i18n.t('event.notFoundBody') }}</p></section> }
     @else if (tournament(); as item) {
       <div class="stack" data-cy="public-tournament-detail">
-        <gones-tournament-detail-view [tournament]="item" [icsUrl]="service.icsUrl(item.slug)" />
+        <gones-tournament-detail-view data-cy="public-tournament-detail-view" [tournament]="item" [icsUrl]="service.icsUrl(item.slug)" />
 
         @if (auth.enabled) {
-        <section class="panel event-section registration-action" aria-labelledby="registration-action-title">
-          <h2 id="registration-action-title">{{ i18n.t('registration.title') }}</h2>
+        <section class="panel event-section registration-action" data-cy="registration-section" aria-labelledby="registration-action-title">
+          <h2 id="registration-action-title" data-cy="registration-title">{{ i18n.t('registration.title') }}</h2>
           @if (!auth.profile()) {
-            <p>{{ i18n.t('registration.loginPrompt') }}</p>
+            <p data-cy="registration-login-prompt">{{ i18n.t('registration.loginPrompt') }}</p>
             <a mat-flat-button class="home-primary-action" routerLink="/login" [queryParams]="{ returnUrl: currentPath() }" data-cy="registration-login">{{ i18n.t('auth.signIn') }}</a>
           } @else if (capabilityLoading()) {
-            <p aria-busy="true">{{ i18n.t('common.loading') }}</p>
+            <p aria-busy="true" data-cy="registration-capability-loading">{{ i18n.t('common.loading') }}</p>
           } @else if (capability(); as state) {
-            <p>{{ i18n.t('registration.capacityStatus', { count: state.activeParticipantCount, capacity: state.capacity ?? i18n.t('registration.unlimited') }) }}</p>
+            <p data-cy="registration-capacity-status">{{ i18n.t('registration.capacityStatus', { count: state.activeParticipantCount, capacity: state.capacity ?? i18n.t('registration.unlimited') }) }}</p>
             @if (state.canRegister) {
               <button mat-flat-button class="home-primary-action" type="button" [disabled]="mutationPending() || !online()" (click)="register()" data-cy="registration-register">{{ mutationPending() ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button>
             } @else if (state.canUnregister) {
@@ -56,30 +56,30 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
             }
             <a mat-stroked-button routerLink="/registrations" data-cy="my-registrations-link">{{ i18n.t('registration.myRegistrations') }}</a>
           } @else if (capabilityError()) {
-            <p class="error" role="alert">{{ i18n.t('registration.capabilityLoadFailed') }}</p>
-            <button mat-stroked-button type="button" (click)="loadCapability()">{{ i18n.t('common.retry') }}</button>
+            <p class="error" role="alert" data-cy="registration-capability-error">{{ i18n.t('registration.capabilityLoadFailed') }}</p>
+            <button mat-stroked-button type="button" data-cy="registration-capability-retry" (click)="loadCapability()">{{ i18n.t('common.retry') }}</button>
           }
           @if (!online()) { <p class="warning" data-cy="registration-offline">{{ i18n.t('registration.offline') }}</p> }
           <p #registrationStatus class="registration-live-status" tabindex="-1" role="status" aria-live="polite" data-cy="registration-status">{{ mutationStatus() }}</p>
         </section>
         }
 
-        <section class="panel event-section public-participants" aria-labelledby="participants-title">
-          <h2 id="participants-title">{{ i18n.t('registration.participants') }}</h2>
-          @if (participantsLoading()) { <p aria-busy="true">{{ i18n.t('common.loading') }}</p> }
-          @else if (participantsError()) { <div role="alert"><p>{{ i18n.t('registration.participantsLoadFailed') }}</p><button mat-stroked-button type="button" (click)="loadParticipants()">{{ i18n.t('common.retry') }}</button></div> }
-          @else if (!participants().length) { <p>{{ i18n.t('registration.noParticipants') }}</p> }
+        <section class="panel event-section public-participants" data-cy="public-participants-section" aria-labelledby="participants-title">
+          <h2 id="participants-title" data-cy="public-participants-title">{{ i18n.t('registration.participants') }}</h2>
+          @if (participantsLoading()) { <p aria-busy="true" data-cy="public-participants-loading">{{ i18n.t('common.loading') }}</p> }
+          @else if (participantsError()) { <div role="alert" data-cy="public-participants-error"><p data-cy="public-participants-error-text">{{ i18n.t('registration.participantsLoadFailed') }}</p><button mat-stroked-button type="button" data-cy="public-participants-retry" (click)="loadParticipants()">{{ i18n.t('common.retry') }}</button></div> }
+          @else if (!participants().length) { <p data-cy="public-participants-empty">{{ i18n.t('registration.noParticipants') }}</p> }
           @else {
             <ul class="participant-list" data-cy="public-participants">
               @for (participant of participants(); track participant.userId) {
-                <li data-cy="public-participant"><strong>{{ participant.username }}</strong>@if (optionalParticipantFields(participant); as fields) { @if (fields) { <span>{{ fields }}</span> } }</li>
+                <li data-cy="public-participant"><strong [attr.data-cy]="'public-participant-name-' + participant.userId">{{ participant.username }}</strong>@if (optionalParticipantFields(participant); as fields) { @if (fields) { <span [attr.data-cy]="'public-participant-fields-' + participant.userId">{{ fields }}</span> } }</li>
               }
             </ul>
           }
         </section>
       </div>
     }
-    <gones-back-button [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="bottom" />
+    <gones-back-button data-cy="public-tournament-detail-back-bottom" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="bottom" />
   `
 })
 export class PublicTournamentDetailComponent implements OnInit {

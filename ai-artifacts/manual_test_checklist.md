@@ -60,3 +60,55 @@ service worker is disabled under `ng serve`, and that difference is exactly what
 - [ ] While offline on a tournament page, try to register: the write is refused with "Nothing was queued or changed" and no request leaves the browser (DevTools → Network shows none).
 - [ ] Run `npm run e2e:ci` on a clean checkout and confirm `auth-session-persistence.cy.js` now appears in the run output — the gate had been silently skipping it, and running it is what uncovered the sixth failure.
 - [ ] Before hand-running `cypress/e2e/auth-profile.cy.js` on its own, re-run `node scripts/seed-auth-e2e.mjs`: that spec mutates the shared seeded account (it publishes the location), so a stale account makes its first assertion fail for reasons unrelated to the code under test.
+
+## T25 data-cy-sweep-and-matrix
+
+This ticket changed **identifiers only** — 24 component files gained `data-cy` attributes and not one
+line of markup structure, styling or logic moved. The automated proof is that the set of `data-cy`
+values in `src/app` went from 1079 to 1891 with **zero removed and zero changed**, and that
+`npm run e2e:ci` stayed at 18/18. So the point of this list is *not* to re-test features: it is to
+put human eyes on the handful of places where an attribute-only edit could still have gone wrong,
+and to check that the release documents this ticket wrote are actually true.
+
+Run the UI checks against the **release topology** (`docker compose --profile release`,
+`http://127.0.0.1:8081`), same as T25b.
+
+### Nothing renders differently
+
+- [ ] Walk the swept pages and confirm each looks and behaves exactly as before: `/about`, `/calendar`, a tournament detail page, `/players/{name}`, `/live-tournaments`, a Live tournament runner, `/organizer/tournaments`, a participants page, `/organizations`, an organization detail, `/admin`, `/admin/users`, `/admin/organizations`, `/admin/audit`, `/admin/notifications/history`, `/admin/tournaments/deleted`, and a deliberately bad URL for the 404 page. Nothing should have shifted by a pixel.
+- [ ] On `/about`, scroll the whole page: the section reveal animation still fires (elements fade/slide in as they enter the viewport). The sweep added attributes right next to the `data-reveal` attributes that drive it, so a typo there would silently kill the animation without breaking anything else.
+- [ ] Open a confirm dialog (e.g. cancel a tournament from `/organizer/tournaments`) and a text-prompt dialog (e.g. create a League from the archive): both render, both buttons work, and Escape still cancels. `dialogs.ts` is shared by many call sites, so it is the single highest-blast-radius file in the sweep.
+
+### The places where an identifier had to be repeated on purpose
+
+- [ ] `/organizer/tournaments/{id}/participants` at a **desktop** width: the participant table shows Remove / Block / Remove-and-block, and each button works. Then narrow to ~375px: the card list shows the same three buttons and they still work. Both layouts are in the DOM at once and deliberately share `participant-remove`, `participant-block` and `participant-remove-block`; the card-list copies are written as `[attr.data-cy]="'participant-remove'"` bindings. In DevTools, inspect a card button and confirm the rendered attribute really is `data-cy="participant-remove"` — if it renders empty, the binding form was mistyped and Cypress would still pass while a human selector would not.
+- [ ] Same page: trigger a load failure (stop the API, reload) and confirm the error block with its Retry button appears; then trigger an action failure (e.g. remove a participant with the API down) and confirm that error appears too. Both use `data-cy="participant-error"` from mutually exclusive branches.
+- [ ] `/players/{name}` for a player with no recorded nemesis/rival: the two stat cards show the "n/a" text. Inspect them and confirm they carry `data-cy="stat-nemesis"` / `data-cy="stat-rival"`, same as the button form does for a player who has them.
+
+### Identifiers that are now computed
+
+- [ ] Account settings → Location: pick a city whose name contains an apostrophe or a space (`L'Arbresle`, `Montier-en-l'Isle`). Inspect the rendered option and confirm the attribute is `data-cy="account-location-city-L'Arbresle"` — the raw city name, **not** a slug. This was a deliberate decision (slugifying would have changed rendered output and required editing a component this ticket was told not to touch). Confirm the value is still selectable in DevTools with `document.querySelector('[data-cy="account-location-city-L\'Arbresle"]')`.
+- [ ] Any page with a back button, top and bottom (e.g. a tournament detail page): both buttons work. Their identifiers are now position-suffixed (`back-button-link-top` / `back-button-link-bottom`), so a page that renders two of them no longer produces two identical ids.
+- [ ] Known cosmetic wrinkle, **not** a regression to fix here: `/players/{name}` renders its footer back button with `position="top"`, so that page has two `…-top` back-button identifiers. This is pre-existing markup the sweep was not allowed to change. Confirm both back buttons on that page still work, then decide whether the footer's `position` deserves its own ticket.
+
+### The checker itself
+
+- [ ] `npm run test` passes and `PENDING_DATA_CY_RETROFIT` in `src/app/shared/data-cy-coverage.test.ts` is `[]`. Re-adding a path there is a regression, not a workflow.
+- [ ] Sanity-check the gate actually bites: temporarily delete one `data-cy` from any component template, run `npm run test -- data-cy-coverage`, confirm it fails naming that file, then restore it.
+- [ ] Read the comment above `findDuplicateDataCy`. It records why the check was left textual instead of being taught about `@if` branches. Confirm you agree with that reasoning before anyone relaxes the rule — the deciding case is `organizer-participants.component.ts`, where the duplicate ids are simultaneously in the DOM and branch-awareness would not have helped.
+
+### The release certification this ticket wrote
+
+- [ ] `npm run acceptance:matrix` passes and reports `98/98 non-deferred capability rows proved (3 deferred)`. The 3 deferred rows are the pre-existing live-infrastructure ones (public hosting, real OAuth apps, real email deliverability) — confirm this plan added none.
+- [ ] Spot-check three of the seven rows this ticket added by actually running their evidence, not by reading it: `doc04-account-deletion`, `doc05-full-catalog-cache` and `doc09-first-visit`. A matrix row is only worth what its evidence executes.
+- [ ] Read the new "The feedback release" section of `docs/RELEASE_NOTES_V1.md` end to end against what you just clicked through. Every bullet should describe something you can reproduce; anything you cannot reproduce is the note being wrong, not the app.
+- [ ] Confirm the section names all **seven** ADRs (0021–0027). 0027 (`external-identity-link-without-reauthentication`) is the one an earlier draft of the plan omitted, and it records a real security trade-off: linking or unlinking an external identity no longer requires the password. Read that ADR and confirm the release is willing to ship that.
+
+### The three known gaps, verified as gaps
+
+These are recorded in the release notes as **not fixed**. Confirm each is genuinely as described, so the
+notes do not understate a problem.
+
+- [ ] Read-only Live UI: sign in as every role in turn (anonymous, plain user, Organizer, Admin) and confirm none of them can reach a read-only Live surface — `live-read-only` / `live-list-read-only` really are unreachable. If any role still hits it, the release notes are wrong and the elements are live code.
+- [ ] `npm run notification:smoke` twice in a row against the same database: the first run passes, the second fails on the `notification_history` foreign key. Confirm the failure is exactly that and nothing worse.
+- [ ] Tournament proposals: the flow is proved by backend integration tests, **not** by a live-stack journey, because the proposal tables have no grants for the local `gones_app` role. Try `docker compose up -d permissions` and then a real end-to-end proposal → mailed link → publish against the running stack. If that fixes it, say so on the follow-up ticket; do not silently upgrade the release note.
