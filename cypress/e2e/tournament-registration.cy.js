@@ -23,12 +23,30 @@ function authenticated(overrides = {}) {
 // 'Annulée par vous', …). loadSettingsLanguage() reads the 'gones.settings' JSON first and only falls
 // back to 'gones.settings.language', so seeding 'en' renders an English UI and makes those assertions
 // unsatisfiable. Both keys must agree.
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
+function seedStorage(win) {
+  win.localStorage.setItem('gones.first-visit.completed', 'true');
+  win.localStorage.setItem('gones.settings.language', 'fr');
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: [] }));
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
+// Seeding only from `onBeforeLoad` is not reliable on the release topology. The production build
+// registers the ngsw service worker, and once that worker controls the page it answers the navigation
+// request out of its own cache: the document never travels through the Cypress proxy, so Cypress
+// cannot install its hook and `onBeforeLoad` is simply never called — no error, no seed. Proved by
+// unregistering the worker mid-spec, after which the hook fires again and '/' stops bouncing to
+// '/about'. Under `ng serve` the worker is disabled, which is why this spec was green on 4200. So the
+// seed is re-applied from the loaded window and the page is visited once more when the hook was
+// skipped; the marker keeps that to a single extra load per test.
 function visit(path) {
-  cy.visit(path, { onBeforeLoad(win) {
-    win.localStorage.setItem('gones.first-visit.completed', 'true');
-    win.localStorage.setItem('gones.settings.language', 'fr');
-    win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: [] }));
-  } });
+  cy.visit(path, { onBeforeLoad: seedStorage });
+  cy.window({ log: false }).then(win => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true') return;
+    seedStorage(win);
+    cy.visit(path);
+  });
 }
 
 describe('public participant registration', () => {

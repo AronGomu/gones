@@ -1,14 +1,31 @@
 const email = 'cypress.user@example.test';
 const password = 'Cypress-pass-123!';
 
-function login() {
-  // The submit redirects to '/'; seed the first-visit flag so that redirect isn't intercepted
-  // by firstVisitHomeGuard (T21) — this test asserts on the plain home route, not /about.
-  cy.visit('/login', {
-    onBeforeLoad(win) {
-      win.localStorage.setItem('gones.first-visit.completed', 'true');
-    }
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
+// The submit redirects to '/'; seed the first-visit flag so that redirect isn't intercepted
+// by firstVisitHomeGuard (T21) — these tests assert on the plain home route, not /about.
+function seedStorage(win) {
+  win.localStorage.setItem('gones.first-visit.completed', 'true');
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
+// `onBeforeLoad` alone does not carry that seed on the release topology. The production build
+// registers the ngsw service worker, and once that worker controls the page it answers the navigation
+// request out of its own cache: the document never travels through the Cypress proxy, so Cypress
+// cannot install its hook and `onBeforeLoad` is never called — no error, no seed. Re-apply from the
+// loaded window and visit once more when the hook was skipped.
+function visit(path) {
+  cy.visit(path, { onBeforeLoad: seedStorage });
+  cy.window({ log: false }).then(win => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true') return;
+    seedStorage(win);
+    cy.visit(path);
   });
+}
+
+function login() {
+  visit('/login');
   cy.get('[data-cy="auth-email"]').type(email);
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
@@ -38,11 +55,7 @@ describe('session persistence across a reload', () => {
   });
 
   it('leaves anonymous browsing untouched when there is no session cookie', () => {
-    cy.visit('/', {
-      onBeforeLoad(win) {
-        win.localStorage.setItem('gones.first-visit.completed', 'true');
-      }
-    });
+    visit('/');
     cy.get('[data-cy="login-link"]').should('not.exist');
     cy.get('[data-cy="menu-login-card"]').should('be.visible');
     cy.get('[data-cy="profile-link"]').should('not.exist');

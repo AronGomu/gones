@@ -10,12 +10,39 @@ const tournament = {
 const profile = { id: 'user', email: 'user@example.test', emailVerified: true, globalRole: 'User', username: 'CurrentUser', firstName: 'Current', lastName: 'User', preferredLanguage: 'en', isFirstNamePublic: false, isLastNamePublic: false, isLocationPublic: false, isBirthYearPublic: false, isPreferredLanguagePublic: false };
 const participants = { items: [{ userId: 'other', username: 'PublicUser' }] };
 
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
+function seedStorage(win) {
+  win.localStorage.setItem('gones.settings.language', 'en');
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
+// `onBeforeLoad` is not dependable on the release topology. The production build registers the ngsw
+// service worker, and once that worker controls the page it answers the navigation request out of its
+// own cache: the document never travels through the Cypress proxy, so Cypress cannot install its hook
+// and `onBeforeLoad` is simply never called — no error, no seed, no forced offline flag. That is why
+// this spec passed under `ng serve` (worker disabled) and lost its banner on 8081. Proved by
+// unregistering the worker, after which the hook fires again and a page booted with
+// `navigator.onLine === false` does render `.calendar-offline-banner`, so the offline affordance is
+// intact for users. The boot-offline path below is kept for whenever the hook is available (under
+// `ng serve`, and on the first visit of a spec).
+//
+// When the hook was skipped the page has already booted online, so drop the connection now and
+// announce it exactly as a browser does when connectivity is lost mid-session. Either way the page
+// under test is offline before anything is asserted.
 function visit(path, options = {}) {
   cy.visit(path, {
     onBeforeLoad(win) {
-      win.localStorage.setItem('gones.settings.language', 'en');
-      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+      seedStorage(win);
       if (options.offline) forceOffline(win);
+    }
+  });
+  cy.window({ log: false }).then(win => {
+    if (win.localStorage.getItem(SEED_MARKER) !== 'true') seedStorage(win);
+    if (options.offline && win.navigator.onLine) {
+      forceOffline(win);
+      win.dispatchEvent(new win.Event('offline'));
     }
   });
 }

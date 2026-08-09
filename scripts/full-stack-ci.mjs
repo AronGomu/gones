@@ -80,6 +80,10 @@ try {
     if (browser.status !== 0) process.exitCode = browser.status ?? 1;
   }
   if (!process.exitCode) {
+    const sessionBrowser = runCypress('cypress/e2e/auth-session-persistence.cy.js');
+    if (sessionBrowser.status !== 0) process.exitCode = sessionBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const leagueBrowser = runCypress('cypress/e2e/league-server.cy.js');
     if (leagueBrowser.status !== 0) process.exitCode = leagueBrowser.status ?? 1;
   }

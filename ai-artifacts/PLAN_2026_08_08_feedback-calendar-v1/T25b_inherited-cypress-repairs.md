@@ -109,16 +109,99 @@ only then edit. Say which one you concluded and why.
 
 ## Impl steps
 
-- [ ] 1. Run `npm run e2e:ci` and capture the verbatim failure for all five specs — validate: five failure blocks saved, including the two never recorded.
-- [ ] 2. Settle `tournament-registration.cy.js` **first**, application-first per the Inputs. Validate: spec 5/5 **and** a written verdict — product defect or test defect — with the observation that settled it.
-  - [ ] 2a. If it is mechanism (2), a genuine cross-origin bootstrap failure, **stop and report it as a release blocker** before writing any fix; it affects far more than this spec.
-- [ ] 3. Settle `offline-public-read.cy.js`. Validate: spec green + a statement of whether the offline banner still reaches users; if it was lost in T14, restore it rather than deleting the assertion.
-- [ ] 4. Settle `abuse-surface.cy.js` by retargeting the wait at the request the app actually issues. Validate: spec green and the abuse assertion still asserts abuse.
-- [ ] 5. Settle `auth-profile.cy.js`. Validate: spec green on 8081.
-- [ ] 6. Settle `admin-orgs.cy.js`. Validate: spec green on 8081.
-- [ ] 7. Add a `runCypress('cypress/e2e/auth-session-persistence.cy.js')` block to `scripts/full-stack-ci.mjs` after the `auth-profile.cy.js` block — T2 shipped that spec but never enumerated it, so `e2e:ci` has been skipping it. Validate: the spec appears in the run output and passes.
-- [ ] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build`. Validate: all green.
-- [ ] 9. Run `npm run e2e:ci` end to end. Validate: exit 0, every spec green including the newly enumerated one.
+- [x] 1. Run `npm run e2e:ci` and capture the verbatim failure for all five specs — validate: five failure blocks saved, including the two never recorded.
+  - `e2e:ci` short-circuits on the first red spec (`if (!process.exitCode)` guards, `scripts/full-stack-ci.mjs:62-121`),
+    so the five were captured by bringing the release stack up once and driving each spec singly, per the
+    ticket's own "iterate on one spec without a full rebuild" note.
+  - `tournament-registration.cy.js` › My Registrations —
+    ``AssertionError: Timed out retrying after 4000ms: Expected to find element: `[data-cy="menu-registrations-card"]`, but never found it.``
+  - `offline-public-read.cy.js` › replays cached public Calendar data offline behind a stale banner —
+    ``AssertionError: Timed out retrying after 4000ms: Expected to find element: `.calendar-offline-banner`, but never found it.``
+  - `abuse-surface.cy.js` › never loads a remote image or remote script on a public page —
+    ``CypressError: Timed out retrying after 5000ms: `cy.wait()` timed out waiting `5000ms` for the 1st request to the route: `tournaments`. No request ever occurred.``
+  - `auth-profile.cy.js` (**newly captured**, two failures) › logs in, updates private-by-default profile,
+    changes email, signs out (`:106`) and › deletes a freshly registered throwaway account behind the
+    password-confirmation dialog (`:168`) — both ``Timed out retrying after 4000ms / + expected - actual / -'/about' / +'/'``
+    (actual `/about`, expected `/`).
+  - `admin-orgs.cy.js` (**newly captured**) › enforces role matrix for Admin routes (`:45`) —
+    ``Timed out retrying after 4000ms / + expected - actual / -'/about' / +'/'``.
+- [x] 2. Settle `tournament-registration.cy.js` **first**, application-first per the Inputs. Validate: spec 5/5 **and** a written verdict — product defect or test defect — with the observation that settled it.
+  - **Verdict: TEST defect.** The application is correct and the card reaches users.
+  - Application cleared first, three ways: (a) the spec's other three authenticated cases pass on 8081,
+    and they can only pass with `auth.profile()` resolved cross-origin (`unverified-banner`,
+    `registration-register`); (b) a throwaway spec that visited `/` with the same intercepts rendered
+    `[data-cy="menu-registrations-card"]` in the nav HTML, with `POST 127.0.0.1:5080/api/auth/refresh`
+    and `GET 127.0.0.1:5080/api/users/me` both reaching `cy.intercept`; (c) in the failing run the
+    toolbar shows `CurrentUser` and the logout button, so the profile *was* loaded. Mechanism (2), the
+    release blocker, is refuted — bootstrap works fine cross-origin in the release build.
+  - Real mechanism, a fourth one not on the ticket's list: the app was on **`/about`**, not `/`. The
+    release build registers the ngsw service worker; once it controls the page it answers the
+    navigation request from its own cache, so the document never travels through the Cypress proxy,
+    Cypress cannot install its hook, and **`cy.visit`'s `onBeforeLoad` is never called** — silently, no
+    error. The `gones.first-visit.completed` seed is therefore lost on every visit after the first in a
+    spec, and `firstVisitHomeGuard` bounces `/` to `/about`. Proved by tracing into spec-scope memory
+    that survives page loads: visit 1 logs `onBeforeLoad … seeded fv=true`, visit 2 logs nothing at
+    all; unregistering the worker between them makes the hook fire again and the page stays on `/`.
+    Under `ng serve` the worker is disabled (`environment.production` false), which is exactly why the
+    spec was 5/5 on 4200.
+  - Fix: seed from the loaded window too and re-visit once when the hook was skipped. Evidence:
+    `tournament-registration.cy.js` `5 passing`.
+  - [x] 2a. If it is mechanism (2), a genuine cross-origin bootstrap failure, **stop and report it as a release blocker** before writing any fix; it affects far more than this spec.
+    - Not applicable: mechanism (2) refuted by the three observations above. No release blocker; no stop.
+- [x] 3. Settle `offline-public-read.cy.js`. Validate: spec green + a statement of whether the offline banner still reaches users; if it was lost in T14, restore it rather than deleting the assertion.
+  - **Verdict: TEST defect.** The banner was **not** lost in T14 and still reaches users — nothing to restore.
+  - Application cleared first: `gones-offline-banner` is still rendered by `public-calendar.component.ts:65`
+    and still emits `.calendar-offline-banner` from `offline-banner.component.ts:16`. A throwaway spec
+    that unregistered the worker (so `onBeforeLoad` was guaranteed to run) and then **booted** the
+    Calendar with `navigator.onLine === false` asserted `onBeforeLoad ran`, `booted offline`, the
+    cached `Lyon Legacy` row, `.calendar-offline-banner` visible matching `/offline|hors ligne/i`, and
+    `[data-cy="offline-banner"]` present — `1 passing`.
+  - Same root cause as step 2: the failing assertion is on the **second** `cy.visit` of the test, by
+    which point the worker controls the page, so `forceOffline` in `onBeforeLoad` never ran and the
+    page was simply online. Fix keeps the boot-offline path wherever the hook is available and
+    otherwise drops the connection after load and fires the `offline` event, as a browser does.
+    Evidence: `offline-public-read.cy.js` `3 passing`.
+- [x] 4. Settle `abuse-surface.cy.js` by retargeting the wait at the request the app actually issues. Validate: spec green and the abuse assertion still asserts abuse.
+  - **Verdict: TEST defect.** The spec waited on `GET /api/tournaments?*`, a request the Calendar stopped
+    making when T12–T14 replaced per-view fetches with one cached `GET /api/tournaments/all`
+    (`AllTournamentsCacheService`). Retargeted at `**/api/tournaments/all*` with the catalog response
+    shape. The abuse claim is unchanged and now stronger: the run asserts the Calendar actually
+    rendered (`[data-cy="public-calendar"]` visible, no `calendar-error`) before scanning every `img`
+    and `script[src]` for a remote origin — previously the page could have been an error state and the
+    scan would still have passed vacuously. Evidence: `abuse-surface.cy.js` `4 passing`.
+- [x] 5. Settle `auth-profile.cy.js`. Validate: spec green on 8081.
+  - **Verdict: TEST defect.** Both failures were `expected '/' … actual '/about'` after sign-out (`:106`)
+    and after account deletion (`:168`). `firstVisitHomeGuard` is wired only on `''` and
+    `markVisitedGuard` only on `/about` (`app.routes.ts:79-80`), so a session that deep-links straight
+    to `/login` never records a completed first visit; landing on `/` afterwards is then a genuine
+    first visit and the product deliberately shows About once. That is the declared behaviour of
+    `3f0ce70`, not a regression — the specs predate it and never established the precondition they
+    assume. Fixed by recording the completed visit after login. Evidence: `auth-profile.cy.js`
+    `7 passing`, including the provider-linking case that needs the base URL to be 8081.
+  - Note: a stale run of this spec leaves the shared seeded account with `is_location_public = true`,
+    so `scripts/seed-auth-e2e.mjs` must run before it. `e2e:ci` already does this; a hand-run of the
+    spec alone needs the seed re-run first.
+- [x] 6. Settle `admin-orgs.cy.js`. Validate: spec green on 8081.
+  - **Verdict: TEST defect**, same guard as step 5. A denied Admin route redirects to `/?denied=…`, and
+    for a browser with no recorded first visit that redirect is itself intercepted and sent to
+    `/about`, losing the notice the spec asserts. This spec's `visit()` seeded only the language, never
+    the first-visit flag. Seeded it. Evidence: `admin-orgs.cy.js` `4 passing`.
+- [x] 7. Add a `runCypress('cypress/e2e/auth-session-persistence.cy.js')` block to `scripts/full-stack-ci.mjs` after the `auth-profile.cy.js` block — T2 shipped that spec but never enumerated it, so `e2e:ci` has been skipping it. Validate: the spec appears in the run output and passes.
+  - Block added after the `auth-profile.cy.js` block. Running it exposed a **sixth** inherited failure,
+    hidden until now precisely because the gate never ran the spec:
+    ``AssertionError: Timed out retrying after 4000ms: Expected to find element: `[data-cy="menu-login-card"]`, but never found it.``
+    Same skipped-`onBeforeLoad` root cause as step 2 — its second test visits `/` and was bounced to
+    `/about`. **Verdict: TEST defect.** Fixed with the same seeding helper. Evidence:
+    `auth-session-persistence.cy.js` `2 passing`.
+- [x] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build`. Validate: all green.
+  - `vitest run` → `Test Files  77 passed (77) / Tests  505 passed (505)`; `ng lint` → `All files pass
+    linting.`; `tsc --noEmit` both projects → clean, no output; `ng build` → `Application bundle
+    generation complete.`
+- [x] 9. Run `npm run e2e:ci` end to end. Validate: exit 0, every spec green including the newly enumerated one.
+  - Exit 0 (`GATE_EXIT=0`), **18 spec summaries, 18 `✔`, 0 `✖`**, smoke green, both seed steps green,
+    release stack torn down cleanly. The five repaired specs and the newly enumerated one, from the run:
+    `tournament-registration.cy.js 5/5`, `offline-public-read.cy.js 3/3`, `auth-profile.cy.js 7/7`,
+    `auth-session-persistence.cy.js 2/2`, `admin-orgs.cy.js 4/4`, `abuse-surface.cy.js 4/4`.
 
 ## Outputs
 
@@ -128,9 +211,18 @@ only then edit. Say which one you concluded and why.
 
 ## Validation
 
-- [ ] `npm run e2e:ci` passes in full, every spec green
-- [ ] `npm run test && npm run lint && npm run typecheck && npm run build` pass
-- [ ] each of the five failures has a written product-or-test verdict backed by evidence
-- [ ] `auth-session-persistence.cy.js` now runs inside `e2e:ci`
-- [ ] app functional — no behaviour changed except a named defect fix
-- [ ] commit msg draft: `test(e2e): repair the inherited Cypress failures and enumerate the session spec`
+- [x] `npm run e2e:ci` passes in full, every spec green — `GATE_EXIT=0`, 18 `✔`, 0 `✖`.
+- [x] `npm run test && npm run lint && npm run typecheck && npm run build` pass — `77 files / 505 tests
+  passed`, `All files pass linting.`, `tsc --noEmit` clean on both projects, `Application bundle
+  generation complete.`
+- [x] each of the five failures has a written product-or-test verdict backed by evidence — steps 2–6
+  above; a sixth (`auth-session-persistence.cy.js`) was found by step 7 and is settled there too.
+- [x] `auth-session-persistence.cy.js` now runs inside `e2e:ci` — block added to
+  `scripts/full-stack-ci.mjs` after the `auth-profile.cy.js` block; it appears in the gate output as
+  `✔ auth-session-persistence.cy.js 00:01 2 2`.
+- [x] app functional — no behaviour changed except a named defect fix. **No application change was
+  needed or made: nothing under `src/` is modified.** All six defects were in the specs, and the
+  product was cleared with positive evidence before each spec was touched (steps 2–7). In particular
+  the registrations card *does* render for an authenticated user on the release build, and the offline
+  banner *does* reach a user who opens the Calendar offline — both observed directly.
+- [x] commit msg draft: `test(e2e): repair the inherited Cypress failures and enumerate the session spec`

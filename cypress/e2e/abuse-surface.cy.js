@@ -83,9 +83,16 @@ describe('abuse surface', () => {
   });
 
   it('never loads a remote image or remote script on a public page', () => {
-    cy.intercept('GET', '**/api/tournaments?*', { items: [tournament], page: 1, pageSize: 20, totalCount: 1 }).as('tournaments');
+    // The Calendar no longer pages through `GET /api/tournaments?…`; it reads the whole catalog once
+    // from `GET /api/tournaments/all` and caches it (`AllTournamentsCacheService`). The wait is
+    // retargeted at the request the page actually issues, and the response carries the catalog shape
+    // (`PublicTournamentCatalogResponse`) so the page renders instead of erroring — the claim below
+    // only means something on a Calendar that actually rendered.
+    cy.intercept('GET', '**/api/tournaments/all*', { items: [tournament], generatedAt: '2026-07-01T00:00:00Z', count: 1, truncated: false }).as('tournaments');
     visit('/calendar');
     cy.wait('@tournaments');
+    cy.get('[data-cy="public-calendar"]').should('be.visible');
+    cy.get('[data-cy="calendar-error"]').should('not.exist');
 
     cy.get('img').each(($image) => {
       const source = $image.attr('src') ?? '';

@@ -19,6 +19,22 @@ function login() {
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
   cy.location('pathname').should('eq', '/settings/account');
+  markFirstVisitCompleted();
+}
+
+/**
+ * `firstVisitHomeGuard` sends a browser that has never completed a first visit to /about, and only
+ * '' and '/about' ever record that visit — a session that deep-links straight to /login never does.
+ * The sign-out and account-deletion cases below assert the landing page is '/', which is what every
+ * browser that has already been to the app sees, so record the completed visit these flows assume.
+ *
+ * Written to the live window rather than to `cy.visit`'s `onBeforeLoad`: on the release topology the
+ * ngsw service worker answers the navigation request out of its own cache, the document never travels
+ * through the Cypress proxy, and `onBeforeLoad` is then never called at all. The guard re-reads
+ * localStorage on each navigation, so setting it on the loaded page is enough.
+ */
+function markFirstVisitCompleted() {
+  cy.window({ log: false }).then(win => win.localStorage.setItem('gones.first-visit.completed', 'true'));
 }
 
 describe('auth and profile', () => {
@@ -161,6 +177,7 @@ describe('auth and profile', () => {
     cy.get('[data-cy="auth-password"]').type(password, { log: false });
     cy.get('[data-cy="auth-submit"]').click();
     cy.location('pathname').should('eq', '/settings/account');
+    markFirstVisitCompleted();
 
     cy.get('[data-cy="account-delete"]').click();
     cy.get('[data-cy="password-confirm-input"]').type(password, { log: false });

@@ -27,12 +27,30 @@ function mockSession(globalRole = 'Admin') {
   cy.intercept('GET', '**/api/users/me', profile(globalRole));
 }
 
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
+function seedStorage(win) {
+  win.localStorage.setItem('gones.settings.language', 'en');
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  // A denied Admin route redirects to '/?denied=…', and `firstVisitHomeGuard` sends a browser that has
+  // never completed a first visit on from there to /about — swallowing the denial notice this spec
+  // asserts. Only '' and '/about' ever record that visit, so a session that deep-links to /admin/users
+  // never has it. Record it, as any browser that has already been to the app would have.
+  win.localStorage.setItem('gones.first-visit.completed', 'true');
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
+// The production build registers the ngsw service worker, and once that worker controls the page it
+// answers the navigation request out of its own cache: the document never travels through the Cypress
+// proxy, so Cypress cannot install its hook and `onBeforeLoad` is never called — no error, no seed.
+// Re-apply the seed from the loaded window and visit once more when the hook was skipped; the marker
+// keeps that to a single extra load per test.
 function visit(path) {
-  cy.visit(path, {
-    onBeforeLoad(win) {
-      win.localStorage.setItem('gones.settings.language', 'en');
-      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
-    }
+  cy.visit(path, { onBeforeLoad: seedStorage });
+  cy.window({ log: false }).then(win => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true') return;
+    seedStorage(win);
+    cy.visit(path);
   });
 }
 
