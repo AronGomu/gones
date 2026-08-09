@@ -1,8 +1,10 @@
 import { InjectionToken, inject } from '@angular/core';
+import { AuthService } from '../auth/auth.service';
 import { DataAuthority, dataAuthority } from '../config/data-authority';
 import { LiveTournamentDocument } from '../domain/live-tournament';
 import { LeagueDocument, LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
 import { AspNetApiBackend } from './aspnet-api-backend.service';
+import { LocalLiveBackend } from './local-live-backend.service';
 
 export interface LeagueRestoreCommand {
   kind: 'league';
@@ -96,14 +98,29 @@ export interface LiveBackendPort {
 
 export type BackendMode = 'aspnet-api';
 
+export type LiveBackendMode = 'aspnet-api' | 'browser-local';
+
 /**
  * The API adapter is the only adapter. ADR 0020 removed the browser store, so there is no second
  * source of truth to bridge to and no whole-document or CalendarEvent write path to expose: every
  * mutation is an explicit server intent command guarded by the document version (If-Match ETag).
+ *
+ * This stays the League authority check. Only the Live port has a second adapter (ADR 0021).
  */
 export function resolveBackendMode(authority: DataAuthority): BackendMode {
   if (!authority.serverAuthority) throw new Error('serverAuthorityRequired');
   return 'aspnet-api';
+}
+
+/**
+ * Role-scoped Live authority (ADR 0021). `Organizer` and `Admin` keep the server-authoritative
+ * adapter; anonymous visitors and the plain `User` role get a strictly offline browser store that
+ * never synchronises. The non-server authority is still refused, so ADR 0020's failure-closed
+ * startup is preserved.
+ */
+export function resolveLiveBackendMode(authority: DataAuthority, globalRole: string | undefined): LiveBackendMode {
+  if (!authority.serverAuthority) throw new Error('serverAuthorityRequired');
+  return globalRole === 'Organizer' || globalRole === 'Admin' ? 'aspnet-api' : 'browser-local';
 }
 
 export const LEAGUE_BACKEND = new InjectionToken<LeagueBackendPort>('Gones League backend bridge', {
@@ -114,10 +131,17 @@ export const LEAGUE_BACKEND = new InjectionToken<LeagueBackendPort>('Gones Leagu
   }
 });
 
+/**
+ * The Live authority is decided once, here, from the profile `AuthService.bootstrap()` loaded before
+ * the first route renders. A role granted mid-session takes effect on the next reload — deliberate,
+ * see ADR 0021; there is no reactive re-resolution.
+ */
+export const LIVE_BACKEND_MODE = new InjectionToken<LiveBackendMode>('Gones Live Tournament authority', {
+  providedIn: 'root',
+  factory: () => resolveLiveBackendMode(dataAuthority(), inject(AuthService).profile()?.globalRole)
+});
+
 export const LIVE_BACKEND = new InjectionToken<LiveBackendPort>('Gones Live Tournament backend bridge', {
   providedIn: 'root',
-  factory: () => {
-    resolveBackendMode(dataAuthority());
-    return inject(AspNetApiBackend);
-  }
+  factory: () => inject(LIVE_BACKEND_MODE) === 'aspnet-api' ? inject(AspNetApiBackend) : inject(LocalLiveBackend)
 });

@@ -16,6 +16,7 @@
 | client | Generated typed client from the committed OpenAPI contract | `src/app/api/generated/gones-api.ts` |
 | repository | Angular signal store fronting one backend port | `src/app/data/league-repository.service.ts` |
 | runner | Live tournament pairing and result-entry screen | `src/app/features/live-tournaments/live-tournament-runner.component.ts` |
+| local Live store | Offline IndexedDB Live authority for anonymous and `User`, never synced (ADR 0021) | `src/app/backend/local-live-backend.service.ts` |
 | calendar | Public tournament calendar feature and its detail page | `src/app/features/calendar/public-calendar.component.ts` |
 | guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
 | session | Access-token scope and cache purge on sign-out | `src/app/auth/session-scope.service.ts` |

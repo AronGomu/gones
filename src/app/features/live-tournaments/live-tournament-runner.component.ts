@@ -16,14 +16,16 @@ import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/ma
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
+import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { canManageLive, liveCommandError } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
-import { activeLivePlayers, autoLiveSwissRoundCount, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, currentLiveRound, currentRoundComplete, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, unpaidActivePlayers } from '../../domain/live-tournament';
+import { activeLivePlayers, autoLiveSwissRoundCount, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, currentLiveRound, currentRoundComplete, finalizeLiveTournament as finalizeLiveTournamentDocument, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, unpaidActivePlayers } from '../../domain/live-tournament';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, trimPlayerName } from '../../domain/models';
 import { collectKnownPlayerNames, suggestPlayerNames } from '../../domain/player-stats';
 import { logBoundaryError } from '../../shared/app-logger';
 import { OnlineStatusService } from '../../shared/online-status.service';
+import { saveJsonFile } from '../../shared/save-json-file';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.component';
@@ -38,6 +40,13 @@ import { I18nService } from '../../i18n/i18n.service';
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (stale()) { <button mat-stroked-button class="secondary-action" type="button" data-cy="live-reload" (click)="load()">{{ i18n.t('live.reloadLatest') }}</button> }
     @if (readOnly() && tournament()) { <p class="muted" data-cy="live-read-only">{{ i18n.t('live.readOnly') }}</p> }
+    @if (localMode && tournament()) { <p class="muted" role="status" data-cy="live-local-mode-notice">{{ i18n.t('live.localModeNotice') }}</p> }
+    @if (localFinalized()) {
+      <section class="panel" role="status" data-cy="live-local-finalize-notice">
+        <h2 data-cy="live-local-finalize-title">{{ i18n.t('live.localFinalizeTitle') }}</h2>
+        <p data-cy="live-local-finalize-body">{{ i18n.t('live.localFinalizeBody') }}</p>
+      </section>
+    }
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else if (tournament(); as live) {
       <section class="page-heading live-tournament-title-heading">
@@ -45,7 +54,7 @@ import { I18nService } from '../../i18n/i18n.service';
         <div class="live-tournament-meta-fields">
           <mat-form-field appearance="outline" class="title-field"><mat-label>{{ i18n.t('live.tournamentName') }}</mat-label><input #liveTournamentNameInput data-cy="live-tournament-name-input" matInput [(ngModel)]="tournamentNameDraft" (blur)="saveTitleEdit()" (keydown.enter)="$event.preventDefault(); saveTitleEdit()" [disabled]="finalizing() || readOnly()"></mat-form-field>
           <mat-form-field appearance="outline" class="live-tournament-date-field"><mat-label>{{ i18n.t('live.date') }}</mat-label><input matInput data-cy="live-tournament-date-input" type="date" [ngModel]="live.tournamentDate" (ngModelChange)="patch({ tournamentDate: stringValue($event, live.tournamentDate) })" [disabled]="finalizing() || readOnly()"></mat-form-field>
-          <mat-form-field appearance="outline" class="live-tournament-league-field"><mat-label>{{ i18n.t('live.leagueFinalize') }}</mat-label><mat-select data-cy="live-tournament-league-select" [ngModel]="leagueSelectValue(live.leagueId)" (ngModelChange)="patch({ leagueId: stringValue($event, '') })" [disabled]="finalizing() || readOnly()"><mat-option value="">{{ i18n.t('live.unassigned') }}</mat-option>@for (league of assignableLeagues(); track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field>
+          @if (!localMode) { <mat-form-field appearance="outline" class="live-tournament-league-field"><mat-label>{{ i18n.t('live.leagueFinalize') }}</mat-label><mat-select data-cy="live-tournament-league-select" [ngModel]="leagueSelectValue(live.leagueId)" (ngModelChange)="patch({ leagueId: stringValue($event, '') })" [disabled]="finalizing() || readOnly()"><mat-option value="">{{ i18n.t('live.unassigned') }}</mat-option>@for (league of assignableLeagues(); track league.id) { <mat-option [value]="league.id">{{ league.name }}</mat-option> }</mat-select></mat-form-field> }
         </div>
       </section>
       <div class="live-warning-stack" aria-live="polite">
@@ -160,7 +169,7 @@ import { I18nService } from '../../i18n/i18n.service';
                       @else { <button mat-flat-button class="home-primary-action" type="button" data-cy="live-archive-tournament-button" [disabled]="finalizing() || pendingCommand()" (click)="finalize()">{{ finalizing() ? i18n.t('common.archiving') : i18n.t('live.archiveTournament') }}</button> }
                     </div>
                   </div>
-                  @if (finished(live) && !leagueSelectValue(live.leagueId)) { <p class="warning" role="status">{{ i18n.t('live.noLeagueFinalizeWarn') }}</p> }
+                  @if (finished(live) && !leagueSelectValue(live.leagueId) && !localMode) { <p class="warning" role="status">{{ i18n.t('live.noLeagueFinalizeWarn') }}</p> }
                 }
               </mat-expansion-panel>
             }
@@ -235,8 +244,13 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   readonly stale = signal(false);
   private readonly auth = inject(AuthService);
   private readonly onlineStatus = inject(OnlineStatusService);
-  readonly canManage = computed(() => canManageLive(this.auth.profile()?.globalRole));
+  /** Resolved once, with the port itself (ADR 0021): a role change mid-session needs a reload. */
+  readonly localMode = inject(LIVE_BACKEND_MODE) === 'browser-local';
+  /** In the browser-local store the visitor owns everything they can see, so they always manage it. */
+  readonly canManage = computed(() => this.localMode || canManageLive(this.auth.profile()?.globalRole));
   readonly readOnly = computed(() => !this.canManage());
+  /** Set after a local finalize: there is no League to navigate to, only the JSON that was saved. */
+  readonly localFinalized = signal(false);
   private saving = false;
   private pendingSave = false;
   /** Latest documentVersion acknowledged by the server; the If-Match source for every intent. */
@@ -272,7 +286,9 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     this.loading.set(true);
     let editTitleAfterLoad = false;
     try {
-      this.leagues.set(await this.leagueRepo.listLeagues());
+      // Local mode finalizes to a JSON download, never into a League, and the anonymous visitor is
+      // not entitled to the server League list either — so it is not requested at all.
+      this.leagues.set(this.localMode ? [] : await this.leagueRepo.listLeagues());
       const id = this.route.snapshot.paramMap.get('liveTournamentId') ?? 'new';
       editTitleAfterLoad = id === 'new' || this.shouldEditTitleFromNavigationState();
       if (id === 'new') {
@@ -585,6 +601,15 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       if (!latestLive) return;
       const version = this.serverVersion;
       const result = await this.liveRepo.finalizeLiveTournament(latestLive.id, version);
+      if (!result.leagueId) {
+        // Browser-local authority (ADR 0021): there is no League to write into, so the finished
+        // tournament is handed to the user as the JSON the server would have archived.
+        const archived = finalizeLiveTournamentDocument({ ...latestLive, finalizedTournamentId: result.finalizedTournamentId });
+        saveJsonFile(archived, `gones-live-tournament-${latestLive.tournamentDate}.json`);
+        this.localFinalized.set(true);
+        await this.load();
+        return;
+      }
       await this.router.navigate(['/leagues', result.leagueId, 'tournaments', result.finalizedTournamentId]);
     } catch (error) {
       logBoundaryError('live-tournament.finalize', error, { liveTournamentId: live.id, leagueId: live.leagueId });
@@ -624,7 +649,10 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   private finalizeWarnings(live: LiveTournamentDocument): string[] {
     const warnings: string[] = [];
-    if (!this.leagueSelectValue(live.leagueId)) warnings.push(this.i18n.t('live.noLeagueFinalizeWarn'));
+    // Local mode never writes a League, so "no League selected" is not a warning there — the copy
+    // that matters is that finalizing produces a JSON download instead (ADR 0021).
+    if (this.localMode) warnings.push(this.i18n.t('live.localFinalizeBody'));
+    else if (!this.leagueSelectValue(live.leagueId)) warnings.push(this.i18n.t('live.noLeagueFinalizeWarn'));
     warnings.push(...this.nextRoundWarnings(live));
     return warnings;
   }
@@ -874,6 +902,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   /** Writes require the server while liveServer is on — nothing is queued for later. */
   private requireOnline(): boolean {
+    if (this.localMode) return true; // the browser-local store needs no connection, ever
     if (this.onlineStatus.isOnline()) return true;
     this.clearPendingIntents();
     this.error.set(this.i18n.t('live.onlineRequired'));

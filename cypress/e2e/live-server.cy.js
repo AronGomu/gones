@@ -249,8 +249,15 @@ function seedSettings(win) {
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
 }
 
-function visit(path) {
-  cy.visit(path, { onBeforeLoad: seedSettings });
+function visit(path, { clearLocalStore = false } = {}) {
+  cy.visit(path, {
+    onBeforeLoad: (win) => {
+      seedSettings(win);
+      // ADR 0021 gave anonymous and `User` a browser-local Live store; clear it so a leftover
+      // tournament from another spec cannot be mistaken for the server list.
+      if (clearLocalStore) win.indexedDB.deleteDatabase('gones-live');
+    }
+  });
   // Test-isolation cleanup can race the previous page's settings self-heal (French default);
   // re-seed after boot and reload so every test deterministically runs in English.
   cy.window().then((win) => seedSettings(win));
@@ -344,7 +351,13 @@ describe('Live Tournament server command flows', () => {
     runServerLifecycle(viewport);
   }
 
-  it('shows a read-only runner and list for the User role', () => {
+  /**
+   * ADR 0021 replaced the old read-only-for-`User` surface: a plain user no longer reads the server
+   * Live list at all, they get their own browser-local store. Synchronisation is what `Organizer`
+   * buys. This asserts the split at the boundary — the server tournament is invisible and the API
+   * is never asked for it.
+   */
+  it('routes the User role to the browser-local store instead of the server list', () => {
     cy.viewport(1280, 800);
     mockSession('User');
     const state = mockLiveServer();
@@ -354,20 +367,16 @@ describe('Live Tournament server command flows', () => {
       live.players.push({ id: 'player-role', name: 'Alice', paid: false, dropped: false, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' });
       state.lives.push(live);
     });
-    cy.intercept('GET', /\/api\/live-tournaments\/[^/]+\/document$/, {
-      statusCode: 403, body: { code: 'forbidden', message: 'Forbidden.' }, headers: { 'content-type': 'application/problem+json' }
-    }).as('forbiddenDocument');
 
-    visit('/live-tournaments');
-    cy.get('[data-cy="live-list-read-only"]').should('be.visible');
-    cy.get('[data-cy="create-running-tournament-card"]').should('not.exist');
-    cy.contains('[data-cy="running-tournament-card"]', 'Role Live').click();
-    cy.wait('@forbiddenDocument');
-    cy.wait('@livePublicDetail');
-    cy.get('[data-cy="live-read-only"]').should('be.visible');
-    cy.get('[data-cy="live-start-tournament-button"]').should('be.disabled');
-    cy.get('[data-cy="live-add-player-button"]').should('be.disabled');
-    cy.get('[data-cy="live-tournament-name-input"]').should('be.disabled');
+    visit('/live-tournaments', { clearLocalStore: true });
+
+    cy.get('[data-cy="live-local-mode-notice"]').should('be.visible');
+    cy.get('[data-cy="running-tournament-empty-state"]').should('be.visible');
+    cy.contains('Role Live').should('not.exist');
+    // A plain user manages their own local tournaments, so the create card is theirs to use.
+    cy.get('[data-cy="create-running-tournament-card"]').should('exist');
+    cy.get('[data-cy="live-list-read-only"]').should('not.exist');
+    cy.get('@liveList.all').should('have.length', 0);
   });
 
   it('recovers from a 412 stale write through reload-and-reapply and blocks offline writes', () => {

@@ -9,10 +9,18 @@ Angular single-page PWA to consult tournament League results, export Gones sourc
 edit League source data, backed by an ASP.NET API and PostgreSQL.
 
 There is exactly one data authority and every build declares it (ADR 0020): `dataMode: server`.
-The API database owns everything — Calendar V1, auth, organizer, admin, League, Live. The browser
+The API database owns everything — Calendar V1, auth, organizer, admin, League. The browser
 keeps only language, view preference, filters and the anonymous public read cache. The retired
 `legacy-browser` authority is refused with `dataModeUnknown` at build time, container start and in
 the browser.
+
+**One exception, Live Tournaments only (ADR 0021):** the Live port has two adapters, chosen by role
+once at injection time. `Organizer` and `Admin` keep the server adapter; anonymous visitors and the
+plain `User` role get `LocalLiveBackend`, a strictly offline IndexedDB store (`gones-live` /
+`tournaments`) that never syncs in either direction. `indexedDB` is confined to
+`src/app/backend/indexed-db.ts` and `src/app/backend/local-live-backend.service.ts`, asserted by
+`src/app/backend/server-authority-boundary.test.ts`. Do not delete that adapter as an ADR 0020
+violation — read `docs/adr/0021-role-scoped-browser-live-store.md` first.
 
 ## Repository layout
 

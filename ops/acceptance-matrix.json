@@ -2149,7 +2149,7 @@
     {
       "id": "doc09-local-persistence",
       "doc": "09-frontend-angular.md",
-      "capability": "Local persistence is limited to preferences and the public read cache; writes need the network.",
+      "capability": "Local persistence is limited to preferences, the public read cache and the browser-local Live store (ADR 0021); every other write needs the network.",
       "status": "proved",
       "acceptance": [
         "product-offline"
@@ -2205,6 +2205,35 @@
           "gate": "cypress",
           "target": "cypress/e2e/live-server.cy.js",
           "detail": "Live over the API"
+        }
+      ]
+    },
+    {
+      "id": "doc09-local-live-store",
+      "doc": "09-frontend-angular.md",
+      "capability": "Anonymous visitors and plain users run Live Tournaments against a strictly offline browser store, while Organizer and Admin keep the server adapter (ADR 0021).",
+      "status": "proved",
+      "acceptance": [],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/backend/local-live-backend.service.test.ts",
+          "detail": "the local adapter composes the pure domain, guards the document version and makes no HTTP call"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/backend/live-backend-selection.test.ts",
+          "detail": "role-to-adapter matrix, still failing closed on a non-server authority"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/backend/server-authority-boundary.test.ts",
+          "detail": "IndexedDB confined to the two Live local files; League ports stay API-only"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/live-local.cy.js",
+          "detail": "a signed-out Swiss round survives a reload with zero /api/live-tournaments requests"
         }
       ]
     },

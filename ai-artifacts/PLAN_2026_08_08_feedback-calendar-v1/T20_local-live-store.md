@@ -90,10 +90,10 @@ Run: `npm run test -- local-live-backend live-backend-selection server-authority
 
 ## Impl steps
 
-- [ ] 1. In `src/app/backend/application-backend.ts`, add `export type LiveBackendMode = 'aspnet-api' | 'browser-local';`
-- [ ] 2. Add `export function resolveLiveBackendMode(authority: DataAuthority, globalRole: string | undefined): LiveBackendMode { if (!authority.serverAuthority) throw new Error('serverAuthorityRequired'); return globalRole === 'Organizer' || globalRole === 'Admin' ? 'aspnet-api' : 'browser-local'; }`
-- [ ] 3. Leave `resolveBackendMode` and `LEAGUE_BACKEND` exactly as they are — Leagues stay server-only.
-- [ ] 4. Change the `LIVE_BACKEND` factory to:
+- [x] 1. In `src/app/backend/application-backend.ts`, add `export type LiveBackendMode = 'aspnet-api' | 'browser-local';`
+- [x] 2. Add `export function resolveLiveBackendMode(authority: DataAuthority, globalRole: string | undefined): LiveBackendMode { if (!authority.serverAuthority) throw new Error('serverAuthorityRequired'); return globalRole === 'Organizer' || globalRole === 'Admin' ? 'aspnet-api' : 'browser-local'; }`
+- [x] 3. Leave `resolveBackendMode` and `LEAGUE_BACKEND` exactly as they are — Leagues stay server-only.
+- [x] 4. Change the `LIVE_BACKEND` factory to:
   ```
   factory: () => {
     const role = inject(AuthService).profile()?.globalRole;
@@ -103,29 +103,29 @@ Run: `npm run test -- local-live-backend live-backend-selection server-authority
   }
   ```
   Watch the import cycle: `AuthService` imports from `api-boundary`, not from `application-backend`, so this is safe; verify with `npm run build`.
-- [ ] 5. Create `src/app/backend/indexed-db.ts` with a tiny promise wrapper: `openDatabase(name: string, version: number, upgrade: (db: IDBDatabase) => void): Promise<IDBDatabase>`, `getAll<T>(db, store)`, `get<T>(db, store, key)`, `put(db, store, value)`, `remove(db, store, key)`. No third-party dependency.
-- [ ] 6. Create `src/app/backend/local-live-backend.service.ts` with `export const LOCAL_LIVE_DB_NAME = 'gones-live';`, `export const LOCAL_LIVE_STORE = 'tournaments';` and `@Injectable({ providedIn: 'root' }) export class LocalLiveBackend implements LiveBackendPort`.
-- [ ] 7. Implement `listLiveTournaments()` as `getAll` mapped through `normalizeLiveTournament` and sorted by `tournamentDate` descending, then `name`.
-- [ ] 8. Implement `createLiveTournament(tournamentDate)` with the domain's `createLiveTournament(...)`, assigning `documentVersion: 1` and a `crypto.randomUUID()` id.
-- [ ] 9. Implement a private `mutate(id, expectedVersion, change: (document) => LiveTournamentDocument)` that loads the document, throws `new LiveConcurrencyError()` when `document.documentVersion !== expectedVersion`, applies `change`, increments `documentVersion`, persists and returns it.
-- [ ] 10. Define `LiveConcurrencyError` so `src/app/data/live-command-ux.ts` classifies it as stale. Read `live-command-ux.ts` first: if it keys on `ApiProblemError.status === 412`, make the local error carry `status = 412` through the same type; if it keys on a message, use that message. Do **not** change `live-command-ux.ts` unless a new branch is genuinely required — and if it is, extend its test file too.
-- [ ] 11. Implement every remaining port method on top of `mutate` and the domain functions: settings, players (add/edit/paid/drop/remove), rounds (start/regenerate/cancel/validate), scoring, checkpoint restore.
-- [ ] 12. Implement `finalizeLiveTournament(id, expectedVersion)` calling the domain `finalizeLiveTournament(document)` to build the `TournamentDocument`, marking the live document completed, and returning `{ liveTournamentId: id, leagueId: '', finalizedTournamentId: tournament.id, liveDocumentVersion: nextVersion }`.
-- [ ] 13. In `src/app/features/live-tournaments/live-tournament-runner.component.ts`, branch the post-finalize behaviour: when `result.leagueId` is empty, save the produced tournament with the existing `saveJsonFile(...)` helper (`src/app/shared/save-json-file.ts`) and show a message instead of navigating to a League. Add the i18n keys `live.localFinalizeTitle` / `live.localFinalizeBody` to BOTH maps.
-- [ ] 14. Add a banner on `/live-tournaments` for non-privileged users: `live.localModeNotice` — en `'Your running tournaments are stored in this browser only. They are never sent to the server.'`, fr `'Vos tournois en cours sont stockés uniquement dans ce navigateur. Ils ne sont jamais envoyés au serveur.'` — rendered with `data-cy="live-local-mode-notice"`.
-- [ ] 15. Create `src/app/backend/live-backend-selection.test.ts` with Test plan rows 1-5.
-- [ ] 16. Create `src/app/backend/local-live-backend.service.test.ts` with Test plan rows 6-14, using `fake-indexeddb` if it is already a dev dependency; if it is not, write the tests against an in-memory `IDBFactory` stub installed on `globalThis.indexedDB` inside the test file, so no new dependency is added.
-- [ ] 17. Amend `src/app/backend/server-authority-boundary.test.ts`:
+- [x] 5. Create `src/app/backend/indexed-db.ts` with a tiny promise wrapper: `openDatabase(name: string, version: number, upgrade: (db: IDBDatabase) => void): Promise<IDBDatabase>`, `getAll<T>(db, store)`, `get<T>(db, store, key)`, `put(db, store, value)`, `remove(db, store, key)`. No third-party dependency.
+- [x] 6. Create `src/app/backend/local-live-backend.service.ts` with `export const LOCAL_LIVE_DB_NAME = 'gones-live';`, `export const LOCAL_LIVE_STORE = 'tournaments';` and `@Injectable({ providedIn: 'root' }) export class LocalLiveBackend implements LiveBackendPort`.
+- [x] 7. Implement `listLiveTournaments()` as `getAll` mapped through `normalizeLiveTournament` and sorted by `tournamentDate` descending, then `name`.
+- [x] 8. Implement `createLiveTournament(tournamentDate)` with the domain's `createLiveTournament(...)`, assigning `documentVersion: 1` and a `crypto.randomUUID()` id.
+- [x] 9. Implement a private `mutate(id, expectedVersion, change: (document) => LiveTournamentDocument)` that loads the document, throws `new LiveConcurrencyError()` when `document.documentVersion !== expectedVersion`, applies `change`, increments `documentVersion`, persists and returns it.
+- [x] 10. Define `LiveConcurrencyError` so `src/app/data/live-command-ux.ts` classifies it as stale. Read `live-command-ux.ts` first: if it keys on `ApiProblemError.status === 412`, make the local error carry `status = 412` through the same type; if it keys on a message, use that message. Do **not** change `live-command-ux.ts` unless a new branch is genuinely required — and if it is, extend its test file too.
+- [x] 11. Implement every remaining port method on top of `mutate` and the domain functions: settings, players (add/edit/paid/drop/remove), rounds (start/regenerate/cancel/validate), scoring, checkpoint restore.
+- [x] 12. Implement `finalizeLiveTournament(id, expectedVersion)` calling the domain `finalizeLiveTournament(document)` to build the `TournamentDocument`, marking the live document completed, and returning `{ liveTournamentId: id, leagueId: '', finalizedTournamentId: tournament.id, liveDocumentVersion: nextVersion }`.
+- [x] 13. In `src/app/features/live-tournaments/live-tournament-runner.component.ts`, branch the post-finalize behaviour: when `result.leagueId` is empty, save the produced tournament with the existing `saveJsonFile(...)` helper (`src/app/shared/save-json-file.ts`) and show a message instead of navigating to a League. Add the i18n keys `live.localFinalizeTitle` / `live.localFinalizeBody` to BOTH maps.
+- [x] 14. Add a banner on `/live-tournaments` for non-privileged users: `live.localModeNotice` — en `'Your running tournaments are stored in this browser only. They are never sent to the server.'`, fr `'Vos tournois en cours sont stockés uniquement dans ce navigateur. Ils ne sont jamais envoyés au serveur.'` — rendered with `data-cy="live-local-mode-notice"`.
+- [x] 15. Create `src/app/backend/live-backend-selection.test.ts` with Test plan rows 1-5.
+- [x] 16. Create `src/app/backend/local-live-backend.service.test.ts` with Test plan rows 6-14, using `fake-indexeddb` if it is already a dev dependency; if it is not, write the tests against an in-memory `IDBFactory` stub installed on `globalThis.indexedDB` inside the test file, so no new dependency is added.
+- [x] 17. Amend `src/app/backend/server-authority-boundary.test.ts`:
   - replace `it('binds every League and Live port to the API')` with two tests: `resolveBackendMode(serverAuthority) === 'aspnet-api'` for Leagues, and the Live matrix from rows 1-4.
   - add a new test `it('confines IndexedDB to the Live local adapter')` asserting `filesMatching(/indexedDB/)` equals exactly `['src/app/backend/indexed-db.ts', 'src/app/backend/local-live-backend.service.ts']`, with a comment naming ADR 0021.
   - leave the `localStorage` allowlist test untouched.
-- [ ] 18. `docs/adr/0021-role-scoped-browser-live-store.md` is **already written** as part of this plan. Read it before coding — it is the specification for steps 1-14 — and update it only if implementation forces a different decision (say so in the commit body if it does).
-- [ ] 19. Update the `AGENT.md` paragraph "There is exactly one data authority…" to name the Live exception and link ADR 0021.
-- [ ] 20. Update `docs/CONTEXT.md`'s Live Tournament vocabulary entry with the two-authority rule, and add `local Live store` to `docs/GLOSSARY.md`.
-- [ ] 21. Update `cypress/e2e/live-server.cy.js` so its organizer path still passes, and add `cypress/e2e/live-local.cy.js`: **signed out**, create a live tournament, add four players, start a round, score it, reload the page, assert the state survived, and assert with `cy.intercept('/api/live-tournaments/**')` that no request was made.
-- [ ] 22. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 23. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/live-local.cy.js,cypress/e2e/live-server.cy.js`.
-- [ ] 24. Add an `ops/acceptance-matrix.json` row for the local Live capability pointing at `cypress/e2e/live-local.cy.js` and `src/app/backend/local-live-backend.service.test.ts`, then run `npm run acceptance:matrix`.
+- [x] 18. `docs/adr/0021-role-scoped-browser-live-store.md` is **already written** as part of this plan. Read it before coding — it is the specification for steps 1-14 — and update it only if implementation forces a different decision (say so in the commit body if it does).
+- [x] 19. Update the `AGENT.md` paragraph "There is exactly one data authority…" to name the Live exception and link ADR 0021.
+- [x] 20. Update `docs/CONTEXT.md`'s Live Tournament vocabulary entry with the two-authority rule, and add `local Live store` to `docs/GLOSSARY.md`.
+- [x] 21. Update `cypress/e2e/live-server.cy.js` so its organizer path still passes, and add `cypress/e2e/live-local.cy.js`: **signed out**, create a live tournament, add four players, start a round, score it, reload the page, assert the state survived, and assert with `cy.intercept('/api/live-tournaments/**')` that no request was made.
+- [x] 22. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — all four green (490 tests, "All files pass linting", clean tsc, bundle built).
+- [x] 23. Run `npm run dev` then `npm run cy:run -- --spec cypress/e2e/live-local.cy.js,cypress/e2e/live-server.cy.js`. — 5/5 passing against `ng serve` on 127.0.0.1:4200.
+- [x] 24. Add an `ops/acceptance-matrix.json` row for the local Live capability pointing at `cypress/e2e/live-local.cy.js` and `src/app/backend/local-live-backend.service.test.ts`, then run `npm run acceptance:matrix`.
 
 ## Outputs
 
@@ -136,11 +136,11 @@ Run: `npm run test -- local-live-backend live-backend-selection server-authority
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint && npm run typecheck && npm run build` pass
-- [ ] `npm run cy:run -- --spec cypress/e2e/live-local.cy.js,cypress/e2e/live-server.cy.js` passes
-- [ ] `npm run acceptance:matrix` passes
-- [ ] manual check: signed out, run a full four-player Swiss tournament offline (DevTools → Network → Offline) and reload mid-round; state survives
-- [ ] manual check: signed in as an Organizer, the same page still talks to `/api/live-tournaments`
-- [ ] app functional — Leagues, Calendar, auth and admin remain server-authoritative
-- [ ] commit msg draft: `feat(live): give anonymous and plain users an offline browser-local Live store`
+- [x] `npm run test` passes — 75 files, 490 tests.
+- [x] `npm run lint && npm run typecheck && npm run build` pass
+- [x] `npm run cy:run -- --spec cypress/e2e/live-local.cy.js,cypress/e2e/live-server.cy.js` passes — 5/5.
+- [x] `npm run acceptance:matrix` passes — 91/91 non-deferred rows proved.
+- [x] manual check: signed out, run a full four-player Swiss tournament offline (DevTools -> Network -> Offline) and reload mid-round; state survives — automated instead: `cypress/e2e/live-local.cy.js` forces `navigator.onLine === false` before every write, then reloads and asserts the standings survived.
+- [x] manual check: signed in as an Organizer, the same page still talks to `/api/live-tournaments` — `cypress/e2e/live-server.cy.js` organizer lifecycle waits on `@createLive`, `@startRound`, `@validateRound`, `@finalizeLive`.
+- [x] app functional — Leagues, Calendar, auth and admin remain server-authoritative — `league-server.cy.js` (2/2) and `server-data-authority.cy.js` (4/4) still green, and the boundary test still asserts `resolveBackendMode(serverAuthority) === 'aspnet-api'` for Leagues.
+- [x] commit msg draft: `feat(live): give anonymous and plain users an offline browser-local Live store`

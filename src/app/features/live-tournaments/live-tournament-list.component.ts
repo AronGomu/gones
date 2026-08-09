@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
+import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
 import { LeagueRepository } from '../../data/league-repository.service';
 import { canManageLive } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
@@ -26,6 +27,7 @@ import { I18nService } from '../../i18n/i18n.service';
       </div>
     </section>
 
+    @if (localMode) { <p class="muted" role="status" data-cy="live-local-mode-notice">{{ i18n.t('live.localModeNotice') }}</p> }
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (loading()) { <mat-spinner diameter="40" /> }
     @else {
@@ -80,14 +82,19 @@ export class LiveTournamentListComponent {
   readonly tournaments = signal<LiveTournamentDocument[]>([]);
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly runningTournaments = computed(() => this.tournaments().filter((tournament) => tournament.stage !== 'completed'));
-  readonly canManage = computed(() => canManageLive(this.auth.profile()?.globalRole));
+  /** Resolved once, with the port itself (ADR 0021): a role change mid-session needs a reload. */
+  readonly localMode = inject(LIVE_BACKEND_MODE) === 'browser-local';
+  /** In the browser-local store the visitor owns everything they can see, so they always manage it. */
+  readonly canManage = computed(() => this.localMode || canManageLive(this.auth.profile()?.globalRole));
 
   constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueRepository, private readonly router: Router) { void this.load(); }
 
   async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const [tournaments, leagues] = await Promise.all([this.liveRepo.list(), this.leagueRepo.listLeagues()]);
+      // The browser-local store never finalizes into a League, and Leagues are a server read the
+      // anonymous visitor is not entitled to — so local mode does not ask for them at all.
+      const [tournaments, leagues] = await Promise.all([this.liveRepo.list(), this.localMode ? Promise.resolve([]) : this.leagueRepo.listLeagues()]);
       this.tournaments.set(tournaments);
       this.leagues.set(leagues);
       this.error.set('');

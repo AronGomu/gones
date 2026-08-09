@@ -221,8 +221,16 @@ The single place that owns Gones source data. Always **Server Mode**; declared e
 _Avoid_: Backend mode, storage mode, fallback
 
 **Server Mode**:
-The only deployment (`dataMode: server`): the Gones API database owns every piece of source data. The browser keeps only language, view preference, filters and a public read cache.
+The only deployment (`dataMode: server`): the Gones API database owns every piece of source data. The browser keeps only language, view preference, filters and a public read cache — plus the local Live store below.
 _Avoid_: Online mode, hybrid mode
+
+**Live Tournament**:
+A Tournament being run in the app: registration, Swiss pairings, score entry, checkpoints and a finalize step. It is the one capability with two authorities (ADR 0021), chosen once by role at injection time: **Organizer** and **Admin** run it against the API; anonymous visitors and the plain **User** role run it against the local Live store.
+_Avoid_: Running Tournament as a second name, Draft
+
+**Local Live Store**:
+The strictly offline IndexedDB database (`gones-live` / `tournaments`) that holds Live Tournaments for anonymous visitors and the plain **User** role. It never synchronises in either direction, it lives in one browser profile, and finalizing from it produces a JSON download instead of writing a League. Being able to put a Live Tournament on the server is what **Organizer** means.
+_Avoid_: Legacy Browser Mode, offline mode, cache
 
 **Legacy Browser Mode**:
 Retired (ADR 0020). The former static deployment (`dataMode: legacy-browser`) where the browser store owned League, Live Tournament and Calendar Event source data. Its adapter, pages and migration-bundle export are deleted; the value is now refused at build time, at container start and in the browser.

@@ -92,6 +92,10 @@ try {
     if (liveBrowser.status !== 0) process.exitCode = liveBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const liveLocalBrowser = runCypress('cypress/e2e/live-local.cy.js');
+    if (liveLocalBrowser.status !== 0) process.exitCode = liveLocalBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const adminBrowser = runCypress('cypress/e2e/admin-orgs.cy.js');
     if (adminBrowser.status !== 0) process.exitCode = adminBrowser.status ?? 1;
   }
