@@ -4,7 +4,9 @@ import { Observable, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
+import { AuthSessionCoordinationService } from './auth-session-coordination.service';
 import { AuthService } from './auth.service';
+import { installFakeWebLocks, removeWebLocks } from './fake-web-locks';
 import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
@@ -20,14 +22,14 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
     logoutAll: vi.fn(() => of(undefined))
   };
   const catalogSync = { adopt: vi.fn(async () => undefined) };
-  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
+  const injector = Injector.create({ providers: [AuthService, AuthSessionCoordinationService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
   return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client, catalogSync };
 }
 
 describe('AuthService.bootstrap', () => {
   beforeEach(() => {
     localStorage.clear();
-    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+    installFakeWebLocks();
   });
 
   it('restores the session from the refresh cookie before the first route renders', async () => {
@@ -97,5 +99,18 @@ describe('AuthService.bootstrap', () => {
     await service.bootstrap();
 
     expect(client.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails explicitly before refresh when Web Locks are unavailable', async () => {
+    removeWebLocks();
+    const { service, store, client } = setup(() => of(token));
+
+    await expect(service.bootstrap()).rejects.toThrow('authCoordinationUnavailable');
+
+    expect(client.refresh).not.toHaveBeenCalled();
+    expect(store.token).toBeUndefined();
+    expect(service.profile()).toBeNull();
+    expect(service.bootstrapFailed()).toBe(true);
+    expect(service.bootstrapped()).toBe(true);
   });
 });

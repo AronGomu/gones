@@ -986,3 +986,20 @@ schema behavior. Human-only browser checks remain open:
       review/retry warning remains visible rather than generic load-failed copy.
 - [ ] Load cached League and Live detail, restore network, then perform successful edits/creation:
       cached-server warning clears; failed edits leave warning visible.
+
+## T17 auth-cross-tab-final-review-repair
+
+Automated tests cover real interceptor wiring for profile/email 401 refresh replay, exact account-DELETE
+refresh suppression, teardown/establishment ordering, generation-scoped stale-cache rejection,
+no-Web-Locks fail-closed behavior, and exact coordination-storage containment. Human browser/multi-tab
+checks remain open:
+
+- [ ] In two real tabs as user A, delay a private read in tab B, then log out in tab A and let cache
+      deletion finish before releasing B's response: `gones-cache` stays absent and no user-A row is
+      recreated.
+- [ ] In two real tabs, start user B sign-in while user A logout has cache deletion blocked: B shows
+      no profile/catalog/private cache state until deletion completes, then signs in normally.
+- [ ] With an expired access token, update profile and request an email change: each 401 refreshes and
+      replays once without hanging; wrong-password account deletion rejects once without refresh.
+- [ ] In a browser context with Web Locks disabled, login/OAuth/bootstrap/refresh make no auth network
+      request or session publication; logout/clear still remove local auth and purge private cache.

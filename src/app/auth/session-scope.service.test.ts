@@ -3,6 +3,7 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import { UserProfileResponse } from '../api/generated/gones-api';
 import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from '../backend/server-read-cache.service';
+import { AuthSessionCoordinationService } from './auth-session-coordination.service';
 import { AuthService } from './auth.service';
 import { SessionScopeService, isServiceWorkerDataCache } from './session-scope.service';
 
@@ -50,6 +51,7 @@ describe('SessionScopeService', () => {
     const profile = signal<UserProfileResponse | null>({ id: 'user-a' } as UserProfileResponse);
     const injector = Injector.create({ providers: [
       { provide: AuthService, useValue: { profile } as unknown as AuthService },
+      AuthSessionCoordinationService,
       { provide: SessionScopeService, useValue: sessionScope },
       { provide: SERVER_READ_CACHE_STORE_PORT, useValue: store }
     ] });

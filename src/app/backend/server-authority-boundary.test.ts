@@ -114,10 +114,32 @@ describe('canonical browser store containment', () => {
     ]);
   });
 
+  it('permits only exact marker/generation storage operations for auth coordination', () => {
+    const authSource = readFileSync(join(sourceRoot, 'app', 'auth', 'auth.service.ts'), 'utf8');
+    const coordinationSource = readFileSync(join(sourceRoot, 'app', 'auth', 'auth-session-coordination.service.ts'), 'utf8');
+    expect(authSource).not.toMatch(/localStorage\??\.(get|set|remove)Item/);
+    expect(coordinationSource).toContain("const AUTH_PRIVATE_PURGE_REQUIRED_KEY = 'gones.auth.privatePurgeRequired';");
+    expect(coordinationSource).toContain("const AUTH_SESSION_GENERATION_KEY = 'gones.auth.sessionGeneration';");
+
+    const allowed = new Map([
+      ['globalThis.localStorage?.getItem(AUTH_SESSION_GENERATION_KEY)', 2],
+      ['globalThis.localStorage?.getItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 2],
+      ['globalThis.localStorage?.setItem(AUTH_SESSION_GENERATION_KEY, String(nextGeneration))', 1],
+      ["globalThis.localStorage?.setItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY, '1')", 1],
+      ['globalThis.localStorage?.removeItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 1]
+    ]);
+    let unexplained = coordinationSource;
+    for (const [operation, count] of allowed) {
+      expect(coordinationSource.split(operation).length - 1, operation).toBe(count);
+      unexplained = unexplained.split(operation).join('');
+    }
+    expect(unexplained).not.toMatch(/localStorage\??\.(get|set|remove)Item/);
+  });
+
   it('keeps global browser storage access inside the documented browser-only allowlist', () => {
     expect(filesMatching(/localStorage\??\.(get|set|remove)Item/)).toEqual([
-      // Cross-tab private-cache purge-required marker only; never domain or local catalog data.
-      'src/app/auth/auth.service.ts',
+      // Cross-tab marker + generation only; values contain no profile or domain data.
+      'src/app/auth/auth-session-coordination.service.ts',
       // Public read cache (C39) — the 24h full-catalog snapshot, anonymous GET responses only.
       'src/app/features/calendar/all-tournaments-cache.service.ts',
       // Browser view preference.

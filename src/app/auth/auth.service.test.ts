@@ -1,10 +1,12 @@
 import '@angular/compiler';
 import { Injector } from '@angular/core';
-import { BehaviorSubject, firstValueFrom, Observable, of, throwError } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
+import { AuthSessionCoordinationService } from './auth-session-coordination.service';
 import { AuthService } from './auth.service';
+import { installFakeWebLocks, removeWebLocks, SharedFakeWebLocks } from './fake-web-locks';
 import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
@@ -26,7 +28,7 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
   // it runs once the session exists.
   let profileWhenAdopted: UserProfileResponse | null | undefined;
   const catalogSync = { adopt: vi.fn(async (_expectedProfileId: string, _isCurrentSession: () => boolean) => { profileWhenAdopted = service.profile(); }) };
-  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
+  const injector = Injector.create({ providers: [AuthService, AuthSessionCoordinationService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
   const service = injector.get(AuthService);
   return { service, store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client, catalogSync, profileWhenAdopted: () => profileWhenAdopted };
 }
@@ -34,7 +36,7 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
 describe('AuthService', () => {
   beforeEach(() => {
     localStorage.clear();
-    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+    installFakeWebLocks();
   });
 
   it('keeps access token in memory only', async () => {
@@ -120,17 +122,7 @@ describe('AuthService', () => {
   });
 
   it('serializes a later tab login behind unresolved teardown purge', async () => {
-    let lockTail: Promise<void> = Promise.resolve();
-    Object.defineProperty(navigator, 'locks', {
-      configurable: true,
-      value: {
-        request: <T>(_name: string, callback: () => Promise<T>) => {
-          const pending = lockTail.then(callback, callback);
-          lockTail = pending.then(() => undefined, () => undefined);
-          return pending;
-        }
-      }
-    });
+    installFakeWebLocks(new SharedFakeWebLocks());
     const firstTab = setup(() => of(token));
     const secondTab = setup(() => of(token));
     secondTab.client.meGET.mockReturnValue(of(profileB));
@@ -157,6 +149,85 @@ describe('AuthService', () => {
     expect(secondTab.service.profile()?.id).toBe('u2');
     expect(secondTab.client.login).toHaveBeenCalledTimes(1);
     expect([...rows.entries()]).toEqual([['u2', 'private']]);
+  });
+
+  it('rejects an establishment invalidated by a later teardown without restoring auth', async () => {
+    const loginResult = new Subject<AccessTokenResponse>();
+    const first = setup(() => of(token));
+    first.client.login.mockReturnValue(loginResult);
+    const pendingLogin = first.service.login({ email: 'a@example.test', password: 'password', deviceLabel: undefined });
+    await vi.waitFor(() => expect(first.client.login).toHaveBeenCalledTimes(1));
+
+    await first.service.clear();
+    loginResult.next(token);
+    loginResult.complete();
+
+    await expect(pendingLogin).rejects.toThrow('authSessionTransitionSuperseded');
+    expect(first.store.token).toBeUndefined();
+    expect(first.service.profile()).toBeNull();
+    expect(first.client.meGET).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before login, OAuth, or refresh network calls without Web Locks', async () => {
+    removeWebLocks();
+    const { service, store, client } = setup(() => of(token));
+    store.set('stale');
+
+    await expect(service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined })).rejects.toThrow('authCoordinationUnavailable');
+    await expect(service.completeOAuth({ completionTicket: 'ticket', email: 'u@example.test', username: 'user', firstName: 'U', lastName: 'Ser', deviceLabel: undefined })).rejects.toThrow('authCoordinationUnavailable');
+    await expect(service.verifyOAuthEmail('verification-token')).rejects.toThrow('authCoordinationUnavailable');
+    await expect(firstValueFrom(service.refreshAccessToken())).rejects.toThrow('authCoordinationUnavailable');
+
+    expect(client.login).not.toHaveBeenCalled();
+    expect(client.complete).not.toHaveBeenCalled();
+    expect(client.verifyEmail2).not.toHaveBeenCalled();
+    expect(client.refresh).not.toHaveBeenCalled();
+    expect(store.token).toBeUndefined();
+    expect(service.profile()).toBeNull();
+  });
+
+  it('clear still invalidates and awaits local purge without Web Locks', async () => {
+    removeWebLocks();
+    const { service, store, sessionScope } = setup(() => of(token));
+    service.profile.set(profile);
+    store.set('memory-token');
+    let release!: () => void;
+    sessionScope.register(() => new Promise<void>((resolve) => { release = resolve; }));
+
+    let settled = false;
+    const pending = service.clear().then(() => { settled = true; });
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    expect(service.profile()).toBeNull();
+    expect(store.token).toBeUndefined();
+    expect(settled).toBe(false);
+    expect(localStorage.getItem('gones.auth.privatePurgeRequired')).toBe('1');
+    expect(Number(localStorage.getItem('gones.auth.sessionGeneration'))).toBeGreaterThan(0);
+
+    release();
+    await pending;
+    expect(settled).toBe(true);
+  });
+
+  it('clears and purges locally without Web Locks while preserving logout server error', async () => {
+    removeWebLocks();
+    const logoutError = new Error('logout failed');
+    const { service, store, sessionScope, client } = setup(() => of(token));
+    service.profile.set(profile);
+    store.set('memory-token');
+    client.logout.mockReturnValue(throwError(() => logoutError));
+    let release!: () => void;
+    sessionScope.register(() => new Promise<void>((resolve) => { release = resolve; }));
+
+    const pending = service.logout();
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    expect(service.profile()).toBeNull();
+    expect(store.token).toBeUndefined();
+    expect(localStorage.getItem('gones.auth.privatePurgeRequired')).toBe('1');
+    expect(Number(localStorage.getItem('gones.auth.sessionGeneration'))).toBeGreaterThan(0);
+
+    release();
+    await expect(pending).rejects.toBe(logoutError);
+    expect(localStorage.getItem('gones.auth.privatePurgeRequired')).toBeNull();
   });
 
   it('preserves refresh error when private purge also fails', async () => {

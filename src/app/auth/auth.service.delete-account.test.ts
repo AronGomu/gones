@@ -1,10 +1,12 @@
 import '@angular/compiler';
 import { Injector } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
+import { AuthSessionCoordinationService } from './auth-session-coordination.service';
 import { AuthService } from './auth.service';
+import { installFakeWebLocks, SharedFakeWebLocks } from './fake-web-locks';
 import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
@@ -15,19 +17,20 @@ function setup(meDELETE: () => Observable<void>) {
   const client = {
     refresh: vi.fn(() => of(token)),
     meGET: vi.fn(() => of(profile)),
+    mePATCH: vi.fn(() => of(profile)),
     login: vi.fn(() => of(token)),
     logout: vi.fn(() => of(undefined)),
     logoutAll: vi.fn(() => of(undefined)),
     meDELETE: vi.fn(meDELETE)
   };
-  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: { adopt: vi.fn(async () => undefined) } }] });
+  const injector = Injector.create({ providers: [AuthService, AuthSessionCoordinationService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: { adopt: vi.fn(async () => undefined) } }] });
   return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client };
 }
 
 describe('AuthService.deleteAccount', () => {
   beforeEach(() => {
     localStorage.clear();
-    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+    installFakeWebLocks();
   });
 
   it('sends the confirmation password once and drops the local session', async () => {
@@ -47,6 +50,7 @@ describe('AuthService.deleteAccount', () => {
   });
 
   it('reports successful server deletion despite purge failure and makes the next tab retry purge before login', async () => {
+    installFakeWebLocks(new SharedFakeWebLocks());
     const firstTab = setup(() => of(undefined as unknown as void));
     firstTab.sessionScope.register(() => Promise.reject(new Error('purge failed')));
     await firstTab.service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
@@ -72,8 +76,31 @@ describe('AuthService.deleteAccount', () => {
     logged.mockRestore();
   });
 
+  it('blocks a later tab establishment behind successful deletion purge', async () => {
+    installFakeWebLocks(new SharedFakeWebLocks());
+    const firstTab = setup(() => of(undefined as unknown as void));
+    const secondTab = setup(() => of(undefined as unknown as void));
+    await firstTab.service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+    let release!: () => void;
+    firstTab.sessionScope.register(() => new Promise<void>((resolve) => { release = resolve; }));
+
+    const deletion = firstTab.service.deleteAccount('valid-password-value');
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    const establishment = secondTab.service.login({ email: 'next@example.test', password: 'password', deviceLabel: undefined });
+    await Promise.resolve();
+
+    expect(secondTab.client.login).not.toHaveBeenCalled();
+    expect(secondTab.service.profile()).toBeNull();
+    release();
+    await Promise.all([deletion, establishment]);
+    expect(secondTab.client.login).toHaveBeenCalledTimes(1);
+    expect(secondTab.service.profile()).not.toBeNull();
+  });
+
   it('keeps the session when the server rejects the password', async () => {
-    const { service, store, client } = setup(() => throwError(() => new Error('Bad Request')));
+    const { service, store, sessionScope, client } = setup(() => throwError(() => new Error('Bad Request')));
+    const reset = vi.fn();
+    sessionScope.register(reset);
     await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
 
     await expect(service.deleteAccount('wrong')).rejects.toThrow('Bad Request');
@@ -81,5 +108,30 @@ describe('AuthService.deleteAccount', () => {
     expect(client.meDELETE).toHaveBeenCalledTimes(1);
     expect(service.profile()).not.toBeNull();
     expect(store.token).toBe('memory-token');
+    expect(reset).not.toHaveBeenCalled();
+    expect(localStorage.getItem('gones.auth.sessionGeneration')).toBeNull();
+    expect(localStorage.getItem('gones.auth.privatePurgeRequired')).toBeNull();
+  });
+
+  it('failed deletion does not supersede an earlier in-flight profile update', async () => {
+    const { service, store, sessionScope, client } = setup(() => throwError(() => new Error('Bad Request')));
+    const updated = { ...profile, firstName: 'Updated' } as UserProfileResponse;
+    const updateResult = new Subject<UserProfileResponse>();
+    client.mePATCH.mockReturnValue(updateResult);
+    const reset = vi.fn();
+    sessionScope.register(reset);
+    await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+
+    const update = service.updateProfile({ firstName: 'Updated' } as Parameters<AuthService['updateProfile']>[0]);
+    await expect(service.deleteAccount('wrong')).rejects.toThrow('Bad Request');
+    updateResult.next(updated);
+    updateResult.complete();
+    await expect(update).resolves.toEqual(updated);
+
+    expect(service.profile()?.firstName).toBe('Updated');
+    expect(store.token).toBe('memory-token');
+    expect(reset).not.toHaveBeenCalled();
+    expect(localStorage.getItem('gones.auth.sessionGeneration')).toBeNull();
+    expect(localStorage.getItem('gones.auth.privatePurgeRequired')).toBeNull();
   });
 });

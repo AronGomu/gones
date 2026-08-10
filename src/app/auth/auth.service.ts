@@ -17,65 +17,51 @@ import {
   UserProfileResponse
 } from '../api/generated/gones-api';
 import { logBoundaryError } from '../shared/app-logger';
+import { AuthCoordinationUnavailableError, AuthSessionCoordinationService } from './auth-session-coordination.service';
 import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
-
-const AUTH_SESSION_TRANSITION_LOCK = 'gones.auth.session-transition';
-const AUTH_PRIVATE_PURGE_REQUIRED_KEY = 'gones.auth.privatePurgeRequired';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly client = inject(Client);
   private readonly tokens = inject(ApiAccessTokenStore);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly coordination = inject(AuthSessionCoordinationService);
   private readonly catalogSync = inject(SessionCatalogSyncService);
   private refreshFlight?: Observable<void>;
-  private transitionTail: Promise<void> = Promise.resolve();
-  private transitionCounter = 0;
-  private latestTeardownTransition = 0;
-  private purgeRequired = false;
+  private profileEstablishment?: object;
 
   readonly enabled = dataAuthority().authV1;
   readonly profile = signal<UserProfileResponse | null>(null);
   readonly bootstrapped = signal(!this.enabled);
-  /**
-   * Startup refresh was attempted and rejected. Distinguishes "session expired" from "never signed
-   * in": both leave `profile()` null, but only the former should be reported to the user.
-   */
+  /** Startup refresh failed. Distinguishes an expired session from a visitor who never signed in. */
   readonly bootstrapFailed = signal(false);
 
   async bootstrap(): Promise<void> {
     if (!this.enabled || this.bootstrapped()) return;
-    await this.runTransition(async (transitionId) => {
-      try {
-        await this.ensurePurgeCompleteUnlocked();
-        const response = await firstValueFrom(this.client.refresh());
-        this.publishTokenUnlocked(response, transitionId);
-        const profile = await this.loadProfileUnlocked(transitionId);
-        await this.adoptCatalogUnlocked(profile, transitionId);
-        this.assertCurrentTransition(transitionId);
-      } catch {
-        this.markTeardown(transitionId);
-        this.bootstrapFailed.set(true);
-        await this.clearIgnoringPurgeFailureUnlocked();
-      } finally {
-        this.bootstrapped.set(true);
+    let generation: number | undefined;
+    let profileEstablishmentStarted = false;
+    const profileEstablishment = this.profileEstablishment ?? null;
+    try {
+      generation = await this.prepareEstablishment();
+      const response = await firstValueFrom(this.client.refresh());
+      profileEstablishmentStarted = true;
+      await this.establishProfile(response, generation);
+    } catch (error) {
+      this.bootstrapFailed.set(true);
+      if (error instanceof AuthCoordinationUnavailableError) {
+        await this.invalidateAndPurgeIgnoringFailure();
+        throw error;
       }
-    });
+      if (generation !== undefined && !profileEstablishmentStarted) await this.clearFailedEstablishment(generation, profileEstablishment);
+    } finally {
+      this.bootstrapped.set(true);
+    }
   }
 
   refreshAccessToken(): Observable<void> {
     if (this.refreshFlight) return this.refreshFlight;
-    this.refreshFlight = defer(() => from(this.runTransition(async (transitionId) => {
-      await this.ensurePurgeCompleteUnlocked();
-      try {
-        const response = await firstValueFrom(this.client.refresh());
-        this.publishTokenUnlocked(response, transitionId);
-      } catch (error) {
-        this.markTeardown(transitionId);
-        await this.clearPreservingPrimaryErrorUnlocked(error);
-      }
-    }))).pipe(
+    this.refreshFlight = defer(() => from(this.refreshAccessTokenOnce())).pipe(
       map(() => undefined),
       finalize(() => { this.refreshFlight = undefined; }),
       shareReplay({ bufferSize: 1, refCount: false })
@@ -83,95 +69,85 @@ export class AuthService {
     return this.refreshFlight;
   }
 
-  /**
-   * The session exists the moment the profile lands, and from then on the server catalog is the
-   * authority (ADR 0031/0032): `adopt()` replaces this browser's deck-archetype list. It never
-   * throws and never uploads, so signing in offline changes nothing.
-   */
-  login(request: LoginRequest): Promise<UserProfileResponse> {
-    return this.runTransition(async (transitionId) => {
-      await this.ensurePurgeCompleteUnlocked();
-      this.publishTokenUnlocked(await firstValueFrom(this.client.login(request)), transitionId);
-      const profile = await this.loadProfileUnlocked(transitionId);
-      await this.adoptCatalogUnlocked(profile, transitionId);
-      this.assertCurrentTransition(transitionId);
-      return profile;
-    });
+  /** Server catalog replaces browser catalog after profile publication. It never uploads. */
+  async login(request: LoginRequest): Promise<UserProfileResponse> {
+    const generation = await this.prepareEstablishmentOrFailClosed();
+    const response = await firstValueFrom(this.client.login(request));
+    return await this.establishProfile(response, generation);
   }
 
   register(request: RegisterRequest): Promise<UserProfileResponse> {
     return firstValueFrom(this.client.register(request));
   }
 
-  completeOAuth(request: CompleteOAuthRequest): Promise<OAuthFlowResponse> {
-    return this.runTransition(async (transitionId) => {
-      await this.ensurePurgeCompleteUnlocked();
-      const response = await firstValueFrom(this.client.complete(request));
-      if (response.accessToken) {
-        this.publishTokenUnlocked({ accessToken: response.accessToken, expiresAt: response.expiresAt!, tokenType: response.tokenType ?? 'Bearer' }, transitionId);
-        const profile = await this.loadProfileUnlocked(transitionId);
-        await this.adoptCatalogUnlocked(profile, transitionId);
-        this.assertCurrentTransition(transitionId);
-      }
-      return response;
-    });
+  async completeOAuth(request: CompleteOAuthRequest): Promise<OAuthFlowResponse> {
+    const generation = await this.prepareEstablishmentOrFailClosed();
+    const response = await firstValueFrom(this.client.complete(request));
+    if (response.accessToken) {
+      await this.establishProfile({
+        accessToken: response.accessToken,
+        expiresAt: response.expiresAt!,
+        tokenType: response.tokenType ?? 'Bearer'
+      }, generation);
+    }
+    return response;
   }
 
-  verifyOAuthEmail(token: string, deviceLabel?: string): Promise<void> {
-    return this.runTransition(async (transitionId) => {
-      await this.ensurePurgeCompleteUnlocked();
-      const response = await firstValueFrom(this.client.verifyEmail2({ token, deviceLabel }));
-      if (!response.accessToken) throw new Error('OAuth verification did not return an access token.');
-      this.publishTokenUnlocked({ accessToken: response.accessToken, expiresAt: response.expiresAt!, tokenType: response.tokenType ?? 'Bearer' }, transitionId);
-      const profile = await this.loadProfileUnlocked(transitionId);
-      await this.adoptCatalogUnlocked(profile, transitionId);
-      this.assertCurrentTransition(transitionId);
-    });
+  async verifyOAuthEmail(token: string, deviceLabel?: string): Promise<void> {
+    const generation = await this.prepareEstablishmentOrFailClosed();
+    const response = await firstValueFrom(this.client.verifyEmail2({ token, deviceLabel }));
+    if (!response.accessToken) throw new Error('OAuth verification did not return an access token.');
+    await this.establishProfile({
+      accessToken: response.accessToken,
+      expiresAt: response.expiresAt!,
+      tokenType: response.tokenType ?? 'Bearer'
+    }, generation);
   }
 
   logout(all = false): Promise<void> {
-    return this.runTeardownTransition(async () => {
+    const server = firstValueFrom(all ? this.client.logoutAll() : this.client.logout());
+    return this.runTeardown(async () => {
       let serverError: unknown;
       let serverFailed = false;
+      server.catch((error: unknown) => { serverError = error; serverFailed = true; });
+      await this.invalidateAndPurgeIgnoringFailure();
       try {
-        await firstValueFrom(all ? this.client.logoutAll() : this.client.logout());
+        await server;
       } catch (error) {
         serverError = error;
         serverFailed = true;
       }
-      await this.clearIgnoringPurgeFailureUnlocked();
       if (serverFailed) throw serverError;
     });
   }
 
-  /**
-   * Hard, irreversible account deletion. The server drops the account and clears the refresh cookie,
-   * so the local session is dropped too — there is nothing left to refresh into.
-   */
+  /** DELETE stays inside auth lock; interceptor explicitly marks this exact req non-refreshable. */
   deleteAccount(currentPassword: string): Promise<void> {
-    return this.runTeardownTransition(async () => {
+    return this.runTeardown(async () => {
       await firstValueFrom(this.client.meDELETE({ currentPassword }));
-      await this.clearIgnoringPurgeFailureUnlocked();
+      await this.invalidateAndPurgeIgnoringFailure();
     });
   }
 
   clear(): Promise<void> {
-    return this.runTeardownTransition(() => this.clearUnlocked());
+    return this.runTeardown(() => this.invalidateAndPurge());
   }
 
-  updateProfile(request: PatchUserProfileRequest): Promise<UserProfileResponse> {
-    return this.runTransition(async (transitionId) => {
-      const profile = await firstValueFrom(this.client.mePATCH(request));
-      this.assertCurrentTransition(transitionId);
+  async updateProfile(request: PatchUserProfileRequest): Promise<UserProfileResponse> {
+    const guard = this.captureCurrentSession();
+    const profile = await firstValueFrom(this.client.mePATCH(request));
+    await this.coordination.withLock(() => {
+      this.assertCurrentSession(guard.generation, guard.profile);
       this.profile.set(profile);
-      return profile;
     });
+    return profile;
   }
 
-  requestEmailChange(request: EmailChangeRequest): Promise<void> {
-    return this.runTransition(async (transitionId) => {
-      await firstValueFrom(this.client.emailChange(request));
-      this.assertCurrentTransition(transitionId);
+  async requestEmailChange(request: EmailChangeRequest): Promise<void> {
+    const guard = this.captureCurrentSession();
+    await firstValueFrom(this.client.emailChange(request));
+    await this.coordination.withLock(() => {
+      this.assertCurrentSession(guard.generation, guard.profile);
       this.profile.update(profile => profile ? { ...profile, emailVerified: false } : null);
     });
   }
@@ -188,107 +164,132 @@ export class AuthService {
     return firstValueFrom(this.client.externalIdentities(provider));
   }
 
-  private runTransition<T>(action: (transitionId: number) => Promise<T>): Promise<T> {
-    const transitionId = ++this.transitionCounter;
-    return this.enqueueTransition(transitionId, action);
-  }
-
-  private runTeardownTransition<T>(action: (transitionId: number) => Promise<T>): Promise<T> {
-    const transitionId = ++this.transitionCounter;
-    this.markTeardown(transitionId);
-    return this.enqueueTransition(transitionId, action);
-  }
-
-  private async enqueueTransition<T>(transitionId: number, action: (transitionId: number) => Promise<T>): Promise<T> {
-    const locks = globalThis.navigator?.locks;
-    if (locks) return await locks.request(AUTH_SESSION_TRANSITION_LOCK, () => action(transitionId));
-    const pending = this.transitionTail.then(() => action(transitionId), () => action(transitionId));
-    this.transitionTail = pending.then(() => undefined, () => undefined);
-    return pending;
-  }
-
-  private markTeardown(transitionId: number): void {
-    this.latestTeardownTransition = Math.max(this.latestTeardownTransition, transitionId);
-  }
-
-  private assertCurrentTransition(transitionId: number): void {
-    if (this.latestTeardownTransition <= transitionId) return;
-    this.tokens.clear();
-    this.profile.set(null);
-    throw new Error('authSessionTransitionSuperseded');
-  }
-
-  private publishTokenUnlocked(response: AccessTokenResponse, transitionId: number): void {
-    this.assertCurrentTransition(transitionId);
-    this.tokens.set(response.accessToken);
-  }
-
-  private async loadProfileUnlocked(transitionId: number): Promise<UserProfileResponse> {
-    const profile = await firstValueFrom(this.client.meGET());
-    this.assertCurrentTransition(transitionId);
-    this.profile.set(profile);
-    return profile;
-  }
-
-  private adoptCatalogUnlocked(profile: UserProfileResponse, transitionId: number): Promise<void> {
-    return this.catalogSync.adopt(profile.id, () => this.profile() === profile && this.latestTeardownTransition <= transitionId);
-  }
-
-  private async clearUnlocked(): Promise<void> {
-    this.tokens.clear();
-    this.profile.set(null);
-    this.markPurgeRequired();
-    await this.ensurePurgeCompleteUnlocked();
-  }
-
-  private async ensurePurgeCompleteUnlocked(): Promise<void> {
-    if (!this.purgeRequired && !this.isPurgeRequiredInBrowser()) return;
+  private async refreshAccessTokenOnce(): Promise<void> {
+    const profileEstablishment = this.profileEstablishment ?? null;
+    const generation = await this.prepareEstablishmentOrFailClosed();
     try {
-      await this.sessionScope.clear();
-      this.purgeRequired = false;
-      this.clearBrowserPurgeMarker();
+      const response = await firstValueFrom(this.client.refresh());
+      await this.coordination.withLock(() => this.publishToken(response, generation));
     } catch (error) {
-      this.markPurgeRequired();
-      logBoundaryError('auth.session-purge', error);
+      await this.clearFailedEstablishment(generation, profileEstablishment);
       throw error;
     }
   }
 
-  private markPurgeRequired(): void {
-    this.purgeRequired = true;
+  private async prepareEstablishmentOrFailClosed(): Promise<number> {
     try {
-      globalThis.localStorage?.setItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY, '1');
-    } catch {
-      // In-memory flag still blocks this tab; unavailable storage cannot coordinate other tabs.
+      return await this.prepareEstablishment();
+    } catch (error) {
+      if (error instanceof AuthCoordinationUnavailableError) await this.invalidateAndPurgeIgnoringFailure();
+      throw error;
     }
   }
 
-  private isPurgeRequiredInBrowser(): boolean {
+  private async prepareEstablishment(): Promise<number> {
+    this.coordination.requireAvailable();
+    return await this.coordination.withLock(async () => {
+      await this.ensurePurgeComplete();
+      return this.coordination.generation();
+    });
+  }
+
+  private async establishProfile(response: AccessTokenResponse, generation: number): Promise<UserProfileResponse> {
+    const establishment = {};
+    this.profileEstablishment = establishment;
     try {
-      return globalThis.localStorage?.getItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY) === '1';
-    } catch {
-      return false;
+      await this.coordination.withLock(() => {
+        this.assertProfileEstablishment(establishment);
+        this.publishToken(response, generation);
+      });
+      const profile = await firstValueFrom(this.client.meGET());
+      await this.coordination.withLock(() => {
+        this.assertProfileEstablishment(establishment);
+        this.assertGeneration(generation);
+        this.profile.set(profile);
+      });
+      await this.catalogSync.adopt(profile.id, () => this.isPublishedSessionCurrent(profile, generation, establishment));
+      await this.coordination.withLock(() => {
+        this.assertProfileEstablishment(establishment);
+        this.assertCurrentSession(generation, profile);
+      });
+      if (this.profileEstablishment === establishment) this.profileEstablishment = undefined;
+      return profile;
+    } catch (error) {
+      if (this.profileEstablishment === establishment) {
+        await this.clearFailedEstablishment(generation, establishment);
+        if (this.profileEstablishment === establishment) this.profileEstablishment = undefined;
+      }
+      throw error;
     }
   }
 
-  private clearBrowserPurgeMarker(): void {
-    try {
-      globalThis.localStorage?.removeItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY);
-    } catch {
-      // Successful purge makes a stale safety marker harmless; a later session may purge once more.
+  private captureCurrentSession(): { generation: number; profile: UserProfileResponse } {
+    this.coordination.requireAvailable();
+    const profile = this.profile();
+    if (!profile || this.coordination.isPurgeRequired()) throw new Error('authSessionTransitionSuperseded');
+    return { generation: this.coordination.generation(), profile };
+  }
+
+  private assertCurrentSession(generation: number, profile: UserProfileResponse): void {
+    this.assertGeneration(generation);
+    if (this.profile() !== profile) throw new Error('authSessionTransitionSuperseded');
+  }
+
+  private assertGeneration(generation: number): void {
+    if (this.coordination.isPurgeRequired() || this.coordination.generation() !== generation) {
+      throw new Error('authSessionTransitionSuperseded');
     }
   }
 
-  private async clearIgnoringPurgeFailureUnlocked(): Promise<void> {
+  private publishToken(response: AccessTokenResponse, generation: number): void {
+    this.assertGeneration(generation);
+    this.tokens.set(response.accessToken);
+  }
+
+  private assertProfileEstablishment(establishment: object): void {
+    if (this.profileEstablishment !== establishment) throw new Error('authSessionTransitionSuperseded');
+  }
+
+  private isPublishedSessionCurrent(profile: UserProfileResponse, generation: number, establishment: object): boolean {
+    return this.profileEstablishment === establishment && this.profile() === profile && !this.coordination.isPurgeRequired() && this.coordination.generation() === generation;
+  }
+
+  private async clearFailedEstablishment(generation: number, establishment?: object | null): Promise<void> {
+    await this.coordination.withLock(async () => {
+      if (this.coordination.generation() !== generation) return;
+      if (establishment !== undefined && this.profileEstablishment !== (establishment ?? undefined)) return;
+      await this.invalidateAndPurgeIgnoringFailure();
+    });
+  }
+
+  private runTeardown<T>(action: () => Promise<T>): Promise<T> {
+    const locks = globalThis.navigator?.locks;
+    return locks ? this.coordination.withLock(action) : action();
+  }
+
+  private async invalidateAndPurge(): Promise<void> {
+    this.tokens.clear();
+    this.profile.set(null);
+    this.coordination.invalidateSession();
+    await this.ensurePurgeComplete();
+  }
+
+  private async invalidateAndPurgeIgnoringFailure(): Promise<void> {
     try {
-      await this.clearUnlocked();
+      await this.invalidateAndPurge();
     } catch {
-      // Secondary purge failure is logged by `ensurePurgeCompleteUnlocked`; next establishment retries.
+      // Secondary purge failure was logged; marker stays set for next coordinated establishment.
     }
   }
 
-  private async clearPreservingPrimaryErrorUnlocked(error: unknown): Promise<never> {
-    await this.clearIgnoringPurgeFailureUnlocked();
-    throw error;
+  private async ensurePurgeComplete(): Promise<void> {
+    if (!this.coordination.isPurgeRequired()) return;
+    try {
+      await this.sessionScope.clear();
+      this.coordination.markPurgeComplete();
+    } catch (error) {
+      logBoundaryError('auth.session-purge', error);
+      throw error;
+    }
   }
 }

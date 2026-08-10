@@ -1,4 +1,5 @@
 import { inject, Injectable, InjectionToken } from '@angular/core';
+import { AuthCacheScope, AuthSessionCoordinationService } from '../auth/auth-session-coordination.service';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { logBoundaryError } from '../shared/app-logger';
@@ -42,6 +43,7 @@ export const SERVER_READ_CACHE_STORE_PORT = new InjectionToken<ServerReadCacheSt
 @Injectable({ providedIn: 'root' })
 export class ServerReadCacheService {
   private readonly auth = inject(AuthService);
+  private readonly coordination = inject(AuthSessionCoordinationService, { optional: true }) ?? new AuthSessionCoordinationService();
   private readonly store = inject(SERVER_READ_CACHE_STORE_PORT);
 
   constructor() {
@@ -59,18 +61,19 @@ export class ServerReadCacheService {
    * read cannot outlive the purge that logout triggers.
    */
   async read<T>(resource: string, load: () => Promise<T>): Promise<ServerReadResult<T>> {
-    const key = this.key(resource);
-    if (!key) return { value: await load(), stale: false };
+    const scope = this.coordination.captureCacheScope(this.auth.profile()?.id);
+    if (!scope) return { value: await load(), stale: false };
+    const key = this.key(scope, resource);
     let value: T;
     try {
       value = await load();
     } catch (error) {
-      if (this.key(resource) !== key) throw error;
+      if (!this.isCurrent(scope)) throw error;
       const row = await this.cached(key);
-      if (this.key(resource) !== key || !row) throw error;
+      if (!this.isCurrent(scope) || !row) throw error;
       return { value: row.value as T, stale: true, cachedAt: row.cachedAt };
     }
-    if (this.key(resource) === key) await this.remember(key, value);
+    if (this.isCurrent(scope)) await this.remember(scope, key, value);
     return { value, stale: false };
   }
 
@@ -84,10 +87,12 @@ export class ServerReadCacheService {
     }
   }
 
-  /** No signed-in user, no cache: anonymous data has its own stores and no identity to scope to. */
-  private key(resource: string): string | null {
-    const userId = this.auth.profile()?.id;
-    return userId ? `${userId}:${resource}` : null;
+  private key(scope: AuthCacheScope, resource: string): string {
+    return `${scope.profileId}:${resource}`;
+  }
+
+  private isCurrent(scope: AuthCacheScope): boolean {
+    return this.coordination.isCacheScopeCurrent(scope, this.auth.profile()?.id);
   }
 
   /** A broken cache is a miss, never a second failure reported over the real one. */
@@ -100,9 +105,15 @@ export class ServerReadCacheService {
   }
 
   /** A broken cache must never break a working server read, so the write failure stops here. */
-  private async remember(key: string, value: unknown): Promise<void> {
+  private async remember(scope: AuthCacheScope, key: string, value: unknown): Promise<void> {
     try {
-      await this.store.write(key, { value, cachedAt: new Date().toISOString() });
+      const write = async () => {
+        if (!this.isCurrent(scope)) return;
+        await this.store.write(key, { value, cachedAt: new Date().toISOString() });
+        if (!this.isCurrent(scope)) await this.store.clear();
+      };
+      if (globalThis.navigator?.locks) await this.coordination.withLock(write);
+      else await write();
     } catch (error) {
       logBoundaryError('server-read-cache.write', error);
     }

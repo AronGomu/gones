@@ -6,13 +6,23 @@ import { AuthService } from './auth.service';
 
 const AUTH_REPLAYED = new HttpContextToken<boolean>(() => false);
 
+function isExactAccountDelete(method: string, url: string): boolean {
+  if (method !== 'DELETE') return false;
+  try {
+    const parsed = new URL(url, 'https://gones.invalid');
+    return parsed.pathname === '/api/users/me' && !parsed.search && !parsed.hash;
+  } catch {
+    return false;
+  }
+}
+
 export const authSessionInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthService);
   const tokens = inject(ApiAccessTokenStore);
   return next(request).pipe(catchError((error: unknown) => {
     const status = error instanceof HttpErrorResponse || error instanceof ApiProblemError ? error.status : undefined;
     const isAuthEndpoint = /\/api\/auth\//.test(request.url);
-    if (status !== 401 || isAuthEndpoint || request.context.get(AUTH_REPLAYED) || !tokens.token) {
+    if (status !== 401 || isAuthEndpoint || isExactAccountDelete(request.method, request.url) || request.context.get(AUTH_REPLAYED) || !tokens.token) {
       return throwError(() => error);
     }
     return auth.refreshAccessToken().pipe(
