@@ -154,22 +154,31 @@ Cypress, appended to `cypress/e2e/league-local.cy.js`, signed out with every `**
 
 ## Impl steps
 
-- [ ] 1. In `src/app/app.component.ts`, delete the `@if (canManageLeagueData()) { … }` wrapper around the import button and its file input in the `showHeaderImport()` branch, leaving both unconditional. Remove the T14 comment that said this ticket would relax it.
-- [ ] 2. In the same file, replace `isPlaceholderLeague(league)` with a call to `isAnyPlaceholderLeagueId(league.id)` and import that helper from `./data/league-archive-origin`. It has two call sites: the delete-league menu item's `[disabled]` binding and `downloadFullExport`'s filter.
-- [ ] 3. Rewrite the export:
+- [x] 1. In `src/app/app.component.ts`, delete the `@if (canManageLeagueData()) { … }` wrapper around the import button and its file input in the `showHeaderImport()` branch, leaving both unconditional. Remove the T14 comment that said this ticket would relax it.
+      *Done: wrapper, the T14 comment, the now-unused `canManageLeagueData` computed and its `canManageLeagues` import are gone; `openImportPicker()` no longer role-gates either. Proved by `the import button is always offered` in `src/app/app.component.export.test.ts`.*
+- [x] 2. In the same file, replace `isPlaceholderLeague(league)` with a call to `isAnyPlaceholderLeagueId(league.id)` and import that helper from `./data/league-archive-origin`. It has two call sites: the delete-league menu item's `[disabled]` binding and `downloadFullExport`'s filter.
+      *T14 already landed both call sites; verified in the shipped source and pinned by the two placeholder cases in `app.component.export.test.ts` (reverting the filter to the single server id fails them).*
+- [x] 3. Rewrite the export:
       ```ts
       async downloadFullExport(): Promise<void> {
         const leagues = (await this.repo.listLeagues()).filter((league) => !isAnyPlaceholderLeagueId(league.id));
         saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: [] })), 'gones-full-data.gones.json');
       }
       ```
-- [ ] 4. Open `src/app/data/league-archive-repository.service.ts` and confirm `restoreLeague` and `restoreFullLeagueData` route through the role-chosen write port, not the server port. If they still call the server directly, change both to `this.writePort()`.
-- [ ] 5. Confirm `deleteLeague(id)` — used by `LeagueArchiveImportService.rollbackImportedLeagues` — routes by `isLocalLeagueId(id)`. After T14 it should; assert it in the test rather than assuming.
-- [ ] 6. Create `src/app/app.component.export.test.ts`. Stub `saveJsonFile` with `vi.mock('./shared/save-json-file', …)`, build `AppComponent` through `runInInjectionContext` with a bare `Injector` and fakes for `LeagueArchiveRepository`, `AuthService`, `Router`, `MatDialog`, `LiveTournamentRepository` and `DeckArchetypeSettingsService` — follow the fake-construction pattern in `src/app/features/calendar/public-calendar.component.test.ts`. Write the six export cases.
+      *Already this exact shape after T14; kept, with its ADR 0028 comment. Proved by the six export cases.*
+- [x] 4. Open `src/app/data/league-archive-repository.service.ts` and confirm `restoreLeague` and `restoreFullLeagueData` route through the role-chosen write port, not the server port. If they still call the server directly, change both to `this.writePort()`.
+      *They still called `this.server`; both now use `this.writePort()`. Red proof: restoring `this.server` fails 4 cases in `league-archive-import.service.test.ts`.*
+- [x] 5. Confirm `deleteLeague(id)` — used by `LeagueArchiveImportService.rollbackImportedLeagues` — routes by `isLocalLeagueId(id)`. After T14 it should; assert it in the test rather than assuming.
+      *Asserted, not assumed: `league-archive-repository.service.test.ts` runs `deleteLeague` twice in its routed-write table — a `local-` id reaches the local fake only, a server id the server fake only.*
+- [x] 6. Create `src/app/app.component.export.test.ts`. Stub `saveJsonFile` with `vi.mock('./shared/save-json-file', …)`, build `AppComponent` through `runInInjectionContext` with a bare `Injector` and fakes for `LeagueArchiveRepository`, `AuthService`, `Router`, `MatDialog`, `LiveTournamentRepository` and `DeckArchetypeSettingsService` — follow the fake-construction pattern in `src/app/features/calendar/public-calendar.component.test.ts`. Write the six export cases.
+      *Six cases, all green; `saveJsonFile` mocked with `vi.hoisted`, `effect()` stubbed, `AppComponent` built through `runInInjectionContext` over a bare `Injector`.*
 - [ ] 7. Create `src/app/data/league-archive-import.service.test.ts` with the three import cases plus the rollback case, using the two-fake-backend harness T14 built for the repository test.
-- [ ] 8. Run `npx vitest run src/app/app.component.export.test.ts src/app/data/league-archive-import.service.test.ts` — red, then implement until green.
-- [ ] 9. Extend `cypress/e2e/league-local.cy.js` with the export/import round-trip described in the Test plan.
-- [ ] 10. Add a row to `ops/acceptance-matrix.json`:
+      *Import cases done (anonymous, plain `User`, `Organizer`, `Admin`, single-league). **The rollback case is not shipped and this box stays unchecked**: as written, `LeagueArchiveImportService.importFile` fills `importedLeagueIds` only after `repo.restoreFullLeagueData(...)` resolves, so a rejecting restore leaves the array empty and `rollbackImportedLeagues` has nothing to delete — the path the ticket describes is unreachable without changing production semantics, which is out of this slice. Shipped instead: `a rejected import leaves both stores untouched`. Delete-routing itself is proved in `league-archive-repository.service.test.ts`.*
+- [x] 8. Run `npx vitest run src/app/app.component.export.test.ts src/app/data/league-archive-import.service.test.ts` — red, then implement until green.
+      *Red captured for both: the single-id placeholder filter fails 2 export cases; `this.server` restore fails 4 import cases. Green after the two fixes: 7 + 6 passing.*
+- [x] 9. Extend `cypress/e2e/league-local.cy.js` with the export/import round-trip described in the Test plan.
+      *`exports both browser leagues and imports them back into an emptied browser`: two local leagues with a tournament each, `URL.createObjectURL` stubbed to capture the bundle, both placeholders asserted absent, both leagues deleted, the file re-imported through `header-import-input`, both back and badged local with their tournaments, every `/api/leagues-archive` call answered 401.*
+- [x] 10. Add a row to `ops/acceptance-matrix.json`:
       ```json
       {
         "id": "doc-league-local",
@@ -185,11 +194,16 @@ Cypress, appended to `cypress/e2e/league-local.cy.js`, signed out with every `**
       }
       ```
       **Check the real vocabulary first**: open `ops/acceptance-matrix.json` and confirm the exact `doc` filename, the allowed `gate` values and the existing `acceptance` tags. Use existing values; invent none. If `product-leagues` is not an existing tag, use whichever tag the other League rows carry.
-- [ ] 11. Run `npm run acceptance:matrix` and `npx vitest run ops/acceptance-matrix.test.ts` — both must pass. If the row is rejected, fix the row, never the validator.
-- [ ] 12. In `AGENT.md`, update the "What Gones is" paragraph. It currently reads "**One exception, Live Tournaments only (ADR 0021):** …". Change it to name two exceptions and add the League half:
+      *Shipped with the real vocabulary: `acceptance: ["product-league-live-parity"]` (there is no `product-leagues` tag; that is the tag the other League rows carry), `21` port methods not 22, plus the two new vitest files as evidence for the export half. Also corrected the stale detail on `doc09-local-live-store` ("IndexedDB confined to the two Live local files" → the three sanctioned files).*
+- [x] 11. Run `npm run acceptance:matrix` and `npx vitest run ops/acceptance-matrix.test.ts` — both must pass. If the row is rejected, fix the row, never the validator.
+      *`99/99 non-deferred capability rows proved (3 deferred)`, `24/24` checklist rows; `ops/acceptance-matrix.test.ts` green inside `npm run test` (91 files / 758 tests).*
+- [x] 12. In `AGENT.md`, update the "What Gones is" paragraph. It currently reads "**One exception, Live Tournaments only (ADR 0021):** …". Change it to name two exceptions and add the League half:
       > **Two exceptions (ADR 0021, ADR 0028).** The Live port has two adapters chosen by role at injection time. The League Archive has two adapters too, but they are **merged rather than exclusive**: the list is the union of the server's leagues and the browser-local ones (`gones-leagues` / `leagues`), and every read and write routes on the `local-` id prefix. Neither browser store ever synchronises. `indexedDB` is confined to `src/app/backend/indexed-db.ts`, `src/app/backend/local-live-backend.service.ts` and `src/app/backend/local-league-archive-backend.service.ts`, asserted by `src/app/backend/server-authority-boundary.test.ts`.
-- [ ] 13. In `docs/league-archive-authority.html` (written with this plan), verify every claim still matches the shipped code — method names, id prefix, store names, the cross-store move refusal — and correct the document where the implementation diverged.
-- [ ] 14. Run `npx vitest run` and `npm run acceptance:matrix` — green.
+      *Now names both exceptions and the merged League adapters, the `gones-leagues` / `leagues` store, the `local-` prefix rule and the three-file `indexedDB` allowlist.*
+- [x] 13. In `docs/league-archive-authority.html` (written with this plan), verify every claim still matches the shipped code — method names, id prefix, store names, the cross-store move refusal — and correct the document where the implementation diverged.
+      *Two divergences corrected: "All 22 methods" → 21 (the port declares 21), and `/api/league-archives` → `/api/leagues-archive` (the real path). The Cypress guardrail line now also names the export/import round trip. Every other claim — id prefix, both store names, `crossAuthorityMoveNotSupported`, the import row "local, ids rewritten / server", the three-file allowlist — matches the shipped code.*
+- [x] 14. Run `npx vitest run` and `npm run acceptance:matrix` — green.
+      *`Test Files 91 passed (91) / Tests 758 passed (758)`; acceptance matrix passed.*
 
 ## Outputs
 
@@ -200,17 +214,22 @@ Cypress, appended to `cypress/e2e/league-local.cy.js`, signed out with every `**
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npm run acceptance:matrix` passes with the new row proved
-- [ ] `npx cypress run --spec cypress/e2e/league-local.cy.js` passes
-- [ ] `npx cypress run --spec cypress/e2e/league-server.cy.js` passes
+- [x] `npm run test` passes — `Test Files 91 passed (91)`, `Tests 758 passed (758)`
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — both `tsconfig.app.json` and `tsconfig.spec.json` clean
+- [x] `npm run build` passes — `Application bundle generation complete.`
+- [x] `npm run acceptance:matrix` passes with the new row proved — `ok doc-league-local`, `99/99 non-deferred capability rows proved (3 deferred)`
+- [x] `npx cypress run --spec cypress/e2e/league-local.cy.js` passes — 5/5 including the new round trip
+- [x] `npx cypress run --spec cypress/e2e/league-server.cy.js` passes — 3/3
 - [ ] `npm run e2e:ci` passes
-- [ ] Manual (signed out): `npm run dev`, create two local leagues, click Full data export, open the file — both leagues are in it, neither placeholder is.
-- [ ] Manual (signed out): delete both, import the file back — both return, badged local, with their tournaments intact.
+      *Fails, and the failure is **pre-existing**: `public-calendar.cy.js > navigates months over the cached catalog without re-querying the API` expects `August` and reads `août 2026` (the documented French-default self-heal race). Reproduced identically with this slice stashed, on a baseline release image. The gate aborts on the first failing spec, so the rest of the list was run by hand on this branch's build: `first-visit`, `server-data-authority`, `tournament-registration`, `offline-public-read`, `auth-profile`, `league-server`, `league-local`, `settings-server`, `live-server`, `admin-orgs`, `admin-notification-delivery`, `organizer-tournament-create`, `organizer-tournament-management`, `organizer-participants`, `abuse-surface`, `tournament-proposal`, `accessibility` — all green. Two other specs fail one case each (`auth-session-persistence > leaves anonymous browsing untouched…`, `live-local > deletes a local tournament from the advanced settings…`); both reproduce identically on the stashed baseline, so neither comes from this slice.*
+- [x] Manual (signed out): `npm run dev`, create two local leagues, click Full data export, open the file — both leagues are in it, neither placeholder is.
+      *Automated equivalent shipped: `cypress/e2e/league-local.cy.js > exports both browser leagues…` captures the real bundle and asserts both names, only `local-` ids and no placeholder; plus four vitest export cases.*
+- [x] Manual (signed out): delete both, import the file back — both return, badged local, with their tournaments intact.
+      *Same Cypress test: both leagues deleted through the header menu, the file re-imported through `header-import-input`, both back and badged local, with a direct `gones-leagues` read proving one tournament each.*
 - [ ] Manual (Admin): sign in as `admin@gones.test`, export — the bundle holds the server leagues **and** any local ones left in this browser.
+      *Needs a human browser against the real API: no automated proof clicks export as a signed-in Admin. Written into `ai-artifacts/manual_test_checklist.md`.*
 - [ ] Manual (Admin): import the same bundle — the leagues land on the server and are visible from a different browser.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(leagues): include browser-local leagues in export and route import by authority`
+      *Needs a human browser and a second browser profile. Vitest proves the routing (`importing as an organizer writes the server`), not the cross-browser visibility. Written into `ai-artifacts/manual_test_checklist.md`.*
+- [x] app functional — no broken path from this slice — 758 vitest cases plus 17 Cypress specs green on this branch's build
+- [x] commit msg draft: `feat(leagues): include browser-local leagues in export and route import by authority`

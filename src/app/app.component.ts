@@ -6,7 +6,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { canManageLeague, canManageLeagues, leagueCommandError } from './data/league-archive-command-ux';
+import { canManageLeague, leagueCommandError } from './data/league-archive-command-ux';
 import { isAnyPlaceholderLeagueId } from './data/league-archive-origin';
 import { LeagueArchiveRepository } from './data/league-archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
@@ -53,10 +53,8 @@ interface HeaderTournament {
           </div>
         } @else if (showHeaderImport()) {
           <div class="header-actions" data-cy="app-leagues-header-actions">
-            @if (canManageLeagueData()) {
-              <button mat-stroked-button class="secondary-action toolbar-import" type="button" data-cy="app-leagues-import-button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
-              <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
-            }
+            <button mat-stroked-button class="secondary-action toolbar-import" type="button" data-cy="app-leagues-import-button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
+            <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="app-full-data-export-button" (click)="downloadFullExport()">{{ i18n.t('header.fullDataExport') }}</button>
           </div>
         } @else if (headerTournament(); as item) {
@@ -132,9 +130,8 @@ export class AppComponent {
   readonly settingsMessage = signal('');
   readonly resendPending = signal(false);
   readonly resendStatus = signal('');
-  // The `/leagues-archive` import button stays a role gate for now: import routing to the browser
-  // store lands in T15, and a half-wired import must not ship. T15 relaxes it.
-  readonly canManageLeagueData = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
+  // No role gate on `/leagues-archive` import: every visitor can write *some* store, and the
+  // repository routes the restore to the one `createLeagueTarget(role)` names (ADR 0028).
   /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
   readonly canManageHeaderLeague = computed(() => canManageLeague(this.headerLeague()?.id ?? this.headerTournament()?.league.id, this.auth.profile()?.globalRole));
   readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues-archive');
@@ -245,7 +242,7 @@ export class AppComponent {
   }
 
   openImportPicker(): void {
-    if (this.canManageLeagueData() && !this.importing()) this.headerImportInput?.nativeElement.click();
+    if (!this.importing()) this.headerImportInput?.nativeElement.click();
   }
 
   openSettingsImportPicker(): void {

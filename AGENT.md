@@ -14,13 +14,18 @@ keeps only language, view preference, filters and the anonymous public read cach
 `legacy-browser` authority is refused with `dataModeUnknown` at build time, container start and in
 the browser.
 
-**One exception, Live Tournaments only (ADR 0021):** the Live port has two adapters, chosen by role
-once at injection time. `Organizer` and `Admin` keep the server adapter; anonymous visitors and the
-plain `User` role get `LocalLiveBackend`, a strictly offline IndexedDB store (`gones-live` /
-`tournaments`) that never syncs in either direction. `indexedDB` is confined to
-`src/app/backend/indexed-db.ts` and `src/app/backend/local-live-backend.service.ts`, asserted by
-`src/app/backend/server-authority-boundary.test.ts`. Do not delete that adapter as an ADR 0020
-violation — read `docs/adr/0021-role-scoped-browser-live-store.md` first.
+**Two exceptions (ADR 0021, ADR 0028).** The Live port has two adapters, chosen by role once at
+injection time: `Organizer` and `Admin` keep the server adapter; anonymous visitors and the plain
+`User` role get `LocalLiveBackend`, a strictly offline IndexedDB store (`gones-live` /
+`tournaments`). The League Archive has two adapters too, but they are **merged rather than
+exclusive**: the list is the union of the server's leagues and the browser-local ones
+(`gones-leagues` / `leagues`), and every read and write routes on the `local-` id prefix. Neither
+browser store ever synchronises, in either direction. `indexedDB` is confined to
+`src/app/backend/indexed-db.ts`, `src/app/backend/local-live-backend.service.ts` and
+`src/app/backend/local-league-archive-backend.service.ts`, asserted by
+`src/app/backend/server-authority-boundary.test.ts`. Do not delete either adapter as an ADR 0020
+violation — read `docs/adr/0021-role-scoped-browser-live-store.md` and
+`docs/adr/0028-dual-source-league-archive.md` first.
 
 ## Repository layout
 

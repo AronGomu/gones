@@ -493,3 +493,41 @@ What that leaves for a human — the parts a stubbed session cannot prove:
       with the status pill in the opposite corner of the card.
 - [ ] Clear site data, reload — the local leagues are gone and nothing errors, which is the documented
       ADR 0028 consequence rather than a bug.
+
+## T15 dual-source-export-import
+
+Automated coverage: `src/app/app.component.export.test.ts` (7 cases) drives `AppComponent` over a
+fake repository — the full export carries a league from each store, drops the server placeholder,
+drops the local placeholder (the defect this slice fixes), drops a placeholder that holds tournaments,
+keeps `gones-full-data.gones.json` and a checksum that `verifyExportChecksum` accepts, exports a
+single browser-local league under `leagueExportFilename`, and asserts the header import button is no
+longer inside a role gate. `src/app/data/league-archive-import.service.test.ts` (6 cases) runs the
+real `LeagueArchiveImportService` over the real `LeagueArchiveRepository` and two fake backends: an
+anonymous visitor and a plain `User` land a `fullData` bundle in the browser store with `local-` ids
+and the server never asked, an `Organizer` lands it on the server with the browser never asked, the
+single-league path follows the same authority for an anonymous visitor and for an `Admin`, and a
+rejected import leaves both stores untouched. `cypress/e2e/league-local.cy.js` gained
+`exports both browser leagues and imports them back into an emptied browser`: two signed-out local
+leagues with a tournament each, the exported bundle captured through `URL.createObjectURL` and
+asserted to hold both names, only `local-` ids and no placeholder, both leagues deleted, the same file
+re-imported through `header-import-input`, both leagues back and badged local with their tournaments
+intact, every `/api/leagues-archive` call answered `401`.
+
+Covered by the automation above, so **not** re-run by hand:
+
+- [x] Signed out: create two local leagues, Full data export, open the file — both leagues are in it,
+      neither placeholder is. (Proved by the Cypress round trip and by the four export cases.)
+- [x] Signed out: delete both, import the file back — both return, badged local, with their
+      tournaments intact. (Proved by the same Cypress test, including the `gones-leagues` row check.)
+
+What that leaves for a human — the parts a stubbed or signed-out session cannot prove:
+
+- [ ] `npm run dev`, sign in as `admin@gones.test` against the **real** API, with at least one league
+      created in this browser while signed out — Full data export, open the file: it holds the server
+      leagues **and** the browser-local ones, and neither placeholder. (Automation proves the merged
+      list and the placeholder filter separately; nothing automated clicks export as a real Admin.)
+- [ ] Same session: import that bundle back — Network shows the restore going to
+      `POST /api/leagues-archive/...` (never to IndexedDB), and the restored leagues are visible from
+      a **different** browser profile, which is the only proof they really landed on the server.
+- [ ] Signed out, with a bundle exported by an Admin: import it — the leagues appear badged
+      `Local only` with fresh `local-` ids and no request leaves the browser.

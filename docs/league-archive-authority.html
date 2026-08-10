@@ -129,7 +129,7 @@ are two:</p>
 
 <pre>export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort { … }</pre>
 
-<p>All 22 methods, no <code>Partial</code>. If someone adds a capability to the port and implements it
+<p>All 21 methods, no <code>Partial</code>. If someone adds a capability to the port and implements it
 only on the server, <code>npm run typecheck</code> fails. A feature cannot quietly become
 "signed-in only".</p>
 
@@ -184,12 +184,13 @@ decoration — it is the user-facing form of this rule.</p>
   <li><code>server-authority-boundary.test.ts</code> allowlists exactly three files for IndexedDB:
       <code>indexed-db.ts</code>, <code>local-live-backend.service.ts</code>,
       <code>local-league-archive-backend.service.ts</code>. A fourth is an ADR decision.</li>
-  <li><code>local-league-archive-backend.service.test.ts</code> drives all 22 methods against a fake
+  <li><code>local-league-archive-backend.service.test.ts</code> drives all 21 methods against a fake
       IndexedDB, including a stale-version rejection per method.</li>
   <li><code>league-archive-repository.service.test.ts</code> asserts, one method at a time, that a
       <code>local-</code> id reaches the local fake and never the server fake, and the reverse.</li>
   <li><code>cypress/e2e/league-local.cy.js</code> runs the whole signed-out flow with every
-      <code>/api/league-archives</code> call stubbed 401, then reloads to prove IndexedDB held it.</li>
+      <code>/api/leagues-archive</code> call stubbed 401, then reloads to prove IndexedDB held it, exports
+      both browser leagues and imports the bundle back into an emptied browser.</li>
   <li><code>ops/acceptance-matrix.json</code> row <code>doc-league-local</code> maps the capability to
       those gates.</li>
 </ul>

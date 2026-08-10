@@ -83,6 +83,36 @@ function stubSignedOut(leagueApiCalls) {
   }).as('leagueApi');
 }
 
+/**
+ * Capture what `saveJsonFile` hands to the browser. The export builds a Blob and clicks an anchor,
+ * so stubbing `URL.createObjectURL` reads the artifact without waiting on a real download.
+ */
+function captureDownloads() {
+  cy.window().then((win) => {
+    win.__gonesDownloads = [];
+    const original = win.URL.createObjectURL.bind(win.URL);
+    cy.stub(win.URL, 'createObjectURL').callsFake((blob) => {
+      win.__gonesDownloads.push(blob);
+      return original(blob);
+    });
+  });
+}
+
+/** The text of the first captured download, as a Cypress subject. */
+function readCapturedDownload() {
+  return cy.window().its('__gonesDownloads.0').then((blob) => new Cypress.Promise((resolve, reject) => blob.text().then(resolve, reject)));
+}
+
+/** Delete one league through the header menu, the only delete affordance a local league has. */
+function deleteLeague(name) {
+  visit('/leagues-archive');
+  cy.contains('[data-cy="leagues-archive-list-item"]', name).click();
+  cy.get('[data-cy="app-league-actions-trigger"]').click();
+  cy.get('[data-cy="app-delete-league-button"]').click();
+  cy.get('[data-cy="confirm-dialog-confirm"]').click();
+  cy.location('pathname').should('eq', '/leagues-archive');
+}
+
 /** No error banner from any surface — the local path must never look like a failure to the user. */
 function assertNoErrorBanner() {
   cy.get('[data-cy="leagues-archive-list-error"]').should('not.exist');
@@ -186,6 +216,74 @@ describe('League Archive browser-local flows', () => {
     cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
     cy.reload();
     cy.get('[data-cy="tournament-archive-detail-error"]').should('not.exist');
+  });
+
+  it('exports both browser leagues and imports them back into an emptied browser', () => {
+    cy.viewport(1280, 800);
+
+    const leagueApiCalls = [];
+    stubSignedOut(leagueApiCalls);
+
+    visit('/leagues-archive', { clearLocalStore: true });
+
+    for (const name of ['Export League A', 'Export League B']) {
+      createLocalLeague(name);
+      cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
+      cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
+      visit('/leagues-archive');
+    }
+
+    // The import affordance is offered to a visitor with no account at all (ADR 0028).
+    cy.get('[data-cy="app-leagues-import-button"]').should('exist');
+
+    captureDownloads();
+    cy.get('[data-cy="app-full-data-export-button"]').click();
+    readCapturedDownload().then((text) => {
+      const bundle = JSON.parse(text);
+      expect(bundle.kind, 'export kind').to.eq('fullData');
+      // Both browser leagues are in the file, and neither placeholder is: the bucket is not a league.
+      // Scoped by name rather than by count: Cypress keeps the previous test's page alive, so its
+      // `deleteDatabase` can be blocked and leave that test's league in this browser.
+      const names = bundle.leagues.map((league) => league.name);
+      expect(names, 'exported league names').to.include('Export League A').and.to.include('Export League B');
+      expect(bundle.leagues.every((league) => league.id.startsWith('local-')), 'every exported id is browser-local').to.eq(true);
+      expect(text, 'no placeholder league in the bundle').not.to.contain('placeholder-league');
+      cy.wrap(text).as('exportedBundle');
+    });
+
+    deleteLeague('Export League A');
+    deleteLeague('Export League B');
+    cy.contains('[data-cy="leagues-archive-list-item"]', 'Export League').should('not.exist');
+
+    cy.get('@exportedBundle').then((text) => {
+      cy.get('[data-cy="header-import-input"]').selectFile(
+        { contents: Cypress.Buffer.from(text), fileName: 'gones-full-data.gones.json', mimeType: 'application/json' },
+        { force: true }
+      );
+    });
+    // The import lands in the browser store, so it navigates to a `local-` league, not a server one.
+    cy.location('pathname').should('match', /^\/leagues-archive\/local-.+$/);
+    assertNoErrorBanner();
+
+    visit('/leagues-archive');
+    for (const name of ['Export League A', 'Export League B']) {
+      cy.contains('[data-cy="leagues-archive-list-item"]', name).should('exist')
+        .find('[data-cy="leagues-archive-list-item-local-badge"]').should('exist');
+    }
+
+    // The tournaments came back with them, in the browser store and nowhere else.
+    readLocalLeagueRows().then((rows) => {
+      const restored = rows.filter((row) => row.name.startsWith('Export League'));
+      expect(restored, 'restored gones-leagues rows').to.have.length(2);
+      for (const row of restored) {
+        expect(row.id, 'restored league id').to.match(/^local-/);
+        expect(row.tournaments, `tournaments of ${row.name}`).to.have.length(1);
+      }
+    });
+
+    cy.get('@leagueApi.all').then((calls) => {
+      for (const call of calls) expect(call.response.statusCode, `response to ${call.request.url}`).to.eq(401);
+    });
   });
 
   it('shows an Admin both stores in one list, each still writable', () => {

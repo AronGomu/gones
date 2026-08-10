@@ -129,12 +129,17 @@ export class LeagueArchiveRepository {
     return this.port(league.id).renameLeagueArchivePlayerName(league.id, league.documentVersion, fromName, toName);
   }
 
+  /**
+   * An imported bundle carries no authority of its own: it lands in the store the caller may write,
+   * exactly like a brand-new league, and the target store rewrites the incoming ids into its own
+   * namespace so nothing can collide (ADR 0028).
+   */
   restoreLeague(command: LeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague> {
-    return this.server.restoreLeagueArchive(command, idempotencyKey);
+    return this.writePort().restoreLeagueArchive(command, idempotencyKey);
   }
 
   restoreFullLeagueData(command: FullLeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague[]> {
-    return this.server.restoreFullLeagueArchiveData(command, idempotencyKey);
+    return this.writePort().restoreFullLeagueArchiveData(command, idempotencyKey);
   }
 
   /**

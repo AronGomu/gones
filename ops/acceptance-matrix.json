@@ -212,6 +212,42 @@
       ]
     },
     {
+      "id": "doc-league-local",
+      "doc": "00-vision-projets.md",
+      "capability": "Anonymous and plain-User visitors create and manage League Archives in a browser-local store that never synchronises, and export includes them.",
+      "status": "proved",
+      "acceptance": [
+        "product-league-live-parity"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/backend/local-league-archive-backend.service.test.ts",
+          "detail": "all 21 port methods against a fake IndexedDB, with the version guard"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/data/league-archive-repository.service.test.ts",
+          "detail": "merged listing and per-id write routing"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/app.component.export.test.ts",
+          "detail": "the full export carries both stores minus both placeholders"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/data/league-archive-import.service.test.ts",
+          "detail": "an imported bundle lands in the store the caller may write and never in the other one"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/league-local.cy.js",
+          "detail": "signed-out create, edit, reload survival and export/import round trip with every league API call stubbed 401"
+        }
+      ]
+    },
+    {
       "id": "doc01-slices",
       "doc": "01-architecture.md",
       "capability": "Vertical-slice layering with enforced dependency direction Domain <- Application <- Infrastructure/Api.",
@@ -2395,7 +2431,7 @@
         {
           "gate": "vitest",
           "target": "src/app/backend/server-authority-boundary.test.ts",
-          "detail": "IndexedDB confined to the two Live local files; League ports stay API-only"
+          "detail": "IndexedDB confined to the three sanctioned local files, Live and League (ADR 0021, ADR 0028)"
         },
         {
           "gate": "cypress",
