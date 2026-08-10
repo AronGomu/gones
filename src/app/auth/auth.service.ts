@@ -16,6 +16,7 @@ import {
   ResetPasswordRequest,
   UserProfileResponse
 } from '../api/generated/gones-api';
+import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
 @Injectable({ providedIn: 'root' })
@@ -23,6 +24,7 @@ export class AuthService {
   private readonly client = inject(Client);
   private readonly tokens = inject(ApiAccessTokenStore);
   private readonly sessionScope = inject(SessionScopeService);
+  private readonly catalogSync = inject(SessionCatalogSyncService);
   private refreshFlight?: Observable<void>;
 
   readonly enabled = dataAuthority().authV1;
@@ -39,6 +41,7 @@ export class AuthService {
     try {
       await firstValueFrom(this.refreshAccessToken());
       await this.loadProfile();
+      await this.catalogSync.adopt();
     } catch {
       this.bootstrapFailed.set(true);
       this.clear();
@@ -62,9 +65,16 @@ export class AuthService {
     return this.refreshFlight;
   }
 
+  /**
+   * The session exists the moment the profile lands, and from then on the server catalog is the
+   * authority (ADR 0031/0032): `adopt()` replaces this browser's deck-archetype list. It never
+   * throws and never uploads, so signing in offline changes nothing.
+   */
   async login(request: LoginRequest): Promise<UserProfileResponse> {
     this.acceptToken(await firstValueFrom(this.client.login(request)));
-    return this.loadProfile();
+    const profile = await this.loadProfile();
+    await this.catalogSync.adopt();
+    return profile;
   }
 
   register(request: RegisterRequest): Promise<UserProfileResponse> {

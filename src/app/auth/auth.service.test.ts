@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
 import { AuthService } from './auth.service';
+import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
 const profile = { id: 'u1', email: 'u@example.test', emailVerified: true, globalRole: 'User', username: 'user', firstName: 'U', lastName: 'Ser', preferredLanguage: 'en', isFirstNamePublic: false, isLastNamePublic: false, isLocationPublic: false, isBirthDatePublic: false, isPreferredLanguagePublic: false } as unknown as UserProfileResponse;
@@ -18,8 +19,13 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
     logout: vi.fn(() => of(undefined)),
     logoutAll: vi.fn(() => of(undefined))
   };
-  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }] });
-  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client };
+  // The catalog sync is faked, and records the profile it saw: "remote prevails" is only correct if
+  // it runs once the session exists.
+  let profileWhenAdopted: UserProfileResponse | null | undefined;
+  const catalogSync = { adopt: vi.fn(async () => { profileWhenAdopted = service.profile(); }) };
+  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
+  const service = injector.get(AuthService);
+  return { service, store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client, catalogSync, profileWhenAdopted: () => profileWhenAdopted };
 }
 
 describe('AuthService', () => {
@@ -52,6 +58,25 @@ describe('AuthService', () => {
     expect(store.token).toBeUndefined();
     expect(service.profile()).toBeNull();
     expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('sign-in adopts the server catalog', async () => {
+    // ADR 0032: the server list replaces the browser one, once, after the profile lands.
+    const { service, catalogSync, profileWhenAdopted } = setup(() => of(token));
+
+    await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+
+    expect(catalogSync.adopt).toHaveBeenCalledTimes(1);
+    expect(profileWhenAdopted()?.id).toBe('u1');
+  });
+
+  it('signing out adopts nothing, so the browser keeps its anonymous catalog', async () => {
+    const { service, catalogSync } = setup(() => of(token));
+    await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+
+    await service.logout();
+
+    expect(catalogSync.adopt).toHaveBeenCalledTimes(1);
   });
 
   it('clears auth when refresh fails', async () => {

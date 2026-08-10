@@ -65,6 +65,22 @@ export class DeckArchetypeSettingsService {
     });
   }
 
+  /**
+   * The server catalog is authoritative the moment a session exists (ADR 0031): the browser list is
+   * replaced, not merged, and nothing local is ever uploaded. A failed fetch changes nothing — an
+   * offline sign-in keeps whatever this browser already had.
+   */
+  async adoptServerCatalog(names: string[]): Promise<boolean> {
+    return this.runExclusive(() => {
+      // The bundled presets stay: `loadDeckArchetypes()` re-merges them on every read, so dropping
+      // them here would only make the next read disagree with this write.
+      const next = uniqueArchetypes([...PRESET_LEGACY_ARCHETYPES, ...names]);
+      writeSettings(next, this.languageSignal());
+      this.archetypesSignal.set(next);
+      return true;
+    });
+  }
+
   async setLanguage(value: string): Promise<boolean> {
     const language = normalizeSettingsLanguage(value);
     if (!language) return false;

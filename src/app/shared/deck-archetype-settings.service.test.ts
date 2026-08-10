@@ -92,6 +92,40 @@ describe('DeckArchetypeSettingsService', () => {
     expect(service.archetypes()).toEqual(before);
   });
 
+  it('the server catalog replaces the local one', async () => {
+    // ADR 0031 / ADR 0032: on sign-in the server list wins outright — replace, never merge.
+    localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: ['Local Only'] }));
+    const service = new DeckArchetypeSettingsService();
+
+    await expect(service.adoptServerCatalog(['Server A', 'Server B'])).resolves.toBe(true);
+
+    expect(service.archetypes()).toContain('Server A');
+    expect(service.archetypes()).toContain('Server B');
+    expect(service.archetypes()).not.toContain('Local Only');
+    expect(service.archetypes()).toContain('Reanimator (Rakdos)');
+    expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null').deckArchetypes).toEqual(service.archetypes());
+  });
+
+  it('adopting the server catalog keeps the language', async () => {
+    localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: ['Local Only'] }));
+    const service = new DeckArchetypeSettingsService();
+
+    await service.adoptServerCatalog(['Server A']);
+
+    expect(service.currentLanguage()).toBe('fr');
+    expect(localStorage.getItem('gones.settings.language')).toBe('fr');
+  });
+
+  it('adopting an empty server catalog still erases the local additions', async () => {
+    localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: ['Local Only'] }));
+    const service = new DeckArchetypeSettingsService();
+
+    await service.adoptServerCatalog([]);
+
+    expect(service.archetypes()).not.toContain('Local Only');
+    expect(service.archetypes().length).toBe(PRESET_LEGACY_ARCHETYPES.length);
+  });
+
   it('persists language changes without dropping archetypes', async () => {
     const service = new DeckArchetypeSettingsService();
     await expect(service.setLanguage('en')).resolves.toBe(true);

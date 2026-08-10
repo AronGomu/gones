@@ -851,6 +851,13 @@ every `/api/` call stubbed: both local cards render, an added archetype survives
 other than `auth/refresh` was made; signed in as `Admin`, the two local cards are absent and the server
 ones are present.
 
+**Made partly stale by T14 (remote prevails on sign-in).** Signing in — and reloading with a live
+session — now replaces this browser's deck-archetype list with the server's, so a local archetype
+added while signed out (`Manual Check` below) is gone after the first sign-in and does **not** come
+back on sign-out. Run the archetype steps below in one signed-out stretch, before the sign-in step at
+the end of this list. The local **Players** card is unaffected: it is derived from the browser-local
+leagues, which sign-in never touches.
+
 What it cannot prove — rendered pixels, a second browser tab, and the League detail page after a
 rename — needs a human:
 
@@ -912,3 +919,38 @@ real account — needs a human:
       running tournaments appear, online or offline.
 - [ ] Signed out entirely, open `/calendar` offline: the public catalog still renders from its own
       `localStorage` snapshot — this slice did not touch it.
+
+## T14 remote-prevails-on-sign-in
+
+Automated coverage proves the conflict rule and the scoping property:
+`src/app/shared/deck-archetype-settings.service.test.ts` (the server catalog replaces the local one —
+`Server A`/`Server B` in, `Local Only` out, presets kept, `gones.settings` rewritten; the language
+survives the adoption; an *empty* server catalog still erases the local additions),
+`src/app/auth/session-catalog-sync.service.test.ts` (the fetched names reach
+`adoptServerCatalog`; a failing `GET /api/deck-archetypes` calls it never and resolves without
+throwing, so an offline sign-in changes nothing), `src/app/auth/auth.service.test.ts` (`adopt()` runs
+exactly once per sign-in and only after the profile landed; logging out adopts nothing),
+`src/app/auth/auth.service.bootstrap.test.ts` (a restored session adopts too, a failed bootstrap does
+not) and `src/app/backend/browser-local-scope.test.ts` (`gones-leagues` / `gones-live` are plain
+constants, and the three browser-wide sources name no `profile()`, no `userId` and no `auth.service`
+— asserted inversely against the read cache, which does all three). `npm run test` 862/862,
+`npx vitest run src/app/backend/server-authority-boundary.test.ts` 12/12 with both allowlists
+unchanged, and `cypress/e2e/settings-server.cy.js` 4/4 on the running dev server.
+
+Nothing local is ever uploaded: the only new network call is a read, `GET /api/deck-archetypes`.
+
+What that cannot prove — the real API, a real second browser session, and a real offline sign-in —
+needs a human:
+
+- [ ] `npm run dev -- --env=demo`, signed out, open `/settings` → Deck archetypes and add
+      `Local Only`. Sign in as `admin@gones.test` (`Gones-dev-pass-123!`), then sign out again and
+      reopen `/settings`: `Local Only` is gone and the server catalog names are listed instead.
+      Remote prevailed and erased the local list.
+- [ ] Signed out, open the site in a private window, add an archetype, then open a **second tab** of
+      that same private session: the archetype is there. The local stores are browser-wide, not
+      user-scoped.
+- [ ] DevTools → Network → **Offline**, then reload the app with a live refresh cookie: the local
+      catalog is unchanged, nothing throws, and the console shows only the swallowed
+      `session-catalog-sync.adopt` boundary log.
+- [ ] Signed in, DevTools → Network: `GET /api/deck-archetypes` is issued once per sign-in and no
+      request ever carries a local archetype name in its body.

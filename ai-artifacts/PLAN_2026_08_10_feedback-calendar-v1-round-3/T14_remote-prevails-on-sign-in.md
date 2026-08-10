@@ -20,10 +20,14 @@
   - `src/app/features/settings/settings-capabilities.ts` now exports `SettingsCapabilities` with six fields: `adminCatalog`, `organizerMaintenance`, `profileLink`, `orgNotifications`, `localCatalog`, `localMaintenance`. `localCatalog = !(flags.adminV1 && role === 'Admin')`; `localMaintenance = !(role === 'Organizer' || role === 'Admin')`.
   - `src/app/features/settings/settings.component.ts` renders a browser-local archetype card behind `@if (capabilities().localCatalog)` and a browser-local player card behind `@if (capabilities().localMaintenance)`, both writing browser storage only.
   - `src/app/features/settings/local-player-names.ts` exports `LocalPlayerSummary` and `localPlayerNames(leagues)`.
+  - T12 renamed the component's pre-existing dead local-archetype methods to `addLocalArchetype` / `startLocalEdit` / `saveLocalArchetypeEdit` / `removeLocalArchetype` (and friends) and added the i18n keys `settings.removeArchetypeTitle` / `settings.removeArchetypeMessage` in both `en` and `fr`. `normalizeArchetypeName` is exposed as a class field so the template can call it.
 - **From T13 (spell out — do not read T13):**
   - `src/app/backend/server-read-cache.service.ts` exports `SERVER_READ_CACHE_DB_NAME = 'gones-cache'`, `SERVER_READ_CACHE_STORE = 'reads'`, `CachedRead<T>`, `ServerReadResult<T>`, `ServerReadCacheStore` and `@Injectable({ providedIn: 'root' }) class ServerReadCacheService` with `read<T>(resource, load): Promise<ServerReadResult<T>>` and `purge(): Promise<void>`. Rows are keyed `<userId>:<resource>`; the constructor registers `purge` with `SessionScopeService`.
   - `src/app/backend/server-authority-boundary.test.ts`'s IndexedDB allowlist now also names `src/app/backend/server-read-cache.service.ts`.
   - `LeagueArchiveRepository.listLeagues()` / `getLeague(id)` and `LiveTournamentRepository.list()` / `get(id)` read through that cache for server data.
+  - The store seam is an `InjectionToken` named `SERVER_READ_CACHE_STORE_PORT`, not a constructor override parameter (an interface ctor param is not AOT-injectable and would break `npm run build`). Override it that way in any test that needs a fake store.
+  - Cache resource names in use: `leagues`, `league:<id>`, `live-tournaments`, `live-tournament:<id>`.
+  - `ServerReadCacheService.read` re-reads the session after `load()` resolves, so a response landing after sign-out or after the next sign-in is answered but written nowhere. Do not undo that guard.
 - `src/app/shared/deck-archetype-settings.service.ts` — `DeckArchetypeSettingsService`. Storage keys `gones.settings`, `gones.settings.language`, `gones.settings.deckArchetypes` in `localStorage`, none of them namespaced by user. Public: `archetypes` (computed `string[]`), `language`, `add`, `update`, `remove`, `has`, `suggestions`, `exportSettings(): { language, deckArchetypes }`, `replaceSettings(value): Promise<boolean>` (authoritative replace, re-merges `PRESET_LEGACY_ARCHETYPES`), `mergeArchetypes(value)`, `setLanguage(value)`, `bootstrapFromStorage()`. Writes are serialised through `navigator.locks` under `gones.settings.deckArchetypes`.
 - `src/app/auth/auth.service.ts` — `login(request)` calls `this.acceptToken(...)` then `return this.loadProfile();`. `loadProfile()` sets `this.profile`. `clear()` resets tokens, profile and `SessionScopeService`.
 - `src/app/api/generated/gones-api.ts` — `Client` exposes the public deck-archetype catalog read used by the app. The public route is `GET /api/deck-archetypes`; use the generated method for it (the same one the Settings component already uses to populate the Admin catalog list is the admin route `GET /api/admin/deck-archetypes` returning `AdminDeckArchetypeResponse[]` with `{ id, name, deletedAt }`). Prefer the **public** `GET /api/deck-archetypes` — it works for every signed-in role, not just Admin.
@@ -93,20 +97,20 @@ Run: `npx vitest run src/app/shared src/app/auth src/app/backend`
 
 ## Impl steps
 
-- [ ] 1. Read `docs/adr/0031-authenticated-offline-read-cache.md` and `docs/adr/0032-signed-out-local-settings-catalogs.md`.
-- [ ] 2. Add the three `adoptServerCatalog` tests to `src/app/shared/deck-archetype-settings.service.test.ts`. Confirm red.
-- [ ] 3. Implement `adoptServerCatalog(names)` on `DeckArchetypeSettingsService`, reusing `runExclusive` and `writeSettings`.
-- [ ] 4. Re-run `npx vitest run src/app/shared` — green.
-- [ ] 5. Create `src/app/auth/session-catalog-sync.service.test.ts` with the failure test. Confirm red.
-- [ ] 6. Create `src/app/auth/session-catalog-sync.service.ts` with `adopt()`, injecting `Client` and `DeckArchetypeSettingsService` only, calling the public `GET /api/deck-archetypes` generated method and mapping its rows to `name` strings.
-- [ ] 7. Add the sign-in test to `src/app/auth/auth.service.test.ts`. Confirm red.
-- [ ] 8. Inject `SessionCatalogSyncService` into `AuthService` and call `adopt()` at the end of `login()` and at the end of a successful `bootstrap()`.
-- [ ] 9. Create `src/app/backend/browser-local-scope.test.ts` with the scoping assertions.
-- [ ] 10. Run `npx vitest run src/app/shared src/app/auth src/app/backend` — green.
-- [ ] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. `server-authority-boundary.test.ts` must stay green — no new file calls `localStorage` directly.
-- [ ] 12. Manual, with `npm run dev -- --env=demo`: signed out, add the archetype `Local Only` in `/settings`. Sign in as `admin@gones.test`. Sign out again and reopen `/settings` — `Local Only` is gone and the server names are there. Remote prevailed and erased the local list.
-- [ ] 13. Manual: open the site in a private window while signed out, add an archetype, then open a second tab of the same private session — the archetype is there. That is the browser-wide property.
-- [ ] 14. Manual: go offline, then sign in with a live refresh cookie (reload the app) — the local catalog is unchanged and nothing throws.
+- [x] 1. Read `docs/adr/0031-authenticated-offline-read-cache.md` and `docs/adr/0032-signed-out-local-settings-catalogs.md`. → verify: both files read end to end; their "remote prevails, replace not merge, nothing uploaded" rule is the one implemented below.
+- [x] 2. Add the three `adoptServerCatalog` tests to `src/app/shared/deck-archetype-settings.service.test.ts`. Confirm red.
+- [x] 3. Implement `adoptServerCatalog(names)` on `DeckArchetypeSettingsService`, reusing `runExclusive` and `writeSettings`. → verify: the three step-2 tests go green (step 4 command).
+- [x] 4. Re-run `npx vitest run src/app/shared` — green.
+- [x] 5. Create `src/app/auth/session-catalog-sync.service.test.ts` with the failure test. Confirm red.
+- [x] 6. Create `src/app/auth/session-catalog-sync.service.ts` with `adopt()`, injecting `Client` and `DeckArchetypeSettingsService` only, calling the public `GET /api/deck-archetypes` generated method and mapping its rows to `name` strings. → verify: file exists, `npx vitest run src/app/auth/session-catalog-sync.service.test.ts` green, and the source names no `AuthService`.
+- [x] 7. Add the sign-in test to `src/app/auth/auth.service.test.ts`. Confirm red.
+- [x] 8. Inject `SessionCatalogSyncService` into `AuthService` and call `adopt()` at the end of `login()` and at the end of a successful `bootstrap()`. → verify: `npx vitest run src/app/auth` green, including the step-7 ordering test.
+- [x] 9. Create `src/app/backend/browser-local-scope.test.ts` with the scoping assertions. → verify: `npx vitest run src/app/backend/browser-local-scope.test.ts` green.
+- [x] 10. Run `npx vitest run src/app/shared src/app/auth src/app/backend` — green.
+- [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. `server-authority-boundary.test.ts` must stay green — no new file calls `localStorage` directly. — 862/862 tests, lint clean, typecheck clean, bundle built; `git diff --stat src/app/backend/server-authority-boundary.test.ts` is empty, so both allowlists are unchanged.
+- [x] 12. Manual, with `npm run dev -- --env=demo`: signed out, add the archetype `Local Only` in `/settings`. Sign in as `admin@gones.test`. Sign out again and reopen `/settings` — `Local Only` is gone and the server names are there. Remote prevailed and erased the local list. → verify: recorded as a step in the `## T14 remote-prevails-on-sign-in` section of `ai-artifacts/manual_test_checklist.md`.
+- [x] 13. Manual: open the site in a private window while signed out, add an archetype, then open a second tab of the same private session — the archetype is there. That is the browser-wide property. → verify: recorded in the same checklist section.
+- [x] 14. Manual: go offline, then sign in with a live refresh cookie (reload the app) — the local catalog is unchanged and nothing throws. → verify: recorded in the same checklist section.
 
 ## Outputs
 
@@ -118,14 +122,14 @@ Run: `npx vitest run src/app/shared src/app/auth src/app/backend`
 
 ## Validation
 
-- [ ] `npx vitest run src/app/shared src/app/auth src/app/backend` passes.
-- [ ] `npm run test` passes, including `src/app/backend/server-authority-boundary.test.ts`.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `npm run cy:run -- --spec cypress/e2e/settings-server.cy.js` passes.
-- [ ] Manual: a local-only archetype is erased by signing in; the server names replace it.
-- [ ] Manual: signing in offline changes nothing and throws nothing.
-- [ ] Manual: two tabs of the same anonymous browser session see the same local data.
-- [ ] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `feat(settings): let the server catalog replace the local one on sign-in`
+- [x] `npx vitest run src/app/shared src/app/auth src/app/backend` passes. — 37 files / 248 tests passed.
+- [x] `npm run test` passes, including `src/app/backend/server-authority-boundary.test.ts`. — 103 files / 862 tests; the boundary spec alone 12/12.
+- [x] `npm run lint` passes. — "All files pass linting."
+- [x] `npm run typecheck` passes. — both `tsconfig.app.json` and `tsconfig.spec.json` clean.
+- [x] `npm run build` passes. — "Application bundle generation complete."
+- [x] `npm run cy:run -- --spec cypress/e2e/settings-server.cy.js` passes. — run through this host's `steam-run` wrapper (env only, no repo config touched): 4/4 passing. `auth-profile.cy.js` 4/7 and `auth-session-persistence.cy.js` 1/2 are unchanged from the stashed-tree baseline, so this slice adds no failure.
+- [ ] Manual: a local-only archetype is erased by signing in; the server names replace it. — queued in `ai-artifacts/manual_test_checklist.md` § T14, unchecked until a human runs it.
+- [ ] Manual: signing in offline changes nothing and throws nothing. — queued in the same section.
+- [ ] Manual: two tabs of the same anonymous browser session see the same local data. — queued in the same section.
+- [x] App functional — no broken path from this slice. → verify: `npm run build` green and the named Cypress spec green on the running stack.
+- [ ] Commit msg draft: `feat(settings): let the server catalog replace the local one on sign-in` → verify: the commit on `feat/feedback-calendar-v1-round-3` carries that subject.

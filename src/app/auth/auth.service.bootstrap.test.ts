@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
 import { AuthService } from './auth.service';
+import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
 const profile = { id: 'u1', email: 'u@example.test', emailVerified: true, globalRole: 'User', username: 'user', firstName: 'U', lastName: 'Ser', preferredLanguage: 'en', isFirstNamePublic: false, isLastNamePublic: false, isLocationPublic: false, isBirthDatePublic: false, isPreferredLanguagePublic: false } as unknown as UserProfileResponse;
@@ -18,8 +19,9 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
     logout: vi.fn(() => of(undefined)),
     logoutAll: vi.fn(() => of(undefined))
   };
-  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }] });
-  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), client };
+  const catalogSync = { adopt: vi.fn(async () => undefined) };
+  const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
+  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), client, catalogSync };
 }
 
 describe('AuthService.bootstrap', () => {
@@ -45,6 +47,23 @@ describe('AuthService.bootstrap', () => {
     expect(store.token).toBeUndefined();
     expect(service.bootstrapFailed()).toBe(true);
     expect(service.bootstrapped()).toBe(true);
+  });
+
+  it('a restored session adopts the server catalog too', async () => {
+    // A reload with a live cookie is a sign-in as far as the conflict rule is concerned (ADR 0032).
+    const { service, catalogSync } = setup(() => of(token));
+
+    await service.bootstrap();
+
+    expect(catalogSync.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed bootstrap adopts nothing, so the browser keeps its local catalog', async () => {
+    const { service, catalogSync } = setup(() => throwError(() => new Error('no refresh cookie')));
+
+    await service.bootstrap();
+
+    expect(catalogSync.adopt).not.toHaveBeenCalled();
   });
 
   it('runs the refresh round trip once, so a second call cannot re-enter it', async () => {
