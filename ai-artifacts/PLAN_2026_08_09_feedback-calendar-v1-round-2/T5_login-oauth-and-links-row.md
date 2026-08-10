@@ -93,10 +93,10 @@ Accessibility: the button's accessible name today is "Continue with Google" beca
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/auth/auth-entry.layout.test.ts`. Start with `import '@angular/compiler';`. Read the component with `readFileSync(join(__dirname, 'auth-entry.component.ts'), 'utf8')` and the stylesheet with `readFileSync(join(__dirname, '..', '..', 'styles.css'), 'utf8')`. Write all eight tests.
-- [ ] 2. Run `npx vitest run src/app/auth/auth-entry.layout.test.ts` — it must fail.
-- [ ] 3. In `src/app/i18n/messages.ts`, add `'auth.continueWith': 'Continue with',` to the `en` map beside `auth.continueGoogle`, and `'auth.continueWith': 'Continuer avec',` to the `fr` map beside its `auth.continueGoogle`.
-- [ ] 4. In `src/app/auth/auth-entry.component.ts`, replace the login branch's `.oauth-grid` block with:
+- [x] 1. Create `src/app/auth/auth-entry.layout.test.ts`. Start with `import '@angular/compiler';`. Read the component with `readFileSync(join(__dirname, 'auth-entry.component.ts'), 'utf8')` and the stylesheet with `readFileSync(join(__dirname, '..', '..', 'styles.css'), 'utf8')`. Write all eight tests.
+- [x] 2. Run `npx vitest run src/app/auth/auth-entry.layout.test.ts` — it must fail.
+- [x] 3. In `src/app/i18n/messages.ts`, add `'auth.continueWith': 'Continue with',` to the `en` map beside `auth.continueGoogle`, and `'auth.continueWith': 'Continuer avec',` to the `fr` map beside its `auth.continueGoogle`.
+- [x] 4. In `src/app/auth/auth-entry.component.ts`, replace the login branch's `.oauth-grid` block with:
       ```html
       <div class="oauth-grid" data-cy="login-oauth-grid" [attr.aria-label]="i18n.t('auth.socialSignIn')">
         <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-google" (click)="startOAuth('google')">
@@ -110,18 +110,18 @@ Accessibility: the button's accessible name today is "Continue with Google" beca
       </div>
       ```
       Leave the **register** branch's `.oauth-grid` (lines 78–87) untouched.
-- [ ] 5. In `src/styles.css`, split line 1082 so the register page's bare sibling anchor keeps `inline-block` and the login page's `nav` does not:
+- [x] 5. In `src/styles.css`, split line 1082 so the register page's bare sibling anchor keeps `inline-block` and the login page's `nav` does not:
       ```css
       .auth-card .oauth-grid + .auth-links { margin-top: 1.5rem; }
       .auth-card .oauth-grid + a { margin-top: 1.5rem; display: inline-block; }
       ```
-- [ ] 6. In `src/styles.css`, strengthen the button rule so text and logo share one baseline and both buttons match height regardless of label length. Replace line 1079 and add one rule:
+- [x] 6. In `src/styles.css`, strengthen the button rule so text and logo share one baseline and both buttons match height regardless of label length. Replace line 1079 and add one rule:
       ```css
       .oauth-button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; min-height: 2.75rem; line-height: 1; }
       .oauth-button__label { display: inline-flex; align-items: center; line-height: 1; }
       ```
       Leave `.oauth-button__logo` (line 1080) as it is — `flex: 0 0 20px` already stops the logo from stretching.
-- [ ] 7. Run `npx vitest run src/app/auth/auth-entry.layout.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 7. Run `npx vitest run src/app/auth/auth-entry.layout.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
 
 ## Outputs
 
@@ -132,14 +132,14 @@ Accessibility: the button's accessible name today is "Continue with Google" beca
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
+- [x] `npm run test` passes
+- [x] `npm run lint` passes
+- [x] `npm run typecheck` passes
+- [x] `npm run build` passes
 - [ ] Manual: `npm run dev`, open `http://127.0.0.1:4200/login` — both OAuth buttons read "Continue with" then the logo, the two buttons are the same height, and the label/logo baselines line up.
 - [ ] Manual: the Create account link is flush left and Password forgotten flush right inside the card, at 1440px and at 768px.
 - [ ] Manual: at 360px the OAuth grid stacks to one column (existing media query at `src/styles.css` line 1097) and the two links wrap without overlapping.
 - [ ] Manual: with the browser in French, the buttons read "Continuer avec" + logo.
 - [ ] Manual: `/register` is unchanged — its OAuth buttons still read the full "Continue with Google" / "Continue with Facebook".
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `fix(auth): align the login oauth buttons and unstick the account links`
+- [x] app functional — no broken path from this slice (`npm run test` 556/556, `npm run build` green)
+- [x] commit msg draft: `fix(auth): align the login oauth buttons and unstick the account links`

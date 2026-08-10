@@ -44,12 +44,12 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
             </form>
             <div class="oauth-grid" data-cy="login-oauth-grid" [attr.aria-label]="i18n.t('auth.socialSignIn')">
               <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-google" (click)="startOAuth('google')">
-                <img class="oauth-button__logo" src="assets/brand/google.svg" alt="" aria-hidden="true" data-cy="oauth-google-logo">
-                <span data-cy="oauth-google-label">{{ i18n.t('auth.continueGoogle') }}</span>
+                <span class="oauth-button__label" data-cy="oauth-google-label">{{ i18n.t('auth.continueWith') }}</span>
+                <img class="oauth-button__logo" src="assets/brand/google.svg" alt="Google" data-cy="oauth-google-logo">
               </button>
               <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-facebook" (click)="startOAuth('facebook')">
-                <img class="oauth-button__logo" src="assets/brand/facebook.svg" alt="" aria-hidden="true" data-cy="oauth-facebook-logo">
-                <span data-cy="oauth-facebook-label">{{ i18n.t('auth.continueFacebook') }}</span>
+                <span class="oauth-button__label" data-cy="oauth-facebook-label">{{ i18n.t('auth.continueWith') }}</span>
+                <img class="oauth-button__logo" src="assets/brand/facebook.svg" alt="Facebook" data-cy="oauth-facebook-logo">
               </button>
             </div>
             <nav class="auth-links" data-cy="login-links" [attr.aria-label]="i18n.t('auth.accountLinks')">

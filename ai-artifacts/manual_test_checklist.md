@@ -204,6 +204,24 @@ does not throw on vitest 4.1.10). No manual check applies.
       [userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
       data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.
 
+## T5 login-oauth-and-links-row
+
+Automated coverage (`src/app/auth/auth-entry.layout.test.ts`) proves the label/logo order, the accessible
+name wiring (`alt="Google"`/`alt="Facebook"`, no `aria-hidden`), the CSS rules (`.auth-links` keeps
+`display: flex; justify-content: space-between`, the old `inline-block` override on `.oauth-grid +
+.auth-links` is gone), and that the register page keeps its unchanged `auth.continueGoogle` /
+`auth.continueFacebook` labels. It cannot prove rendered pixels, French runtime text, or a live
+viewport — those need a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/login` — both OAuth buttons read "Continue with" then
+      the logo, the two buttons are the same height, and the label/logo baselines line up.
+- [ ] The Create account link sits flush left and Password forgotten flush right inside the card, at
+      1440px and at 768px.
+- [ ] At 360px the OAuth grid stacks to one column and the two links wrap without overlapping.
+- [ ] Switch the app language to French: the buttons read "Continuer avec" then the logo.
+- [ ] Open `/register`: its OAuth buttons are unchanged — still the full "Continue with Google" /
+      "Continue with Facebook" text, logo first.
+
 ## T2 header-sign-in-entry
 
 - [ ] `npm run dev`, open `http://127.0.0.1:4200/` signed out: the toolbar shows a "Sign in" action on the right (same slot the Log out button occupies when signed in), and the home menu grid has no sign-in card.
