@@ -300,22 +300,16 @@ describe('PublicCalendarComponent top action row layout', () => {
   });
 
   it('the header no longer holds the sync affordance', () => {
-    const headerStart = source.indexOf('data-cy="calendar-header-actions"');
-    const headerEnd = source.indexOf('</div>\n      </header>', headerStart);
+    const headerStart = source.indexOf('data-cy="calendar-header"');
+    const headerEnd = source.indexOf('</header>', headerStart);
     expect(headerEnd).toBeGreaterThan(-1);
     const header = source.slice(headerStart, headerEnd);
     expect(header).not.toContain('calendar-sync"');
     expect(header).not.toContain('calendar-synced-at');
   });
 
-  it('the header keeps the create action', () => {
-    // T8 moved the view tabs out of the header onto their own row below the search input; see the
-    // 'search row layout' describe block below for that assertion.
-    const headerStart = source.indexOf('data-cy="calendar-header-actions"');
-    const headerEnd = source.indexOf('</div>\n      </header>', headerStart);
-    const header = source.slice(headerStart, headerEnd);
-    expect(header).toContain('calendar-create-tournament');
-  });
+  // T6 moved the create action out of the header entirely, onto the view-tab row; see the
+  // 'search row layout' describe block below for that assertion.
 
   it('the top row is laid out as a justified row', () => {
     const ruleStart = stylesheet.indexOf('.calendar-top-actions {');
@@ -361,14 +355,8 @@ describe('PublicCalendarComponent search row layout', () => {
     expect(rowTag).not.toContain('calendar-filter-form');
   });
 
-  it('the input is chrome-less', () => {
-    const ruleStart = stylesheet.indexOf('.calendar-search-input {');
-    expect(ruleStart).toBeGreaterThan(-1);
-    const ruleEnd = stylesheet.indexOf('}', ruleStart);
-    const rule = stylesheet.slice(ruleStart, ruleEnd);
-    expect(rule).toMatch(/border:\s*(0|none)/);
-    expect(rule).toContain('background: transparent');
-  });
+  // T6 reversed the chrome-less input from T8: round-3 feedback #7 wants a normal bordered input
+  // back; see the 'toolbar row' describe block below for that assertion.
 
   it('the input is shorter than before', () => {
     const ruleStart = stylesheet.indexOf('.calendar-search-input {');
@@ -386,8 +374,8 @@ describe('PublicCalendarComponent search row layout', () => {
   });
 
   it('the view tabs are on their own row', () => {
-    const headerStart = source.indexOf('data-cy="calendar-header-actions"');
-    const headerEnd = source.indexOf('</div>\n      </header>', headerStart);
+    const headerStart = source.indexOf('data-cy="calendar-header"');
+    const headerEnd = source.indexOf('</header>', headerStart);
     const header = source.slice(headerStart, headerEnd);
     expect(header).not.toContain('calendar-view-tabs');
   });
@@ -418,6 +406,49 @@ describe('PublicCalendarComponent search row layout', () => {
     component.setSearchDraft('');
 
     expect(component.items()).toHaveLength(2);
+  });
+});
+
+describe('PublicCalendarComponent toolbar row', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  it('the create button lives on the view-tab row', () => {
+    const tabsStart = source.indexOf('data-cy="calendar-view-tabs"');
+    expect(tabsStart).toBeGreaterThan(-1);
+    const tabsOpen = source.lastIndexOf('<div', tabsStart);
+    const tabsEnd = source.indexOf('</div>', tabsStart);
+    const tabs = source.slice(tabsOpen, tabsEnd);
+    expect(tabs).toContain('data-cy="calendar-create-tournament"');
+  });
+
+  it('the create button is not in the page header any more', () => {
+    expect(source).not.toContain('data-cy="calendar-header-actions"');
+    const createIndex = source.indexOf('data-cy="calendar-create-tournament"');
+    const tabsIndex = source.indexOf('data-cy="calendar-view-tabs"');
+    expect(createIndex).toBeGreaterThan(-1);
+    expect(tabsIndex).toBeGreaterThan(-1);
+    expect(createIndex).toBeGreaterThan(tabsIndex);
+  });
+
+  it('the create button wears the success green', () => {
+    const buttonStart = source.indexOf('data-cy="calendar-create-tournament"');
+    const tagStart = source.lastIndexOf('<a', buttonStart);
+    const tagEnd = source.indexOf('>', buttonStart);
+    const tag = source.slice(tagStart, tagEnd);
+    expect(tag).toContain('create-action-button');
+    expect(tag).not.toContain('home-primary-action');
+  });
+
+  it('the search input is a normal bordered input and its row is bare', () => {
+    const inputRule = stylesheet.match(/\.calendar-search-input\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(inputRule).toContain('border: 1px solid var(--steel)');
+    expect(inputRule).toContain('background: var(--black-metal)');
+    expect(inputRule).not.toContain('border: 0');
+
+    const rowRule = stylesheet.match(/\.calendar-search-row\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(rowRule).not.toContain('border');
+    expect(rowRule).not.toContain('background');
   });
 });
 

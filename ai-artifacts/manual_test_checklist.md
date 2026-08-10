@@ -747,6 +747,13 @@ tournaments read in the browser.
 - [ ] `/settings`, a league detail page, and a live tournament runner page: the sign-in/account block is right-most on each, after that page's own action buttons.
 - [ ] The league import button reads "Import league(s)" in English and "Importer ligue(s)" in French, and clicking it still opens the file picker.
 
+## T6 calendar-toolbar-row
+
+- [ ] Signed in with a verified email, `/calendar`: one row reads `[Calendar] [List] ————— [Create tournament]`; the create button is filled success-green and clicking it navigates to `/tournaments/new`.
+- [ ] Signed out (or signed in but unverified), `/calendar`: that row shows only the two `Calendar`/`List` toggle buttons — no create button.
+- [ ] `/calendar` in both the calendar tab and the list tab: the search input has a visible 1px steel border and a dark (`--black-metal`) fill; the strip of page around the input (the search row) has no border and no background of its own.
+- [ ] Narrow the browser window below ~600px: the two toggle buttons and the create button each stack to full width, one per row, and the create button does not get pushed into an oddly-indented partial row.
+
 # Feedback
 
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.

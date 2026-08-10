@@ -68,18 +68,18 @@ Run: `npx vitest run src/app/features/calendar/public-calendar.component.test.ts
 
 ## Impl steps
 
-- [ ] 1. Add the four tests above to `src/app/features/calendar/public-calendar.component.test.ts`.
-- [ ] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — confirm red.
-- [ ] 3. In `src/app/features/calendar/public-calendar.component.ts`, delete the `<div class="calendar-header-actions" data-cy="calendar-header-actions"> … </div>` wrapper, moving its `@if (canCreateTournament()) { <a …> }` block into `<div class="calendar-view-tabs" …>` after the `data-cy="list-view"` button.
-- [ ] 4. In that moved anchor, replace `class="home-primary-action"` with `class="create-action-button calendar-create-tournament"`. Leave `mat-flat-button`, `routerLink="/tournaments/new"`, `data-cy` and the i18n key untouched.
-- [ ] 5. In `src/styles.css`, rewrite `.calendar-search-input` to `width: 100%; min-height: 44px; padding: .7rem .8rem; border: 1px solid var(--steel); border-radius: 0; background: var(--black-metal); color: var(--ash); font: inherit;`.
-- [ ] 6. Leave `.calendar-search-row` as `display: flex; width: 100%; margin: .35rem 0 .5rem;` — confirm it declares no `border` and no `background`.
-- [ ] 7. Delete the `.calendar-header-actions { … }` rule.
-- [ ] 8. Add `.calendar-create-tournament { margin-left: auto; }` next to the `.calendar-view-tabs` rules.
-- [ ] 9. In the narrow-viewport media query that already holds `.calendar-view-tabs, .calendar-view-tabs button { width: 100%; }`, add `.calendar-view-tabs .calendar-create-tournament { margin-left: 0; width: 100%; }`.
-- [ ] 10. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — green.
-- [ ] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 12. Manual: signed in with a verified email, `/calendar` shows one row `[Calendar] [List] ————— [Create tournament]`, the button is green and navigates to `/tournaments/new`. Signed out, that row shows only the two toggles. The search box has a visible border in both tabs; the strip around it has none. Narrow the window: the three controls stack full width.
+- [x] 1. Add the four tests above to `src/app/features/calendar/public-calendar.component.test.ts`. Evidence: `describe('PublicCalendarComponent toolbar row', ...)` added with the 4 tests; pre-existing tests referencing the deleted `calendar-header-actions` div were updated to target `calendar-header` instead (unavoidable fallout of step 3/7), and the T8 chrome-less-input test was removed as directly superseded by round-3 feedback #7.
+- [x] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — confirm red. Evidence: 4 failed / 49 passed before impl edits (captured in session log).
+- [x] 3. In `src/app/features/calendar/public-calendar.component.ts`, delete the `<div class="calendar-header-actions" data-cy="calendar-header-actions"> … </div>` wrapper, moving its `@if (canCreateTournament()) { <a …> }` block into `<div class="calendar-view-tabs" …>` after the `data-cy="list-view"` button. Evidence: template diff.
+- [x] 4. In that moved anchor, replace `class="home-primary-action"` with `class="create-action-button calendar-create-tournament"`. Leave `mat-flat-button`, `routerLink="/tournaments/new"`, `data-cy` and the i18n key untouched. Evidence: template diff.
+- [x] 5. In `src/styles.css`, rewrite `.calendar-search-input` to `width: 100%; min-height: 44px; padding: .7rem .8rem; border: 1px solid var(--steel); border-radius: 0; background: var(--black-metal); color: var(--ash); font: inherit;`. Evidence: styles.css diff.
+- [x] 6. Leave `.calendar-search-row` as `display: flex; width: 100%; margin: .35rem 0 .5rem;` — confirm it declares no `border` and no `background`. Evidence: unchanged, verified by new test assertion.
+- [x] 7. Delete the `.calendar-header-actions { … }` rule. Evidence: styles.css diff, rule removed.
+- [x] 8. Add `.calendar-create-tournament { margin-left: auto; }` next to the `.calendar-view-tabs` rules. Evidence: styles.css diff.
+- [x] 9. In the narrow-viewport media query that already holds `.calendar-view-tabs, .calendar-view-tabs button { width: 100%; }`, add `.calendar-view-tabs .calendar-create-tournament { margin-left: 0; width: 100%; }`. Evidence: styles.css diff.
+- [x] 10. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — green. Evidence: 53 passed (53).
+- [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. Evidence: all green (see Validation section).
+- [x] 12. Manual: recorded in `ai-artifacts/manual_test_checklist.md` under `## T6 calendar-toolbar-row` — layout/color assertions are structurally proven by tests 1-10; visual/navigation confirmation logged as a manual checklist item since this repo has no TestBed to render DOM.
 
 ## Outputs
 
@@ -89,13 +89,13 @@ Run: `npx vitest run src/app/features/calendar/public-calendar.component.test.ts
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` passes.
-- [ ] `npm run test` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `npm run cy:run -- --spec cypress/e2e/public-calendar.cy.js` passes.
-- [ ] Manual: create button green, right-aligned, on the toggle row; hidden when signed out or unverified.
-- [ ] Manual: search input bordered in both calendar and list tabs; its container has no border and no background.
-- [ ] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `fix(calendar): restore the search input border and move create onto the view row`
+- [x] `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` passes. Evidence: 53 passed (53).
+- [x] `npm run test` passes. Evidence: 95 test files, 798 tests passed.
+- [x] `npm run lint` passes. Evidence: "All files pass linting."
+- [x] `npm run typecheck` passes. Evidence: `tsc --noEmit` (app + spec) exits 0, no output.
+- [x] `npm run build` passes. Evidence: "Application bundle generation complete."
+- [ ] `npm run cy:run -- --spec cypress/e2e/public-calendar.cy.js` passes. NOT RUN — environment defect, not this ticket's scope: `npx cypress verify` fails in this sandbox with `error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file` (Cypress's bundled Electron binary can't load on this NixOS box without an FHS/nix-ld wrapper around the Cypress binary itself). Same failure for both `npm run cy:run` and direct `node_modules/.bin/cypress run`. Pre-existing environment limitation, unrelated to this change.
+- [ ] Manual: create button green, right-aligned, on the toggle row; hidden when signed out or unverified. Logged in `ai-artifacts/manual_test_checklist.md` § T6 calendar-toolbar-row for human confirmation — structurally proven by the 4 new template/stylesheet tests, but the ticket's own admonition against claiming purely-visual checks stands.
+- [ ] Manual: search input bordered in both calendar and list tabs; its container has no border and no background. Logged in the same checklist section; structurally proven by the new stylesheet test.
+- [x] App functional — no broken path from this slice. Evidence: `npm run test` full suite green (798/798), `npm run build` succeeds.
+- [x] Commit msg draft: `fix(calendar): restore the search input border and move create onto the view row`. Used as commit message.

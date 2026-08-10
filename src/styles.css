@@ -1116,10 +1116,10 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .calendar-view-tabs button { min-height: 44px; }
 .calendar-view-tabs button[aria-pressed='true'] { border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 25%, var(--black-metal)); }
 .calendar-search-row { display: flex; width: 100%; margin: .35rem 0 .5rem; }
-.calendar-search-input { width: 100%; min-height: 2.25rem; padding: .3rem 0; border: 0; background: transparent; color: var(--ash); font: inherit; }
+.calendar-search-input { width: 100%; min-height: 44px; padding: .7rem .8rem; border: 1px solid var(--steel); border-radius: 0; background: var(--black-metal); color: var(--ash); font: inherit; }
 .calendar-search-input::placeholder { color: var(--dim-ash); }
 .calendar-search-input:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
-.calendar-header-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.calendar-create-tournament { margin-left: auto; }
 .calendar-top-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .calendar-top-actions .back-button-row--top { margin-bottom: 0; }
 .calendar-sync-group { display: inline-flex; align-items: center; gap: .6rem; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
@@ -1170,6 +1170,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 @media (prefers-reduced-motion: reduce) { .calendar-skeleton div, .calendar-detail-skeleton div { animation: none; } }
 @media (max-width: 600px) {
   .calendar-view-tabs, .calendar-view-tabs button { width: 100%; }
+  .calendar-view-tabs .calendar-create-tournament { margin-left: 0; width: 100%; }
   .public-month-grid { grid-template-columns: 1fr; }
   /* Hide the whole header row, not its cells: an empty ARIA row is an a11y violation. */
   .public-month-row--head { display: none; }

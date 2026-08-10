@@ -54,11 +54,6 @@ const SEARCH_DEBOUNCE_MS = 300;
     <section class="info-page public-calendar-page" aria-labelledby="public-calendar-title" data-cy="public-calendar">
       <header class="section-header" data-cy="calendar-header">
         <div data-cy="calendar-header-text"><h1 id="public-calendar-title" data-cy="calendar-title">{{ i18n.t('calendar.publicTitle') }}</h1></div>
-        <div class="calendar-header-actions" data-cy="calendar-header-actions">
-          @if (canCreateTournament()) {
-            <a mat-flat-button class="home-primary-action" routerLink="/tournaments/new" data-cy="calendar-create-tournament">{{ i18n.t('calendar.createTournament') }}</a>
-          }
-        </div>
       </header>
 
       <form class="calendar-search-row" data-cy="calendar-search-row" (ngSubmit)="$event.preventDefault()">
@@ -71,6 +66,9 @@ const SEARCH_DEBOUNCE_MS = 300;
       <div class="calendar-view-tabs" role="group" [attr.aria-label]="i18n.t('calendar.viewAria')" data-cy="calendar-view-tabs">
         <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'calendar'" data-cy="calendar-view" (click)="setView('calendar')">{{ i18n.t('calendar.tabCalendar') }}</button>
         <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'list'" data-cy="list-view" (click)="setView('list')">{{ i18n.t('calendar.listView') }}</button>
+        @if (canCreateTournament()) {
+          <a mat-flat-button class="create-action-button calendar-create-tournament" routerLink="/tournaments/new" data-cy="calendar-create-tournament">{{ i18n.t('calendar.createTournament') }}</a>
+        }
       </div>
 
       <gones-offline-banner [stale]="stale()" [cachedAt]="syncedAt()" data-cy="calendar-offline-banner" />
