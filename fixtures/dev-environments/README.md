@@ -28,9 +28,53 @@ Every optional file is a JSON array. A missing file means an empty list.
 | `leagues.json` | the League Archives to restore |
 | `live-tournaments.json` | the running tournaments to create |
 
-`empty` and `minimal` ship with this repository. Only `accounts.json` is consumed today; the other
-files are read and validated, and the seeder's hooks for them are filled by the tickets that add the
-`demo` dataset.
+`empty`, `minimal` and `demo` ship with this repository. `accounts.json`, `organizations.json`,
+`formats.json`, `tournaments.json` and `registrations.json` are seeded today; `leagues.json` and
+`live-tournaments.json` are read and validated, and their seeder hooks are filled by the ticket that
+adds the League Archive and Live halves of the `demo` dataset.
+
+## The `demo` environment
+
+`npm run dev -- --env=demo` resets the local database and loads a populated Calendar: seven accounts
+(one per role, plus a deliberately unverified one), two organizations, four formats, nine published
+tournaments spread over past / today / future, and twelve registrations. It is what makes `/calendar`,
+`/organizer/tournaments` and the participants screen show content without creating anything by hand.
+
+Seeding drives the real HTTP API as those accounts, so the fixtures reference each other by
+human-readable **keys** — the GUIDs do not exist until the seed runs. `npm run test` checks every
+reference (`ops/dev-environments.test.ts`), so a mistyped key fails there rather than thirty seconds
+into a Docker reset.
+
+### Fixture fields
+
+`formats.json` — `key` (referenced by `tournaments[].formatKeys`), `name`, `slug` (an existing format
+with the same slug is reused instead of created), `sortOrder`.
+
+`organizations.json` — `key` (referenced by `tournaments[].organizationKey`), `name`, `description`,
+`website`, `contactEmail`, `ownerEmail` (an `accounts.json` email; that account becomes the
+organization owner, which is what lets it publish tournaments).
+
+`tournaments.json` — `key`, `organizationKey`, `organizerEmail` (must be the organization's owner),
+`title`, `summary` (50 characters maximum), `bodyHtml` (well-formed markup limited to
+`p`, `br`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, `a`), `streetAddress`, `postalCode`, `city`,
+`country`, `timeZoneId` (IANA), `startsAtLocalOffsetDays` / `startsAtLocalTime` and
+`endsAtLocalOffsetDays` / `endsAtLocalTime`, `capacity` (positive integer or `null` for unlimited),
+`formatKeys` (must contain `legacy` — V1 refuses a tournament without it).
+
+Dates are **relative**: the offset is a signed number of days added to today, so a dataset committed
+once still shows past, ongoing and upcoming tournaments a year later. `-90` is ninety days ago, `0`
+is today, `+60` is in two months.
+
+`registrations.json` — `tournamentKey` and `userEmail`. Only verified accounts can register, and the
+API closes registration once a tournament has started, so keep these on tournaments with a positive
+offset.
+
+### Editing it
+
+Edit the JSON, then re-run `npm run dev -- --env=demo`. There is nothing to rebuild. The seeder
+relaxes the local API's auth rate limit for the duration of the reset (a seven-account environment
+makes more login and registration calls than the shipped 5-per-15-minutes limit allows); export
+`GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT` yourself to override that.
 
 ## Running one
 

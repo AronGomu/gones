@@ -678,6 +678,33 @@ roles actually see in the browser, and that plain `npm run dev` still feels exac
 - [ ] Edit `fixtures/dev-environments/minimal/accounts.json` (change a first name), re-run
       `npm run dev -- --env=minimal`: the change is live with no rebuild of anything.
 
+## T2 demo-calendar-dataset
+
+The dataset itself is proved by `node scripts/seed-dev-environment.mjs --env=demo` (exit 0, then 2
+organizations / 4 formats / 9 tournaments / 12 confirmed registrations in the database, the offset-0
+tournament `InProgress` and the four past ones `Completed`), and the fixture cross-references are
+covered by `ops/dev-environments.test.ts`. What no automated check covers is how the seeded calendar
+reads in the browser.
+
+- [ ] `npm run dev -- --env=demo`, then open `/calendar` signed out: tournaments appear in past,
+      current and future months, and the one starting today reads as ongoing, not upcoming.
+- [ ] Still signed out, open the today tournament's detail page: venue, city, formats and the
+      organizing club are all filled in, and the body text renders as formatted HTML.
+- [ ] Sign in as `organizer@gones.test` and open `/organizer/tournaments`: exactly the five Gones
+      Lyon tournaments are listed, and none of the four Ligue AURA ones.
+- [ ] Open the participants screen of the Commander social evening: three registrants are listed
+      (`gones-test`, `gones-player-1`, `gones-player-2`), and the capacity reads as unlimited.
+- [ ] Sign in as `test@gones.test` and open `/registrations`: the four future tournaments it is
+      registered to are listed, and cancelling one removes it from the organizer participants screen.
+- [ ] Sign in as `unverified@gones.test`: registering for any tournament is refused with the
+      verify-your-email message - that account exists to make that state clickable.
+- [ ] Sign in as `organizer2@gones.test`: it sees the four Ligue AURA tournaments and cannot touch the
+      Gones Lyon ones.
+- [ ] Edit a title in `fixtures/dev-environments/demo/tournaments.json`, re-run
+      `npm run dev -- --env=demo`: the new title is live, and the dataset is not stacked twice.
+- [ ] `npm run dev -- --env=minimal` after a `demo` run: the calendar is empty again - the reset
+      really dropped the previous dataset.
+
 # Feedback
 
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.

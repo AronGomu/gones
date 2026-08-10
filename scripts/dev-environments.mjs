@@ -102,10 +102,72 @@ export function validateEnvironment(environment) {
     usernames.add(username);
   }
 
+  const organizations = environment.organizations ?? [];
+  const formats = environment.formats ?? [];
+  const tournaments = environment.tournaments ?? [];
+  const registrations = environment.registrations ?? [];
+
+  // A fixture points at what it needs by hand — GUIDs do not exist before the seed runs — so nothing
+  // but these rules catches a mistyped key. Without them the mistake surfaces as an API rejection
+  // thirty seconds into a Docker reset, with the previous dataset already dropped.
+  const organizationKeys = new Set(organizations.map(({ key }) => key));
+  const formatKeys = new Set(formats.map(({ key }) => key));
+  const tournamentKeys = new Set(tournaments.map(({ key }) => key));
+  const accountsByEmail = new Map(accounts.map((account) => [String(account.email).toLowerCase(), account]));
+
+  for (const [listName, list] of [['organization', organizations], ['format', formats], ['tournament', tournaments], ['registration', registrations]]) {
+    const seen = new Set();
+    for (const entry of list) {
+      const key = listName === 'registration' ? `${entry.tournamentKey}/${entry.userEmail}` : entry.key;
+      if (seen.has(key)) problems.push(`${label}: ${listName} key "${key}" is declared twice`);
+      seen.add(key);
+    }
+  }
+
+  for (const organization of organizations) {
+    if (!accountsByEmail.has(String(organization.ownerEmail).toLowerCase())) {
+      problems.push(`${label}: organization ${organization.key} owner ${organization.ownerEmail} is not a seeded account`);
+    }
+  }
+
+  for (const tournament of tournaments) {
+    if (!organizationKeys.has(tournament.organizationKey)) {
+      problems.push(`${label}: tournament ${tournament.key} references unknown organization ${tournament.organizationKey}`);
+    }
+    for (const formatKey of tournament.formatKeys ?? []) {
+      if (!formatKeys.has(formatKey)) problems.push(`${label}: tournament ${tournament.key} references unknown format ${formatKey}`);
+    }
+    const organizer = accountsByEmail.get(String(tournament.organizerEmail).toLowerCase());
+    if (organizer === undefined || !['Organizer', 'Admin'].includes(organizer.role)) {
+      problems.push(`${label}: tournament ${tournament.key} organizer ${tournament.organizerEmail} is not an Organizer`);
+    }
+  }
+
+  for (const registration of registrations) {
+    // An unverified account is registerable nowhere: the API refuses it with emailVerificationRequired.
+    const registrant = accountsByEmail.get(String(registration.userEmail).toLowerCase());
+    if (!tournamentKeys.has(registration.tournamentKey) || registrant === undefined || registrant.emailConfirmed === false) {
+      problems.push(`${label}: registration ${registration.tournamentKey}/${registration.userEmail} is not seedable`);
+    }
+  }
+
   const carriesData = DATA_FILES.some((key) => (environment[key] ?? []).length > 0);
   if (environment.resetDatabase === false && carriesData) problems.push(`${label}: resetDatabase=false but the environment carries data`);
 
   return problems;
+}
+
+/**
+ * A fixture date is a signed day offset plus a wall-clock time, rendered against today, so a dataset
+ * committed once keeps showing past, ongoing and upcoming tournaments a year later (ADR 0030). The
+ * result is `YYYY-MM-DDTHH:mm`, the minute precision a fixture is written in; the seeder appends the
+ * seconds the server's ISO parser wants. No zone conversion happens here — the fixture's own
+ * `timeZoneId` is what the server resolves the local time against.
+ */
+export function localDateTime(offsetDays, time, today = new Date()) {
+  const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offsetDays);
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}T${time}`;
 }
 
 /** Splits process.argv.slice(2) for scripts/dev.mjs. */

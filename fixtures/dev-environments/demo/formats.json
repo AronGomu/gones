@@ -1,0 +1,6 @@
+[
+  { "key": "legacy", "name": "Legacy", "slug": "legacy", "sortOrder": 10 },
+  { "key": "modern", "name": "Modern", "slug": "modern", "sortOrder": 20 },
+  { "key": "pauper", "name": "Pauper", "slug": "pauper", "sortOrder": 30 },
+  { "key": "commander", "name": "Commander", "slug": "commander", "sortOrder": 40 }
+]

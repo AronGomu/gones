@@ -1,0 +1,5 @@
+{
+  "name": "demo",
+  "description": "Seven accounts, two organizations, nine calendar tournaments, two league archives, two running tournaments.",
+  "resetDatabase": true
+}

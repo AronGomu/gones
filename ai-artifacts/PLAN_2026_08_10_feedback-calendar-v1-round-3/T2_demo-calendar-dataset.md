@@ -19,7 +19,9 @@
 - **From T1 (spell out — do not read T1):**
   - `fixtures/dev-environments/<name>/` holds `environment.json` (`{ name, description, resetDatabase }`) plus optional per-concern JSON arrays: `accounts.json`, `organizations.json`, `formats.json`, `tournaments.json`, `registrations.json`, `leagues.json`, `live-tournaments.json`. A missing file means `[]`.
   - `scripts/dev-environments.mjs` exports `DEV_ENVIRONMENTS_DIR`, `DEFAULT_DEV_ENVIRONMENT`, `DATA_FILES`, `listEnvironmentNames(root?)`, `readEnvironment(name, root?)` (throws `Error('unknownDevEnvironment')`), `validateEnvironment(environment) -> string[]`, `parseDevArgs(argv)`, `loginToken(email, password) -> { accessToken }`.
-  - `readEnvironment` returns `{ name, description, resetDatabase, accounts, organizations, formats, tournaments, registrations, leagues, liveTournaments }`.
+  - `readEnvironment` returns `{ name, description, resetDatabase, accounts, organizations, formats, tournaments, registrations, leagues, liveTournaments }`, plus one extra key `directory` that T1 added so `validateEnvironment` can check `name` against the directory name. Ignore `directory` here.
+  - T1 also exports `devComposeEnv()` from `scripts/dev-environments.mjs` — the `GONES_FEATURES__*` env block a `docker compose up` needs so `/api/auth/register` is not 404. Reuse it if you shell out to compose; do not re-declare the flag list.
+  - T1 deviation to be aware of: `scripts/seed-dev-environment.mjs` inlines its reset (`docker compose --profile development down --volumes --remove-orphans` → `docker compose up --build -d --wait postgres migrator api worker` → `node scripts/seed-local.mjs`) rather than spawning `scripts/reset-local-stack.mjs`, because that script also starts `frontend-development` on port 4200 and collides with `ng serve`. Keep it that way.
   - Account entry: `{ email, username, firstName, lastName, role, password?, emailConfirmed? }`, `role ∈ User | Organizer | Admin`.
   - `scripts/seed-dev-environment.mjs` already resets the stack, seeds accounts and prints the summary. It already declares the empty hooks `seedOrganizations`, `seedFormats`, `seedTournaments`, `seedRegistrations`, `seedLeagues`, `seedLiveTournaments` — this ticket fills the first four.
   - `ops/dev-environments.test.ts` already asserts: every shipped environment validates, `empty` seeds nothing, `minimal` has one account per role, every password meets policy, unknown name throws, `parseDevArgs` strips `--env`, and a data-carrying environment must set `resetDatabase: true`.
@@ -149,22 +151,22 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 
 ## Impl steps
 
-- [ ] 1. Create `fixtures/dev-environments/demo/environment.json` with `resetDatabase: true`.
-- [ ] 2. Create `fixtures/dev-environments/demo/accounts.json` with the 7 rows in the table above.
-- [ ] 3. Create `fixtures/dev-environments/demo/formats.json` with the 4 formats.
-- [ ] 4. Create `fixtures/dev-environments/demo/organizations.json` with the 2 organizations.
-- [ ] 5. Create `fixtures/dev-environments/demo/tournaments.json` with the 9 tournaments and the offsets `-90, -45, -21, -7, 0, +3, +10, +24, +60`.
-- [ ] 6. Create `fixtures/dev-environments/demo/registrations.json` with 12 rows, one tournament carrying 3 registrants.
-- [ ] 7. Add the five tests above to `ops/dev-environments.test.ts`. Confirm red.
-- [ ] 8. Add `localDateTime` to `scripts/dev-environments.mjs` and export it.
-- [ ] 9. Add the six cross-reference rules to `validateEnvironment`.
-- [ ] 10. Re-run `npx vitest run ops/dev-environments.test.ts` — green.
-- [ ] 11. Add `loginAll(environment)` to `scripts/seed-dev-environment.mjs` and call it after account seeding.
-- [ ] 12. Implement `seedFormats`, then `seedOrganizations`, then `seedTournaments`, then `seedRegistrations`.
-- [ ] 13. Extend the printed summary with the seeded counts.
-- [ ] 14. Document the `demo` environment and every fixture field in `fixtures/dev-environments/README.md`.
-- [ ] 15. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 16. Manual: `npm run dev -- --env=demo`; `/calendar` shows tournaments in past, current and future months; sign in as `organizer@gones.test` and open `/organizer/tournaments`; open the participants screen of the 3-registrant tournament.
+- [x] 1. Create `fixtures/dev-environments/demo/environment.json` with `resetDatabase: true`. — criterion: `node -e "JSON.parse(...)"` reads the file and `resetDatabase === true`, `name === 'demo'`.
+- [x] 2. Create `fixtures/dev-environments/demo/accounts.json` with the 7 rows in the table above. — criterion: file parses to 7 entries, roles `{User, Organizer, Admin}`, exactly one `emailConfirmed: false`.
+- [x] 3. Create `fixtures/dev-environments/demo/formats.json` with the 4 formats. — criterion: file parses to 4 entries with keys `legacy, modern, pauper, commander` and sortOrders `10/20/30/40`.
+- [x] 4. Create `fixtures/dev-environments/demo/organizations.json` with the 2 organizations. — criterion: file parses to 2 entries keyed `gones-lyon` / `aura-league` with the two organizer owners.
+- [x] 5. Create `fixtures/dev-environments/demo/tournaments.json` with the 9 tournaments and the offsets `-90, -45, -21, -7, 0, +3, +10, +24, +60`. — criterion: file parses to 9 entries whose offsets equal that list, 5 `gones-lyon` / 4 `aura-league`, exactly one `capacity: null`.
+- [x] 6. Create `fixtures/dev-environments/demo/registrations.json` with 12 rows, one tournament carrying 3 registrants. — criterion: file parses to 12 entries and at least one `tournamentKey` appears 3 times.
+- [x] 7. Add the five tests above to `ops/dev-environments.test.ts`. Confirm red. — criterion: `npx vitest run ops/dev-environments.test.ts` fails on the new cross-reference / `localDateTime` assertions.
+- [x] 8. Add `localDateTime` to `scripts/dev-environments.mjs` and export it. — criterion: `localDateTime(1, '09:00', new Date(2026, 0, 31)) === '2026-02-01T09:00'`.
+- [x] 9. Add the six cross-reference rules to `validateEnvironment`. — criterion: the dangling-reference test gets `'demo-broken: tournament t1 references unknown organization nope'`.
+- [x] 10. Re-run `npx vitest run ops/dev-environments.test.ts` — green. — criterion: the runner reports 0 failed.
+- [x] 11. Add `loginAll(environment)` to `scripts/seed-dev-environment.mjs` and call it after account seeding. — criterion: the real `--env=demo` run reaches the org/format steps, which need a token.
+- [x] 12. Implement `seedFormats`, then `seedOrganizations`, then `seedTournaments`, then `seedRegistrations`. — criterion: the real `--env=demo` run exits 0 and the DB holds 2 organizations, 4 formats, 9 tournaments, 12 confirmed registrations.
+- [x] 13. Extend the printed summary with the seeded counts. — criterion: the run prints a `2 organizations, 4 formats, 9 tournaments, 12 registrations` line.
+- [x] 14. Document the `demo` environment and every fixture field in `fixtures/dev-environments/README.md`. — criterion: the README lists `demo` and every field of the five fixture files.
+- [x] 15. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — criterion: all four exit 0.
+- [x] 16. Manual: `npm run dev -- --env=demo`; `/calendar` shows tournaments in past, current and future months; sign in as `organizer@gones.test` and open `/organizer/tournaments`; open the participants screen of the 3-registrant tournament. — criterion: substituted by the API-level equivalent (an `ng serve` owned by another process holds :4200, so the containerised frontend must not start): anonymous `GET /api/tournaments/all` lists the 9 tournaments across past/ongoing/upcoming, `GET /api/tournaments/{slug}/participants` shows the 3 registrants, and the organizer token lists its 5 tournaments.
 
 ## Outputs
 
@@ -175,14 +177,14 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 
 ## Validation
 
-- [ ] `npx vitest run ops/dev-environments.test.ts` passes.
-- [ ] `npm run test` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `node scripts/seed-dev-environment.mjs --env=demo` exits 0 and prints seeded counts.
-- [ ] Re-running the same command exits 0 again (registrations tolerate `409`).
-- [ ] Manual: anonymous `/calendar` shows the 9 tournaments across months; the offset-`0` one reads ongoing.
-- [ ] Manual: `organizer@gones.test` sees its 5 tournaments in `/organizer/tournaments`; `test@gones.test` sees its registrations in `/registrations`.
-- [ ] App functional — no broken path from this slice.
+- [x] `npx vitest run ops/dev-environments.test.ts` passes.
+- [x] `npm run test` passes.
+- [x] `npm run lint` passes.
+- [x] `npm run typecheck` passes.
+- [x] `npm run build` passes.
+- [x] `node scripts/seed-dev-environment.mjs --env=demo` exits 0 and prints seeded counts.
+- [x] Re-running the same command exits 0 again (registrations tolerate `409`).
+- [x] Manual: anonymous `/calendar` shows the 9 tournaments across months; the offset-`0` one reads ongoing. — API-level substitute (port 4200 is held by another process): anonymous `GET /api/tournaments/all` returns the 9 with statuses `Completed`/`InProgress`/`Published`.
+- [x] Manual: `organizer@gones.test` sees its 5 tournaments in `/organizer/tournaments`; `test@gones.test` sees its registrations in `/registrations`. — API-level substitute: `GET /api/organizer/tournaments`-equivalent counts and `GET /api/users/me/registrations` return 5 and 4 rows.
+- [x] App functional — no broken path from this slice.
 - [ ] Commit msg draft: `feat(dev): seed the demo environment calendar from fixture files`
