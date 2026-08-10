@@ -221,7 +221,10 @@ Cypress, appended to `cypress/e2e/league-local.cy.js`, signed out with every `**
 - [x] `npm run acceptance:matrix` passes with the new row proved — `ok doc-league-local`, `99/99 non-deferred capability rows proved (3 deferred)`
 - [x] `npx cypress run --spec cypress/e2e/league-local.cy.js` passes — 5/5 including the new round trip
 - [x] `npx cypress run --spec cypress/e2e/league-server.cy.js` passes — 3/3
-- [ ] `npm run e2e:ci` passes
+- [x] `npm run e2e:ci` passes *(closed by T17, not by this ticket. T15 left this red and recorded the three
+      failing specs as pre-existing; the parent's reviewer fanout disproved that — each was introduced inside
+      this plan's own commit range. T17 fixed all three and recorded `npm run e2e:ci` → `EXIT=0`, 20/20
+      release specs.)*
       *Fails, and the failure is **pre-existing**: `public-calendar.cy.js > navigates months over the cached catalog without re-querying the API` expects `August` and reads `août 2026` (the documented French-default self-heal race). Reproduced identically with this slice stashed, on a baseline release image. The gate aborts on the first failing spec, so the rest of the list was run by hand on this branch's build: `first-visit`, `server-data-authority`, `tournament-registration`, `offline-public-read`, `auth-profile`, `league-server`, `league-local`, `settings-server`, `live-server`, `admin-orgs`, `admin-notification-delivery`, `organizer-tournament-create`, `organizer-tournament-management`, `organizer-participants`, `abuse-surface`, `tournament-proposal`, `accessibility` — all green. Two other specs fail one case each (`auth-session-persistence > leaves anonymous browsing untouched…`, `live-local > deletes a local tournament from the advanced settings…`); both reproduce identically on the stashed baseline, so neither comes from this slice.*
 - [x] Manual (signed out): `npm run dev`, create two local leagues, click Full data export, open the file — both leagues are in it, neither placeholder is.
       *Automated equivalent shipped: `cypress/e2e/league-local.cy.js > exports both browser leagues…` captures the real bundle and asserts both names, only `local-` ids and no placeholder; plus four vitest export cases.*

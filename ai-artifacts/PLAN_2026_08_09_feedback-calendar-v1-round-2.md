@@ -109,6 +109,12 @@ flowchart TD
 | T13 | Local League store — full port parity | T12 | All 22 port methods implemented locally and proved against the server-parity fixtures | `PLAN_2026_08_09_feedback-calendar-v1-round-2/T13_local-league-store-parity.md` |
 | T14 | Dual-source league list and write routing | T13 | Anonymous visitors create and manage leagues; signed-in users see server + local rows, badged | `PLAN_2026_08_09_feedback-calendar-v1-round-2/T14_dual-source-league-list.md` |
 | T15 | Dual-source export and import | T14 | Full data export contains local leagues; import lands in the store the caller may write | `PLAN_2026_08_09_feedback-calendar-v1-round-2/T15_dual-source-export-import.md` |
+| T16 | Reviewer correctness fixes | T15 | Local import can no longer destroy a league, a partial export can no longer pass as full, and the Live picker offers only server leagues | `PLAN_2026_08_09_feedback-calendar-v1-round-2/T16_reviewer-correctness-fixes.md` |
+| T17 | e2e gate and test honesty | T16 | `npm run cy:run` and `npm run e2e:ci` are green, and four mutation-proven vacuous assertions now fail when their behaviour breaks | `PLAN_2026_08_09_feedback-calendar-v1-round-2/T17_e2e-gate-and-test-honesty.md` |
+
+**T16 and T17 were added during execution**, not at plan time. They carry the in-scope blockers found by the
+parent orchestrator's independent `deep` reviewer fanout (correctness / security / scope-drift / tests) over
+the finished T1–T15 diff. See `## Findings that changed the plan` below.
 
 ## Tickets
 
@@ -127,6 +133,39 @@ flowchart TD
 - [T13: Local League store — full port parity](PLAN_2026_08_09_feedback-calendar-v1-round-2/T13_local-league-store-parity.md) — depends: T12
 - [T14: Dual-source league list and write routing](PLAN_2026_08_09_feedback-calendar-v1-round-2/T14_dual-source-league-list.md) — depends: T13
 - [T15: Dual-source export and import](PLAN_2026_08_09_feedback-calendar-v1-round-2/T15_dual-source-export-import.md) — depends: T14
+- [T16: Reviewer correctness fixes](PLAN_2026_08_09_feedback-calendar-v1-round-2/T16_reviewer-correctness-fixes.md) — depends: T15
+- [T17: e2e gate and test honesty](PLAN_2026_08_09_feedback-calendar-v1-round-2/T17_e2e-gate-and-test-honesty.md) — depends: T16
+
+## Findings that changed the plan
+
+The reviewer fanout over `1aaba28..HEAD` found six in-scope blockers. All six are fixed in T16/T17.
+
+| # | Finding | Ticket that introduced it | Fixed in |
+| --- | --- | --- | --- |
+| 1 | A local import overwrote an existing local league in place (`putRestored` upserted on a `local-` id, resetting `documentVersion` to 1). Self-inflicted via export → edit → re-import, and reachable by a hostile bundle naming a victim id. Found independently by the correctness and security reviewers. | T12 | T16 |
+| 2 | `downloadFullExport` ignored the repository's `serverUnavailable` flag, so a signed-in user whose server read failed got a bundle containing only browser-local leagues, presented as a complete backup. | T14/T15 | T16 |
+| 3 | The merged league list leaked browser-local leagues and the local placeholder into the server-only Live settings League picker, offering a cross-authority assignment the API always rejects. | T14 | T16 |
+| 4 | `public-calendar.cy.js` replaced a deliberately locale-independent witness with the literal `August`; the release topology renders `août 2026`. The deleted comment had warned about exactly this. | T10 | T17 |
+| 5 | `auth-session-persistence.cy.js` still asserted `menu-login-card`, which T2 deleted. | T2 | T17 |
+| 6 | The new `live-local.cy.js` delete case depended on the previous test's IndexedDB actually being deleted, which the open live connection blocks. | T4 | T17 |
+
+T15 recorded findings 4-6 as "pre-existing failures reproduced on a stashed baseline". That was wrong: the
+stashed baseline still contained the commits that introduced them. Each was confirmed inside this plan's own
+range, twice — once by diffing against a worktree at `1aaba28`, once by a live Cypress run.
+
+The `tests` reviewer additionally mutation-tested the suite and found four assertions that stayed green while
+their behaviour was broken (the login validation gate, the pagination guard, the local-row badge, and the
+sort comparators). All four now fail when mutated — red/green pairs captured in T17.
+
+## Plan-fact corrections found during execution
+
+- `LeagueArchiveBackendPort` declares **21** methods, not the 22 asserted by assumption A2, the T13 title and
+  ADR 0028. Parity is proved by `implements LeagueArchiveBackendPort` typechecking without a `Partial`, not by
+  a count. The ADR was corrected in T16.
+- The League archive API path is `/api/leagues-archive`, not `/api/league-archives` as the tickets wrote it.
+- T16 step 5 as originally written would have refused a full export for **anonymous** visitors too — the very
+  people who own browser-local leagues, and for whom ADR 0028 makes export the only backup. Corrected during
+  execution to refuse only when the server read failed *and* the visitor is signed in.
 
 ## Feedback line → ticket map
 
