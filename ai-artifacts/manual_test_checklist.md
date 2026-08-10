@@ -342,3 +342,23 @@ in a real browser — those need a human:
 - [ ] Tab (keyboard) into the search input: a red focus ring is visible around it.
 - [ ] Resize to 480px wide: the search row still spans the width and the Calendar / List buttons wrap
       onto their own line under it.
+
+## T9 month-nav-above-grid
+
+Automated coverage: `public-calendar.component.test.ts` proves the source-level layout contract (the
+`calendar-month-controls` nav is the element immediately above `.public-month-grid`, with no other
+`data-cy` element between them; `.calendar-month-controls` is `display: flex; width: 100%;
+justify-content: space-between`; `.calendar-month-controls h2` is `flex: 1; text-align: center`; no
+`.calendar-month-controls` rule declares `grid-column` or `justify-self` anywhere in the stylesheet)
+plus behavioural cases (`moveMonth(1)` navigates with `month` advanced and `view` still `'calendar'`,
+and `shiftMonth('2026-01', -1)` returns `'2025-12'`). `cypress/e2e/public-calendar.cy.js`'s "navigates
+months over the cached catalog without re-querying the API" clicks `[data-cy="calendar-month-next"]`
+then `[data-cy="calendar-month-prev"]` and asserts the month label and catalogue state. None of that
+proves rendered pixel position or responsive wrap — those need a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/calendar` in calendar view at 1440px wide: Previous is
+      flush to the left edge of the row, the month name is centred, Next is flush to the right edge, and
+      the row sits directly on top of the seven-column month grid with no gap or overlap.
+- [ ] Switch to the List tab: the month nav row disappears entirely (it only renders in calendar view).
+- [ ] Resize to 480px wide while in calendar view: Previous / month label / Next stay on one row, edge to
+      edge, with no wrapping or horizontal overflow.

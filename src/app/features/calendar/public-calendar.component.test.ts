@@ -18,7 +18,7 @@ import { PublicTournamentService } from './public-tournament.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { AuthService } from '../../auth/auth.service';
-import { PublicTournamentView } from './public-calendar';
+import { PublicTournamentView, shiftMonth } from './public-calendar';
 import { UserProfileResponse } from '../../api/generated/gones-api';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -409,5 +409,76 @@ describe('PublicCalendarComponent search row layout', () => {
     component.setSearchDraft('');
 
     expect(component.items()).toHaveLength(2);
+  });
+});
+
+describe('PublicCalendarComponent month nav layout', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  it('the month nav is the element immediately above the grid', () => {
+    const navIndex = source.indexOf('data-cy="calendar-month-controls"');
+    const gridIndex = source.indexOf('class="public-month-grid"');
+    expect(navIndex).toBeGreaterThan(-1);
+    expect(gridIndex).toBeGreaterThan(-1);
+    expect(navIndex).toBeLessThan(gridIndex);
+
+    const navClose = source.indexOf('</nav>', navIndex);
+    const gridOpen = source.lastIndexOf('<section', gridIndex);
+    const between = source.slice(navClose + '</nav>'.length, gridOpen);
+    expect(between).not.toContain('data-cy=');
+  });
+
+  it('the month nav spans the row', () => {
+    const ruleStart = stylesheet.indexOf('.calendar-month-controls {');
+    expect(ruleStart).toBeGreaterThan(-1);
+    const ruleEnd = stylesheet.indexOf('}', ruleStart);
+    const rule = stylesheet.slice(ruleStart, ruleEnd);
+    expect(rule).toContain('display: flex');
+    expect(rule).toContain('width: 100%');
+  });
+
+  it('previous and next are pushed to the edges', () => {
+    const ruleStart = stylesheet.indexOf('.calendar-month-controls {');
+    const ruleEnd = stylesheet.indexOf('}', ruleStart);
+    const rule = stylesheet.slice(ruleStart, ruleEnd);
+    expect(rule).toContain('justify-content: space-between');
+  });
+
+  it('the month label takes the middle', () => {
+    const ruleStart = stylesheet.indexOf('.calendar-month-controls h2 {');
+    expect(ruleStart).toBeGreaterThan(-1);
+    const ruleEnd = stylesheet.indexOf('}', ruleStart);
+    const rule = stylesheet.slice(ruleStart, ruleEnd);
+    expect(rule).toContain('flex: 1');
+    expect(rule).toContain('text-align: center');
+  });
+
+  it('the dead grid placement is gone', () => {
+    const regex = /\.calendar-month-controls[^{}]*\{[^}]*\}/g;
+    const matches = stylesheet.match(regex) ?? [];
+    expect(matches.length).toBeGreaterThan(0);
+    for (const rule of matches) {
+      expect(rule).not.toContain('grid-column');
+      expect(rule).not.toContain('justify-self');
+    }
+  });
+
+  it('moving month keeps the view', async () => {
+    const { component, navigate } = setup();
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    component.moveMonth(1);
+
+    expect(navigate).toHaveBeenCalled();
+    const [, extras] = navigate.mock.calls[navigate.mock.calls.length - 1] as [unknown, { queryParams: Record<string, string> }];
+    expect(extras.queryParams['month']).toBe('2026-09');
+    expect(extras.queryParams['view']).toBe('calendar');
+  });
+
+  it('moving month backwards crosses the year boundary', () => {
+    expect(shiftMonth('2026-01', -1)).toBe('2025-12');
   });
 });

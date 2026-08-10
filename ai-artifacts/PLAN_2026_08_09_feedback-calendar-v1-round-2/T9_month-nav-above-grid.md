@@ -73,23 +73,23 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Impl steps
 
-- [ ] 1. Add the seven cases above to `src/app/features/calendar/public-calendar.component.test.ts`. Import `shiftMonth` from `'./public-calendar'` for the last case.
-- [ ] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new stylesheet cases must fail.
-- [ ] 3. In `src/styles.css`, replace line 287 with:
+- [x] 1. Add the seven cases above to `src/app/features/calendar/public-calendar.component.test.ts`. Import `shiftMonth` from `'./public-calendar'` for the last case.
+- [x] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new stylesheet cases must fail. (4 failed as expected: `spans the row`, `pushed to the edges`, `label takes the middle`, `dead grid placement is gone`.)
+- [x] 3. In `src/styles.css`, replace line 287 with:
       ```css
       .calendar-month-controls { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .75rem; margin: .25rem 0 .5rem; }
       ```
-- [ ] 4. Replace line 288 with:
+- [x] 4. Replace line 288 with:
       ```css
       .calendar-month-controls h2 { flex: 1; min-width: 0; margin: 0; text-align: center; }
       ```
-- [ ] 5. In the narrow-viewport media query around line 458, split the shared selector so only the other class keeps the dead placement, and drop `.calendar-month-controls` from it entirely:
+- [x] 5. In the narrow-viewport media query around line 458, split the shared selector so only the other class keeps the dead placement, and drop `.calendar-month-controls` from it entirely:
       ```css
       .calendar-download-button { grid-column: 1; justify-self: center; }
       ```
       If `grep -rn "calendar-download-button" src --include=*.ts` shows no consumer either, still leave this line as written — deleting it is a separate cleanup and out of scope here.
-- [ ] 6. Verify the template needs no edit: the nav already carries `data-cy="calendar-month-controls"` and already precedes `.public-month-grid`. Do not restructure it.
-- [ ] 7. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 6. Verify the template needs no edit: the nav already carries `data-cy="calendar-month-controls"` and already precedes `.public-month-grid`. Do not restructure it. (Confirmed unchanged; template diff is stylesheet-only.)
+- [x] 7. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green. (41 tests passed, 2 files.)
 
 ## Outputs
 
@@ -99,14 +99,14 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
-- [ ] Manual: `npm run dev`, open `/calendar` in calendar view at 1440px — Previous is at the far left, the month name centred, Next at the far right, and the row sits directly on top of the seven-column grid.
-- [ ] Manual: click Next then Previous — the month label and grid follow, the URL `month` parameter changes, and `view=calendar` is preserved.
-- [ ] Manual: switch to the List tab — the month nav is gone (it is inside the calendar-only block).
-- [ ] Manual: at 480px the three items stay on one row, edge to edge, with no overflow.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `fix(calendar): spread the month navigation across the row above the grid`
+- [x] `npm run test` passes (599 tests, 84 files, all pass)
+- [x] `npm run lint` passes ("All files pass linting.")
+- [x] `npm run typecheck` passes (no output/errors)
+- [x] `npm run build` passes (bundle emitted to dist/gones)
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes (6/6, run via `steam-run` with LD_LIBRARY_PATH for nspr/nss)
+- [ ] Manual: `npm run dev`, open `/calendar` in calendar view at 1440px — Previous is at the far left, the month name centred, Next at the far right, and the row sits directly on top of the seven-column grid. Not run — needs a human browser; automated proxy is the `.calendar-month-controls` stylesheet-contract tests (`display: flex`, `width: 100%`, `justify-content: space-between`) and the document-order test in `public-calendar.component.test.ts`. Logged in `ai-artifacts/manual_test_checklist.md`.
+- [x] Manual: click Next then Previous — the month label and grid follow, the URL `month` parameter changes, and `view=calendar` is preserved. Automated equivalent: Cypress `navigates months over the cached catalog without re-querying the API` (public-calendar.cy.js) plus vitest `moving month keeps the view` / `moving month backwards crosses the year boundary`.
+- [ ] Manual: switch to the List tab — the month nav is gone (it is inside the calendar-only block). Not run — needs a human browser; the `@if (query().view === 'calendar')` guard around the nav is unchanged from T8 and covered structurally, not by a dedicated new assertion this round. Logged in `ai-artifacts/manual_test_checklist.md`.
+- [ ] Manual: at 480px the three items stay on one row, edge to edge, with no overflow. Not run — needs a human browser; no viewport-rendering harness available. Logged in `ai-artifacts/manual_test_checklist.md`.
+- [x] app functional — no broken path from this slice (full `npm run test`, `npm run build`, and the `public-calendar.cy.js` Cypress spec all green)
+- [x] commit msg draft: `fix(calendar): spread the month navigation across the row above the grid`

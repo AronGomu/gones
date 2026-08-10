@@ -286,8 +286,8 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 }
 .calendar-page { gap: .55rem; }
 .calendar-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .75rem; margin-bottom: -.25rem; }
-.calendar-month-controls { grid-column: 2; display: inline-flex; align-items: center; justify-content: center; gap: .75rem; }
-.calendar-month-controls h2 { min-width: min(52vw, 18rem); text-align: center; }
+.calendar-month-controls { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: .75rem; margin: .25rem 0 .5rem; }
+.calendar-month-controls h2 { flex: 1; min-width: 0; margin: 0; text-align: center; }
 .calendar-download-button { grid-column: 3; justify-self: end; }
 .calendar-tabs { display: grid; gap: .5rem; }
 .calendar-tabs .mat-mdc-tab-body-content { padding-top: .65rem; }
@@ -456,7 +456,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
   .about-weekly { grid-template-columns: auto minmax(0, 1fr); }
   .about-weekly > a { grid-column: 2; justify-self: start; }
   .calendar-toolbar { grid-template-columns: 1fr; justify-items: stretch; }
-  .calendar-month-controls, .calendar-download-button { grid-column: 1; justify-self: center; }
+  .calendar-download-button { grid-column: 1; justify-self: center; }
   .calendar-download-button { width: min(100%, 22rem); }
   .calendar-event { grid-template-columns: 4.8rem minmax(0, 1fr); }
 }
