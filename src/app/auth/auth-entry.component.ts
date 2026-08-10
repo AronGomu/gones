@@ -6,8 +6,10 @@ import { MatCardModule } from '@angular/material/card';
 import { dataAuthority } from '../config/data-authority';
 import { ApiProblemError, joinApiUrl } from '../api/api-boundary';
 import { I18nService } from '../i18n/i18n.service';
+import { BackButtonComponent } from '../shared/back-button.component';
 import { AuthFieldErrors, fieldErrorsFromProblem } from './auth-errors';
 import { AuthService } from './auth.service';
+import { authReturnLink, AuthMode } from './auth-return-link';
 import { registrationDestination } from './registration-gate';
 import { LastVisitedUrlService, loginDestination } from './last-visited-url.service';
 import { passwordConfirmationErrors } from './password-confirmation';
@@ -22,8 +24,11 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, FieldErrorsComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, FieldErrorsComponent, BackButtonComponent],
   template: `
+    @if (returnLink(); as link) {
+      <gones-back-button [link]="link" [label]="returnLabel()" position="top" data-cy="auth-back-button-top" />
+    }
     <section class="auth-shell" data-cy="auth-shell" [attr.aria-labelledby]="titleId">
       <mat-card class="panel auth-card" data-cy="auth-card">
         <mat-card-content class="stack" data-cy="auth-card-content">
@@ -142,6 +147,8 @@ export class AuthEntryComponent {
   readonly passwordInvalid = computed(() => this.password().length > 0 && !isValidLoginPassword(this.password()));
   readonly token = this.route.snapshot.queryParamMap.get('token') ?? '';
   private readonly completionTicket = this.route.snapshot.queryParamMap.get('ticket') ?? this.route.snapshot.queryParamMap.get('completionTicket') ?? '';
+  readonly returnLink = computed(() => authReturnLink(this.mode()));
+  readonly returnLabel = computed(() => this.returnLink()?.[0] === '/' ? this.i18n.t('nav.returnToMenu') : this.i18n.t('auth.backToLogin'));
 
   title(): string {
     const keys: Record<AuthMode, Parameters<I18nService['t']>[0]> = { login: 'auth.signIn', register: 'auth.createAccount', 'complete-profile': 'auth.completeProfile', 'verify-email': 'auth.verifyEmail', 'forgot-password': 'auth.forgotPassword', 'reset-password': 'auth.resetPassword' };
@@ -215,5 +222,4 @@ export class AuthEntryComponent {
   }
 }
 
-type AuthMode = 'login' | 'register' | 'complete-profile' | 'verify-email' | 'forgot-password' | 'reset-password';
 function deviceLabel(): string { return `${navigator.platform || 'Browser'} · ${navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'}`.slice(0, 100); }

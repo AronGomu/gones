@@ -795,3 +795,24 @@ live viewport — those need a human:
 - [ ] Switch the app language to French on both pages: buttons read "Continuer avec" then the logo.
 - [ ] Narrow the window below ~600px on both pages: the OAuth grid drops to one column and each
       button still centres its label/logo pair.
+
+## T10 auth-return-buttons
+
+Automated coverage (`src/app/auth/auth-return-link.test.ts`, `src/app/auth/auth-entry.layout.test.ts`)
+proves the pure `authReturnLink(mode)` mapping for all six modes (`login`/`register` → `['/']`,
+`complete-profile` → `null`, `verify-email`/`forgot-password`/`reset-password` → `['/login']`) and that
+the component renders exactly one `gones-back-button`, guarded by `@if (returnLink(); as link)`,
+carrying `data-cy="auth-back-button-top"`. It cannot prove rendered pixels, French runtime text, or a
+live viewport — those need a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/login` — a "Return to Menu" button sits above the
+      card; clicking it lands on `/`.
+- [ ] Open `/register` — same "Return to Menu" button above the card, lands on `/`.
+- [ ] Open `/forgot-password` — a "Back to sign in" button sits above the card; clicking it lands on
+      `/login`.
+- [ ] Open `/reset-password?token=anything` — same "Back to sign in" button, lands on `/login`.
+- [ ] Open `/verify-email?token=anything` — same "Back to sign in" button, lands on `/login` (the
+      in-card "Back to sign in" link at the bottom still works too, unchanged).
+- [ ] Open `/auth/complete-profile` (mid-OAuth) — no return button of either kind above the card.
+- [ ] Switch the app language to French on `/login` and `/forgot-password`: buttons read "Retour au
+      menu" and "Retour à la connexion" respectively.

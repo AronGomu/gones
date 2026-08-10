@@ -114,4 +114,35 @@ describe('auth-entry login OAuth layout', () => {
     expect(buttonBlock).toContain('min-height: 3rem');
     expect(logoBlock).toContain('align-self: center');
   });
+
+  it('the auth page renders one guarded return button', () => {
+    const matches = componentSource.match(/gones-back-button/g) ?? [];
+    expect(matches.length).toBe(1);
+    expect(componentSource).toContain("import { BackButtonComponent } from '../shared/back-button.component'");
+    expect(componentSource).toMatch(/imports:\s*\[[^\]]*BackButtonComponent[^\]]*\]/);
+
+    const guardIndex = componentSource.indexOf('@if (returnLink(); as link)');
+    const buttonIndex = componentSource.indexOf('<gones-back-button');
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(buttonIndex).toBeGreaterThan(guardIndex);
+
+    const buttonLine = lineContaining(componentSource, '<gones-back-button');
+    expect(buttonLine).toContain('data-cy="auth-back-button-top"');
+  });
+
+  it('sign-in and create-account return to the menu', () => {
+    const returnLinkSource = readFileSync(join(__dirname, 'auth-return-link.ts'), 'utf8');
+    expect(returnLinkSource).toContain("if (mode === 'login' || mode === 'register') return ['/'];");
+  });
+
+  it('complete-profile has no return button', () => {
+    const returnLinkSource = readFileSync(join(__dirname, 'auth-return-link.ts'), 'utf8');
+    expect(returnLinkSource).toContain("if (mode === 'complete-profile') return null;");
+  });
+
+  it('every other auth mode returns to sign-in', () => {
+    const returnLinkSource = readFileSync(join(__dirname, 'auth-return-link.ts'), 'utf8');
+    const statements = returnLinkSource.trim().split('\n').map((line) => line.trim()).filter((line) => line.length > 0 && line !== '}');
+    expect(statements[statements.length - 1]).toBe("return ['/login'];");
+  });
 });
