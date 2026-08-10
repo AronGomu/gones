@@ -1,0 +1,5 @@
+[
+  { "email": "admin@gones.test", "username": "gones-admin", "firstName": "Gones", "lastName": "Admin", "role": "Admin" },
+  { "email": "organizer@gones.test", "username": "gones-organizer", "firstName": "Gones", "lastName": "Organizer", "role": "Organizer" },
+  { "email": "test@gones.test", "username": "gones-test", "firstName": "Gones", "lastName": "Test", "role": "User" }
+]

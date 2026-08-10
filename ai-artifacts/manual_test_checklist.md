@@ -649,6 +649,35 @@ does, because a test that asserts the wrong thing is exactly the failure this ti
 - [ ] `/leagues-archive` signed in as `admin@gones.test` with at least one browser-local league: the
       local row carries the badge and the server rows carry none.
 
+## T1 dev-environment-loader
+
+The loader itself is covered by `ops/dev-environments.test.ts` and the seeding run is proved by
+`node scripts/seed-dev-environment.mjs --env=minimal` (three rows in `asp_net_users`, all three
+accounts answering 200 on `POST /api/auth/login`). What no automated test covers is what the three
+roles actually see in the browser, and that plain `npm run dev` still feels exactly as it did.
+
+- [ ] `npm run dev -- --env=minimal` from a stopped stack: the local database is wiped and rebuilt,
+      the seeder prints the three accounts with `Gones-dev-pass-123!`, and the dev server then comes
+      up on `http://127.0.0.1:4200` — the reset must not leave anything holding port 4200.
+- [ ] Sign in as `organizer@gones.test`: the Organizer actions are present in the header, and the
+      organizer pages open.
+- [ ] Sign in as `admin@gones.test`: the Admin dashboard opens (`/admin/users`).
+- [ ] Sign in as `test@gones.test`: neither the Organizer actions nor the Admin dashboard are
+      reachable — the plain `User` role is what the fixture asked for.
+- [ ] All three sign in without any "confirm your email" wall: the fixture's `emailConfirmed` default
+      really was applied.
+- [ ] The Calendar, the League Archive and the Live pages are empty for all three roles: `minimal`
+      ships accounts and nothing else.
+- [ ] Stop the stack (`docker compose down`), then plain `npm run dev`: no reset runs, no environment
+      is seeded, and the app behaves exactly as it did before this change (the two ADR 0029 accounts,
+      empty screens).
+- [ ] `npm run dev -- --env=minimal --no-docker` is refused with `--env needs the Docker stack; drop
+      --no-docker.` and starts nothing.
+- [ ] `npm run dev -- --env=typo` stops with `Unknown environment "typo". Available: empty, minimal`
+      and leaves the database untouched — a typo must not cost you your data.
+- [ ] Edit `fixtures/dev-environments/minimal/accounts.json` (change a first name), re-run
+      `npm run dev -- --env=minimal`: the change is live with no rebuild of anything.
+
 # Feedback
 
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.

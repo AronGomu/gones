@@ -43,7 +43,9 @@ the API at `http://127.0.0.1:5080`. Stop the stack afterwards with `docker compo
 | `npm run dev -- --no-docker` | dev server only, against an API that is already running |
 | `npm run dev -- --detached` | bring the API stack up and exit |
 | `npm run dev -- --no-accounts` | skip the dev-account seeding step |
+| `npm run dev -- --env=minimal` | reset the local database and load a development environment before serving |
 | `npm run dev:accounts` | re-seed the dev accounts on their own |
+| `npm run dev:env -- --env=minimal` | load a development environment on its own, against a stack already up |
 | `docker compose --profile release up --build` | everything containerised, SPA on `:8081` |
 
 ### Dev accounts
@@ -59,6 +61,27 @@ immediately (ADR 0029):
 They exist only in the local Compose database, which listens on `127.0.0.1` and is recreated from
 scratch by `docker compose down -v`. No release image, deploy manifest or rehearsal script knows
 about them — never add them to a networked environment.
+
+## Local development environments
+
+A development environment is a directory of JSON files under `fixtures/dev-environments/<name>/`,
+and `npm run dev -- --env=<name>` loads it (ADR 0030). All of the data is editable text: change a
+file, run the command again, and the next seeding picks it up — there is nothing to rebuild.
+
+| environment | what it loads |
+| --- | --- |
+| `empty` (default) | nothing. Plain `npm run dev` behaves exactly as it always has: no reset, no seeding. |
+| `minimal` | one verified account per role — `admin@gones.test` (Admin), `organizer@gones.test` (Organizer), `test@gones.test` (User), all with `Gones-dev-pass-123!`. |
+
+An environment that carries data declares `"resetDatabase": true` and therefore wipes and rebuilds
+the local Compose database (`scripts/reset-local-stack.mjs`) before seeding, so swapping environments
+never leaves the previous dataset behind. Seeding drives the real HTTP API, which means a fixture the
+app would refuse cannot reach the database. `--env` needs the Docker stack and is refused together
+with `--no-docker`.
+
+`fixtures/dev-environments/README.md` documents every file of the format and how to add an
+environment. `npm run test` validates each shipped environment, so a broken fixture fails there
+rather than thirty seconds into a Docker reset.
 
 ## How it works
 

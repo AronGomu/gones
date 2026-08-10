@@ -7,6 +7,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:serve": "ng serve --host 127.0.0.1",
     "dev:accounts": "node scripts/seed-dev-accounts.mjs",
+    "dev:env": "node scripts/seed-dev-environment.mjs",
     "cy:open": "cypress open",
     "cy:run": "cypress run",
     "build": "ng build",

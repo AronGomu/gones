@@ -52,6 +52,7 @@ npm install
 npm run dev                  # API stack in Docker + dev server on http://127.0.0.1:4200 (API :5080)
 npm run dev -- --no-docker   # dev server only, against an API already running
 npm run dev:accounts         # re-seed admin@gones.test / test@gones.test (password Gones-dev-pass-123!)
+npm run dev -- --env=minimal # reset the local DB, then load fixtures/dev-environments/minimal (ADR 0030)
 npm run build                # ng build
 npm run lint
 npm run typecheck

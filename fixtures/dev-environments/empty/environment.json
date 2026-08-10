@@ -1,0 +1,5 @@
+{
+  "name": "empty",
+  "description": "Nothing seeded. What plain `npm run dev` has always given you.",
+  "resetDatabase": false
+}

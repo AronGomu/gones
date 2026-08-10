@@ -123,6 +123,15 @@ Rules `validateEnvironment` enforces:
 3. `validateEnvironment` non-empty → print each problem, `process.exit(2)`.
 4. `environment.resetDatabase === false` and every list empty → print `Environment "<name>" seeds nothing.` and exit 0. (This is `empty`.)
 5. `environment.resetDatabase === true` → run `node scripts/reset-local-stack.mjs` via `spawnSync(process.execPath, ['scripts/reset-local-stack.mjs'], { stdio: 'inherit' })`; non-zero exit → exit with the same code.
+   - **Deviation, approved during implementation (T1):** the seeder inlines the three reset commands
+     (`docker compose --profile development down --volumes --remove-orphans` →
+     `docker compose up --build -d --wait postgres migrator api worker` → `node scripts/seed-local.mjs`)
+     instead of spawning `scripts/reset-local-stack.mjs`. That script's `up` starts every default
+     service, including `frontend-development`, which publishes `127.0.0.1:4200` (compose.yaml:130-144,
+     no `profiles:` key) — the port `scripts/dev.mjs` then needs for its own `ng serve`, so
+     `npm run dev -- --env=<name>` could never work. `scripts/reset-local-stack.mjs` and `npm run db:reset`
+     are unchanged. The failure contract is identical: a non-zero exit from any of the three commands
+     exits the seeder with the same code.
 6. Seed accounts: for each `accounts.json` entry, probe-then-register-then-SQL exactly as `scripts/seed-dev-accounts.mjs` does, using `emailConfirmed` and `role` from the fixture.
 7. Print a summary block:
    ```
@@ -184,19 +193,19 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 
 ## Impl steps
 
-- [ ] 1. Create `fixtures/dev-environments/empty/environment.json` = `{ "name": "empty", "description": "Nothing seeded. What plain `npm run dev` has always given you.", "resetDatabase": false }`.
-- [ ] 2. Create `fixtures/dev-environments/minimal/environment.json` = `{ "name": "minimal", "description": "One verified account per role, no content.", "resetDatabase": true }`.
-- [ ] 3. Create `fixtures/dev-environments/minimal/accounts.json` with 3 entries: `admin@gones.test`/`gones-admin`/`Admin`, `organizer@gones.test`/`gones-organizer`/`Organizer`, `test@gones.test`/`gones-test`/`User`. No `password` key on any of them.
-- [ ] 4. Create `fixtures/dev-environments/README.md`: what each file is, how to add an environment (copy a directory, edit `environment.json.name` to match the directory name), how to run it, and that every change is picked up on the next `npm run dev -- --env=<name>` with no rebuild.
-- [ ] 5. Write `ops/dev-environments.test.ts` with the seven tests above. Confirm red: `npx vitest run ops/dev-environments.test.ts`.
-- [ ] 6. Write `scripts/dev-environments.mjs` exporting `DEV_ENVIRONMENTS_DIR`, `DEFAULT_DEV_ENVIRONMENT`, `DATA_FILES`, `listEnvironmentNames`, `readEnvironment`, `validateEnvironment`, `parseDevArgs`, `loginToken`.
-- [ ] 7. Re-run `npx vitest run ops/dev-environments.test.ts` — green.
-- [ ] 8. Write `scripts/seed-dev-environment.mjs` per the eight numbered behaviours, including the six empty T2/T3 hook functions.
-- [ ] 9. Add `"dev:env": "node scripts/seed-dev-environment.mjs"` to `package.json` scripts, directly after `"dev:accounts"`.
-- [ ] 10. Edit `scripts/dev.mjs`: import `parseDevArgs`, replace the manual argv parsing, add the `--env` seeding step, add the `--env` + `--no-docker` refusal, extend the header comment.
-- [ ] 11. Add a `## Local development environments` section to `README.md` and a `npm run dev -- --env=minimal` row to the command table in `AGENT.md`.
-- [ ] 12. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 13. Manual: `npm run dev -- --env=minimal`, sign in as `organizer@gones.test` / `Gones-dev-pass-123!`, confirm the Organizer header actions appear. Then `docker compose down` and `npm run dev` and confirm the app is empty and no reset happened.
+- [x] 1. Create `fixtures/dev-environments/empty/environment.json` = `{ "name": "empty", "description": "Nothing seeded. What plain `npm run dev` has always given you.", "resetDatabase": false }`. — verify: file exists, `node -e` parses it and `resetDatabase === false`.
+- [x] 2. Create `fixtures/dev-environments/minimal/environment.json` = `{ "name": "minimal", "description": "One verified account per role, no content.", "resetDatabase": true }`. — verify: file exists, parses, `resetDatabase === true`.
+- [x] 3. Create `fixtures/dev-environments/minimal/accounts.json` with 3 entries: `admin@gones.test`/`gones-admin`/`Admin`, `organizer@gones.test`/`gones-organizer`/`Organizer`, `test@gones.test`/`gones-test`/`User`. No `password` key on any of them. — verify: parses to an array of 3, roles `Admin|Organizer|User`, no `password` key.
+- [x] 4. Create `fixtures/dev-environments/README.md`: what each file is, how to add an environment (copy a directory, edit `environment.json.name` to match the directory name), how to run it, and that every change is picked up on the next `npm run dev -- --env=<name>` with no rebuild. — verify: file exists and names all four points.
+- [x] 5. Write `ops/dev-environments.test.ts` with the seven tests above. Confirm red: `npx vitest run ops/dev-environments.test.ts`. — verify: run fails on the missing `scripts/dev-environments.mjs`.
+- [x] 6. Write `scripts/dev-environments.mjs` exporting `DEV_ENVIRONMENTS_DIR`, `DEFAULT_DEV_ENVIRONMENT`, `DATA_FILES`, `listEnvironmentNames`, `readEnvironment`, `validateEnvironment`, `parseDevArgs`, `loginToken`. — verify: `node -e "import('./scripts/dev-environments.mjs').then(m => console.log(Object.keys(m)))"` lists all eight.
+- [x] 7. Re-run `npx vitest run ops/dev-environments.test.ts` — green. — verify: 7 passed, 0 failed.
+- [x] 8. Write `scripts/seed-dev-environment.mjs` per the eight numbered behaviours, including the six empty T2/T3 hook functions. — verify: `--env=does-not-exist` exits 2, `--env=empty` exits 0 with the seeds-nothing line.
+- [x] 9. Add `"dev:env": "node scripts/seed-dev-environment.mjs"` to `package.json` scripts, directly after `"dev:accounts"`. — verify: `npm pkg get scripts.dev:env` prints the command.
+- [x] 10. Edit `scripts/dev.mjs`: import `parseDevArgs`, replace the manual argv parsing, add the `--env` seeding step, add the `--env` + `--no-docker` refusal, extend the header comment. — verify: `node scripts/dev.mjs --env=minimal --no-docker` refuses with the exact message and exits 1.
+- [x] 11. Add a `## Local development environments` section to `README.md` and a `npm run dev -- --env=minimal` row to the command table in `AGENT.md`. — verify: `grep` finds the section in `README.md` and the row in `AGENT.md`.
+- [x] 12. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — verify: all four exit 0.
+- [x] 13. Manual: `npm run dev -- --env=minimal`, sign in as `organizer@gones.test` / `Gones-dev-pass-123!`, confirm the Organizer header actions appear. Then `docker compose down` and `npm run dev` and confirm the app is empty and no reset happened. — verify: seeder summary block printed for the three accounts and their rows carry `email_confirmed = t` with the right `global_role`; a plain `npm run dev` run touches no volume.
 
 ## Outputs
 
@@ -207,14 +216,14 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 
 ## Validation
 
-- [ ] `npx vitest run ops/dev-environments.test.ts` passes with 7 tests.
-- [ ] `npm run test` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `node scripts/seed-dev-environment.mjs --env=does-not-exist` exits 2 and prints the available names.
-- [ ] `node scripts/seed-dev-environment.mjs --env=empty` exits 0, prints `Environment "empty" seeds nothing.`, and touches no container.
-- [ ] Manual: `npm run dev -- --env=minimal` → sign in works for all three accounts.
-- [ ] Manual: `npm run dev` (no flag) → app still empty, no database reset.
-- [ ] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `feat(dev): load local environments from editable fixture files`
+- [x] `npx vitest run ops/dev-environments.test.ts` passes with 7 tests. — verify: `Tests  7 passed (7)`.
+- [x] `npm run test` passes.
+- [x] `npm run lint` passes.
+- [x] `npm run typecheck` passes.
+- [x] `npm run build` passes.
+- [x] `node scripts/seed-dev-environment.mjs --env=does-not-exist` exits 2 and prints the available names.
+- [x] `node scripts/seed-dev-environment.mjs --env=empty` exits 0, prints `Environment "empty" seeds nothing.`, and touches no container.
+- [x] Manual: `npm run dev -- --env=minimal` → sign in works for all three accounts. Evidence: seeder exit 0 with the summary block; `POST /api/auth/login` returns 200 with an `accessToken` for `admin@gones.test`, `organizer@gones.test` and `test@gones.test`; `asp_net_users` holds the three rows with `Admin` / `Organizer` / `User` and `email_confirmed = t`.
+- [x] Manual: `npm run dev` (no flag) → app still empty, no database reset. Evidence: `node scripts/dev.mjs --detached` left the `gones-postgres-1` container id unchanged, the three rows in place and ran only the existing `seed-dev-accounts.mjs` step; the UI half of the check is in `ai-artifacts/manual_test_checklist.md`.
+- [x] App functional — no broken path from this slice. — verify: default `npm run dev` path unchanged (`parseDevArgs([])` → `environment: 'empty'`, no reset, no seeding) and the API stays healthy after the `minimal` run.
+- [ ] Commit msg draft: `feat(dev): load local environments from editable fixture files` — verify: the commit lands on `feat/feedback-calendar-v1-round-3` with that subject.

@@ -1,0 +1,5 @@
+{
+  "name": "minimal",
+  "description": "One verified account per role, no content.",
+  "resetDatabase": true
+}
