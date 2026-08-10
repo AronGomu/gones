@@ -108,17 +108,17 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Impl steps
 
-- [ ] 1. Add the nine cases above to `src/app/features/calendar/public-calendar.component.test.ts`. Read the component and the stylesheet with `readFileSync`; use the existing `setup()` helper for the behavioural rows.
-- [ ] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new cases must fail. Existing cases that assert on `day.items` will also fail; update them to the new shape rather than deleting them.
-- [ ] 3. In `src/app/features/calendar/public-calendar.component.ts`, replace the day-cell markup with:
+- [x] 1. Add the nine cases above to `src/app/features/calendar/public-calendar.component.test.ts`. Read the component and the stylesheet with `readFileSync`; use the existing `setup()` helper for the behavioural rows.
+- [x] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new cases must fail. Existing cases that assert on `day.items` will also fail; update them to the new shape rather than deleting them. (4 new cases red; no existing test referenced `day.items` so none needed updating.)
+- [x] 3. In `src/app/features/calendar/public-calendar.component.ts`, replace the day-cell markup with:
       ```html
       <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth" data-cy="calendar-month-day">
         <time [attr.datetime]="day.date" data-cy="calendar-month-day-date">{{ day.day }}</time>
       </article>
       ```
-- [ ] 4. Narrow the model: `interface MonthDay { date: string; day: number; inMonth: boolean; }`
-- [ ] 5. Change the computed to `readonly monthDays = computed(() => buildMonthDays(this.query().month));`
-- [ ] 6. Rewrite the builder, dropping the `groups` parameter and the `byDate` map:
+- [x] 4. Narrow the model: `interface MonthDay { date: string; day: number; inMonth: boolean; }`
+- [x] 5. Change the computed to `readonly monthDays = computed(() => buildMonthDays(this.query().month));`
+- [x] 6. Rewrite the builder, dropping the `groups` parameter and the `byDate` map:
       ```ts
       function buildMonthDays(month: string): MonthDay[] {
         const [year, monthNumber] = month.split('-').map(Number);
@@ -132,10 +132,10 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
         });
       }
       ```
-- [ ] 7. Run `npm run typecheck`. Fix every error it reports about now-unused imports or members in this file — likely candidates are `VenueDateGroup` (still used by `formatGroupDate`, so check before removing) and `status` (still used by the list card template, so check before removing). Remove only what the compiler proves unused.
-- [ ] 8. In `src/styles.css`, delete the `.calendar-pill`, `.calendar-pill--cancelled` and `.calendar-pill__status` rules. Confirm with `grep -rn "calendar-pill" src cypress` that nothing references them; update any Cypress step that did.
-- [ ] 9. In `src/styles.css`, confirm `.public-month-day` still gives a cell a sensible height with only a `<time>` inside. If it relied on pill content, add `min-height: 5.5rem;` to that rule.
-- [ ] 10. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 7. Run `npm run typecheck`. Fix every error it reports about now-unused imports or members in this file — likely candidates are `VenueDateGroup` (still used by `formatGroupDate`, so check before removing) and `status` (still used by the list card template, so check before removing). Remove only what the compiler proves unused. (`npm run typecheck` clean — `VenueDateGroup` and `status` still in use, confirmed by grep.)
+- [x] 8. In `src/styles.css`, delete the `.calendar-pill`, `.calendar-pill--cancelled` and `.calendar-pill__status` rules. Confirm with `grep -rn "calendar-pill" src cypress` that nothing references them; update any Cypress step that did. (rules removed; `cypress/e2e/public-calendar.cy.js` pill selectors rewritten to assert the list view instead.)
+- [x] 9. In `src/styles.css`, confirm `.public-month-day` still gives a cell a sensible height with only a `<time>` inside. If it relied on pill content, add `min-height: 5.5rem;` to that rule. (already declares `min-height: 7rem` independent of pill content — no change needed.)
+- [x] 10. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green. (50 tests passed.)
 
 ## Outputs
 
@@ -146,15 +146,15 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
-- [ ] `npx cypress run --spec cypress/e2e/accessibility.cy.js` passes
-- [ ] Manual: `npm run dev`, open `/calendar` in calendar view with tournaments in the current month — every cell shows only its day number; no titles, times or links anywhere in the grid.
-- [ ] Manual: switch to the List tab — the grouped tournament cards are all still there and still link to their detail pages.
-- [ ] Manual: type a nonsense query — the calendar tab shows the empty-state panel under the grid.
-- [ ] Manual: navigate months — the grid re-renders with the right day numbers and the right muted leading/trailing days.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `refactor(calendar): keep tournament entries out of the month grid`
+- [x] `npm run test` passes (608 tests passed)
+- [x] `npm run lint` passes ("All files pass linting.")
+- [x] `npm run typecheck` passes (no output, exit clean)
+- [x] `npm run build` passes (bundle built, `public-calendar-component` lazy chunk 43.09 kB)
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes (6/6, run via `steam-run env LD_LIBRARY_PATH=<nspr+nss> npx cypress run ...`)
+- [x] `npx cypress run --spec cypress/e2e/accessibility.cy.js` passes (11/11, same wrapper)
+- [ ] Manual: `npm run dev`, open `/calendar` in calendar view with tournaments in the current month — every cell shows only its day number; no titles, times or links anywhere in the grid. (Not run by a human this session; covered by automated proof — `no tournament entry renders inside a day cell` vitest case plus the Cypress `public-calendar.cy.js` and `accessibility.cy.js` runs above render the real grid in Electron and pass. Left unchecked per the manual-validation rule; added to `ai-artifacts/manual_test_checklist.md`.)
+- [ ] Manual: switch to the List tab — the grouped tournament cards are all still there and still link to their detail pages. (Automated proof: `the list view still groups tournaments` vitest case + Cypress `public-calendar.cy.js` list-view assertions above. Left unchecked; added to checklist.)
+- [ ] Manual: type a nonsense query — the calendar tab shows the empty-state panel under the grid. (Automated proof: `the empty state still answers the filter` vitest case + Cypress `shows an empty state below the grid when nothing matches the catalog`. Left unchecked; added to checklist.)
+- [ ] Manual: navigate months — the grid re-renders with the right day numbers and the right muted leading/trailing days. (Automated proof: `the grid is still 42 cells over six rows` / `in-month flags survive the change` vitest cases + Cypress month-nav test above. Left unchecked; added to checklist.)
+- [x] app functional — no broken path from this slice (full `npm run test`, `npm run build`, both Cypress specs green)
+- [x] commit msg draft: `refactor(calendar): keep tournament entries out of the month grid`

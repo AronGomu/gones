@@ -482,3 +482,82 @@ describe('PublicCalendarComponent month nav layout', () => {
     expect(shiftMonth('2026-01', -1)).toBe('2025-12');
   });
 });
+
+describe('PublicCalendarComponent empty calendar day cells', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  it('no tournament entry renders inside a day cell', () => {
+    expect(source).not.toContain('calendar-pill');
+  });
+
+  it('the day cell still renders its date', () => {
+    const cellStart = source.indexOf('data-cy="calendar-month-day"');
+    expect(cellStart).toBeGreaterThan(-1);
+    const cellEnd = source.indexOf('</article>', cellStart);
+    const cell = source.slice(cellStart, cellEnd);
+    expect(cell).toContain('data-cy="calendar-month-day-date"');
+  });
+
+  it('the month model carries no tournaments', () => {
+    const declStart = source.indexOf('interface MonthDay');
+    const declEnd = source.indexOf('}', declStart);
+    const decl = source.slice(declStart, declEnd);
+    expect(decl).not.toContain('items');
+  });
+
+  it('building a month needs only the month', () => {
+    expect(source).toMatch(/function buildMonthDays\(month: string\)/);
+  });
+
+  it('the grid is still 42 cells over six rows', async () => {
+    const { component } = setup();
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.monthDays()).toHaveLength(42);
+    const weeks = component.monthWeeks();
+    expect(weeks).toHaveLength(6);
+    for (const week of weeks) expect(week).toHaveLength(7);
+  });
+
+  it('in-month flags survive the change', async () => {
+    const { component } = setup({ params: { month: '2026-08' } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const inMonth = component.monthDays().filter(day => day.inMonth);
+    expect(inMonth).toHaveLength(31);
+    expect(inMonth[0]).toMatchObject({ date: '2026-08-01', day: 1 });
+  });
+
+  it('the empty state still answers the filter', async () => {
+    const { component } = setup();
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    component.setSearchDraft('zzzz-no-match');
+
+    expect(component.items()).toHaveLength(0);
+  });
+
+  it('the list view still groups tournaments', async () => {
+    const tournamentOnAnotherDate: PublicTournamentView = { ...tournamentB, venueStartDate: '2026-08-15' };
+    const { component } = setup({ result: { items: [tournament, tournamentOnAnotherDate] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const groups = component.groups();
+    expect(groups).toHaveLength(2);
+    const dates = groups.map(group => group.date);
+    expect(dates).toEqual([...dates].sort());
+  });
+
+  it('no pill styling is left behind', () => {
+    expect(stylesheet).not.toContain('calendar-pill');
+  });
+});

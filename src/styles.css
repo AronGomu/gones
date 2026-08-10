@@ -303,8 +303,6 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .classic-calendar__day time { color: var(--ash); font-weight: 900; }
 .classic-calendar__day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
 .classic-calendar__day--muted time { color: var(--steel); }
-.calendar-pill { position: relative; z-index: 1; min-height: 0; width: 100%; padding: .28rem .35rem; border: 1px solid color-mix(in oklch, var(--blood) 38%, var(--soot)); background: color-mix(in oklch, var(--blood) 16%, var(--black-metal)); color: var(--ash); font: inherit; font-size: .78rem; font-weight: 800; line-height: 1.25; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
-.calendar-pill:hover, .calendar-pill:focus-visible { border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 34%, var(--black-metal)); outline: 2px solid var(--hot-blood); outline-offset: 1px; }
 .calendar-editor { width: 100%; padding: 1rem; }
 .calendar-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
 .calendar-form__wide { grid-column: 1 / -1; }
@@ -1137,10 +1135,6 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .public-month-day { min-height: 7rem; display: grid; align-content: start; gap: .35rem; padding: .55rem; border-top: 1px solid var(--soot); border-left: 1px solid var(--soot); background: var(--iron); overflow: hidden; }
 .public-month-day > time { font-weight: 900; }
 .public-month-day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
-.public-month-day .calendar-pill { display: block; text-decoration: none; white-space: normal; overflow-wrap: anywhere; }
-.calendar-pill--cancelled { border-color: oklch(66% .16 28); text-decoration: line-through; }
-.calendar-pill__status { display: block; color: var(--dim-ash); font-size: .65rem; text-transform: uppercase; }
-.calendar-pill--cancelled .calendar-pill__status { color: oklch(85% .12 30); }
 .public-calendar-list, .venue-date-group { display: grid; gap: .75rem; }
 .venue-date-group + .venue-date-group { margin-top: 1rem; }
 .venue-date-group > h2 { margin-top: .5rem; }

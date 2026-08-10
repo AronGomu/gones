@@ -38,11 +38,13 @@ describe('public Calendar V1', () => {
     cy.wait('@allTournaments');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="calendar-view"]').should('have.attr', 'aria-pressed', 'true');
-    cy.contains('.calendar-pill', 'Cancelled').should('be.visible');
 
     cy.get('[data-cy="list-view"]').click();
     cy.location('search').should('contain', 'view=list');
     cy.get('[data-cy="calendar-list"]').should('be.visible');
+    // The month grid renders day numbers only (A6); the filtered tournament's status is asserted in
+    // the list view, which is where the tournament markup still lives.
+    cy.get('[data-cy="calendar-card-status"]').should('contain.text', 'Cancelled');
     // A reload within the 24h cache TTL must not refetch: the alias stays at one call.
     visit('/calendar?month=2026-08');
     cy.get('[data-cy="list-view"]').should('have.attr', 'aria-pressed', 'true');
@@ -63,18 +65,20 @@ describe('public Calendar V1', () => {
   it('navigates months over the cached catalog without re-querying the API', () => {
     visit('/calendar?month=2026-08&view=calendar');
     cy.wait('@allTournaments');
-    // The August tournament's own pill is the locale-independent witness that the grid moved: the
-    // month label is translated, and on the release build the ngsw worker can answer the navigation
-    // from cache so `onBeforeLoad`'s language seed never runs.
-    cy.get('[data-cy="calendar-pill-lyon-legacy"]').should('be.visible');
+    // The month grid renders day numbers only (A6), so the tournament itself is no longer a witness
+    // inside the grid. The list view (which shares the same cached catalog) still shows it for the
+    // current month, and the month label is the calendar tab's own witness that navigation moved.
+    cy.get('[data-cy="list-view"]').click();
+    cy.get('[data-cy="tournament-lyon-legacy"]').should('be.visible');
+    cy.get('[data-cy="calendar-view"]').click();
 
     cy.get('[data-cy="calendar-month-next"]').click();
     cy.location('search').should('contain', 'month=2026-09');
-    cy.get('[data-cy="calendar-pill-lyon-legacy"]').should('not.exist');
+    cy.get('[data-cy="calendar-month-label"]').should('not.contain.text', 'August');
 
     cy.get('[data-cy="calendar-month-prev"]').click();
     cy.location('search').should('contain', 'month=2026-08');
-    cy.get('[data-cy="calendar-pill-lyon-legacy"]').should('be.visible');
+    cy.get('[data-cy="calendar-month-label"]').should('contain.text', 'August');
 
     cy.get('@allTournaments.all').should('have.length', 1);
   });

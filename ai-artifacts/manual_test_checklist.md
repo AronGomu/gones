@@ -362,3 +362,25 @@ proves rendered pixel position or responsive wrap — those need a human:
 - [ ] Switch to the List tab: the month nav row disappears entirely (it only renders in calendar view).
 - [ ] Resize to 480px wide while in calendar view: Previous / month label / Next stay on one row, edge to
       edge, with no wrapping or horizontal overflow.
+
+## T10 empty-calendar-day-cells
+
+Automated coverage: `public-calendar.component.test.ts` proves the source-level contract (no
+`calendar-pill` anywhere in the component or in `src/styles.css`, `data-cy="calendar-month-day"`
+still contains `data-cy="calendar-month-day-date"`, `interface MonthDay` no longer declares `items`,
+`buildMonthDays(month: string)` takes one argument) plus behavioural cases (`monthDays()` is still 42
+cells / `monthWeeks()` still 6 rows of 7, in-month flags and the first day of the month survive,
+`items()` still empties on a non-matching search, `groups()` still groups tournaments by date for the
+list view). `cypress/e2e/public-calendar.cy.js` and `cypress/e2e/accessibility.cy.js` render the real
+grid in headless Electron and pass with the tournament pill markup gone. None of that proves rendered
+pixel appearance in a real browser — that needs a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/calendar` in calendar view for a month with
+      tournaments — every day cell shows only its day number; no tournament titles, times, status
+      badges or links appear anywhere inside the grid.
+- [ ] Switch to the List tab — the grouped tournament cards are all still there, each still links to
+      its detail page.
+- [ ] Type a nonsense search query while on the calendar tab — the empty-state panel appears under the
+      grid (this is now the calendar tab's only filter-driven signal).
+- [ ] Navigate months with Previous / Next — the grid re-renders with the correct day numbers and the
+      correct muted leading/trailing days, still with no tournament content in any cell.

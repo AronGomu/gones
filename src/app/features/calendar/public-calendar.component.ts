@@ -28,7 +28,6 @@ interface MonthDay {
   date: string;
   day: number;
   inMonth: boolean;
-  items: PublicTournamentView[];
 }
 
 const VIEW_KEY = 'gones.calendar-v1.view';
@@ -90,9 +89,6 @@ const SEARCH_DEBOUNCE_MS = 300;
                 @for (day of week; track day.date) {
                   <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth" data-cy="calendar-month-day">
                     <time [attr.datetime]="day.date" data-cy="calendar-month-day-date">{{ day.day }}</time>
-                    @for (item of day.items; track item.id) {
-                      <a class="calendar-pill" [class.calendar-pill--cancelled]="status(item).className === 'cancelled'" [routerLink]="['/calendar/tournaments', item.slug]" [attr.data-cy]="'calendar-pill-' + item.slug"><span data-cy="calendar-pill-time">{{ item.venueStartTime.slice(0, 5) }}</span> {{ item.title }} @if (status(item).className === 'cancelled' || status(item).className === 'completed') { <strong class="calendar-pill__status" data-cy="calendar-pill-status">{{ status(item).label }}</strong> }</a>
-                    }
                   </article>
                 }
               </div>
@@ -145,7 +141,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly items = computed(() => filterTournaments(this.allItems(), this.searchDraft()));
   readonly groups = computed(() => groupTournamentsByVenueDate(this.items()));
   readonly monthLabel = computed(() => this.i18n.formatDate(`${this.query().month}-01`, { month: 'long', year: 'numeric' }));
-  readonly monthDays = computed(() => buildMonthDays(this.query().month, this.groups()));
+  readonly monthDays = computed(() => buildMonthDays(this.query().month));
   // ARIA requires grid > row > gridcell; the rows use `display: contents` so the CSS grid is unchanged.
   readonly monthWeeks = computed(() => chunkIntoWeeks(this.monthDays()));
   readonly canCreateTournament = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);
@@ -217,15 +213,14 @@ function chunkIntoWeeks(days: MonthDay[]): MonthDay[][] {
   return weeks;
 }
 
-function buildMonthDays(month: string, groups: VenueDateGroup[]): MonthDay[] {
+function buildMonthDays(month: string): MonthDay[] {
   const [year, monthNumber] = month.split('-').map(Number);
   const first = new Date(year, monthNumber - 1, 1);
   const start = new Date(year, monthNumber - 1, 1 - first.getDay());
-  const byDate = new Map(groups.map(group => [group.date, group.items]));
   return Array.from({ length: 42 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     const dateValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return { date: dateValue, day: date.getDate(), inMonth: date.getMonth() === monthNumber - 1, items: byDate.get(dateValue) ?? [] };
+    return { date: dateValue, day: date.getDate(), inMonth: date.getMonth() === monthNumber - 1 };
   });
 }
