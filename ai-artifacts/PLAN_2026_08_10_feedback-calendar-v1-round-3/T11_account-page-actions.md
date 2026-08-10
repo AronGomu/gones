@@ -1,0 +1,94 @@
+# T11: Account page actions
+
+**Plan:** `./ai-artifacts/PLAN_2026_08_10_feedback-calendar-v1-round-3.md`
+**Depends:** none
+**Commit outcome:** On `/settings/account`, the "Update account information" button is full width and centred with real space above it, and the page's bottom logout row is gone. The toolbar logout is untouched.
+
+## Context (self-contained)
+
+- Goal: land 15-line round-3 feedback on Gones. This slice covers two lines:
+  - #13 — "On the Settings Account page, the Update Account Information button should be centered, take the full width, and add some margin with the Update Email button and the Change Email button."
+  - #15 — "In the settings account page, remove the logout button at the bottom of the page. Make sure NOT to remove the logout button in the header of the application and on the header of that page."
+- This slice: two edits to one component plus one stylesheet rule.
+- Out of scope here: the app toolbar (`src/app/app.component.ts`, `data-cy="logout-button"`) — it must keep working. The profile form fields, the email-change form, the linked-accounts card, the danger zone.
+- Assumptions in force: the account page's own `<header class="page-heading" data-cy="account-heading">` holds only the "My registrations" link today and gains nothing here — feedback #15 says do not *remove* a header logout, not add one. No TestBed — assert on template source and on `src/styles.css`.
+
+## Inputs
+
+- `src/app/features/settings/account-settings.component.ts`:
+  - line ~25, the page header: `<header class="page-heading" data-cy="account-heading"><div data-cy="account-heading-text"><h1 …>…</h1></div><div class="actions" data-cy="account-heading-actions"><a mat-stroked-button routerLink="/registrations" data-cy="account-registrations-link">…</a></div></header>`
+  - the details card ends with the email section, then:
+    ```html
+    <button form="account-details-form" mat-flat-button class="warning-action" data-cy="account-save" type="submit" [disabled]="pending() || !isDirty()">{{ pending() ? i18n.t('common.saving') : i18n.t('account.submit') }}</button>
+    ```
+    `'account.submit'` = `'Update account information'` / `'Modifier Information du Compte'`. That button is the "Update Account Information" one.
+  - the email section holds `<button mat-stroked-button type="submit" data-cy="account-change-email">{{ i18n.t('profile.changeEmail') }}</button>` (`'Change email'` / `'Changer l'e-mail'`).
+  - line ~112, the row to delete: `<div class="actions" data-cy="account-logout-row"><button mat-stroked-button type="button" class="danger-ghost-action" data-cy="account-logout" [disabled]="pending()" (click)="logout()">{{ i18n.t('auth.logout') }}</button></div>`
+  - line ~212: `async logout(): Promise<void> { await this.auth.logout(); await this.router.navigate(['/']); }` — **its only caller is the row being deleted.**
+  - line ~122 `private readonly router = inject(Router);` and line ~223 another `await this.router.navigate(['/']);` inside the account-deletion path — so `router` stays, only `logout()` goes.
+- `src/styles.css` — `.actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; min-width: 0; }`; `.profile-page { width: min(100%, 52rem); margin-inline: auto; }`.
+- `cypress/e2e/auth-profile.cy.js` lines ~121-123 drive `[data-cy="logout-button"]` — the **toolbar** button, not `account-logout`. That spec must keep passing untouched.
+- `src/app/features/settings/account-settings.component.test.ts` — add there.
+- **From Depends:** none.
+
+## Requirements
+
+- Delete the whole `<div class="actions" data-cy="account-logout-row"> … </div>` element.
+- Delete the now-unused `async logout()` method. Keep `private readonly router` and keep the `Router` import — both are still used by the account-deletion path.
+- Keep `data-cy="logout-button"` in `src/app/app.component.ts` exactly as it is.
+- Give the `data-cy="account-save"` button its own class `account-save-action` and a new rule:
+  ```css
+  .account-save-action { display: block; width: 100%; margin: 1.5rem auto 0; }
+  ```
+  `display: block` + `width: 100%` + `margin-inline: auto` is what "centred and full width" means for a Material button inside the card; `margin-top: 1.5rem` is the space feedback #13 asks for against the email-section buttons above it.
+- Keep `class="warning-action"` on that button — it is the existing colour treatment and the feedback says nothing about it.
+
+## TDD
+
+1. **Red** — add the four tests below to `src/app/features/settings/account-settings.component.test.ts`. They fail today.
+2. **Green** — delete the row, delete `logout()`, add the class and the CSS rule.
+3. **Refactor** — none needed.
+
+## Test plan
+
+| Test | Input | Expect |
+| --- | --- | --- |
+| `the account page has no bottom logout row` | source of `src/app/features/settings/account-settings.component.ts` | contains neither `data-cy="account-logout-row"` nor `data-cy="account-logout"` |
+| `the account page keeps no orphan logout handler` | same source | does not match `/async logout\(\)/` |
+| `the update-account button is full width and centred` | same source, and `src/styles.css` | the `data-cy="account-save"` button markup contains `account-save-action`; the `.account-save-action { … }` stylesheet block contains `width: 100%`, `display: block` and `margin: 1.5rem auto 0` |
+| `the application toolbar still logs out` | source of `src/app/app.component.ts` | contains `data-cy="logout-button"` and `(click)="logout()"` |
+
+Match the stylesheet block with `stylesheet.match(/\.account-save-action\s*\{[^}]*\}/)?.[0] ?? ''`, as
+`src/app/features/menu/home-grid-rule.test.ts` already does.
+
+Run: `npx vitest run src/app/features/settings`
+
+## Impl steps
+
+- [ ] 1. Add the four tests to `src/app/features/settings/account-settings.component.test.ts`. Confirm red with `npx vitest run src/app/features/settings`.
+- [ ] 2. In `src/app/features/settings/account-settings.component.ts`, delete the `<div class="actions" data-cy="account-logout-row"> … </div>` element from the template.
+- [ ] 3. Delete the `async logout(): Promise<void> { … }` method.
+- [ ] 4. Confirm `private readonly router = inject(Router);` and the `Router` import are still referenced by the account-deletion path; leave both.
+- [ ] 5. Change the save button's class attribute to `class="warning-action account-save-action"`.
+- [ ] 6. Add `.account-save-action { display: block; width: 100%; margin: 1.5rem auto 0; }` to `src/styles.css`, next to the other `.profile-page` / account rules.
+- [ ] 7. Run `npx vitest run src/app/features/settings` — green.
+- [ ] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build` — `data-cy-coverage.test.ts` must stay green and `typecheck` must not report an unused import.
+- [ ] 9. Manual: signed in, `/settings/account` shows no logout button at the bottom; the toolbar still has one and it still signs you out to `/`; the "Modifier Information du Compte" button spans the card width, is centred and sits clearly below "Changer l'e-mail".
+
+## Outputs
+
+- Files edited: `src/app/features/settings/account-settings.component.ts`, `src/styles.css`, `src/app/features/settings/account-settings.component.test.ts`.
+- Behaviour change: the account page's bottom logout affordance is removed; the toolbar one is the only logout. Button layout change on the same page.
+- Migration/config: none.
+
+## Validation
+
+- [ ] `npx vitest run src/app/features/settings` passes.
+- [ ] `npm run test` passes.
+- [ ] `npm run lint` passes.
+- [ ] `npm run typecheck` passes (no unused `Router`, no unused import).
+- [ ] `npm run build` passes.
+- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes — it drives the toolbar logout.
+- [ ] Manual: bottom logout gone; toolbar logout works; save button full width, centred, spaced.
+- [ ] App functional — no broken path from this slice.
+- [ ] Commit msg draft: `fix(account): widen the save action and drop the duplicate logout`

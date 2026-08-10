@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Plan: Feedback Calendar V1, Round 3</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29; --soot:#232120;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:
+        radial-gradient(1200px 600px at 80% -10%, color-mix(in oklch, #8f1d1d 12%, transparent), transparent),
+        var(--black);
+       color:var(--ash);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1140px;margin:0 auto;padding:2.5rem 1.25rem 6rem}
+
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.5rem;margin-bottom:2rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.16em;font-weight:800;font-size:.76rem}
+  h1{margin:0 0 .6rem;font-size:clamp(1.8rem,4vw,2.6rem);letter-spacing:-.02em;line-height:1.05}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:78ch;margin:.4rem 0 0}
+  h2{margin:3rem 0 1rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem;letter-spacing:-.01em}
+  h3{margin:1.9rem 0 .55rem;font-size:1rem;color:var(--ash)}
+  p{max-width:78ch}
+
+  code,kbd{font-family:var(--mono);font-size:.87em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;
+      font-family:var(--mono);font-size:.82rem;line-height:1.55}
+
+  .scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+  th,td{border:1px solid var(--steel);padding:.55rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.72rem}
+  tbody tr:hover{background:color-mix(in oklch, #8f1d1d 8%, transparent)}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:.75rem;margin:1.75rem 0}
+  .stat{background:var(--panel);border:1px solid var(--steel);border-top:3px solid var(--blood);padding:.9rem 1rem}
+  .stat b{display:block;font-size:1.85rem;line-height:1;letter-spacing:-.03em}
+  .stat span{display:block;margin-top:.3rem;color:var(--dim);font-size:.74rem;text-transform:uppercase;letter-spacing:.09em}
+
+  .tag{display:inline-block;font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;
+       padding:.13rem .45rem;border:1px solid var(--steel);color:var(--dim);margin-right:.25rem;white-space:nowrap}
+  .tag--dev{border-color:var(--rust);color:var(--rust)}
+  .tag--ui{border-color:var(--dim);color:var(--dim)}
+  .tag--arch{border-color:var(--green);color:var(--green)}
+  .tag--rev{border-color:var(--hot);color:var(--hot)}
+
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  .ok{border-left-color:var(--green)}
+  .ok strong{color:var(--green)}
+
+  .chain{display:grid;gap:.5rem;margin:1.25rem 0}
+  .chain .row{display:grid;grid-template-columns:4.2rem 1fr;gap:.7rem;align-items:stretch}
+  .chain .id{font-family:var(--mono);font-size:.78rem;display:flex;align-items:center;justify-content:center;
+             background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);color:var(--ash)}
+  .chain .body{background:var(--panel);border:1px solid var(--steel);padding:.55rem .8rem;font-size:.88rem}
+  .chain .body em{color:var(--dim);font-style:normal;font-size:.8rem;display:block;margin-top:.15rem}
+  .chain .row--dep .id{border-left-color:var(--rust)}
+
+  .lanes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:.9rem;margin:1.5rem 0}
+  .lane{background:var(--panel);border:1px solid var(--steel);padding:1rem}
+  .lane h3{margin:0 0 .5rem;font-size:.82rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dim)}
+  .lane ol{margin:0;padding-left:1.1rem;font-size:.88rem}
+  .lane li{margin:.3rem 0}
+  .lane--dev{border-top:3px solid var(--rust)}
+  .lane--ui{border-top:3px solid var(--dim)}
+  .lane--arch{border-top:3px solid var(--green)}
+
+  .wire{background:var(--metal);border:1px solid var(--steel);padding:1rem;margin:1.25rem 0;
+        font-family:var(--mono);font-size:.78rem;line-height:1.5;overflow-x:auto;white-space:pre;color:var(--dim)}
+  .wire b{color:var(--ash);font-weight:600}
+  .wire i{color:var(--rust);font-style:normal}
+
+  ul{max-width:78ch}
+  li{margin:.3rem 0}
+  a{color:var(--hot)}
+  a:hover{color:var(--ash)}
+
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Implementation Plan · 2026-08-10</p>
+  <h1>Feedback Calendar V1 — Round 3</h1>
+  <p class="lede">Fifteen feedback lines. Nine are layout and ergonomics debt across the menu, header,
+  calendar, dialogs, auth and account pages. Three build a file-driven local dev environment so a
+  developer stops hand-creating test data. Three are architecture: signed-out Settings catalogs, a
+  per-user offline read cache, and the rule that remote always erases local.</p>
+</header>
+
+<div class="stats">
+  <div class="stat"><b>15</b><span>feedback lines</span></div>
+  <div class="stat"><b>14</b><span>tickets</span></div>
+  <div class="stat"><b>3</b><span>new ADRs</span></div>
+  <div class="stat"><b>0</b><span>backend C# changes</span></div>
+  <div class="stat"><b>0</b><span>new dependencies</span></div>
+</div>
+
+<h2>Goal</h2>
+
+<p>Ship all fifteen lines. Gates stay green: <code>npm run test &amp;&amp; npm run lint &amp;&amp;
+npm run typecheck &amp;&amp; npm run build &amp;&amp; npm run backend:test &amp;&amp; npm run cy:run</code>,
+plus <code>npm run acceptance:matrix</code> still proved.</p>
+
+<h3>In scope</h3>
+<ul>
+  <li><code>src/**</code>, <code>scripts/**</code>, <code>fixtures/dev-environments/**</code>,
+      <code>ops/**</code>, <code>package.json</code>, <code>cypress/e2e/**</code>,
+      <code>docs/**</code>, <code>AGENT.md</code>, <code>README.md</code></li>
+  <li>ADR 0030, 0031, 0032 and two new architecture documents</li>
+</ul>
+
+<h3>Out of scope</h3>
+<ul>
+  <li><strong>All backend C#.</strong> Every endpoint the seeder needs already exists; seeding drives the real HTTP API.</li>
+  <li>Release / production compose, deployment topology, image contract</li>
+  <li>Any sync path from a browser store to the server — there is none, in either direction, and this plan does not open one</li>
+  <li>New runtime dependencies</li>
+</ul>
+
+<h2>One reversal, stated up front</h2>
+
+<div class="note warn">
+  <strong>Feedback #3 supersedes round-2 assumption A6.</strong> Round 2 decided the month-grid day
+  cells render day numbers only, and T10 shipped that. Feedback #3 says <em>“the only events that
+  should appear on the calendar view should be within the calendar itself”</em> — so the cells carry
+  their tournaments again (T7). The list tab keeps its cards, grouping and pagination; that is
+  explicitly reserved. The calendar tab renders no list below the grid, and a test now guarantees it.
+</div>
+
+<h2>The dev environment, on the wire</h2>
+
+<div class="wire"><b>npm run dev</b>                                        <i>unchanged — empty app, no reset, no seeding</i>
+  parseDevArgs → environment = "empty" → resetDatabase:false → seeds nothing
+
+<b>npm run dev -- --env=demo</b>
+  docker compose up -d --wait  →  /health/ready
+  scripts/seed-dev-accounts.mjs                          <i>the two fixed ADR 0029 accounts</i>
+  scripts/seed-dev-environment.mjs --env=demo
+    validateEnvironment()                                <i>any problem → exit 2, before anything is touched</i>
+    reset-local-stack.mjs                                <i>down --volumes → up --wait → migrator seed</i>
+    accounts   POST /api/auth/register  +  SQL email_confirmed / global_role
+    loginAll   POST /api/auth/login                      <i>one token per verified account</i>
+    formats    GET /api/formats · POST /api/admin/formats
+    orgs       POST /api/admin/organizations
+    calendar   POST /api/tournaments/preview → POST /api/tournaments
+    signups    POST /api/tournaments/{id}/registrations  <i>409 tolerated → re-runnable</i>
+    archives   POST /api/leagues-archive/restore         <i>Idempotency-Key per league</i>
+    running    POST /api/live-tournaments → players → rounds/start → score → rounds/validate
+  ng serve --host 127.0.0.1</div>
+
+<h2>Ticket chain</h2>
+
+<div class="chain">
+  <div class="row"><div class="id">T1</div><div class="body"><span class="tag tag--dev">dev</span> Dev environment loader
+    <em>fixtures format · <code>scripts/dev-environments.mjs</code> · <code>--env</code> flag · <code>empty</code> + <code>minimal</code> · <code>ops/dev-environments.test.ts</code></em></div></div>
+  <div class="row row--dep"><div class="id">T2 ← T1</div><div class="body"><span class="tag tag--dev">dev</span> Demo calendar dataset
+    <em>7 accounts · 2 orgs · 4 formats · 9 tournaments at offsets −90…+60 · 12 registrations</em></div></div>
+  <div class="row row--dep"><div class="id">T3 ← T2</div><div class="body"><span class="tag tag--dev">dev</span> Demo league + live dataset
+    <em>2 League Archives from real donor data · 2 running tournaments, one mid-round, one at standings</em></div></div>
+  <div class="row"><div class="id">T4</div><div class="body"><span class="tag tag--ui">ui</span> Home card order
+    <em>About second-last, Settings last — and Settings therefore takes the wide slot</em></div></div>
+  <div class="row"><div class="id">T5</div><div class="body"><span class="tag tag--ui">ui</span> Header sign-in last + import label
+    <em>auth block moves after every page-action group · <code>common.import</code> → “Importer ligue(s)”</em></div></div>
+  <div class="row"><div class="id">T6</div><div class="body"><span class="tag tag--ui">ui</span> Calendar toolbar row
+    <em>search input gets its border back · Create tournament joins the view-tab row, right, success green</em></div></div>
+  <div class="row row--dep"><div class="id">T7 ← T6</div><div class="body"><span class="tag tag--rev">reversal</span> Calendar day-cell events
+    <em><code>tournamentsByDate()</code> · 3 per cell + “+N more” · calendar tab lists nothing below the grid</em></div></div>
+  <div class="row"><div class="id">T8</div><div class="body"><span class="tag tag--ui">ui</span> Create dialog Enter
+    <em><code>TextPromptDialogComponent</code> becomes a real form · empty Enter does nothing</em></div></div>
+  <div class="row"><div class="id">T9</div><div class="body"><span class="tag tag--ui">ui</span> OAuth button alignment
+    <em>register adopts login’s label · logo <code>align-self:center</code> · gap .55 → .75rem</em></div></div>
+  <div class="row row--dep"><div class="id">T10 ← T9</div><div class="body"><span class="tag tag--ui">ui</span> Auth return buttons
+    <em>pure <code>authReturnLink(mode)</code> · login/register → <code>/</code> · recovery pages → <code>/login</code> · complete-profile → none</em></div></div>
+  <div class="row"><div class="id">T11</div><div class="body"><span class="tag tag--ui">ui</span> Account page actions
+    <em>save button full width + centred + spaced · bottom logout row and its orphan handler deleted</em></div></div>
+  <div class="row"><div class="id">T12</div><div class="body"><span class="tag tag--arch">arch</span> Signed-out local catalogs
+    <em><code>localCatalog</code> + <code>localMaintenance</code> as the complement of the server flags · <code>localPlayerNames()</code></em></div></div>
+  <div class="row"><div class="id">T13</div><div class="body"><span class="tag tag--arch">arch</span> Authenticated offline read cache
+    <em><code>gones-cache</code> keyed <code>&lt;userId&gt;:&lt;resource&gt;</code> · read-only · purged on logout</em></div></div>
+  <div class="row row--dep"><div class="id">T14 ← T12,T13</div><div class="body"><span class="tag tag--arch">arch</span> Remote prevails on sign-in
+    <em><code>adoptServerCatalog()</code> replaces the local archetype list · browser-wide scoping proved</em></div></div>
+</div>
+
+<div class="lanes">
+  <div class="lane lane--dev">
+    <h3>Dev environments</h3>
+    <ol><li>T1 loader + <code>empty</code>/<code>minimal</code></li><li>T2 calendar dataset</li><li>T3 league + live dataset</li></ol>
+  </div>
+  <div class="lane lane--ui">
+    <h3>Layout &amp; ergonomics</h3>
+    <ol><li>T4 home order</li><li>T5 header + label</li><li>T6 calendar toolbar</li><li>T7 day-cell events</li><li>T8 dialog Enter</li><li>T9 oauth buttons</li><li>T10 return buttons</li><li>T11 account actions</li></ol>
+  </div>
+  <div class="lane lane--arch">
+    <h3>Architecture</h3>
+    <ol><li>T12 signed-out catalogs</li><li>T13 offline read cache</li><li>T14 remote prevails</li></ol>
+  </div>
+</div>
+
+<h2>Feedback line → ticket</h2>
+
+<div class="scroll">
+<table>
+  <tr><th>#</th><th>Feedback</th><th>Ticket</th></tr>
+  <tr><td>1</td><td>Settings last card, About second-last</td><td>T4</td></tr>
+  <tr><td>2</td><td>Preloaded local environments, editable text files</td><td>T1 · T2 · T3</td></tr>
+  <tr><td>3</td><td>Calendar view: no tournament list below the grid</td><td>T7</td></tr>
+  <tr><td>4</td><td>Create dialogs autofocus + Enter validates</td><td>T8</td></tr>
+  <tr><td>5</td><td>“Importer 1+ ligues” → “Importer ligue(s)”</td><td>T5</td></tr>
+  <tr><td>6</td><td>Login button at the absolute right of the header</td><td>T5</td></tr>
+  <tr><td>7</td><td>Calendar search input border back</td><td>T6</td></tr>
+  <tr><td>8</td><td>Create tournament on the view-tab row, right, green</td><td>T6</td></tr>
+  <tr><td>9</td><td>OAuth button spacing / alignment / same text</td><td>T9</td></tr>
+  <tr><td>10</td><td>Forgot-password return button → login</td><td>T10</td></tr>
+  <tr><td>11</td><td>Login + register return button → menu</td><td>T10</td></tr>
+  <tr><td>12</td><td>Signed-out archetypes + players, local only</td><td>T12</td></tr>
+  <tr><td>13</td><td>Update-account button centred, full width, spaced</td><td>T11</td></tr>
+  <tr><td>14</td><td>Local data browser-wide, remote prevails, offline cache</td><td>T13 · T14</td></tr>
+  <tr><td>15</td><td>Remove the account-page bottom logout</td><td>T11</td></tr>
+</table>
+</div>
+
+<h2>Decision records</h2>
+
+<div class="scroll">
+<table>
+  <tr><th>ADR</th><th>Decides</th><th>Read before</th></tr>
+  <tr><td><code>0030-file-driven-local-dev-environments.md</code></td>
+      <td>Fixture directory format, HTTP-API-not-SQL seeding, reset rule, relative calendar dates and absolute archive dates, validation as a committed gate</td>
+      <td>T1 · T2 · T3</td></tr>
+  <tr><td><code>0031-authenticated-offline-read-cache.md</code></td>
+      <td><code>gones-cache</code>, read-only, per user, purged on logout; “remote prevails” as overwrite-never-merge; the IndexedDB allowlist grows to four</td>
+      <td>T13 · T14</td></tr>
+  <tr><td><code>0032-signed-out-local-settings-catalogs.md</code></td>
+      <td>Local archetype and player sections as the complement of the server ones; players derived, never stored; browser-wide scoping; the archetype conflict rule</td>
+      <td>T12 · T14</td></tr>
+</table>
+</div>
+
+<p>Architecture documents written with this plan:
+<code>docs/local-dev-environments.html</code> and <code>docs/offline-read-cache.html</code>.</p>
+
+<h2>The four browser stores after this plan</h2>
+
+<div class="scroll">
+<table>
+  <tr><th>Store</th><th>Kind</th><th>Scope</th><th>Rule</th></tr>
+  <tr><td><code>gones-live</code></td><td>IndexedDB</td><td>browser-wide</td><td>Authority for anonymous + <code>User</code> running tournaments (ADR 0021). No sync.</td></tr>
+  <tr><td><code>gones-leagues</code></td><td>IndexedDB</td><td>browser-wide</td><td>Authority for <code>local-</code> leagues (ADR 0028). Merged into the list, routed by id. No sync.</td></tr>
+  <tr><td><code>gones.settings</code></td><td>localStorage</td><td>browser-wide</td><td>Deck archetypes + language. Replaced by the server catalog on sign-in (T14).</td></tr>
+  <tr><td><code>gones-cache</code> <span class="tag tag--arch">new</span></td><td>IndexedDB</td><td><strong>per user</strong></td><td>Read-only mirror of server responses. Overwritten on every success, purged on logout (ADR 0031).</td></tr>
+</table>
+</div>
+
+<div class="note ok">
+  <strong>Why exactly one store is user-scoped.</strong> Anonymous local data is meant to be shared by
+  anyone using the browser — that is feedback #14’s first clause and what ADR 0021 and ADR 0028
+  already rely on. Cached <em>private</em> server data is the opposite: leaving user A’s leagues
+  readable after user B signs in would be a data leak, so the cache keys on the user id and dies with
+  the session. <code>browser-local-scope.test.ts</code> asserts both directions.
+</div>
+
+<h2>Ticket files</h2>
+
+<ul>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T1_dev-environment-loader.md">T1 · Dev environment loader</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T2_demo-calendar-dataset.md">T2 · Demo calendar dataset</a> — depends: T1</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T3_demo-league-and-live-dataset.md">T3 · Demo league + live dataset</a> — depends: T2</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T4_home-card-order.md">T4 · Home card order</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T5_header-sign-in-last-and-import-label.md">T5 · Header sign-in last + import label</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T6_calendar-toolbar-row.md">T6 · Calendar toolbar row</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T7_calendar-day-cell-events.md">T7 · Calendar day-cell events</a> — depends: T6</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T8_create-dialog-enter-submit.md">T8 · Create dialog Enter</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T9_oauth-button-alignment.md">T9 · OAuth button alignment</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T10_auth-return-buttons.md">T10 · Auth return buttons</a> — depends: T9</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T11_account-page-actions.md">T11 · Account page actions</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T12_signed-out-local-catalogs.md">T12 · Signed-out local catalogs</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T13_authenticated-offline-read-cache.md">T13 · Authenticated offline read cache</a> — depends: none</li>
+  <li><a href="PLAN_2026_08_10_feedback-calendar-v1-round-3/T14_remote-prevails-on-sign-in.md">T14 · Remote prevails on sign-in</a> — depends: T12, T13</li>
+</ul>
+
+<h2>Assumptions worth arguing with</h2>
+
+<ul>
+  <li><strong>A2</strong> — feedback #3 reverses round-2 A6. Day cells carry events again.</li>
+  <li><strong>A3</strong> — <code>DBGONDB.json</code> is not on this machine. The donor is
+      <code>gones-full-data.gones.json</code> from the Drive snapshot; a trimmed derivative lands in the fixture and becomes the source of truth.</li>
+  <li><strong>A4</strong> — three environments ship (<code>empty</code>, <code>minimal</code>, <code>demo</code>). A fourth is a copied directory.</li>
+  <li><strong>A9</strong> — register adopts <em>login’s</em> social label, not the other way round.</li>
+  <li><strong>A10</strong> — <code>complete-profile</code> gets no return button; it is mid-OAuth.</li>
+  <li><strong>A12</strong> — “remote prevails” has exactly two surfaces: the cache row and the archetype catalog. Browser-local documents keep their <code>local-</code> ids and are never erased by signing in.</li>
+  <li><strong>A13</strong> — the read cache dies at logout. Offline convenience does not outrank not leaking one user’s data to the next.</li>
+</ul>
+
+<footer>
+  Index: <code>ai-artifacts/PLAN_2026_08_10_feedback-calendar-v1-round-3.md</code> ·
+  Tickets: <code>ai-artifacts/PLAN_2026_08_10_feedback-calendar-v1-round-3/</code> ·
+  Previous round: <code>ai-artifacts/PLAN_2026_08_09_feedback-calendar-v1-round-2.md</code>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Local Development Environments</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--server{border-color:var(--green);color:var(--green)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .tag--file{border-color:var(--rust);color:var(--rust)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Local Development Environments</h1>
+  <p class="lede">A dataset is a directory of JSON files. <code>npm run dev</code> with no flag still
+  gives an empty app; <code>--env=&lt;name&gt;</code> resets the database and replays that directory
+  through the real HTTP API. Editing test data is editing a text file.</p>
+</header>
+
+<h2>What ships</h2>
+
+<div class="scroll">
+<table>
+  <tr><th>Environment</th><th>Reset</th><th>Contents</th><th>Use it for</th></tr>
+  <tr>
+    <td><code>empty</code> <span class="tag">default</span></td>
+    <td>no</td>
+    <td>nothing</td>
+    <td>Exactly what plain <code>npm run dev</code> has always done. Empty states, first-run flows.</td>
+  </tr>
+  <tr>
+    <td><code>minimal</code></td>
+    <td>yes</td>
+    <td>one verified account per role</td>
+    <td>Role gating with no content noise. Empty states while signed in.</td>
+  </tr>
+  <tr>
+    <td><code>demo</code></td>
+    <td>yes</td>
+    <td>7 accounts · 2 organizations · 4 formats · 9 calendar tournaments · 12 registrations · 2 League Archives · 2 running tournaments</td>
+    <td>Everything else. Layout review, role comparison, offline behaviour, pagination.</td>
+  </tr>
+</table>
+</div>
+
+<h2>Layout on disk</h2>
+
+<pre>fixtures/dev-environments/&lt;name&gt;/
+  environment.json        required   { name, description, resetDatabase }
+  accounts.json           optional   [{ email, username, firstName, lastName, role, password?, emailConfirmed? }]
+  organizations.json      optional   [{ key, name, description, website, contactEmail, ownerEmail }]
+  formats.json            optional   [{ key, name, slug, sortOrder }]
+  tournaments.json        optional   [{ key, organizationKey, organizerEmail, title, …, startsAtLocalOffsetDays, formatKeys }]
+  registrations.json      optional   [{ tournamentKey, userEmail }]
+  leagues.json            optional   [ LeagueDocument ]
+  live-tournaments.json   optional   [{ key, organizerEmail, players, roundCount, scoredRounds, leaveRoundOpen, leagueKey }]</pre>
+
+<p>A missing optional file means an empty list. <code>environment.json.name</code> must equal the
+directory name. Fixtures cross-reference each other by human-readable <code>key</code> — never by
+GUID, because no GUID exists before the seed runs.</p>
+
+<div class="note">
+  <strong>Adding an environment</strong> is copying a directory, editing
+  <code>environment.json.name</code> to match it, and running
+  <code>npm run dev -- --env=&lt;name&gt;</code>. No code change, no rebuild.
+</div>
+
+<h2>What a run does</h2>
+
+<div class="flow">
+  <div>1 · <code>npm run dev -- --env=demo</code> → <code>parseDevArgs</code> pulls <code>--env</code> out of the <code>ng serve</code> arguments</div>
+  <div>2 · <code>docker compose up -d --wait postgres migrator api worker</code> → wait for <code>/health/ready</code></div>
+  <div>3 · <code>scripts/seed-dev-accounts.mjs</code> — the two fixed ADR 0029 accounts</div>
+  <div>4 · <code>scripts/seed-dev-environment.mjs --env=demo</code> → <code>validateEnvironment</code> → any problem stops here, exit 2</div>
+  <div>5 · <code>resetDatabase: true</code> → <code>scripts/reset-local-stack.mjs</code> (down --volumes → up --wait → migrator seed)</div>
+  <div>6 · accounts: <code>POST /api/auth/register</code>, then SQL for <code>email_confirmed</code> + <code>global_role</code></div>
+  <div>7 · <code>loginAll()</code> → one access token per verified fixture account</div>
+  <div>8 · formats → organizations → tournaments (preview + publish) → registrations</div>
+  <div>9 · leagues (<code>POST /api/leagues-archive/restore</code>) → running tournaments (create · players · rounds · scores · validate)</div>
+  <div>10 · summary printed → <code>ng serve --host 127.0.0.1</code></div>
+</div>
+
+<h2>Two rules that keep it honest</h2>
+
+<div class="split">
+  <div class="card">
+    <h3><span class="tag tag--server">API</span> Seeding is not SQL</h3>
+    <p>Every row is created through the endpoint the browser uses. A fixture the app would refuse
+    cannot reach the database. The single exception is <code>email_confirmed</code> /
+    <code>global_role</code>, which have no endpoint — the same exception ADR 0029 already made.</p>
+  </div>
+  <div class="card">
+    <h3><span class="tag tag--danger">reset</span> A dataset never stacks</h3>
+    <p>Any environment carrying data sets <code>resetDatabase: true</code> and wipes the volume first.
+    Swapping <code>demo</code> → <code>minimal</code> leaves nothing of <code>demo</code> behind.
+    <code>validateEnvironment</code> rejects <code>resetDatabase: false</code> together with data.</p>
+  </div>
+</div>
+
+<h2>Dates</h2>
+
+<p>Calendar fixtures declare <code>startsAtLocalOffsetDays</code> — a signed integer against today —
+so a dataset committed once still shows past, ongoing and upcoming tournaments a year later. The
+<code>demo</code> spread is <code>-90, -45, -21, -7, 0, +3, +10, +24, +60</code>.</p>
+
+<p>League Archive fixtures keep <strong>absolute</strong> <code>tournamentDate</code> values. An
+archive is history, and a rolling history would be a lie.</p>
+
+<h2>Validation is a committed gate</h2>
+
+<p><code>ops/dev-environments.test.ts</code> runs inside <code>npm run test</code> and calls
+<code>validateEnvironment</code> on every shipped environment. It checks shape, role vocabulary,
+password policy, unique keys and every cross-reference: a tournament's organization and formats, a
+registration's tournament and user, a running tournament's league and organizer, and that a running
+tournament cannot score more rounds than it declares.</p>
+
+<div class="note warn">
+  <strong>A broken fixture fails in CI</strong>, not thirty seconds into a Docker reset. That is the
+  point of validating the directory rather than trusting the seeder to crash usefully.
+</div>
+
+<h2>Accounts in <code>demo</code></h2>
+
+<div class="scroll">
+<table>
+  <tr><th>Email</th><th>Role</th><th>Verified</th><th>What it is for</th></tr>
+  <tr><td><code>admin@gones.test</code></td><td>Admin</td><td>yes</td><td>Admin dashboard, audit, deleted tournaments, catalogs</td></tr>
+  <tr><td><code>organizer@gones.test</code></td><td>Organizer</td><td>yes</td><td>Owns "Gones Lyon" and 5 tournaments; server Live store</td></tr>
+  <tr><td><code>organizer2@gones.test</code></td><td>Organizer</td><td>yes</td><td>Owns "Ligue AURA" and 4 tournaments</td></tr>
+  <tr><td><code>test@gones.test</code></td><td>User</td><td>yes</td><td>Registrations, browser-local Live and League stores</td></tr>
+  <tr><td><code>player1@gones.test</code></td><td>User</td><td>yes</td><td>Second registrant</td></tr>
+  <tr><td><code>player2@gones.test</code></td><td>User</td><td>yes</td><td>Third registrant, for the participants screen</td></tr>
+  <tr><td><code>unverified@gones.test</code></td><td>User</td><td><strong>no</strong></td><td>The write gate: verified-email guards, the resend banner</td></tr>
+</table>
+</div>
+
+<p>Password for all of them: <code>Gones-dev-pass-123!</code>, declared once in
+<code>scripts/dev-accounts.mjs</code> as <code>DEV_PASSWORD</code>.</p>
+
+<h2>What this is not</h2>
+
+<ul>
+  <li>Not shipped. <code>fixtures/</code> is in no image and no release path reads it.</li>
+  <li>Not a migration path. <code>leagues.json</code> is a trimmed derivative of a real export; ADR 0020's
+  one-way door on migration bundles is untouched.</li>
+  <li>Not usable without Docker. <code>--env</code> with <code>--no-docker</code> is refused explicitly.</li>
+</ul>
+
+<footer>
+  Decision record: <code>docs/adr/0030-file-driven-local-dev-environments.md</code>. Fixed accounts:
+  <code>docs/adr/0029-deterministic-local-development-accounts.md</code>. Data authority:
+  <code>docs/adr/0020-retire-the-legacy-browser-data-authority.md</code>.
+</footer>
+
+</div>
+</body>
+</html>

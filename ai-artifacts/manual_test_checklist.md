@@ -19,7 +19,7 @@
 - [ ] `curl http://127.0.0.1:5080/api/leagues-archive/{id}/tournaments-archive/{tournamentId}` returns the tournament, while the same URL with `/tournaments/` returns 404.
 - [ ] Signed in as Organizer, create a League through the UI: the request goes to `/api/leagues-archive` and the `Location` header comes back as `/api/leagues-archive/{id}` (check the browser Network tab).
 - [ ] Signed in as Organizer, download a League export and confirm the file still opens with `"kind": "league"` and a `"league"` object — the bundle format is frozen and must not mention "archive".
-- [ ] Restore that same downloaded bundle through the restore screen: it is accepted and creates a new League. A bundle exported *before* this change must also still restore.
+- [ ] Restore that same downloaded bundle through the restore screen: it is accepted and creates a new League. A bundle exported _before_ this change must also still restore.
 - [ ] Run a Live Tournament to the end and finalize it as Organizer: the response still carries a `leagueId`, and the finalized tournament shows up inside the target League Archive.
 - [ ] Signed in as Organizer, open the player-name maintenance screen and commit a rename: it still works (its `/api/maintenance/player-names*` routes are deliberately not renamed, and its raw SQL now reads `league_archive_aggregates`).
 - [ ] Calendar, sign-in/sign-up and the Admin dashboard are all unaffected — spot-check one page of each.
@@ -32,7 +32,7 @@
 - [ ] On the home menu (`/`), the league card reads "Ligues (archive)" in French and "Leagues (archive)" in English, with the description mentioning the archived leagues in both languages and no missing-key placeholder.
 - [ ] Clicking that card goes to `/leagues-archive` and the header Import control is visible there — it must not appear on any other page.
 - [ ] Breadcrumbs on `/leagues-archive`, `/leagues-archive/{id}` and `/leagues-archive/{id}/tournaments-archive/{tid}` read "Ligues (archive)" / "Ligue (archive)" (and their English equivalents), and every crumb link navigates to an `-archive` URL.
-- [ ] Export a League from the archive detail page, then restore that same file through the header Import control: the League comes back complete (tournaments, rounds, entries, standings). A bundle exported *before* this rename must also restore — the bundle format is frozen and its JSON must still say `"kind": "league"`.
+- [ ] Export a League from the archive detail page, then restore that same file through the header Import control: the League comes back complete (tournaments, rounds, entries, standings). A bundle exported _before_ this rename must also restore — the bundle format is frozen and its JSON must still say `"kind": "league"`.
 - [ ] Export the full data set, wipe local data, restore it: everything comes back and no screen shows a broken `/leagues/...` link.
 - [ ] Run a Live Tournament to the end and finalize it as Organizer: the app navigates to `/leagues-archive/{leagueId}/tournaments-archive/{tournamentId}` and the finalized tournament is rendered there.
 - [ ] With the browser-local Live store (anonymous or plain user), finalizing still downloads the bundle instead of navigating — the rename must not have turned that into a navigation to an empty league id.
@@ -56,7 +56,7 @@ service worker is disabled under `ng serve`, and that difference is exactly what
 - [ ] In a fresh profile, deep-link straight to `/login`, sign in, then sign out. You land on `/about`, not `/`, because that browser has still never completed a first visit. Confirm this reads as intended onboarding — if it does not, the guard wiring (`firstVisitHomeGuard` on `''`, `markVisitedGuard` only on `/about`) is what to revisit, not the spec.
 - [ ] Same fresh profile, signed in as a non-Admin: open `/admin/users`. You are refused and sent to `/?denied=…`. On a browser that has already completed a first visit the denial notice is visible on the home page; on a brand-new profile the About redirect swallows it. Confirm that losing the notice in that one case is acceptable.
 - [ ] Load `/calendar` online, then switch DevTools → Network → Offline and reload: the tournaments you already saw still render, and the offline banner ("You are offline…" / "Vous êtes hors ligne…") is visible above the list.
-- [ ] Go offline *first*, then navigate to `/calendar` in a tab that has visited it before: the app boots from the service worker cache, the cached tournaments render, and the same offline banner is shown. This is the affordance the failing spec claimed had been lost — it has not.
+- [ ] Go offline _first_, then navigate to `/calendar` in a tab that has visited it before: the app boots from the service worker cache, the cached tournaments render, and the same offline banner is shown. This is the affordance the failing spec claimed had been lost — it has not.
 - [ ] While offline on a tournament page, try to register: the write is refused with "Nothing was queued or changed" and no request leaves the browser (DevTools → Network shows none).
 - [ ] Run `npm run e2e:ci` on a clean checkout and confirm `auth-session-persistence.cy.js` now appears in the run output — the gate had been silently skipping it, and running it is what uncovered the sixth failure.
 - [ ] Before hand-running `cypress/e2e/auth-profile.cy.js` on its own, re-run `node scripts/seed-auth-e2e.mjs`: that spec mutates the shared seeded account (it publishes the location), so a stale account makes its first assertion fail for reasons unrelated to the code under test.
@@ -66,7 +66,7 @@ service worker is disabled under `ng serve`, and that difference is exactly what
 This ticket changed **identifiers only** — 24 component files gained `data-cy` attributes and not one
 line of markup structure, styling or logic moved. The automated proof is that the set of `data-cy`
 values in `src/app` went from 1079 to 1891 with **zero removed and zero changed**, and that
-`npm run e2e:ci` stayed at 18/18. So the point of this list is *not* to re-test features: it is to
+`npm run e2e:ci` stayed at 18/18. So the point of this list is _not_ to re-test features: it is to
 put human eyes on the handful of places where an attribute-only edit could still have gone wrong,
 and to check that the release documents this ticket wrote are actually true.
 
@@ -143,7 +143,7 @@ approve**. Check both halves, and check that neither ate the other.
 
 - [ ] Two reviewers on one proposal. Approve from the first link, then approve from the second: the second gets `409` and exactly **one** tournament exists.
 - [ ] Approve from the first link, then reject from the second: `409`, the proposal stays `Approved`, and no rejection mail is queued.
-- [ ] The one that used to break: reject from the second link *while* an approve is in flight. Whatever the outcome, a `Rejected` proposal must **never** leave a published, registerable tournament behind. Check `scheduled_tournaments` and `/api/tournaments/all`, not just the HTTP codes.
+- [ ] The one that used to break: reject from the second link _while_ an approve is in flight. Whatever the outcome, a `Rejected` proposal must **never** leave a published, registerable tournament behind. Check `scheduled_tournaments` and `/api/tournaments/all`, not just the HTTP codes.
 
 ### Direct publishing is untouched
 
@@ -164,9 +164,9 @@ the manual pass is short: confirm the two things a human can see, and confirm th
 - [ ] Sign in as an **Organizer**, go to `/tournaments/new`, complete a preview, then make the publish
       call fail with a 403 (stop your membership, or intercept `POST /api/tournaments`). The recovery
       panel must still offer a working **Reload organizations** button — it is now
-      `data-cy="tournament-publish-error-reload"`, and clicking it must refresh the preview *and*
+      `data-cy="tournament-publish-error-reload"`, and clicking it must refresh the preview _and_
       reload the reference lists, not just one of them.
-- [ ] Force the *form*-side 403 instead (fail `POST /api/tournaments/preview`). That panel's button is
+- [ ] Force the _form_-side 403 instead (fail `POST /api/tournaments/preview`). That panel's button is
       still `data-cy="reload-organizations"` and must only reload the references. The point of the
       rename is that these two are no longer the same name — if both panels ever appear with the same
       identifier again, `npm run test` fails on the duplicate.
@@ -201,8 +201,8 @@ before. It only made six existing assertions in `src/app/data-mode-routes.test.t
 does not throw on vitest 4.1.10). No manual check applies.
 
 - [ ] Nothing to click. If you want to sanity-check by hand anyway: temporarily remove `canActivate:
-      [userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
-      data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.
+    [userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
+    data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.
 
 ## T5 login-oauth-and-links-row
 
@@ -260,7 +260,7 @@ cannot model is a browser's own refusal to store a `Secure` cookie over plain ht
 
 The delete path itself is automated (`cypress/e2e/live-local.cy.js` covers create → advanced settings →
 delete → cancel, then delete → confirm → empty list → reload still empty, on the browser-local store).
-Two things it cannot prove: how the button *looks*, because every Material dialog reports `opacity: 0`
+Two things it cannot prove: how the button _looks_, because every Material dialog reports `opacity: 0`
 under headless Electron so Cypress can never assert dialog visibility, and the **server** adapter path,
 which no automated spec in this slice signs in for.
 
@@ -422,8 +422,8 @@ bundle contains no `gones-leagues` string and no `LocalLeagueArchiveBackend`, so
 database. None of that is a real browser against a real IndexedDB — that needs a human:
 
 **Superseded by T14.** T14 injects `LocalLeagueArchiveBackend` into `LeagueArchiveRepository`, so the
-three steps below are false from that commit onward: the League pages *do* change signed out, and a
-`gones-leagues` database *does* appear. They are kept for the record and must not be run against a
+three steps below are false from that commit onward: the League pages _do_ change signed out, and a
+`gones-leagues` database _does_ appear. They are kept for the record and must not be run against a
 build at T14 or later — use the T14 section instead.
 
 - [ ] ~~`npm run dev`, open `http://127.0.0.1:4200`, browse Leagues and the archive league page signed
@@ -471,7 +471,7 @@ Automated coverage: `src/app/data/league-archive-routing.test.ts` (5 cases) pins
 and `createLeagueTarget`; `src/app/data/league-archive-repository.service.test.ts` (48 cases) drives
 `LeagueArchiveRepository` against two hand-written fakes — the merged list, the degrade-to-local path
 and its `serverUnavailable` flag, both-stores-failing propagation, the placeholder resolving per
-authority, all 17 routed methods (each asserted to leave the *other* store untouched), and both
+authority, all 17 routed methods (each asserted to leave the _other_ store untouched), and both
 directions of the refused cross-store move; `league-archive-list.component.test.ts` (6 cases) pins the
 template shape. `cypress/e2e/league-local.cy.js` (4 tests) drives the real browser: the whole
 signed-out create → tournament → round → entry → reload flow with every `/api/leagues-archive`
@@ -534,7 +534,7 @@ What that leaves for a human — the parts a stubbed or signed-out session canno
 
 **Corrected by T16.** A local restore is now additive: every imported league is written under a
 freshly minted `local-` id and its name is uniquified, exactly like the server's restore. So the two
-round-trip steps above only read as written because they *delete* the leagues first. Do not expect a
+round-trip steps above only read as written because they _delete_ the leagues first. Do not expect a
 re-imported league to carry the id it had before the export (it never will), and if you import a
 bundle **without** deleting first you will get a second copy named `… (restored)` rather than the
 original row being replaced — that is the fix, not a bug.
@@ -611,7 +611,7 @@ own commit range, and four vitest assertions passed while the behaviour under th
 halves are now covered automatically — `npm run cy:run` (85/85), `npm run e2e:ci` (20/20 release
 specs) and `npm run test` (774 cases) are green, and each of the four gaps was proved red against a
 deliberately broken implementation before being restored. There is nothing new to click; the items
-below only exist to confirm by eye that the *replacement* assertions describe what the app really
+below only exist to confirm by eye that the _replacement_ assertions describe what the app really
 does, because a test that asserts the wrong thing is exactly the failure this ticket is about.
 
 ### The month grid really moves (the assertion R1 now makes)
@@ -648,3 +648,9 @@ does, because a test that asserts the wrong thing is exactly the failure this ti
       with two disabled buttons.
 - [ ] `/leagues-archive` signed in as `admin@gones.test` with at least one browser-local league: the
       local row carries the badge and the server rows carry none.
+
+# Feedback
+
+1. On the homepage menu, the settings should always be the last card. The about should be always second last.
+
+2. Generate different local environments with a pre‑loaded database containing tournaments, running tournaments, and calendar events for various users with different rights. I need to be able to swap between environments and test as a normal user, an admin user, or an organizer user, accessing the different preloaded and non‑preloaded pages. By default, `npm run dev` without any option should run the application as it is currently—basically empty. However, I can specify different environment types, and it will load the appropriate database with everything preloaded.

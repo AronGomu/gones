@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Offline Read Cache</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--local{border-color:var(--rust)}
+  .card--server{border-color:var(--green)}
+  .card--cache{border-color:var(--hot)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--local{border-color:var(--rust);color:var(--rust)}
+  .tag--server{border-color:var(--green);color:var(--green)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Offline Read Cache</h1>
+  <p class="lede">Four browser stores, one rule each. Two are authorities for their own documents, one
+  is a public snapshot, and the fourth — new — is a per-user mirror of server responses that dies at
+  logout. Remote always prevails; nothing local is ever uploaded.</p>
+</header>
+
+<h2>The four stores</h2>
+
+<div class="split">
+  <div class="card card--local">
+    <h3><span class="tag tag--local">authority</span> <code>gones-live</code></h3>
+    <p>IndexedDB. The Live Tournament store for anonymous visitors and the plain <code>User</code>
+    role (ADR 0021). Chosen by role once at injection time. Never synchronises, in either direction.
+    Browser-wide, not user-scoped.</p>
+  </div>
+  <div class="card card--local">
+    <h3><span class="tag tag--local">authority</span> <code>gones-leagues</code></h3>
+    <p>IndexedDB. The browser half of the dual-source League Archive (ADR 0028). Merged with the
+    server list, routed by the <code>local-</code> id prefix. Never synchronises. Browser-wide.</p>
+  </div>
+  <div class="card card--server">
+    <h3><span class="tag tag--server">public</span> <code>gones.calendar-v1.all-tournaments</code></h3>
+    <p><code>localStorage</code>. A 24-hour snapshot of the public tournament catalog, anonymous GET
+    responses only. Browser-wide, because it holds nothing private.</p>
+  </div>
+  <div class="card card--cache">
+    <h3><span class="tag tag--danger">cache</span> <code>gones-cache</code></h3>
+    <p>IndexedDB, new (ADR 0031). Server responses for a <em>signed-in</em> visitor, keyed
+    <code>&lt;userId&gt;:&lt;resource&gt;</code>. Read-only, never an authority, purged on logout.</p>
+  </div>
+</div>
+
+<h2>How a read resolves</h2>
+
+<div class="flow">
+  <div>anonymous → no cache at all · <code>read()</code> passes straight through to <code>load()</code></div>
+  <div>signed in · <code>load()</code> fulfils → <strong>overwrite</strong> the row → <code>{ value, stale: false }</code></div>
+  <div>signed in · <code>load()</code> rejects · row exists → <code>{ value: row, stale: true }</code> → banner</div>
+  <div>signed in · <code>load()</code> rejects · no row → rethrow the original error, no empty-state lie</div>
+  <div>any IndexedDB failure on write → logged and swallowed · a broken cache never breaks a good read</div>
+  <div>logout / failed bootstrap / account deletion → <code>SessionScopeService.clear()</code> → database dropped</div>
+</div>
+
+<h2>What goes through it</h2>
+
+<div class="scroll">
+<table>
+  <tr><th>Call</th><th>Cached?</th><th>Why</th></tr>
+  <tr><td><code>LeagueArchiveRepository.listLeagues()</code> — server half</td><td>yes</td><td>The list a signed-in visitor expects to still see offline.</td></tr>
+  <tr><td><code>LeagueArchiveRepository.getLeague(id)</code> — server ids</td><td>yes</td><td>Same, per document.</td></tr>
+  <tr><td><code>LeagueArchiveRepository</code> — <code>local-</code> ids</td><td>no</td><td>Already offline. Double-storing would create two answers for one document.</td></tr>
+  <tr><td><code>LiveTournamentRepository.list()</code> / <code>get(id)</code>, mode <code>aspnet-api</code></td><td>yes</td><td>Organizer and Admin read the server.</td></tr>
+  <tr><td><code>LiveTournamentRepository</code>, mode <code>browser-local</code></td><td>no</td><td>Already offline (ADR 0021).</td></tr>
+  <tr><td>Every mutation, on every port</td><td><strong>no</strong></td><td>A write that fails offline fails. There is no outbox and no replay.</td></tr>
+  <tr><td>Public tournament catalog</td><td>no</td><td>Has its own browser-wide snapshot; it has no user to scope to.</td></tr>
+</table>
+</div>
+
+<h2>"Remote prevails" — the two surfaces</h2>
+
+<div class="split">
+  <div class="card card--cache">
+    <h3>1 · The cache row</h3>
+    <p>A fulfilled server read <strong>replaces</strong> its row. There is no merge, no field-level
+    reconciliation, no "keep the newer one". The cached copy exists to answer a failure, and stops
+    existing the moment the server answers again.</p>
+  </div>
+  <div class="card card--cache">
+    <h3>2 · The deck archetype catalog</h3>
+    <p>The one list that exists both in <code>localStorage</code> (<code>gones.settings</code>,
+    ADR 0032) and on the server. On sign-in and on a successful bootstrap,
+    <code>adoptServerCatalog(names)</code> replaces the browser list with
+    <code>GET /api/deck-archetypes</code>. Local additions are erased. A failed fetch changes nothing,
+    so signing in offline is safe.</p>
+  </div>
+</div>
+
+<div class="note">
+  <strong>Browser-local documents are outside this rule.</strong> A browser league carries a
+  <code>local-</code> id and a browser running tournament lives in a role-selected store, so neither
+  can collide with a server document. There is no conflict to resolve, and signing in does not erase
+  them.
+</div>
+
+<h2>Why per-user, and why it dies at logout</h2>
+
+<p>The same browser is shared. <code>SessionScopeService</code> already purges the service worker's
+API response cache on logout for exactly this reason. A durable cache of user A's leagues that user B
+can read after switching accounts is a data leak, and no offline convenience is worth it.</p>
+
+<p>So: rows are keyed by user id, and the whole database is dropped by the reset registered with
+<code>SessionScopeService</code>. Closing a tab keeps the cache — that is the case the feature exists
+for. Signing out does not.</p>
+
+<div class="note warn">
+  <strong>Two properties, deliberately opposite.</strong> <code>gones-live</code>,
+  <code>gones-leagues</code> and <code>gones.settings</code> are browser-wide: anyone opening the site
+  in that browser sees the same local data. <code>gones-cache</code> is the single user-scoped store.
+  <code>browser-local-scope.test.ts</code> asserts both directions so the distinction cannot rot into
+  an accident.
+</div>
+
+<h2>Boundary</h2>
+
+<p><code>server-authority-boundary.test.ts</code> pins the exact set of files allowed to name
+IndexedDB. It is now four:</p>
+
+<pre>src/app/backend/indexed-db.ts                          promise wrapper, no data rules
+src/app/backend/local-league-archive-backend.service.ts ADR 0028
+src/app/backend/local-live-backend.service.ts           ADR 0021
+src/app/backend/server-read-cache.service.ts            ADR 0031</pre>
+
+<p>Adding a fifth is an ADR decision, as it was for the fourth. Persistence in the cache service sits
+behind a <code>ServerReadCacheStore</code> seam, so the service is unit-testable with a fake and
+nothing else in the app grows an <code>IDBDatabase</code> parameter.</p>
+
+<footer>
+  Decision records: <code>docs/adr/0031-authenticated-offline-read-cache.md</code>,
+  <code>docs/adr/0032-signed-out-local-settings-catalogs.md</code>,
+  <code>docs/adr/0021-role-scoped-browser-live-store.md</code>,
+  <code>docs/adr/0028-dual-source-league-archive.md</code>. See also
+  <code>docs/live-tournament-authority.html</code> and <code>docs/league-archive-authority.html</code>.
+</footer>
+
+</div>
+</body>
+</html>
