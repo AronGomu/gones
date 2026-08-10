@@ -98,14 +98,14 @@ Run: `npx vitest run src/app/auth`
 
 ## Impl steps
 
-- [ ] 1. Add the four tests to `src/app/auth/auth-entry.layout.test.ts`. Confirm red with `npx vitest run src/app/auth`.
-- [ ] 2. In `src/app/auth/auth-entry.component.ts`, rewrite the `data-cy="register-oauth-grid"` block to the label-then-logo shape above, including the `[attr.aria-label]="i18n.t('auth.socialSignIn')"`.
-- [ ] 3. In the `data-cy="login-oauth-grid"` block, replace `alt="Google"` with `[attr.alt]="i18n.t('auth.continueGoogle')"` and `alt="Facebook"` with `[attr.alt]="i18n.t('auth.continueFacebook')"`.
-- [ ] 4. In `src/styles.css`, set `.oauth-button` to `display: inline-flex; align-items: center; justify-content: center; gap: .75rem; padding-inline: 1rem; min-height: 3rem; line-height: 1.2;`.
-- [ ] 5. Set `.oauth-button__label` to `display: inline-flex; align-items: center; line-height: 1.2;`.
-- [ ] 6. Set `.oauth-button__logo` to `width: 20px; height: 20px; flex: 0 0 20px; display: block; align-self: center; object-fit: contain;`.
-- [ ] 7. Run `npx vitest run src/app/auth` — green.
-- [ ] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
+- [x] 1. Add the four tests to `src/app/auth/auth-entry.layout.test.ts`. Confirm red with `npx vitest run src/app/auth`. — 6 tests failed (4 new + 2 updated stale tests), evidence captured.
+- [x] 2. In `src/app/auth/auth-entry.component.ts`, rewrite the `data-cy="register-oauth-grid"` block to the label-then-logo shape above, including the `[attr.aria-label]="i18n.t('auth.socialSignIn')"`. — done, edit applied.
+- [x] 3. In the `data-cy="login-oauth-grid"` block, replace `alt="Google"` with `[attr.alt]="i18n.t('auth.continueGoogle')"` and `alt="Facebook"` with `[attr.alt]="i18n.t('auth.continueFacebook')"`. — done, edit applied.
+- [x] 4. In `src/styles.css`, set `.oauth-button` to `display: inline-flex; align-items: center; justify-content: center; gap: .75rem; padding-inline: 1rem; min-height: 3rem; line-height: 1.2;`. — done.
+- [x] 5. Set `.oauth-button__label` to `display: inline-flex; align-items: center; line-height: 1.2;`. — done.
+- [x] 6. Set `.oauth-button__logo` to `width: 20px; height: 20px; flex: 0 0 20px; display: block; align-self: center; object-fit: contain;`. — done.
+- [x] 7. Run `npx vitest run src/app/auth` — green. — 17 files, 88 tests passed.
+- [x] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — 812 tests passed, lint clean, typecheck clean, build succeeded.
 - [ ] 9. Manual: `/login` and `/register` side by side — the four buttons read the same text, the logo is horizontally spaced from it and its centre lines up with the text's centre. Check both `fr` and `en`. Narrow the window: the grid drops to one column and the buttons still centre their content.
 
 ## Outputs
@@ -116,12 +116,12 @@ Run: `npx vitest run src/app/auth`
 
 ## Validation
 
-- [ ] `npx vitest run src/app/auth` passes.
-- [ ] `npm run test` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes.
-- [ ] Manual: `/login` and `/register` social buttons are identical in text, order, spacing and alignment, in both languages.
-- [ ] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `fix(auth): align and space the social buttons and share one label`
+- [x] `npx vitest run src/app/auth` passes. — 17 files, 88 tests passed.
+- [x] `npm run test` passes. — 96 files, 812 tests passed.
+- [x] `npm run lint` passes. — "All files pass linting."
+- [x] `npm run typecheck` passes. — clean exit, no errors.
+- [x] `npm run build` passes. — bundle produced at dist/gones.
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes. — 4/7 passing both before (stashed) and after this change (identical result); 3 failures are pre-existing, unrelated to social-button layout (login-helper timeout navigating to /settings/account, not touched by this slice).
+- [ ] Manual: `/login` and `/register` social buttons are identical in text, order, spacing and alignment, in both languages. — deferred to manual_test_checklist.md (visual-only check, no headed browser in this run).
+- [x] App functional — no broken path from this slice. — full test/lint/typecheck/build green; cypress auth-profile spec unchanged pass/fail count vs. pre-change baseline.
+- [x] Commit msg draft: `fix(auth): align and space the social buttons and share one label` — used verbatim for the commit.

@@ -44,11 +44,11 @@ describe('auth-entry login OAuth layout', () => {
 
   it('the logos name their platform for assistive tech', () => {
     const googleLine = lineContaining(componentSource, 'data-cy="oauth-google-logo"');
-    expect(googleLine).toContain('alt="Google"');
+    expect(googleLine).toContain("[attr.alt]=\"i18n.t('auth.continueGoogle')\"");
     expect(googleLine).not.toContain('aria-hidden');
 
     const facebookLine = lineContaining(componentSource, 'data-cy="oauth-facebook-logo"');
-    expect(facebookLine).toContain('alt="Facebook"');
+    expect(facebookLine).toContain("[attr.alt]=\"i18n.t('auth.continueFacebook')\"");
     expect(facebookLine).not.toContain('aria-hidden');
   });
 
@@ -70,8 +70,48 @@ describe('auth-entry login OAuth layout', () => {
     expect(matches.length).toBe(2);
   });
 
-  it('the register page still uses the platform-specific labels', () => {
+  it('the register page uses the shared continue-with label', () => {
     const line = lineContaining(componentSource, 'register-oauth-google-label');
-    expect(line).toContain('auth.continueGoogle');
+    expect(line).toContain("i18n.t('auth.continueWith')");
+  });
+
+  it('both social blocks use the same label key', () => {
+    const matches = componentSource.match(/i18n\.t\('auth\.continueWith'\)/g) ?? [];
+    expect(matches.length).toBe(4);
+    expect(componentSource).not.toContain("{{ i18n.t('auth.continueGoogle') }}");
+    expect(componentSource).not.toContain("{{ i18n.t('auth.continueFacebook') }}");
+  });
+
+  it('both social blocks put the label before the logo', () => {
+    const ids = ['oauth-google', 'oauth-facebook', 'register-oauth-google', 'register-oauth-facebook'];
+    for (const id of ids) {
+      const start = componentSource.indexOf(`data-cy="${id}"`);
+      expect(start).toBeGreaterThan(-1);
+      const end = componentSource.indexOf('</button>', start);
+      const slice = componentSource.slice(start, end);
+      const spanIndex = slice.indexOf('<span');
+      const imgIndex = slice.indexOf('<img');
+      expect(spanIndex).toBeGreaterThan(-1);
+      expect(imgIndex).toBeGreaterThan(-1);
+      expect(spanIndex).toBeLessThan(imgIndex);
+    }
+  });
+
+  it('every social logo carries a translated accessible name', () => {
+    const googleAltMatches = componentSource.match(/\[attr\.alt\]="i18n\.t\('auth\.continueGoogle'\)"/g) ?? [];
+    const facebookAltMatches = componentSource.match(/\[attr\.alt\]="i18n\.t\('auth\.continueFacebook'\)"/g) ?? [];
+    expect(googleAltMatches.length).toBe(2);
+    expect(facebookAltMatches.length).toBe(2);
+    expect(componentSource).not.toContain('alt="Google"');
+    expect(componentSource).not.toContain('alt="Facebook"');
+    expect(componentSource).not.toMatch(/oauth-button__logo[^>]*aria-hidden="true"/);
+  });
+
+  it('the social button spaces and centres its parts', () => {
+    const buttonBlock = stylesheet.match(/\.oauth-button\s*\{[^}]*\}/)?.[0] ?? '';
+    const logoBlock = stylesheet.match(/\.oauth-button__logo\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(buttonBlock).toContain('gap: .75rem');
+    expect(buttonBlock).toContain('min-height: 3rem');
+    expect(logoBlock).toContain('align-self: center');
   });
 });

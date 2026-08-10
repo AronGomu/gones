@@ -206,21 +206,21 @@ does not throw on vitest 4.1.10). No manual check applies.
 
 ## T5 login-oauth-and-links-row
 
-Automated coverage (`src/app/auth/auth-entry.layout.test.ts`) proves the label/logo order, the accessible
-name wiring (`alt="Google"`/`alt="Facebook"`, no `aria-hidden`), the CSS rules (`.auth-links` keeps
-`display: flex; justify-content: space-between`, the old `inline-block` override on `.oauth-grid +
-.auth-links` is gone), and that the register page keeps its unchanged `auth.continueGoogle` /
-`auth.continueFacebook` labels. It cannot prove rendered pixels, French runtime text, or a live
-viewport — those need a human:
+**Superseded by T9 oauth-button-alignment (below):** the register page no longer keeps its own
+`auth.continueGoogle` / `auth.continueFacebook` labels with logo-first order, and the login `<img>`
+alt text is no longer the literal `alt="Google"` / `alt="Facebook"`. See the T9 section for the
+current shape of both OAuth blocks; the two bullets below that described the old register/alt
+behaviour are removed. The links-row bullets below (Create account / Password forgotten placement,
+narrow-viewport stacking) are unaffected and still apply.
 
-- [ ] `npm run dev`, open `http://127.0.0.1:4200/login` — both OAuth buttons read "Continue with" then
-      the logo, the two buttons are the same height, and the label/logo baselines line up.
+Automated coverage (`src/app/auth/auth-entry.layout.test.ts`) proves the label/logo order, the
+accessible-name wiring, and the CSS rules (`.auth-links` keeps `display: flex; justify-content:
+space-between`, the old `inline-block` override on `.oauth-grid + .auth-links` is gone). It cannot
+prove rendered pixels, French runtime text, or a live viewport — those need a human:
+
 - [ ] The Create account link sits flush left and Password forgotten flush right inside the card, at
       1440px and at 768px.
 - [ ] At 360px the OAuth grid stacks to one column and the two links wrap without overlapping.
-- [ ] Switch the app language to French: the buttons read "Continuer avec" then the logo.
-- [ ] Open `/register`: its OAuth buttons are unchanged — still the full "Continue with Google" /
-      "Continue with Facebook" text, logo first.
 
 ## T2 header-sign-in-entry
 
@@ -776,3 +776,22 @@ tournaments read in the browser.
 - [ ] Re-open the dialog, press Enter with the field empty: nothing happens — dialog stays open, no league created.
 - [ ] Re-open the dialog, press Escape: the dialog closes with no league created.
 - [ ] Click the confirm button directly (not Enter) with a name typed in: still creates the league (button is `type="submit"` inside the form, same path as Enter).
+
+## T9 oauth-button-alignment
+
+Automated coverage (`src/app/auth/auth-entry.layout.test.ts`) proves both `/login` and `/register`
+OAuth blocks share the same `auth.continueWith` label key (label before logo, 4 occurrences), that
+every logo carries a translated `[attr.alt]` (`auth.continueGoogle` / `auth.continueFacebook`, no
+`alt="Google"`/`alt="Facebook"` literals, no `aria-hidden` on the logo), and that `.oauth-button` /
+`.oauth-button__logo` in `src/styles.css` carry the new spacing (`gap: .75rem`, `min-height: 3rem`)
+and centring (`align-self: center`) rules. It cannot prove rendered pixels, French runtime text, or a
+live viewport — those need a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/login` — both buttons read "Continue with" then the
+      logo, with visible gap between text and logo (not jammed together) and the logo's vertical
+      centre lines up with the text's vertical centre.
+- [ ] Open `/register` — its two OAuth buttons now read the exact same text ("Continue with"), same
+      order (label then logo), same spacing/alignment as `/login`.
+- [ ] Switch the app language to French on both pages: buttons read "Continuer avec" then the logo.
+- [ ] Narrow the window below ~600px on both pages: the OAuth grid drops to one column and each
+      button still centres its label/logo pair.

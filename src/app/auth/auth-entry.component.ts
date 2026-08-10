@@ -48,11 +48,11 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
             <div class="oauth-grid" data-cy="login-oauth-grid" [attr.aria-label]="i18n.t('auth.socialSignIn')">
               <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-google" (click)="startOAuth('google')">
                 <span class="oauth-button__label" data-cy="oauth-google-label">{{ i18n.t('auth.continueWith') }}</span>
-                <img class="oauth-button__logo" src="assets/brand/google.svg" alt="Google" data-cy="oauth-google-logo">
+                <img class="oauth-button__logo" src="assets/brand/google.svg" [attr.alt]="i18n.t('auth.continueGoogle')" data-cy="oauth-google-logo">
               </button>
               <button mat-stroked-button class="oauth-button" type="button" data-cy="oauth-facebook" (click)="startOAuth('facebook')">
                 <span class="oauth-button__label" data-cy="oauth-facebook-label">{{ i18n.t('auth.continueWith') }}</span>
-                <img class="oauth-button__logo" src="assets/brand/facebook.svg" alt="Facebook" data-cy="oauth-facebook-logo">
+                <img class="oauth-button__logo" src="assets/brand/facebook.svg" [attr.alt]="i18n.t('auth.continueFacebook')" data-cy="oauth-facebook-logo">
               </button>
             </div>
             <nav class="auth-links" data-cy="login-links" [attr.aria-label]="i18n.t('auth.accountLinks')">
@@ -78,14 +78,14 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
                 <button mat-flat-button class="home-primary-action" [attr.data-cy]="'auth-submit'" type="submit">{{ pending() ? i18n.t('auth.creatingAccount') : i18n.t('auth.createAccount') }}</button>
               </fieldset>
             </form>
-            <div class="oauth-grid" data-cy="register-oauth-grid">
+            <div class="oauth-grid" data-cy="register-oauth-grid" [attr.aria-label]="i18n.t('auth.socialSignIn')">
               <button mat-stroked-button class="oauth-button" type="button" data-cy="register-oauth-google" (click)="startOAuth('google')">
-                <img class="oauth-button__logo" src="assets/brand/google.svg" alt="" aria-hidden="true" data-cy="register-oauth-google-logo">
-                <span data-cy="register-oauth-google-label">{{ i18n.t('auth.continueGoogle') }}</span>
+                <span class="oauth-button__label" data-cy="register-oauth-google-label">{{ i18n.t('auth.continueWith') }}</span>
+                <img class="oauth-button__logo" src="assets/brand/google.svg" [attr.alt]="i18n.t('auth.continueGoogle')" data-cy="register-oauth-google-logo">
               </button>
               <button mat-stroked-button class="oauth-button" type="button" data-cy="register-oauth-facebook" (click)="startOAuth('facebook')">
-                <img class="oauth-button__logo" src="assets/brand/facebook.svg" alt="" aria-hidden="true" data-cy="register-oauth-facebook-logo">
-                <span data-cy="register-oauth-facebook-label">{{ i18n.t('auth.continueFacebook') }}</span>
+                <span class="oauth-button__label" data-cy="register-oauth-facebook-label">{{ i18n.t('auth.continueWith') }}</span>
+                <img class="oauth-button__logo" src="assets/brand/facebook.svg" [attr.alt]="i18n.t('auth.continueFacebook')" data-cy="register-oauth-facebook-logo">
               </button>
             </div>
             <a routerLink="/login" data-cy="register-login-link">{{ i18n.t('auth.haveAccount') }}</a>
