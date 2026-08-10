@@ -18,6 +18,8 @@ export const DEFAULT_DEV_ENVIRONMENT = 'empty';
 export const DATA_FILES = ['accounts', 'organizations', 'formats', 'tournaments', 'registrations', 'leagues', 'liveTournaments'];
 
 const GLOBAL_ROLES = ['User', 'Organizer', 'Admin'];
+const LEAGUE_STATUSES = ['active', 'completed'];
+const ROUND_ENTRY_KINDS = ['match', 'bye'];
 const API_ORIGIN = 'http://127.0.0.1:5080';
 
 /** `liveTournaments` -> `live-tournaments.json`; every other key is already its own file name. */
@@ -149,6 +151,44 @@ export function validateEnvironment(environment) {
     if (!tournamentKeys.has(registration.tournamentKey) || registrant === undefined || registrant.emailConfirmed === false) {
       problems.push(`${label}: registration ${registration.tournamentKey}/${registration.userEmail} is not seedable`);
     }
+  }
+
+  // The League Archive fixtures are whole `LeagueDocument`s: the restore endpoint takes them as they
+  // are written here, so a shape the API refuses would only surface after the reset dropped the
+  // previous dataset. These rules mirror the server's own document validation.
+  const leagues = environment.leagues ?? [];
+  const leagueIds = new Set();
+  for (const league of leagues) {
+    if (!nonEmptyString(league.id) || !nonEmptyString(league.name)) problems.push(`${label}: league "${league.id ?? '(no id)'}" needs a non-empty id and name`);
+    if (leagueIds.has(league.id)) problems.push(`${label}: duplicate league id ${league.id}`);
+    leagueIds.add(league.id);
+    if (!LEAGUE_STATUSES.includes(league.status)) problems.push(`${label}: league ${league.id} has status "${league.status}", expected one of ${LEAGUE_STATUSES.join(', ')}`);
+
+    for (const tournament of league.tournaments ?? []) {
+      // The server refuses a document whose Archive Tournament claims another League.
+      if (tournament.leagueId !== league.id) problems.push(`${label}: tournament ${tournament.id} claims league ${tournament.leagueId}`);
+      for (const round of tournament.rounds ?? []) {
+        for (const entry of round.entries ?? []) {
+          if (!ROUND_ENTRY_KINDS.includes(entry.kind)) problems.push(`${label}: tournament ${tournament.id} has a round entry of kind "${entry.kind}", expected one of ${ROUND_ENTRY_KINDS.join(', ')}`);
+        }
+      }
+    }
+  }
+
+  for (const live of environment.liveTournaments ?? []) {
+    const organizer = accountsByEmail.get(String(live.organizerEmail).toLowerCase());
+    if (organizer === undefined || !['Organizer', 'Admin'].includes(organizer.role)) {
+      problems.push(`${label}: running tournament ${live.key} organizer ${live.organizerEmail} is not an Organizer`);
+    }
+    // `null` is the unassigned running tournament; anything else must name a League this environment
+    // restores, because the create endpoint refuses an unknown leagueId.
+    if (live.leagueKey !== null && live.leagueKey !== undefined && !leagueIds.has(live.leagueKey)) {
+      problems.push(`${label}: running tournament ${live.key} references unknown league ${live.leagueKey}`);
+    }
+    if (live.scoredRounds > live.roundCount) problems.push(`${label}: running tournament ${live.key} cannot score ${live.scoredRounds} of its ${live.roundCount} rounds`);
+    // Swiss pairing needs at least one table, and an odd roster would make the seeder score a bye.
+    const playerCount = (live.players ?? []).length;
+    if (playerCount < 2 || playerCount % 2 !== 0) problems.push(`${label}: running tournament ${live.key} cannot pair ${playerCount} players`);
   }
 
   const carriesData = DATA_FILES.some((key) => (environment[key] ?? []).length > 0);

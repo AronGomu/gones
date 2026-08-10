@@ -25,7 +25,12 @@
     async function seedLiveTournaments(environment, tokens) { if (!environment.liveTournaments.length) return; }
     ```
   - `validateEnvironment` already enforces: name/description/resetDatabase types, account shape + role + unique email/username, password policy via `meetsPasswordPolicy` from `scripts/dev-accounts.mjs`, `resetDatabase: false` ⇒ no data, and the T2 cross-reference rules for organizations / tournaments / formats / registrations.
-  - `ops/dev-environments.test.ts` exists and is inside the `npm run test` glob `ops/**/*.test.ts`.
+  - `ops/dev-environments.test.ts` exists and is inside the `npm run test` glob `ops/**/*.test.ts`. It currently holds 12 passing tests; add to it, delete none.
+  - Local-stack facts established by the T1/T2 real runs, rely on them:
+    - The seeder inlines its own reset (`docker compose --profile development down --volumes --remove-orphans` → `docker compose up --build -d --wait postgres migrator api worker` → `node scripts/seed-local.mjs`) instead of spawning `scripts/reset-local-stack.mjs`, because that script also starts `frontend-development` on port 4200 and collides with `ng serve`. Keep it that way.
+    - `devComposeEnv()` in `scripts/dev-environments.mjs` holds the `GONES_FEATURES__*` block the API needs (without it `/api/auth/register` answers 404) **and** `GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT=1000`, because the default auth limit is 5 per 15 min per IP and the seeder makes far more login calls than that. Reuse it; do not re-declare the flag list.
+    - Every tournament write in T2 sends a fixture-derived `Idempotency-Key`. Do the same for both endpoints below — the header is mandatory and re-running the seeder must stay exit 0.
+    - `localDateTime` returns `'YYYY-MM-DDTHH:mm'`; the seeder appends `:00` where the API wants seconds.
 - API endpoints this ticket calls (all exist, base `http://127.0.0.1:5080`, Organizer or Admin token):
   - `POST /api/leagues-archive/restore` — header `Idempotency-Key` **required**; body `{ "kind": "league", "gonesDataVersion": 2, "league": <LeagueDocument> }` → `201`.
   - `POST /api/live-tournaments` — header `Idempotency-Key` **required**; body `{ "name": string|null, "leagueId": string|null, "tournamentDate": string|null, "roundCount": number|null, "customRoundCount": bool|null, "paidTrackingEnabled": bool|null }` → `201` `{ document, documentVersion, eTag }`.
@@ -131,18 +136,18 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 
 ## Impl steps
 
-- [ ] 1. Read `/home/aron/gdrive-snapshot-2026-08-10/backup/gones-exports/gones-full-data.gones.json`; harvest at least 9 distinct real player names and a handful of real score lines from the `Gones League 6` entry.
-- [ ] 2. Create `fixtures/dev-environments/demo/leagues.json`: `demo-league-6` (completed, 3 tournaments × 3 rounds × 4 matches, one `bye` in day 3 round 3) and `demo-league-7` (active, 1 tournament × 2 rounds). Literal string ids, past `tournamentDate` values, `playerArchetypes` filled from `src/app/config/legacy-archetype-presets.ts`.
-- [ ] 3. Create `fixtures/dev-environments/demo/live-tournaments.json` with the two rows in the table above.
-- [ ] 4. Add the five tests to `ops/dev-environments.test.ts`. Confirm red.
-- [ ] 5. Add the seven league + live rules to `validateEnvironment` in `scripts/dev-environments.mjs`.
-- [ ] 6. Re-run `npx vitest run ops/dev-environments.test.ts` — green.
-- [ ] 7. Implement `seedLeagues` in `scripts/seed-dev-environment.mjs`.
-- [ ] 8. Implement `seedLiveTournaments`, including the `If-Match` eTag chain and the deterministic scoring rule.
-- [ ] 9. Extend the printed summary with league + running-tournament counts.
-- [ ] 10. Document `leagues.json` and `live-tournaments.json` field by field in `fixtures/dev-environments/README.md`, including "archive dates are absolute on purpose".
-- [ ] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 12. Manual: `npm run dev -- --env=demo`; signed in as `organizer@gones.test`, `/leagues-archive` lists both leagues, `Gones League 6` standings render; `/live-tournaments` shows the in-progress one on an open round and the other at standings.
+- [x] 1. Read `/home/aron/gdrive-snapshot-2026-08-10/backup/gones-exports/gones-full-data.gones.json`; harvest at least 9 distinct real player names and a handful of real score lines from the `Gones League 6` entry. → verify: the harvested names and scores are quoted in the run log and reappear in `leagues.json`.
+- [x] 2. Create `fixtures/dev-environments/demo/leagues.json`: `demo-league-6` (completed, 3 tournaments × 3 rounds × 4 matches, one `bye` in day 3 round 3) and `demo-league-7` (active, 1 tournament × 2 rounds). Literal string ids, past `tournamentDate` values, `playerArchetypes` filled from `src/app/config/legacy-archetype-presets.ts`. → verify: `node -e` shape probe prints 2 leagues / 3 + 1 tournaments / 3 + 2 rounds / one `bye`, and every archetype is a preset name.
+- [x] 3. Create `fixtures/dev-environments/demo/live-tournaments.json` with the two rows in the table above. → verify: `node -e` probe prints the two keys with 8 / 6 players and the table's `roundCount`, `scoredRounds`, `leaveRoundOpen`, `leagueKey`.
+- [x] 4. Add the five tests to `ops/dev-environments.test.ts`. Confirm red. → verify: `npx vitest run ops/dev-environments.test.ts` fails on the new league/live rules, existing 12 tests still counted.
+- [x] 5. Add the seven league + live rules to `validateEnvironment` in `scripts/dev-environments.mjs`. → verify: the rules exist in the diff and produce the exact message strings the tests assert.
+- [x] 6. Re-run `npx vitest run ops/dev-environments.test.ts` — green. → verify: 17 passed, 0 failed.
+- [x] 7. Implement `seedLeagues` in `scripts/seed-dev-environment.mjs`. → verify: a real `--env=demo` run creates 2 League Archives (row count from `psql`).
+- [x] 8. Implement `seedLiveTournaments`, including the `If-Match` eTag chain and the deterministic scoring rule. → verify: a real `--env=demo` run leaves `demo-live-in-progress` on stage `round` and `demo-live-standings` on stage `standings`.
+- [x] 9. Extend the printed summary with league + running-tournament counts. → verify: the seeder prints `2 league archives, 2 running tournaments`.
+- [x] 10. Document `leagues.json` and `live-tournaments.json` field by field in `fixtures/dev-environments/README.md`, including "archive dates are absolute on purpose". → verify: both file sections and the absolute-dates sentence are in the README diff.
+- [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. → verify: all four exit 0.
+- [x] 12. Manual: `npm run dev -- --env=demo`; signed in as `organizer@gones.test`, `/leagues-archive` lists both leagues, `Gones League 6` standings render; `/live-tournaments` shows the in-progress one on an open round and the other at standings. → verify: `ng serve` is owned by another process, so this is checked through the API the pages read (`GET /api/leagues-archive`, `GET /api/live-tournaments`) plus the seeded row counts.
 
 ## Outputs
 
@@ -153,13 +158,13 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 
 ## Validation
 
-- [ ] `npx vitest run ops/dev-environments.test.ts` passes.
-- [ ] `npm run test` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `node scripts/seed-dev-environment.mjs --env=demo` exits 0; a second run exits 0 without duplicating a league (`GET /api/leagues-archive` still returns 2 non-placeholder leagues).
-- [ ] Manual: `/leagues-archive/demo-league-6` renders 3 tournaments and a standings table with ≥ 9 players.
-- [ ] Manual: `/live-tournaments` as `organizer@gones.test` shows `demo-live-in-progress` on an unscored round.
-- [ ] App functional — no broken path from this slice.
+- [x] `npx vitest run ops/dev-environments.test.ts` passes.
+- [x] `npm run test` passes.
+- [x] `npm run lint` passes.
+- [x] `npm run typecheck` passes.
+- [x] `npm run build` passes.
+- [x] `node scripts/seed-dev-environment.mjs --env=demo` exits 0; a second run exits 0 without duplicating a league (`GET /api/leagues-archive` still returns 2 non-placeholder leagues).
+- [x] Manual: `/leagues-archive/demo-league-6` renders 3 tournaments and a standings table with ≥ 9 players. → verify through the API the page reads: `GET /api/leagues-archive/<restored id>` shows 3 tournaments and `…/result` ≥ 9 standing rows.
+- [x] Manual: `/live-tournaments` as `organizer@gones.test` shows `demo-live-in-progress` on an unscored round. → verify through `GET /api/live-tournaments`: stage `round`, current round entries unscored.
+- [x] App functional — no broken path from this slice. → verify: `npm run build` green and no `src/**` or `backend/**` file in the diff.
 - [ ] Commit msg draft: `feat(dev): seed demo league archives and running tournaments`

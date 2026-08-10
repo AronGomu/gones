@@ -28,10 +28,8 @@ Every optional file is a JSON array. A missing file means an empty list.
 | `leagues.json` | the League Archives to restore |
 | `live-tournaments.json` | the running tournaments to create |
 
-`empty`, `minimal` and `demo` ship with this repository. `accounts.json`, `organizations.json`,
-`formats.json`, `tournaments.json` and `registrations.json` are seeded today; `leagues.json` and
-`live-tournaments.json` are read and validated, and their seeder hooks are filled by the ticket that
-adds the League Archive and Live halves of the `demo` dataset.
+`empty`, `minimal` and `demo` ship with this repository. Every file above is seeded through the real
+HTTP API and validated by `npm run test`.
 
 ## The `demo` environment
 
@@ -39,6 +37,12 @@ adds the League Archive and Live halves of the `demo` dataset.
 (one per role, plus a deliberately unverified one), two organizations, four formats, nine published
 tournaments spread over past / today / future, and twelve registrations. It is what makes `/calendar`,
 `/organizer/tournaments` and the participants screen show content without creating anything by hand.
+
+It also loads the two halves the Calendar does not cover: two **League Archives** (`Gones League 6`,
+completed, three Archive Tournaments; `Gones League 7`, active, one) with real rounds and standings,
+and two **running (Live) tournaments** — one caught mid-round with an unscored Round open, one sitting
+at its standings. So `/leagues-archive`, a League Result, Player Statistics and `/live-tournaments`
+show content too.
 
 Seeding drives the real HTTP API as those accounts, so the fixtures reference each other by
 human-readable **keys** — the GUIDs do not exist until the seed runs. `npm run test` checks every
@@ -68,6 +72,46 @@ is today, `+60` is in two months.
 `registrations.json` — `tournamentKey` and `userEmail`. Only verified accounts can register, and the
 API closes registration once a tournament has started, so keep these on tournaments with a positive
 offset.
+
+`leagues.json` — a JSON array of whole **`LeagueDocument`s**, the same shape a League Export carries,
+because the seeder restores each one with `POST /api/leagues-archive/restore`. Per League: `id` (a
+stable literal string, used as the fixture key and by `live-tournaments.json`), `name`, `status`
+(`active` \| `completed`) and `tournaments`. Per Archive Tournament: `id`, `leagueId` (must equal the
+parent League's `id` — the server refuses a Tournament claiming another League), `name`,
+`tournamentDate`, `rounds` and `playerArchetypes` (`playerName` + `archetype`, best taken from
+`src/app/config/legacy-archetype-presets.ts` so the autocomplete recognises them). Per Round: `id`
+and `entries`. A `kind: "match"` entry carries `table`, `player1Name`, `player2Name`, `player1Score`,
+`player2Score`, `player1DeckArchetype`, `player2DeckArchetype`; a `kind: "bye"` entry carries
+`table`, `playerName`, `deckArchetype`.
+
+**Archive dates are absolute on purpose.** Every `tournamentDate` is a literal past `YYYY-MM-DD`: an
+archive is history, and a rolling history would be a lie (ADR 0030). Only the Calendar and the
+running tournaments below use relative offsets.
+
+Restoring mints new server ids, so the `id` values here never reach the database — they are keys the
+fixtures use to point at each other. That is also why the seeder matches an already-restored League
+by **name** before restoring again: two runs must not leave a `Gones League 6 (restored)` behind.
+
+`demo/leagues.json` is a trimmed derivative of a real Gones full-data export (real Lyon Player Names
+and real Game Scores). The export itself is not committed; from here on this file is the source of
+truth and is edited in place.
+
+`live-tournaments.json` — running (Live) tournaments, described declaratively rather than as
+documents: the seeder replays the real Live commands (create → add players → start / score / validate
+each Round), so what lands is a tournament that was actually run.
+
+| field | meaning |
+| --- | --- |
+| `key` | fixture key; also the seeder's idempotency key |
+| `organizerEmail` | an `accounts.json` email with role `Organizer` or `Admin` |
+| `name` | the Live Tournament name; the seeder skips a name that already exists |
+| `leagueKey` | a `leagues.json` `id`, or `null` for an unassigned running tournament |
+| `tournamentDate` | `{ "offsetDays": 0 }` — relative like the Calendar, rendered against today |
+| `roundCount` / `customRoundCount` | the Swiss Round count; `customRoundCount: true` keeps `roundCount` instead of deriving it from the roster |
+| `paidTrackingEnabled` | whether the paid column shows |
+| `players` | `name`, `initialWins`, `initialDraws`, `initialLosses`, `archetype`; at least 2 and an even count, so every Round pairs without a Bye |
+| `scoredRounds` | how many Rounds the seeder starts, scores and validates (at most `roundCount`). Scores rotate 2-0, 2-1, 1-1 by table index |
+| `leaveRoundOpen` | `true` starts one more Round and stops, leaving it unscored — that is the "caught mid-round" state |
 
 ### Editing it
 

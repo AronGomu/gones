@@ -705,6 +705,36 @@ reads in the browser.
 - [ ] `npm run dev -- --env=minimal` after a `demo` run: the calendar is empty again - the reset
       really dropped the previous dataset.
 
+## T3 demo-league-and-live-dataset
+
+The data itself is proved by `node scripts/seed-dev-environment.mjs --env=demo` (exit 0, twice in a
+row, then `Gones League 6` completed with 3 Archive Tournaments / 3 Rounds each / 30 League Result
+rows, `Gones League 7` active, `Gones League 7 - Day 2` on stage `round` with an unscored open Round
+and `Lyon Legacy Weekly` on stage `standings`), and the fixture shapes are covered by
+`ops/dev-environments.test.ts`. What no automated check covers is how the archive and the running
+tournaments read in the browser.
+
+- [ ] `npm run dev -- --env=demo`, then open `/leagues-archive` signed out: `Gones League 6`
+      (completed) and `Gones League 7` (active) are both listed next to the browser-local ones.
+- [ ] Open `Gones League 6`: three Archive Tournaments (`Day 1`, `Day 2`, `Day 3`, February 2026
+      dates - the archive is history, so its dates do not roll), and the League Result table lists
+      about thirty real Player Names with non-trivial points.
+- [ ] Open `Day 3` and scroll to Round 3: the last Round Entry is a Bye for `Milhann Chodorowski`,
+      and it reads as a win in the Tournament Result.
+- [ ] Click a Player Name (`Thomas Clabaut`): Player Statistics open with Matches across the three
+      Archive Tournaments, and the Deck Archetype column shows preset names such as `Delver (Izzet)`.
+- [ ] Sign in as `organizer@gones.test` and open `/live-tournaments`: `Gones League 7 - Day 2` is
+      there, Round 2 is open with four empty score fields, and Round 1 is validated.
+- [ ] Enter the four scores of that open Round and validate it: standings advance, nothing else in
+      the dataset moves.
+- [ ] Sign in as `organizer2@gones.test` and open `Lyon Legacy Weekly`: it sits at standings after
+      three validated Rounds, has no League assigned, and the paid column is off.
+- [ ] Sign out entirely: `/live-tournaments` shows the browser-local store (ADR 0021), not these two
+      server-side ones - a plain visitor never sees an Organizer's running tournament.
+- [ ] Edit a Player Name in `fixtures/dev-environments/demo/leagues.json`, re-run
+      `npm run dev -- --env=demo`: the new name is live, and there is still exactly one
+      `Gones League 6` - no `(restored)` duplicate.
+
 # Feedback
 
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.

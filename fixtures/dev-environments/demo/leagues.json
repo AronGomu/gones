@@ -1,0 +1,682 @@
+[
+  {
+    "id": "demo-league-6",
+    "name": "Gones League 6",
+    "status": "completed",
+    "tournaments": [
+      {
+        "id": "demo-gl6-day-1",
+        "leagueId": "demo-league-6",
+        "name": "Day 1",
+        "tournamentDate": "2026-02-05",
+        "rounds": [
+          {
+            "id": "demo-gl6-day-1-r1",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r1-m1",
+                "table": "1",
+                "player1Name": "Thomas Clabaut",
+                "player2Name": "Boris Bruned",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r1-m2",
+                "table": "2",
+                "player1Name": "Riccardo Giusti",
+                "player2Name": "Dimitri Grangeon",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r1-m3",
+                "table": "3",
+                "player1Name": "Eric Confortini",
+                "player2Name": "Samuel Brochet",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r1-m4",
+                "table": "4",
+                "player1Name": "Joris Silva",
+                "player2Name": "Loïc Chowchow",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "demo-gl6-day-1-r2",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r2-m1",
+                "table": "1",
+                "player1Name": "Alexi Krochmaluk",
+                "player2Name": "Luka Mrakovcic",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r2-m2",
+                "table": "2",
+                "player1Name": "Louis JULLIEN",
+                "player2Name": "Thomas Clabaut",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r2-m3",
+                "table": "3",
+                "player1Name": "Dimitri Grangeon",
+                "player2Name": "Samuel Brochet",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r2-m4",
+                "table": "4",
+                "player1Name": "Yoann Plousey",
+                "player2Name": "Alex Noir",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "demo-gl6-day-1-r3",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r3-m1",
+                "table": "1",
+                "player1Name": "Thomas Clabaut",
+                "player2Name": "Dimitri Grangeon",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r3-m2",
+                "table": "2",
+                "player1Name": "Alex Noir",
+                "player2Name": "Joris Silva",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r3-m3",
+                "table": "3",
+                "player1Name": "Riccardo Giusti",
+                "player2Name": "Alexi Krochmaluk",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-1-r3-m4",
+                "table": "4",
+                "player1Name": "Samuel Brochet",
+                "player2Name": "Phil Cronoriel",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          }
+        ],
+        "playerArchetypes": [
+          {
+            "playerName": "Thomas Clabaut",
+            "archetype": "Delver (Izzet)"
+          },
+          {
+            "playerName": "Samuel Brochet",
+            "archetype": "Death and Taxes (White)"
+          },
+          {
+            "playerName": "Dimitri Grangeon",
+            "archetype": "Sneak and Show (Izzet)"
+          },
+          {
+            "playerName": "Joris Silva",
+            "archetype": "Painter (Red)"
+          },
+          {
+            "playerName": "Alex Noir",
+            "archetype": "Dredge (Black)"
+          }
+        ]
+      },
+      {
+        "id": "demo-gl6-day-2",
+        "leagueId": "demo-league-6",
+        "name": "Day 2",
+        "tournamentDate": "2026-02-12",
+        "rounds": [
+          {
+            "id": "demo-gl6-day-2-r1",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r1-m1",
+                "table": "1",
+                "player1Name": "Samuel Brochet",
+                "player2Name": "Alexandre Cardot",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r1-m2",
+                "table": "2",
+                "player1Name": "Loïc Chowchow",
+                "player2Name": "Luka Mrakovcic",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r1-m3",
+                "table": "3",
+                "player1Name": "Yo Plz",
+                "player2Name": "Thomas Drescher",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r1-m4",
+                "table": "4",
+                "player1Name": "Romain CORGNOLO",
+                "player2Name": "Thomas Clabaut",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "demo-gl6-day-2-r2",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r2-m1",
+                "table": "1",
+                "player1Name": "Benoît Guenin",
+                "player2Name": "Thomas Clabaut",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r2-m2",
+                "table": "2",
+                "player1Name": "Samuel Brochet",
+                "player2Name": "Grégory Millon",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r2-m3",
+                "table": "3",
+                "player1Name": "Joris Silva",
+                "player2Name": "Yannis Barboni",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r2-m4",
+                "table": "4",
+                "player1Name": "Florent Jugnet",
+                "player2Name": "Luka Mrakovcic",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "demo-gl6-day-2-r3",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r3-m1",
+                "table": "1",
+                "player1Name": "Florent Jugnet",
+                "player2Name": "Benoît Guenin",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r3-m2",
+                "table": "2",
+                "player1Name": "Thomas Drescher",
+                "player2Name": "Louis JULLIEN",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r3-m3",
+                "table": "3",
+                "player1Name": "Joris Silva",
+                "player2Name": "Grégory Millon",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-2-r3-m4",
+                "table": "4",
+                "player1Name": "Luka Mrakovcic",
+                "player2Name": "Edouard Mérieux",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          }
+        ],
+        "playerArchetypes": [
+          {
+            "playerName": "Thomas Drescher",
+            "archetype": "Doomsday (Dimir)"
+          },
+          {
+            "playerName": "Grégory Millon",
+            "archetype": "Reanimator (Rakdos)"
+          },
+          {
+            "playerName": "Benoît Guenin",
+            "archetype": "Lands (Gruul)"
+          },
+          {
+            "playerName": "Florent Jugnet",
+            "archetype": "Death and Taxes (White)"
+          },
+          {
+            "playerName": "Louis JULLIEN",
+            "archetype": "Delver (Izzet)"
+          }
+        ]
+      },
+      {
+        "id": "demo-gl6-day-3",
+        "leagueId": "demo-league-6",
+        "name": "Day 3",
+        "tournamentDate": "2026-02-19",
+        "rounds": [
+          {
+            "id": "demo-gl6-day-3-r1",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r1-m1",
+                "table": "1",
+                "player1Name": "Alex Noir",
+                "player2Name": "Maxime JOURDAN",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r1-m2",
+                "table": "2",
+                "player1Name": "Antoine Cinquin",
+                "player2Name": "Simon Jugnet",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r1-m3",
+                "table": "3",
+                "player1Name": "Yo Plz",
+                "player2Name": "Milhann Chodorowski",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r1-m4",
+                "table": "4",
+                "player1Name": "Louis JULLIEN",
+                "player2Name": "Romain CORGNOLO",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "demo-gl6-day-3-r2",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r2-m1",
+                "table": "1",
+                "player1Name": "Luka Mrakovcic",
+                "player2Name": "Joris Silva",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r2-m2",
+                "table": "2",
+                "player1Name": "Eric Confortini",
+                "player2Name": "Maxime Oulès",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r2-m3",
+                "table": "3",
+                "player1Name": "Manuel Mello",
+                "player2Name": "Yo Plz",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r2-m4",
+                "table": "4",
+                "player1Name": "Robin JULLIEN",
+                "player2Name": "Riccardo Giusti",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "demo-gl6-day-3-r3",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r3-m1",
+                "table": "1",
+                "player1Name": "Luka Mrakovcic",
+                "player2Name": "Romain CORGNOLO",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r3-m2",
+                "table": "2",
+                "player1Name": "Yo Plz",
+                "player2Name": "Eric Confortini",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r3-m3",
+                "table": "3",
+                "player1Name": "Robin JULLIEN",
+                "player2Name": "Antoine Cinquin",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl6-day-3-r3-m4",
+                "table": "4",
+                "player1Name": "Riccardo Giusti",
+                "player2Name": "Grégory Millon",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "bye",
+                "id": "demo-gl6-day-3-r3-bye",
+                "table": "5",
+                "playerName": "Milhann Chodorowski",
+                "deckArchetype": "Merfolk (Blue)"
+              }
+            ]
+          }
+        ],
+        "playerArchetypes": [
+          {
+            "playerName": "Yo Plz",
+            "archetype": "Storm (Red)"
+          },
+          {
+            "playerName": "Eric Confortini",
+            "archetype": "Maverick (Selesnya)"
+          },
+          {
+            "playerName": "Antoine Cinquin",
+            "archetype": "Goblins (Red)"
+          },
+          {
+            "playerName": "Luka Mrakovcic",
+            "archetype": "Elves (Green)"
+          },
+          {
+            "playerName": "Milhann Chodorowski",
+            "archetype": "Merfolk (Blue)"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "demo-league-7",
+    "name": "Gones League 7",
+    "status": "active",
+    "tournaments": [
+      {
+        "id": "demo-gl7-day-1",
+        "leagueId": "demo-league-7",
+        "name": "Day 1",
+        "tournamentDate": "2026-03-05",
+        "rounds": [
+          {
+            "id": "demo-gl7-day-1-r1",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r1-m1",
+                "table": "1",
+                "player1Name": "Yo Plz",
+                "player2Name": "Alex Daxe",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r1-m2",
+                "table": "2",
+                "player1Name": "Gaël Lacroix",
+                "player2Name": "Samuel Brochet",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r1-m3",
+                "table": "3",
+                "player1Name": "Dimitri Grangeon",
+                "player2Name": "Nurgle V",
+                "player1Score": 1,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r1-m4",
+                "table": "4",
+                "player1Name": "Florent Jugnet",
+                "player2Name": "Romain CORGNOLO",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "demo-gl7-day-1-r2",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r2-m1",
+                "table": "1",
+                "player1Name": "Timothée Oliger",
+                "player2Name": "Yo Plz",
+                "player1Score": 1,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r2-m2",
+                "table": "2",
+                "player1Name": "Louis JULLIEN",
+                "player2Name": "Romain CORGNOLO",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r2-m3",
+                "table": "3",
+                "player1Name": "Thomas Clabaut",
+                "player2Name": "Nicolas Righi",
+                "player1Score": 1,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "demo-gl7-day-1-r2-m4",
+                "table": "4",
+                "player1Name": "Maxime Oulès",
+                "player2Name": "Samuel Brochet",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          }
+        ],
+        "playerArchetypes": [
+          {
+            "playerName": "Romain CORGNOLO",
+            "archetype": "Painter (Red)"
+          },
+          {
+            "playerName": "Samuel Brochet",
+            "archetype": "Death and Taxes (White)"
+          },
+          {
+            "playerName": "Thomas Drescher",
+            "archetype": "Doomsday (Dimir)"
+          },
+          {
+            "playerName": "Nicolas Righi",
+            "archetype": "Eldrazi (Colorless)"
+          },
+          {
+            "playerName": "Yo Plz",
+            "archetype": "Storm (Red)"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -20,6 +20,8 @@ import { DATA_FILES, devComposeEnv, listEnvironmentNames, localDateTime, loginTo
 
 const API_ORIGIN = 'http://127.0.0.1:5080';
 const BACKEND_SERVICES = ['postgres', 'migrator', 'api', 'worker'];
+/** 2-0, 2-1, 1-1 in rotation: a fixture needs a spread of wins and draws, and no randomness. */
+const LIVE_SCORES = [[2, 0], [2, 1], [1, 1]];
 
 /**
  * `docker compose` environment for the reset, on top of the feature flags every local stack needs.
@@ -106,13 +108,15 @@ async function loginAll(environment) {
   return tokens;
 }
 
-function api(method, path, { token, body, idempotencyKey } = {}) {
+function api(method, path, { token, body, idempotencyKey, ifMatch } = {}) {
   const headers = {};
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (token !== undefined) headers.authorization = `Bearer ${token}`;
   // Both tournament writes require it; the key is derived from the fixture so a re-run replays
   // instead of publishing a second copy.
   if (idempotencyKey !== undefined) headers['Idempotency-Key'] = idempotencyKey;
+  // Every Live command is guarded by the version predicate of the response before it.
+  if (ifMatch !== undefined) headers['If-Match'] = ifMatch;
   return fetch(`${API_ORIGIN}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
 }
 
@@ -241,8 +245,93 @@ async function seedRegistrations(environment, tokens, tournamentIds) {
   }
 }
 
-async function seedLeagues(environment, tokens) { if (!environment.leagues.length) return; /* T3 */ }
-async function seedLiveTournaments(environment, tokens) { if (!environment.liveTournaments.length) return; /* T3 */ }
+/**
+ * One `POST /api/leagues-archive/restore` per fixture League: the file is a whole `LeagueDocument`,
+ * which is the shape League Restore already takes, so the archive lands in a single validated call.
+ *
+ * League Restore mints new identities (a restored League is a new League, ADR 0022), so the fixture
+ * id is only a key: the restored id is what `live-tournaments.json` has to be pointed at, and it is
+ * what this returns. The idempotency key makes a re-run replay the first restore instead of adding a
+ * second `Gones League 6 (restored)`.
+ */
+async function seedLeagues(environment, tokens) {
+  const ids = new Map();
+  if (!environment.leagues.length) return ids;
+
+  // Admin passes the Organizer policy and owns no League, so ownership never blocks a re-seed.
+  const token = tokenForRole(environment, tokens, 'Admin', 'leagues');
+
+  for (const league of environment.leagues) {
+    const restored = await requireResponse(await api('POST', '/api/leagues-archive/restore', {
+      token,
+      body: { kind: 'league', gonesDataVersion: 2, league },
+      idempotencyKey: `${environment.name}-league-restore-${league.id}`
+    }), 'leagues', league.id);
+    ids.set(league.id, (await restored.json()).id);
+  }
+  return ids;
+}
+
+/**
+ * Runs each fixture running tournament forward through the real Live commands: create, add every
+ * player, then start / score / validate one Round per `scoredRounds`, and finally start one more
+ * Round when `leaveRoundOpen` asks for a tournament caught mid-round.
+ *
+ * Every command answers `{ document, documentVersion, eTag }` and the next one must send that latest
+ * `eTag` as `If-Match`, so the chain is strictly sequential.
+ */
+async function seedLiveTournaments(environment, tokens, leagueIds) {
+  if (!environment.liveTournaments.length) return;
+
+  for (const entry of environment.liveTournaments) {
+    const token = tokens.get(entry.organizerEmail);
+    const created = await requireResponse(await api('POST', '/api/live-tournaments', {
+      token,
+      body: {
+        name: entry.name,
+        leagueId: entry.leagueKey === null ? null : leagueIds.get(entry.leagueKey) ?? null,
+        // A running tournament is happening now, so its date is relative like the Calendar's; only
+        // the archive keeps absolute dates (ADR 0030).
+        tournamentDate: localDateTime(entry.tournamentDate.offsetDays, '00:00').slice(0, 10),
+        roundCount: entry.roundCount,
+        customRoundCount: entry.customRoundCount,
+        paidTrackingEnabled: entry.paidTrackingEnabled
+      },
+      idempotencyKey: `${environment.name}-live-create-${entry.key}`
+    }), 'live tournaments', entry.key);
+
+    let state = await created.json();
+    const id = state.document.id;
+    const command = async (step, path, body) => {
+      const response = await api('POST', path, { token, body, ifMatch: state.eTag });
+      await requireResponse(response, `live tournament ${step}`, entry.key);
+      state = await response.json();
+    };
+
+    for (const player of entry.players) {
+      await command('players', `/api/live-tournaments/${id}/players`, {
+        name: player.name,
+        initialWins: player.initialWins,
+        initialDraws: player.initialDraws,
+        initialLosses: player.initialLosses,
+        archetype: player.archetype
+      });
+    }
+
+    for (let round = 0; round < entry.scoredRounds; round += 1) {
+      await command('round start', `/api/live-tournaments/${id}/rounds/start`);
+      const open = state.document.rounds.at(-1);
+      const matches = open.entries.filter((item) => item.entry.kind === 'match');
+      for (const [index, item] of matches.entries()) {
+        const [player1Score, player2Score] = LIVE_SCORES[index % LIVE_SCORES.length];
+        await command('round score', `/api/live-tournaments/${id}/rounds/${open.id}/entries/${item.entry.id}/score`, { player1Score, player2Score });
+      }
+      await command('round validation', `/api/live-tournaments/${id}/rounds/validate`);
+    }
+
+    if (entry.leaveRoundOpen) await command('round start', `/api/live-tournaments/${id}/rounds/start`);
+  }
+}
 
 const { environment: name } = parseDevArgs(process.argv.slice(2));
 
@@ -278,8 +367,8 @@ const formatIds = await seedFormats(environment, tokens);
 const organizationIds = await seedOrganizations(environment, tokens);
 const tournamentIds = await seedTournaments(environment, tokens, organizationIds, formatIds);
 await seedRegistrations(environment, tokens, tournamentIds);
-await seedLeagues(environment, tokens);
-await seedLiveTournaments(environment, tokens);
+const leagueIds = await seedLeagues(environment, tokens);
+await seedLiveTournaments(environment, tokens, leagueIds);
 
 const emailWidth = Math.max(0, ...environment.accounts.map(({ email }) => email.length));
 const roleWidth = Math.max(0, ...environment.accounts.map(({ role }) => role.length));
@@ -293,6 +382,8 @@ const seeded = [
   [organizationIds.size, 'organizations'],
   [formatIds.size, 'formats'],
   [tournamentIds.size, 'tournaments'],
-  [environment.registrations.length, 'registrations']
+  [environment.registrations.length, 'registrations'],
+  [leagueIds.size, 'league archives'],
+  [environment.liveTournaments.length, 'running tournaments']
 ].filter(([count]) => count > 0);
 if (seeded.length) console.log(`\nSeeded ${seeded.map(([count, label]) => `${count} ${label}`).join(', ')}.`);

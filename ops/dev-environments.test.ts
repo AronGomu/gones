@@ -30,12 +30,25 @@ interface DevEnvironmentTournament {
   [key: string]: unknown;
 }
 
+interface DevEnvironmentRoundEntry {
+  kind: string;
+  [key: string]: unknown;
+}
+
+interface DevEnvironmentLeague {
+  id: string;
+  name: string;
+  status: string;
+  tournaments: { id: string; leagueId: string; rounds: { entries: DevEnvironmentRoundEntry[] }[] }[];
+}
+
 interface DevEnvironment {
   name: string;
   description: string;
   resetDatabase: boolean;
   accounts: DevEnvironmentAccount[];
   tournaments: DevEnvironmentTournament[];
+  leagues: DevEnvironmentLeague[];
   [key: string]: unknown;
 }
 
@@ -85,6 +98,27 @@ describe('shipped development environments', () => {
     expect(accounts).toHaveLength(7);
     expect(new Set(accounts.map((account) => account.role))).toEqual(new Set(['User', 'Organizer', 'Admin']));
     expect(accounts.filter((account) => account.emailConfirmed === false)).toHaveLength(1);
+  });
+
+  it('the demo environment still validates with leagues and running tournaments', () => {
+    expect(validateEnvironment(read('demo'))).toEqual([]);
+  });
+
+  it('the demo archive carries two leagues, one completed and one active', () => {
+    const leagues = read('demo').leagues;
+
+    expect(leagues).toHaveLength(2);
+    expect(new Set(leagues.map((league) => league.status))).toEqual(new Set(['completed', 'active']));
+    expect(leagues.find((league) => league.status === 'completed')?.tournaments).toHaveLength(3);
+  });
+
+  it('every archive round entry is a match or a bye', () => {
+    const entries = read('demo').leagues.flatMap((league) =>
+      league.tournaments.flatMap((tournament) => tournament.rounds.flatMap((round) => round.entries))
+    );
+
+    expect(entries.length).toBeGreaterThan(0);
+    for (const entry of entries) expect(['match', 'bye']).toContain(entry.kind);
   });
 
   it('the demo calendar spans past, today and future', () => {
@@ -140,6 +174,56 @@ describe('environment validation', () => {
     }) as string[];
 
     expect(problems).toContain('demo-broken: tournament t1 references unknown organization nope');
+  });
+
+  it('a running tournament that claims an unknown league is reported', () => {
+    const problems = validateEnvironment({
+      name: 'demo-broken',
+      description: 'a running tournament pointing at no league',
+      resetDatabase: true,
+      accounts: [{ email: 'organizer@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }],
+      organizations: [],
+      formats: [],
+      tournaments: [],
+      registrations: [],
+      leagues: [],
+      liveTournaments: [{
+        key: 'l1',
+        organizerEmail: 'organizer@gones.test',
+        leagueKey: 'nope',
+        roundCount: 3,
+        scoredRounds: 1,
+        players: [{ name: 'A' }, { name: 'B' }]
+      }]
+    }) as string[];
+
+    expect(problems).toContain('demo-broken: running tournament l1 references unknown league nope');
+  });
+
+  it('a running tournament cannot score more rounds than it has', () => {
+    const problems = validateEnvironment({
+      name: 'demo-broken',
+      description: 'a running tournament scoring more rounds than it runs',
+      resetDatabase: true,
+      accounts: [{ email: 'organizer@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }],
+      organizations: [],
+      formats: [],
+      tournaments: [],
+      registrations: [],
+      leagues: [],
+      liveTournaments: [{
+        key: 'l1',
+        organizerEmail: 'organizer@gones.test',
+        leagueKey: null,
+        roundCount: 2,
+        scoredRounds: 3,
+        players: [{ name: 'A' }, { name: 'B' }, { name: 'C' }, { name: 'D' }]
+      }]
+    }) as string[];
+
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.some((problem) => problem.includes('l1'))).toBe(true);
+    expect(problems).toContain('demo-broken: running tournament l1 cannot score 3 of its 2 rounds');
   });
 });
 
