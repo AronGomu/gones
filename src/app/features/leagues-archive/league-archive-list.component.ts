@@ -9,9 +9,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
-import { canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
+import { canManageLeague, canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
+import { isAnyPlaceholderLeagueId, isLocalLeagueId } from '../../data/league-archive-origin';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
+import { PersistedLeague } from '../../domain/models';
 import { calculateLeagueResult } from '../../domain/results';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
@@ -28,6 +29,8 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
       <div data-cy="leagues-archive-list-heading-block"><h1 data-cy="leagues-archive-list-title">{{ i18n.t('leagues.title') }}</h1></div>
     </section>
     @if (error()) { <p class="error" role="alert" data-cy="leagues-archive-list-error">{{ error() }}</p> }
+    <p class="muted" role="status" data-cy="leagues-archive-local-notice">{{ i18n.t('leagues.localNotice') }}</p>
+    @if (repo.serverUnavailable()) { <p class="warning" role="status" data-cy="leagues-archive-server-unavailable">{{ i18n.t('leagues.serverUnavailable') }}</p> }
     @if (showLeagueFilter()) {
       <div class="league-toolbar" data-cy="leagues-archive-list-toolbar">
         <mat-form-field appearance="outline" class="search" data-cy="leagues-archive-list-search-field"><mat-label data-cy="leagues-archive-list-search-label">{{ i18n.t('leagues.search') }}</mat-label><input matInput data-cy="leagues-archive-list-search-input" [(ngModel)]="searchTerm"></mat-form-field>
@@ -40,17 +43,17 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
         @for (league of filteredLeagues(); track league.id) {
           <a class="league-card" [routerLink]="['/leagues-archive', league.id]" data-cy="leagues-archive-list-item">
             <span class="status league-card-status" data-cy="leagues-archive-list-item-status" [class.completed]="league.status === 'completed'"><span class="status-dot" aria-hidden="true" data-cy="leagues-archive-list-item-status-dot"></span>{{ league.status === 'completed' ? i18n.t('common.completed') : i18n.t('common.active') }}</span>
+            @if (isLocal(league)) { <span class="league-card-local-badge" data-cy="leagues-archive-list-item-local-badge">{{ i18n.t('leagues.localBadge') }}</span> }
             <h2 data-cy="leagues-archive-list-item-name">{{ leagueDisplayName(league) }}</h2>
             <p data-cy="leagues-archive-list-item-meta">{{ leagueMeta(league) }}</p>
             <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-item-view">{{ i18n.t('common.view') }}</span>
           </a>
         }
-        @if (canManage()) {
-          <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="leagues-archive-list-create-card">
-            <h2 data-cy="leagues-archive-list-create-card-title">{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
-            <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-create-card-action">{{ i18n.t('common.create') }}</span>
-          </button>
-        } @else { <p class="muted" data-cy="leagues-archive-list-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+        <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="leagues-archive-list-create-card">
+          <h2 data-cy="leagues-archive-list-create-card-title">{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
+          <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-create-card-action">{{ i18n.t('common.create') }}</span>
+        </button>
+        @if (hasUnmanageableServerLeagues()) { <p class="muted" data-cy="leagues-archive-list-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       </div>
     }
 
@@ -63,13 +66,14 @@ export class LeagueArchiveListComponent {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly creating = signal(false);
-  readonly canManage = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
+  /** A server league the visitor cannot manage is what the read-only notice is about (ADR 0028). */
+  readonly hasUnmanageableServerLeagues = computed(() => this.leagues().some((league) => !isLocalLeagueId(league.id)) && !canManageLeagues(this.auth.profile()?.globalRole));
   searchTerm = '';
   readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {
     const search = this.showLeagueFilter() ? this.searchTerm.trim().toLowerCase() : '';
     return this.leagues()
-      .filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID || league.tournaments.length > 0)
+      .filter((league) => !isAnyPlaceholderLeagueId(league.id) || league.tournaments.length > 0)
       .filter((league) => !search || this.leagueDisplayName(league).toLowerCase().includes(search) || league.name.toLowerCase().includes(search));
   });
 
@@ -86,8 +90,12 @@ export class LeagueArchiveListComponent {
 
   playerCount(league: PersistedLeague): number { return calculateLeagueResult(league).rows.length; }
 
+  canManageLeague(league: PersistedLeague): boolean { return canManageLeague(league.id, this.auth.profile()?.globalRole); }
+
+  isLocal(league: PersistedLeague): boolean { return isLocalLeagueId(league.id); }
+
   leagueDisplayName(league: PersistedLeague): string {
-    return league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name;
+    return isAnyPlaceholderLeagueId(league.id) ? this.i18n.t('liveList.unassigned') : league.name;
   }
 
   leagueMeta(league: PersistedLeague): string {

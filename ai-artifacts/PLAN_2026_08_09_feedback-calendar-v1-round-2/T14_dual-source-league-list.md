@@ -191,11 +191,11 @@ Cypress, new spec `cypress/e2e/league-local.cy.js`, signed out with `POST **/api
 
 ## Impl steps
 
-- [ ] 1. Add `canManageLeague` and `createLeagueTarget` to `src/app/data/league-archive-command-ux.ts` exactly as written above.
-- [ ] 2. Create `src/app/data/league-archive-routing.test.ts` with the five pure cases. Run it — green.
-- [ ] 3. Create `src/app/data/league-archive-repository.service.test.ts`. Build two hand-written fakes implementing `LeagueArchiveBackendPort` with `vi.fn()` per method, plus a fake `AuthService` exposing `profile: signal<UserProfileResponse | null>`. Construct the repository through `runInInjectionContext` with a bare `Injector`, following the pattern in `src/app/features/calendar/public-calendar.component.test.ts`. Write every repository case above.
-- [ ] 4. Run `npx vitest run src/app/data/league-archive-repository.service.test.ts` — it must fail.
-- [ ] 5. Rewrite `src/app/data/league-archive-repository.service.ts`:
+- [x] 1. Add `canManageLeague` and `createLeagueTarget` to `src/app/data/league-archive-command-ux.ts` exactly as written above.
+- [x] 2. Create `src/app/data/league-archive-routing.test.ts` with the five pure cases. Run it — green. (`npx vitest run src/app/data/league-archive-routing.test.ts` — 5 failed before step 1, 5 passed after.)
+- [x] 3. Create `src/app/data/league-archive-repository.service.test.ts`. Build two hand-written fakes implementing `LeagueArchiveBackendPort` with `vi.fn()` per method, plus a fake `AuthService` exposing `profile: signal<UserProfileResponse | null>`. Construct the repository through `runInInjectionContext` with a bare `Injector`, following the pattern in `src/app/features/calendar/public-calendar.component.test.ts`. Write every repository case above.
+- [x] 4. Run `npx vitest run src/app/data/league-archive-repository.service.test.ts` — it must fail. (Red captured: `Tests  27 failed | 21 passed (48)`.)
+- [x] 5. Rewrite `src/app/data/league-archive-repository.service.ts`:
       a. Inject all three: `private readonly server: LeagueArchiveBackendPort = inject(LEAGUE_ARCHIVE_BACKEND);`, `private readonly local = inject(LocalLeagueArchiveBackend);`, `private readonly auth = inject(AuthService);`
       b. `readonly serverUnavailable = signal(false);`
       c. `private port(id: string): LeagueArchiveBackendPort { return isLocalLeagueId(id) ? this.local : this.server; }`
@@ -216,8 +216,8 @@ Cypress, new spec `cypress/e2e/league-local.cy.js`, signed out with `POST **/api
       h. `ensurePlaceholderLeague()` → read `LOCAL_PLACEHOLDER_LEAGUE_ID` from the local store when `createLeagueTarget(role) === 'local'`, else `PLACEHOLDER_LEAGUE_ID` from the server; throw `Error('placeholderLeagueMissing')` when absent.
       i. Change every remaining method that takes a `PersistedLeague` or an id to call `this.port(league.id)` / `this.port(id)` instead of `this.backend`. There are 17 of them; change each one.
       j. `moveTournament(tournamentId, fromLeagueId, toLeagueId)` — resolve `targetLeagueId` as today, then `if (isLocalLeagueId(fromLeagueId) !== isLocalLeagueId(targetLeagueId)) throw new Error('crossAuthorityMoveNotSupported');` before any read, then delegate to `this.port(fromLeagueId)`.
-- [ ] 6. Run step 4's command — green.
-- [ ] 7. In `src/app/i18n/messages.ts`, add to `en`:
+- [x] 6. Run step 4's command — green. (`Tests  48 passed (48)`.)
+- [x] 7. In `src/app/i18n/messages.ts`, add to `en`: (8 occurrences of the four keys — 4 in `en`, 4 in `fr`.)
       ```
       'leagues.localBadge': 'Local only',
       'leagues.localNotice': 'Leagues you create while signed out are stored in this browser only. They are never sent to the server.',
@@ -231,7 +231,7 @@ Cypress, new spec `cypress/e2e/league-local.cy.js`, signed out with `POST **/api
       'leagues.serverUnavailable': 'Les ligues du serveur n’ont pas pu être chargées. Seules les ligues stockées dans ce navigateur sont affichées.',
       'leagues.crossAuthorityMove': 'Un tournoi ne peut pas être déplacé entre une ligue stockée dans le navigateur et une ligue du serveur.',
       ```
-- [ ] 8. In `src/app/features/leagues-archive/league-archive-list.component.ts`:
+- [x] 8. In `src/app/features/leagues-archive/league-archive-list.component.ts`: (`npm run typecheck` clean; source assertions in step 11.)
       a. Replace `readonly canManage = computed(() => canManageLeagues(this.auth.profile()?.globalRole));` with `canManageLeague(league: PersistedLeague): boolean { return canManageLeague(league.id, this.auth.profile()?.globalRole); }` and add `readonly hasUnmanageableServerLeagues = computed(() => this.leagues().some((league) => !isLocalLeagueId(league.id)) && !canManageLeagues(this.auth.profile()?.globalRole));`
       b. Add `isLocal(league: PersistedLeague): boolean { return isLocalLeagueId(league.id); }`
       c. Above the grid, add:
@@ -249,17 +249,17 @@ Cypress, new spec `cypress/e2e/league-local.cy.js`, signed out with `POST **/api
          ```
       f. Filter both placeholders out of `filteredLeagues` with `isAnyPlaceholderLeagueId(league.id)` instead of the single `PLACEHOLDER_LEAGUE_ID` check, keeping the existing "unless it holds tournaments" condition.
       g. In `leagueDisplayName`, use `isAnyPlaceholderLeagueId(league.id)` so the local placeholder also shows the translated "Unassigned" label.
-- [ ] 9. In `src/app/features/leagues-archive/league-archive-detail.component.ts` line 81 and `src/app/features/tournaments-archive/tournament-archive-detail.component.ts` line 193, change each `canManage` computed to read the loaded league's id: `readonly canManage = computed(() => canManageLeague(this.league()?.id, this.auth.profile()?.globalRole));` — check the actual signal name holding the league in each file first and use it.
-- [ ] 10. In `src/app/app.component.ts` line 132, replace `canManageLeagueData` with a per-league form. It has two call sites (the league header actions and the tournament header actions); give it the id from `headerLeague()` / `headerTournament()?.league` respectively:
+- [x] 9. In `src/app/features/leagues-archive/league-archive-detail.component.ts` line 81 and `src/app/features/tournaments-archive/tournament-archive-detail.component.ts` line 193, change each `canManage` computed to read the loaded league's id: `readonly canManage = computed(() => canManageLeague(this.league()?.id, this.auth.profile()?.globalRole));` — check the actual signal name holding the league in each file first and use it.
+- [x] 10. In `src/app/app.component.ts` line 132, replace `canManageLeagueData` with a per-league form. It has two call sites (the league header actions and the tournament header actions); give it the id from `headerLeague()` / `headerTournament()?.league` respectively:
       ```ts
       readonly canManageHeaderLeague = computed(() => canManageLeague(this.headerLeague()?.id ?? this.headerTournament()?.league.id, this.auth.profile()?.globalRole));
       ```
       Update both template references. The `/leagues-archive` import button (`showHeaderImport()` branch) keeps a role-free gate: leave it visible to everyone, since T15 makes import work locally too — but for **this** commit, gate it on `canManageLeagues(role)` exactly as today so nothing half-wired ships. Add a one-line comment saying T15 relaxes it.
-- [ ] 11. Add the component-source cases from the Test plan to a new `src/app/features/leagues-archive/league-archive-list.component.test.ts`.
-- [ ] 12. Create `cypress/e2e/league-local.cy.js` per the Test plan.
-- [ ] 13. In `scripts/full-stack-ci.mjs`, add `const leagueLocalBrowser = runCypress('cypress/e2e/league-local.cy.js');` next to the existing `leagueBrowser` line, and include its result in the same aggregation the other specs use — copy exactly what the neighbouring lines do with their return value.
-- [ ] 14. Run `npx vitest run ops/e2e-spec-coverage.test.ts` — it must pass, proving the new spec is wired.
-- [ ] 15. Run `npx vitest run src/app/data src/app/features/leagues-archive src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 11. Add the component-source cases from the Test plan to a new `src/app/features/leagues-archive/league-archive-list.component.test.ts`. (6 passed.)
+- [x] 12. Create `cypress/e2e/league-local.cy.js` per the Test plan. (File exists; run recorded under Validation.)
+- [x] 13. In `scripts/full-stack-ci.mjs`, add `const leagueLocalBrowser = runCypress('cypress/e2e/league-local.cy.js');` next to the existing `leagueBrowser` line, and include its result in the same aggregation the other specs use — copy exactly what the neighbouring lines do with their return value.
+- [x] 14. Run `npx vitest run ops/e2e-spec-coverage.test.ts` — it must pass, proving the new spec is wired. (`Tests  2 passed (2)`.)
+- [x] 15. Run `npx vitest run src/app/data src/app/features/leagues-archive src/app/shared/data-cy-coverage.test.ts` — green. (`Test Files  8 passed (8)` / `Tests  107 passed (107)`.)
 
 ## Outputs
 
@@ -270,16 +270,21 @@ Cypress, new spec `cypress/e2e/league-local.cy.js`, signed out with `POST **/api
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx cypress run --spec cypress/e2e/league-local.cy.js` passes
-- [ ] `npx cypress run --spec cypress/e2e/league-server.cy.js` passes — the privileged path is unchanged
-- [ ] Manual (signed out): `npm run dev`, `/leagues-archive` — the local notice is shown, the create card is offered, creating a league lands on its detail page, adding a tournament / round / entry all work, and everything survives a reload.
-- [ ] Manual (signed out): DevTools → Network shows no successful `/api/league-archives` write; DevTools → Application → IndexedDB shows a `gones-leagues` database holding the rows.
-- [ ] Manual (Admin): sign in as `admin@gones.test` — the list shows the server leagues **and** the local ones, with the local ones badged; opening a local one still allows editing; opening a server one still allows editing.
-- [ ] Manual (plain user): sign in as `test@gones.test` — server leagues are read-only with the read-only notice; local leagues remain fully editable.
-- [ ] Manual: try to move a tournament from a local league into a server league — it is refused with the `leagues.crossAuthorityMove` message and neither store changes.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(leagues): merge the browser-local store into the league archive`
+- [x] `npm run test` passes — `Test Files  89 passed (89)` / `Tests  745 passed (745)`
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — no output, exit 0
+- [x] `npm run build` passes — `Application bundle generation complete.`
+- [x] `npx cypress run --spec cypress/e2e/league-local.cy.js` passes — `4 passing`, `All specs passed!`
+- [x] `npx cypress run --spec cypress/e2e/league-server.cy.js` passes — the privileged path is unchanged — `3 passing`, `All specs passed!`
+- [x] Manual (signed out): `npm run dev`, `/leagues-archive` — the local notice is shown, the create card is offered, creating a league lands on its detail page, adding a tournament / round / entry all work, and everything survives a reload.
+      *Automated equivalent, not a human browser:* `league-local.cy.js` test 1 asserts `leagues-archive-local-notice` visible, `leagues-archive-list-create-card` present, the `local-` detail URL after create, tournament → round → entry, and the same entry after `cy.reload()`.
+- [x] Manual (signed out): DevTools → Network shows no successful `/api/league-archives` write; DevTools → Application → IndexedDB shows a `gones-leagues` database holding the rows.
+      *Automated equivalent:* every `/api/leagues-archive` request in test 1 is asserted answered `401` (`@leagueApi.all`), and `readLocalLeagueRows()` opens the `gones-leagues` database in the page and asserts the stored row's id, tournament, round and entry. (Real API path is `/api/leagues-archive`; the ticket's `/api/league-archives` does not exist — stubbing it would have proved nothing.)
+- [x] Manual (Admin): sign in as `admin@gones.test` — the list shows the server leagues **and** the local ones, with the local ones badged; opening a local one still allows editing; opening a server one still allows editing.
+      *Automated equivalent, stubbed session instead of the seeded account:* `league-local.cy.js` test 3 (`shows an Admin both stores in one list, each still writable`).
+- [x] Manual (plain user): sign in as `test@gones.test` — server leagues are read-only with the read-only notice; local leagues remain fully editable.
+      *Automated equivalent:* `league-local.cy.js` test 4, plus `league-server.cy.js` “shows User read-only controls plus explicit 403 and 412 reload recovery” for the unchanged server path.
+- [x] Manual: try to move a tournament from a local league into a server league — it is refused with the `leagues.crossAuthorityMove` message and neither store changes.
+      *Automated equivalent:* `league-local.cy.js` test 2 drives the real league select and asserts the rendered message, plus the two repository-level refusal cases that assert neither fake was asked to write.
+- [x] app functional — no broken path from this slice — `npm run test` (745), `npm run lint`, `npm run typecheck`, `npm run build`, and both Cypress specs all green against the running dev stack
+- [x] commit msg draft: `feat(leagues): merge the browser-local store into the league archive`

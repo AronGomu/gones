@@ -94,6 +94,10 @@ try {
     if (leagueBrowser.status !== 0) process.exitCode = leagueBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const leagueLocalBrowser = runCypress('cypress/e2e/league-local.cy.js');
+    if (leagueLocalBrowser.status !== 0) process.exitCode = leagueLocalBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const settingsBrowser = runCypress('cypress/e2e/settings-server.cy.js');
     if (settingsBrowser.status !== 0) process.exitCode = settingsBrowser.status ?? 1;
   }

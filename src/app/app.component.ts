@@ -6,12 +6,13 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { canManageLeagues, leagueCommandError } from './data/league-archive-command-ux';
+import { canManageLeague, canManageLeagues, leagueCommandError } from './data/league-archive-command-ux';
+import { isAnyPlaceholderLeagueId } from './data/league-archive-origin';
 import { LeagueArchiveRepository } from './data/league-archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
 import { attachExportChecksum } from './domain/export-schemas';
-import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
+import { PersistedLeague, TournamentDocument } from './domain/models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { DeckArchetypeSettingsService, parseAppSettings } from './shared/deck-archetype-settings.service';
 import { I18nService } from './i18n/i18n.service';
@@ -61,7 +62,7 @@ interface HeaderTournament {
         } @else if (headerTournament(); as item) {
           <div class="header-actions tournament-header-actions" data-cy="app-tournament-header-actions">
             <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues-archive', item.league.id, 'tournaments-archive', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
-            @if (canManageLeagueData()) {
+            @if (canManageHeaderLeague()) {
               <button mat-icon-button class="league-actions-trigger" data-cy="app-tournament-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
               <mat-menu #tournamentActionsMenu="matMenu" data-cy="app-tournament-actions-menu">
                 <button mat-menu-item class="destructive-menu-item" data-cy="app-delete-tournament-button" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? i18n.t('header.deletingTournament') : i18n.t('header.deleteTournament') }}</button>
@@ -71,7 +72,7 @@ interface HeaderTournament {
         } @else if (headerLeague(); as league) {
           <div class="header-actions league-header-actions" data-cy="app-league-header-actions">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="app-export-league-button" (click)="downloadLeagueExport(league)">{{ i18n.t('header.exportLeague') }}</button>
-            @if (canManageLeagueData()) {
+            @if (canManageHeaderLeague()) {
               <button mat-icon-button class="league-actions-trigger" data-cy="app-league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" [attr.aria-label]="i18n.t('header.leagueActions')">⋮</button>
               <mat-menu #leagueActionsMenu="matMenu" data-cy="app-league-actions-menu">
                 <button mat-menu-item class="destructive-menu-item" data-cy="app-delete-league-button" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? i18n.t('header.placeholderLeagueLocked') : i18n.t('header.deleteLeague') }}</button>
@@ -131,7 +132,11 @@ export class AppComponent {
   readonly settingsMessage = signal('');
   readonly resendPending = signal(false);
   readonly resendStatus = signal('');
+  // The `/leagues-archive` import button stays a role gate for now: import routing to the browser
+  // store lands in T15, and a half-wired import must not ship. T15 relaxes it.
   readonly canManageLeagueData = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
+  /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
+  readonly canManageHeaderLeague = computed(() => canManageLeague(this.headerLeague()?.id ?? this.headerTournament()?.league.id, this.auth.profile()?.globalRole));
   readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues-archive');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
@@ -308,12 +313,16 @@ export class AppComponent {
   }
 
   async downloadFullExport(): Promise<void> {
-    const leagues = (await this.repo.listLeagues()).filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID);
+    // The list is merged now, so the bundle carries the browser's leagues too — minus *both*
+    // placeholders, since neither is user data (ADR 0028).
+    const leagues = (await this.repo.listLeagues()).filter((league) => !isAnyPlaceholderLeagueId(league.id));
     saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: [] })), 'gones-full-data.gones.json');
   }
 
   async downloadLeagueExport(league: PersistedLeague): Promise<void> { const exported = exportLeague(league); saveJsonFile(await attachExportChecksum(exported), leagueExportFilename(league, new Date(exported.exportedAt))); }
-  isPlaceholderLeague(league: PersistedLeague): boolean { return league.id === PLACEHOLDER_LEAGUE_ID; }
+  // Both stores seed their own placeholder row and the repository refuses to delete either one, so
+  // the menu item is locked for both (ADR 0028).
+  isPlaceholderLeague(league: PersistedLeague): boolean { return isAnyPlaceholderLeagueId(league.id); }
 
   async deleteLeague(league: PersistedLeague): Promise<void> {
     if (this.isPlaceholderLeague(league)) return;

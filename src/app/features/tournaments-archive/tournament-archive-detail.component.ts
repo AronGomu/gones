@@ -11,7 +11,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
-import { canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
+import { canManageLeague, leagueCommandError } from '../../data/league-archive-command-ux';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { createByeRoundEntry, createMatchRoundEntry, getDefaultTournamentName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
@@ -190,7 +190,8 @@ export class TournamentArchiveDetailComponent {
   readonly error = signal('');
   readonly stale = signal(false);
   readonly importErrors = signal<string[]>([]);
-  readonly canManage = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
+  /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
+  readonly canManage = computed(() => canManageLeague(this.league()?.id, this.auth.profile()?.globalRole));
   readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);
@@ -352,7 +353,10 @@ export class TournamentArchiveDetailComponent {
       await this.router.navigate(['/leagues-archive', result.toLeague.id, 'tournaments-archive', tournament.id]);
     } catch (error) {
       logBoundaryError('tournament-detail.moveTournament', error, { leagueId: saved.id, tournamentId: tournament.id, targetLeagueId });
-      this.applyCommandError(error, 'tournament.moveFailed');
+      // A move across the two authorities is refused, not emulated (ADR 0028): say so, rather than
+      // reporting the generic "could not move" that hides why it can never succeed.
+      if (error instanceof Error && error.message === 'crossAuthorityMoveNotSupported') { this.stale.set(false); this.error.set(this.i18n.t('leagues.crossAuthorityMove')); }
+      else this.applyCommandError(error, 'tournament.moveFailed');
     } finally {
       this.saving.set(false);
     }

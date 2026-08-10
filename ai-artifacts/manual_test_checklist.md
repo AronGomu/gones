@@ -421,12 +421,21 @@ allowlist. The ticket's own manual line (nothing changed yet) was proved automat
 bundle contains no `gones-leagues` string and no `LocalLeagueArchiveBackend`, so nothing can open the
 database. None of that is a real browser against a real IndexedDB — that needs a human:
 
-- [ ] `npm run dev`, open `http://127.0.0.1:4200`, browse Leagues and the archive league page signed
+**Superseded by T14.** T14 injects `LocalLeagueArchiveBackend` into `LeagueArchiveRepository`, so the
+three steps below are false from that commit onward: the League pages *do* change signed out, and a
+`gones-leagues` database *does* appear. They are kept for the record and must not be run against a
+build at T14 or later — use the T14 section instead.
+
+- [ ] ~~`npm run dev`, open `http://127.0.0.1:4200`, browse Leagues and the archive league page signed
       out and signed in — behaviour is identical to before this commit; no new option, badge or error
-      appears anywhere.
-- [ ] DevTools → Application → IndexedDB — only `gones-live` is listed; no `gones-leagues` database
-      exists after browsing every page.
-- [ ] DevTools → Network — no request fails and no new request appears that was not there before.
+      appears anywhere.~~ (stale at T14: the local notice, the create card and the local badge are
+      expected signed out.)
+- [ ] ~~DevTools → Application → IndexedDB — only `gones-live` is listed; no `gones-leagues` database
+      exists after browsing every page.~~ (stale at T14: `gones-leagues` is created on the first visit
+      to `/leagues-archive`.)
+- [ ] ~~DevTools → Network — no request fails and no new request appears that was not there before.~~
+      (stale at T14: a signed-out visitor's `/api/leagues-archive` read is expected to fail and is
+      surfaced as the server-unavailable notice, not as an error.)
 
 ## T13 local-league-store-parity
 
@@ -443,9 +452,44 @@ a negative check and was proved by build-and-grep instead of a browser: after `n
 test names `LocalLeagueArchiveBackend`, so the adapter is tree-shaken out and no browser session can
 open the database. A human still owns the real-browser confirmation:
 
-- [ ] `npm run dev`, open `http://127.0.0.1:4200`, browse Leagues, an archive league and a tournament
+**Superseded by T14**, for the same reason as the T12 steps above: T14 is the commit that wires the
+adapter in, so `LocalLeagueArchiveBackend` is no longer tree-shaken out and the database is no longer
+absent. Kept for the record; do not run them against a build at T14 or later.
+
+- [ ] ~~`npm run dev`, open `http://127.0.0.1:4200`, browse Leagues, an archive league and a tournament
       detail page signed out and signed in — behaviour is identical to before this commit; no new
-      option, badge or error appears anywhere.
-- [ ] DevTools → Application → IndexedDB — only `gones-live` is listed; no `gones-leagues` database
-      exists after browsing every page.
-- [ ] DevTools → Network — no request fails and no new request appears that was not there before.
+      option, badge or error appears anywhere.~~ (stale at T14.)
+- [ ] ~~DevTools → Application → IndexedDB — only `gones-live` is listed; no `gones-leagues` database
+      exists after browsing every page.~~ (stale at T14: the database is created on the first visit to
+      `/leagues-archive`.)
+- [ ] ~~DevTools → Network — no request fails and no new request appears that was not there before.~~
+      (stale at T14: the signed-out `/api/leagues-archive` read is expected to fail.)
+
+## T14 dual-source-league-list
+
+Automated coverage: `src/app/data/league-archive-routing.test.ts` (5 cases) pins `canManageLeague`
+and `createLeagueTarget`; `src/app/data/league-archive-repository.service.test.ts` (48 cases) drives
+`LeagueArchiveRepository` against two hand-written fakes — the merged list, the degrade-to-local path
+and its `serverUnavailable` flag, both-stores-failing propagation, the placeholder resolving per
+authority, all 17 routed methods (each asserted to leave the *other* store untouched), and both
+directions of the refused cross-store move; `league-archive-list.component.test.ts` (6 cases) pins the
+template shape. `cypress/e2e/league-local.cy.js` (4 tests) drives the real browser: the whole
+signed-out create → tournament → round → entry → reload flow with every `/api/leagues-archive`
+request asserted answered `401`, a direct read of the `gones-leagues` object store, the merged list
+for a stubbed Admin and a stubbed plain `User`, and the cross-authority move refusal with its rendered
+message. `cypress/e2e/league-server.cy.js` still passes unchanged, including its `User` read-only case.
+
+What that leaves for a human — the parts a stubbed session cannot prove:
+
+- [ ] `npm run dev`, sign in as `admin@gones.test` against the **real** API (not a stubbed profile) —
+      the list shows the seeded server leagues and any league created in this browser while signed
+      out, the local ones badged `Local only`; renaming a server league still writes the server
+      (Network shows the `PATCH`), renaming a local one makes no request at all.
+- [ ] Same, as `test@gones.test` — server rows are read-only and the read-only notice is shown, while
+      a league created in this browser stays fully editable in the same list.
+- [ ] Signed out with the API stack **stopped** (`docker compose stop api`) — `/leagues-archive` still
+      loads, shows the server-unavailable notice, and every local write keeps working.
+- [ ] Visual check of the `Local only` badge on a narrow viewport (≤ 480 px) — it does not collide
+      with the status pill in the opposite corner of the card.
+- [ ] Clear site data, reload — the local leagues are gone and nothing errors, which is the documented
+      ADR 0028 consequence rather than a bug.

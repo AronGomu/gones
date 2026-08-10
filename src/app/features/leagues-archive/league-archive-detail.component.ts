@@ -5,7 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../../auth/auth.service';
-import { canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
+import { canManageLeague, leagueCommandError } from '../../data/league-archive-command-ux';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate } from '../../domain/results';
@@ -78,7 +78,8 @@ export class LeagueArchiveDetailComponent {
   readonly titleEditing = signal(false);
   readonly error = signal('');
   readonly stale = signal(false);
-  readonly canManage = computed(() => canManageLeagues(this.auth.profile()?.globalRole));
+  /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
+  readonly canManage = computed(() => canManageLeague(this.league()?.id, this.auth.profile()?.globalRole));
   leagueNameDraft = '';
   readonly result = computed(() => calculateLeagueResult(this.league()!));
   readonly sortedTournaments = computed(() => [...(this.league()?.tournaments ?? [])].sort((a, b) => (b.tournamentDate || '9999-12-31').localeCompare(a.tournamentDate || '9999-12-31') || b.name.localeCompare(a.name)));
