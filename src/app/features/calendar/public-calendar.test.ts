@@ -11,7 +11,8 @@ import {
   readCalendarQuery,
   sortTournamentsForList,
   statusPresentation,
-  tournamentDatePresentation
+  tournamentDatePresentation,
+  tournamentsByDate
 } from './public-calendar';
 
 function make(count: number): PublicTournamentView[] {
@@ -220,5 +221,35 @@ describe('calendar list pagination', () => {
     const second: PublicTournamentView = { ...tournament, id: 'b', title: 'Same' };
     const first: PublicTournamentView = { ...tournament, id: 'a', title: 'Same' };
     expect(sortTournamentsForList([second, first]).map(item => item.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('tournamentsByDate', () => {
+  it('keys on the venue start date', () => {
+    const map = tournamentsByDate([
+      { ...tournament, id: 'a', venueStartDate: '2026-03-01' },
+      { ...tournament, id: 'b', venueStartDate: '2026-03-01' },
+      { ...tournament, id: 'c', venueStartDate: '2026-03-04' }
+    ]);
+
+    expect(map.size).toBe(2);
+    expect(map.get('2026-03-01')).toHaveLength(2);
+    expect(map.get('2026-03-04')).toHaveLength(1);
+  });
+
+  it('sorts a day by start time then title', () => {
+    const map = tournamentsByDate([
+      { ...tournament, id: 'b', venueStartDate: '2026-03-01', venueStartTime: '14:00:00', title: 'B' },
+      { ...tournament, id: 'z', venueStartDate: '2026-03-01', venueStartTime: '09:30:00', title: 'Z' },
+      { ...tournament, id: 'a', venueStartDate: '2026-03-01', venueStartTime: '09:30:00', title: 'A' }
+    ]);
+
+    expect(map.get('2026-03-01')?.map(item => item.title)).toEqual(['A', 'Z', 'B']);
+  });
+
+  it('returns no entry for a day with nothing', () => {
+    const map = tournamentsByDate([{ ...tournament, id: 'a', venueStartDate: '2026-03-01' }]);
+
+    expect(map.has('2026-03-02')).toBe(false);
   });
 });

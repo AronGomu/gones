@@ -754,6 +754,15 @@ tournaments read in the browser.
 - [ ] `/calendar` in both the calendar tab and the list tab: the search input has a visible 1px steel border and a dark (`--black-metal`) fill; the strip of page around the input (the search row) has no border and no background of its own.
 - [ ] Narrow the browser window below ~600px: the two toggle buttons and the create button each stack to full width, one per row, and the create button does not get pushed into an oddly-indented partial row.
 
+## T7 calendar-day-cell-events
+
+- [ ] `npm run dev -- --env=demo`, sign in as any user with tournaments in the current month, `/calendar` on the calendar tab: each tournament's title and start time render inside its day square in the month grid, and clicking a tournament link opens `/calendar/tournaments/{slug}`.
+- [ ] Still on the calendar tab: nothing is listed below the month grid — no card list, no date-group headings, no pager.
+- [ ] Type in the search box: the day cells thin to only the matching tournaments (a day cell with no remaining match shows no events).
+- [ ] A day with more than 3 tournaments shows exactly 3 event links plus a "+N more" line ("+N de plus" in French); a day with 3 or fewer shows all of them and no "+N more" line.
+- [ ] Switch to the list tab: the grouped cards and the pager are still there, unchanged from before this slice.
+- [ ] Narrow the browser window below ~600px: a day cell with events is visibly taller than an empty one (not clipped to the empty-cell height).
+
 # Feedback
 
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.

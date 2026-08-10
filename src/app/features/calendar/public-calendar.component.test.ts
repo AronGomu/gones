@@ -736,3 +736,35 @@ describe('PublicCalendarComponent list pagination', () => {
     expect(paginationIndex).toBeGreaterThan(listViewStart);
   });
 });
+
+describe('PublicCalendarComponent day-cell events', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+
+  it('day cells render their events', () => {
+    const cellStart = source.indexOf('data-cy="calendar-month-day"');
+    expect(cellStart).toBeGreaterThan(-1);
+    const cellEnd = source.indexOf('</article>', cellStart);
+    const cell = source.slice(cellStart, cellEnd);
+
+    expect(cell).toContain('visibleDayEvents(day.date)');
+    expect(cell).toContain('calendar-month-day-event-');
+  });
+
+  it('the calendar tab lists nothing under the grid', () => {
+    const calendarBlock = templateBlock(source, "@if (query().view === 'calendar') {");
+
+    expect(calendarBlock).not.toContain('data-cy="calendar-list"');
+    expect(calendarBlock).not.toContain('calendar-venue-date-');
+    expect(calendarBlock).not.toContain('data-cy="calendar-pagination"');
+  });
+
+  it('the list tab keeps its list', () => {
+    const calendarViewStart = source.indexOf("query().view === 'calendar'");
+    const elseStart = source.indexOf('} @else {', calendarViewStart);
+    expect(elseStart).toBeGreaterThan(-1);
+    const listBlock = templateBlock(source.slice(elseStart + 2), '@else {');
+
+    expect(listBlock).toContain('data-cy="calendar-list"');
+    expect(listBlock).toContain('data-cy="calendar-pagination"');
+  });
+});

@@ -89,6 +89,22 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
   return items.slice((safePage - 1) * pageSize, safePage * pageSize);
 }
 
+export const MAX_DAY_CELL_EVENTS = 3;
+
+/** Tournaments keyed by their venue start date, each list sorted by start time then title. */
+export function tournamentsByDate(items: PublicTournamentView[]): Map<string, PublicTournamentView[]> {
+  const grouped = new Map<string, PublicTournamentView[]>();
+  for (const item of items) {
+    const current = grouped.get(item.venueStartDate) ?? [];
+    current.push(item);
+    grouped.set(item.venueStartDate, current);
+  }
+  for (const dateItems of grouped.values()) {
+    dateItems.sort((left, right) => left.venueStartTime.localeCompare(right.venueStartTime) || left.title.localeCompare(right.title));
+  }
+  return grouped;
+}
+
 export function groupTournamentsByVenueDate(items: PublicTournamentView[]): VenueDateGroup[] {
   const grouped = new Map<string, PublicTournamentView[]>();
   for (const item of items) {

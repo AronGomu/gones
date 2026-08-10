@@ -1134,9 +1134,14 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .public-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid var(--soot); background: var(--black-metal); }
 /* ARIA grid rows: structural only, so the cells keep participating in the parent CSS grid. */
 .public-month-row { display: contents; }
-.public-month-day { min-height: 7rem; display: grid; align-content: start; gap: .35rem; padding: .55rem; border-top: 1px solid var(--soot); border-left: 1px solid var(--soot); background: var(--iron); overflow: hidden; }
+.public-month-day { min-height: 8.5rem; display: grid; align-content: start; gap: .35rem; padding: .55rem; border-top: 1px solid var(--soot); border-left: 1px solid var(--soot); background: var(--iron); overflow: hidden; }
 .public-month-day > time { font-weight: 900; }
 .public-month-day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
+.public-month-event { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem; align-items: baseline; padding: .18rem .3rem; border-left: 3px solid var(--hot-blood); background: color-mix(in oklch, var(--blood) 18%, transparent); color: var(--ash); font-size: .78rem; line-height: 1.25; text-decoration: none; }
+.public-month-event:hover, .public-month-event:focus-visible { background: color-mix(in oklch, var(--blood) 32%, transparent); outline: 2px solid var(--hot-blood); outline-offset: 1px; }
+.public-month-event__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.public-month-event__time { color: var(--dim-ash); font-variant-numeric: tabular-nums; }
+.public-month-more { color: var(--dim-ash); font-size: .74rem; }
 .public-calendar-list, .venue-date-group { display: grid; gap: .75rem; }
 .calendar-pagination { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; margin: 1rem 0 .25rem; }
 .venue-date-group + .venue-date-group { margin-top: 1rem; }
@@ -1175,6 +1180,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   /* Hide the whole header row, not its cells: an empty ARIA row is an a11y violation. */
   .public-month-row--head { display: none; }
   .public-month-day { min-height: 3.5rem; border-left: 0; }
+  .public-month-day:has(.public-month-event) { min-height: 5.5rem; }
   .public-tournament-card, .registration-card { grid-template-columns: 1fr; }
   .public-tournament-card .calendar-event__actions > *, .registration-action > a, .registration-action > button { width: 100%; }
 }

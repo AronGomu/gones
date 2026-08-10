@@ -22,7 +22,9 @@ import {
   shiftMonth,
   sortTournamentsForList,
   statusPresentation,
-  tournamentDatePresentation
+  tournamentDatePresentation,
+  tournamentsByDate,
+  MAX_DAY_CELL_EVENTS
 } from './public-calendar';
 import { AllTournamentsCacheService } from './all-tournaments-cache.service';
 import { PublicTournamentService } from './public-tournament.service';
@@ -91,6 +93,15 @@ const SEARCH_DEBOUNCE_MS = 300;
                 @for (day of week; track day.date) {
                   <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth" data-cy="calendar-month-day">
                     <time [attr.datetime]="day.date" data-cy="calendar-month-day-date">{{ day.day }}</time>
+                    @for (event of visibleDayEvents(day.date); track event.id) {
+                      <a class="public-month-event" [routerLink]="['/calendar/tournaments', event.slug]" [attr.data-cy]="'calendar-month-day-event-' + event.slug" [attr.title]="event.title">
+                        <span class="public-month-event__time" data-cy="calendar-month-day-event-time">{{ event.venueStartTime.slice(0, 5) }}</span>
+                        <span class="public-month-event__title" data-cy="calendar-month-day-event-title">{{ event.title }}</span>
+                      </a>
+                    }
+                    @if (hiddenDayEventCount(day.date); as hidden) {
+                      <span class="public-month-more" data-cy="calendar-month-day-more">{{ i18n.t('calendar.moreEvents', { count: hidden }) }}</span>
+                    }
                   </article>
                 }
               </div>
@@ -157,6 +168,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly monthDays = computed(() => buildMonthDays(this.query().month));
   // ARIA requires grid > row > gridcell; the rows use `display: contents` so the CSS grid is unchanged.
   readonly monthWeeks = computed(() => chunkIntoWeeks(this.monthDays()));
+  readonly eventsByDate = computed(() => tournamentsByDate(this.items()));
   readonly canCreateTournament = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);
 
   ngOnInit(): void {
@@ -199,6 +211,9 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   date(item: PublicTournamentView) { return tournamentDatePresentation(item, this.i18n.locale()); }
   venue(item: PublicTournamentView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
   formatGroupDate(group: VenueDateGroup): string { return this.i18n.formatDate(group.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
+  dayEvents(date: string): PublicTournamentView[] { return this.eventsByDate().get(date) ?? []; }
+  visibleDayEvents(date: string): PublicTournamentView[] { return this.dayEvents(date).slice(0, MAX_DAY_CELL_EVENTS); }
+  hiddenDayEventCount(date: string): number { return Math.max(0, this.dayEvents(date).length - MAX_DAY_CELL_EVENTS); }
 
   private async load(options: { force?: boolean } = {}): Promise<void> {
     const id = ++this.loadId;
