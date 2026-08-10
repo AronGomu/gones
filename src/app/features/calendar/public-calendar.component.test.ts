@@ -58,9 +58,18 @@ const tournamentB: PublicTournamentView = {
   title: 'Paris Modern'
 };
 
-function setup(options: { params?: Record<string, string>; result?: Partial<AllTournamentsResult>; profile?: UserProfileResponse | null; authEnabled?: boolean } = {}) {
+function makeItems(count: number): PublicTournamentView[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...tournament,
+    id: `item-${String(index).padStart(3, '0')}`,
+    slug: `item-${String(index).padStart(3, '0')}`,
+    title: `Tournament ${String(index).padStart(3, '0')}`
+  }));
+}
+
+function setup(options: { params?: Record<string, string>; result?: Partial<AllTournamentsResult>; profile?: UserProfileResponse | null; authEnabled?: boolean; itemCount?: number } = {}) {
   const result: AllTournamentsResult = {
-    items: [tournament],
+    items: options.itemCount !== undefined ? makeItems(options.itemCount) : [tournament],
     fetchedAt: '2026-08-08T10:00:00.000Z',
     fromCache: false,
     stale: false,
@@ -100,7 +109,7 @@ function setup(options: { params?: Record<string, string>; result?: Partial<AllT
   ] });
 
   const component = runInInjectionContext(injector, () => new PublicCalendarComponent());
-  return { component, load, navigate };
+  return { component, load, navigate, lastQueryParams: () => navigate.mock.calls[navigate.mock.calls.length - 1]?.[1]?.queryParams };
 }
 
 const verifiedUserProfile = {
@@ -559,5 +568,117 @@ describe('PublicCalendarComponent empty calendar day cells', () => {
 
   it('no pill styling is left behind', () => {
     expect(stylesheet).not.toContain('calendar-pill');
+  });
+});
+
+describe('PublicCalendarComponent list pagination', () => {
+  it('the list renders only one page of tournaments', async () => {
+    const { component } = setup({ params: { view: 'list' }, itemCount: 45 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.pagedItems()).toHaveLength(20);
+    expect(component.groups().reduce((sum, group) => sum + group.items.length, 0)).toBe(20);
+  });
+
+  it('pagination is hidden for a single page', async () => {
+    const { component } = setup({ params: { view: 'list' }, itemCount: 20 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.pageCount()).toBe(1);
+  });
+
+  it('pagination appears past twenty', async () => {
+    const { component } = setup({ params: { view: 'list' }, itemCount: 21 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.pageCount()).toBe(2);
+  });
+
+  it('moving page navigates with the page parameter', async () => {
+    const { component, navigate } = setup({ params: { view: 'list' }, itemCount: 45 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    navigate.mockClear();
+
+    component.movePage(1);
+
+    expect(navigate).toHaveBeenCalled();
+    const [, extras] = navigate.mock.calls[0] as [unknown, { queryParams: Record<string, string> }];
+    expect(extras.queryParams['page']).toBe('2');
+  });
+
+  it('searching resets to page one', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup({ params: { view: 'list', page: '3' }, itemCount: 45 });
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+      navigate.mockClear();
+
+      component.setSearchDraft('x');
+      vi.advanceTimersByTime(300);
+
+      expect(navigate).toHaveBeenCalledTimes(1);
+      const [, extras] = navigate.mock.calls[0] as [unknown, { queryParams: Record<string, string> }];
+      expect(extras.queryParams).not.toHaveProperty('page');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('changing month resets to page one', async () => {
+    const { component, navigate } = setup({ params: { view: 'list', page: '3' }, itemCount: 45 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    navigate.mockClear();
+
+    component.moveMonth(1);
+
+    const [, extras] = navigate.mock.calls[0] as [unknown, { queryParams: Record<string, string> }];
+    expect(extras.queryParams).not.toHaveProperty('page');
+  });
+
+  it('changing view resets to page one', async () => {
+    const { component, navigate } = setup({ params: { view: 'list', page: '3' }, itemCount: 45 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    navigate.mockClear();
+
+    component.setView('calendar');
+
+    const [, extras] = navigate.mock.calls[0] as [unknown, { queryParams: Record<string, string> }];
+    expect(extras.queryParams).not.toHaveProperty('page');
+  });
+
+  it('a page beyond the last page clamps rather than showing nothing', async () => {
+    const { component } = setup({ params: { view: 'list', page: '99' }, itemCount: 45 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.currentPage()).toBe(3);
+    expect(component.pagedItems()).toHaveLength(5);
+  });
+
+  it('the pagination nav exists in the list block only', () => {
+    const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+    const listIndex = source.indexOf('data-cy="calendar-list"');
+    const paginationIndex = source.indexOf('data-cy="calendar-pagination"');
+    expect(listIndex).toBeGreaterThan(-1);
+    expect(paginationIndex).toBeGreaterThan(listIndex);
+
+    const calendarViewStart = source.indexOf("query().view === 'calendar'");
+    const listViewStart = source.indexOf("} @else {", calendarViewStart);
+    expect(paginationIndex).toBeGreaterThan(listViewStart);
   });
 });

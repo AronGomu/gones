@@ -384,3 +384,27 @@ pixel appearance in a real browser — that needs a human:
       grid (this is now the calendar tab's only filter-driven signal).
 - [ ] Navigate months with Previous / Next — the grid re-renders with the correct day numbers and the
       correct muted leading/trailing days, still with no tournament content in any cell.
+
+## T11 list-view-pagination
+
+Automated coverage: `public-calendar.test.ts` proves the pure helpers (`calendarPageCount`,
+`clampCalendarPage`, `paginateTournaments`, `sortTournamentsForList`) and the `page` query-parameter
+parsing/serialising (missing/junk defaults to `1`, page `1` is omitted from the URL, later pages are
+written). `public-calendar.component.test.ts` proves `pagedItems()`/`pageCount()`/`currentPage()` slice
+correctly, `movePage()` navigates with the `page` param, and search/month/view changes all reset `page`
+to `1`. `cypress/e2e/public-calendar.cy.js` stubs a 25-tournament catalogue and asserts 20 cards + the
+pagination row on page 1, 5 cards on `?page=2` after clicking Next, and that typing in search drops
+`page` from the URL. None of that proves rendered layout or a genuinely large real catalogue in a
+browser — that needs a human:
+
+- [ ] `npm run dev` with more than 20 published tournaments in the catalogue, open
+      `/calendar?view=list` — exactly 20 cards render and a pagination row (Previous / "Page 1 of N" /
+      Next) appears below the list; click Next and the URL gains `?page=2` with the next batch of cards.
+- [ ] With 20 or fewer tournaments in the catalogue, open the List tab — no pagination row renders at
+      all.
+- [ ] On page 2 (or later), type into the search box — the URL loses `page` and the list restarts at
+      the first page of matching results.
+- [ ] Hand-edit the URL to `?view=list&page=99` — the last page of results renders (not an empty list),
+      and the pagination status reflects the clamped page number.
+- [ ] Switch from the List tab to the Calendar tab while on a page other than 1 — the pagination row
+      disappears and `page` is not present in the URL.

@@ -8,7 +8,10 @@ export interface CalendarQuery {
   view: CalendarView;
   q: string;
   past: boolean;
+  page: number;
 }
+
+export const PAGE_SIZE = 20;
 
 export interface PublicTournamentView {
   id: string;
@@ -45,7 +48,8 @@ export function readCalendarQuery(params: ParamMap, preferredView: CalendarView,
     month: validMonth(params.get('month')) ?? monthValue(now),
     view: rawView === 'list' || rawView === 'calendar' ? rawView : preferredView,
     past: params.get('past') === 'true',
-    q: clean(params.get('q'))
+    q: clean(params.get('q')),
+    page: readPage(params.get('page'))
   };
 }
 
@@ -54,7 +58,35 @@ export function buildCalendarQueryParams(query: CalendarQuery): Record<string, s
   if (query.q) result['q'] = query.q;
   if (query.past) result['past'] = 'true';
   result['view'] = query.view;
+  if (query.page > 1) result['page'] = String(query.page);
   return result;
+}
+
+function readPage(value: string | null): number {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+}
+
+/** Stable flat order for paging: venue date, then venue start time, then title, then id. */
+export function sortTournamentsForList(items: PublicTournamentView[]): PublicTournamentView[] {
+  return [...items].sort((left, right) =>
+    left.venueStartDate.localeCompare(right.venueStartDate)
+    || left.venueStartTime.localeCompare(right.venueStartTime)
+    || left.title.localeCompare(right.title)
+    || left.id.localeCompare(right.id));
+}
+
+export function calendarPageCount(total: number, pageSize = PAGE_SIZE): number {
+  return Math.max(1, Math.ceil(total / pageSize));
+}
+
+export function clampCalendarPage(page: number, total: number, pageSize = PAGE_SIZE): number {
+  return Math.min(Math.max(1, Math.trunc(page) || 1), calendarPageCount(total, pageSize));
+}
+
+export function paginateTournaments(items: PublicTournamentView[], page: number, pageSize = PAGE_SIZE): PublicTournamentView[] {
+  const safePage = clampCalendarPage(page, items.length, pageSize);
+  return items.slice((safePage - 1) * pageSize, safePage * pageSize);
 }
 
 export function groupTournamentsByVenueDate(items: PublicTournamentView[]): VenueDateGroup[] {

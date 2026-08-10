@@ -14,9 +14,13 @@ import {
   PublicTournamentView,
   VenueDateGroup,
   buildCalendarQueryParams,
+  calendarPageCount,
+  clampCalendarPage,
   groupTournamentsByVenueDate,
+  paginateTournaments,
   readCalendarQuery,
   shiftMonth,
+  sortTournamentsForList,
   statusPresentation,
   tournamentDatePresentation
 } from './public-calendar';
@@ -104,6 +108,13 @@ const SEARCH_DEBOUNCE_MS = 300;
                 </section>
               }
             </section>
+            @if (pageCount() > 1) {
+              <nav class="calendar-pagination" [attr.aria-label]="i18n.t('calendar.paginationAria')" data-cy="calendar-pagination">
+                <button mat-stroked-button type="button" data-cy="calendar-page-prev" [disabled]="currentPage() <= 1" (click)="movePage(-1)">{{ i18n.t('common.previous') }}</button>
+                <span class="muted" role="status" aria-live="polite" data-cy="calendar-page-status">{{ i18n.t('calendar.pageStatus', { page: currentPage(), total: pageCount() }) }}</span>
+                <button mat-stroked-button type="button" data-cy="calendar-page-next" [disabled]="currentPage() >= pageCount()" (click)="movePage(1)">{{ i18n.t('common.next') }}</button>
+              </nav>
+            }
           } @else { <ng-container *ngTemplateOutlet="emptyState" /> }
         }
       }
@@ -139,7 +150,11 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly stale = signal(false);
   readonly error = signal(false);
   readonly items = computed(() => filterTournaments(this.allItems(), this.searchDraft()));
-  readonly groups = computed(() => groupTournamentsByVenueDate(this.items()));
+  readonly sortedItems = computed(() => sortTournamentsForList(this.items()));
+  readonly pageCount = computed(() => calendarPageCount(this.sortedItems().length));
+  readonly currentPage = computed(() => clampCalendarPage(this.query().page, this.sortedItems().length));
+  readonly pagedItems = computed(() => paginateTournaments(this.sortedItems(), this.query().page));
+  readonly groups = computed(() => groupTournamentsByVenueDate(this.pagedItems()));
   readonly monthLabel = computed(() => this.i18n.formatDate(`${this.query().month}-01`, { month: 'long', year: 'numeric' }));
   readonly monthDays = computed(() => buildMonthDays(this.query().month));
   // ARIA requires grid > row > gridcell; the rows use `display: contents` so the CSS grid is unchanged.
@@ -167,14 +182,19 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   setSearchDraft(value: string): void {
     this.searchDraft.set(value);
     if (this.searchDebounce) clearTimeout(this.searchDebounce);
-    this.searchDebounce = setTimeout(() => { void this.navigate({ ...this.query(), q: this.searchDraft() }); }, SEARCH_DEBOUNCE_MS);
+    this.searchDebounce = setTimeout(() => { void this.navigate({ ...this.query(), q: this.searchDraft(), page: 1 }); }, SEARCH_DEBOUNCE_MS);
   }
 
   sync(): void { void this.load({ force: true }); }
-  moveMonth(amount: number): void { void this.navigate({ ...this.query(), month: shiftMonth(this.query().month, amount) }); }
+  moveMonth(amount: number): void { void this.navigate({ ...this.query(), month: shiftMonth(this.query().month, amount), page: 1 }); }
   setView(view: CalendarView): void {
     try { localStorage.setItem(VIEW_KEY, view); } catch { /* Preference is optional. */ }
-    void this.navigate({ ...this.query(), view });
+    void this.navigate({ ...this.query(), view, page: 1 });
+  }
+  movePage(amount: number): void {
+    const next = clampCalendarPage(this.currentPage() + amount, this.sortedItems().length);
+    if (next === this.currentPage()) return;
+    void this.navigate({ ...this.query(), page: next });
   }
   reload(): void { void this.load(); }
   status(item: PublicTournamentView) { return statusPresentation(item.status); }

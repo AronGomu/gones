@@ -176,19 +176,19 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
 
 ## Impl steps
 
-- [ ] 1. Add the pure-helper and query-model cases to `src/app/features/calendar/public-calendar.test.ts`, importing the four new symbols plus `PAGE_SIZE`. Add a local `make(n)` factory that clones a minimal `PublicTournamentView` with an incrementing `id`, `venueStartDate` and `title`.
-- [ ] 2. Run `npx vitest run src/app/features/calendar/public-calendar.test.ts` — must fail to resolve the new exports.
-- [ ] 3. Add `PAGE_SIZE`, `sortTournamentsForList`, `calendarPageCount`, `clampCalendarPage` and `paginateTournaments` to `src/app/features/calendar/public-calendar.ts`, exactly as written in the Test plan.
-- [ ] 4. Add `page: number` to `CalendarQuery`. In `readCalendarQuery`, add `page: readPage(params.get('page'))` with a module-private helper:
+- [x] 1. Add the pure-helper and query-model cases to `src/app/features/calendar/public-calendar.test.ts`, importing the four new symbols plus `PAGE_SIZE`. Add a local `make(n)` factory that clones a minimal `PublicTournamentView` with an incrementing `id`, `venueStartDate` and `title`.
+- [x] 2. Run `npx vitest run src/app/features/calendar/public-calendar.test.ts` — must fail to resolve the new exports.
+- [x] 3. Add `PAGE_SIZE`, `sortTournamentsForList`, `calendarPageCount`, `clampCalendarPage` and `paginateTournaments` to `src/app/features/calendar/public-calendar.ts`, exactly as written in the Test plan.
+- [x] 4. Add `page: number` to `CalendarQuery`. In `readCalendarQuery`, add `page: readPage(params.get('page'))` with a module-private helper:
       ```ts
       function readPage(value: string | null): number {
         const parsed = Number.parseInt(value ?? '', 10);
         return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
       }
       ```
-- [ ] 5. In `buildCalendarQueryParams`, after the `view` assignment add: `if (query.page > 1) result['page'] = String(query.page);`
-- [ ] 6. Re-run step 2's command — the pure tests pass.
-- [ ] 7. In `src/app/i18n/messages.ts`, add to `en`:
+- [x] 5. In `buildCalendarQueryParams`, after the `view` assignment add: `if (query.page > 1) result['page'] = String(query.page);`
+- [x] 6. Re-run step 2's command — the pure tests pass.
+- [x] 7. In `src/app/i18n/messages.ts`, add to `en`:
       ```
       'calendar.paginationAria': 'Tournament list pages',
       'calendar.pageStatus': 'Page {page} of {total}',
@@ -198,7 +198,7 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
       'calendar.paginationAria': 'Pages de la liste des tournois',
       'calendar.pageStatus': 'Page {page} sur {total}',
       ```
-- [ ] 8. In `src/app/features/calendar/public-calendar.component.ts`, import the new symbols and add these computeds next to `items`:
+- [x] 8. In `src/app/features/calendar/public-calendar.component.ts`, import the new symbols and add these computeds next to `items`:
       ```ts
       readonly sortedItems = computed(() => sortTournamentsForList(this.items()));
       readonly pageCount = computed(() => calendarPageCount(this.sortedItems().length));
@@ -207,7 +207,7 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
       ```
       Change `groups` to read the page: `readonly groups = computed(() => groupTournamentsByVenueDate(this.pagedItems()));`
       **Leave `items()` as it is** — the empty state and T10's calendar-side signal both read it.
-- [ ] 9. Add the handler:
+- [x] 9. Add the handler:
       ```ts
       movePage(amount: number): void {
         const next = clampCalendarPage(this.currentPage() + amount, this.sortedItems().length);
@@ -215,11 +215,11 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
         void this.navigate({ ...this.query(), page: next });
       }
       ```
-- [ ] 10. Reset the page in the three places that change what is being listed:
+- [x] 10. Reset the page in the three places that change what is being listed:
       - `setSearchDraft` → `void this.navigate({ ...this.query(), q: this.searchDraft(), page: 1 });`
       - `moveMonth` → `void this.navigate({ ...this.query(), month: shiftMonth(this.query().month, amount), page: 1 });`
       - `setView` → `void this.navigate({ ...this.query(), view, page: 1 });`
-- [ ] 11. In the template, inside the `@if (groups().length) { … }` branch and directly after `</section>` closing `.public-calendar-list`, add:
+- [x] 11. In the template, inside the `@if (groups().length) { … }` branch and directly after `</section>` closing `.public-calendar-list`, add:
       ```html
       @if (pageCount() > 1) {
         <nav class="calendar-pagination" [attr.aria-label]="i18n.t('calendar.paginationAria')" data-cy="calendar-pagination">
@@ -229,13 +229,13 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
         </nav>
       }
       ```
-- [ ] 12. In `src/styles.css`, next to the other `public-calendar-*` rules, add:
+- [x] 12. In `src/styles.css`, next to the other `public-calendar-*` rules, add:
       ```css
       .calendar-pagination { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; margin: 1rem 0 .25rem; }
       ```
-- [ ] 13. Add the component cases from the Test plan to `src/app/features/calendar/public-calendar.component.test.ts`, extending its `setup()` helper to accept an item count and to expose the router `navigate` spy's last call.
-- [ ] 14. Run `npx vitest run src/app/features/calendar/public-calendar.test.ts src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
-- [ ] 15. Extend `cypress/e2e/public-calendar.cy.js`: with a stubbed catalogue of 25 tournaments, assert the List tab shows 20 cards and `[data-cy="calendar-pagination"]`, that Next lands on `?page=2` showing 5 cards, and that typing in the search box drops `page` from the URL.
+- [x] 13. Add the component cases from the Test plan to `src/app/features/calendar/public-calendar.component.test.ts`, extending its `setup()` helper to accept an item count and to expose the router `navigate` spy's last call.
+- [x] 14. Run `npx vitest run src/app/features/calendar/public-calendar.test.ts src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 15. Extend `cypress/e2e/public-calendar.cy.js`: with a stubbed catalogue of 25 tournaments, assert the List tab shows 20 cards and `[data-cy="calendar-pagination"]`, that Next lands on `?page=2` showing 5 cards, and that typing in the search box drops `page` from the URL.
 
 ## Outputs
 
@@ -245,15 +245,15 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
-- [ ] Manual: `npm run dev` with more than 20 published tournaments in the catalogue, open `/calendar?view=list` — 20 cards and a pagination row; Next goes to `?page=2`.
-- [ ] Manual: with 20 or fewer tournaments there is no pagination row at all.
-- [ ] Manual: on page 2, type in the search box — the URL loses `page` and the list restarts at the first result.
-- [ ] Manual: hand-edit the URL to `?view=list&page=99` — the last page renders, not an empty list.
-- [ ] Manual: switch to the Calendar tab — no pagination row, and `page` is not in the URL.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(calendar): page the tournament list at twenty per page`
+- [x] `npm run test` passes — 84 files, 635 tests passed
+- [x] `npm run lint` passes — "All files pass linting."
+- [x] `npm run typecheck` passes — no errors
+- [x] `npm run build` passes — bundle generated
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes — 7/7 passing (rerun after dev-server rebuild-race settled, per known local quirk)
+- [ ] Manual: `npm run dev` with more than 20 published tournaments in the catalogue, open `/calendar?view=list` — 20 cards and a pagination row; Next goes to `?page=2`. Automated equivalent: Cypress test `pages the list at twenty tournaments and drops the page on search` (25-item stub) + component test `the list renders only one page of tournaments`. Left unchecked — no human browser session run; see manual checklist.
+- [ ] Manual: with 20 or fewer tournaments there is no pagination row at all. Automated equivalent: component test `pagination is hidden for a single page`. Left unchecked — no human browser session run; see manual checklist.
+- [ ] Manual: on page 2, type in the search box — the URL loses `page` and the list restarts at the first result. Automated equivalent: Cypress assertion `cy.location('search').should('not.contain', 'page=')` after typing, + component test `searching resets to page one`. Left unchecked — no human browser session run; see manual checklist.
+- [ ] Manual: hand-edit the URL to `?view=list&page=99` — the last page renders, not an empty list. Automated equivalent: component test `a page beyond the last page clamps rather than showing nothing`. Left unchecked — no human browser session run; see manual checklist.
+- [ ] Manual: switch to the Calendar tab — no pagination row, and `page` is not in the URL. Automated equivalent: component test `changing view resets to page one` + source-position test `the pagination nav exists in the list block only`. Left unchecked — no human browser session run; see manual checklist.
+- [x] app functional — no broken path from this slice (full `npm run test` + build + cypress spec green)
+- [x] commit msg draft: `feat(calendar): page the tournament list at twenty per page`

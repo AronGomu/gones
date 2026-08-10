@@ -1136,6 +1136,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .public-month-day > time { font-weight: 900; }
 .public-month-day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
 .public-calendar-list, .venue-date-group { display: grid; gap: .75rem; }
+.calendar-pagination { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; margin: 1rem 0 .25rem; }
 .venue-date-group + .venue-date-group { margin-top: 1rem; }
 .venue-date-group > h2 { margin-top: .5rem; }
 .public-tournament-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1rem; }

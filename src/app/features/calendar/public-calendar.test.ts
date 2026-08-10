@@ -1,13 +1,27 @@
 import { ParamMap } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 import {
+  PAGE_SIZE,
   PublicTournamentView,
   buildCalendarQueryParams,
+  calendarPageCount,
+  clampCalendarPage,
   groupTournamentsByVenueDate,
+  paginateTournaments,
   readCalendarQuery,
+  sortTournamentsForList,
   statusPresentation,
   tournamentDatePresentation
 } from './public-calendar';
+
+function make(count: number): PublicTournamentView[] {
+  return Array.from({ length: count }, (_, index) => ({
+    ...tournament,
+    id: `item-${String(index).padStart(3, '0')}`,
+    venueStartDate: '2026-08-01',
+    title: `Tournament ${String(index).padStart(3, '0')}`
+  }));
+}
 
 const tournament: PublicTournamentView = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -64,17 +78,30 @@ describe('public Calendar helpers', () => {
     expect(readCalendarQuery(params({
       month: '2026-09', view: 'list', q: 'lyon', past: 'true'
     }), 'calendar', new Date('2026-03-01T12:00:00Z'))).toEqual({
-      month: '2026-09', view: 'list', q: 'lyon', past: true
+      month: '2026-09', view: 'list', q: 'lyon', past: true, page: 1
     });
   });
 
   it('drops removed parameters', () => {
     const result = readCalendarQuery(params({
-      month: '2026-08', status: 'Published', city: 'Lyon', page: '3'
+      month: '2026-08', status: 'Published', city: 'Lyon'
     }), 'calendar');
     expect(result).not.toHaveProperty('status');
     expect(result).not.toHaveProperty('city');
-    expect(result).not.toHaveProperty('page');
+  });
+
+  it('a missing page parameter reads as one', () => {
+    expect(readCalendarQuery(params({ month: '2026-08', view: 'list' }), 'list').page).toBe(1);
+  });
+
+  it('a page parameter is parsed', () => {
+    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: '3' }), 'list').page).toBe(3);
+  });
+
+  it('a junk page parameter reads as one', () => {
+    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: 'abc' }), 'list').page).toBe(1);
+    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: '0' }), 'list').page).toBe(1);
+    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: '-2' }), 'list').page).toBe(1);
   });
 
   it('uses local view preference only when URL omits view', () => {
@@ -83,17 +110,88 @@ describe('public Calendar helpers', () => {
   });
 
   it('builds only the reduced parameters', () => {
-    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false }))
+    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
       .toEqual({ month: '2026-09', view: 'calendar' });
   });
 
   it('keeps q when set', () => {
-    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy', past: false }))
+    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy', past: false, page: 1 }))
       .toEqual({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy' });
+  });
+
+  it('page one is not written to the url', () => {
+    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
+      .not.toHaveProperty('page');
+  });
+
+  it('a later page is written to the url', () => {
+    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 4 })['page'])
+      .toBe('4');
   });
 
   it('renders explicit cancelled badge and completed text', () => {
     expect(statusPresentation('Cancelled')).toEqual({ label: 'Cancelled', className: 'cancelled' });
     expect(statusPresentation('Completed')).toEqual({ label: 'Completed', className: 'completed' });
+  });
+});
+
+describe('calendar list pagination', () => {
+  it('an empty catalogue is still one page', () => {
+    expect(calendarPageCount(0)).toBe(1);
+  });
+
+  it('exactly twenty is one page', () => {
+    expect(calendarPageCount(20)).toBe(1);
+  });
+
+  it('twenty-one is two pages', () => {
+    expect(calendarPageCount(21)).toBe(2);
+  });
+
+  it('forty is two pages', () => {
+    expect(calendarPageCount(40)).toBe(2);
+  });
+
+  it('page zero clamps up', () => {
+    expect(clampCalendarPage(0, 45)).toBe(1);
+  });
+
+  it('a page past the end clamps down', () => {
+    expect(clampCalendarPage(99, 45)).toBe(3);
+  });
+
+  it('a fractional page truncates', () => {
+    expect(clampCalendarPage(2.7, 45)).toBe(2);
+  });
+
+  it('NaN falls back to page one', () => {
+    expect(clampCalendarPage(Number.NaN, 45)).toBe(1);
+  });
+
+  it('the first page holds the first twenty', () => {
+    const page = paginateTournaments(make(45), 1);
+    expect(page).toHaveLength(20);
+    expect(page[0].id).toBe('item-000');
+  });
+
+  it('the last page holds the remainder', () => {
+    const page = paginateTournaments(make(45), 3);
+    expect(page).toHaveLength(5);
+    expect(page[0].id).toBe('item-040');
+  });
+
+  it('an out-of-range page returns the last one', () => {
+    expect(paginateTournaments(make(45), 9)).toEqual(paginateTournaments(make(45), 3));
+  });
+
+  it('PAGE_SIZE is twenty', () => {
+    expect(PAGE_SIZE).toBe(20);
+  });
+
+  it('sorting is stable across equal dates and times', () => {
+    const itemB: PublicTournamentView = { ...tournament, id: 'b', title: 'B' };
+    const itemA: PublicTournamentView = { ...tournament, id: 'a', title: 'A' };
+    const sorted = sortTournamentsForList([itemB, itemA]);
+    expect(sorted.map(item => item.title)).toEqual(['A', 'B']);
   });
 });

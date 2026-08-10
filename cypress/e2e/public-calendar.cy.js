@@ -122,4 +122,27 @@ describe('public Calendar V1', () => {
     cy.get('@allTournaments.all').should('have.length', 2);
     cy.get('[data-cy="calendar-synced-at"]').should('be.visible');
   });
+
+  it('pages the list at twenty tournaments and drops the page on search', () => {
+    const manyTournaments = Array.from({ length: 25 }, (_, index) => ({
+      ...tournament,
+      id: `${String(index).padStart(8, '0')}-1111-1111-1111-111111111111`,
+      slug: `item-${String(index).padStart(3, '0')}`,
+      title: `Tournament ${String(index).padStart(3, '0')}`,
+      venueStartDate: '2026-08-01'
+    }));
+    cy.intercept('GET', '**/api/tournaments/all*', { items: manyTournaments, generatedAt: '2026-08-08T10:00:00Z', count: 25, truncated: false }).as('manyTournaments');
+
+    visit('/calendar?month=2026-08&view=list');
+    cy.wait('@manyTournaments');
+    cy.get('[data-cy^="tournament-item-"]').should('have.length', 20);
+    cy.get('[data-cy="calendar-pagination"]').should('be.visible');
+
+    cy.get('[data-cy="calendar-page-next"]').click();
+    cy.location('search').should('contain', 'page=2');
+    cy.get('[data-cy^="tournament-item-"]').should('have.length', 5);
+
+    cy.get('[data-cy="calendar-search"]').type('Tournament');
+    cy.location('search', { timeout: 5000 }).should('not.contain', 'page=');
+  });
 });
