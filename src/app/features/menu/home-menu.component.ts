@@ -30,13 +30,13 @@ import { AuthService } from '../../auth/auth.service';
             <p data-cy="menu-registrations-card-desc">{{ i18n.t('home.registrationsDesc') }}</p>
           </a>
         }
-        <a class="home-destination home-destination--settings" routerLink="/settings" data-cy="menu-settings-link">
-          <strong data-cy="menu-settings-link-title">{{ i18n.t('home.settings') }}</strong>
-          <p data-cy="menu-settings-link-desc">{{ i18n.t('home.settingsDesc') }}</p>
-        </a>
         <a class="home-destination home-destination--about" routerLink="/about" data-cy="menu-about-link" lang="fr">
           <strong data-cy="menu-about-link-title">{{ i18n.t('home.about') }}</strong>
           <p data-cy="menu-about-link-desc">{{ i18n.t('home.aboutDesc') }}</p>
+        </a>
+        <a class="home-destination home-destination--settings" routerLink="/settings" data-cy="menu-settings-link">
+          <strong data-cy="menu-settings-link-title">{{ i18n.t('home.settings') }}</strong>
+          <p data-cy="menu-settings-link-desc">{{ i18n.t('home.settingsDesc') }}</p>
         </a>
       </nav>
 

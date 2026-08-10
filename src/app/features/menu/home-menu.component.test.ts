@@ -34,4 +34,23 @@ describe('HomeMenuComponent template', () => {
     expect(source).toContain('menu-settings-link');
     expect(source).toContain('menu-about-link');
   });
+
+  it('settings is the last card', () => {
+    const identifiers = [...source.matchAll(/data-cy="(menu-[a-z-]+(?:-card|-link))"/g)].map((match) => match[1]);
+    const settingsIndex = identifiers.lastIndexOf('menu-settings-link');
+    expect(settingsIndex).toBeGreaterThan(-1);
+    for (const identifier of identifiers) {
+      if (identifier === 'menu-settings-link') continue;
+      expect(identifiers.indexOf(identifier)).toBeLessThan(settingsIndex);
+    }
+  });
+
+  it('about is the second-to-last card', () => {
+    const identifiers = [...source.matchAll(/data-cy="(menu-[a-z-]+(?:-card|-link))"/g)].map((match) => match[1]);
+    const uniqueOrdered: string[] = [];
+    for (const identifier of identifiers) {
+      if (!uniqueOrdered.includes(identifier)) uniqueOrdered.push(identifier);
+    }
+    expect(uniqueOrdered.slice(-2)).toEqual(['menu-about-link', 'menu-settings-link']);
+  });
 });

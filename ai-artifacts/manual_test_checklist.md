@@ -735,6 +735,11 @@ tournaments read in the browser.
       `npm run dev -- --env=demo`: the new name is live, and there is still exactly one
       `Gones League 6` - no `(restored)` duplicate.
 
+## T4 home-card-order
+
+- [ ] `/` signed out: cards read Running tournaments, Leagues (archive), Calendar, About, Settings — Settings is the last card and spans the full row.
+- [ ] `/` signed in: cards read Running tournaments, Leagues (archive), Calendar, Registrations, About, Settings — Registrations appears fourth, About and Settings are both half width.
+
 # Feedback
 
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.
