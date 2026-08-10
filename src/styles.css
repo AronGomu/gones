@@ -1051,7 +1051,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 }
 
 /* Auth/session/profile V1 */
-.auth-toolbar-actions { display: inline-flex; align-items: center; gap: .35rem; }
+.auth-toolbar-actions { display: inline-flex; align-items: center; gap: .35rem; margin-left: .75rem; }
 .toolbar-profile-link { color: var(--ash); text-decoration: underline; text-underline-offset: 3px; font-weight: 700; padding-inline: .35rem; min-height: 44px; display: inline-flex; align-items: center; }
 .toolbar-profile-link:hover, .toolbar-profile-link:focus-visible { color: var(--hot-blood); }
 .verification-banner { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .75rem; margin: .75rem auto 0; }

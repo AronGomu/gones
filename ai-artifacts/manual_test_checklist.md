@@ -740,6 +740,13 @@ tournaments read in the browser.
 - [ ] `/` signed out: cards read Running tournaments, Leagues (archive), Calendar, About, Settings — Settings is the last card and spans the full row.
 - [ ] `/` signed in: cards read Running tournaments, Leagues (archive), Calendar, Registrations, About, Settings — Registrations appears fourth, About and Settings are both half width.
 
+## T5 header-sign-in-last-and-import-label
+
+- [ ] `/leagues-archive` signed out: header reads logo … Import league(s) · Full data export · Sign in, with Sign in right-most.
+- [ ] `/leagues-archive` signed in: header ends … Full data export · username · Log out, with the account block right-most.
+- [ ] `/settings`, a league detail page, and a live tournament runner page: the sign-in/account block is right-most on each, after that page's own action buttons.
+- [ ] The league import button reads "Import league(s)" in English and "Importer ligue(s)" in French, and clicking it still opens the file picker.
+
 # Feedback
 
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.

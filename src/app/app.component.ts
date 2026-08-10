@@ -37,16 +37,6 @@ interface HeaderTournament {
       <mat-toolbar class="app-toolbar" data-cy="app-toolbar">
         <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')" data-cy="app-brand-link"><img src="assets/gones_logo.png" alt="Gones" data-cy="app-brand-logo"></a>
         <span class="spacer" data-cy="app-header-spacer"></span>
-        @if (auth.enabled) {
-          <div class="auth-toolbar-actions" data-cy="auth-toolbar-actions">
-            @if (auth.profile(); as profile) {
-              <a class="toolbar-profile-link" routerLink="/settings/account" data-cy="profile-link">{{ profile.username }}</a>
-              <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="logout-button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
-            } @else {
-              <a mat-stroked-button class="secondary-action" routerLink="/login" data-cy="toolbar-sign-in-link" [attr.aria-label]="i18n.t('auth.signInAria')">{{ i18n.t('auth.signIn') }}</a>
-            }
-          </div>
-        }
         @if (showLiveTournamentActions()) {
           <div class="header-actions live-tournament-header-actions" data-cy="app-live-tournament-header-actions">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="live-tournament-advanced-settings-button" (click)="openLiveTournamentAdvancedSettings()">{{ i18n.t('header.advancedSettings') }}</button>
@@ -82,6 +72,16 @@ interface HeaderTournament {
             <button mat-stroked-button class="secondary-action" type="button" data-cy="settings-export-button" [disabled]="settingsImporting()" (click)="downloadSettingsExport()">{{ i18n.t('header.exportSettings') }}</button>
             <button mat-flat-button class="home-primary-action" type="button" data-cy="settings-import-button" [disabled]="settingsImporting()" (click)="openSettingsImportPicker()">{{ settingsImporting() ? i18n.t('common.importing') : i18n.t('header.importSettings') }}</button>
             <input #settingsImportInput class="toolbar-import-input" data-cy="settings-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="settingsImporting()" (change)="importSettings($event)">
+          </div>
+        }
+        @if (auth.enabled) {
+          <div class="auth-toolbar-actions" data-cy="auth-toolbar-actions">
+            @if (auth.profile(); as profile) {
+              <a class="toolbar-profile-link" routerLink="/settings/account" data-cy="profile-link">{{ profile.username }}</a>
+              <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="logout-button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
+            } @else {
+              <a mat-stroked-button class="secondary-action" routerLink="/login" data-cy="toolbar-sign-in-link" [attr.aria-label]="i18n.t('auth.signInAria')">{{ i18n.t('auth.signIn') }}</a>
+            }
           </div>
         }
       </mat-toolbar>

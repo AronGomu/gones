@@ -33,4 +33,29 @@ describe('AppComponent toolbar auth entry', () => {
     const signInIndex = source.indexOf('data-cy="toolbar-sign-in-link"');
     expect(signInIndex).toBeGreaterThan(elseIndex);
   });
+
+  it('the auth block is the last thing in the toolbar', () => {
+    const authIndex = source.indexOf('data-cy="auth-toolbar-actions"');
+    expect(authIndex).toBeGreaterThan(-1);
+    for (const marker of [
+      'app-live-tournament-header-actions',
+      'app-leagues-header-actions',
+      'app-tournament-header-actions',
+      'app-league-header-actions',
+      'app-settings-header-actions'
+    ]) {
+      const markerIndex = source.indexOf(`data-cy="${marker}"`);
+      expect(markerIndex).toBeGreaterThan(-1);
+      expect(authIndex).toBeGreaterThan(markerIndex);
+    }
+  });
+
+  it('nothing but the toolbar close follows the auth block', () => {
+    const authIndex = source.indexOf('data-cy="auth-toolbar-actions"');
+    expect(authIndex).toBeGreaterThan(-1);
+    const toolbarCloseIndex = source.indexOf('</mat-toolbar>', authIndex);
+    expect(toolbarCloseIndex).toBeGreaterThan(authIndex);
+    const tail = source.slice(authIndex, toolbarCloseIndex);
+    expect(tail).not.toMatch(/data-cy="app-/);
+  });
 });

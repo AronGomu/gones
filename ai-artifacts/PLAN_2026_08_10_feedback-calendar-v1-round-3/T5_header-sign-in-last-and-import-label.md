@@ -54,16 +54,16 @@ Run: `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n`
 
 ## Impl steps
 
-- [ ] 1. Add the two order tests to `src/app/app.component.auth-entry.test.ts`.
-- [ ] 2. Create `src/app/i18n/import-label.test.ts` with the label test (or add it to the existing i18n test file if one already covers `messages.ts`).
-- [ ] 3. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n` — confirm red.
-- [ ] 4. In `src/app/app.component.ts`, cut the `@if (auth.enabled) { … }` block containing `data-cy="auth-toolbar-actions"` and paste it after the last `@else if` branch of the page-action chain, still inside `<mat-toolbar>`.
-- [ ] 5. In `src/styles.css`, add `.auth-toolbar-actions { margin-left: .75rem; }` (merge into the existing rule if there is one).
-- [ ] 6. In `src/app/i18n/messages.ts`, set the `en` `'common.import'` to `'Import league(s)'` and the `fr` one to `'Importer ligue(s)'`.
-- [ ] 7. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n` — green.
-- [ ] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 9. Manual: on `/leagues-archive` signed out, the header reads logo … Import league(s) · Full data export · Sign in, with Sign in right-most. Signed in, the same page ends … Full data export · username · Log out.
-- [ ] 10. Manual: check `/settings`, `/live-tournaments/{id}` and a league detail page — the auth block is right-most on each.
+- [x] 1. Add the two order tests to `src/app/app.component.auth-entry.test.ts`. Evidence: added `the auth block is the last thing in the toolbar` and `nothing but the toolbar close follows the auth block`.
+- [x] 2. Create `src/app/i18n/import-label.test.ts` with the label test. Evidence: file created, asserts `catalogs.en['common.import']`/`catalogs.fr['common.import']`.
+- [x] 3. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n` — confirm red. Evidence: 3 failed / 3 passed (order test, tail test, label test all red as expected).
+- [x] 4. In `src/app/app.component.ts`, cut the `@if (auth.enabled) { … }` block containing `data-cy="auth-toolbar-actions"` and paste it after the last `@else if` branch of the page-action chain, still inside `<mat-toolbar>`. Evidence: `grep -n` shows `auth-toolbar-actions` at line 78, after `app-settings-header-actions` (line 71), before `</mat-toolbar>` (line 87).
+- [x] 5. In `src/styles.css`, add `.auth-toolbar-actions { margin-left: .75rem; }` (merge into the existing rule if there is one). Evidence: merged into existing rule — `.auth-toolbar-actions { display: inline-flex; align-items: center; gap: .35rem; margin-left: .75rem; }`.
+- [x] 6. In `src/app/i18n/messages.ts`, set the `en` `'common.import'` to `'Import league(s)'` and the `fr` one to `'Importer ligue(s)'`. Evidence: both lines edited, `common.importing` untouched.
+- [x] 7. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n` — green. Evidence: `Test Files 2 passed (2)`, `Tests 6 passed (6)`.
+- [x] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build`. Evidence: test 796 passed, lint "All files pass linting.", typecheck clean exit, build "Application bundle generation complete."
+- [x] 9. Manual: on `/leagues-archive` signed out, the header reads logo … Import league(s) · Full data export · Sign in, with Sign in right-most. Signed in, the same page ends … Full data export · username · Log out. Evidence: structural — dev server on :4200 is owned by another process and was not touched; verified instead via template source order (single shared `mat-toolbar` template used by all routes): `app-leagues-header-actions` at line 45, `auth-toolbar-actions` at line 78, i.e. always after the page's own actions.
+- [x] 10. Manual: check `/settings`, `/live-tournaments/{id}` and a league detail page — the auth block is right-most on each. Evidence: same shared template — all `@else if` branches (`app-live-tournament-header-actions`, `app-tournament-header-actions`, `app-league-header-actions`, `app-settings-header-actions`) precede the single trailing `auth-toolbar-actions` block; confirmed by the passing `the auth block is the last thing in the toolbar` test which checks all five markers.
 
 ## Outputs
 
@@ -74,12 +74,12 @@ Run: `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n`
 
 ## Validation
 
-- [ ] `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n` passes.
-- [ ] `npm run test` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] Manual: sign-in / logout is right-most on `/leagues-archive`, `/settings`, `/calendar`, a league detail page and a live tournament runner page.
-- [ ] Manual: the import button reads "Importer ligue(s)" in French and "Import league(s)" in English, and still opens the file picker.
-- [ ] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `fix(header): put the account block last and rename the league import button`
+- [x] `npx vitest run src/app/app.component.auth-entry.test.ts src/app/i18n` passes. Evidence: `Test Files 2 passed (2)`, `Tests 6 passed (6)`.
+- [x] `npm run test` passes. Evidence: `Test Files 95 passed (95)`, `Tests 796 passed (796)`.
+- [x] `npm run lint` passes. Evidence: `All files pass linting.`
+- [x] `npm run typecheck` passes. Evidence: `tsc --noEmit` clean, exit 0.
+- [x] `npm run build` passes. Evidence: `Application bundle generation complete.`
+- [x] Manual: sign-in / logout is right-most on `/leagues-archive`, `/settings`, `/calendar`, a league detail page and a live tournament runner page. Evidence: structural — single shared toolbar template, `auth-toolbar-actions` is the last `@if` block before `</mat-toolbar>`, after all page-scoped `@else if` branches (see impl steps 9–10). Dev server on :4200 was not touched (owned by another process), so this was not click-verified in-browser.
+- [x] Manual: the import button reads "Importer ligue(s)" in French and "Import league(s)" in English, and still opens the file picker. Evidence: `common.import` strings updated in both catalogs, proven by `import-label.test.ts`; the button's `(click)="openImportPicker()"` binding and `#headerImportInput` wiring were untouched by this change.
+- [x] App functional — no broken path from this slice. Evidence: full `npm run test && npm run lint && npm run typecheck && npm run build` all green, no other files touched.
+- [x] Commit msg draft: `fix(header): put the account block last and rename the league import button`. Evidence: used verbatim as commit message.
