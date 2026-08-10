@@ -216,4 +216,4 @@ Set up a shared fixture helper in the test file: `async function leagueWithRound
       `grep -rn LocalLeagueArchiveBackend src --include=*.ts` returns only the service and its own test. The adapter is tree-shaken
       out of the shipped bundle, so no browser session can open the database. Logged in `ai-artifacts/manual_test_checklist.md`.
 - [x] app functional — no broken path from this slice: full suite green, build green, and the bundle grep above proves the slice adds no reachable code path.
-- [ ] commit msg draft: `feat(leagues): complete the browser-local league store to full port parity`
+- [x] commit msg draft: `feat(leagues): complete the browser-local league store to full port parity` — landed as `6be8753`
