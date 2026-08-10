@@ -187,4 +187,4 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 - [x] Manual: anonymous `/calendar` shows the 9 tournaments across months; the offset-`0` one reads ongoing. — API-level substitute (port 4200 is held by another process): anonymous `GET /api/tournaments/all` returns the 9 with statuses `Completed`/`InProgress`/`Published`.
 - [x] Manual: `organizer@gones.test` sees its 5 tournaments in `/organizer/tournaments`; `test@gones.test` sees its registrations in `/registrations`. — API-level substitute: `GET /api/organizer/tournaments`-equivalent counts and `GET /api/users/me/registrations` return 5 and 4 rows.
 - [x] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `feat(dev): seed the demo environment calendar from fixture files`
+- [x] Commit msg draft: `feat(dev): seed the demo environment calendar from fixture files` - committed as 13d1f60.
