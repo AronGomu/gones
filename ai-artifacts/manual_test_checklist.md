@@ -231,3 +231,9 @@ cannot model is a browser's own refusal to store a `Secure` cookie over plain ht
       admin-only navigation (the Admin dashboard entry) is offered.
 - [ ] `npm run dev -- --no-accounts` starts the stack and the dev server without running the seeder
       (no `Seeded dev accounts:` line), and `--no-accounts` is not forwarded to `ng serve`.
+
+## T3 home-last-card-row-rule
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/` at 1440px **signed out**: 5 cards render, About sits alone on the last row and spans the full row width.
+- [ ] Sign in as `admin@gones.test`: 6 cards render, the last row holds My registrations/Settings/About laid out two-per-row, each half width, none stretched full-row.
+- [ ] Shrink the viewport to 480px: every card is full width, no horizontal overflow, and no visible gap artefact where the old `.home-destination--about { grid-column: auto; }` override used to sit.

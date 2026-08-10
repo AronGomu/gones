@@ -67,16 +67,16 @@ For the last row, count with a simple helper in the test: strip the `@if (auth.p
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/features/menu/home-grid-rule.test.ts` with the six tests above. Read the stylesheet with `readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8')` — from `src/app/features/menu/` that resolves to `src/styles.css`. Verify the path resolves before writing assertions.
-- [ ] 2. Run `npx vitest run src/app/features/menu/home-grid-rule.test.ts` — it must fail.
-- [ ] 3. In `src/styles.css` line 138, delete `grid-column: 1 / -1;` from `.home-destination--about`. Leave `min-height: 10rem;` and everything after it untouched.
-- [ ] 4. In `src/styles.css`, immediately after the `.home-destinations` rule on line 127, insert:
+- [x] 1. Create `src/app/features/menu/home-grid-rule.test.ts` with the six tests above. Read the stylesheet with `readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8')` — from `src/app/features/menu/` that resolves to `src/styles.css`. Verify the path resolves before writing assertions.
+- [x] 2. Run `npx vitest run src/app/features/menu/home-grid-rule.test.ts` — it must fail. (3/6 failed on unedited stylesheet, confirming red.)
+- [x] 3. In `src/styles.css` line 138, delete `grid-column: 1 / -1;` from `.home-destination--about`. Leave `min-height: 10rem;` and everything after it untouched.
+- [x] 4. In `src/styles.css`, immediately after the `.home-destinations` rule on line 127, insert:
       ```css
       /* Last card takes the whole row only when it would sit alone on it; with an even count every card stays half width. */
       .home-destinations > :last-child:nth-child(odd) { grid-column: 1 / -1; }
       ```
-- [ ] 5. In `src/styles.css`, in the narrow-viewport media query around line 450, delete the whole `.home-destination--about { grid-column: auto; }` rule.
-- [ ] 6. Run `npx vitest run src/app/features/menu/home-grid-rule.test.ts` — green.
+- [x] 5. In `src/styles.css`, in the narrow-viewport media query around line 450, delete the whole `.home-destination--about { grid-column: auto; }` rule.
+- [x] 6. Run `npx vitest run src/app/features/menu/home-grid-rule.test.ts` — green. (6/6 passed.)
 
 ## Outputs
 
@@ -86,12 +86,12 @@ For the last row, count with a simple helper in the test: strip the `@if (auth.p
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] Manual: `npm run dev`, open `http://127.0.0.1:4200/` at 1440px **signed out** — 5 cards, About alone on row 3 and spanning it.
-- [ ] Manual: sign in as `admin@gones.test` — 6 cards, row 3 holds My registrations/Settings/About laid out two-per-row with About half width, none stretched.
-- [ ] Manual: shrink to 480px — every card is full width, no horizontal overflow, no gap artefact where the old override used to be.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `fix(menu): size the last home card by row occupancy instead of pinning About`
+- [x] `npm run test` passes (81 files, 538 tests passed, including the 6 new `home-grid-rule.test.ts` assertions)
+- [x] `npm run lint` passes ("All files pass linting.")
+- [x] `npm run typecheck` passes (no output, exit 0)
+- [x] `npm run build` passes ("Application bundle generation complete.")
+- [ ] Manual: `npm run dev`, open `http://127.0.0.1:4200/` at 1440px **signed out** — 5 cards, About alone on row 3 and spanning it. NOT run — no live browser in this session; automated proof is the `home-grid-rule.test.ts` "signed out renders an odd number of cards" (5) test plus the CSS `:last-child:nth-child(odd)` rule test. Logged in manual checklist for human verification.
+- [ ] Manual: sign in as `admin@gones.test` — 6 cards, row 3 holds My registrations/Settings/About laid out two-per-row with About half width, none stretched. NOT run — same reason; the About-card-not-pinned test plus the even-card-count arithmetic (5 + registrations card = 6) is the automated proxy. Logged in manual checklist.
+- [ ] Manual: shrink to 480px — every card is full width, no horizontal overflow, no gap artefact where the old override used to be. NOT run — same reason; automated proxy is the "dead narrow-viewport override is gone" test confirming no leftover `grid-column: auto` rule. Logged in manual checklist.
+- [x] app functional — no broken path from this slice (full test suite, lint, typecheck, build all pass; no TS files touched)
+- [x] commit msg draft: `fix(menu): size the last home card by row occupancy instead of pinning About`

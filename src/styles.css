@@ -125,6 +125,8 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .calendar-status { color: oklch(75% 0.12 35); font-size: .75rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .account-danger-zone { border-color: var(--hot-blood); }
 .home-destinations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+/* Last card takes the whole row only when it would sit alone on it; with an even count every card stays half width. */
+.home-destinations > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 .home-destination { min-height: 13rem; display: grid; align-content: end; gap: .7rem; padding: clamp(1rem, 2.2vw, 1.5rem); border: 1px solid var(--soot); background: var(--iron); color: var(--ash); text-decoration: none; transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
 .home-destination:hover, .home-destination:focus-visible { transform: translateY(-3px); border-color: var(--hot-blood); background: oklch(14% 0.052 29); box-shadow: 0 18px 44px oklch(4% 0.012 29 / 0.36); outline: 2px solid color-mix(in oklch, var(--hot-blood) 70%, transparent); outline-offset: 3px; }
 .home-destination strong { font-size: clamp(1.45rem, 3vw, 2.35rem); line-height: 1; letter-spacing: -.035em; }
@@ -135,7 +137,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .home-destination--calendar { background: radial-gradient(circle at 18% 10%, color-mix(in oklch, var(--blood) 18%, transparent), transparent 11rem), var(--black-metal); }
 .home-destination--settings { border-color: color-mix(in oklch, var(--dim-ash) 34%, var(--soot)); background: radial-gradient(circle at 82% 14%, color-mix(in oklch, var(--dim-ash) 28%, transparent), transparent 11rem), linear-gradient(145deg, oklch(24% 0.006 260), oklch(12% 0.006 260)); }
 .home-destination--settings:hover, .home-destination--settings:focus-visible { border-color: color-mix(in oklch, var(--dim-ash) 58%, var(--steel)); background: radial-gradient(circle at 82% 14%, color-mix(in oklch, var(--dim-ash) 34%, transparent), transparent 11rem), linear-gradient(145deg, oklch(28% 0.006 260), oklch(14% 0.006 260)); box-shadow: 0 18px 44px oklch(4% 0.006 260 / 0.36); }
-.home-destination--about { grid-column: 1 / -1; min-height: 10rem; border-color: color-mix(in oklch, var(--blood) 42%, var(--soot)); background: radial-gradient(circle at 82% 20%, color-mix(in oklch, var(--blood) 26%, transparent), transparent 17rem), linear-gradient(120deg, var(--iron), var(--black-metal)); }
+.home-destination--about { min-height: 10rem; border-color: color-mix(in oklch, var(--blood) 42%, var(--soot)); background: radial-gradient(circle at 82% 20%, color-mix(in oklch, var(--blood) 26%, transparent), transparent 17rem), linear-gradient(120deg, var(--iron), var(--black-metal)); }
 .calendar-empty-callout { display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1fr); gap: clamp(1rem, 4vw, 3rem); align-items: start; padding: clamp(1rem, 3vw, 2rem); border: 1px solid var(--soot); background: color-mix(in oklch, var(--raised-iron) 76%, transparent); }
 .calendar-empty-callout p { max-width: 68ch; margin: 0; color: var(--dim-ash); font-size: 1.05rem; line-height: 1.7; }
 .info-page { display: grid; gap: clamp(1.25rem, 4vw, 3rem); }
@@ -447,7 +449,6 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 }
 @media (max-width: 860px) {
   .home-destinations, .calendar-empty-callout, .settings-row, .settings-archetype-add, .settings-archetype-item { grid-template-columns: 1fr; }
-  .home-destination--about { grid-column: auto; }
   .info-hero h1 { max-width: 100%; }
   .home-destination, .home-destination--leagues { min-height: 11rem; }
   .about-numbers, .about-event-grid, .about-team-grid { grid-template-columns: 1fr; }
