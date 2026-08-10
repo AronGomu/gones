@@ -299,3 +299,22 @@ message appears while typing, and the French runtime strings — those need a hu
 - [ ] Sign in with an account whose password is shorter than the server's 12-character registration
       policy (a legacy account, if one exists): the 3-character client gate must let it through — the
       login form deliberately does not mirror the server policy (assumption A8).
+
+## T7 calendar-sync-action-row
+
+Automated coverage: `public-calendar.component.test.ts` proves the top row's source-level layout contract
+(back button + sync group share `calendar-top-actions`, stamp precedes the button, the icon is inline SVG
+with `aria-hidden="true"`, the header keeps only the view tabs and Create action, `.calendar-top-actions`
+is `display: flex; justify-content: space-between`). `cypress/e2e/public-calendar.cy.js`'s "Synchroniser
+forces a refetch" case clicks `[data-cy="calendar-sync"]` and asserts `[data-cy="calendar-synced-at"]`
+becomes visible afterwards. None of that proves rendered pixel position, responsive wrap, or offline
+rendering — those need a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/calendar`: the back-to-menu button sits on the left of the
+      top row, the Synchronise button with its circular-arrows icon is on the right, and the "last
+      synchronised" text sits immediately to its left of the button.
+- [ ] Clear the cached catalogue (the `localStorage` key used by `all-tournaments-cache.service.ts`) and
+      reload: with no `syncedAt` yet, the stamp is absent and the Synchronise button is still flush right.
+- [ ] Resize to 480px wide: the sync group wraps under the back button without horizontal overflow.
+- [ ] Throttle the network to offline (or block `fonts.googleapis.com`) and reload: the sync icon still
+      renders, because it is inline SVG and not a Material Icons webfont glyph.

@@ -1120,6 +1120,12 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .calendar-search-input { width: 100%; min-height: 48px; padding: .6rem .75rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }
 .calendar-filter-form input:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
 .calendar-header-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.calendar-top-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.calendar-top-actions .back-button-row--top { margin-bottom: 0; }
+.calendar-sync-group { display: inline-flex; align-items: center; gap: .6rem; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.calendar-synced-at { font-size: .82rem; white-space: nowrap; }
+.calendar-sync-button { display: inline-flex; align-items: center; gap: .45rem; }
+.calendar-sync-icon { width: 18px; height: 18px; flex: 0 0 18px; }
 .calendar-offline-banner { margin: 0; }
 .calendar-state { display: grid; justify-items: start; gap: .75rem; padding: clamp(1rem, 3vw, 2rem); }
 .calendar-skeleton, .calendar-detail-skeleton { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 1rem; }

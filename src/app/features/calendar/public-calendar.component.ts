@@ -38,7 +38,16 @@ const SEARCH_DEBOUNCE_MS = 300;
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent],
   template: `
-    <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="calendar-back-top" />
+    <div class="calendar-top-actions" data-cy="calendar-top-actions">
+      <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="calendar-back-top" />
+      <div class="calendar-sync-group" data-cy="calendar-sync-group">
+        @if (syncedAt(); as instant) { <span class="muted calendar-synced-at" data-cy="calendar-synced-at">{{ i18n.t('calendar.syncedAt', { instant: i18n.formatDateTime(instant) }) }}</span> }
+        <button mat-stroked-button type="button" class="secondary-action calendar-sync-button" data-cy="calendar-sync" [disabled]="loading()" (click)="sync()" [attr.aria-label]="i18n.t('calendar.synchroniseAria')">
+          <svg class="calendar-sync-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.9-3" /><path d="M4 5v5h5" /><path d="M4 13a8 8 0 0 0 14.9 3" /><path d="M20 19v-5h-5" /></svg>
+          <span data-cy="calendar-sync-label">{{ i18n.t('calendar.synchronise') }}</span>
+        </button>
+      </div>
+    </div>
     <section class="info-page public-calendar-page" aria-labelledby="public-calendar-title" data-cy="public-calendar">
       <header class="section-header" data-cy="calendar-header">
         <div data-cy="calendar-header-text"><h1 id="public-calendar-title" data-cy="calendar-title">{{ i18n.t('calendar.publicTitle') }}</h1></div>
@@ -47,11 +56,9 @@ const SEARCH_DEBOUNCE_MS = 300;
             <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'calendar'" data-cy="calendar-view" (click)="setView('calendar')">{{ i18n.t('calendar.tabCalendar') }}</button>
             <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'list'" data-cy="list-view" (click)="setView('list')">{{ i18n.t('calendar.listView') }}</button>
           </div>
-          <button mat-stroked-button type="button" class="secondary-action" data-cy="calendar-sync" [disabled]="loading()" (click)="sync()">{{ i18n.t('calendar.synchronise') }}</button>
           @if (canCreateTournament()) {
             <a mat-flat-button class="home-primary-action" routerLink="/tournaments/new" data-cy="calendar-create-tournament">{{ i18n.t('calendar.createTournament') }}</a>
           }
-          @if (syncedAt(); as instant) { <span class="muted" data-cy="calendar-synced-at">{{ i18n.t('calendar.syncedAt', { instant: i18n.formatDateTime(instant) }) }}</span> }
         </div>
       </header>
 

@@ -20,6 +20,8 @@ import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settin
 import { AuthService } from '../../auth/auth.service';
 import { PublicTournamentView } from './public-calendar';
 import { UserProfileResponse } from '../../api/generated/gones-api';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const tournament: PublicTournamentView = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -236,5 +238,74 @@ describe('PublicCalendarComponent', () => {
   it('shows the create button when signed in with a verified email', () => {
     const { component } = setup({ profile: verifiedUserProfile });
     expect(component.canCreateTournament()).toBe(true);
+  });
+});
+
+describe('PublicCalendarComponent top action row layout', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  it('the sync button shares the back-button row', () => {
+    const open = source.indexOf('data-cy="calendar-top-actions"');
+    expect(open).toBeGreaterThan(-1);
+    const rowStart = source.lastIndexOf('<div', open);
+    const rowEnd = source.indexOf('</div>\n    </div>', rowStart);
+    expect(rowEnd).toBeGreaterThan(-1);
+    const row = source.slice(rowStart, rowEnd);
+    expect(row).toContain('data-cy="calendar-back-top"');
+    expect(row).toContain('data-cy="calendar-sync"');
+  });
+
+  it('the last-sync stamp is to the left of the button', () => {
+    const groupStart = source.indexOf('data-cy="calendar-sync-group"');
+    expect(groupStart).toBeGreaterThan(-1);
+    const groupEnd = source.indexOf('</div>', source.indexOf('data-cy="calendar-sync"', groupStart));
+    const group = source.slice(groupStart, groupEnd);
+    const syncedAtIndex = group.indexOf('calendar-synced-at');
+    const syncIndex = group.indexOf('calendar-sync"');
+    expect(syncedAtIndex).toBeGreaterThan(-1);
+    expect(syncedAtIndex).toBeLessThan(syncIndex);
+  });
+
+  it('the sync button carries an icon', () => {
+    const buttonStart = source.indexOf('data-cy="calendar-sync"');
+    const buttonEnd = source.indexOf('</button>', buttonStart);
+    const button = source.slice(buttonStart, buttonEnd);
+    expect(button).toContain('<svg');
+    expect(button).toContain('class="calendar-sync-icon"');
+  });
+
+  it('the icon is decorative', () => {
+    const iconStart = source.indexOf('class="calendar-sync-icon"');
+    const iconTagStart = source.lastIndexOf('<svg', iconStart);
+    const iconTagEnd = source.indexOf('>', iconStart);
+    const icon = source.slice(iconTagStart, iconTagEnd);
+    expect(icon).toContain('aria-hidden="true"');
+  });
+
+  it('the header no longer holds the sync affordance', () => {
+    const headerStart = source.indexOf('data-cy="calendar-header-actions"');
+    const headerEnd = source.indexOf('</div>\n      </header>', headerStart);
+    expect(headerEnd).toBeGreaterThan(-1);
+    const header = source.slice(headerStart, headerEnd);
+    expect(header).not.toContain('calendar-sync"');
+    expect(header).not.toContain('calendar-synced-at');
+  });
+
+  it('the header keeps the view tabs and the create action', () => {
+    const headerStart = source.indexOf('data-cy="calendar-header-actions"');
+    const headerEnd = source.indexOf('</div>\n      </header>', headerStart);
+    const header = source.slice(headerStart, headerEnd);
+    expect(header).toContain('calendar-view-tabs');
+    expect(header).toContain('calendar-create-tournament');
+  });
+
+  it('the top row is laid out as a justified row', () => {
+    const ruleStart = stylesheet.indexOf('.calendar-top-actions {');
+    expect(ruleStart).toBeGreaterThan(-1);
+    const ruleEnd = stylesheet.indexOf('}', ruleStart);
+    const rule = stylesheet.slice(ruleStart, ruleEnd);
+    expect(rule).toContain('display: flex');
+    expect(rule).toContain('justify-content: space-between');
   });
 });

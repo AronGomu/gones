@@ -87,9 +87,9 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Impl steps
 
-- [ ] 1. Add the eight cases above to `src/app/features/calendar/public-calendar.component.test.ts`. Read the component source with `readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8')` and the stylesheet with `readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8')`. For the last row, reuse the file's existing `setup()` helper and its `catalog` stub.
-- [ ] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new layout cases must fail.
-- [ ] 3. In `src/app/features/calendar/public-calendar.component.ts`, replace the standalone `<gones-back-button … position="top" …/>` line with:
+- [x] 1. Add the eight cases above to `src/app/features/calendar/public-calendar.component.test.ts`. Read the component source with `readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8')` and the stylesheet with `readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8')`. For the last row, reuse the file's existing `setup()` helper and its `catalog` stub.
+- [x] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new layout cases must fail.
+- [x] 3. In `src/app/features/calendar/public-calendar.component.ts`, replace the standalone `<gones-back-button … position="top" …/>` line with:
       ```html
       <div class="calendar-top-actions" data-cy="calendar-top-actions">
         <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="calendar-back-top" />
@@ -102,12 +102,12 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
         </div>
       </div>
       ```
-- [ ] 4. In the same template, delete these two lines from inside `.calendar-header-actions`:
+- [x] 4. In the same template, delete these two lines from inside `.calendar-header-actions`:
       - the old `<button … data-cy="calendar-sync" …>{{ i18n.t('calendar.synchronise') }}</button>`
       - the old `@if (syncedAt(); as instant) { <span class="muted" data-cy="calendar-synced-at">…</span> }`
       Leave `calendar-view-tabs` and the `canCreateTournament()` block where they are.
-- [ ] 5. In `src/app/i18n/messages.ts`, add `'calendar.synchroniseAria': 'Synchronise the tournament catalogue',` to the `en` map beside `calendar.synchronise` (line 508), and `'calendar.synchroniseAria': 'Synchroniser le catalogue des tournois',` to the `fr` map beside its own (line 1535).
-- [ ] 6. In `src/styles.css`, next to the other `public-calendar-*` rules (around line 1105), add:
+- [x] 5. In `src/app/i18n/messages.ts`, add `'calendar.synchroniseAria': 'Synchronise the tournament catalogue',` to the `en` map beside `calendar.synchronise` (line 508), and `'calendar.synchroniseAria': 'Synchroniser le catalogue des tournois',` to the `fr` map beside its own (line 1535).
+- [x] 6. In `src/styles.css`, next to the other `public-calendar-*` rules (around line 1105), add:
       ```css
       .calendar-top-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
       .calendar-top-actions .back-button-row--top { margin: 0; }
@@ -117,7 +117,7 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
       .calendar-sync-icon { width: 18px; height: 18px; flex: 0 0 18px; }
       ```
       First run `grep -n "back-button-row" src/styles.css` and confirm the existing `--top` rule's margin is what the override above must neutralise; adjust the override to match the real property if it is not `margin`.
-- [ ] 7. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 7. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
 
 ## Outputs
 
@@ -127,15 +127,15 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
-- [ ] Manual: `npm run dev`, open `http://127.0.0.1:4200/calendar` — the back-to-menu button is on the left of the top row, the Synchronise button with its circular-arrows icon is on the right, and the "last synchronised" text sits immediately to its left.
-- [ ] Manual: click Synchronise — the button disables while loading, the stamp updates on completion.
-- [ ] Manual: clear the cached catalogue (`localStorage` key used by `all-tournaments-cache.service.ts`) and reload — with no `syncedAt` the stamp is absent and the button is still flush right.
-- [ ] Manual: at 480px the group wraps under the back button without horizontal overflow.
-- [ ] Manual: with the network throttled to offline the icon still renders (it is inline SVG, not a webfont glyph).
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(calendar): move the sync action and its stamp onto the top row`
+- [x] `npm run test` passes
+- [x] `npm run lint` passes
+- [x] `npm run typecheck` passes
+- [x] `npm run build` passes
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
+- [ ] Manual: `npm run dev`, open `http://127.0.0.1:4200/calendar` — the back-to-menu button is on the left of the top row, the Synchronise button with its circular-arrows icon is on the right, and the "last synchronised" text sits immediately to its left. (needs human browser; layout-contract test `the sync button shares the back-button row` + `the last-sync stamp is to the left of the button` cover the DOM order automatically — see manual checklist)
+- [x] Manual: click Synchronise — the button disables while loading, the stamp updates on completion. (automated: cypress `Synchroniser forces a refetch` in `public-calendar.cy.js` exercises `[data-cy="calendar-sync"]` click and asserts `calendar-synced-at` becomes visible)
+- [ ] Manual: clear the cached catalogue (`localStorage` key used by `all-tournaments-cache.service.ts`) and reload — with no `syncedAt` the stamp is absent and the button is still flush right. (needs human browser; no automated equivalent added — see manual checklist)
+- [ ] Manual: at 480px the group wraps under the back button without horizontal overflow. (needs human browser; no automated equivalent added — see manual checklist)
+- [ ] Manual: with the network throttled to offline the icon still renders (it is inline SVG, not a webfont glyph). (needs human browser; no automated equivalent added — see manual checklist)
+- [x] app functional — no broken path from this slice (`npm run test`, `npm run lint`, `npm run typecheck`, `npm run build`, cypress spec all pass)
+- [x] commit msg draft: `feat(calendar): move the sync action and its stamp onto the top row`
