@@ -165,11 +165,11 @@ Service tests (`local-league-archive-backend.service.test.ts`) — copy the Inde
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/data/league-archive-origin.ts` exactly as written in the Test plan.
-- [ ] 2. Create `src/app/data/league-archive-origin.test.ts` with the seven origin cases. Run `npx vitest run src/app/data/league-archive-origin.test.ts` — green (this module is small enough to land test-first-and-green in one step; the service below is the real red/green cycle).
-- [ ] 3. Create `src/app/backend/local-league-archive-backend.service.test.ts`. Copy the IndexedDB fake and the `beforeEach` teardown from `src/app/backend/local-live-backend.service.test.ts` verbatim, then write every service case above against `new LocalLeagueArchiveBackend()`.
-- [ ] 4. Run `npx vitest run src/app/backend/local-league-archive-backend.service.test.ts` — it must fail to resolve the service.
-- [ ] 5. Create `src/app/backend/local-league-archive-backend.service.ts`. Header comment: name ADR 0028, state that this is the League half of the browser-local authority, that it never synchronises, and that every rule lives in `src/app/domain/models.ts`. Then:
+- [x] 1. Create `src/app/data/league-archive-origin.ts` exactly as written in the Test plan.
+- [x] 2. Create `src/app/data/league-archive-origin.test.ts` with the seven origin cases. Run `npx vitest run src/app/data/league-archive-origin.test.ts` — green (this module is small enough to land test-first-and-green in one step; the service below is the real red/green cycle).
+- [x] 3. Create `src/app/backend/local-league-archive-backend.service.test.ts`. Copy the IndexedDB fake and the `beforeEach` teardown from `src/app/backend/local-live-backend.service.test.ts` verbatim, then write every service case above against `new LocalLeagueArchiveBackend()`.
+- [x] 4. Run `npx vitest run src/app/backend/local-league-archive-backend.service.test.ts` — it must fail to resolve the service.
+- [x] 5. Create `src/app/backend/local-league-archive-backend.service.ts`. Header comment: name ADR 0028, state that this is the League half of the browser-local authority, that it never synchronises, and that every rule lives in `src/app/domain/models.ts`. Then:
       a. `export const LOCAL_LEAGUE_DB_NAME = 'gones-leagues';`, `export const LOCAL_LEAGUE_STORE = 'leagues';`, `const LOCAL_LEAGUE_DB_VERSION = 1;`
       b. `export class LeagueConcurrencyError extends Error { readonly status = 412; constructor() { super('staleLeagueDocument'); this.name = 'LeagueConcurrencyError'; } }`
       c. `@Injectable({ providedIn: 'root' }) export class LocalLeagueArchiveBackend implements Partial<LeagueArchiveBackendPort>` — `Partial` for this commit only; T13 completes it and drops `Partial`.
@@ -183,8 +183,8 @@ Service tests (`local-league-archive-backend.service.test.ts`) — copy the Inde
       k. `renameLeagueArchive` and `changeLeagueArchiveStatus` — one-line `mutate` calls.
       l. `restoreLeagueArchive(command)` — `this.putRestored(command.league)`; `restoreFullLeagueArchiveData(command)` — map the array through the same helper, sequentially.
       m. `private async putRestored(league: LeagueDocument): Promise<PersistedLeague>` — compute the target id: `isPlaceholderLeagueId(league.id) || league.id === LOCAL_PLACEHOLDER_LEAGUE_ID ? LOCAL_PLACEHOLDER_LEAGUE_ID : isLocalLeagueId(league.id) ? league.id : newLocalLeagueId()`; rebuild with `createLeague({ ...league, id: targetId })`; carry `documentVersion: 1`; `put`; return.
-- [ ] 6. Run step 4's command — green.
-- [ ] 7. In `src/app/backend/server-authority-boundary.test.ts`, extend the IndexedDB allowlist to:
+- [x] 6. Run step 4's command — green.
+- [x] 7. In `src/app/backend/server-authority-boundary.test.ts`, extend the IndexedDB allowlist to:
       ```ts
       expect(filesMatching(/\bindexedDB\b|\bIDB[A-Z]\w*/)).toEqual([
         // Promise wrapper over the raw request/transaction API. No data rules.
@@ -196,8 +196,8 @@ Service tests (`local-league-archive-backend.service.test.ts`) — copy the Inde
       ]);
       ```
       Keep the array sorted — `filesMatching` sorts its result, and `local-league-…` sorts before `local-live-…`.
-- [ ] 8. Update the file's header comment so it names ADR 0028 alongside ADR 0021 as the reason a browser store exists.
-- [ ] 9. Run `npx vitest run src/app/backend src/app/data` — green.
+- [x] 8. Update the file's header comment so it names ADR 0028 alongside ADR 0021 as the reason a browser store exists.
+- [x] 9. Run `npx vitest run src/app/backend src/app/data` — green.
 
 ## Outputs
 
@@ -211,11 +211,12 @@ Service tests (`local-league-archive-backend.service.test.ts`) — copy the Inde
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx vitest run src/app/backend/server-authority-boundary.test.ts` passes with the three-file allowlist
-- [ ] Manual: `npm run dev` and browse the app — nothing changed, because nothing injects the new service yet. Confirm no `gones-leagues` database appears in DevTools → Application → IndexedDB.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(leagues): add the browser-local league store and its core commands`
+- [x] `npm run test` passes — 86 files / 662 tests passed (baseline before this slice: 84 / 635)
+- [x] `npm run lint` passes — "All files pass linting."
+- [x] `npm run typecheck` passes — both `tsconfig.app.json` and `tsconfig.spec.json`, no output
+- [x] `npm run build` passes — "Application bundle generation complete. [3.353 seconds]"
+- [x] `npx vitest run src/app/backend/server-authority-boundary.test.ts` passes with the three-file allowlist — 1 file / 12 tests passed
+- [x] Manual: `npm run dev` and browse the app — nothing changed, because nothing injects the new service yet. Confirm no `gones-leagues` database appears in DevTools → Application → IndexedDB.
+      *Automated equivalent (no human browser used):* after `npm run build`, `grep -rl "gones-leagues" dist/gones` and `grep -rl "LocalLeagueArchiveBackend" dist/gones` both return nothing, while the control `grep -rl "gones-live" dist/gones` matches three chunks — the new adapter is tree-shaken out of the shipped bundle, so no `gones-leagues` database can be opened at runtime. Source-side, the only reference to the service outside its own file and test is the boundary-test allowlist. The human step is still recorded in `ai-artifacts/manual_test_checklist.md`.
+- [x] app functional — no broken path from this slice: full vitest suite and `ng build` green, and the production bundle is byte-for-byte free of the new module (nothing injects it).
+- [x] commit msg draft: `feat(leagues): add the browser-local league store and its core commands`

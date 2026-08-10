@@ -9,12 +9,13 @@ import { AspNetApiBackend } from './aspnet-api-backend.service';
 
 /**
  * Authority boundary (C42, narrowed to server-only by ADR 0020, then narrowed again for the Live
- * Tournament capability only by ADR 0021).
+ * Tournament capability by ADR 0021 and for the League Archive by ADR 0028).
  *
- * The API database is still the authority for League, Calendar, auth, organizer and admin. These
- * assertions fail if a canonical browser store, a whole-document mutation path, or the retired
- * CalendarEvent store comes back — or if the one sanctioned browser store, the Live local adapter,
- * spreads beyond the two files ADR 0021 confines it to.
+ * The API database is still the authority for Calendar, auth, organizer, admin and every server
+ * League. These assertions fail if a canonical browser store, a whole-document mutation path, or the
+ * retired CalendarEvent store comes back — or if the two sanctioned browser stores, the Live local
+ * adapter (ADR 0021) and the League local adapter (ADR 0028), spread beyond the three files those
+ * ADRs confine them to.
  */
 
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -96,13 +97,16 @@ describe('canonical browser store containment', () => {
     expect(filesMatching(/from '.*local-frontend-backend\.service'/)).toEqual([]);
   });
 
-  it('confines IndexedDB to the Live local adapter', () => {
-    // ADR 0021 reopened a browser store for Live Tournaments and for nothing else. The pattern
-    // covers the whole IndexedDB surface, not just the `indexedDB` global, so a leaked `IDBDatabase`
-    // parameter in a repository or component is caught too. Adding a file here is an ADR decision.
+  it('confines IndexedDB to the sanctioned local adapters', () => {
+    // ADR 0021 reopened a browser store for Live Tournaments, ADR 0028 for the League Archive, and
+    // for nothing else. The pattern covers the whole IndexedDB surface, not just the `indexedDB`
+    // global, so a leaked `IDBDatabase` parameter in a repository or component is caught too. Adding
+    // a file here is an ADR decision.
     expect(filesMatching(/\bindexedDB\b|\bIDB[A-Z]\w*/)).toEqual([
       // Promise wrapper over the raw request/transaction API. No data rules.
       'src/app/backend/indexed-db.ts',
+      // The League browser-local adapter (ADR 0028), composing the pure domain.
+      'src/app/backend/local-league-archive-backend.service.ts',
       // The Live browser-local adapter itself (anonymous + `User`), composing the pure domain.
       'src/app/backend/local-live-backend.service.ts'
     ]);

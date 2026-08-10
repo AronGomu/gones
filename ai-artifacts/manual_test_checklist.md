@@ -408,3 +408,22 @@ browser — that needs a human:
       and the pagination status reflects the clamped page number.
 - [ ] Switch from the List tab to the Calendar tab while on a page other than 1 — the pagination row
       disappears and `page` is not present in the URL.
+
+## T12 local-league-store-core
+
+Automated coverage: `src/app/data/league-archive-origin.test.ts` (7 cases) pins the ADR 0028 id-prefix
+routing rule, and `src/app/backend/local-league-archive-backend.service.test.ts` (20 cases) drives
+`LocalLeagueArchiveBackend` against an in-memory IndexedDB fake — placeholder seeding, local ids,
+name trimming, version-guarded rename/status/delete, `staleLeagueDocument` (412) refusals leaving the
+document untouched, `updatedAt` stamping, placeholder-first sorting, and restore rewriting incoming
+ids into the `local-` namespace. `server-authority-boundary.test.ts` holds the three-file IndexedDB
+allowlist. The ticket's own manual line (nothing changed yet) was proved automatically: the built
+bundle contains no `gones-leagues` string and no `LocalLeagueArchiveBackend`, so nothing can open the
+database. None of that is a real browser against a real IndexedDB — that needs a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200`, browse Leagues and the archive league page signed
+      out and signed in — behaviour is identical to before this commit; no new option, badge or error
+      appears anywhere.
+- [ ] DevTools → Application → IndexedDB — only `gones-live` is listed; no `gones-leagues` database
+      exists after browsing every page.
+- [ ] DevTools → Network — no request fails and no new request appears that was not there before.
