@@ -427,3 +427,25 @@ database. None of that is a real browser against a real IndexedDB — that needs
 - [ ] DevTools → Application → IndexedDB — only `gones-live` is listed; no `gones-leagues` database
       exists after browsing every page.
 - [ ] DevTools → Network — no request fails and no new request appears that was not there before.
+
+## T13 local-league-store-parity
+
+Automated coverage: `src/app/backend/local-league-archive-backend.service.test.ts` grew to 44 cases —
+every one of the 13 newly implemented `LeagueArchiveBackendPort` methods (tournament create/edit/
+delete/move, round add/delete/replace/import, entry add/edit/delete, player archetype upsert, league
+player rename), the exactly-one-version-bump rule per command, a stale-version refusal per command
+leaving the stored document identical, both stale sides of a two-document move, the
+`crossAuthorityMoveNotSupported` refusal for a server target, and a move into the local placeholder.
+`npm run typecheck` is the parity gate: the class now declares `implements LeagueArchiveBackendPort`
+with no `Partial`, so a missing or mis-typed method cannot compile. The ticket's manual line is again
+a negative check and was proved by build-and-grep instead of a browser: after `npm run build`,
+`grep -ro 'gones-leagues' dist/gones | wc -l` returns `0` and nothing outside the service and its own
+test names `LocalLeagueArchiveBackend`, so the adapter is tree-shaken out and no browser session can
+open the database. A human still owns the real-browser confirmation:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200`, browse Leagues, an archive league and a tournament
+      detail page signed out and signed in — behaviour is identical to before this commit; no new
+      option, badge or error appears anywhere.
+- [ ] DevTools → Application → IndexedDB — only `gones-live` is listed; no `gones-leagues` database
+      exists after browsing every page.
+- [ ] DevTools → Network — no request fails and no new request appears that was not there before.

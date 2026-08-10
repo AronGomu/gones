@@ -154,8 +154,8 @@ Set up a shared fixture helper in the test file: `async function leagueWithRound
 
 ## Impl steps
 
-- [ ] 1. Add the whole Test plan to `src/app/backend/local-league-archive-backend.service.test.ts`, including the `leagueWithRound()` helper. Run `npx vitest run src/app/backend/local-league-archive-backend.service.test.ts` — the new cases must fail.
-- [ ] 2. Add a private tournament-level helper so the twelve tournament/round/entry methods stay one-liners:
+- [x] 1. Add the whole Test plan to `src/app/backend/local-league-archive-backend.service.test.ts`, including the `leagueWithRound()` helper. Run `npx vitest run src/app/backend/local-league-archive-backend.service.test.ts` — the new cases must fail.
+- [x] 2. Add a private tournament-level helper so the twelve tournament/round/entry methods stay one-liners:
       ```ts
       private mutateTournament(id: string, tournamentId: string, expectedVersion: number, change: (tournament: TournamentDocument) => TournamentDocument): Promise<PersistedLeague> {
         return this.mutate(id, expectedVersion, (league) => ({
@@ -173,19 +173,19 @@ Set up a shared fixture helper in the test file: `async function leagueWithRound
         }));
       }
       ```
-- [ ] 3. `createArchiveTournament(id, expectedVersion, name, tournamentDate)` → `this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: [...league.tournaments, createTournament({ leagueId: league.id, name, tournamentDate })] }))`.
-- [ ] 4. `editArchiveTournament` → `mutateTournament(..., (tournament) => createTournament({ ...tournament, name, tournamentDate }))`.
-- [ ] 5. `deleteArchiveTournament` → `this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: league.tournaments.filter((tournament) => tournament.id !== tournamentId) }))`.
-- [ ] 6. `addArchiveRound` → `mutateTournament(..., (tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound({})] }))`.
-- [ ] 7. `deleteArchiveRound` → `mutateTournament(..., (tournament) => ({ ...tournament, rounds: tournament.rounds.filter((round) => round.id !== roundId) }))`.
-- [ ] 8. `replaceArchiveRound` → `mutateRound(..., (round) => createRound({ id: round.id, entries }))`.
-- [ ] 9. `importArchiveRound` → `mutateRound(..., (round) => createRound({ id: round.id, entries: importRoundEntries(text) }))`. **First read `src/app/domain/round-import.ts` and match its real exported signature**; if it takes options or returns a wrapper, adapt the call and say so in a comment.
-- [ ] 10. `addArchiveEntry` → `mutateRound(..., (round) => createRound({ id: round.id, entries: [...round.entries, entry] }))`.
-- [ ] 11. `editArchiveEntry` → `mutateRound(..., (round) => createRound({ id: round.id, entries: round.entries.map((item) => item.id === entryId ? { ...entry, id: entryId } : item) }))`.
-- [ ] 12. `deleteArchiveEntry` → `mutateRound(..., (round) => createRound({ id: round.id, entries: round.entries.filter((item) => item.id !== entryId) }))`.
-- [ ] 13. `updateArchivePlayerArchetype` → `mutateTournament(..., (tournament) => ({ ...tournament, playerArchetypes: upsertArchetype(tournament.playerArchetypes, playerName, archetype) }))` with a module-private `upsertArchetype` that compares names through `trimPlayerName` and normalises the value through `normalizeDeckArchetype`.
-- [ ] 14. `renameLeagueArchivePlayerName(id, expectedVersion, fromName, toName)` → `this.mutate(id, expectedVersion, (league) => renamePlayerInLeague(league, fromName, toName))`. Read `src/app/domain/rename-player.ts` for the real signature and adapt if it returns a wrapper rather than a `LeagueDocument`.
-- [ ] 15. `moveArchiveTournament(id, tournamentId, expectedVersion, targetLeagueId, targetExpectedVersion)` — this one cannot use `mutate` because it spans two documents. Write it explicitly:
+- [x] 3. `createArchiveTournament(id, expectedVersion, name, tournamentDate)` → `this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: [...league.tournaments, createTournament({ leagueId: league.id, name, tournamentDate })] }))`.
+- [x] 4. `editArchiveTournament` → `mutateTournament(..., (tournament) => createTournament({ ...tournament, name, tournamentDate }))`.
+- [x] 5. `deleteArchiveTournament` → `this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: league.tournaments.filter((tournament) => tournament.id !== tournamentId) }))`.
+- [x] 6. `addArchiveRound` → `mutateTournament(..., (tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound({})] }))`.
+- [x] 7. `deleteArchiveRound` → `mutateTournament(..., (tournament) => ({ ...tournament, rounds: tournament.rounds.filter((round) => round.id !== roundId) }))`.
+- [x] 8. `replaceArchiveRound` → `mutateRound(..., (round) => createRound({ id: round.id, entries }))`.
+- [x] 9. `importArchiveRound` → `mutateRound(..., (round) => createRound({ id: round.id, entries: importRoundEntries(text) }))`. **First read `src/app/domain/round-import.ts` and match its real exported signature**; if it takes options or returns a wrapper, adapt the call and say so in a comment.
+- [x] 10. `addArchiveEntry` → `mutateRound(..., (round) => createRound({ id: round.id, entries: [...round.entries, entry] }))`.
+- [x] 11. `editArchiveEntry` → `mutateRound(..., (round) => createRound({ id: round.id, entries: round.entries.map((item) => item.id === entryId ? { ...entry, id: entryId } : item) }))`.
+- [x] 12. `deleteArchiveEntry` → `mutateRound(..., (round) => createRound({ id: round.id, entries: round.entries.filter((item) => item.id !== entryId) }))`.
+- [x] 13. `updateArchivePlayerArchetype` → `mutateTournament(..., (tournament) => ({ ...tournament, playerArchetypes: upsertArchetype(tournament.playerArchetypes, playerName, archetype) }))` with a module-private `upsertArchetype` that compares names through `trimPlayerName` and normalises the value through `normalizeDeckArchetype`.
+- [x] 14. `renameLeagueArchivePlayerName(id, expectedVersion, fromName, toName)` → `this.mutate(id, expectedVersion, (league) => renamePlayerInLeague(league, fromName, toName))`. Read `src/app/domain/rename-player.ts` for the real signature and adapt if it returns a wrapper rather than a `LeagueDocument`.
+- [x] 15. `moveArchiveTournament(id, tournamentId, expectedVersion, targetLeagueId, targetExpectedVersion)` — this one cannot use `mutate` because it spans two documents. Write it explicitly:
       a. `if (!isLocalLeagueId(targetLeagueId)) throw new Error('crossAuthorityMoveNotSupported');`
       b. open the database once; load both documents through the existing `require` helper.
       c. throw `new LeagueConcurrencyError()` if `from.documentVersion !== expectedVersion` **or** `to.documentVersion !== targetExpectedVersion` — before any write.
@@ -193,9 +193,9 @@ Set up a shared fixture helper in the test file: `async function leagueWithRound
       e. build both next documents (`from` without it, `to` with `createTournament({ ...moved, leagueId: targetLeagueId })` appended), each with `documentVersion + 1` and a fresh `updatedAt`.
       f. `put` both, then return `{ fromLeague, toLeague }`.
       Note in a comment that IndexedDB cannot span the two writes in one transaction through the `indexed-db.ts` wrapper (it runs one request per transaction), so a crash between the two writes can leave the tournament in both leagues; the local store accepts that, and the boundary is documented in ADR 0028.
-- [ ] 16. Change the class declaration to `export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort`.
-- [ ] 17. Run `npm run typecheck`. Every unimplemented or mis-typed method surfaces here. Fix until clean.
-- [ ] 18. Run `npx vitest run src/app/backend src/app/domain` — green.
+- [x] 16. Change the class declaration to `export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort`.
+- [x] 17. Run `npm run typecheck`. Every unimplemented or mis-typed method surfaces here. Fix until clean.
+- [x] 18. Run `npx vitest run src/app/backend src/app/domain` — green.
 
 ## Outputs
 
@@ -205,12 +205,15 @@ Set up a shared fixture helper in the test file: `async function leagueWithRound
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes — this is the parity gate; `implements LeagueArchiveBackendPort` compiling is the proof
-- [ ] `npm run build` passes
-- [ ] `npx vitest run src/app/backend/server-authority-boundary.test.ts` still passes
-- [ ] `npx vitest run src/app/domain/league-parity-fixtures.test.ts` still passes — the shared domain rules were not altered
-- [ ] Manual: `npm run dev` and browse — nothing changed; still no `gones-leagues` database, because nothing injects the service.
-- [ ] app functional — no broken path from this slice
+- [x] `npm run test` passes — 86 files / 686 tests
+- [x] `npm run lint` passes
+- [x] `npm run typecheck` passes — this is the parity gate; `implements LeagueArchiveBackendPort` compiling is the proof
+- [x] `npm run build` passes — bundle generated, initial total 1.20 MB
+- [x] `npx vitest run src/app/backend/server-authority-boundary.test.ts` still passes
+- [x] `npx vitest run src/app/domain/league-parity-fixtures.test.ts` still passes — the shared domain rules were not altered
+- [x] Manual: `npm run dev` and browse — nothing changed; still no `gones-leagues` database, because nothing injects the service.
+      Automated equivalent (no browser in this run): `npm run build` then `grep -ro 'gones-leagues' dist/gones | wc -l` → `0`, and
+      `grep -rn LocalLeagueArchiveBackend src --include=*.ts` returns only the service and its own test. The adapter is tree-shaken
+      out of the shipped bundle, so no browser session can open the database. Logged in `ai-artifacts/manual_test_checklist.md`.
+- [x] app functional — no broken path from this slice: full suite green, build green, and the bundle grep above proves the slice adds no reachable code path.
 - [ ] commit msg draft: `feat(leagues): complete the browser-local league store to full port parity`

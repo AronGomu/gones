@@ -2,15 +2,25 @@ import { Injectable } from '@angular/core';
 import { isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID, newLocalLeagueId } from '../data/league-archive-origin';
 import {
   createLeague,
+  createRound,
+  createTournament,
   isPlaceholderLeagueId,
+  normalizeDeckArchetype,
   normalizeLeague,
+  trimPlayerName,
   LeagueDocument,
   LeagueStatus,
   PersistedLeague,
-  PLACEHOLDER_LEAGUE_NAME
+  PlayerArchetypeDocument,
+  PLACEHOLDER_LEAGUE_NAME,
+  RoundDocument,
+  RoundEntry,
+  TournamentDocument
 } from '../domain/models';
+import { renamePlayerInLeague } from '../domain/rename-player';
+import { importRoundEntries } from '../domain/round-import';
 import { get, getAll, openDatabase, put, remove } from './indexed-db';
-import type { FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand } from './application-backend';
+import type { FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Browser-local League authority (ADR 0028) — the League half of the browser-local store, next to
@@ -40,7 +50,7 @@ export class LeagueConcurrencyError extends Error {
 }
 
 @Injectable({ providedIn: 'root' })
-export class LocalLeagueArchiveBackend implements Partial<LeagueArchiveBackendPort> {
+export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
   private database?: Promise<IDBDatabase>;
 
   async listLeagueArchives(): Promise<PersistedLeague[]> {
@@ -82,6 +92,93 @@ export class LocalLeagueArchiveBackend implements Partial<LeagueArchiveBackendPo
     await remove(database, LOCAL_LEAGUE_STORE, id);
   }
 
+  createArchiveTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
+    return this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: [...league.tournaments, createTournament({ leagueId: league.id, name, tournamentDate })] }));
+  }
+
+  editArchiveTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
+    return this.mutateTournament(id, tournamentId, expectedVersion, (tournament) => createTournament({ ...tournament, name, tournamentDate }));
+  }
+
+  deleteArchiveTournament(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {
+    return this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: league.tournaments.filter((tournament) => tournament.id !== tournamentId) }));
+  }
+
+  /**
+   * The one command that spans two documents, so the one that cannot use `mutate`. Both versions are
+   * guarded before either write, so a stale move is refused with both leagues untouched. The two
+   * writes still cannot share a transaction — `indexed-db.ts` runs one request per transaction — so a
+   * crash between them can leave the tournament in both leagues; ADR 0028 accepts that for a
+   * browser-local store with a single writer.
+   */
+  async moveArchiveTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult> {
+    // A tournament never crosses the boundary between the two authorities (ADR 0028): export and
+    // re-import is the only bridge, and it is user-driven.
+    if (!isLocalLeagueId(targetLeagueId)) throw new Error('crossAuthorityMoveNotSupported');
+    const database = await this.open();
+    const from = await this.require(database, id);
+    const to = await this.require(database, targetLeagueId);
+    if (from.documentVersion !== expectedVersion || to.documentVersion !== targetExpectedVersion) throw new LeagueConcurrencyError();
+    const moved = from.tournaments.find((tournament) => tournament.id === tournamentId);
+    if (!moved) throw new Error('tournamentNotFound');
+    const movedAt = new Date().toISOString();
+    const fromLeague: PersistedLeague = {
+      ...normalizeLeague({ ...from, tournaments: from.tournaments.filter((tournament) => tournament.id !== tournamentId) }),
+      id: from.id,
+      documentVersion: from.documentVersion + 1,
+      updatedAt: movedAt
+    };
+    const toLeague: PersistedLeague = {
+      ...normalizeLeague({ ...to, tournaments: [...to.tournaments, createTournament({ ...moved, leagueId: targetLeagueId })] }),
+      id: to.id,
+      documentVersion: to.documentVersion + 1,
+      updatedAt: movedAt
+    };
+    await put(database, LOCAL_LEAGUE_STORE, fromLeague);
+    await put(database, LOCAL_LEAGUE_STORE, toLeague);
+    return { fromLeague, toLeague };
+  }
+
+  addArchiveRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {
+    return this.mutateTournament(id, tournamentId, expectedVersion, (tournament) => ({ ...tournament, rounds: [...tournament.rounds, createRound({})] }));
+  }
+
+  deleteArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number): Promise<PersistedLeague> {
+    return this.mutateTournament(id, tournamentId, expectedVersion, (tournament) => ({ ...tournament, rounds: tournament.rounds.filter((round) => round.id !== roundId) }));
+  }
+
+  /** `importRoundEntries` returns an `ImportResult` wrapper; the round takes its `entries`. */
+  importArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, text: string): Promise<PersistedLeague> {
+    return this.mutateRound(id, tournamentId, roundId, expectedVersion, (round) => createRound({ id: round.id, entries: importRoundEntries(text).entries }));
+  }
+
+  replaceArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, entries: RoundEntry[]): Promise<PersistedLeague> {
+    return this.mutateRound(id, tournamentId, roundId, expectedVersion, (round) => createRound({ id: round.id, entries }));
+  }
+
+  addArchiveEntry(id: string, tournamentId: string, roundId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague> {
+    return this.mutateRound(id, tournamentId, roundId, expectedVersion, (round) => createRound({ id: round.id, entries: [...round.entries, entry] }));
+  }
+
+  editArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague> {
+    return this.mutateRound(id, tournamentId, roundId, expectedVersion, (round) => createRound({
+      id: round.id,
+      entries: round.entries.map((item) => item.id === entryId ? { ...entry, id: entryId } : item)
+    }));
+  }
+
+  deleteArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number): Promise<PersistedLeague> {
+    return this.mutateRound(id, tournamentId, roundId, expectedVersion, (round) => createRound({ id: round.id, entries: round.entries.filter((item) => item.id !== entryId) }));
+  }
+
+  updateArchivePlayerArchetype(id: string, tournamentId: string, playerName: string, expectedVersion: number, archetype: string): Promise<PersistedLeague> {
+    return this.mutateTournament(id, tournamentId, expectedVersion, (tournament) => ({ ...tournament, playerArchetypes: upsertArchetype(tournament.playerArchetypes, playerName, archetype) }));
+  }
+
+  renameLeagueArchivePlayerName(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedLeague> {
+    return this.mutate(id, expectedVersion, (league) => renamePlayerInLeague(league, fromName, toName));
+  }
+
   restoreLeagueArchive(command: LeagueRestoreCommand): Promise<PersistedLeague> {
     return this.putRestored(command.league);
   }
@@ -108,6 +205,22 @@ export class LocalLeagueArchiveBackend implements Partial<LeagueArchiveBackendPo
     };
     await put(database, LOCAL_LEAGUE_STORE, next);
     return next;
+  }
+
+  /** One tournament of the league is replaced by `change`; an unknown id leaves every tournament as it was. */
+  private mutateTournament(id: string, tournamentId: string, expectedVersion: number, change: (tournament: TournamentDocument) => TournamentDocument): Promise<PersistedLeague> {
+    return this.mutate(id, expectedVersion, (league) => ({
+      ...league,
+      tournaments: league.tournaments.map((tournament) => tournament.id === tournamentId ? change(tournament) : tournament)
+    }));
+  }
+
+  /** One round of one tournament is replaced by `change`; every other round is left alone. */
+  private mutateRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, change: (round: RoundDocument) => RoundDocument): Promise<PersistedLeague> {
+    return this.mutateTournament(id, tournamentId, expectedVersion, (tournament) => ({
+      ...tournament,
+      rounds: tournament.rounds.map((round) => round.id === roundId ? change(round) : round)
+    }));
   }
 
   /**
@@ -166,6 +279,16 @@ export class LocalLeagueArchiveBackend implements Partial<LeagueArchiveBackendPo
     }
     return this.database;
   }
+}
+
+/** Player names match after `trimPlayerName`; the archetype itself goes through the domain normaliser. */
+function upsertArchetype(archetypes: PlayerArchetypeDocument[], playerName: string, archetype: string): PlayerArchetypeDocument[] {
+  const name = trimPlayerName(playerName);
+  const row: PlayerArchetypeDocument = { playerName: name, archetype: normalizeDeckArchetype(archetype) };
+  const rows = archetypes ?? [];
+  return rows.some((item) => trimPlayerName(item.playerName) === name)
+    ? rows.map((item) => trimPlayerName(item.playerName) === name ? row : item)
+    : [...rows, row];
 }
 
 /** The unassigned league leads the list, exactly like the server list does. */
