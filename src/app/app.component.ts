@@ -312,7 +312,20 @@ export class AppComponent {
   async downloadFullExport(): Promise<void> {
     // The list is merged now, so the bundle carries the browser's leagues too — minus *both*
     // placeholders, since neither is user data (ADR 0028).
-    const leagues = (await this.repo.listLeagues()).filter((league) => !isAnyPlaceholderLeagueId(league.id));
+    const merged = await this.repo.listLeagues();
+    // `listLeagues()` degrades to the local list alone when the server read rejects, so writing the
+    // file here would present a bundle missing every server league as a complete backup. Export is
+    // ADR 0028's only bridge, so a partial one fails loudly instead. Only a signed-in visitor has
+    // server leagues to be missing: for a signed-out one the local list *is* the whole archive, and
+    // refusing there would take away the only backup they have. An expired session whose `profile()`
+    // has already been cleared reads as signed out and still exports browser-only; the UI shows that
+    // visitor as signed out, so the bundle matches what they can see.
+    if (this.repo.serverUnavailable() && this.auth.profile()) {
+      this.importError.set(this.i18n.t('msg.fullDataExportServerUnavailable'));
+      return;
+    }
+    const leagues = merged.filter((league) => !isAnyPlaceholderLeagueId(league.id));
+    this.importError.set('');
     saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: [] })), 'gones-full-data.gones.json');
   }
 

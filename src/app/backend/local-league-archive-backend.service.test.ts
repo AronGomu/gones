@@ -4,8 +4,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { leagueCommandError } from '../data/league-archive-command-ux';
-import { isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from '../data/league-archive-origin';
-import { createMatchRoundEntry, getDefaultTournamentName, LeagueStatus, MatchRoundEntry, PersistedLeague, PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME, RoundEntry } from '../domain/models';
+import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from '../data/league-archive-origin';
+import { createMatchRoundEntry, createTournament, getDefaultTournamentName, LeagueStatus, MatchRoundEntry, PersistedLeague, PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME, RoundEntry, TournamentDocument } from '../domain/models';
 import { renamePlayerInLeague } from '../domain/rename-player';
 import { importRoundEntries } from '../domain/round-import';
 import type { LeagueArchiveBackendPort } from './application-backend';
@@ -155,7 +155,7 @@ function installFakeIndexedDb(): void {
   Object.defineProperty(globalThis, 'indexedDB', { value: fakeIndexedDb as unknown as IDBFactory, configurable: true, writable: true });
 }
 
-const league = (id: string, name: string) => ({ id, name, status: 'active' as LeagueStatus, tournaments: [] });
+const league = (id: string, name: string, tournaments: TournamentDocument[] = []) => ({ id, name, status: 'active' as LeagueStatus, tournaments });
 
 /** Built the way the UI builds an entry: through the domain factory, so it carries a real id. */
 const match = (player1Name: string, player2Name: string, id?: string): MatchRoundEntry =>
@@ -364,19 +364,62 @@ describe('LocalLeagueArchiveBackend', () => {
     expect(await backend.listLeagueArchives()).toHaveLength(3);
   });
 
-  it('a restored server placeholder becomes the local placeholder', async () => {
+  // Was `a restored server placeholder becomes the local placeholder`: mapping the incoming
+  // placeholder onto the local one overwrote the browser's own "Unassigned Tournaments" row with a
+  // v1 snapshot, and the repository refuses to delete a placeholder so the import could not be
+  // rolled back. That mapping was the data-loss defect, not a feature.
+  it('a restored placeholder does not replace the local placeholder', async () => {
     const backend = new LocalLeagueArchiveBackend();
+    const seeded = await backend.listLeagueArchives();
+    const orphan = createTournament({ leagueId: PLACEHOLDER_LEAGUE_ID, name: 'Orphan' });
 
     const restored = await backend.restoreFullLeagueArchiveData({
       kind: 'fullData',
       gonesDataVersion: 4,
-      leagues: [league(PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME), league('server-b', 'Beta')]
+      leagues: [league(PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME, [orphan]), league(LOCAL_PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME)]
     });
 
-    expect(restored[0].id).toBe(LOCAL_PLACEHOLDER_LEAGUE_ID);
+    expect(restored.every((item) => isLocalLeagueId(item.id) && !isAnyPlaceholderLeagueId(item.id))).toBe(true);
+    expect(restored[0].tournaments.map((item) => item.name)).toEqual(['Orphan']);
+    // The store's own placeholder row is byte-for-byte what it was before the import.
+    expect(await backend.getLeagueArchive(LOCAL_PLACEHOLDER_LEAGUE_ID)).toEqual(seeded[0]);
     const listed = await backend.listLeagueArchives();
     expect(listed.filter((item) => item.id === LOCAL_PLACEHOLDER_LEAGUE_ID)).toHaveLength(1);
-    expect(listed).toHaveLength(2);
+    expect(listed).toHaveLength(3);
+  });
+
+  /**
+   * The server's `RestoreOneAsync` mints a fresh id and uniquifies the name, so a restore is always
+   * additive. This adapter is a drop-in for it: an incoming `local-` id used to be written straight
+   * back with `documentVersion: 1`, which replaced whatever lived at that id — the export of a
+   * league edited since, or a hostile bundle naming a victim id, silently destroyed the live row.
+   */
+  it('a restored league never overwrites an existing local row', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    let live = await backend.createLeagueArchive('Summer');
+    while (live.documentVersion < 7) live = await backend.renameLeagueArchive(live.id, live.documentVersion, `Summer v${live.documentVersion + 1}`);
+
+    const restored = await backend.restoreLeagueArchive({ kind: 'league', gonesDataVersion: 4, league: league(live.id, 'Summer') });
+
+    expect(restored.id).not.toBe(live.id);
+    expect(isLocalLeagueId(restored.id)).toBe(true);
+    expect(restored.name).toBe('Summer');
+    expect(await backend.getLeagueArchive(live.id)).toEqual(live);
+    expect((await backend.listLeagueArchives()).map((item) => item.id)).toContain(live.id);
+  });
+
+  it('restoring the same bundle twice yields two leagues', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    const bundle = { kind: 'league' as const, gonesDataVersion: 4, league: league('server-uuid', 'Imported') };
+
+    const first = await backend.restoreLeagueArchive(bundle);
+    const second = await backend.restoreLeagueArchive(bundle);
+
+    expect(second.id).not.toBe(first.id);
+    expect(await backend.getLeagueArchive(first.id)).toEqual(first);
+    expect(await backend.getLeagueArchive(second.id)).toEqual(second);
+    // Mirrors the server's `UniqueName`: the second copy is told apart by name, not by id alone.
+    expect([first.name, second.name]).toEqual(['Imported', 'Imported (restored)']);
   });
 
   it('creating a tournament appends it', async () => {

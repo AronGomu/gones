@@ -17,6 +17,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
+import { isAnyPlaceholderLeagueId, isLocalLeagueId } from '../../data/league-archive-origin';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { canManageLive, liveCommandError, liveDeleteOutcome } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
@@ -229,8 +230,13 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   readonly error = signal('');
   readonly tournament = signal<LiveTournamentDocument | null>(null);
   readonly leagues = signal<PersistedLeague[]>([]);
-  /** Real leagues only — unassigned is the empty option tied to PLACEHOLDER_LEAGUE_ID on finalize. */
-  readonly assignableLeagues = computed(() => this.leagues().filter((league) => league.id !== PLACEHOLDER_LEAGUE_ID));
+  /**
+   * Server leagues only — unassigned is the empty option tied to PLACEHOLDER_LEAGUE_ID on finalize,
+   * and both placeholders are dropped with it. The League list is the union of both stores (ADR
+   * 0028) but these settings are a server document: assigning a `local-` league would be a
+   * cross-authority reference the server rejects with "League was not found.".
+   */
+  readonly assignableLeagues = computed(() => this.leagues().filter((league) => !isLocalLeagueId(league.id) && !isAnyPlaceholderLeagueId(league.id)));
   /** Player names already present in saved leagues — source for registration autocomplete. */
   readonly knownPlayerNames = computed(() => collectKnownPlayerNames(this.leagues()));
   newPlayerName = '';

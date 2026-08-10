@@ -9,7 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
-import { canManageLeague, canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
+import { canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId } from '../../data/league-archive-origin';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { PersistedLeague } from '../../domain/models';
@@ -89,8 +89,6 @@ export class LeagueArchiveListComponent {
   }
 
   playerCount(league: PersistedLeague): number { return calculateLeagueResult(league).rows.length; }
-
-  canManageLeague(league: PersistedLeague): boolean { return canManageLeague(league.id, this.auth.profile()?.globalRole); }
 
   isLocal(league: PersistedLeague): boolean { return isLocalLeagueId(league.id); }
 

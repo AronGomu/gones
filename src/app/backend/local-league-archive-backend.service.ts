@@ -4,7 +4,7 @@ import {
   createLeague,
   createRound,
   createTournament,
-  isPlaceholderLeagueId,
+  isUnassignedLeagueName,
   normalizeDeckArchetype,
   normalizeLeague,
   trimPlayerName,
@@ -224,21 +224,23 @@ export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
   }
 
   /**
-   * A restored league keeps its content and loses its origin: an id from the server namespace is
-   * rewritten into this one, so a bundle exported while signed in cannot collide with what is
-   * already here. The server placeholder maps onto the local placeholder rather than becoming a
-   * second "Unassigned Tournaments" row.
+   * A restored league keeps its content and loses its id: it always lands as a brand-new row under a
+   * freshly minted `local-` id, and its name is uniquified against the store. That makes a restore
+   * additive, exactly like the server's `RestoreOneAsync` — no incoming id, from either namespace or
+   * either placeholder, can name a row that already exists, so importing a bundle can never
+   * overwrite a live league and importing the same bundle twice yields two of them.
    */
   private async putRestored(league: LeagueDocument): Promise<PersistedLeague> {
-    const targetId = isPlaceholderLeagueId(league.id) || league.id === LOCAL_PLACEHOLDER_LEAGUE_ID
-      ? LOCAL_PLACEHOLDER_LEAGUE_ID
-      : isLocalLeagueId(league.id) ? league.id : newLocalLeagueId();
+    const database = await this.open();
+    const taken = (await getAll<Partial<PersistedLeague>>(database, LOCAL_LEAGUE_STORE)).map((row) => String(row.name ?? ''));
+    const target = createLeague({ ...league, id: newLocalLeagueId() });
     const restored: PersistedLeague = {
-      ...createLeague({ ...league, id: targetId }),
+      ...target,
+      name: uniqueRestoredName(target.name, taken),
       documentVersion: 1,
       updatedAt: new Date().toISOString()
     };
-    await put(await this.open(), LOCAL_LEAGUE_STORE, restored);
+    await put(database, LOCAL_LEAGUE_STORE, restored);
     return restored;
   }
 
@@ -289,6 +291,22 @@ function upsertArchetype(archetypes: PlayerArchetypeDocument[], playerName: stri
   return rows.some((item) => trimPlayerName(item.playerName) === name)
     ? rows.map((item) => trimPlayerName(item.playerName) === name ? row : item)
     : [...rows, row];
+}
+
+/**
+ * The server's `LeagueCommandEndpoints.UniqueName`, mirrored: a restored league that would collide
+ * with a name already in the store is suffixed `(restored)`, then numbered. An unassigned name is
+ * suffixed on sight, so a restored placeholder never poses as this store's own placeholder row.
+ */
+function uniqueRestoredName(name: string, taken: string[]): string {
+  const names = new Set(taken);
+  const base = isUnassignedLeagueName(name) ? `${name} (restored)` : name;
+  if (!names.has(base)) return base;
+  const restored = `${base} (restored)`;
+  if (!names.has(restored)) return restored;
+  let suffix = 2;
+  while (names.has(`${restored} ${suffix}`)) suffix++;
+  return `${restored} ${suffix}`;
 }
 
 /** The unassigned league leads the list, exactly like the server list does. */

@@ -80,7 +80,7 @@ placeholders, so a bundle taken while signed in carries the browser's leagues to
 whichever store `createLeagueTarget(role)` names, and rewrites incoming ids into that store's
 namespace — a server bundle restored locally gets fresh `local-` ids and cannot collide.
 
-**`LocalLeagueArchiveBackend implements LeagueArchiveBackendPort` in full**, all 22 methods, with no
+**`LocalLeagueArchiveBackend implements LeagueArchiveBackendPort` in full**, all 21 methods, with no
 `Partial`. That compiling is the parity proof: the local store is a drop-in for the server adapter,
 so no feature can quietly become "server only" without a type error.
 

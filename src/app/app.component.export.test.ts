@@ -41,12 +41,12 @@ function league(id: string, name = `League ${id}`, tournaments: TournamentDocume
   return { id, name, status: 'active', tournaments, documentVersion: 3, updatedAt: '2026-08-09T10:00:00.000Z' };
 }
 
-function setup(leagues: PersistedLeague[]) {
+function setup(leagues: PersistedLeague[], { serverUnavailable = false, signedIn = false }: { serverUnavailable?: boolean; signedIn?: boolean } = {}) {
   saveJsonFileMock.mockClear();
   const listLeagues = vi.fn(async () => leagues);
-  const repo = { listLeagues, getLeague: vi.fn(async () => null), serverUnavailable: signal(false) } as unknown as LeagueArchiveRepository;
+  const repo = { listLeagues, getLeague: vi.fn(async () => null), serverUnavailable: signal(serverUnavailable) } as unknown as LeagueArchiveRepository;
   const router = { url: '/leagues-archive', events: new Subject<unknown>(), navigate: vi.fn(async () => true) } as unknown as Router;
-  const auth = { enabled: true, profile: signal(null) } as unknown as AuthService;
+  const auth = { enabled: true, profile: signal(signedIn ? { id: 'organizer', globalRole: 'Organizer' } : null) } as unknown as AuthService;
   const injector = Injector.create({ providers: [
     { provide: LeagueArchiveRepository, useValue: repo },
     { provide: LiveTournamentRepository, useValue: { get: vi.fn(async () => null) } },
@@ -114,6 +114,45 @@ describe('AppComponent full data export', () => {
 
     expect(savedFilename()).toBe('gones-full-data.gones.json');
     await expect(verifyExportChecksum(savedBundle())).resolves.toBe(true);
+  });
+
+  /**
+   * `listLeagues()` degrades to the local list alone when the server read rejects (offline, expired
+   * token, 500) and raises `serverUnavailable`. Writing the file anyway would hand the user a
+   * `gones-full-data.gones.json` that silently omits every server league — and export is ADR 0028's
+   * only bridge against "clearing site data destroys local leagues".
+   */
+  it('a full export refuses to write when the server list failed', async () => {
+    const { component } = setup([league(LOCAL_ID)], { serverUnavailable: true, signedIn: true });
+
+    await component.downloadFullExport();
+
+    expect(saveJsonFileMock).not.toHaveBeenCalled();
+    expect(component.importError()).toBe(component.i18n.t('msg.fullDataExportServerUnavailable'));
+  });
+
+  /**
+   * The other half of that guard, and the reason it is not a blanket refusal: a signed-out visitor
+   * has no server leagues, so their local list *is* the whole archive and the bundle is complete.
+   * Refusing here would take away ADR 0028's only backup from exactly the people who own
+   * browser-local leagues.
+   */
+  it('a signed-out visitor can still export while the server is unreachable', async () => {
+    const { component } = setup([league(LOCAL_ID)], { serverUnavailable: true });
+
+    await component.downloadFullExport();
+
+    expect(savedBundle().leagues.map((item) => item.id)).toEqual([LOCAL_ID]);
+    expect(component.importError()).toBe('');
+  });
+
+  it('a full export still writes when the server list succeeded', async () => {
+    const { component } = setup([league(SERVER_ID), league(LOCAL_PLACEHOLDER_LEAGUE_ID), league(LOCAL_ID)]);
+
+    await component.downloadFullExport();
+
+    expect(savedBundle().leagues.map((item) => item.id)).toEqual([SERVER_ID, LOCAL_ID]);
+    expect(component.importError()).toBe('');
   });
 
   it('a local league exports on its own', async () => {

@@ -531,3 +531,75 @@ What that leaves for a human — the parts a stubbed or signed-out session canno
       a **different** browser profile, which is the only proof they really landed on the server.
 - [ ] Signed out, with a bundle exported by an Admin: import it — the leagues appear badged
       `Local only` with fresh `local-` ids and no request leaves the browser.
+
+**Corrected by T16.** A local restore is now additive: every imported league is written under a
+freshly minted `local-` id and its name is uniquified, exactly like the server's restore. So the two
+round-trip steps above only read as written because they *delete* the leagues first. Do not expect a
+re-imported league to carry the id it had before the export (it never will), and if you import a
+bundle **without** deleting first you will get a second copy named `… (restored)` rather than the
+original row being replaced — that is the fix, not a bug.
+
+## T16 reviewer-correctness-fixes
+
+Three data-integrity fixes from the reviewer fanout. Automated coverage:
+`src/app/backend/local-league-archive-backend.service.test.ts` (46 cases) proves a restore never
+targets an existing row or either placeholder and that the same bundle restored twice yields two
+leagues; `src/app/app.component.export.test.ts` (9 cases) proves the full export refuses to write
+while `serverUnavailable()` is set and still writes when it is not;
+`src/app/features/live-tournaments/live-tournament-league-picker.test.ts` proves the Live picker
+offers server leagues only. What no unit test can show is the thing that matters most here — that a
+real import against a real IndexedDB leaves a real league alone. Run these in a real browser.
+
+### An import can no longer destroy a league (the one to see with your own eyes)
+
+- [ ] `npm run dev`, signed out, `/leagues-archive`: create a league `Summer`, open it, add a
+      tournament, and note its URL id (`/leagues-archive/local-…`).
+- [ ] Full data export while `Summer` holds exactly that one tournament. Keep the file.
+- [ ] Back in `Summer`, add a second tournament and rename the league to `Summer edited`.
+- [ ] Import the file you kept. The list now shows **both** `Summer edited` (still with its two
+      tournaments, still at the id you noted) **and** a second league `Summer` holding the one
+      tournament the file carried, badged `Local only` with a different `local-` id. Nothing you did
+      after the export was lost. Before this fix the edited league was silently replaced by the
+      one-tournament snapshot.
+- [ ] Import the same file a second time: a third league appears, named `Summer (restored)`. Import
+      once more: `Summer (restored) 2`. No import ever overwrites an earlier one.
+- [ ] DevTools → Application → IndexedDB → `gones-leagues` → `leagues`: every row has a distinct
+      `local-` id and the `local-placeholder-league` row is untouched by all of it.
+- [ ] Hand-edit a copy of the exported file so one league's `"id"` reads `"local-placeholder-league"`
+      (the checksum will no longer match, so also delete the `"checksum"` property, or re-export
+      after the edit if your build rejects it). Import it: the browser's own "Unassigned Tournaments"
+      row keeps its own tournaments and the file's content lands as an ordinary new local league.
+      Repeat with `"id": "placeholder-league"` — same outcome.
+- [ ] Repeat the first bullet's edit-then-import cycle for a **single-league** export (the per-league
+      export from a league's own menu), not just the full export: it is the same restore path.
+
+### A partial export is refused, not written
+
+- [ ] Signed in as `admin@gones.test` with the API stack **stopped** (`docker compose stop api`),
+      open `/leagues-archive` and click Full data export: **no file is downloaded**, and the red
+      banner under the toolbar says the server leagues could not be loaded so nothing was written.
+      Check the Downloads folder — before this fix you got a `gones-full-data.gones.json` holding
+      only the browser's leagues, presented as a complete backup.
+- [ ] Switch the app language to French and repeat: the message reads in French with no missing-key
+      placeholder.
+- [ ] Start the API again (`docker compose start api`), reload, and export: the file downloads as
+      before, holds the server leagues **and** the browser-local ones, and the banner is gone.
+- [ ] Signed **out**, with the API stack stopped or running (the server read always fails for an
+      anonymous visitor either way): Full data export still **downloads** a file holding the browser's
+      leagues, with no banner. This is deliberate and is the behaviour to protect — a signed-out
+      visitor has no server leagues, so their bundle is complete, and refusing here would take away
+      the only backup ADR 0028 gives them. If a future change makes this path refuse, that is a
+      regression, not a tightening.
+- [ ] Sign in, then let the session expire (or clear the stored profile) so the toolbar shows you as
+      signed out again, and export: the file is written browser-only. Known and accepted — the bundle
+      matches what that visitor can actually see.
+
+### The Live League picker offers only server leagues
+
+- [ ] Signed in as `admin@gones.test`, with at least one league created in this browser while signed
+      out, open a running tournament at `/live-tournaments/{id}` → the League field: it lists the
+      unassigned option plus the **server** leagues only. No second "Unassigned Tournaments" entry,
+      and no browser-local league. Before this fix, picking one produced a failed save and the choice
+      was silently discarded.
+- [ ] Pick a server league and finalize: the tournament lands in that League Archive exactly as
+      before.

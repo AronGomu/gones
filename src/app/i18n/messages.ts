@@ -154,7 +154,6 @@ const en = {
   // Home menu
   'home.aria': 'Gones main menu',
   'home.navAria': 'Main menu',
-  'home.signInDesc': 'Sign in to register for tournaments, manage your account and propose events.',
   'home.runningTournaments': 'Running Tournaments',
   'home.runningTournamentsDesc': 'Resume a saved live tournament, create a new running tournament, or delete old local drafts from one place.',
   'home.leagues': 'Leagues (archive)',
@@ -205,6 +204,7 @@ const en = {
   'dialog.replaceSettings': 'Replace settings',
   'msg.settingsExported': 'Settings exported.',
   'msg.settingsExportFailed': 'Could not export settings.',
+  'msg.fullDataExportServerUnavailable': 'Server Leagues could not be loaded, so no file was written: that export would have contained only the Leagues stored in this browser. Reconnect or sign in again, then export.',
   'msg.settingsImportInvalid': 'Choose a valid Gones settings JSON file.',
   'msg.settingsImportCanceled': 'Settings import canceled.',
   'msg.settingsImported': 'Imported {count} deck archetype{plural} and {language} language.',
@@ -1204,7 +1204,6 @@ const fr: Record<MessageKey, string> = {
 
   'home.aria': 'Menu principal Gones',
   'home.navAria': 'Menu principal',
-  'home.signInDesc': 'Connectez-vous pour vous inscrire aux tournois, gérer votre compte et proposer des évènements.',
   'home.runningTournaments': 'Tournois en cours',
   'home.runningTournamentsDesc': 'Reprendre un tournoi live sauvegardé, créer un nouveau tournoi en cours ou supprimer d’anciens brouillons locaux.',
   'home.leagues': 'Ligues (archive)',
@@ -1254,6 +1253,7 @@ const fr: Record<MessageKey, string> = {
   'dialog.replaceSettings': 'Remplacer les paramètres',
   'msg.settingsExported': 'Paramètres exportés.',
   'msg.settingsExportFailed': 'Impossible d’exporter les paramètres.',
+  'msg.fullDataExportServerUnavailable': 'Les ligues du serveur n’ont pas pu être chargées, aucun fichier n’a donc été écrit : cet export n’aurait contenu que les ligues stockées dans ce navigateur. Reconnectez-vous, puis exportez.',
   'msg.settingsImportInvalid': 'Choisissez un fichier JSON de paramètres Gones valide.',
   'msg.settingsImportCanceled': 'Import des paramètres annulé.',
   'msg.settingsImported': '{count} archétype{plural} et la langue {language} importés.',
