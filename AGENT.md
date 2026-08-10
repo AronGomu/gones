@@ -46,6 +46,7 @@ ADRs live in `docs/adr/` (lowercase — tests and cross-references point there).
 npm install
 npm run dev                  # API stack in Docker + dev server on http://127.0.0.1:4200 (API :5080)
 npm run dev -- --no-docker   # dev server only, against an API already running
+npm run dev:accounts         # re-seed admin@gones.test / test@gones.test (password Gones-dev-pass-123!)
 npm run build                # ng build
 npm run lint
 npm run typecheck

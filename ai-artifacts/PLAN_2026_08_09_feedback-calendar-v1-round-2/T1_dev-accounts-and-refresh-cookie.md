@@ -62,9 +62,9 @@ Both must be fixed. Fixing only (1) leaves the user signed out on every reload.
 
 ## Impl steps
 
-- [ ] 1. Create `ops/dev-accounts.test.ts` with the nine tests above. Import shape: `import { DEV_ACCOUNTS, meetsPasswordPolicy } from '../scripts/dev-accounts.mjs';`. Read files with `readFileSync(join(__dirname, '..', '<name>'), 'utf8')`.
-- [ ] 2. Run `npx vitest run ops/dev-accounts.test.ts` — it must fail (module not found).
-- [ ] 3. Create `scripts/dev-accounts.mjs` exporting exactly:
+- [x] 1. Create `ops/dev-accounts.test.ts` with the nine tests above. Import shape: `import { DEV_ACCOUNTS, meetsPasswordPolicy } from '../scripts/dev-accounts.mjs';`. Read files with `readFileSync(join(__dirname, '..', '<name>'), 'utf8')`.
+- [x] 2. Run `npx vitest run ops/dev-accounts.test.ts` — it must fail (module not found). Evidence: `Error: Failed to resolve import "../scripts/dev-accounts.mjs" from "ops/dev-accounts.test.ts". Does the file exist?` → `Test Files  1 failed (1)`.
+- [x] 3. Create `scripts/dev-accounts.mjs` exporting exactly:
       ```js
       export const DEV_PASSWORD = 'Gones-dev-pass-123!';
       export const DEV_ACCOUNTS = [
@@ -80,30 +80,30 @@ Both must be fixed. Fixing only (1) leaves the user signed out on every reload.
           && /[^A-Za-z0-9]/.test(password);
       }
       ```
-- [ ] 4. Create `scripts/seed-dev-accounts.mjs`. Header comment must name ADR 0029. Body, in order:
+- [x] 4. Create `scripts/seed-dev-accounts.mjs`. Header comment must name ADR 0029. Body, in order:
       a. `import { DEV_ACCOUNTS } from './dev-accounts.mjs';`
       b. `function psql(sql, { capture = false } = {})` wrapping `spawnSync('docker', ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-v', 'ON_ERROR_STOP=1', capture ? '-tAc' : '-c', sql], { encoding: 'utf8', stdio: capture ? ['inherit', 'pipe', 'inherit'] : 'inherit' })`; exit with the child status on failure.
       c. For each account: probe `SELECT 1 FROM asp_net_users WHERE normalized_email = '<EMAIL UPPERCASED>' LIMIT 1`. If the trimmed stdout is not `1`, `await fetch('http://127.0.0.1:5080/api/auth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, username, password, firstName, lastName }) })` and accept `response.ok || response.status === 409`; anything else prints the status plus body and exits 1.
       d. After the loop, one SQL statement per account: `UPDATE asp_net_users SET email_confirmed = true, global_role = '<role>', lockout_end = NULL, access_failed_count = 0 WHERE normalized_email = '<EMAIL UPPERCASED>';`
       e. `console.log('Seeded dev accounts: admin@gones.test (Admin), test@gones.test (User). Password: Gones-dev-pass-123!');`
-- [ ] 5. In `package.json` `scripts`, add `"dev:accounts": "node scripts/seed-dev-accounts.mjs"` immediately after `"dev:serve"`.
-- [ ] 6. In `compose.yaml`, in the `api` service `environment:` block, add two lines directly above `GONES_OTEL_CONSOLE_EXPORTER`:
+- [x] 5. In `package.json` `scripts`, add `"dev:accounts": "node scripts/seed-dev-accounts.mjs"` immediately after `"dev:serve"`.
+- [x] 6. In `compose.yaml`, in the `api` service `environment:` block, add two lines directly above `GONES_OTEL_CONSOLE_EXPORTER`:
       ```yaml
       GONES__AUTH__REFRESHCOOKIE__SAMESITE: ${GONES__AUTH__REFRESHCOOKIE__SAMESITE:-Lax}
       GONES__AUTH__REFRESHCOOKIE__SECURE: ${GONES__AUTH__REFRESHCOOKIE__SECURE:-false}
       ```
       Add a one-line comment above them: `# Plain-http dev host: a Secure cookie is silently dropped, so the session never survives a reload (ADR 0029).`
-- [ ] 7. In `scripts/dev.mjs`: add `const skipAccounts = argv.includes('--no-accounts');` next to `skipDocker`; add `'--no-accounts'` to the `ngArgs` filter list; extend the flags block comment with `--no-accounts  skip the dev-account seeding step`.
-- [ ] 8. In `scripts/dev.mjs`, immediately after the `await waitForApi();` call inside the `if (!skipDocker)` branch, add:
+- [x] 7. In `scripts/dev.mjs`: add `const skipAccounts = argv.includes('--no-accounts');` next to `skipDocker`; add `'--no-accounts'` to the `ngArgs` filter list; extend the flags block comment with `--no-accounts  skip the dev-account seeding step`.
+- [x] 8. In `scripts/dev.mjs`, immediately after the `await waitForApi();` call inside the `if (!skipDocker)` branch, add:
       ```js
       if (!skipAccounts) {
         const seeded = spawnSync(process.execPath, ['scripts/seed-dev-accounts.mjs'], { stdio: 'inherit' });
         if (seeded.status !== 0) fail('Dev account seeding failed. Re-run it with: npm run dev:accounts');
       }
       ```
-- [ ] 9. In `AGENT.md`, in the `## Commands` fenced block, add `npm run dev:accounts        # re-seed admin@gones.test / test@gones.test (password Gones-dev-pass-123!)` under `npm run dev -- --no-docker`.
-- [ ] 10. In `README.md`, under the local development section, add a short "Dev accounts" note listing both addresses, the shared password, and that they exist only in the local Compose database.
-- [ ] 11. Run `npx vitest run ops/dev-accounts.test.ts` — green.
+- [x] 9. In `AGENT.md`, in the `## Commands` fenced block, add `npm run dev:accounts        # re-seed admin@gones.test / test@gones.test (password Gones-dev-pass-123!)` under `npm run dev -- --no-docker`.
+- [x] 10. In `README.md`, under the local development section, add a short "Dev accounts" note listing both addresses, the shared password, and that they exist only in the local Compose database.
+- [x] 11. Run `npx vitest run ops/dev-accounts.test.ts` — green. Evidence: `Test Files  1 passed (1)` / `Tests  9 passed (9)`.
 
 ## Outputs
 
@@ -114,12 +114,12 @@ Both must be fixed. Fixing only (1) leaves the user signed out on every reload.
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] Manual: `docker compose down -v && npm run dev`, then at `http://127.0.0.1:4200/login` sign in with `admin@gones.test` / `Gones-dev-pass-123!` — no 401, the toolbar shows the username.
-- [ ] Manual: reload the page — still signed in (this is the cookie fix). In DevTools → Application → Cookies, `gones_refresh` is present and **not** marked Secure.
-- [ ] Manual: sign in with `test@gones.test` / `Gones-dev-pass-123!` — succeeds, and no admin-only navigation is offered.
-- [ ] Manual: `npm run dev:accounts` a second time — exits 0, prints the summary line, creates nothing new.
-- [ ] app functional — no broken path from this slice
+- [x] `npm run test` passes — `Test Files  79 passed (79)` / `Tests  527 passed (527)`
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — `tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json`, no output
+- [ ] Manual: `docker compose down -v && npm run dev`, then at `http://127.0.0.1:4200/login` sign in with `admin@gones.test` / `Gones-dev-pass-123!` — no 401, the toolbar shows the username. *(browser-only: the toolbar render and the clean-volume boot have no automated equivalent → `ai-artifacts/manual_test_checklist.md`. API half proved live: `POST /api/auth/login` → `200`.)*
+- [ ] Manual: reload the page — still signed in (this is the cookie fix). In DevTools → Application → Cookies, `gones_refresh` is present and **not** marked Secure. *(browser-only: curl cannot model a browser refusing a `Secure` cookie → `ai-artifacts/manual_test_checklist.md`. Proved at the wire: `Set-Cookie: gones_refresh=…; path=/api/auth; samesite=lax; httponly` with no `secure`, and `POST /api/auth/refresh` with that cookie → `200`.)*
+- [ ] Manual: sign in with `test@gones.test` / `Gones-dev-pass-123!` — succeeds, and no admin-only navigation is offered. *(browser-only: the navigation assertion is UI → `ai-artifacts/manual_test_checklist.md`. Login proved live: `200`; the row is `TEST@GONES.TEST|User|t`.)*
+- [x] Manual: `npm run dev:accounts` a second time — exits 0, prints the summary line, creates nothing new. Automated equivalent run: second invocation printed `UPDATE 1` / `UPDATE 1` + `Seeded dev accounts: admin@gones.test (Admin), test@gones.test (User). Password: Gones-dev-pass-123!`, `exit=0`, and `SELECT` still returns exactly `ADMIN@GONES.TEST|Admin|t` and `TEST@GONES.TEST|User|t`.
+- [x] app functional — no broken path from this slice. No `src/**` or `backend/**` file touched; 527/527 tests green; live stack answers `login=200`, `refresh=200` where it previously answered 401.
 - [ ] commit msg draft: `fix(dev): seed local accounts and stop dropping the refresh cookie over http`

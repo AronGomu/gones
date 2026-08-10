@@ -42,7 +42,23 @@ the API at `http://127.0.0.1:5080`. Stop the stack afterwards with `docker compo
 | `npm run dev` | API stack in Docker + local dev server with hot reload |
 | `npm run dev -- --no-docker` | dev server only, against an API that is already running |
 | `npm run dev -- --detached` | bring the API stack up and exit |
+| `npm run dev -- --no-accounts` | skip the dev-account seeding step |
+| `npm run dev:accounts` | re-seed the dev accounts on their own |
 | `docker compose --profile release up --build` | everything containerised, SPA on `:8081` |
+
+### Dev accounts
+
+`npm run dev` seeds two fixed accounts once the API reports ready, so a fresh checkout can sign in
+immediately (ADR 0029):
+
+| Email | Role | Password |
+| --- | --- | --- |
+| `admin@gones.test` | Admin | `Gones-dev-pass-123!` |
+| `test@gones.test` | User | `Gones-dev-pass-123!` |
+
+They exist only in the local Compose database, which listens on `127.0.0.1` and is recreated from
+scratch by `docker compose down -v`. No release image, deploy manifest or rehearsal script knows
+about them — never add them to a networked environment.
 
 ## How it works
 

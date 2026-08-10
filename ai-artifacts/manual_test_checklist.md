@@ -203,3 +203,23 @@ does not throw on vitest 4.1.10). No manual check applies.
 - [ ] Nothing to click. If you want to sanity-check by hand anyway: temporarily remove `canActivate:
       [userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
       data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.
+
+## T1 dev-accounts-and-refresh-cookie
+
+Only the browser half is left here. The API half was proved automatically against the live stack:
+`POST /api/auth/login` for `admin@gones.test` answered `200` (it answered `401` before this slice),
+the response carried `Set-Cookie: gones_refresh=…; path=/api/auth; samesite=lax; httponly` with **no**
+`secure` attribute, `POST /api/auth/refresh` with that cookie answered `200`, and a second
+`npm run dev:accounts` exited `0` while leaving exactly the two rows in place. What a curl transcript
+cannot model is a browser's own refusal to store a `Secure` cookie over plain http, and no rendered UI.
+
+- [ ] `docker compose down -v && npm run dev` from a clean checkout: the run prints
+      `Seeded dev accounts: admin@gones.test (Admin), test@gones.test (User).` before `ng serve` starts.
+- [ ] At `http://127.0.0.1:4200/login`, sign in as `admin@gones.test` / `Gones-dev-pass-123!` — no 401,
+      and the toolbar shows the username.
+- [ ] Reload the page — still signed in. DevTools → Application → Cookies → `http://127.0.0.1:5080`:
+      `gones_refresh` is present, `SameSite` is `Lax`, and the **Secure** column is unticked.
+- [ ] Sign out, then sign in as `test@gones.test` / `Gones-dev-pass-123!` — it succeeds and no
+      admin-only navigation (the Admin dashboard entry) is offered.
+- [ ] `npm run dev -- --no-accounts` starts the stack and the dev server without running the seeder
+      (no `Seeded dev accounts:` line), and `--no-accounts` is not forwarded to `ng serve`.

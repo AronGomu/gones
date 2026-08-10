@@ -10,6 +10,7 @@
  * Flags:
  *   --no-docker   skip the Compose phase and just run `ng serve` (an API is already running)
  *   --detached    bring the stack up and exit without starting the dev server
+ *   --no-accounts skip the dev-account seeding step
  * Anything else is forwarded to `ng serve` (for example `--port 4300`).
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -21,8 +22,9 @@ const WAIT_TIMEOUT_MS = 180_000;
 
 const argv = process.argv.slice(2);
 const skipDocker = argv.includes('--no-docker');
+const skipAccounts = argv.includes('--no-accounts');
 const detached = argv.includes('--detached');
-const ngArgs = argv.filter((arg) => arg !== '--no-docker' && arg !== '--detached');
+const ngArgs = argv.filter((arg) => arg !== '--no-docker' && arg !== '--detached' && arg !== '--no-accounts');
 
 const composeEnv = {
   ...process.env,
@@ -70,6 +72,10 @@ if (!skipDocker) {
     fail('docker compose failed to start the API stack. Is the Docker daemon running? (docker info)');
   }
   await waitForApi();
+  if (!skipAccounts) {
+    const seeded = spawnSync(process.execPath, ['scripts/seed-dev-accounts.mjs'], { stdio: 'inherit' });
+    if (seeded.status !== 0) fail('Dev account seeding failed. Re-run it with: npm run dev:accounts');
+  }
 } else if (!(await apiIsReady())) {
   fail(`--no-docker was passed but nothing answers on ${HEALTH_URL}. Start an API first, or drop the flag.`);
 }
