@@ -67,18 +67,26 @@ describe('public Calendar V1', () => {
     cy.wait('@allTournaments');
     // The month grid renders day numbers only (A6), so the tournament itself is no longer a witness
     // inside the grid. The list view (which shares the same cached catalog) still shows it for the
-    // current month, and the month label is the calendar tab's own witness that navigation moved.
+    // current month.
     cy.get('[data-cy="list-view"]').click();
     cy.get('[data-cy="tournament-lyon-legacy"]').should('be.visible');
     cy.get('[data-cy="calendar-view"]').click();
 
+    // The witness that the grid moved has to be locale-independent. The month label is translated,
+    // and on the release build the ngsw worker can answer the navigation from cache so
+    // `onBeforeLoad`'s language seed never runs — asserting 'August' there reads `août 2026`. The day
+    // cell's `datetime` attribute is the machine-readable ISO date and is never translated. A
+    // mid-month day is picked because it is always in-month, never a muted leading/trailing cell
+    // borrowed from a neighbouring month.
     cy.get('[data-cy="calendar-month-next"]').click();
     cy.location('search').should('contain', 'month=2026-09');
-    cy.get('[data-cy="calendar-month-label"]').should('not.contain.text', 'August');
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('exist');
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('not.exist');
 
     cy.get('[data-cy="calendar-month-prev"]').click();
     cy.location('search').should('contain', 'month=2026-08');
-    cy.get('[data-cy="calendar-month-label"]').should('contain.text', 'August');
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('exist');
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('not.exist');
 
     cy.get('@allTournaments.all').should('have.length', 1);
   });

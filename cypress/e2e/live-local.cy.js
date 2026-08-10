@@ -133,11 +133,17 @@ describe('Live Tournament browser-local flows', () => {
     cy.get('[data-cy="confirm-dialog-confirm"]').click();
 
     cy.location('pathname').should('eq', '/live-tournaments');
-    cy.get('[data-cy="running-tournament-empty-state"]').should('be.visible');
+    // Scoped to this tournament rather than to an empty list, for the same reason
+    // `league-local.cy.js` scopes its export assertion by name: Cypress keeps the previous test's
+    // page alive, so the `deleteDatabase` this test asks for in `onBeforeLoad` can be blocked by
+    // that still-open connection and leave the previous test's tournament in this browser. What the
+    // delete is responsible for is its own row going away, not the list being empty — the empty
+    // state itself is asserted by the first test, which runs in a browser that has never opened the
+    // store. (`running-tournament-empty-state` is still covered there.)
+    cy.contains('[data-cy="running-tournament-card"]', 'Doomed Cup').should('not.exist');
 
     // The IndexedDB row is gone, not just the in-memory signal.
     cy.reload();
-    cy.get('[data-cy="running-tournament-empty-state"]').should('be.visible');
     cy.contains('[data-cy="running-tournament-card"]', 'Doomed Cup').should('not.exist');
   });
 });

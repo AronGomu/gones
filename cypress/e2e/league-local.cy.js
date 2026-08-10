@@ -271,10 +271,17 @@ describe('League Archive browser-local flows', () => {
         .find('[data-cy="leagues-archive-list-item-local-badge"]').should('exist');
     }
 
-    // The tournaments came back with them, in the browser store and nowhere else.
+    // The tournaments came back with them, in the browser store and nowhere else. Restore is
+    // additive and uniquifies names, so a leftover league from a blocked `deleteDatabase` (see the
+    // comment above) turns into an extra `X (restored)` row: a fixed row count would assert the
+    // leftovers, not the restore. The intent is that both exported leagues are back, browser-local,
+    // and each carries its one tournament.
     readLocalLeagueRows().then((rows) => {
       const restored = rows.filter((row) => row.name.startsWith('Export League'));
-      expect(restored, 'restored gones-leagues rows').to.have.length(2);
+      const restoredNames = restored.map((row) => row.name);
+      for (const name of ['Export League A', 'Export League B']) {
+        expect(restoredNames, 'restored gones-leagues rows').to.include(name);
+      }
       for (const row of restored) {
         expect(row.id, 'restored league id').to.match(/^local-/);
         expect(row.tournaments, `tournaments of ${row.name}`).to.have.length(1);

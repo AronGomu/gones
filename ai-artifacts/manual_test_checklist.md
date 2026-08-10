@@ -603,3 +603,48 @@ real import against a real IndexedDB leaves a real league alone. Run these in a 
       was silently discarded.
 - [ ] Pick a server league and finalize: the tournament lands in that League Archive exactly as
       before.
+
+## T17 e2e-gate-and-test-honesty
+
+Test-only ticket: no product file changed. Three committed Cypress specs were red inside this plan's
+own commit range, and four vitest assertions passed while the behaviour under them was broken. Both
+halves are now covered automatically — `npm run cy:run` (85/85), `npm run e2e:ci` (20/20 release
+specs) and `npm run test` (774 cases) are green, and each of the four gaps was proved red against a
+deliberately broken implementation before being restored. There is nothing new to click; the items
+below only exist to confirm by eye that the *replacement* assertions describe what the app really
+does, because a test that asserts the wrong thing is exactly the failure this ticket is about.
+
+### The month grid really moves (the assertion R1 now makes)
+
+- [ ] `npm run dev`, `/calendar?month=2026-08&view=calendar`, language **French**: the month label
+      reads `août 2026` — this is why the spec must not assert `August`.
+- [ ] Inspect any day cell: `<time datetime="2026-08-15">` — the `datetime` attribute stays the ISO
+      date in both languages. Switch to English and re-inspect: label changes, `datetime` does not.
+- [ ] Click Next: the grid holds a cell with `datetime="2026-09-15"` and none with `2026-08-15`.
+      Click Previous: the reverse. Only one `/api/tournaments/all` request for the whole sequence.
+
+### An anonymous visitor is still offered a way in (the assertion R2 now makes)
+
+- [ ] Signed out, home page: the toolbar shows the **Sign in** button (`toolbar-sign-in-link`). The
+      old home-menu login card is gone for good and must not come back.
+- [ ] Sign in: the button is replaced by the username link, and no link to `/login` is left anywhere
+      on the page.
+
+### Deleting a local tournament (the assertion R3 now makes)
+
+- [ ] Signed out, `/live-tournaments`: create two tournaments, `Keep me` and `Doomed Cup`. Delete
+      `Doomed Cup` from Advanced settings → Delete → Confirm.
+- [ ] The list keeps `Keep me` and no longer shows `Doomed Cup`, before and after a reload. The spec
+      asserts exactly this (the deleted row is gone), not that the list is empty — the empty state is
+      asserted by the first case, which runs in a browser that has never opened the store.
+
+### Spot-checks for the four closed gaps
+
+- [ ] `/login` with both fields empty: the Sign in button is grey and disabled, and **no** validity
+      message is shown under either field.
+- [ ] Type `admin@gones.test` and `ab`: still disabled, and only the password message appears. Add a
+      third character: the button turns green.
+- [ ] A calendar list with 20 or fewer tournaments shows **no** pagination bar at all — not a bar
+      with two disabled buttons.
+- [ ] `/leagues-archive` signed in as `admin@gones.test` with at least one browser-local league: the
+      local row carries the badge and the server rows carry none.

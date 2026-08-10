@@ -571,6 +571,22 @@ describe('PublicCalendarComponent empty calendar day cells', () => {
   });
 });
 
+/**
+ * The source slice a control-flow block owns, from its opening `{` to the `}` that balances it.
+ * Lets a template assertion say "this element is *inside* that guard" rather than "both strings
+ * exist somewhere in the file", which is what a hoisted element would still satisfy.
+ */
+function templateBlock(source: string, opening: string): string {
+  const start = source.indexOf(opening);
+  expect(start, `template block "${opening}"`).toBeGreaterThan(-1);
+  let depth = 0;
+  for (let index = start + opening.length - 1; index < source.length; index++) {
+    if (source[index] === '{') depth++;
+    else if (source[index] === '}' && --depth === 0) return source.slice(start, index + 1);
+  }
+  throw new Error(`unbalanced template block "${opening}"`);
+}
+
 describe('PublicCalendarComponent list pagination', () => {
   it('the list renders only one page of tournaments', async () => {
     const { component } = setup({ params: { view: 'list' }, itemCount: 45 });
@@ -589,6 +605,13 @@ describe('PublicCalendarComponent list pagination', () => {
     await Promise.resolve();
 
     expect(component.pageCount()).toBe(1);
+    // `pageCount() === 1` alone says nothing about what is rendered: without the guard the nav ships
+    // on every single-page list as a dead bar with two disabled buttons. There is no TestBed here to
+    // render it in, so the guard is asserted structurally — the nav must live inside the block that
+    // only opens past one page, and nowhere else in the template.
+    const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+    expect(source.match(/data-cy="calendar-pagination"/g)).toHaveLength(1);
+    expect(templateBlock(source, '@if (pageCount() > 1) {')).toContain('data-cy="calendar-pagination"');
   });
 
   it('pagination appears past twenty', async () => {

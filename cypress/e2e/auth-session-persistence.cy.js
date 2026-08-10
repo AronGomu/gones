@@ -69,7 +69,9 @@ describe('session persistence across a reload', () => {
     visit('/');
     // The mirror of the signed-in case: without a session the route to /login must be on offer.
     cy.get(SIGN_IN_LINK).should('exist');
-    cy.get('[data-cy="menu-login-card"]').should('be.visible');
+    // The home menu's login card is gone: the sign-in entry point now lives in the toolbar, and that
+    // is the affordance an anonymous visitor must still be offered.
+    cy.get('[data-cy="toolbar-sign-in-link"]').should('be.visible');
     cy.get('[data-cy="profile-link"]').should('not.exist');
   });
 });

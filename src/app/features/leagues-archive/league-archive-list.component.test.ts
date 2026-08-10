@@ -11,6 +11,22 @@ import { describe, expect, it } from 'vitest';
  */
 const source = readFileSync(join(__dirname, 'league-archive-list.component.ts'), 'utf8');
 
+/**
+ * The source slice a control-flow block owns, from its opening `{` to the `}` that balances it.
+ * Lets an assertion say "this element is *inside* that guard" rather than "both strings exist
+ * somewhere in the file", which a badge hoisted out of the guard would still satisfy.
+ */
+function templateBlock(opening: string): string {
+  const start = source.indexOf(opening);
+  expect(start, `template block "${opening}"`).toBeGreaterThan(-1);
+  let depth = 0;
+  for (let index = start + opening.length - 1; index < source.length; index++) {
+    if (source[index] === '{') depth++;
+    else if (source[index] === '}' && --depth === 0) return source.slice(start, index + 1);
+  }
+  throw new Error(`unbalanced template block "${opening}"`);
+}
+
 describe('league archive list template', () => {
   it('the list page always offers create', () => {
     expect(source).toContain('data-cy="leagues-archive-list-create-card"');
@@ -24,9 +40,12 @@ describe('league archive list template', () => {
     expect(source).toContain('@if (hasUnmanageableServerLeagues()) { <p class="muted" data-cy="leagues-archive-list-read-only"');
   });
 
-  it('local rows are badged', () => {
-    expect(source).toContain('@if (isLocal(league)) {');
-    expect(source).toContain('data-cy="leagues-archive-list-item-local-badge"');
+  it('local rows are badged, and only local rows', () => {
+    // Asserting the guard and the badge independently is satisfied by a badge hoisted out of the
+    // guard with a dummy element left inside — which would badge every server row too. The badge is
+    // rendered exactly once in the template, and that one occurrence is inside the local guard.
+    expect(source.match(/data-cy="leagues-archive-list-item-local-badge"/g)).toHaveLength(1);
+    expect(templateBlock('@if (isLocal(league)) {')).toContain('data-cy="leagues-archive-list-item-local-badge"');
   });
 
   it('the local notice explains the store', () => {

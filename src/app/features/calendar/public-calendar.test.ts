@@ -194,4 +194,31 @@ describe('calendar list pagination', () => {
     const sorted = sortTournamentsForList([itemB, itemA]);
     expect(sorted.map(item => item.title)).toEqual(['A', 'B']);
   });
+
+  it('the venue date is compared before anything else', () => {
+    const later: PublicTournamentView = { ...tournament, id: 'a', title: 'A', venueStartDate: '2026-08-02' };
+    const earlier: PublicTournamentView = { ...tournament, id: 'b', title: 'B', venueStartDate: '2026-08-01' };
+    expect(sortTournamentsForList([later, earlier]).map(item => item.id)).toEqual(['b', 'a']);
+  });
+
+  // Each comparator below the first is only reached when every comparator above it ties, so each one
+  // needs a pair that ties on all of them. Without such a pair, deleting the comparator changes
+  // nothing observable and the order silently becomes whatever the input order happened to be.
+  it('an equal date falls through to the venue start time', () => {
+    const late: PublicTournamentView = { ...tournament, id: 'a', title: 'Same', venueStartTime: '18:00:00' };
+    const early: PublicTournamentView = { ...tournament, id: 'b', title: 'Same', venueStartTime: '09:00:00' };
+    expect(sortTournamentsForList([late, early]).map(item => item.id)).toEqual(['b', 'a']);
+  });
+
+  it('an equal date and time falls through to the title', () => {
+    const second: PublicTournamentView = { ...tournament, id: 'a', title: 'Zulu' };
+    const first: PublicTournamentView = { ...tournament, id: 'b', title: 'Alpha' };
+    expect(sortTournamentsForList([second, first]).map(item => item.id)).toEqual(['b', 'a']);
+  });
+
+  it('an equal date, time and title falls through to the id', () => {
+    const second: PublicTournamentView = { ...tournament, id: 'b', title: 'Same' };
+    const first: PublicTournamentView = { ...tournament, id: 'a', title: 'Same' };
+    expect(sortTournamentsForList([second, first]).map(item => item.id)).toEqual(['a', 'b']);
+  });
 });

@@ -61,8 +61,13 @@ describe('refresh cookie topology', () => {
   });
 
   it('release compose never defaults the cookie insecure', () => {
+    // One literal substring is defeated by any other spelling of the same mistake: `: false`,
+    // `: "false"`, a `${…:-False}` default, or whitespace around either. The pattern below reads
+    // every assignment of the secure flag — direct or as a `${…:-…}` default — and rejects a falsey
+    // value in any casing or quoting.
+    const insecure = /REFRESHCOOKIE__SECURE\s*:-?\s*["']?\s*(?:false|no|off|0)\s*["']?/i;
     for (const file of ['compose.release-candidate.yaml', 'compose.release-test.yaml']) {
-      expect(read(file)).not.toContain('REFRESHCOOKIE__SECURE:-false');
+      expect(read(file), `${file} refresh cookie secure flag`).not.toMatch(insecure);
     }
   });
 });
