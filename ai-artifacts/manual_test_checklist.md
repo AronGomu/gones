@@ -237,3 +237,19 @@ cannot model is a browser's own refusal to store a `Secure` cookie over plain ht
 - [ ] `npm run dev`, open `http://127.0.0.1:4200/` at 1440px **signed out**: 5 cards render, About sits alone on the last row and spans the full row width.
 - [ ] Sign in as `admin@gones.test`: 6 cards render, the last row holds My registrations/Settings/About laid out two-per-row, each half width, none stretched full-row.
 - [ ] Shrink the viewport to 480px: every card is full width, no horizontal overflow, and no visible gap artefact where the old `.home-destination--about { grid-column: auto; }` override used to sit.
+
+## T4 delete-live-tournament
+
+The delete path itself is automated (`cypress/e2e/live-local.cy.js` covers create → advanced settings →
+delete → cancel, then delete → confirm → empty list → reload still empty, on the browser-local store).
+Two things it cannot prove: how the button *looks*, because every Material dialog reports `opacity: 0`
+under headless Electron so Cypress can never assert dialog visibility, and the **server** adapter path,
+which no automated spec in this slice signs in for.
+
+- [ ] `npm run dev`, signed out, `/live-tournaments` → create a tournament → toolbar **Advanced settings**: a Delete button sits at the **bottom** of the dialog, below Cancel/Apply and separated from them by a hairline rule — red outline, red label, transparent fill (a ghost button, not a filled one).
+- [ ] Click it: the settings dialog closes and a confirmation dialog appears naming the tournament, with the destructive (red) confirm button. Press **Cancel** — you are back on the runner and the tournament is untouched.
+- [ ] Repeat and **confirm**: you land on `/live-tournaments`, which shows the empty state. Reload the page: the tournament is still gone (its IndexedDB row was deleted, ADR 0021).
+- [ ] Switch the app language to French and repeat the open/cancel path: the button reads "Supprimer ce tournoi", the dialog title "Supprimer ce tournoi en cours ?" and the message names the tournament — no missing-key placeholders.
+- [ ] Sign in as `admin@gones.test` / `Gones-dev-pass-123!` (server adapter), create a running tournament, then delete it the same way: it disappears from the Live Tournament list and a second reload does not bring it back. Watch the Network tab — the `DELETE /api/live-tournaments/{id}` request carries an `If-Match` header.
+- [ ] Still signed in as Admin, open the same running tournament in two tabs. Change something in tab A, then delete from tab B's advanced settings: if the delete is refused as stale, the runner stays put and shows "The tournament changed elsewhere. Reload the page and try again." — no half-deleted state.
+- [ ] Sign in as `test@gones.test` (plain `User`, browser-local store per ADR 0021): they only ever see their own local tournaments, and the Delete button is present for those. A visitor who cannot manage a tournament (read-only runner) must see **no** Delete button at the bottom of the advanced settings.

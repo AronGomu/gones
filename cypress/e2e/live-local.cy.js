@@ -103,4 +103,41 @@ describe('Live Tournament browser-local flows', () => {
 
     cy.then(() => expect(liveApiCalls, 'requests to the Live API').to.deep.equal([]));
   });
+
+  it('deletes a local tournament from the advanced settings and keeps it deleted after a reload', () => {
+    cy.viewport(1280, 800);
+
+    // Signed out: no session, and the startup refresh never reaches the auth endpoint.
+    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
+
+    visit('/live-tournaments', { clearLocalStore: true });
+
+    cy.get('[data-cy="create-running-tournament-card"]').click();
+    cy.location('pathname').should('match', /^\/live-tournaments\/.+$/);
+    cy.get('[data-cy="live-tournament-name-input"]').clear().type('Doomed Cup').blur();
+    cy.contains('h1', 'Doomed Cup').should('be.visible');
+
+    // Dialog contents are asserted with `exist`, not `be.visible`: Material's open animation leaves
+    // the container at opacity 0 under headless Electron, which Cypress reads as hidden while still
+    // allowing the click. The same is true of every other dialog this suite drives.
+    // Cancelling the confirmation leaves the tournament alone.
+    cy.get('[data-cy="live-tournament-advanced-settings-button"]').click();
+    cy.get('[data-cy="live-advanced-danger-zone"]').should('exist');
+    cy.get('[data-cy="live-advanced-delete"]').click();
+    cy.get('[data-cy="confirm-dialog-cancel"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').should('not.exist');
+    cy.contains('h1', 'Doomed Cup').should('be.visible');
+
+    cy.get('[data-cy="live-tournament-advanced-settings-button"]').click();
+    cy.get('[data-cy="live-advanced-delete"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+
+    cy.location('pathname').should('eq', '/live-tournaments');
+    cy.get('[data-cy="running-tournament-empty-state"]').should('be.visible');
+
+    // The IndexedDB row is gone, not just the in-memory signal.
+    cy.reload();
+    cy.get('[data-cy="running-tournament-empty-state"]').should('be.visible');
+    cy.contains('[data-cy="running-tournament-card"]', 'Doomed Cup').should('not.exist');
+  });
 });

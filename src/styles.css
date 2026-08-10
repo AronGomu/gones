@@ -799,6 +799,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .live-tournament-grid { display: grid; grid-template-columns: minmax(18rem, .75fr) minmax(0, 1.25fr); gap: 1rem; align-items: start; }
 .live-tournament-grid--compact { grid-template-columns: minmax(0, 1fr); }
 .live-advanced-settings-dialog { display: grid; gap: 1rem; padding-top: .25rem; }
+.live-advanced-danger-zone { display: flex; justify-content: flex-start; padding: .35rem 1.5rem 1.25rem; border-top: 1px solid var(--soot); margin-top: .25rem; }
 .live-player-archetype-panel { margin-top: .5rem; }
 .live-player-archetype-list { width: 100%; }
 .live-custom-round-toggle { display: inline-flex; align-items: center; justify-content: flex-end; gap: .55rem; min-height: 44px; color: var(--dim-ash); font-weight: 800; text-transform: lowercase; }

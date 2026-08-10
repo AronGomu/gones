@@ -912,6 +912,11 @@ const en = {
   'live.deckArchetypeFor': 'Deck archetype for {name}',
   'live.addPlayersBeforeArchetypes': 'Add players before assigning deck archetypes.',
   'live.applySettings': 'Apply settings',
+  'live.deleteTournament': 'Delete this tournament',
+  'live.deleteConfirmTitle': 'Delete this running tournament?',
+  'live.deleteConfirmMessage': 'This permanently removes “{name}” and every round and result it holds. This cannot be undone.',
+  'live.deleteFailed': 'The tournament could not be deleted.',
+  'live.deleteStale': 'The tournament changed elsewhere. Reload the page and try again.',
   'live.checkpointPairing': 'Pairing {n}',
   'live.checkpointStanding': 'Standing {n}',
 
@@ -1938,6 +1943,11 @@ const fr: Record<MessageKey, string> = {
   'live.deckArchetypeFor': 'Archétype de deck pour {name}',
   'live.addPlayersBeforeArchetypes': 'Ajoutez des joueurs avant d’assigner des archétypes.',
   'live.applySettings': 'Appliquer les paramètres',
+  'live.deleteTournament': 'Supprimer ce tournoi',
+  'live.deleteConfirmTitle': 'Supprimer ce tournoi en cours ?',
+  'live.deleteConfirmMessage': 'Cette action supprime définitivement « {name} » ainsi que toutes ses rondes et tous ses résultats. Elle est irréversible.',
+  'live.deleteFailed': 'Le tournoi n’a pas pu être supprimé.',
+  'live.deleteStale': 'Le tournoi a changé ailleurs. Rechargez la page et réessayez.',
   'live.checkpointPairing': 'Appariement {n}',
   'live.checkpointStanding': 'Classement {n}',
 

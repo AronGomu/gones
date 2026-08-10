@@ -123,10 +123,10 @@ Cypress (`cypress/e2e/live-local.cy.js`, new `it`): signed out, create a local t
 
 ## Impl steps
 
-- [ ] 1. Add `LiveDeleteOutcome` and `liveDeleteOutcome` to `src/app/data/live-command-ux.ts` exactly as written above.
-- [ ] 2. Create `src/app/features/live-tournaments/live-tournament-delete.test.ts`. Start with `import '@angular/compiler';`. Import `liveDeleteOutcome` from `'../../data/live-command-ux'` and read the runner source with `readFileSync(join(__dirname, 'live-tournament-runner.component.ts'), 'utf8')`. Write all ten tests.
-- [ ] 3. Run `npx vitest run src/app/features/live-tournaments/live-tournament-delete.test.ts` — the six pure tests pass, the four source tests fail.
-- [ ] 4. In `src/app/i18n/messages.ts`, add to the `en` map next to the other `live.*` keys:
+- [x] 1. Add `LiveDeleteOutcome` and `liveDeleteOutcome` to `src/app/data/live-command-ux.ts` exactly as written above.
+- [x] 2. Create `src/app/features/live-tournaments/live-tournament-delete.test.ts`. Start with `import '@angular/compiler';`. Import `liveDeleteOutcome` from `'../../data/live-command-ux'` and read the runner source with `readFileSync(join(__dirname, 'live-tournament-runner.component.ts'), 'utf8')`. Write all ten tests.
+- [x] 3. Run `npx vitest run src/app/features/live-tournaments/live-tournament-delete.test.ts` — the six pure tests pass, the four source tests fail. (observed: `Tests  4 failed | 6 passed (10)`)
+- [x] 4. In `src/app/i18n/messages.ts`, add to the `en` map next to the other `live.*` keys:
       ```
       'live.deleteTournament': 'Delete this tournament',
       'live.deleteConfirmTitle': 'Delete this running tournament?',
@@ -143,17 +143,17 @@ Cypress (`cypress/e2e/live-local.cy.js`, new `it`): signed out, create a local t
       'live.deleteStale': 'Le tournoi a changé ailleurs. Rechargez la page et réessayez.',
       ```
       Reuse the existing `live.forbidden` key for the forbidden case; if it does not exist, add `'live.forbidden': 'This account cannot manage running tournaments.'` / `'live.forbidden': 'Ce compte ne peut pas gérer les tournois en cours.'` in both maps.
-- [ ] 5. In `live-tournament-runner.component.ts`, widen the dialog contract. Directly above `LiveTournamentAdvancedSettingsDialogComponent`, replace the draft type alias with:
+- [x] 5. In `live-tournament-runner.component.ts`, widen the dialog contract. Directly above `LiveTournamentAdvancedSettingsDialogComponent`, replace the draft type alias with:
       ```ts
       type LiveTournamentAdvancedSettingsDraft = Pick<LiveTournamentDocument, 'leagueId' | 'paidTrackingEnabled' | 'players'>;
       type LiveTournamentAdvancedSettingsResult =
         | { kind: 'apply'; draft: LiveTournamentAdvancedSettingsDraft }
         | { kind: 'delete' };
       ```
-- [ ] 6. Add `canManage: boolean` to `LiveTournamentAdvancedSettingsDialogData` (the interface at line 959).
-- [ ] 7. In the dialog component, change the `MatDialogRef` generic's result type to `LiveTournamentAdvancedSettingsResult`, and change `apply()` to close with `{ kind: 'apply', draft: { … } }` keeping the existing normalisation of `leagueId`, `paidTrackingEnabled` and `players`.
-- [ ] 8. Add to the dialog component: `requestDelete(): void { this.dialogRef.close({ kind: 'delete' }); }`
-- [ ] 9. In the dialog template, leave `mat-dialog-actions` exactly as it is and append a danger zone **below** it, as the last thing in the template. Material lays `mat-dialog-actions` out as a single row, so a delete button placed inside it would sit beside Apply, not at the bottom; its own block is what "at the bottom of the advanced settings" means and it is what keeps the source order the test asserts.
+- [x] 6. Add `canManage: boolean` to `LiveTournamentAdvancedSettingsDialogData` (the interface at line 959).
+- [x] 7. In the dialog component, change the `MatDialogRef` generic's result type to `LiveTournamentAdvancedSettingsResult`, and change `apply()` to close with `{ kind: 'apply', draft: { … } }` keeping the existing normalisation of `leagueId`, `paidTrackingEnabled` and `players`.
+- [x] 8. Add to the dialog component: `requestDelete(): void { this.dialogRef.close({ kind: 'delete' }); }`
+- [x] 9. In the dialog template, leave `mat-dialog-actions` exactly as it is and append a danger zone **below** it, as the last thing in the template. Material lays `mat-dialog-actions` out as a single row, so a delete button placed inside it would sit beside Apply, not at the bottom; its own block is what "at the bottom of the advanced settings" means and it is what keeps the source order the test asserts.
       ```html
       <mat-dialog-actions align="end" data-cy="live-advanced-actions">
         <button mat-button type="button" data-cy="live-advanced-cancel" (click)="close()">{{ i18n.t('common.cancel') }}</button>
@@ -165,11 +165,11 @@ Cypress (`cypress/e2e/live-local.cy.js`, new `it`): signed out, create a local t
         </div>
       }
       ```
-- [ ] 10. In `src/styles.css`, next to the other `live-advanced-*` rules, add:
+- [x] 10. In `src/styles.css`, next to the other `live-advanced-*` rules, add:
       ```css
       .live-advanced-danger-zone { display: flex; justify-content: flex-start; padding: .35rem 1.5rem 1.25rem; border-top: 1px solid var(--soot); margin-top: .25rem; }
       ```
-- [ ] 11. In `LiveTournamentRunnerComponent.openAdvancedSettings()`, pass `canManage: this.canManage()` in the dialog `data`, retype the generic to `LiveTournamentAdvancedSettingsResult`, and rewrite the subscription:
+- [x] 11. In `LiveTournamentRunnerComponent.openAdvancedSettings()`, pass `canManage: this.canManage()` in the dialog `data`, retype the generic to `LiveTournamentAdvancedSettingsResult`, and rewrite the subscription:
       ```ts
       .afterClosed().subscribe((result) => {
         if (!result) return;
@@ -184,7 +184,7 @@ Cypress (`cypress/e2e/live-local.cy.js`, new `it`): signed out, create a local t
         }
       });
       ```
-- [ ] 12. Add the handler to `LiveTournamentRunnerComponent`:
+- [x] 12. Add the handler to `LiveTournamentRunnerComponent`:
       ```ts
       async deleteTournament(): Promise<void> {
         const live = this.tournament();
@@ -213,8 +213,8 @@ Cypress (`cypress/e2e/live-local.cy.js`, new `it`): signed out, create a local t
       }
       ```
       Add `liveDeleteOutcome` to the existing `live-command-ux` import; `logBoundaryError`, `firstValueFrom`, `ConfirmDialogComponent` and `MatDialog` are already imported in this file — verify before adding duplicates.
-- [ ] 13. Add the Cypress case to `cypress/e2e/live-local.cy.js` as described in the Test plan. Follow the file's existing `visit()` helper and its `cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, … })` stub so the spec stays signed out and spends no auth permit. Open advanced settings through `[data-cy="live-tournament-advanced-settings-button"]` in the toolbar.
-- [ ] 14. Run `npx vitest run src/app/features/live-tournaments/live-tournament-delete.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 13. Add the Cypress case to `cypress/e2e/live-local.cy.js` as described in the Test plan. Follow the file's existing `visit()` helper and its `cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, … })` stub so the spec stays signed out and spends no auth permit. Open advanced settings through `[data-cy="live-tournament-advanced-settings-button"]` in the toolbar.
+- [x] 14. Run `npx vitest run src/app/features/live-tournaments/live-tournament-delete.test.ts src/app/shared/data-cy-coverage.test.ts` — green. (observed: `Test Files  2 passed (2)` / `Tests  18 passed (18)`)
 
 ## Outputs
 
@@ -225,12 +225,15 @@ Cypress (`cypress/e2e/live-local.cy.js`, new `it`): signed out, create a local t
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npx cypress run --spec cypress/e2e/live-local.cy.js` passes
-- [ ] Manual (browser-local): `npm run dev`, signed out, `/live-tournaments` → create → toolbar Advanced settings → the red ghost Delete is at the bottom → click → confirm dialog appears → Cancel leaves the tournament in place.
-- [ ] Manual (browser-local): repeat and confirm → back on `/live-tournaments`, empty state, and the tournament is still gone after a reload.
+- [x] `npm run test` passes (observed: `Test Files  82 passed (82)` / `Tests  548 passed (548)`)
+- [x] `npm run lint` passes (observed: `All files pass linting.`)
+- [x] `npm run typecheck` passes (observed: exit 0, no diagnostics)
+- [x] `npx cypress run --spec cypress/e2e/live-local.cy.js` passes (observed: `2 passing`, `All specs passed!`; on this NixOS host the binary needs `steam-run` + an `LD_LIBRARY_PATH` carrying nspr/nss — an environment wrapper, not a spec change)
+- [x] Manual (browser-local): `npm run dev`, signed out, `/live-tournaments` → create → toolbar Advanced settings → the red ghost Delete is at the bottom → click → confirm dialog appears → Cancel leaves the tournament in place.
+      Automated equivalent: `live-local.cy.js` "deletes a local tournament…" drives create → toolbar Advanced settings → `live-advanced-delete` → `confirm-dialog-cancel` and asserts the tournament is still there; `live-tournament-delete.test.ts` asserts the button is `mat-stroked-button` + `danger-ghost-action` and sits after Apply. **Not** automatically proven: that it renders red to a human eye — every Material dialog in this suite reports `opacity: 0` under headless Electron, so Cypress cannot assert dialog visibility. Kept as a human step in `ai-artifacts/manual_test_checklist.md`.
+- [x] Manual (browser-local): repeat and confirm → back on `/live-tournaments`, empty state, and the tournament is still gone after a reload.
+      Automated equivalent: same Cypress case — confirm → `/live-tournaments` → `running-tournament-empty-state` → `cy.reload()` → still empty, proving the IndexedDB row was removed.
 - [ ] Manual (server): sign in as `admin@gones.test`, create a running tournament, delete it the same way — it disappears from the list and a second reload does not bring it back.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(live): allow deleting a running tournament from advanced settings`
+      Unproven: no automated signed-in server-adapter delete was run in this slice. Recorded in `ai-artifacts/manual_test_checklist.md`.
+- [x] app functional — no broken path from this slice (`npm run test` 548/548, `npm run lint`, `npm run typecheck`, `live-local.cy.js` 2/2 all green; `ng serve` rebuilt the app with no compile error)
+- [x] commit msg draft: `feat(live): allow deleting a running tournament from advanced settings`

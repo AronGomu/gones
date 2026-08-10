@@ -18,7 +18,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { canManageLive, liveCommandError } from '../../data/live-command-ux';
+import { canManageLive, liveCommandError, liveDeleteOutcome } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { activeLivePlayers, autoLiveSwissRoundCount, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, currentLiveRound, currentRoundComplete, finalizeLiveTournament as finalizeLiveTournamentDocument, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, unpaidActivePlayers } from '../../domain/live-tournament';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, trimPlayerName } from '../../domain/models';
@@ -668,20 +668,47 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   openAdvancedSettings(): void {
     const live = this.tournament();
     if (!live) return;
-    this.dialog.open<LiveTournamentAdvancedSettingsDialogComponent, LiveTournamentAdvancedSettingsDialogData, LiveTournamentAdvancedSettingsDraft>(LiveTournamentAdvancedSettingsDialogComponent, {
+    this.dialog.open<LiveTournamentAdvancedSettingsDialogComponent, LiveTournamentAdvancedSettingsDialogData, LiveTournamentAdvancedSettingsResult>(LiveTournamentAdvancedSettingsDialogComponent, {
       width: 'min(92vw, 42rem)',
-      data: { live, leagues: this.leagues() }
+      data: { live, leagues: this.leagues(), canManage: this.canManage() }
     }).afterClosed().subscribe((result) => {
       if (!result) return;
+      if (result.kind === 'delete') { void this.deleteTournament(); return; }
       const before = this.tournament();
-      this.update((current) => this.withAutomaticRoundCount({ ...current, ...result }));
+      this.update((current) => this.withAutomaticRoundCount({ ...current, ...result.draft }));
       if (!before || this.tournament() === before) return;
       this.queueSettingsIntent();
-      for (const player of result.players) {
+      for (const player of result.draft.players) {
         const previous = before.players.find((item) => item.id === player.id);
         if (previous && previous.archetype !== player.archetype) this.queuePlayerEditIntent(player.id);
       }
     });
+  }
+
+  async deleteTournament(): Promise<void> {
+    const live = this.tournament();
+    if (!live || this.readOnly() || this.pendingCommand()) return;
+    const confirmed = Boolean(await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: this.i18n.t('live.deleteConfirmTitle'),
+        message: this.i18n.t('live.deleteConfirmMessage', { name: live.name || this.i18n.t('liveList.liveTournament') }),
+        confirmLabel: this.i18n.t('live.deleteTournament'),
+        destructive: true
+      }
+    }).afterClosed()));
+    if (!confirmed) return;
+    this.pendingCommand.set(true);
+    this.error.set('');
+    try {
+      await this.liveRepo.delete(live.id);
+      await this.router.navigate(['/live-tournaments']);
+    } catch (error) {
+      logBoundaryError('live-tournament-runner.delete', error, { liveTournamentId: live.id });
+      const outcome = liveDeleteOutcome(true, error);
+      this.error.set(outcome === 'forbidden' ? this.i18n.t('live.forbidden') : outcome === 'stale' ? this.i18n.t('live.deleteStale') : this.i18n.t('live.deleteFailed'));
+    } finally {
+      this.pendingCommand.set(false);
+    }
   }
 
   private canRestoreCheckpoint(live: LiveTournamentDocument, checkpoint: LiveTournamentCheckpointDocument): boolean {
@@ -959,9 +986,13 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 interface LiveTournamentAdvancedSettingsDialogData {
   live: LiveTournamentDocument;
   leagues: PersistedLeague[];
+  canManage: boolean;
 }
 
 type LiveTournamentAdvancedSettingsDraft = Pick<LiveTournamentDocument, 'leagueId' | 'paidTrackingEnabled' | 'players'>;
+type LiveTournamentAdvancedSettingsResult =
+  | { kind: 'apply'; draft: LiveTournamentAdvancedSettingsDraft }
+  | { kind: 'delete' };
 
 @Component({
   standalone: true,
@@ -996,12 +1027,17 @@ type LiveTournamentAdvancedSettingsDraft = Pick<LiveTournamentDocument, 'leagueI
       <button mat-button type="button" data-cy="live-advanced-cancel" (click)="close()">{{ i18n.t('common.cancel') }}</button>
       <button mat-flat-button class="home-primary-action" type="button" data-cy="live-advanced-apply" (click)="apply()">{{ i18n.t('live.applySettings') }}</button>
     </mat-dialog-actions>
+    @if (data.canManage) {
+      <div class="live-advanced-danger-zone" data-cy="live-advanced-danger-zone">
+        <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="live-advanced-delete" (click)="requestDelete()">{{ i18n.t('live.deleteTournament') }}</button>
+      </div>
+    }
   `
 })
 export class LiveTournamentAdvancedSettingsDialogComponent {
   readonly i18n = inject(I18nService);
   readonly data = inject<LiveTournamentAdvancedSettingsDialogData>(MAT_DIALOG_DATA);
-  private readonly dialogRef = inject(MatDialogRef<LiveTournamentAdvancedSettingsDialogComponent, LiveTournamentAdvancedSettingsDraft>);
+  private readonly dialogRef = inject(MatDialogRef<LiveTournamentAdvancedSettingsDialogComponent, LiveTournamentAdvancedSettingsResult>);
   readonly draft: LiveTournamentAdvancedSettingsDraft = {
     leagueId: this.data.live.leagueId,
     paidTrackingEnabled: this.data.live.paidTrackingEnabled,
@@ -1020,9 +1056,14 @@ export class LiveTournamentAdvancedSettingsDialogComponent {
 
   apply(): void {
     this.dialogRef.close({
-      leagueId: String(this.draft.leagueId ?? ''),
-      paidTrackingEnabled: Boolean(this.draft.paidTrackingEnabled),
-      players: this.draft.players.map((player) => ({ ...player, archetype: String(player.archetype ?? '').trim() }))
+      kind: 'apply',
+      draft: {
+        leagueId: String(this.draft.leagueId ?? ''),
+        paidTrackingEnabled: Boolean(this.draft.paidTrackingEnabled),
+        players: this.draft.players.map((player) => ({ ...player, archetype: String(player.archetype ?? '').trim() }))
+      }
     });
   }
+
+  requestDelete(): void { this.dialogRef.close({ kind: 'delete' }); }
 }
