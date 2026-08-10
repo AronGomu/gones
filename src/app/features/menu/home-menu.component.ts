@@ -12,12 +12,6 @@ import { AuthService } from '../../auth/auth.service';
   template: `
     <section class="home-landing" [attr.aria-label]="i18n.t('home.aria')" data-cy="menu-section">
       <nav class="home-destinations" [attr.aria-label]="i18n.t('home.navAria')" data-cy="menu-nav">
-        @if (auth.enabled && !auth.profile()) {
-          <a class="home-destination home-destination--settings" routerLink="/login" data-cy="menu-login-card">
-            <strong data-cy="menu-login-card-title">{{ i18n.t('auth.signIn') }}</strong>
-            <p data-cy="menu-login-card-desc">{{ i18n.t('home.signInDesc') }}</p>
-          </a>
-        }
         <a class="home-destination home-destination--leagues" [class.home-destination--running-active]="hasActiveRunningTournament()" routerLink="/live-tournaments" data-cy="menu-running-tournaments-card">
           <strong data-cy="menu-running-tournaments-card-title">{{ i18n.t('home.runningTournaments') }}</strong>
           <p data-cy="menu-running-tournaments-card-desc">{{ i18n.t('home.runningTournamentsDesc') }}</p>

@@ -87,11 +87,11 @@ These are template-source assertions, following the repo's existing no-TestBed s
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/app.component.auth-entry.test.ts`. Start it with `import '@angular/compiler';` (every component-touching vitest file in this repo does). Read the component source with `readFileSync(join(__dirname, 'app.component.ts'), 'utf8')` and assert the three toolbar cases above.
-- [ ] 2. Add the two home-menu cases to `src/app/features/menu/home-menu.component.test.ts`, reading `home-menu.component.ts` the same way.
-- [ ] 3. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/features/menu/home-menu.component.test.ts` — both must fail.
-- [ ] 4. In `src/app/i18n/messages.ts`, add to the `en` map next to the other `auth.*` keys: `'auth.signInAria': 'Sign in or create an account',`. Add the same key to the `fr` map: `'auth.signInAria': 'Se connecter ou créer un compte',`.
-- [ ] 5. In `src/app/app.component.ts`, replace the `.auth-toolbar-actions` block with:
+- [x] 1. Create `src/app/app.component.auth-entry.test.ts`. Start it with `import '@angular/compiler';` (every component-touching vitest file in this repo does). Read the component source with `readFileSync(join(__dirname, 'app.component.ts'), 'utf8')` and assert the three toolbar cases above.
+- [x] 2. Add the two home-menu cases to `src/app/features/menu/home-menu.component.test.ts`, reading `home-menu.component.ts` the same way.
+- [x] 3. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/features/menu/home-menu.component.test.ts` — both must fail. (Confirmed: 4 failed | 3 passed before impl.)
+- [x] 4. In `src/app/i18n/messages.ts`, add to the `en` map next to the other `auth.*` keys: `'auth.signInAria': 'Sign in or create an account',`. Add the same key to the `fr` map: `'auth.signInAria': 'Se connecter ou créer un compte',`.
+- [x] 5. In `src/app/app.component.ts`, replace the `.auth-toolbar-actions` block with:
       ```html
       @if (auth.enabled) {
         <div class="auth-toolbar-actions" data-cy="auth-toolbar-actions">
@@ -104,9 +104,9 @@ These are template-source assertions, following the repo's existing no-TestBed s
         </div>
       }
       ```
-- [ ] 6. In `src/app/features/menu/home-menu.component.ts`, delete the whole `@if (auth.enabled && !auth.profile()) { … }` block (the `menu-login-card` anchor and its two children).
-- [ ] 7. In the same file, remove the now-unused `AuthService` import **only if** `auth` has no other template use. It still does — `@if (auth.profile())` guards `menu-registrations-card` on line 33 — so keep the `auth` field and the import. Do not touch them.
-- [ ] 8. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/features/menu/home-menu.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 6. In `src/app/features/menu/home-menu.component.ts`, delete the whole `@if (auth.enabled && !auth.profile()) { … }` block (the `menu-login-card` anchor and its two children).
+- [x] 7. In the same file, remove the now-unused (verified: `auth` field/import kept, still guards `menu-registrations-card`; lint/typecheck clean). `AuthService` import **only if** `auth` has no other template use. It still does — `@if (auth.profile())` guards `menu-registrations-card` on line 33 — so keep the `auth` field and the import. Do not touch them.
+- [x] 8. Run `npx vitest run src/app/app.component.auth-entry.test.ts src/app/features/menu/home-menu.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green. (Confirmed: 3 files, 15 tests passed.)
 
 ## Outputs
 
@@ -117,11 +117,11 @@ These are template-source assertions, following the repo's existing no-TestBed s
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] Manual: `npm run dev`, open `http://127.0.0.1:4200/` signed out — the toolbar shows Sign in on the right; the home grid has no sign-in card.
-- [ ] Manual: sign in as `admin@gones.test` — Sign in is replaced by the username link plus the red Log out button, in the same place.
-- [ ] Manual: at a 400px viewport width the toolbar still fits and the Sign in action stays right-aligned.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(auth): put the sign-in entry point in the toolbar instead of the home menu`
+- [x] `npm run test` passes (80 files, 532 tests passed)
+- [x] `npm run lint` passes ("All files pass linting.")
+- [x] `npm run typecheck` passes (no output, exit 0)
+- [ ] Manual: `npm run dev`, open `http://127.0.0.1:4200/` signed out — the toolbar shows Sign in on the right; the home grid has no sign-in card. Left unchecked — no live browser run performed this pass; automated proxy exists (`app.component.auth-entry.test.ts` slot/else-branch assertions + `home-menu.component.test.ts` no-login-card assertion) but not equivalent to a rendered DOM/browser check. Logged in manual checklist.
+- [ ] Manual: sign in as `admin@gones.test` — Sign in is replaced by the username link plus the red Log out button, in the same place. Left unchecked — same reason as above; no Cypress/browser run this pass.
+- [ ] Manual: at a 400px viewport width the toolbar still fits and the Sign in action stays right-aligned. Left unchecked — CSS-only claim from ticket context (existing `.auth-toolbar-actions` rules), no automated viewport proof produced.
+- [x] app functional — no broken path from this slice (full `npm run test` 532/532, `npm run lint`, `npm run typecheck` all clean)
+- [x] commit msg draft: `feat(auth): put the sign-in entry point in the toolbar instead of the home menu`

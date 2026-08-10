@@ -22,4 +22,16 @@ describe('HomeMenuComponent template', () => {
     const outsideGuard = source.replace(/@if \(auth\.profile\(\)\) \{[\s\S]*?\n\s*\}/, '');
     expect(outsideGuard).not.toContain('data-cy="menu-registrations-card"');
   });
+
+  it('the home menu no longer carries a login card', () => {
+    expect(source).not.toContain('menu-login-card');
+  });
+
+  it('the home menu still carries every other destination', () => {
+    expect(source).toContain('menu-running-tournaments-card');
+    expect(source).toContain('menu-leagues-archive-card');
+    expect(source).toContain('menu-calendar-card');
+    expect(source).toContain('menu-settings-link');
+    expect(source).toContain('menu-about-link');
+  });
 });

@@ -204,6 +204,14 @@ does not throw on vitest 4.1.10). No manual check applies.
       [userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
       data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.
 
+## T2 header-sign-in-entry
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/` signed out: the toolbar shows a "Sign in" action on the right (same slot the Log out button occupies when signed in), and the home menu grid has no sign-in card.
+- [ ] Click that toolbar Sign in action: it navigates to `/login`.
+- [ ] Sign in as `admin@gones.test` / `Gones-dev-pass-123!`: the toolbar Sign in action is replaced by the username link plus the red Log out button, in the same position.
+- [ ] At a 400px viewport width, the toolbar still fits with no horizontal scroll and the Sign in / Log out slot stays right-aligned.
+- [ ] Inspect the Sign in link's accessible name (screen reader or DevTools Accessibility pane): it reads "Sign in or create an account" (English) / "Se connecter ou créer un compte" (French).
+
 ## T1 dev-accounts-and-refresh-cookie
 
 Only the browser half is left here. The API half was proved automatically against the live stack:
