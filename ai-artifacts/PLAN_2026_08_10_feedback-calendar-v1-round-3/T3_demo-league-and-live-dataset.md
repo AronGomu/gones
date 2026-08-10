@@ -167,4 +167,4 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 - [x] Manual: `/leagues-archive/demo-league-6` renders 3 tournaments and a standings table with ≥ 9 players. → verify through the API the page reads: `GET /api/leagues-archive/<restored id>` shows 3 tournaments and `…/result` ≥ 9 standing rows.
 - [x] Manual: `/live-tournaments` as `organizer@gones.test` shows `demo-live-in-progress` on an unscored round. → verify through `GET /api/live-tournaments`: stage `round`, current round entries unscored.
 - [x] App functional — no broken path from this slice. → verify: `npm run build` green and no `src/**` or `backend/**` file in the diff.
-- [ ] Commit msg draft: `feat(dev): seed demo league archives and running tournaments`
+- [x] Commit msg draft: `feat(dev): seed demo league archives and running tournaments` — committed as `1f6cd4e`, pushed to `origin/feat/feedback-calendar-v1-round-3`.
