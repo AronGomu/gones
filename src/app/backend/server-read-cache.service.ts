@@ -45,7 +45,7 @@ export class ServerReadCacheService {
   private readonly store = inject(SERVER_READ_CACHE_STORE_PORT);
 
   constructor() {
-    inject(SessionScopeService).register(() => void this.purge());
+    inject(SessionScopeService).register(() => this.purge());
   }
 
   /**
@@ -65,8 +65,9 @@ export class ServerReadCacheService {
     try {
       value = await load();
     } catch (error) {
+      if (this.key(resource) !== key) throw error;
       const row = await this.cached(key);
-      if (!row) throw error;
+      if (this.key(resource) !== key || !row) throw error;
       return { value: row.value as T, stale: true, cachedAt: row.cachedAt };
     }
     if (this.key(resource) === key) await this.remember(key, value);
@@ -79,6 +80,7 @@ export class ServerReadCacheService {
       await this.store.clear();
     } catch (error) {
       logBoundaryError('server-read-cache.purge', error);
+      throw error;
     }
   }
 
@@ -110,7 +112,7 @@ export class ServerReadCacheService {
 /** Row shape: the key path is `key`, so `<userId>:<resource>` is the primary key of the store. */
 interface CachedReadRow extends CachedRead<unknown> { key: string; }
 
-class IndexedDbServerReadCacheStore implements ServerReadCacheStore {
+export class IndexedDbServerReadCacheStore implements ServerReadCacheStore {
   private database?: Promise<IDBDatabase>;
 
   async read(key: string): Promise<CachedRead<unknown> | null> {
@@ -137,12 +139,20 @@ class IndexedDbServerReadCacheStore implements ServerReadCacheStore {
 
   private open(): Promise<IDBDatabase> {
     if (!this.database) {
-      this.database = openDatabase(SERVER_READ_CACHE_DB_NAME, SERVER_READ_CACHE_DB_VERSION, (database) => {
+      const opening = openDatabase(SERVER_READ_CACHE_DB_NAME, SERVER_READ_CACHE_DB_VERSION, (database) => {
         if (!database.objectStoreNames.contains(SERVER_READ_CACHE_STORE)) database.createObjectStore(SERVER_READ_CACHE_STORE, { keyPath: 'key' });
+      });
+      const tracked = opening.then((database) => {
+        database.onversionchange = () => {
+          database.close();
+          if (this.database === tracked) this.database = undefined;
+        };
+        return database;
       }).catch((error: unknown) => {
-        this.database = undefined; // never memoize a failed open: a later call must retry
+        if (this.database === tracked) this.database = undefined; // a later call must retry
         throw error;
       });
+      this.database = tracked;
     }
     return this.database;
   }
@@ -150,8 +160,8 @@ class IndexedDbServerReadCacheStore implements ServerReadCacheStore {
 
 /**
  * The one call `indexed-db.ts` does not wrap, because this is the only store that is ever dropped
- * whole. A blocked delete is reported, not swallowed silently: another tab still holds the database
- * open, and the deletion only completes once it lets go.
+ * whole. A blocked request stays pending: every same-app connection closes on `versionchange`, then
+ * the browser completes deletion instead of turning a temporary block into a permanent failure.
  */
 function deleteDatabase(name: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -163,6 +173,6 @@ function deleteDatabase(name: string): Promise<void> {
     const request = factory.deleteDatabase(name);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error ?? new Error('indexedDbDeleteFailed'));
-    request.onblocked = () => reject(new Error('indexedDbBlocked'));
+    request.onblocked = () => undefined;
   });
 }

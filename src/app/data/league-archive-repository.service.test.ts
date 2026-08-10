@@ -188,6 +188,27 @@ describe('LeagueArchiveRepository read routing', () => {
     expect(server.getLeagueArchive).toHaveBeenCalledWith(SERVER_ID);
     expect(untouched(local)).toEqual([]);
   });
+
+  it('signals cached server detail as stale, then clears after server recovery', async () => {
+    const server = fakeBackend([], { [SERVER_ID]: league(SERVER_ID, 'Fresh') });
+    server.getLeagueArchive.mockRejectedValueOnce(new Error('offline'));
+    const cached = { [`u1:league:${SERVER_ID}`]: { value: league(SERVER_ID, 'Cached'), cachedAt: '2026-08-09T10:00:00.000Z' } };
+    const { repository } = setup({ server, userId: 'u1', cached });
+
+    await expect(repository.getLeague(SERVER_ID)).resolves.toMatchObject({ name: 'Cached' });
+    expect(repository.detailStale()).toBe(true);
+    await expect(repository.getLeague(SERVER_ID)).resolves.toMatchObject({ name: 'Fresh' });
+    expect(repository.detailStale()).toBe(false);
+  });
+
+  it('never signals server-cache staleness for a browser-local detail', async () => {
+    const { repository } = setup();
+    repository.detailStale.set(true);
+
+    await repository.getLeague(LOCAL_ID);
+
+    expect(repository.detailStale()).toBe(false);
+  });
 });
 
 describe('LeagueArchiveRepository create routing', () => {

@@ -144,7 +144,7 @@ describe('auth and profile', () => {
 
   it('starts explicit provider linking without implicit email merge', () => {
     login();
-    cy.intercept('POST', '**/api/users/me/external-identities/google/start', { authorizationUrl: 'http://127.0.0.1:8081/profile?linkStarted=true' }).as('linkStart');
+    cy.intercept('POST', '**/api/users/me/external-identities/google/start', { authorizationUrl: `${Cypress.config('baseUrl')}/profile?linkStarted=true` }).as('linkStart');
     cy.get('[data-cy="link-google"]').click();
     cy.wait('@linkStart').its('request.body').should('not.have.property', 'currentPassword');
     cy.location('search').should('eq', '?linkStarted=true');

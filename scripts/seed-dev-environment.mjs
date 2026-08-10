@@ -16,7 +16,7 @@
 import { spawnSync } from 'node:child_process';
 
 import { DEV_PASSWORD } from './dev-accounts.mjs';
-import { DATA_FILES, devComposeEnv, listEnvironmentNames, localDateTime, loginToken, parseDevArgs, readEnvironment, validateEnvironment } from './dev-environments.mjs';
+import { DATA_FILES, devComposeEnv, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, loginToken, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from './dev-environments.mjs';
 
 const API_ORIGIN = 'http://127.0.0.1:5080';
 const BACKEND_SERVICES = ['postgres', 'migrator', 'api', 'worker'];
@@ -46,7 +46,33 @@ function run(command, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+function dockerOutput(args) {
+  const result = spawnSync('docker', args, { encoding: 'utf8', env: seedComposeEnv() });
+  if (result.status !== 0) {
+    console.error(`Could not resolve local Docker endpoint: ${String(result.stderr || result.error || 'docker command failed').trim()}`);
+    process.exit(result.status ?? 1);
+  }
+  return result.stdout.trim();
+}
+
+function effectiveDockerEndpoint() {
+  const context = String(process.env.DOCKER_CONTEXT ?? '').trim();
+  if (context) return dockerOutput(['context', 'inspect', context, '--format', '{{.Endpoints.docker.Host}}']);
+  const host = String(process.env.DOCKER_HOST ?? '').trim();
+  if (host) return host;
+  const current = dockerOutput(['context', 'show']);
+  return dockerOutput(['context', 'inspect', current, '--format', '{{.Endpoints.docker.Host}}']);
+}
+
+function requireLocalDocker() {
+  const endpoint = effectiveDockerEndpoint();
+  if (isLocalDockerEndpoint(endpoint)) return;
+  console.error(`Unsafe Docker endpoint "${endpoint}": local Unix Docker is required for environment reset.`);
+  process.exit(2);
+}
+
 function resetDatabase() {
+  requireLocalDocker();
   run('docker', ['compose', '--profile', 'development', 'down', '--volumes', '--remove-orphans']);
   run('docker', ['compose', 'up', '--build', '-d', '--wait', ...BACKEND_SERVICES]);
   run(process.execPath, ['scripts/seed-local.mjs']);
@@ -103,7 +129,7 @@ async function loginAll(environment) {
   for (const { email, password, emailConfirmed } of environment.accounts) {
     if (emailConfirmed === false) continue;
     const { accessToken } = await loginToken(email, password ?? DEV_PASSWORD);
-    tokens.set(email, accessToken);
+    tokens.set(normalizeFixtureEmail(email), accessToken);
   }
   return tokens;
 }
@@ -133,7 +159,7 @@ function tokenForRole(environment, tokens, role, step) {
     console.error(`Seeding ${step} failed: the environment declares no verified ${role} account.`);
     process.exit(1);
   }
-  return tokens.get(account.email);
+  return tokens.get(normalizeFixtureEmail(account.email));
 }
 
 /** Formats are catalog rows the local seed already ships some of, so match on slug before creating. */
@@ -168,10 +194,10 @@ async function seedOrganizations(environment, tokens) {
   // A fixture names its owner by email; only the admin user list turns that into the user ID the
   // create endpoint wants.
   const listed = await requireResponse(await api('GET', '/api/admin/users?pageSize=100', { token }), 'organizations', 'user lookup');
-  const userIds = new Map((await listed.json()).items.map((user) => [user.email.toLowerCase(), user.id]));
+  const userIds = new Map((await listed.json()).items.map((user) => [normalizeFixtureEmail(user.email), user.id]));
 
   for (const organization of environment.organizations) {
-    const ownerUserId = userIds.get(organization.ownerEmail.toLowerCase());
+    const ownerUserId = userIds.get(normalizeFixtureEmail(organization.ownerEmail));
     if (ownerUserId === undefined) {
       console.error(`Seeding organizations failed for ${organization.key}: owner ${organization.ownerEmail} was not registered.`);
       process.exit(1);
@@ -198,7 +224,7 @@ async function seedTournaments(environment, tokens, organizationIds, formatIds) 
   if (!environment.tournaments.length) return ids;
 
   for (const entry of environment.tournaments) {
-    const token = tokens.get(entry.organizerEmail);
+    const token = tokens.get(normalizeFixtureEmail(entry.organizerEmail));
     const payload = {
       organizationId: organizationIds.get(entry.organizationKey),
       title: entry.title,
@@ -239,7 +265,7 @@ async function seedRegistrations(environment, tokens, tournamentIds) {
     // 409 covers both re-runs of this script against a stack that already carries the dataset and a
     // tournament whose start time passed while the seed was running.
     await requireResponse(await api('POST', `/api/tournaments/${tournament.id}/registrations`, {
-      token: tokens.get(userEmail),
+      token: tokens.get(normalizeFixtureEmail(userEmail)),
       idempotencyKey: `${environment.name}-registration-${tournamentKey}-${userEmail}`
     }), 'registrations', `${tournamentKey}/${userEmail}`, [409]);
   }
@@ -284,7 +310,7 @@ async function seedLiveTournaments(environment, tokens, leagueIds) {
   if (!environment.liveTournaments.length) return;
 
   for (const entry of environment.liveTournaments) {
-    const token = tokens.get(entry.organizerEmail);
+    const token = tokens.get(normalizeFixtureEmail(entry.organizerEmail));
     const created = await requireResponse(await api('POST', '/api/live-tournaments', {
       token,
       body: {

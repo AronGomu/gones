@@ -18,9 +18,11 @@ export class SessionCatalogSyncService {
   private readonly client = inject(Client);
   private readonly settings = inject(DeckArchetypeSettingsService);
 
-  async adopt(): Promise<void> {
+  async adopt(expectedProfileId: string, isCurrentSession: () => boolean): Promise<void> {
+    if (!expectedProfileId || !isCurrentSession()) return;
     try {
       const archetypes = await firstValueFrom(this.client.listDeckArchetypes());
+      if (!isCurrentSession()) return;
       await this.settings.adoptServerCatalog(archetypes.map((archetype) => archetype.name));
     } catch (error) {
       logBoundaryError('session-catalog-sync.adopt', error);

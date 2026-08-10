@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { Observable, catchError, defer, finalize, firstValueFrom, map, shareReplay, tap, throwError } from 'rxjs';
+import { Observable, catchError, defer, finalize, firstValueFrom, map, shareReplay, tap } from 'rxjs';
 import { dataAuthority } from '../config/data-authority';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import {
@@ -40,11 +40,11 @@ export class AuthService {
     if (!this.enabled || this.bootstrapped()) return;
     try {
       await firstValueFrom(this.refreshAccessToken());
-      await this.loadProfile();
-      await this.catalogSync.adopt();
+      const profile = await this.loadProfile();
+      await this.adoptCatalog(profile);
     } catch {
       this.bootstrapFailed.set(true);
-      this.clear();
+      await this.clear();
     } finally {
       this.bootstrapped.set(true);
     }
@@ -55,10 +55,10 @@ export class AuthService {
     this.refreshFlight = defer(() => this.client.refresh()).pipe(
       tap(response => this.acceptToken(response)),
       map(() => undefined),
-      catchError(error => {
-        this.clear();
-        return throwError(() => error);
-      }),
+      catchError(error => defer(async () => {
+        await this.clear();
+        throw error;
+      })),
       finalize(() => { this.refreshFlight = undefined; }),
       shareReplay({ bufferSize: 1, refCount: false })
     );
@@ -73,7 +73,7 @@ export class AuthService {
   async login(request: LoginRequest): Promise<UserProfileResponse> {
     this.acceptToken(await firstValueFrom(this.client.login(request)));
     const profile = await this.loadProfile();
-    await this.catalogSync.adopt();
+    await this.adoptCatalog(profile);
     return profile;
   }
 
@@ -85,7 +85,8 @@ export class AuthService {
     const response = await firstValueFrom(this.client.complete(request));
     if (response.accessToken) {
       this.acceptToken({ accessToken: response.accessToken, expiresAt: response.expiresAt!, tokenType: response.tokenType ?? 'Bearer' });
-      await this.loadProfile();
+      const profile = await this.loadProfile();
+      await this.adoptCatalog(profile);
     }
     return response;
   }
@@ -94,14 +95,15 @@ export class AuthService {
     const response = await firstValueFrom(this.client.verifyEmail2({ token, deviceLabel }));
     if (!response.accessToken) throw new Error('OAuth verification did not return an access token.');
     this.acceptToken({ accessToken: response.accessToken, expiresAt: response.expiresAt!, tokenType: response.tokenType ?? 'Bearer' });
-    await this.loadProfile();
+    const profile = await this.loadProfile();
+    await this.adoptCatalog(profile);
   }
 
   async logout(all = false): Promise<void> {
     try {
       await firstValueFrom(all ? this.client.logoutAll() : this.client.logout());
     } finally {
-      this.clear();
+      await this.clear();
     }
   }
 
@@ -111,13 +113,13 @@ export class AuthService {
    */
   async deleteAccount(currentPassword: string): Promise<void> {
     await firstValueFrom(this.client.meDELETE({ currentPassword }));
-    this.clear();
+    await this.clear();
   }
 
-  clear(): void {
+  async clear(): Promise<void> {
     this.tokens.clear();
     this.profile.set(null);
-    this.sessionScope.clear();
+    await this.sessionScope.clear();
   }
 
   async loadProfile(): Promise<UserProfileResponse> {
@@ -151,5 +153,9 @@ export class AuthService {
 
   private acceptToken(response: AccessTokenResponse): void {
     this.tokens.set(response.accessToken);
+  }
+
+  private adoptCatalog(profile: UserProfileResponse): Promise<void> {
+    return this.catalogSync.adopt(profile.id, () => this.profile() === profile);
   }
 }

@@ -1,4 +1,4 @@
-import { Inject, inject, Injectable } from '@angular/core';
+import { Inject, inject, Injectable, signal } from '@angular/core';
 import { LIVE_BACKEND, LIVE_BACKEND_MODE, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand } from '../backend/application-backend';
 import { ServerReadCacheService } from '../backend/server-read-cache.service';
 import { LiveTournamentDocument } from '../domain/live-tournament';
@@ -13,14 +13,18 @@ export class LiveTournamentRepository {
   private readonly mode = inject(LIVE_BACKEND_MODE);
   private readonly cache = inject(ServerReadCacheService);
 
+  /** Last server list/detail answer came from this user's offline cache. Local mode never sets these. */
+  readonly listStale = signal(false);
+  readonly detailStale = signal(false);
+
   constructor(@Inject(LIVE_BACKEND) private readonly backend: LiveBackendPort) {}
 
   async list(): Promise<LiveTournamentDocument[]> {
-    return this.read('live-tournaments', () => this.backend.listLiveTournaments());
+    return this.read('live-tournaments', this.listStale, () => this.backend.listLiveTournaments());
   }
 
   async get(id: string): Promise<LiveTournamentDocument | null> {
-    return this.read(`live-tournament:${id}`, () => this.backend.getLiveTournament(id));
+    return this.read(`live-tournament:${id}`, this.detailStale, () => this.backend.getLiveTournament(id));
   }
 
   /**
@@ -28,9 +32,12 @@ export class LiveTournamentRepository {
    * offline, and mirroring it would create two answers for one document. Reads only: a mutation that
    * fails offline still fails, with nothing queued.
    */
-  private async read<T>(resource: string, load: () => Promise<T>): Promise<T> {
+  private async read<T>(resource: string, stale: { set(value: boolean): void }, load: () => Promise<T>): Promise<T> {
+    stale.set(false);
     if (this.mode !== 'aspnet-api') return load();
-    return (await this.cache.read(resource, load)).value;
+    const result = await this.cache.read(resource, load);
+    stale.set(result.stale);
+    return result.value;
   }
 
   async create(): Promise<LiveTournamentDocument> {

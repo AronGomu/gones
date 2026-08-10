@@ -73,9 +73,9 @@ file, run the command again, and the next seeding picks it up — there is nothi
 | `empty` (default) | nothing. Plain `npm run dev` behaves exactly as it always has: no reset, no seeding. |
 | `minimal` | one verified account per role — `admin@gones.test` (Admin), `organizer@gones.test` (Organizer), `test@gones.test` (User), all with `Gones-dev-pass-123!`. |
 
-An environment that carries data declares `"resetDatabase": true` and therefore wipes and rebuilds
-the local Compose database (`scripts/reset-local-stack.mjs`) before seeding, so swapping environments
-never leaves the previous dataset behind. Seeding drives the real HTTP API, which means a fixture the
+An environment that carries data declares `"resetDatabase": true` and therefore runs a backend-only
+inline Compose reset before seeding, so swapping environments never leaves the previous dataset
+behind without taking the existing Angular dev server on port 4200 down. Seeding drives the real HTTP API, which means a fixture the
 app would refuse cannot reach the database. `--env` needs the Docker stack and is refused together
 with `--no-docker`.
 

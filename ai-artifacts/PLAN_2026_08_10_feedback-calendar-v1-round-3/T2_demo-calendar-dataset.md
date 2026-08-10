@@ -35,7 +35,7 @@
   - `POST /api/tournaments/preview` (Organizer) body = the payload below → `{ previewTicket, render: { slug, … } }`.
   - `POST /api/tournaments` (Organizer) body `{ "previewTicket": string, "payload": <same payload> }` → `201` `{ id, slug, … }`.
   - `POST /api/tournaments/{tournamentId}/registrations` (User) → `201`.
-- Donor data for realistic names / venues: `/home/aron/gdrive-snapshot-2026-08-10/backup/gones-exports/gones-full-data.gones.json` (real Lyon-area player names). Use it for flavour only in this ticket.
+- Donor data may be used only to infer realistic fixture shape. Every committed name and value is synthetic.
 
 ## Requirements
 

@@ -16,6 +16,8 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
     refresh: vi.fn(refresh),
     meGET: vi.fn(() => of(profile)),
     login: vi.fn(() => of(token)),
+    complete: vi.fn(() => of({ accessToken: token.accessToken, expiresAt: token.expiresAt, tokenType: token.tokenType })),
+    verifyEmail2: vi.fn(() => of({ accessToken: token.accessToken, expiresAt: token.expiresAt, tokenType: token.tokenType })),
     logout: vi.fn(() => of(undefined)),
     logoutAll: vi.fn(() => of(undefined))
   };
@@ -70,6 +72,22 @@ describe('AuthService', () => {
     expect(profileWhenAdopted()?.id).toBe('u1');
   });
 
+  it('OAuth completion adopts the server catalog once', async () => {
+    const { service, catalogSync } = setup(() => of(token));
+
+    await service.completeOAuth({ completionTicket: 'ticket', email: 'u@example.test', username: 'user', firstName: 'U', lastName: 'Ser', deviceLabel: undefined });
+
+    expect(catalogSync.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it('OAuth email verification adopts the server catalog once', async () => {
+    const { service, catalogSync } = setup(() => of(token));
+
+    await service.verifyOAuthEmail('verification-token');
+
+    expect(catalogSync.adopt).toHaveBeenCalledTimes(1);
+  });
+
   it('signing out adopts nothing, so the browser keeps its anonymous catalog', async () => {
     const { service, catalogSync } = setup(() => of(token));
     await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
@@ -77,6 +95,22 @@ describe('AuthService', () => {
     await service.logout();
 
     expect(catalogSync.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it('logout does not resolve until private session resets finish', async () => {
+    const { service, sessionScope } = setup(() => of(token));
+    let release!: () => void;
+    sessionScope.register(() => new Promise<void>((resolve) => { release = resolve; }));
+    await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+
+    let completed = false;
+    const pending = service.logout().then(() => { completed = true; });
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    expect(completed).toBe(false);
+
+    release();
+    await pending;
+    expect(completed).toBe(true);
   });
 
   it('clears auth when refresh fails', async () => {

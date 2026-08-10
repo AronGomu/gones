@@ -38,12 +38,20 @@ describe('public Calendar V1', () => {
     cy.wait('@allTournaments');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="calendar-view"]').should('have.attr', 'aria-pressed', 'true');
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy="calendar-month-day"]').within(() => {
+      cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]')
+        .should('contain.text', '23:30')
+        .and('contain.text', 'Lyon Legacy')
+        .and('have.attr', 'href', '/calendar/tournaments/lyon-legacy');
+    });
+    cy.get('[data-cy="calendar-search"]').clear().type('does-not-match');
+    cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('not.exist');
+    cy.get('[data-cy="calendar-search"]').clear().type('Lyon');
+    cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('exist');
 
     cy.get('[data-cy="list-view"]').click();
     cy.location('search').should('contain', 'view=list');
     cy.get('[data-cy="calendar-list"]').should('be.visible');
-    // The month grid renders day numbers only (A6); the filtered tournament's status is asserted in
-    // the list view, which is where the tournament markup still lives.
     cy.get('[data-cy="calendar-card-status"]').should('contain.text', 'Cancelled');
     // A reload within the 24h cache TTL must not refetch: the alias stays at one call.
     visit('/calendar?month=2026-08');
@@ -65,12 +73,7 @@ describe('public Calendar V1', () => {
   it('navigates months over the cached catalog without re-querying the API', () => {
     visit('/calendar?month=2026-08&view=calendar');
     cy.wait('@allTournaments');
-    // The month grid renders day numbers only (A6), so the tournament itself is no longer a witness
-    // inside the grid. The list view (which shares the same cached catalog) still shows it for the
-    // current month.
-    cy.get('[data-cy="list-view"]').click();
-    cy.get('[data-cy="tournament-lyon-legacy"]').should('be.visible');
-    cy.get('[data-cy="calendar-view"]').click();
+    cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('be.visible');
 
     // The witness that the grid moved has to be locale-independent. The month label is translated,
     // and on the release build the ngsw worker can answer the navigation from cache so
@@ -89,6 +92,23 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('not.exist');
 
     cy.get('@allTournaments.all').should('have.length', 1);
+  });
+
+  it('caps same-day events at three and reports overflow', () => {
+    const sameDay = Array.from({ length: 4 }, (_, index) => ({
+      ...tournament,
+      id: `${index + 1}1111111-1111-1111-1111-111111111111`,
+      slug: `same-day-${index + 1}`,
+      title: `Same Day ${index + 1}`
+    }));
+    cy.intercept('GET', '**/api/tournaments/all*', { items: sameDay, generatedAt: '2026-08-08T10:00:00Z', count: 4, truncated: false }).as('sameDay');
+
+    visit('/calendar?month=2026-08&view=calendar');
+    cy.wait('@sameDay');
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy="calendar-month-day"]').within(() => {
+      cy.get('a.public-month-event').should('have.length', 3);
+      cy.get('[data-cy="calendar-month-day-more"]').should('contain.text', '+1');
+    });
   });
 
   it('renders detail, server body links, ICS action, redirect, and mobile layout', () => {

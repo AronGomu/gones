@@ -39,6 +39,7 @@ import { I18nService } from '../../i18n/i18n.service';
   template: `
     <gones-back-button data-cy="live-runner-back-top" [link]="['/live-tournaments']" [label]="i18n.t('nav.backToRunningTournaments')" position="top" />
     @if (error()) { <p class="error" role="alert" data-cy="live-runner-error">{{ error() }}</p> }
+    @if (liveRepo.detailStale()) { <p class="warning" role="status" data-cy="live-runner-cached-stale">{{ i18n.t('offline.cachedServerRead') }}</p> }
     @if (stale()) { <button mat-stroked-button class="secondary-action" type="button" data-cy="live-reload" (click)="load()">{{ i18n.t('live.reloadLatest') }}</button> }
     @if (readOnly() && tournament()) { <p class="muted" data-cy="live-read-only">{{ i18n.t('live.readOnly') }}</p> }
     @if (localMode && tournament()) { <p class="muted" role="status" data-cy="live-local-mode-notice">{{ i18n.t('live.localModeNotice') }}</p> }
@@ -276,7 +277,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     return !leagueId || leagueId === PLACEHOLDER_LEAGUE_ID ? '' : leagueId;
   }
 
-  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) {
+  constructor(readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) {
     window.addEventListener('gones-open-live-tournament-advanced-settings', this.openAdvancedSettingsListener);
     void this.load();
   }

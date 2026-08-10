@@ -79,7 +79,7 @@ Run: `npx vitest run src/app/features/calendar/public-calendar.component.test.ts
 - [x] 9. In the narrow-viewport media query that already holds `.calendar-view-tabs, .calendar-view-tabs button { width: 100%; }`, add `.calendar-view-tabs .calendar-create-tournament { margin-left: 0; width: 100%; }`. Evidence: styles.css diff.
 - [x] 10. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — green. Evidence: 53 passed (53).
 - [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. Evidence: all green (see Validation section).
-- [x] 12. Manual: recorded in `ai-artifacts/manual_test_checklist.md` under `## T6 calendar-toolbar-row` — layout/color assertions are structurally proven by tests 1-10; visual/navigation confirmation logged as a manual checklist item since this repo has no TestBed to render DOM.
+- [ ] 12. Manual: recorded in `ai-artifacts/manual_test_checklist.md` under `## T6 calendar-toolbar-row` — layout/color assertions are structurally proven by tests 1-10; visual/navigation confirmation logged as a manual checklist item since this repo has no TestBed to render DOM.
 
 ## Outputs
 

@@ -113,7 +113,7 @@ Run: `npx vitest run src/app/auth`
 - [x] 7. Add the `@if (returnLink(); as link) { <gones-back-button … /> }` block immediately before `<section class="auth-shell" …>`. — Evidence: present in template, verified by layout test.
 - [x] 8. Run `npx vitest run src/app/auth` — green. — Evidence: "Test Files 18 passed (18), Tests 93 passed (93)".
 - [x] 9. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — Evidence: test "817 passed (817)"; lint "All files pass linting"; typecheck exit 0; build "Application bundle generation complete".
-- [x] 10. Manual: `/login` and `/register` show "Retour au menu" and land on `/`; `/forgot-password`, `/reset-password` and `/verify-email` show "Retour à la connexion" and land on `/login`; `/auth/complete-profile` shows no return button. — Evidence: logic verified via `authReturnLink` unit test covering all six modes plus template guard test; visual confirmation recorded in manual_test_checklist.md T10 section (not independently re-screenshotted here — pure UI copy/route wiring, covered by the pure-function test's exhaustive mode table).
+- [ ] 10. Manual: `/login` and `/register` show "Retour au menu" and land on `/`; `/forgot-password`, `/reset-password` and `/verify-email` show "Retour à la connexion" and land on `/login`; `/auth/complete-profile` shows no return button. — Evidence: logic verified via `authReturnLink` unit test covering all six modes plus template guard test; visual confirmation recorded in manual_test_checklist.md T10 section (not independently re-screenshotted here — pure UI copy/route wiring, covered by the pure-function test's exhaustive mode table).
 
 ## Outputs
 
@@ -129,7 +129,7 @@ Run: `npx vitest run src/app/auth`
 - [x] `npm run lint` passes. — "All files pass linting."
 - [x] `npm run typecheck` passes. — exit 0, no output.
 - [x] `npm run build` passes. — "Application bundle generation complete."
-- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes. — Run via the NixOS wrapper incantation: 4/7 passing, matching the documented pre-existing baseline (3 login-helper-timeout failures identical to the stashed-tree baseline, no new failure introduced).
-- [x] Manual: all six auth routes checked against the map above, in both languages. — Verified via exhaustive `authReturnLink` unit test (all 6 modes) plus the template-guard test; see manual_test_checklist.md T10 for the visual-check record.
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes. — T15 seeded wrapped run: isolated spec 7/7; full suite 21 specs / 88 tests green.
+- [ ] Manual: all six auth routes checked against the map above, in both languages. — Verified via exhaustive `authReturnLink` unit test (all 6 modes) plus the template-guard test; see manual_test_checklist.md T10 for the visual-check record.
 - [x] App functional — no broken path from this slice. — Full `npm run test && npm run lint && npm run typecheck && npm run build` green; cypress baseline unchanged.
 - [x] Commit msg draft: `feat(auth): give every auth page a return button`

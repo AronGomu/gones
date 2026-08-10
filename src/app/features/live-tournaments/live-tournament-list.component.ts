@@ -28,6 +28,7 @@ import { I18nService } from '../../i18n/i18n.service';
     </section>
 
     @if (localMode) { <p class="muted" role="status" data-cy="live-local-mode-notice">{{ i18n.t('live.localModeNotice') }}</p> }
+    @if (liveRepo.listStale()) { <p class="warning" role="status" data-cy="live-list-cached-stale">{{ i18n.t('offline.cachedServerRead') }}</p> }
     @if (error()) { <p class="error" role="alert" data-cy="live-list-error">{{ error() }}</p> }
     @if (loading()) { <mat-spinner diameter="40" data-cy="live-list-spinner" /> }
     @else {
@@ -87,7 +88,7 @@ export class LiveTournamentListComponent {
   /** In the browser-local store the visitor owns everything they can see, so they always manage it. */
   readonly canManage = computed(() => this.localMode || canManageLive(this.auth.profile()?.globalRole));
 
-  constructor(private readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly router: Router) { void this.load(); }
+  constructor(readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly router: Router) { void this.load(); }
 
   async load(): Promise<void> {
     this.loading.set(true);

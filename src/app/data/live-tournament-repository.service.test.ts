@@ -55,6 +55,10 @@ describe('LiveTournamentRepository offline read cache', () => {
 
     backend.listLiveTournaments.mockRejectedValueOnce(new Error('offline'));
     await expect(repository.list()).resolves.toEqual([document()]);
+    expect(repository.listStale()).toBe(true);
+
+    await expect(repository.list()).resolves.toEqual([document()]);
+    expect(repository.listStale()).toBe(false);
   });
 
   it('caches a server document and serves it back when the server is unreachable', async () => {
@@ -65,15 +69,23 @@ describe('LiveTournamentRepository offline read cache', () => {
 
     backend.getLiveTournament.mockRejectedValueOnce(new Error('offline'));
     await expect(repository.get(LIVE_ID)).resolves.toEqual(document());
+    expect(repository.detailStale()).toBe(true);
+
+    await expect(repository.get(LIVE_ID)).resolves.toEqual(document());
+    expect(repository.detailStale()).toBe(false);
   });
 
   it('never caches the browser-local store: it is already offline', async () => {
     const { repository, rows } = setup({ mode: 'browser-local', userId: 'u1' });
 
+    repository.listStale.set(true);
+    repository.detailStale.set(true);
     await repository.list();
     await repository.get(LIVE_ID);
 
     expect([...rows.keys()]).toEqual([]);
+    expect(repository.listStale()).toBe(false);
+    expect(repository.detailStale()).toBe(false);
   });
 
   it('caches nothing for an anonymous reader', async () => {

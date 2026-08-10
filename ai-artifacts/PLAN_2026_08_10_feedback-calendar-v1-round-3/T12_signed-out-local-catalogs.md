@@ -170,7 +170,7 @@ Run: `npx vitest run src/app/features/settings`
 - [x] 13. Add the two component-template tests. Run `npx vitest run src/app/features/settings` — green. (`Test Files 9 passed`, `Tests 55 passed` with `data-cy-coverage` + `server-authority-boundary`)
 - [x] 14. Run `npm run test && npm run lint && npm run typecheck && npm run build`. (test `99 files / 827 tests passed`; lint `All files pass linting`; typecheck silent; build `Application bundle generation complete`) `src/app/backend/server-authority-boundary.test.ts` must stay green — no new file may touch `indexedDB` directly.
 - [ ] 15. (moved to `ai-artifacts/manual_test_checklist.md` → `## T12 signed-out-local-catalogs`; reload persistence, the rename landing in the store and the empty Network log are proved headlessly, the second tab and the League detail render are not) Manual, signed out: `/settings` shows Deck archetypes and Players. Add an archetype, reload the page — it is still there. Create a local league with a round from `/leagues-archive`, come back to `/settings` — the players appear; rename one and check the league detail page shows the new name. Open the site in a second tab — the same archetypes and players are there.
-- [x] 16. Manual, signed in as `admin@gones.test`: the Admin server catalog is shown and the local archetype card is **not**. (proved headlessly with a throwaway Cypress spec, stubbed `Admin` profile: `settings-archetype-card` + `settings-players-card` exist, `settings-local-archetype-card` + `settings-local-players-card` do not — `2 passing`; spec deleted after the run)
+- [ ] 16. Manual, signed in as `admin@gones.test`: the Admin server catalog is shown and the local archetype card is **not**. (proved headlessly with a throwaway Cypress spec, stubbed `Admin` profile: `settings-archetype-card` + `settings-players-card` exist, `settings-local-archetype-card` + `settings-local-players-card` do not — `2 passing`; spec deleted after the run)
 
 ## Outputs
 
@@ -189,7 +189,7 @@ Run: `npx vitest run src/app/features/settings`
 - [x] `npm run build` passes. (`Application bundle generation complete`)
 - [x] `npm run cy:run -- --spec cypress/e2e/settings-server.cy.js` passes. (run through the NixOS `steam-run` wrapper: `4 passing`, all four capability specs green)
 - [ ] Manual: signed out, archetypes persist across reload and across tabs; a local-league player rename lands in the league detail page. (reload persistence + the rename landing in the `gones-leagues` row proved headlessly; **second tab** and the **league detail page** render stay for the human — see `ai-artifacts/manual_test_checklist.md`)
-- [x] Manual: signed in as Admin, the local archetype card is hidden and the server catalog is shown. (throwaway Cypress spec, see Impl step 16)
-- [x] Manual: DevTools → Network is empty while using either local section. (same spec intercepted every `/api/` call; after adding an archetype and renaming a local player the recorded list minus `auth/refresh` was `[]`)
+- [ ] Manual: signed in as Admin, the local archetype card is hidden and the server catalog is shown. (throwaway Cypress spec, see Impl step 16)
+- [ ] Manual: DevTools → Network is empty while using either local section. (same spec intercepted every `/api/` call; after adding an archetype and renaming a local player the recorded list minus `auth/refresh` was `[]`)
 - [x] App functional — no broken path from this slice. (`npm run test` 827 passed, `settings-server.cy.js` 4 passing, build green)
 - [ ] Commit msg draft: `feat(settings): give signed-out visitors local archetype and player catalogs`

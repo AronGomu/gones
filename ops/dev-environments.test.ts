@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error - the dev account roster is a plain ESM module shared with the seeding script.
 import { DEV_PASSWORD, meetsPasswordPolicy } from '../scripts/dev-accounts.mjs';
 // @ts-expect-error - the environment loader is a plain ESM module shared with the seeding scripts.
-import { DATA_FILES, listEnvironmentNames, localDateTime, parseDevArgs, readEnvironment, validateEnvironment } from '../scripts/dev-environments.mjs';
+import { DATA_FILES, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from '../scripts/dev-environments.mjs';
 
 /**
  * ADR 0030 file-driven local development environments.
@@ -55,6 +57,14 @@ interface DevEnvironment {
 const names = listEnvironmentNames() as string[];
 const dataFiles = DATA_FILES as string[];
 const read = (name: string): DevEnvironment => readEnvironment(name) as DevEnvironment;
+
+function validEnvironment(): Record<string, unknown> {
+  return {
+    name: 'demo', directory: 'demo', description: 'valid fixture', resetDatabase: true,
+    accounts: [{ email: 'user@gones.test', username: 'user', firstName: 'Demo', lastName: 'User', role: 'User', password: DEV_PASSWORD, emailConfirmed: true }],
+    organizations: [], formats: [], tournaments: [], registrations: [], leagues: [], liveTournaments: []
+  };
+}
 
 describe('shipped development environments', () => {
   it('every shipped environment validates', () => {
@@ -142,6 +152,50 @@ describe('dev argument parsing', () => {
 });
 
 describe('environment validation', () => {
+  const invalidManifestCases: Array<[string, (fixture: Record<string, unknown>) => void, string]> = [
+    ['missing name', (fixture) => { delete fixture['name']; }, 'name must be a non-empty string'],
+    ['mismatched name', (fixture) => { fixture['name'] = 'other'; }, 'environment.json declares name "other" but lives in directory "demo"'],
+    ['blank description', (fixture) => { fixture['description'] = '  '; }, 'description must be a non-empty string'],
+    ['non-boolean reset', (fixture) => { fixture['resetDatabase'] = 'true'; }, 'resetDatabase must be a boolean']
+  ];
+
+  for (const [name, mutate, expected] of invalidManifestCases) {
+    it(`rejects ${name}`, () => {
+      const fixture = validEnvironment();
+      mutate(fixture);
+      expect(validateEnvironment(fixture)).toContain(`demo: ${expected}`);
+    });
+  }
+
+  const invalidAccountCases: Array<[string, (account: Record<string, unknown>) => void, string]> = [
+    ['malformed email', (account) => { account['email'] = 'invalid'; }, 'needs an email address'],
+    ['blank username', (account) => { account['username'] = ' '; }, 'needs a non-empty username'],
+    ['blank firstName', (account) => { account['firstName'] = ''; }, 'needs a non-empty firstName'],
+    ['blank lastName', (account) => { account['lastName'] = ''; }, 'needs a non-empty lastName'],
+    ['invalid role', (account) => { account['role'] = 'Owner'; }, 'has role "Owner"'],
+    ['weak password', (account) => { account['password'] = 'weak'; }, 'has a password the server would refuse'],
+    ['non-boolean emailConfirmed', (account) => { account['emailConfirmed'] = 'false'; }, 'has a non-boolean emailConfirmed']
+  ];
+
+  for (const [name, mutate, expected] of invalidAccountCases) {
+    it(`rejects ${name}`, () => {
+      const fixture = validEnvironment();
+      const account = (fixture['accounts'] as Record<string, unknown>[])[0];
+      mutate(account);
+      expect((validateEnvironment(fixture) as string[]).some((problem) => problem.includes(expected))).toBe(true);
+    });
+  }
+
+  it.each([
+    ['email', { email: 'USER@gones.test', username: 'other' }, 'account email "USER@gones.test" is declared twice'],
+    ['username', { email: 'other@gones.test', username: 'USER' }, 'account username "USER" is declared twice']
+  ])('rejects duplicate %s case-insensitively', (_field, overrides, expected) => {
+    const fixture = validEnvironment();
+    const first = (fixture['accounts'] as Record<string, unknown>[])[0];
+    (fixture['accounts'] as Record<string, unknown>[]).push({ ...first, ...overrides });
+    expect(validateEnvironment(fixture)).toContain(`demo: ${expected}`);
+  });
+
   it('validateEnvironment rejects a data-carrying environment that does not reset', () => {
     const problems = validateEnvironment({
       name: 'x',
@@ -224,6 +278,28 @@ describe('environment validation', () => {
     expect(problems.length).toBeGreaterThan(0);
     expect(problems.some((problem) => problem.includes('l1'))).toBe(true);
     expect(problems).toContain('demo-broken: running tournament l1 cannot score 3 of its 2 rounds');
+  });
+});
+
+describe('seeder safety boundaries', () => {
+  it.each(['tcp://127.0.0.1:2375', 'ssh://docker@example.test', 'npipe:////./pipe/docker_engine', 'http://example.test', 'unix://relative.sock', '', undefined])('refuses non-local Docker endpoint %s', (endpoint) => {
+    expect(isLocalDockerEndpoint(endpoint)).toBe(false);
+  });
+
+  it.each(['unix:///var/run/docker.sock', 'unix:///run/user/1000/docker.sock'])('accepts local Unix Docker endpoint %s', (endpoint) => {
+    expect(isLocalDockerEndpoint(endpoint)).toBe(true);
+  });
+
+  it('checks Docker endpoint before destructive compose reset', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/seed-dev-environment.mjs'), 'utf8');
+    const reset = source.slice(source.indexOf('function resetDatabase()'), source.indexOf('function sqlLiteral'));
+    expect(reset.indexOf('requireLocalDocker();')).toBeGreaterThan(-1);
+    expect(reset.indexOf('requireLocalDocker();')).toBeLessThan(reset.indexOf("run('docker', ['compose'"));
+  });
+
+  it('resolves mixed-case fixture email references to the same token key', () => {
+    const tokens = new Map([[normalizeFixtureEmail('Organizer@Gones.Test'), 'token']]);
+    expect(tokens.get(normalizeFixtureEmail('organizer@gones.test'))).toBe('token');
   });
 });
 

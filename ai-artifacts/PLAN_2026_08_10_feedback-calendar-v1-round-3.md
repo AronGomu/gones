@@ -21,7 +21,7 @@ npm run build && npm run backend:test && npm run cy:run` green, `npm run accepta
 
 - **A1 — artifacts in `ai-artifacts/`**, ADRs in `docs/adr/` lowercase. Repo `AGENT.md` mandates it. Overrides skill's `ai_artefacts/` + `docs/ADR/`.
 - **A2 — feedback #3 supersedes round-2 A6/T10.** Round 2 decided month-grid day cells render day numbers only. Feedback #3 says "the only events that should appear on the calendar view should be within the calendar itself" → day cells render their tournaments again. Calendar tab still shows **no** list section below the grid (it already does not; T7 locks that with a test).
-- **A3 — DBGONDB.json absent.** Not on this machine. Real donor data = `/home/aron/gdrive-snapshot-2026-08-10/backup/gones-exports/gones-full-data.gones.json` (Gones League 6, real player names, real scores). T3 copies a trimmed derivative into the repo; fixture is the editable source from then on.
+- **A3 — DBGONDB.json absent; committed demo data must be synthetic.** Private donor export `/home/aron/gdrive-snapshot-2026-08-10/backup/gones-exports/gones-full-data.gones.json` may inform realistic fixture **shape only**. No donor-derived personal name or identifiable match history may be committed. T15 repairs the initial T3 privacy defect by replacing tracked names with explicit synthetic demo names.
 - **A4 — dev environments = directories of JSON under `fixtures/dev-environments/<name>/`.** Three ship: `empty` (default, seeds nothing → `npm run dev` unchanged), `minimal` (accounts only, one per role), `demo` (accounts + orgs + calendar tournaments + registrations + league archives + running tournaments). Adding a fourth = copy a directory.
 - **A5 — seeding drives the real HTTP API, not SQL inserts.** Only exception: `email_confirmed` + `global_role`, which have no endpoint and are already set by SQL in `scripts/seed-dev-accounts.mjs` (ADR 0029). No `backend/**` change.
 - **A6 — a non-`empty` environment resets the database first** (`docker compose down --volumes` → `up --wait` → `scripts/seed-local.mjs`). Swapping environments must not stack two datasets. `empty` never resets, so plain `npm run dev` keeps today's behaviour exactly.
@@ -66,6 +66,20 @@ T9[T9: oauth button alignment] --> T10[T10: auth return buttons]
 T11[T11: account page actions]
 T12[T12: signed-out local catalogs] --> T14[T14: remote prevails on sign-in]
 T13[T13: authenticated offline read cache] --> T14
+T1 --> T15[T15: reviewer blocker repair]
+T2 --> T15
+T3 --> T15
+T4 --> T15
+T5 --> T15
+T6 --> T15
+T7 --> T15
+T8 --> T15
+T9 --> T15
+T10 --> T15
+T11 --> T15
+T12 --> T15
+T13 --> T15
+T14 --> T15
 ```
 
 ## Ticket order
@@ -86,6 +100,7 @@ T13[T13: authenticated offline read cache] --> T14
 | T12 | Signed-out local catalogs | — | Signed-out visitor edits archetypes and renames players, stored in this browser only | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T12_signed-out-local-catalogs.md` |
 | T13 | Authenticated offline read cache | — | Signed-in league + live reads are cached and answered from cache when offline | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T13_authenticated-offline-read-cache.md` |
 | T14 | Remote prevails on sign-in | T12, T13 | Signing in replaces the local archetype catalog with the server one; local stores stay browser-wide | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T14_remote-prevails-on-sign-in.md` |
+| T15 | Reviewer blocker repair | T1–T14 | Close cache/session, fixture privacy, seeder safety and runtime-proof findings from final deep review | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T15_reviewer-blocker-repair.md` |
 
 ## Feedback line → ticket
 
@@ -123,3 +138,4 @@ T13[T13: authenticated offline read cache] --> T14
 - [T12: Signed-out local catalogs](PLAN_2026_08_10_feedback-calendar-v1-round-3/T12_signed-out-local-catalogs.md) — depends: none
 - [T13: Authenticated offline read cache](PLAN_2026_08_10_feedback-calendar-v1-round-3/T13_authenticated-offline-read-cache.md) — depends: none
 - [T14: Remote prevails on sign-in](PLAN_2026_08_10_feedback-calendar-v1-round-3/T14_remote-prevails-on-sign-in.md) — depends: T12, T13
+- [T15: Reviewer blocker repair](PLAN_2026_08_10_feedback-calendar-v1-round-3/T15_reviewer-blocker-repair.md) — depends: T1–T14

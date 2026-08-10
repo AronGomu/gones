@@ -526,7 +526,7 @@ _Avoid_: Migration, deployment
 > **Dev:** "Can Alice play a valid Match against Alice?"
 > **Domain expert:** "No - a Match with the same **Player Name** on both sides is invalid."
 >
-> **Dev:** "Should `Eric  Confortini ` and `Eric Confortini` be merged automatically?"
+> **Dev:** "Should `Demo  Player 05 ` and `Demo Player 05` be merged automatically?"
 > **Domain expert:** "No - they are different **Player Names**. If a name is wrong, the organizer edits the Match results that contain it."
 >
 > **Dev:** "Is there a Player record I can rename globally?"
@@ -775,7 +775,7 @@ _Avoid_: Migration, deployment
 > **Dev:** "Should Gones normalize whitespace or case when matching Player Names?"
 > **Domain expert:** "Only leading and trailing whitespace is removed. After that, **Player Name** matching is exact."
 >
-> **Dev:** "Are `Yo Plz` and `yo plz` the same Player Name?"
+> **Dev:** "Are `Demo Player 16` and `demo player 16` the same Player Name?"
 > **Domain expert:** "No - **Player Name** matching is case-sensitive."
 >
 > **Dev:** "Should multiple Byes in one Round block results?"

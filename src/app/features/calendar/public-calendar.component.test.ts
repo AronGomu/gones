@@ -523,11 +523,12 @@ describe('PublicCalendarComponent month nav layout', () => {
   });
 });
 
-describe('PublicCalendarComponent empty calendar day cells', () => {
+describe('PublicCalendarComponent calendar day cells', () => {
   const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
-  it('no tournament entry renders inside a day cell', () => {
+  it('renders current event links without the retired pill markup', () => {
+    expect(source).toContain('class="public-month-event"');
     expect(source).not.toContain('calendar-pill');
   });
 

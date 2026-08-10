@@ -14,15 +14,25 @@ export function isServiceWorkerDataCache(name: string): boolean {
  */
 @Injectable({ providedIn: 'root' })
 export class SessionScopeService {
-  private readonly resets = new Set<() => void>();
+  private readonly resets = new Set<() => void | Promise<void>>();
 
-  register(reset: () => void): void {
+  register(reset: () => void | Promise<void>): void {
     this.resets.add(reset);
   }
 
-  clear(): void {
-    for (const reset of this.resets) reset();
-    void this.purgeCachedApiResponses();
+  async clear(): Promise<void> {
+    const pending: Promise<void>[] = [];
+    for (const reset of this.resets) {
+      try {
+        pending.push(Promise.resolve(reset()));
+      } catch (error) {
+        pending.push(Promise.reject(error));
+      }
+    }
+    pending.push(this.purgeCachedApiResponses());
+    const results = await Promise.allSettled(pending);
+    const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failed) throw failed.reason;
   }
 
   private async purgeCachedApiResponses(): Promise<void> {

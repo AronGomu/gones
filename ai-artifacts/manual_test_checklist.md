@@ -718,10 +718,10 @@ tournaments read in the browser.
       (completed) and `Gones League 7` (active) are both listed next to the browser-local ones.
 - [ ] Open `Gones League 6`: three Archive Tournaments (`Day 1`, `Day 2`, `Day 3`, February 2026
       dates - the archive is history, so its dates do not roll), and the League Result table lists
-      about thirty real Player Names with non-trivial points.
-- [ ] Open `Day 3` and scroll to Round 3: the last Round Entry is a Bye for `Milhann Chodorowski`,
+      about thirty synthetic Demo Player names with non-trivial points.
+- [ ] Open `Day 3` and scroll to Round 3: the last Round Entry is a Bye for `Demo Player 27`,
       and it reads as a win in the Tournament Result.
-- [ ] Click a Player Name (`Thomas Clabaut`): Player Statistics open with Matches across the three
+- [ ] Click a Player Name (`Demo Player 01`): Player Statistics open with Matches across the three
       Archive Tournaments, and the Deck Archetype column shows preset names such as `Delver (Izzet)`.
 - [ ] Sign in as `organizer@gones.test` and open `/live-tournaments`: `Gones League 7 - Day 2` is
       there, Round 2 is open with four empty score fields, and Round 1 is validated.
@@ -762,12 +762,6 @@ tournaments read in the browser.
 - [ ] A day with more than 3 tournaments shows exactly 3 event links plus a "+N more" line ("+N de plus" in French); a day with 3 or fewer shows all of them and no "+N more" line.
 - [ ] Switch to the list tab: the grouped cards and the pager are still there, unchanged from before this slice.
 - [ ] Narrow the browser window below ~600px: a day cell with events is visibly taller than an empty one (not clipped to the empty-cell height).
-
-# Feedback
-
-1. On the homepage menu, the settings should always be the last card. The about should be always second last.
-
-2. Generate different local environments with a pre‑loaded database containing tournaments, running tournaments, and calendar events for various users with different rights. I need to be able to swap between environments and test as a normal user, an admin user, or an organizer user, accessing the different preloaded and non‑preloaded pages. By default, `npm run dev` without any option should run the application as it is currently—basically empty. However, I can specify different environment types, and it will load the appropriate database with everything preloaded.
 
 ## T8 create-dialog-enter-submit
 
@@ -845,11 +839,11 @@ leagues, blank names skipped) and `src/app/features/settings/settings.component.
 lives inside its `@if (capabilities().local…)` guard, and no local template block or local method body
 contains `this.client.`). `src/app/backend/server-authority-boundary.test.ts` allowlisted exactly
 three IndexedDB files at the time of that slice; T13 added the fourth (`server-read-cache.service.ts`,
-ADR 0031), which changes nothing the T12 checks below depend on. A throwaway Cypress run (not committed) additionally observed, signed out with
-every `/api/` call stubbed: both local cards render, an added archetype survives a reload, renaming
-`Alice` → `Alicia` rewrote the `gones-leagues` row and bumped `documentVersion` 1 → 2, and no API call
-other than `auth/refresh` was made; signed in as `Admin`, the two local cards are absent and the server
-ones are present.
+ADR 0031), which changes nothing the T12 checks below depend on. Committed
+`cypress/e2e/settings-local.cy.js` proves, signed out with every `/api/` call stubbed: both local cards
+render, an added archetype survives reload, renaming `Local Alice` → `Local Alicia` rewrites the
+`gones-leagues` row, and no API call other than `auth/refresh` occurs; signed in as `Admin`, both local
+cards are absent.
 
 **Made partly stale by T14 (remote prevails on sign-in).** Signing in — and reloading with a live
 session — now replaces this browser's deck-archetype list with the server's, so a local archetype
@@ -893,7 +887,9 @@ the next user nor the same user can read a row afterwards), `src/app/data/league
 fulfilled read replaces rather than merges; a `local-` league is never cached) and
 `src/app/data/live-tournament-repository.service.test.ts` (cached under `aspnet-api`, never under
 `browser-local`, never for a mutation). `src/app/backend/server-authority-boundary.test.ts` now
-allowlists exactly four IndexedDB files.
+allowlists exactly four IndexedDB files. `src/app/backend/server-read-cache.service.test.ts` now also
+runs the production IndexedDB adapter through row round-trip, whole-DB purge, recreation, and deletion
+while a second same-app connection closes on `versionchange`.
 
 A throwaway Cypress run (not committed, dev server + stubbed API) additionally observed, signed in as
 an Organizer on `/leagues-archive`: the `gones-cache` / `reads` store held exactly one row keyed
@@ -954,3 +950,21 @@ needs a human:
       `session-catalog-sync.adopt` boundary log.
 - [ ] Signed in, DevTools → Network: `GET /api/deck-archetypes` is issued once per sign-in and no
       request ever carries a local archetype name in its body.
+
+## T15 reviewer-blocker-repair
+
+Automated coverage now proves session-bound cache fallback, awaited purge/bootstrap registration,
+production IndexedDB deletion/recreation, OAuth catalog adoption with delayed-session guards, visible
+cached-server warnings, local-player partial-failure reload, local-Docker endpoint refusal,
+case-insensitive fixture refs, validator negatives, calendar day-cell events, and signed-out local
+Settings persistence. Demo seeding is run twice before Cypress; committed fixture identities are
+synthetic while dataset counts, pairings, archetypes, scores, and League/Live shapes remain stable.
+
+Human-only visual checks remain open:
+
+- [ ] In a second real browser tab, log out with `gones-cache` open: both tabs close their cache DB
+      connections and logout finishes with `gones-cache` absent.
+- [ ] Force League detail and Live list/runner server reads offline after one online load: each page
+      shows its cached-server warning; browser-local League/Live pages show no such warning.
+- [ ] Review calendar day-cell links at desktop and narrow widths for clipping/readability; automated
+      Cypress proves correct date, time/title, route, filtering, and 3-plus-overflow behavior.

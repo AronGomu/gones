@@ -22,6 +22,16 @@ const LEAGUE_STATUSES = ['active', 'completed'];
 const ROUND_ENTRY_KINDS = ['match', 'bye'];
 const API_ORIGIN = 'http://127.0.0.1:5080';
 
+/** Only an absolute Unix socket is safe for destructive local development resets. */
+export function isLocalDockerEndpoint(endpoint) {
+  return /^unix:\/\/\/.+/.test(String(endpoint ?? '').trim());
+}
+
+/** Fixture references are case-insensitive everywhere, including post-reset token lookup. */
+export function normalizeFixtureEmail(email) {
+  return String(email).toLowerCase();
+}
+
 /** `liveTournaments` -> `live-tournaments.json`; every other key is already its own file name. */
 function fileNameFor(key) {
   return `${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}.json`;
@@ -96,7 +106,7 @@ export function validateEnvironment(environment) {
       problems.push(`${label}: account "${who}" has a non-boolean emailConfirmed`);
     }
 
-    const email = String(account.email).toLowerCase();
+    const email = normalizeFixtureEmail(account.email);
     if (emails.has(email)) problems.push(`${label}: account email "${account.email}" is declared twice`);
     emails.add(email);
     const username = String(account.username).toLowerCase();
@@ -115,7 +125,7 @@ export function validateEnvironment(environment) {
   const organizationKeys = new Set(organizations.map(({ key }) => key));
   const formatKeys = new Set(formats.map(({ key }) => key));
   const tournamentKeys = new Set(tournaments.map(({ key }) => key));
-  const accountsByEmail = new Map(accounts.map((account) => [String(account.email).toLowerCase(), account]));
+  const accountsByEmail = new Map(accounts.map((account) => [normalizeFixtureEmail(account.email), account]));
 
   for (const [listName, list] of [['organization', organizations], ['format', formats], ['tournament', tournaments], ['registration', registrations]]) {
     const seen = new Set();
@@ -127,7 +137,7 @@ export function validateEnvironment(environment) {
   }
 
   for (const organization of organizations) {
-    if (!accountsByEmail.has(String(organization.ownerEmail).toLowerCase())) {
+    if (!accountsByEmail.has(normalizeFixtureEmail(organization.ownerEmail))) {
       problems.push(`${label}: organization ${organization.key} owner ${organization.ownerEmail} is not a seeded account`);
     }
   }
@@ -139,7 +149,7 @@ export function validateEnvironment(environment) {
     for (const formatKey of tournament.formatKeys ?? []) {
       if (!formatKeys.has(formatKey)) problems.push(`${label}: tournament ${tournament.key} references unknown format ${formatKey}`);
     }
-    const organizer = accountsByEmail.get(String(tournament.organizerEmail).toLowerCase());
+    const organizer = accountsByEmail.get(normalizeFixtureEmail(tournament.organizerEmail));
     if (organizer === undefined || !['Organizer', 'Admin'].includes(organizer.role)) {
       problems.push(`${label}: tournament ${tournament.key} organizer ${tournament.organizerEmail} is not an Organizer`);
     }
@@ -147,7 +157,7 @@ export function validateEnvironment(environment) {
 
   for (const registration of registrations) {
     // An unverified account is registerable nowhere: the API refuses it with emailVerificationRequired.
-    const registrant = accountsByEmail.get(String(registration.userEmail).toLowerCase());
+    const registrant = accountsByEmail.get(normalizeFixtureEmail(registration.userEmail));
     if (!tournamentKeys.has(registration.tournamentKey) || registrant === undefined || registrant.emailConfirmed === false) {
       problems.push(`${label}: registration ${registration.tournamentKey}/${registration.userEmail} is not seedable`);
     }
@@ -176,7 +186,7 @@ export function validateEnvironment(environment) {
   }
 
   for (const live of environment.liveTournaments ?? []) {
-    const organizer = accountsByEmail.get(String(live.organizerEmail).toLowerCase());
+    const organizer = accountsByEmail.get(normalizeFixtureEmail(live.organizerEmail));
     if (organizer === undefined || !['Organizer', 'Admin'].includes(organizer.role)) {
       problems.push(`${label}: running tournament ${live.key} organizer ${live.organizerEmail} is not an Organizer`);
     }

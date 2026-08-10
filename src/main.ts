@@ -12,6 +12,7 @@ import { serviceWorkerBypassInterceptor } from './app/api/service-worker-cache';
 import { buildRoutes } from './app/app.routes';
 import { authSessionInterceptor } from './app/auth/auth.interceptor';
 import { AuthService } from './app/auth/auth.service';
+import { ServerReadCacheService } from './app/backend/server-read-cache.service';
 import { DataAuthority, DataAuthorityConfigurationError, configureDataAuthority, mergeRuntimeDeclaration } from './app/config/data-authority';
 import { GonesErrorHandler, routeErrorBoundary } from './app/shared/route-error-boundary';
 import { environment } from './environments/environment';
@@ -66,7 +67,10 @@ async function startGones(): Promise<void> {
       { provide: API_BASE_URL, useValue: authority.apiBaseUrl },
       provideAnimationsAsync(),
       provideAppInitializer(() => inject(ViewportScroller).setOffset(routeScrollOffset)),
-      provideAppInitializer(() => inject(AuthService).bootstrap()),
+      provideAppInitializer(() => {
+        inject(ServerReadCacheService); // register private-cache purge before bootstrap can fail
+        return inject(AuthService).bootstrap();
+      }),
       { provide: ErrorHandler, useClass: GonesErrorHandler },
       provideRouter(
         // The routed capability surface follows the resolved authority, injected value included —

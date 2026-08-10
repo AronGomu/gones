@@ -25,6 +25,8 @@ export class LeagueArchiveRepository {
 
   /** The last `listLeagues()` could not read the server — anonymous, offline, 401, 403 or cached. */
   readonly serverUnavailable = signal(false);
+  /** Last server League detail came from this user's offline cache, not from server. */
+  readonly detailStale = signal(false);
 
   /**
    * The union of both stores. A rejected server read degrades to the local list alone and raises the
@@ -46,8 +48,14 @@ export class LeagueArchiveRepository {
   }
 
   async getLeague(id: string): Promise<PersistedLeague | null> {
-    if (isLocalLeagueId(id)) return this.local.getLeagueArchive(id);
-    return (await this.cache.read(`league:${id}`, () => this.server.getLeagueArchive(id))).value;
+    if (isLocalLeagueId(id)) {
+      this.detailStale.set(false);
+      return this.local.getLeagueArchive(id);
+    }
+    this.detailStale.set(false);
+    const result = await this.cache.read(`league:${id}`, () => this.server.getLeagueArchive(id));
+    this.detailStale.set(result.stale);
+    return result.value;
   }
 
   async createLeague(name: string, idempotencyKey?: string): Promise<PersistedLeague> {

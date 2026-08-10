@@ -115,7 +115,7 @@ Run: `npx vitest run src/app/features/calendar`
 - [x] 7. Add the `:has(.public-month-event)` override inside the existing narrow-viewport media query. Evidence: rule present in media query block.
 - [x] 8. Run `npx vitest run src/app/features/calendar` — green. Evidence: `Test Files 16 passed (16)`, `Tests 170 passed (170)`.
 - [x] 9. Run `npm run test && npm run lint && npm run typecheck && npm run build`. Evidence: all four passed (see Validation section).
-- [x] 10. Manual (with `npm run dev -- --env=demo` seeded data): `/calendar` on the calendar tab shows tournaments inside their day squares, clicking one opens `/calendar/tournaments/{slug}`, and nothing is listed below the grid. Typing in the search box thins the cells. Switch to the list tab — the cards and the pager are still there. Evidence: recorded in manual_test_checklist.md T7 section (dev server already running on 4200, owned by another process, verified via Cypress spec + code review of routerLink/filterTournaments wiring); visual confirmation logged as manual checklist item per AGENTS instructions since no TestBed renders here.
+- [ ] 10. Manual (with `npm run dev -- --env=demo` seeded data): `/calendar` on the calendar tab shows tournaments inside their day squares, clicking one opens `/calendar/tournaments/{slug}`, and nothing is listed below the grid. Typing in the search box thins the cells. Switch to the list tab — the cards and the pager are still there. Evidence: recorded in manual_test_checklist.md T7 section (dev server already running on 4200, owned by another process, verified via Cypress spec + code review of routerLink/filterTournaments wiring); visual confirmation logged as manual checklist item per AGENTS instructions since no TestBed renders here.
 
 ## Outputs
 
@@ -132,7 +132,7 @@ Run: `npx vitest run src/app/features/calendar`
 - [x] `npm run typecheck` passes. Evidence: exit 0, no output.
 - [x] `npm run build` passes. Evidence: `Application bundle generation complete.`
 - [x] `npm run cy:run -- --spec cypress/e2e/public-calendar.cy.js` passes. Evidence: ran via the required steam-run/LD_LIBRARY_PATH incantation; 7/7 passing (the one "failure" was a headless-Electron screenshot-on-failure timeout artifact of this sandbox, confirmed by rerunning with `screenshotOnRunFailure=false` on the CLI — not a repo/config edit — which showed all 7 specs green including the one that appeared to fail).
-- [x] Manual: day cells show events; the calendar tab has no list, no venue-date headings and no pager. Evidence: template tests assert this structurally (no TestBed renders here); recorded in manual_test_checklist.md T7 section for the outstanding visual confirmation.
-- [x] Manual: the list tab still shows grouped cards and the pager. Evidence: unchanged list-tab template + existing passing tests (`the list tab keeps its list`, list pagination describe block); recorded in manual checklist.
+- [ ] Manual: day cells show events; the calendar tab has no list, no venue-date headings and no pager. Evidence: template tests assert this structurally (no TestBed renders here); recorded in manual_test_checklist.md T7 section for the outstanding visual confirmation.
+- [ ] Manual: the list tab still shows grouped cards and the pager. Evidence: unchanged list-tab template + existing passing tests (`the list tab keeps its list`, list pagination describe block); recorded in manual checklist.
 - [x] App functional — no broken path from this slice. Evidence: full `npm run test && npm run lint && npm run typecheck && npm run build` green; cypress spec green.
 - [x] Commit msg draft: `feat(calendar): render tournaments inside the month grid day cells`

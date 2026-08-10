@@ -102,6 +102,10 @@ try {
     if (settingsBrowser.status !== 0) process.exitCode = settingsBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const localSettingsBrowser = runCypress('cypress/e2e/settings-local.cy.js');
+    if (localSettingsBrowser.status !== 0) process.exitCode = localSettingsBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const liveBrowser = runCypress('cypress/e2e/live-server.cy.js');
     if (liveBrowser.status !== 0) process.exitCode = liveBrowser.status ?? 1;
   }

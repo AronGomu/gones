@@ -1,9 +1,52 @@
 [
-  { "email": "admin@gones.test", "username": "gones-admin", "firstName": "Gones", "lastName": "Admin", "role": "Admin" },
-  { "email": "organizer@gones.test", "username": "gones-organizer", "firstName": "Gones", "lastName": "Organizer", "role": "Organizer" },
-  { "email": "organizer2@gones.test", "username": "gones-organizer-2", "firstName": "Aura", "lastName": "Organizer", "role": "Organizer" },
-  { "email": "test@gones.test", "username": "gones-test", "firstName": "Gones", "lastName": "Test", "role": "User" },
-  { "email": "player1@gones.test", "username": "gones-player-1", "firstName": "Thomas", "lastName": "Clabaut", "role": "User" },
-  { "email": "player2@gones.test", "username": "gones-player-2", "firstName": "Boris", "lastName": "Bruned", "role": "User" },
-  { "email": "unverified@gones.test", "username": "gones-unverified", "firstName": "Nina", "lastName": "Verify", "role": "User", "emailConfirmed": false }
+  {
+    "email": "admin@gones.test",
+    "username": "gones-admin",
+    "firstName": "Demo",
+    "lastName": "Account 01",
+    "role": "Admin"
+  },
+  {
+    "email": "organizer@gones.test",
+    "username": "gones-organizer",
+    "firstName": "Demo",
+    "lastName": "Account 02",
+    "role": "Organizer"
+  },
+  {
+    "email": "organizer2@gones.test",
+    "username": "gones-organizer-2",
+    "firstName": "Demo",
+    "lastName": "Account 03",
+    "role": "Organizer"
+  },
+  {
+    "email": "test@gones.test",
+    "username": "gones-test",
+    "firstName": "Demo",
+    "lastName": "Account 04",
+    "role": "User"
+  },
+  {
+    "email": "player1@gones.test",
+    "username": "gones-player-1",
+    "firstName": "Demo",
+    "lastName": "Player 01",
+    "role": "User"
+  },
+  {
+    "email": "player2@gones.test",
+    "username": "gones-player-2",
+    "firstName": "Demo",
+    "lastName": "Player 02",
+    "role": "User"
+  },
+  {
+    "email": "unverified@gones.test",
+    "username": "gones-unverified",
+    "firstName": "Demo",
+    "lastName": "Account 07",
+    "role": "User",
+    "emailConfirmed": false
+  }
 ]

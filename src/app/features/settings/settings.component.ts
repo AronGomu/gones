@@ -980,12 +980,12 @@ export class SettingsComponent {
         await this.localBackend.renameLeagueArchivePlayerName(league.id, league.documentVersion, player.name, next);
       }
       this.clearPlayerEditState(player.name);
-      await this.loadLocalPlayers();
       this.playerMessage.set(this.i18n.t('settings.playerRenamed', { from: player.name, to: next }));
     } catch (error) {
       logBoundaryError('settings.renameLocalPlayer', error, { from: player.name, to: next });
-      this.playerMessage.set(this.i18n.t('settings.playerRenameFailed'));
+      this.playerMessage.set(this.i18n.t('settings.localPlayerRenamePartial'));
     } finally {
+      await this.loadLocalPlayers();
       this.playerSaving.set(false);
     }
   }

@@ -108,9 +108,9 @@ Run: `npx vitest run src/app/shared src/app/auth src/app/backend`
 - [x] 9. Create `src/app/backend/browser-local-scope.test.ts` with the scoping assertions. → verify: `npx vitest run src/app/backend/browser-local-scope.test.ts` green.
 - [x] 10. Run `npx vitest run src/app/shared src/app/auth src/app/backend` — green.
 - [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. `server-authority-boundary.test.ts` must stay green — no new file calls `localStorage` directly. — 862/862 tests, lint clean, typecheck clean, bundle built; `git diff --stat src/app/backend/server-authority-boundary.test.ts` is empty, so both allowlists are unchanged.
-- [x] 12. Manual, with `npm run dev -- --env=demo`: signed out, add the archetype `Local Only` in `/settings`. Sign in as `admin@gones.test`. Sign out again and reopen `/settings` — `Local Only` is gone and the server names are there. Remote prevailed and erased the local list. → verify: recorded as a step in the `## T14 remote-prevails-on-sign-in` section of `ai-artifacts/manual_test_checklist.md`.
-- [x] 13. Manual: open the site in a private window while signed out, add an archetype, then open a second tab of the same private session — the archetype is there. That is the browser-wide property. → verify: recorded in the same checklist section.
-- [x] 14. Manual: go offline, then sign in with a live refresh cookie (reload the app) — the local catalog is unchanged and nothing throws. → verify: recorded in the same checklist section.
+- [ ] 12. Manual, with `npm run dev -- --env=demo`: signed out, add the archetype `Local Only` in `/settings`. Sign in as `admin@gones.test`. Sign out again and reopen `/settings` — `Local Only` is gone and the server names are there. Remote prevailed and erased the local list. → verify: recorded as a step in the `## T14 remote-prevails-on-sign-in` section of `ai-artifacts/manual_test_checklist.md`.
+- [ ] 13. Manual: open the site in a private window while signed out, add an archetype, then open a second tab of the same private session — the archetype is there. That is the browser-wide property. → verify: recorded in the same checklist section.
+- [ ] 14. Manual: go offline, then sign in with a live refresh cookie (reload the app) — the local catalog is unchanged and nothing throws. → verify: recorded in the same checklist section.
 
 ## Outputs
 

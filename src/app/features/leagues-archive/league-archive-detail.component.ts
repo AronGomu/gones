@@ -20,6 +20,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   template: `
     <gones-back-button data-cy="leagues-archive-detail-back-top" [link]="['/leagues-archive']" [label]="i18n.t('nav.backToLeagues')" position="top" />
     @if (error()) { <p class="error" role="alert" data-cy="leagues-archive-detail-error">{{ error() }}</p> }
+    @if (repo.detailStale()) { <p class="warning" role="status" data-cy="leagues-archive-detail-cached-stale">{{ i18n.t('offline.cachedServerRead') }}</p> }
     @if (league(); as saved) {
       <section class="page-heading" data-cy="leagues-archive-detail-heading">
         <div data-cy="leagues-archive-detail-heading-block">

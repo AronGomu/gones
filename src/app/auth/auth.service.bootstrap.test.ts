@@ -21,7 +21,7 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
   };
   const catalogSync = { adopt: vi.fn(async () => undefined) };
   const injector = Injector.create({ providers: [AuthService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
-  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), client, catalogSync };
+  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client, catalogSync };
 }
 
 describe('AuthService.bootstrap', () => {
@@ -56,6 +56,25 @@ describe('AuthService.bootstrap', () => {
     await service.bootstrap();
 
     expect(catalogSync.adopt).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed bootstrap waits for private cache purge before completing', async () => {
+    const { service, sessionScope } = setup(() => throwError(() => new Error('no refresh cookie')));
+    let releases = 0;
+    const waiting: Array<() => void> = [];
+    sessionScope.register(() => new Promise<void>((resolve) => { waiting.push(resolve); }));
+
+    const pending = service.bootstrap();
+    await vi.waitFor(() => expect(waiting.length).toBeGreaterThan(0));
+    expect(service.bootstrapped()).toBe(false);
+    while (waiting.length) { releases += 1; waiting.shift()!(); }
+    await vi.waitFor(() => {
+      while (waiting.length) { releases += 1; waiting.shift()!(); }
+      expect(service.bootstrapped()).toBe(true);
+    });
+    await pending;
+
+    expect(releases).toBeGreaterThanOrEqual(1);
   });
 
   it('a failed bootstrap adopts nothing, so the browser keeps its local catalog', async () => {

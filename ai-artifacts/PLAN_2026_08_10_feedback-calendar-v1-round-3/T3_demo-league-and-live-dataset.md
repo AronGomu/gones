@@ -10,7 +10,7 @@
 - This slice: the League Archive + Live halves of the `demo` environment. Calendar tournaments and registrations already ship (T2).
 - Out of scope here: any UI change; any `backend/**` C# change; the `empty` and `minimal` environments.
 - Assumptions in force:
-  - `DBGONDB.json` is not on this machine. The donor file is `/home/aron/gdrive-snapshot-2026-08-10/backup/gones-exports/gones-full-data.gones.json` — a real Gones full-data export with real Lyon player names and real scores. Copy a trimmed derivative into the repo; from then on the fixture is the source of truth and is edited in place.
+  - `DBGONDB.json` is not on this machine. Donor data may be used only to infer realistic fixture shape. Every committed name and value is synthetic; fixture files are the source of truth.
   - Seeding drives the real HTTP API. `demo` sets `resetDatabase: true`.
 
 ## Inputs
@@ -50,7 +50,7 @@
 
 ## Requirements
 
-- New `fixtures/dev-environments/demo/leagues.json` — 2 leagues, each a whole `LeagueDocument`, ids and player names derived from the donor export.
+- New `fixtures/dev-environments/demo/leagues.json` — 2 leagues, each a whole `LeagueDocument`, with synthetic ids and player names.
 - New `fixtures/dev-environments/demo/live-tournaments.json` — 2 running tournaments described declaratively, not as documents.
 - `scripts/seed-dev-environment.mjs` fills `seedLeagues` and `seedLiveTournaments`.
 - `validateEnvironment` gains league + live rules.
@@ -60,7 +60,7 @@
 
 `demo/leagues.json` = a JSON array of `LeagueDocument`. Two entries:
 
-1. `id: "demo-league-6"`, `name: "Gones League 6"`, `status: "completed"`, **3** tournaments (`demo-gl6-day-1`, `demo-gl6-day-2`, `demo-gl6-day-3`), each with **3** rounds of **4** match entries plus one `bye` entry in round 3 of day 3. Player names copied from the donor export (`Thomas Clabaut`, `Boris Bruned`, `Riccardo Giusti`, `Dimitri Grangeon`, `Eric Confortini`, …) — at least 9 distinct players so standings are non-trivial. `playerArchetypes` populated for at least 4 players per tournament with names already present in `src/app/config/legacy-archetype-presets.ts`.
+1. `id: "demo-league-6"`, `name: "Gones League 6"`, `status: "completed"`, **3** tournaments (`demo-gl6-day-1`, `demo-gl6-day-2`, `demo-gl6-day-3`), each with **3** rounds of **4** match entries plus one `bye` entry in round 3 of day 3. Explicit synthetic names (`Demo Player 01`, `Demo Player 02`, …) provide at least 9 distinct players so standings are non-trivial. `playerArchetypes` is populated for at least 4 players per tournament with archetypes already present in `src/app/config/legacy-archetype-presets.ts`.
 2. `id: "demo-league-7"`, `name: "Gones League 7"`, `status: "active"`, **1** tournament (`demo-gl7-day-1`) with **2** rounds, same player pool. This one is the "in progress" archive.
 
 Every `tournamentDate` is a literal `YYYY-MM-DD` in the past — the archive is history, so absolute dates are correct here and must **not** be made relative.
@@ -136,7 +136,7 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 
 ## Impl steps
 
-- [x] 1. Read `/home/aron/gdrive-snapshot-2026-08-10/backup/gones-exports/gones-full-data.gones.json`; harvest at least 9 distinct real player names and a handful of real score lines from the `Gones League 6` entry. → verify: the harvested names and scores are quoted in the run log and reappear in `leagues.json`.
+- [x] 1. Use donor data only to infer realistic fixture shape; commit explicit synthetic player names and values. → verify: tracked-tree donor-name grep is empty and `fixtures/dev-environments/demo/leagues.json` preserves at least 9 distinct synthetic players.
 - [x] 2. Create `fixtures/dev-environments/demo/leagues.json`: `demo-league-6` (completed, 3 tournaments × 3 rounds × 4 matches, one `bye` in day 3 round 3) and `demo-league-7` (active, 1 tournament × 2 rounds). Literal string ids, past `tournamentDate` values, `playerArchetypes` filled from `src/app/config/legacy-archetype-presets.ts`. → verify: `node -e` shape probe prints 2 leagues / 3 + 1 tournaments / 3 + 2 rounds / one `bye`, and every archetype is a preset name.
 - [x] 3. Create `fixtures/dev-environments/demo/live-tournaments.json` with the two rows in the table above. → verify: `node -e` probe prints the two keys with 8 / 6 players and the table's `roundCount`, `scoredRounds`, `leaveRoundOpen`, `leagueKey`.
 - [x] 4. Add the five tests to `ops/dev-environments.test.ts`. Confirm red. → verify: `npx vitest run ops/dev-environments.test.ts` fails on the new league/live rules, existing 12 tests still counted.

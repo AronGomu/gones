@@ -4,21 +4,71 @@
     "organizerEmail": "organizer@gones.test",
     "name": "Gones League 7 - Day 2",
     "leagueKey": "demo-league-7",
-    "tournamentDate": { "offsetDays": 0 },
+    "tournamentDate": {
+      "offsetDays": 0
+    },
     "roundCount": 3,
     "customRoundCount": true,
     "paidTrackingEnabled": true,
     "scoredRounds": 1,
     "leaveRoundOpen": true,
     "players": [
-      { "name": "Thomas Clabaut", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Delver (Izzet)" },
-      { "name": "Samuel Brochet", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Death and Taxes (White)" },
-      { "name": "Romain CORGNOLO", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Painter (Red)" },
-      { "name": "Thomas Drescher", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Doomsday (Dimir)" },
-      { "name": "Yo Plz", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Storm (Red)" },
-      { "name": "Riccardo Giusti", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Lands (Gruul)" },
-      { "name": "Louis JULLIEN", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Reanimator (Rakdos)" },
-      { "name": "Maxime Oulès", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Elves (Green)" }
+      {
+        "name": "Demo Player 01",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Delver (Izzet)"
+      },
+      {
+        "name": "Demo Player 06",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Death and Taxes (White)"
+      },
+      {
+        "name": "Demo Player 18",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Painter (Red)"
+      },
+      {
+        "name": "Demo Player 17",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Doomsday (Dimir)"
+      },
+      {
+        "name": "Demo Player 16",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Storm (Red)"
+      },
+      {
+        "name": "Demo Player 03",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Lands (Gruul)"
+      },
+      {
+        "name": "Demo Player 11",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Reanimator (Rakdos)"
+      },
+      {
+        "name": "Demo Player 28",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Elves (Green)"
+      }
     ]
   },
   {
@@ -26,19 +76,57 @@
     "organizerEmail": "organizer2@gones.test",
     "name": "Lyon Legacy Weekly",
     "leagueKey": null,
-    "tournamentDate": { "offsetDays": -1 },
+    "tournamentDate": {
+      "offsetDays": -1
+    },
     "roundCount": 3,
     "customRoundCount": true,
     "paidTrackingEnabled": false,
     "scoredRounds": 3,
     "leaveRoundOpen": false,
     "players": [
-      { "name": "Alex Noir", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Dredge (Black)" },
-      { "name": "Joris Silva", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Painter (Red)" },
-      { "name": "Antoine Cinquin", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Goblins (Red)" },
-      { "name": "Luka Mrakovcic", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Merfolk (Blue)" },
-      { "name": "Benoît Guenin", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Maverick (Selesnya)" },
-      { "name": "Nicolas Righi", "initialWins": 0, "initialDraws": 0, "initialLosses": 0, "archetype": "Eldrazi (Colorless)" }
+      {
+        "name": "Demo Player 13",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Dredge (Black)"
+      },
+      {
+        "name": "Demo Player 07",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Painter (Red)"
+      },
+      {
+        "name": "Demo Player 25",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Goblins (Red)"
+      },
+      {
+        "name": "Demo Player 10",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Merfolk (Blue)"
+      },
+      {
+        "name": "Demo Player 19",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Maverick (Selesnya)"
+      },
+      {
+        "name": "Demo Player 35",
+        "initialWins": 0,
+        "initialDraws": 0,
+        "initialLosses": 0,
+        "archetype": "Eldrazi (Colorless)"
+      }
     ]
   }
 ]

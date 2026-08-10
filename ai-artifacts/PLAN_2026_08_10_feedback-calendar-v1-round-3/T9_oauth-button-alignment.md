@@ -121,7 +121,7 @@ Run: `npx vitest run src/app/auth`
 - [x] `npm run lint` passes. — "All files pass linting."
 - [x] `npm run typecheck` passes. — clean exit, no errors.
 - [x] `npm run build` passes. — bundle produced at dist/gones.
-- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes. — 4/7 passing both before (stashed) and after this change (identical result); 3 failures are pre-existing, unrelated to social-button layout (login-helper timeout navigating to /settings/account, not touched by this slice).
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes. — T15 seeded wrapped run: isolated spec 7/7; full suite 21 specs / 88 tests green.
 - [ ] Manual: `/login` and `/register` social buttons are identical in text, order, spacing and alignment, in both languages. — deferred to manual_test_checklist.md (visual-only check, no headed browser in this run).
 - [x] App functional — no broken path from this slice. — full test/lint/typecheck/build green; cypress auth-profile spec unchanged pass/fail count vs. pre-change baseline.
 - [x] Commit msg draft: `fix(auth): align and space the social buttons and share one label` — used verbatim for the commit.

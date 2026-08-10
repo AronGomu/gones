@@ -7,14 +7,14 @@ import { AuthService } from './auth.service';
 import { SessionScopeService, isServiceWorkerDataCache } from './session-scope.service';
 
 describe('SessionScopeService', () => {
-  it('runs every registered reset so no user-scoped memory survives logout', () => {
+  it('runs every registered reset so no user-scoped memory survives logout', async () => {
     const service = create();
     const first = vi.fn();
     const second = vi.fn();
     service.register(first);
     service.register(second);
 
-    service.clear();
+    await service.clear();
 
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(1);
@@ -28,9 +28,7 @@ describe('SessionScopeService', () => {
       delete: (name: string) => { deleted.push(name); return Promise.resolve(true); }
     });
 
-    create().clear();
-    await Promise.resolve();
-    await Promise.resolve();
+    await create().clear();
 
     expect(deleted).toEqual(['ngsw:/:1:data:dynamic:public-calendar-reads:cache']);
     vi.unstubAllGlobals();
@@ -59,13 +57,33 @@ describe('SessionScopeService', () => {
     await cache.read('leagues', () => Promise.resolve(['user-a league']));
     expect([...rows.keys()]).toEqual(['user-a:leagues']);
 
-    sessionScope.clear();
+    await sessionScope.clear();
 
-    await vi.waitFor(() => expect(rows.size).toBe(0));
+    expect(rows.size).toBe(0);
     profile.set({ id: 'user-b' } as UserProfileResponse);
     await expect(cache.read('leagues', () => Promise.reject(new Error('offline')))).rejects.toThrowError('offline');
     profile.set({ id: 'user-a' } as UserProfileResponse);
     await expect(cache.read('leagues', () => Promise.reject(new Error('offline')))).rejects.toThrowError('offline');
+  });
+
+  it('awaits async resets before a later session can write', async () => {
+    const service = create();
+    const rows = new Map([['user-a', 'private']]);
+    let release!: () => void;
+    service.register(() => new Promise<void>((resolve) => {
+      release = () => { rows.clear(); resolve(); };
+    }));
+
+    let cleared = false;
+    const pending = service.clear().then(() => { cleared = true; });
+    expect(rows.get('user-a')).toBe('private');
+    expect(cleared).toBe(false);
+
+    release();
+    await pending;
+    rows.set('user-b', 'new session');
+
+    expect([...rows.entries()]).toEqual([['user-b', 'new session']]);
   });
 
   it('recognises only service worker data caches', () => {

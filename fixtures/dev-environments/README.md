@@ -92,9 +92,8 @@ Restoring mints new server ids, so the `id` values here never reach the database
 fixtures use to point at each other. That is also why the seeder matches an already-restored League
 by **name** before restoring again: two runs must not leave a `Gones League 6 (restored)` behind.
 
-`demo/leagues.json` is a trimmed derivative of a real Gones full-data export (real Lyon Player Names
-and real Game Scores). The export itself is not committed; from here on this file is the source of
-truth and is edited in place.
+A donor export was used only to infer realistic dataset shape. Every committed player name and
+score is synthetic; these fixture files are the source of truth and are edited in place.
 
 `live-tournaments.json` — running (Live) tournaments, described declaratively rather than as
 documents: the seeder replays the real Live commands (create → add players → start / score / validate
@@ -129,10 +128,10 @@ npm run dev:env -- --env=minimal  # seed only, against a stack that is already u
 
 `--env` needs the Docker stack, so it cannot be combined with `--no-docker`.
 
-Any environment whose `environment.json` says `"resetDatabase": true` runs
-`scripts/reset-local-stack.mjs` first (`docker compose --profile development down --volumes` → `up
+Any environment whose `environment.json` says `"resetDatabase": true` first runs the seeder's
+backend-only inline reset (`docker compose --profile development down --volumes` → backend `up
 --wait` → `scripts/seed-local.mjs`), so swapping environments never leaves the previous dataset
-behind. An environment that declares `"resetDatabase": false` must carry no data at all —
+behind without starting or replacing the frontend container. An environment that declares `"resetDatabase": false` must carry no data at all —
 `validateEnvironment` refuses that combination rather than stacking a dataset onto whatever was
 already in the database.
 
