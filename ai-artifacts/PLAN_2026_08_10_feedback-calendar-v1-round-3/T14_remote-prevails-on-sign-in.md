@@ -132,4 +132,4 @@ Run: `npx vitest run src/app/shared src/app/auth src/app/backend`
 - [ ] Manual: signing in offline changes nothing and throws nothing. — queued in the same section.
 - [ ] Manual: two tabs of the same anonymous browser session see the same local data. — queued in the same section.
 - [x] App functional — no broken path from this slice. → verify: `npm run build` green and the named Cypress spec green on the running stack.
-- [ ] Commit msg draft: `feat(settings): let the server catalog replace the local one on sign-in` → verify: the commit on `feat/feedback-calendar-v1-round-3` carries that subject.
+- [x] Commit msg draft: `feat(settings): let the server catalog replace the local one on sign-in` — commit `a9e9cf1` on `feat/feedback-calendar-v1-round-3`, pushed to `origin`.
