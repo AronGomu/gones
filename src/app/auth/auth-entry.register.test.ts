@@ -29,7 +29,7 @@ function setup() {
 describe('AuthEntryComponent register password confirmation', () => {
   it('blocks submission and does not call the API on mismatch', async () => {
     const { component, register } = setup();
-    component.password = 'aaaaaaaaaaaa';
+    component.password.set('aaaaaaaaaaaa');
     component.confirmPassword = 'b';
 
     await component.submitRegister();

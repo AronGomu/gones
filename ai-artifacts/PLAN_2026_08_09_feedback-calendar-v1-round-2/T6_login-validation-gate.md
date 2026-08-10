@@ -125,12 +125,12 @@ export function loginFormIsValid(email: string, password: string): boolean {
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/auth/login-validation.test.ts` with every row above that targets the pure module, importing from `'./login-validation'`.
-- [ ] 2. Run `npx vitest run src/app/auth/login-validation.test.ts` — it must fail to resolve the module.
-- [ ] 3. Create `src/app/auth/login-validation.ts` exactly as written in the Test plan.
-- [ ] 4. Re-run step 2's command — the pure tests pass.
-- [ ] 5. Add the five source-contract tests (last five rows) to the same file, reading the component and the stylesheet with `readFileSync`. They must fail.
-- [ ] 6. In `src/app/i18n/messages.ts`, add to `en`:
+- [x] 1. Create `src/app/auth/login-validation.test.ts` with every row above that targets the pure module, importing from `'./login-validation'`.
+- [x] 2. Run `npx vitest run src/app/auth/login-validation.test.ts` — it must fail to resolve the module. (red: `Failed to resolve import "./login-validation"`, 1 failed / no tests)
+- [x] 3. Create `src/app/auth/login-validation.ts` exactly as written in the Test plan.
+- [x] 4. Re-run step 2's command — the pure tests pass. (13 passed)
+- [x] 5. Add the five source-contract tests (last five rows) to the same file, reading the component and the stylesheet with `readFileSync`. They must fail. (red: 6 failed | 13 passed)
+- [x] 6. In `src/app/i18n/messages.ts`, add to `en`:
       ```
       'auth.emailInvalid': 'Enter a valid email address.',
       'auth.passwordTooShort': 'Enter at least 3 characters.',
@@ -140,33 +140,33 @@ export function loginFormIsValid(email: string, password: string): boolean {
       'auth.emailInvalid': 'Saisissez une adresse e-mail valide.',
       'auth.passwordTooShort': 'Saisissez au moins 3 caractères.',
       ```
-- [ ] 7. In `src/app/auth/auth-entry.component.ts`, convert the two bound fields to signals. Replace line 131 and line 135 with:
+- [x] 7. In `src/app/auth/auth-entry.component.ts`, convert the two bound fields to signals. Replace line 131 and line 135 with:
       ```ts
       readonly email = signal(this.route.snapshot.queryParamMap.get('email') ?? '');
       readonly password = signal('');
       ```
       `signal` is already imported on line 1. Angular's `[(ngModel)]` supports a `WritableSignal` directly in v21, so the template bindings `[(ngModel)]="email"` and `[(ngModel)]="password"` stay exactly as written.
-- [ ] 8. Update **every** read site in the class to call the signals. Search the file for `this.email` and `this.password` and change each to `this.email()` / `this.password()`. The sites are in `submitLogin`, `submitRegister`, `submitCompleteProfile`, `resendVerification`, `submitForgotPassword`, `submitResetPassword`. Do **not** convert `username`, `firstName`, `lastName` or `confirmPassword` — they are out of scope and untouched.
-- [ ] 9. Add to the class, next to the other computed members:
+- [x] 8. Update **every** read site in the class to call the signals. (`npm run typecheck` clean; `auth-entry.register.test.ts` updated to `component.password.set(...)`) Search the file for `this.email` and `this.password` and change each to `this.email()` / `this.password()`. The sites are in `submitLogin`, `submitRegister`, `submitCompleteProfile`, `resendVerification`, `submitForgotPassword`, `submitResetPassword`. Do **not** convert `username`, `firstName`, `lastName` or `confirmPassword` — they are out of scope and untouched.
+- [x] 9. Add to the class, next to the other computed members:
       ```ts
       readonly loginValid = computed(() => loginFormIsValid(this.email(), this.password()));
       readonly emailInvalid = computed(() => this.email().length > 0 && !isValidLoginEmail(this.email()));
       readonly passwordInvalid = computed(() => this.password().length > 0 && !isValidLoginPassword(this.password()));
       ```
       Add `computed` to the `@angular/core` import and `import { isValidLoginEmail, isValidLoginPassword, loginFormIsValid } from './login-validation';`.
-- [ ] 10. In the login form template, add the two client-validity messages directly after each field's existing `<gones-field-errors …/>`:
+- [x] 10. In the login form template, add the two client-validity messages directly after each field's existing `<gones-field-errors …/>`:
       ```html
       @if (emailInvalid()) { <p class="field-error" role="alert" data-cy="login-email-validity">{{ i18n.t('auth.emailInvalid') }}</p> }
       ```
       ```html
       @if (passwordInvalid()) { <p class="field-error" role="alert" data-cy="login-password-validity">{{ i18n.t('auth.passwordTooShort') }}</p> }
       ```
-- [ ] 11. Replace the login submit button with:
+- [x] 11. Replace the login submit button with:
       ```html
       <button mat-flat-button class="home-primary-action auth-submit" [class.auth-submit--ready]="loginValid()" [class.auth-submit--idle]="!loginValid()" [disabled]="!loginValid()" data-cy="auth-submit" type="submit">{{ pending() ? i18n.t('auth.signingIn') : i18n.t('auth.signIn') }}</button>
       ```
       Leave the register / complete-profile / verify / forgot / reset submit buttons untouched.
-- [ ] 12. In `src/styles.css`, next to the other auth rules (after line 1082), add:
+- [x] 12. In `src/styles.css`, next to the other auth rules (after line 1082), add: (`--steel`, `--dim-ash`, `--black-metal` all confirmed declared in `:root`)
       ```css
       .auth-submit { transition: background .16s ease, color .16s ease, border-color .16s ease; }
       .auth-submit--ready { --mdc-filled-button-container-color: var(--create-green); --mdc-filled-button-label-text-color: var(--black-metal); background: var(--create-green) !important; color: var(--black-metal) !important; }
@@ -174,8 +174,8 @@ export function loginFormIsValid(email: string, password: string): boolean {
       .auth-submit--idle, .auth-submit:disabled { --mdc-filled-button-disabled-container-color: var(--steel); --mdc-filled-button-disabled-label-text-color: var(--dim-ash); background: var(--steel) !important; color: var(--dim-ash) !important; cursor: not-allowed; }
       ```
       Confirm `--steel`, `--dim-ash` and `--black-metal` are declared in the `:root` block at the top of the file before using them; substitute the nearest declared token if a name differs.
-- [ ] 13. Run `npx vitest run src/app/auth/login-validation.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
-- [ ] 14. Run `npx cypress run --spec cypress/e2e/auth-profile.cy.js`. If a step clicked submit before filling both fields, reorder that step so the fields are filled first — do not weaken the gate to make the spec pass.
+- [x] 13. Run `npx vitest run src/app/auth/login-validation.test.ts src/app/shared/data-cy-coverage.test.ts` — green. (36 passed with the two auth-entry specs included)
+- [x] 14. Run `npx cypress run --spec cypress/e2e/auth-profile.cy.js`. If a step clicked submit before filling both fields, reorder that step so the fields are filled first — do not weaken the gate to make the spec pass. (every step already fills both fields before clicking; no reorder needed. 6 passing / 1 failing, and the identical 1 failure reproduces on a stashed baseline of this branch — `starts explicit provider linking` follows the intercepted `http://127.0.0.1:8081/profile` redirect, which only exists in the release topology `npm run e2e:ci` uses, not under `ng serve` on :4200.)
 
 ## Outputs
 
@@ -186,15 +186,15 @@ export function loginFormIsValid(email: string, password: string): boolean {
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx cypress run --spec cypress/e2e/auth-profile.cy.js` passes
-- [ ] Manual: `npm run dev`, open `/login` — the submit button starts grey and disabled with both fields empty, and no validity message is shown.
-- [ ] Manual: type `admin` in the email — the email validity message appears, the button stays grey and disabled.
-- [ ] Manual: complete to `admin@gones.test` and type `ab` — the password validity message appears, the button stays disabled.
-- [ ] Manual: extend to `Gones-dev-pass-123!` — both messages clear, the button turns green and enabled; clicking it signs in.
-- [ ] Manual: with the browser in French both messages read in French.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `feat(auth): gate the login submit on client-side email and password validity`
+- [x] `npm run test` passes (84 files / 575 tests passed)
+- [x] `npm run lint` passes (`All files pass linting.`)
+- [x] `npm run typecheck` passes (tsc app + spec, no output)
+- [x] `npm run build` passes (`Application bundle generation complete.`)
+- [x] `npx cypress run --spec cypress/e2e/auth-profile.cy.js` passes — 6/7, at exact parity with the pre-change baseline of this branch (see step 14); the one failure is the release-topology-only `:8081` redirect, not this slice.
+- [ ] Manual: `npm run dev`, open `/login` — the submit button starts grey and disabled with both fields empty, and no validity message is shown. (left unchecked: no human browser in this run; the vitest source-contract tests prove the binding and the grey rule, not the rendered pixels — written into `ai-artifacts/manual_test_checklist.md` § T6)
+- [ ] Manual: type `admin` in the email — the email validity message appears, the button stays grey and disabled. (left unchecked: no human browser; queued in `ai-artifacts/manual_test_checklist.md` § T6)
+- [ ] Manual: complete to `admin@gones.test` and type `ab` — the password validity message appears, the button stays disabled. (left unchecked: no human browser; queued in `ai-artifacts/manual_test_checklist.md` § T6)
+- [ ] Manual: extend to `Gones-dev-pass-123!` — both messages clear, the button turns green and enabled; clicking it signs in. (partially proved by cypress — a real login through the gate reaches `/settings/account` — but the green rendering is unproved, so this stays unchecked; queued in `ai-artifacts/manual_test_checklist.md` § T6)
+- [ ] Manual: with the browser in French both messages read in French. (left unchecked: no human browser; the fr keys exist in `messages.ts` but the rendered strings are unproved — queued in `ai-artifacts/manual_test_checklist.md` § T6)
+- [x] app functional — no broken path from this slice (full vitest suite, lint, typecheck, build and the auth cypress spec all at or above baseline; register / complete-profile / verify / forgot / reset submit buttons untouched)
+- [x] commit msg draft: `feat(auth): gate the login submit on client-side email and password validity`

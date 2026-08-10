@@ -1,4 +1,4 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,6 +11,7 @@ import { AuthService } from './auth.service';
 import { registrationDestination } from './registration-gate';
 import { LastVisitedUrlService, loginDestination } from './last-visited-url.service';
 import { passwordConfirmationErrors } from './password-confirmation';
+import { isValidLoginEmail, isValidLoginPassword, loginFormIsValid } from './login-validation';
 
 @Component({
   selector: 'gones-field-errors',
@@ -36,10 +37,12 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
                 <label for="auth-email" data-cy="login-email-label">{{ i18n.t('auth.email') }}</label>
                 <input id="auth-email" data-cy="auth-email" type="email" autocomplete="email" required [(ngModel)]="email" name="email" [attr.aria-invalid]="hasError('email')" [attr.aria-describedby]="hasError('email') ? 'auth-email-error' : null">
                 <gones-field-errors id="auth-email-error" data-cy="login-email-error" [messages]="fieldErrors()['email']" />
+                @if (emailInvalid()) { <p class="field-error" role="alert" data-cy="login-email-validity">{{ i18n.t('auth.emailInvalid') }}</p> }
                 <label for="auth-password" data-cy="login-password-label">{{ i18n.t('auth.password') }}</label>
                 <input id="auth-password" data-cy="auth-password" type="password" autocomplete="current-password" required [(ngModel)]="password" name="password" [attr.aria-invalid]="hasError('password')" [attr.aria-describedby]="hasError('password') ? 'auth-password-error' : null">
                 <gones-field-errors id="auth-password-error" data-cy="login-password-error" [messages]="fieldErrors()['password']" />
-                <button mat-flat-button class="home-primary-action" data-cy="auth-submit" type="submit">{{ pending() ? i18n.t('auth.signingIn') : i18n.t('auth.signIn') }}</button>
+                @if (passwordInvalid()) { <p class="field-error" role="alert" data-cy="login-password-validity">{{ i18n.t('auth.passwordTooShort') }}</p> }
+                <button mat-flat-button class="home-primary-action auth-submit" [class.auth-submit--ready]="loginValid()" [class.auth-submit--idle]="!loginValid()" [disabled]="!loginValid()" data-cy="auth-submit" type="submit">{{ pending() ? i18n.t('auth.signingIn') : i18n.t('auth.signIn') }}</button>
               </fieldset>
             </form>
             <div class="oauth-grid" data-cy="login-oauth-grid" [attr.aria-label]="i18n.t('auth.socialSignIn')">
@@ -128,12 +131,15 @@ export class AuthEntryComponent {
   readonly error = signal('');
   readonly status = signal('');
   readonly fieldErrors = signal<AuthFieldErrors>({});
-  email = this.route.snapshot.queryParamMap.get('email') ?? '';
+  readonly email = signal(this.route.snapshot.queryParamMap.get('email') ?? '');
   username = this.route.snapshot.queryParamMap.get('username') ?? '';
   firstName = this.route.snapshot.queryParamMap.get('firstName') ?? '';
   lastName = this.route.snapshot.queryParamMap.get('lastName') ?? '';
-  password = '';
+  readonly password = signal('');
   confirmPassword = '';
+  readonly loginValid = computed(() => loginFormIsValid(this.email(), this.password()));
+  readonly emailInvalid = computed(() => this.email().length > 0 && !isValidLoginEmail(this.email()));
+  readonly passwordInvalid = computed(() => this.password().length > 0 && !isValidLoginPassword(this.password()));
   readonly token = this.route.snapshot.queryParamMap.get('token') ?? '';
   private readonly completionTicket = this.route.snapshot.queryParamMap.get('ticket') ?? this.route.snapshot.queryParamMap.get('completionTicket') ?? '';
 
@@ -146,16 +152,16 @@ export class AuthEntryComponent {
 
   async submitLogin(): Promise<void> {
     await this.run(async () => {
-      await this.auth.login({ email: this.email, password: this.password, deviceLabel: deviceLabel() });
+      await this.auth.login({ email: this.email(), password: this.password(), deviceLabel: deviceLabel() });
       await this.router.navigateByUrl(loginDestination(this.route.snapshot.queryParamMap.get('returnUrl'), this.lastVisited.last()));
     });
   }
 
   async submitRegister(): Promise<void> {
-    const mismatch = passwordConfirmationErrors(this.password, this.confirmPassword, this.i18n.t('auth.passwordMismatch'));
+    const mismatch = passwordConfirmationErrors(this.password(), this.confirmPassword, this.i18n.t('auth.passwordMismatch'));
     if (Object.keys(mismatch).length) { this.fieldErrors.set(mismatch); this.error.set(this.i18n.t('auth.passwordMismatch')); return; }
     await this.run(async () => {
-      const profile = await this.auth.register({ email: this.email, username: this.username, password: this.password, firstName: this.firstName, lastName: this.lastName });
+      const profile = await this.auth.register({ email: this.email(), username: this.username, password: this.password(), firstName: this.firstName, lastName: this.lastName });
       await this.router.navigate([registrationDestination(profile)], { queryParams: { email: profile.email, registered: 'true' } });
     });
   }
@@ -163,8 +169,8 @@ export class AuthEntryComponent {
   async submitCompleteProfile(): Promise<void> {
     if (!this.completionTicket) { this.error.set(this.i18n.t('auth.invalidOAuth')); return; }
     await this.run(async () => {
-      const response = await this.auth.completeOAuth({ completionTicket: this.completionTicket, email: this.email, username: this.username, firstName: this.firstName, lastName: this.lastName, deviceLabel: deviceLabel() });
-      if (response.status === 'email_verification_required') await this.router.navigate(['/verify-email'], { queryParams: { email: this.email, oauth: 'true' } });
+      const response = await this.auth.completeOAuth({ completionTicket: this.completionTicket, email: this.email(), username: this.username, firstName: this.firstName, lastName: this.lastName, deviceLabel: deviceLabel() });
+      if (response.status === 'email_verification_required') await this.router.navigate(['/verify-email'], { queryParams: { email: this.email(), oauth: 'true' } });
       else await this.router.navigate(['/settings/account']);
     });
   }
@@ -182,16 +188,16 @@ export class AuthEntryComponent {
   }
 
   async resendVerification(): Promise<void> {
-    await this.run(async () => { await this.auth.resendVerification({ email: this.email }); this.status.set(this.i18n.t('auth.resendStatus')); });
+    await this.run(async () => { await this.auth.resendVerification({ email: this.email() }); this.status.set(this.i18n.t('auth.resendStatus')); });
   }
 
   async submitForgotPassword(): Promise<void> {
-    await this.run(async () => { await this.auth.forgotPassword({ email: this.email }); this.status.set(this.i18n.t('auth.forgotStatus')); });
+    await this.run(async () => { await this.auth.forgotPassword({ email: this.email() }); this.status.set(this.i18n.t('auth.forgotStatus')); });
   }
 
   async submitResetPassword(): Promise<void> {
     if (!this.token) { this.error.set(this.i18n.t('auth.invalidReset')); return; }
-    await this.run(async () => { await this.auth.resetPassword({ token: this.token, password: this.password }); this.status.set(this.i18n.t('auth.resetStatus')); });
+    await this.run(async () => { await this.auth.resetPassword({ token: this.token, password: this.password() }); this.status.set(this.i18n.t('auth.resetStatus')); });
   }
 
   startOAuth(provider: 'google' | 'facebook'): void {

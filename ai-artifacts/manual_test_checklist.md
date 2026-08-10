@@ -271,3 +271,31 @@ which no automated spec in this slice signs in for.
 - [ ] Sign in as `admin@gones.test` / `Gones-dev-pass-123!` (server adapter), create a running tournament, then delete it the same way: it disappears from the Live Tournament list and a second reload does not bring it back. Watch the Network tab — the `DELETE /api/live-tournaments/{id}` request carries an `If-Match` header.
 - [ ] Still signed in as Admin, open the same running tournament in two tabs. Change something in tab A, then delete from tab B's advanced settings: if the delete is refused as stale, the runner stays put and shows "The tournament changed elsewhere. Reload the page and try again." — no half-deleted state.
 - [ ] Sign in as `test@gones.test` (plain `User`, browser-local store per ADR 0021): they only ever see their own local tournaments, and the Delete button is present for those. A visitor who cannot manage a tournament (read-only runner) must see **no** Delete button at the bottom of the advanced settings.
+
+## T6 login-validation-gate
+
+Automated coverage (`src/app/auth/login-validation.test.ts`) proves the two pure validators (email shape,
+3-character password, trimming), that the login submit line carries `[disabled]="!loginValid()"` and
+`[class.auth-submit--ready]="loginValid()"`, that `.auth-submit--ready` is filled `--create-green` and
+`.auth-submit--idle` / `:disabled` is `--steel` / `--dim-ash`, and that both validity messages exist
+(`login-email-validity`, `login-password-validity`). `cypress/e2e/auth-profile.cy.js` proves a real login
+still reaches `/settings/account` through the gate. What none of it proves: rendered colour, the moment a
+message appears while typing, and the French runtime strings — those need a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/login` with both fields empty: the Sign in button is grey
+      and disabled, and neither validity message is shown.
+- [ ] Type `admin` in the email: "Enter a valid email address." appears under the email field and the
+      button stays grey and disabled.
+- [ ] Complete the address to `admin@gones.test` (message clears) and type `ab` in the password:
+      "Enter at least 3 characters." appears and the button is still disabled.
+- [ ] Extend the password to `Gones-dev-pass-123!`: both messages are gone, the button turns green and
+      enabled, and clicking it signs you in.
+- [ ] While the request is in flight the button label reads "Signing in…" and the whole fieldset is
+      disabled — the green state must not let a second submit through.
+- [ ] Switch the app language to French and repeat: the two messages read "Saisissez une adresse e-mail
+      valide." and "Saisissez au moins 3 caractères." with no missing-key placeholders.
+- [ ] Open `/register`, `/forgot-password` and `/reset-password`: their submit buttons are unchanged —
+      still the plain red primary action, enabled from the start, with no client validity messages.
+- [ ] Sign in with an account whose password is shorter than the server's 12-character registration
+      policy (a legacy account, if one exists): the 3-character client gate must let it through — the
+      login form deliberately does not mirror the server policy (assumption A8).

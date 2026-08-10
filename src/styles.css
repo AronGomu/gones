@@ -1084,6 +1084,10 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .auth-card .auth-form + .oauth-grid { margin-top: 1.5rem; }
 .auth-card .oauth-grid + .auth-links { margin-top: 1.5rem; }
 .auth-card .oauth-grid + a { margin-top: 1.5rem; display: inline-block; }
+.auth-submit { transition: background .16s ease, color .16s ease, border-color .16s ease; }
+.auth-submit--ready { --mdc-filled-button-container-color: var(--create-green); --mdc-filled-button-label-text-color: var(--black-metal); background: var(--create-green) !important; color: var(--black-metal) !important; }
+.auth-submit--ready:hover, .auth-submit--ready:focus-visible { background: var(--create-green-hot) !important; }
+.auth-submit--idle, .auth-submit:disabled { --mdc-filled-button-disabled-container-color: var(--steel); --mdc-filled-button-disabled-label-text-color: var(--dim-ash); background: var(--steel) !important; color: var(--dim-ash) !important; cursor: not-allowed; }
 .field-error { margin: -.4rem 0 0; color: oklch(88% .13 55); font-size: .9rem; font-weight: 700; }
 .profile-page { width: min(100%, 52rem); margin-inline: auto; }
 .privacy-group { display: grid; gap: .7rem; margin: .5rem 0; padding: 1rem; border: 1px solid var(--soot); }
