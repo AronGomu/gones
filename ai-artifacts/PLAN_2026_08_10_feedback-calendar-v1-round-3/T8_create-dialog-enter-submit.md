@@ -87,13 +87,13 @@ Run: `npx vitest run src/app/shared/dialogs.test.ts`
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/shared/dialogs.test.ts` with the four tests above. Confirm red.
-- [ ] 2. In `src/app/shared/dialogs.ts`, wrap `<mat-dialog-content>` and `<mat-dialog-actions>` of `TextPromptDialogComponent` in `<form data-cy="text-prompt-dialog-form" (ngSubmit)="close()">`.
-- [ ] 3. Add `name="value"` to the `matInput`, keep `cdkFocusInitial` and `[(ngModel)]="value"`.
-- [ ] 4. Give the cancel button `type="button"` and the confirm button `type="submit"`; delete `(click)="close()"` from the confirm button.
-- [ ] 5. Rewrite `close()` to return early on an empty trimmed value.
-- [ ] 6. Run `npx vitest run src/app/shared/dialogs.test.ts` — green.
-- [ ] 7. Run `npm run test && npm run lint && npm run typecheck && npm run build` — `data-cy-coverage.test.ts` must stay green.
+- [x] 1. Create `src/app/shared/dialogs.test.ts` with the four tests above. Confirm red. Evidence: initial run showed 3 failed/1 passed.
+- [x] 2. In `src/app/shared/dialogs.ts`, wrap `<mat-dialog-content>` and `<mat-dialog-actions>` of `TextPromptDialogComponent` in `<form data-cy="text-prompt-dialog-form" (ngSubmit)="close()">`. Evidence: dialogs.ts edited.
+- [x] 3. Add `name="value"` to the `matInput`, keep `cdkFocusInitial` and `[(ngModel)]="value"`. Evidence: dialogs.ts edited.
+- [x] 4. Give the cancel button `type="button"` and the confirm button `type="submit"`; delete `(click)="close()"` from the confirm button. Evidence: dialogs.ts edited.
+- [x] 5. Rewrite `close()` to return early on an empty trimmed value. Evidence: `if (!value) return;` in dialogs.ts.
+- [x] 6. Run `npx vitest run src/app/shared/dialogs.test.ts` — green. Evidence: "Test Files 1 passed (1); Tests 4 passed (4)".
+- [x] 7. Run `npm run test && npm run lint && npm run typecheck && npm run build` — `data-cy-coverage.test.ts` must stay green. Evidence: test 808 passed, lint "All files pass linting", typecheck clean, build "Application bundle generation complete".
 - [ ] 8. Manual: `/leagues-archive` → New League. The cursor is already in the field; type a name, press Enter — the dialog closes and the league is created and opened. Re-open, press Enter with the field empty — nothing happens. Re-open, press Escape — the dialog closes with no league created.
 
 ## Outputs
@@ -105,12 +105,12 @@ Run: `npx vitest run src/app/shared/dialogs.test.ts`
 
 ## Validation
 
-- [ ] `npx vitest run src/app/shared/dialogs.test.ts` passes with 4 tests.
-- [ ] `npm run test` passes, including `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `npm run cy:run -- --spec cypress/e2e/league-local.cy.js` passes.
-- [ ] Manual: Enter creates; empty Enter does nothing; Escape cancels; the field is focused on open.
-- [ ] App functional — no broken path from this slice.
+- [x] `npx vitest run src/app/shared/dialogs.test.ts` passes with 4 tests. Evidence: "Test Files 1 passed (1); Tests 4 passed (4)".
+- [x] `npm run test` passes, including `src/app/shared/data-cy-coverage.test.ts`. Evidence: "Test Files 96 passed (96); Tests 808 passed (808)".
+- [x] `npm run lint` passes. Evidence: "All files pass linting."
+- [x] `npm run typecheck` passes. Evidence: clean exit, no diagnostics.
+- [x] `npm run build` passes. Evidence: "Application bundle generation complete."
+- [x] `npm run cy:run -- --spec cypress/e2e/league-local.cy.js` passes. Evidence: ran via steam-run wrapper (host quirk) — "5 passing", 0 failing, incl. the league-creation-dialog flow.
+- [ ] Manual: Enter creates; empty Enter does nothing; Escape cancels; the field is focused on open. Deferred to `ai-artifacts/manual_test_checklist.md` — no interactive browser session available to this worker; source-level tests + cypress cover the logic, this line needs a human eyes-on pass.
+- [x] App functional — no broken path from this slice. Evidence: full `npm run test`, `lint`, `typecheck`, `build`, and cypress `league-local.cy.js` all green with no other files touched.
 - [ ] Commit msg draft: `fix(dialogs): focus the prompt field and create on Enter`

@@ -768,3 +768,11 @@ tournaments read in the browser.
 1. On the homepage menu, the settings should always be the last card. The about should be always second last.
 
 2. Generate different local environments with a pre‑loaded database containing tournaments, running tournaments, and calendar events for various users with different rights. I need to be able to swap between environments and test as a normal user, an admin user, or an organizer user, accessing the different preloaded and non‑preloaded pages. By default, `npm run dev` without any option should run the application as it is currently—basically empty. However, I can specify different environment types, and it will load the appropriate database with everything preloaded.
+
+## T8 create-dialog-enter-submit
+
+- [ ] `/leagues-archive` → click "New League": the dialog opens with the name input already focused (cursor blinking, no click needed).
+- [ ] Type a league name, press Enter: the dialog closes, the league is created, and the browser navigates to the new league's detail page.
+- [ ] Re-open the dialog, press Enter with the field empty: nothing happens — dialog stays open, no league created.
+- [ ] Re-open the dialog, press Escape: the dialog closes with no league created.
+- [ ] Click the confirm button directly (not Enter) with a name typed in: still creates the league (button is `type="submit"` inside the form, same path as Enter).
