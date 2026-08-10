@@ -22,10 +22,25 @@ function document(id = LIVE_ID): LiveTournamentDocument {
 }
 
 function setup(options: { mode?: LiveBackendMode; userId?: string; cached?: Record<string, CachedRead<unknown>> } = {}) {
+  const mutation = vi.fn(async () => document());
   const backend = {
     listLiveTournaments: vi.fn(async () => [document()]),
     getLiveTournament: vi.fn(async () => document()),
-    createLiveTournament: vi.fn(async () => document('created'))
+    createLiveTournament: vi.fn(async () => document('created')),
+    deleteLiveTournament: vi.fn(async () => undefined),
+    updateLiveSettings: mutation,
+    addLivePlayer: mutation,
+    editLivePlayer: mutation,
+    setLivePlayerPaid: mutation,
+    dropLivePlayer: mutation,
+    removeLivePlayer: mutation,
+    startLiveRound: mutation,
+    regenerateLiveRound: mutation,
+    cancelLiveRound: mutation,
+    validateLiveRound: mutation,
+    scoreLiveRoundEntry: mutation,
+    restoreLiveCheckpoint: mutation,
+    finalizeLiveTournament: mutation
   } as unknown as LiveBackendPort & { listLiveTournaments: ReturnType<typeof vi.fn>; getLiveTournament: ReturnType<typeof vi.fn>; createLiveTournament: ReturnType<typeof vi.fn> };
   const rows = new Map<string, CachedRead<unknown>>(Object.entries(options.cached ?? {}));
   const cacheStore = {
@@ -75,6 +90,18 @@ describe('LiveTournamentRepository offline read cache', () => {
     expect(repository.detailStale()).toBe(false);
   });
 
+  it('clears cached-detail staleness after a successful create', async () => {
+    const { repository, backend } = setup({ userId: 'u1' });
+    await repository.get(LIVE_ID);
+    backend.getLiveTournament.mockRejectedValueOnce(new Error('offline'));
+    await repository.get(LIVE_ID);
+    expect(repository.detailStale()).toBe(true);
+
+    await repository.create();
+
+    expect(repository.detailStale()).toBe(false);
+  });
+
   it('never caches the browser-local store: it is already offline', async () => {
     const { repository, rows } = setup({ mode: 'browser-local', userId: 'u1' });
 
@@ -96,12 +123,42 @@ describe('LiveTournamentRepository offline read cache', () => {
     expect([...rows.keys()]).toEqual([]);
   });
 
-  it('never caches a mutation, and an offline mutation still fails', async () => {
+  it('every successful mutation clears cached-detail warning', async () => {
+    const calls: Array<(repository: LiveTournamentRepository) => Promise<unknown>> = [
+      (repository) => repository.create(),
+      (repository) => repository.delete(LIVE_ID),
+      (repository) => repository.updateLiveSettings(LIVE_ID, 1, {} as never),
+      (repository) => repository.addLivePlayer(LIVE_ID, 1, {} as never),
+      (repository) => repository.editLivePlayer(LIVE_ID, 'p1', 1, {} as never),
+      (repository) => repository.setLivePlayerPaid(LIVE_ID, 'p1', 1, true),
+      (repository) => repository.dropLivePlayer(LIVE_ID, 'p1', 1),
+      (repository) => repository.removeLivePlayer(LIVE_ID, 'p1', 1),
+      (repository) => repository.startLiveRound(LIVE_ID, 1),
+      (repository) => repository.regenerateLiveRound(LIVE_ID, 1),
+      (repository) => repository.cancelLiveRound(LIVE_ID, 1),
+      (repository) => repository.validateLiveRound(LIVE_ID, 1),
+      (repository) => repository.scoreLiveRoundEntry(LIVE_ID, 'r1', 'e1', 1, {} as never),
+      (repository) => repository.restoreLiveCheckpoint(LIVE_ID, 'c1', 1),
+      (repository) => repository.finalizeLiveTournament(LIVE_ID, 1)
+    ];
+
+    expect(calls).toHaveLength(15);
+    for (const call of calls) {
+      const { repository } = setup({ userId: 'u1' });
+      repository.detailStale.set(true);
+      await call(repository);
+      expect(repository.detailStale()).toBe(false);
+    }
+  });
+
+  it('never caches a mutation, and a failed mutation keeps cached-detail warning stale', async () => {
     const { repository, backend, rows } = setup({ userId: 'u1' });
     backend.createLiveTournament.mockRejectedValueOnce(new Error('offline'));
+    repository.detailStale.set(true);
 
     await expect(repository.create()).rejects.toThrowError('offline');
 
     expect([...rows.keys()]).toEqual([]);
+    expect(repository.detailStale()).toBe(true);
   });
 });

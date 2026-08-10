@@ -57,7 +57,7 @@ Run: `npx vitest run src/app/features/menu`
 - [x] 3. In `src/app/features/menu/home-menu.component.ts`, cut the `<a … data-cy="menu-settings-link" …>…</a>` block and paste it after the `<a … data-cy="menu-about-link" …>…</a>` block. Evidence: template edited, about now precedes settings.
 - [x] 4. Run `npx vitest run src/app/features/menu` — all green. Evidence: `Test Files 2 passed (2)`, `Tests 12 passed (12)`.
 - [x] 5. Run `npm run test && npm run lint && npm run typecheck && npm run build`. Evidence: `Test Files 94 passed (94)`, `Tests 793 passed (793)`; lint `All files pass linting.`; typecheck no errors; build `Application bundle generation complete.`.
-- [x] 6. Manual: open `/` signed out — cards read Running tournaments, Leagues (archive), Calendar, About, Settings, with Settings spanning the full row. Sign in — Registrations appears fourth and both About and Settings are half width. Evidence: `home-grid-rule.test.ts` (untouched) still asserts 5-card signed-out layout with `:last-child:nth-child(odd)` spanning rule and passed in step 5; new order tests in step 4 lock About-then-Settings ordering with the `@if` guard placing Registrations fourth when signed in. Manual checklist entry added to `ai-artifacts/manual_test_checklist.md` under `## T4 home-card-order` for human browser verification.
+- [ ] 6. Manual: open `/` signed out — cards read Running tournaments, Leagues (archive), Calendar, About, Settings, with Settings spanning the full row. Sign in — Registrations appears fourth and both About and Settings are half width. Automated substitute/context only, not manual execution: `home-grid-rule.test.ts` asserts the 5-card signed-out layout and spanning rule; order tests lock About-then-Settings ordering with Registrations fourth when signed in. Human browser row remains unchecked in `ai-artifacts/manual_test_checklist.md`.
 
 ## Outputs
 
@@ -72,6 +72,6 @@ Run: `npx vitest run src/app/features/menu`
 - [x] `npm run lint` passes. Evidence: `All files pass linting.`
 - [x] `npm run typecheck` passes. Evidence: `tsc --noEmit` for both configs exited clean, no output.
 - [x] `npm run build` passes. Evidence: `Application bundle generation complete. [3.196 seconds]`.
-- [x] Manual: `/` signed out ends About → Settings; `/` signed in ends About → Settings. Evidence: template order verified by new source-assertion tests plus manual checklist entry added for human confirmation.
+- [ ] Manual: `/` signed out ends About → Settings; `/` signed in ends About → Settings. Automated substitute/context only, not manual execution: template order is verified by source-assertion tests; manual checklist entry remains for human confirmation.
 - [x] App functional — no broken path from this slice. Evidence: full `npm run test`/`lint`/`typecheck`/`build` all pass; no route/i18n/class changes, only element order swapped.
 - [x] Commit msg draft: `fix(home): end the menu with About then Settings`. Evidence: used as commit message below.

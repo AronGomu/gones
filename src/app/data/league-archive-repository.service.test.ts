@@ -201,6 +201,19 @@ describe('LeagueArchiveRepository read routing', () => {
     expect(repository.detailStale()).toBe(false);
   });
 
+  it('clears cached-detail staleness after a successful fresh mutation', async () => {
+    const server = fakeBackend([], { [SERVER_ID]: league(SERVER_ID, 'Fresh') });
+    server.getLeagueArchive.mockRejectedValueOnce(new Error('offline'));
+    const cached = { [`u1:league:${SERVER_ID}`]: { value: league(SERVER_ID, 'Cached'), cachedAt: '2026-08-09T10:00:00.000Z' } };
+    const { repository } = setup({ server, userId: 'u1', cached });
+
+    await repository.getLeague(SERVER_ID);
+    expect(repository.detailStale()).toBe(true);
+    await repository.renameLeague(league(SERVER_ID), 'Renamed');
+
+    expect(repository.detailStale()).toBe(false);
+  });
+
   it('never signals server-cache staleness for a browser-local detail', async () => {
     const { repository } = setup();
     repository.detailStale.set(true);
@@ -230,13 +243,15 @@ describe('LeagueArchiveRepository create routing', () => {
     expect(untouched(server)).toEqual([]);
   });
 
-  it('creating as an organizer writes the server', async () => {
+  it('creating as an organizer writes the server and clears stale detail only after success', async () => {
     const { repository, server, local } = setup({ role: 'Organizer' });
+    repository.detailStale.set(true);
 
     await repository.createLeague('Summer');
 
     expect(server.createLeagueArchive).toHaveBeenCalledWith('Summer', undefined);
     expect(untouched(local)).toEqual([]);
+    expect(repository.detailStale()).toBe(false);
   });
 
   it('the unassigned name resolves the local placeholder for an anonymous visitor', async () => {
@@ -300,22 +315,48 @@ describe('LeagueArchiveRepository write routing', () => {
   for (const [name, call, port] of writes) {
     it(`${name} routes a local id to the local store only`, async () => {
       const { repository, server, local } = setup();
+      repository.detailStale.set(true);
 
       await call(repository, league(LOCAL_ID));
 
       expect(local[port]).toHaveBeenCalled();
       expect(untouched(server)).toEqual([]);
+      expect(repository.detailStale()).toBe(false);
     });
 
     it(`${name} routes a server id to the server only`, async () => {
       const { repository, server, local } = setup();
+      repository.detailStale.set(true);
 
       await call(repository, league(SERVER_ID));
 
       expect(server[port]).toHaveBeenCalled();
       expect(untouched(local)).toEqual([]);
+      expect(repository.detailStale()).toBe(false);
     });
   }
+
+  it('a failed mutation keeps cached-detail warning stale', async () => {
+    const server = fakeBackend([]);
+    server.renameLeagueArchive.mockRejectedValueOnce(new Error('offline'));
+    const { repository } = setup({ server });
+    repository.detailStale.set(true);
+
+    await expect(repository.renameLeague(league(SERVER_ID), 'New name')).rejects.toThrowError('offline');
+
+    expect(repository.detailStale()).toBe(true);
+  });
+
+  it('successful restore mutations clear cached-detail warning', async () => {
+    const { repository } = setup({ role: 'Organizer' });
+    repository.detailStale.set(true);
+    await repository.restoreLeague({} as never);
+    expect(repository.detailStale()).toBe(false);
+
+    repository.detailStale.set(true);
+    await repository.restoreFullLeagueData({} as never);
+    expect(repository.detailStale()).toBe(false);
+  });
 
   it('passes the expected document version through', async () => {
     const { repository, server } = setup();
@@ -343,13 +384,15 @@ describe('LeagueArchiveRepository tournament moves', () => {
     expect(untouched(local)).toEqual([]);
   });
 
-  it('a same-store move is delegated', async () => {
+  it('a same-store move is delegated and clears cached-detail warning', async () => {
     const local = fakeBackend([league(LOCAL_ID), league('local-2')]);
     const { repository, server } = setup({ local });
+    repository.detailStale.set(true);
 
     await repository.moveTournament('t1', LOCAL_ID, 'local-2');
 
     expect(local.moveArchiveTournament).toHaveBeenCalledWith(LOCAL_ID, 't1', 4, 'local-2', 4);
     expect(untouched(server)).toEqual([]);
+    expect(repository.detailStale()).toBe(false);
   });
 });

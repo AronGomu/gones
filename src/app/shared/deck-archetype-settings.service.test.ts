@@ -97,7 +97,7 @@ describe('DeckArchetypeSettingsService', () => {
     localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: ['Local Only'] }));
     const service = new DeckArchetypeSettingsService();
 
-    await expect(service.adoptServerCatalog(['Server A', 'Server B'])).resolves.toBe(true);
+    await expect(service.adoptServerCatalog(['Server A', 'Server B'], () => true)).resolves.toBe(true);
 
     expect(service.archetypes()).toContain('Server A');
     expect(service.archetypes()).toContain('Server B');
@@ -106,11 +106,51 @@ describe('DeckArchetypeSettingsService', () => {
     expect(JSON.parse(localStorage.getItem('gones.settings') ?? 'null').deckArchetypes).toEqual(service.archetypes());
   });
 
+  it('checks current session inside queued Web Lock before replacing catalog', async () => {
+    localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: ['Local Only'] }));
+    let runQueued!: () => void;
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: { request: (_name: string, callback: () => unknown) => new Promise((resolve) => { runQueued = () => resolve(callback()); }) }
+    });
+    const service = new DeckArchetypeSettingsService();
+    let current = true;
+
+    const pending = service.adoptServerCatalog(['Server A'], () => current);
+    await Promise.resolve();
+    current = false;
+    runQueued();
+
+    await expect(pending).resolves.toBe(false);
+    expect(service.archetypes()).toContain('Local Only');
+    expect(service.archetypes()).not.toContain('Server A');
+  });
+
+  it('a current session writes the server catalog once inside queued Web Lock', async () => {
+    localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: ['Local Only'] }));
+    let runQueued!: () => void;
+    let callbacks = 0;
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: { request: (_name: string, callback: () => unknown) => new Promise((resolve) => { runQueued = () => { callbacks += 1; resolve(callback()); }; }) }
+    });
+    const service = new DeckArchetypeSettingsService();
+
+    const pending = service.adoptServerCatalog(['Server A'], () => true);
+    await Promise.resolve();
+    runQueued();
+
+    await expect(pending).resolves.toBe(true);
+    expect(callbacks).toBe(1);
+    expect(service.archetypes()).toContain('Server A');
+    expect(service.archetypes()).not.toContain('Local Only');
+  });
+
   it('adopting the server catalog keeps the language', async () => {
     localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: ['Local Only'] }));
     const service = new DeckArchetypeSettingsService();
 
-    await service.adoptServerCatalog(['Server A']);
+    await service.adoptServerCatalog(['Server A'], () => true);
 
     expect(service.currentLanguage()).toBe('fr');
     expect(localStorage.getItem('gones.settings.language')).toBe('fr');
@@ -120,7 +160,7 @@ describe('DeckArchetypeSettingsService', () => {
     localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: ['Local Only'] }));
     const service = new DeckArchetypeSettingsService();
 
-    await service.adoptServerCatalog([]);
+    await service.adoptServerCatalog([], () => true);
 
     expect(service.archetypes()).not.toContain('Local Only');
     expect(service.archetypes().length).toBe(PRESET_LEGACY_ARCHETYPES.length);

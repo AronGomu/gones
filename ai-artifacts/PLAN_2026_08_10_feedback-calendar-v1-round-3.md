@@ -101,6 +101,7 @@ T14 --> T15
 | T13 | Authenticated offline read cache | — | Signed-in league + live reads are cached and answered from cache when offline | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T13_authenticated-offline-read-cache.md` |
 | T14 | Remote prevails on sign-in | T12, T13 | Signing in replaces the local archetype catalog with the server one; local stores stay browser-wide | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T14_remote-prevails-on-sign-in.md` |
 | T15 | Reviewer blocker repair | T1–T14 | Close cache/session, fixture privacy, seeder safety and runtime-proof findings from final deep review | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T15_reviewer-blocker-repair.md` |
+| T16 | Post-review concurrency and proof repair | T15 | Serialize auth teardown/establishment; close catalog-lock, error-truth, stale-signal, IndexedDB-proof and bookkeeping findings | `PLAN_2026_08_10_feedback-calendar-v1-round-3/T16_post-review-concurrency-and-proof-repair.md` |
 
 ## Feedback line → ticket
 
@@ -139,3 +140,4 @@ T14 --> T15
 - [T13: Authenticated offline read cache](PLAN_2026_08_10_feedback-calendar-v1-round-3/T13_authenticated-offline-read-cache.md) — depends: none
 - [T14: Remote prevails on sign-in](PLAN_2026_08_10_feedback-calendar-v1-round-3/T14_remote-prevails-on-sign-in.md) — depends: T12, T13
 - [T15: Reviewer blocker repair](PLAN_2026_08_10_feedback-calendar-v1-round-3/T15_reviewer-blocker-repair.md) — depends: T1–T14
+- [T16: Post-review concurrency and proof repair](PLAN_2026_08_10_feedback-calendar-v1-round-3/T16_post-review-concurrency-and-proof-repair.md) — depends: T15

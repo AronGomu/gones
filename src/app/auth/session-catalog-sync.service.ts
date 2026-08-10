@@ -23,7 +23,7 @@ export class SessionCatalogSyncService {
     try {
       const archetypes = await firstValueFrom(this.client.listDeckArchetypes());
       if (!isCurrentSession()) return;
-      await this.settings.adoptServerCatalog(archetypes.map((archetype) => archetype.name));
+      await this.settings.adoptServerCatalog(archetypes.map((archetype) => archetype.name), isCurrentSession);
     } catch (error) {
       logBoundaryError('session-catalog-sync.adopt', error);
     }

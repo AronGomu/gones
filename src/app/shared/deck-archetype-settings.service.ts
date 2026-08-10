@@ -70,8 +70,9 @@ export class DeckArchetypeSettingsService {
    * replaced, not merged, and nothing local is ever uploaded. A failed fetch changes nothing — an
    * offline sign-in keeps whatever this browser already had.
    */
-  async adoptServerCatalog(names: string[]): Promise<boolean> {
+  async adoptServerCatalog(names: string[], isCurrentSession: () => boolean): Promise<boolean> {
     return this.runExclusive(() => {
+      if (!isCurrentSession()) return false;
       // The bundled presets stay: `loadDeckArchetypes()` re-merges them on every read, so dropping
       // them here would only make the next read disagree with this write.
       const next = uniqueArchetypes([...PRESET_LEGACY_ARCHETYPES, ...names]);

@@ -166,7 +166,7 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 - [x] 13. Extend the printed summary with the seeded counts. — criterion: the run prints a `2 organizations, 4 formats, 9 tournaments, 12 registrations` line.
 - [x] 14. Document the `demo` environment and every fixture field in `fixtures/dev-environments/README.md`. — criterion: the README lists `demo` and every field of the five fixture files.
 - [x] 15. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — criterion: all four exit 0.
-- [x] 16. Manual: `npm run dev -- --env=demo`; `/calendar` shows tournaments in past, current and future months; sign in as `organizer@gones.test` and open `/organizer/tournaments`; open the participants screen of the 3-registrant tournament. — criterion: substituted by the API-level equivalent (an `ng serve` owned by another process holds :4200, so the containerised frontend must not start): anonymous `GET /api/tournaments/all` lists the 9 tournaments across past/ongoing/upcoming, `GET /api/tournaments/{slug}/participants` shows the 3 registrants, and the organizer token lists its 5 tournaments.
+- [ ] 16. Manual: `npm run dev -- --env=demo`; `/calendar` shows tournaments in past, current and future months; sign in as `organizer@gones.test` and open `/organizer/tournaments`; open the participants screen of the 3-registrant tournament. — automated substitute/context only, not manual execution: anonymous `GET /api/tournaments/all` lists the 9 tournaments across past/ongoing/upcoming, `GET /api/tournaments/{slug}/participants` shows the 3 registrants, and the organizer token lists its 5 tournaments.
 
 ## Outputs
 
@@ -184,7 +184,7 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 - [x] `npm run build` passes.
 - [x] `node scripts/seed-dev-environment.mjs --env=demo` exits 0 and prints seeded counts.
 - [x] Re-running the same command exits 0 again (registrations tolerate `409`).
-- [x] Manual: anonymous `/calendar` shows the 9 tournaments across months; the offset-`0` one reads ongoing. — API-level substitute (port 4200 is held by another process): anonymous `GET /api/tournaments/all` returns the 9 with statuses `Completed`/`InProgress`/`Published`.
-- [x] Manual: `organizer@gones.test` sees its 5 tournaments in `/organizer/tournaments`; `test@gones.test` sees its registrations in `/registrations`. — API-level substitute: `GET /api/organizer/tournaments`-equivalent counts and `GET /api/users/me/registrations` return 5 and 4 rows.
+- [ ] Manual: anonymous `/calendar` shows the 9 tournaments across months; the offset-`0` one reads ongoing. — automated substitute/context only, not manual execution: anonymous `GET /api/tournaments/all` returns the 9 with statuses `Completed`/`InProgress`/`Published`.
+- [ ] Manual: `organizer@gones.test` sees its 5 tournaments in `/organizer/tournaments`; `test@gones.test` sees its registrations in `/registrations`. — automated substitute/context only, not manual execution: `GET /api/organizer/tournaments`-equivalent counts and `GET /api/users/me/registrations` return 5 and 4 rows.
 - [x] App functional — no broken path from this slice.
 - [x] Commit msg draft: `feat(dev): seed the demo environment calendar from fixture files` - committed as 13d1f60.

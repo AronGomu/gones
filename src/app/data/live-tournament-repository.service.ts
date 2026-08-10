@@ -40,66 +40,74 @@ export class LiveTournamentRepository {
     return result.value;
   }
 
-  async create(): Promise<LiveTournamentDocument> {
-    return this.backend.createLiveTournament(todayDateInputValue());
+  create(): Promise<LiveTournamentDocument> {
+    return this.freshMutation(() => this.backend.createLiveTournament(todayDateInputValue()));
   }
 
-  async delete(id: string): Promise<void> {
-    const existing = await this.backend.getLiveTournament(id);
-    if (!existing) return;
-    await this.backend.deleteLiveTournament(id, existing.documentVersion);
+  delete(id: string): Promise<void> {
+    return this.freshMutation(async () => {
+      const existing = await this.backend.getLiveTournament(id);
+      if (!existing) return;
+      await this.backend.deleteLiveTournament(id, existing.documentVersion);
+    });
   }
 
   updateLiveSettings(id: string, expectedVersion: number, settings: LiveSettingsCommand): Promise<LiveTournamentDocument> {
-    return this.backend.updateLiveSettings(id, expectedVersion, settings);
+    return this.freshMutation(() => this.backend.updateLiveSettings(id, expectedVersion, settings));
   }
 
   addLivePlayer(id: string, expectedVersion: number, player: LivePlayerCommand): Promise<LiveTournamentDocument> {
-    return this.backend.addLivePlayer(id, expectedVersion, player);
+    return this.freshMutation(() => this.backend.addLivePlayer(id, expectedVersion, player));
   }
 
   editLivePlayer(id: string, playerId: string, expectedVersion: number, player: LivePlayerCommand): Promise<LiveTournamentDocument> {
-    return this.backend.editLivePlayer(id, playerId, expectedVersion, player);
+    return this.freshMutation(() => this.backend.editLivePlayer(id, playerId, expectedVersion, player));
   }
 
   setLivePlayerPaid(id: string, playerId: string, expectedVersion: number, paid: boolean): Promise<LiveTournamentDocument> {
-    return this.backend.setLivePlayerPaid(id, playerId, expectedVersion, paid);
+    return this.freshMutation(() => this.backend.setLivePlayerPaid(id, playerId, expectedVersion, paid));
   }
 
   dropLivePlayer(id: string, playerId: string, expectedVersion: number): Promise<LiveTournamentDocument> {
-    return this.backend.dropLivePlayer(id, playerId, expectedVersion);
+    return this.freshMutation(() => this.backend.dropLivePlayer(id, playerId, expectedVersion));
   }
 
   removeLivePlayer(id: string, playerId: string, expectedVersion: number): Promise<LiveTournamentDocument> {
-    return this.backend.removeLivePlayer(id, playerId, expectedVersion);
+    return this.freshMutation(() => this.backend.removeLivePlayer(id, playerId, expectedVersion));
   }
 
   startLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
-    return this.backend.startLiveRound(id, expectedVersion);
+    return this.freshMutation(() => this.backend.startLiveRound(id, expectedVersion));
   }
 
   regenerateLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
-    return this.backend.regenerateLiveRound(id, expectedVersion);
+    return this.freshMutation(() => this.backend.regenerateLiveRound(id, expectedVersion));
   }
 
   cancelLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
-    return this.backend.cancelLiveRound(id, expectedVersion);
+    return this.freshMutation(() => this.backend.cancelLiveRound(id, expectedVersion));
   }
 
   validateLiveRound(id: string, expectedVersion: number): Promise<LiveTournamentDocument> {
-    return this.backend.validateLiveRound(id, expectedVersion);
+    return this.freshMutation(() => this.backend.validateLiveRound(id, expectedVersion));
   }
 
   scoreLiveRoundEntry(id: string, roundId: string, entryId: string, expectedVersion: number, score: LiveScoreCommand): Promise<LiveTournamentDocument> {
-    return this.backend.scoreLiveRoundEntry(id, roundId, entryId, expectedVersion, score);
+    return this.freshMutation(() => this.backend.scoreLiveRoundEntry(id, roundId, entryId, expectedVersion, score));
   }
 
   restoreLiveCheckpoint(id: string, checkpointId: string, expectedVersion: number): Promise<LiveTournamentDocument> {
-    return this.backend.restoreLiveCheckpoint(id, checkpointId, expectedVersion);
+    return this.freshMutation(() => this.backend.restoreLiveCheckpoint(id, checkpointId, expectedVersion));
   }
 
   finalizeLiveTournament(id: string, expectedVersion: number, idempotencyKey?: string): Promise<LiveFinalizeResult> {
-    return this.backend.finalizeLiveTournament(id, expectedVersion, idempotencyKey);
+    return this.freshMutation(() => this.backend.finalizeLiveTournament(id, expectedVersion, idempotencyKey));
+  }
+
+  private async freshMutation<T>(action: () => Promise<T>): Promise<T> {
+    const result = await action();
+    this.detailStale.set(false);
+    return result;
   }
 }
 

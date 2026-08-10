@@ -946,12 +946,12 @@ export class SettingsComponent {
   }
 
   /** Derived from the browser League store (ADR 0032) — there is no local player table to read. */
-  async loadLocalPlayers(): Promise<void> {
+  async loadLocalPlayers(preserveMessage = false): Promise<void> {
     try {
       this.localPlayers.set(localPlayerNames(await this.localBackend.listLeagueArchives()));
     } catch (error) {
       logBoundaryError('settings.loadLocalPlayers', error);
-      this.playerMessage.set(this.i18n.t('settings.loadFailed'));
+      if (!preserveMessage) this.playerMessage.set(this.i18n.t('settings.loadFailed'));
     }
   }
 
@@ -972,6 +972,7 @@ export class SettingsComponent {
     }
 
     this.playerSaving.set(true);
+    let partialRename = false;
     try {
       for (const league of await this.localBackend.listLeagueArchives()) {
         if (!localPlayerNames([league]).some((item) => samePlayerName(item.name, player.name))) continue;
@@ -983,9 +984,10 @@ export class SettingsComponent {
       this.playerMessage.set(this.i18n.t('settings.playerRenamed', { from: player.name, to: next }));
     } catch (error) {
       logBoundaryError('settings.renameLocalPlayer', error, { from: player.name, to: next });
+      partialRename = true;
       this.playerMessage.set(this.i18n.t('settings.localPlayerRenamePartial'));
     } finally {
-      await this.loadLocalPlayers();
+      await this.loadLocalPlayers(partialRename);
       this.playerSaving.set(false);
     }
   }

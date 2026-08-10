@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserProfileResponse } from '../api/generated/gones-api';
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { CachedRead, IndexedDbServerReadCacheStore, SERVER_READ_CACHE_DB_NAME, SERVER_READ_CACHE_STORE, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from './server-read-cache.service';
+import { CachedRead, IndexedDbServerReadCacheStore, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from './server-read-cache.service';
 
 /**
  * ADR 0031 — the cache answers a failed server read and nothing else. No TestBed in this repo, so the
@@ -207,14 +207,24 @@ describe('ServerReadCacheService purge', () => {
   });
 });
 
+interface FakeObjectStoreState {
+  keyPath: string;
+  rows: Map<IDBValidKey, unknown>;
+}
+
 interface FakeDbState {
   version: number;
-  rows: Map<string, unknown>;
+  stores: Map<string, FakeObjectStoreState>;
   connections: Set<FakeDatabase>;
   deletionChecks: Set<() => void>;
 }
 
 const fakeDatabases = new Map<string, FakeDbState>();
+const openedDatabaseNames: string[] = [];
+const deletedDatabaseNames: string[] = [];
+const createdObjectStores: Array<{ name: string; keyPath: string | string[] | null }> = [];
+const transactionStoreNames: string[] = [];
+const extractedPutKeys: IDBValidKey[] = [];
 const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
 
 class FakeRequest<T> {
@@ -232,35 +242,63 @@ class FakeTransaction {
   onerror: (() => void) | null = null;
   onabort: (() => void) | null = null;
 
-  constructor(private readonly state: FakeDbState) {}
+  constructor(private readonly storeName: string, private readonly store: FakeObjectStoreState) {}
 
-  objectStore(): { get(key: string): FakeRequest<unknown>; put(value: { key: string }): FakeRequest<string> } {
+  objectStore(name: string): { get(key: IDBValidKey): FakeRequest<unknown>; put(value: Record<string, unknown>): FakeRequest<IDBValidKey> } {
+    if (name !== this.storeName) throw new DOMException(`Object store ${name} is not in this transaction.`, 'NotFoundError');
     return {
-      get: (key) => this.request(() => this.state.rows.get(key)),
-      put: (value) => this.request(() => { this.state.rows.set(value.key, structuredClone(value)); return value.key; })
+      get: (key) => this.request(() => this.store.rows.get(key)),
+      put: (value) => this.request(() => {
+        const key = value[this.store.keyPath] as IDBValidKey | undefined;
+        if (key === undefined) throw new DOMException(`Missing key path ${this.store.keyPath}.`, 'DataError');
+        extractedPutKeys.push(key);
+        this.store.rows.set(key, structuredClone(value));
+        return key;
+      })
     };
   }
 
   private request<T>(run: () => T): FakeRequest<T> {
     const request = new FakeRequest<T>();
     queueMicrotask(() => {
-      request.result = run();
-      request.onsuccess?.();
-      queueMicrotask(() => this.oncomplete?.());
+      try {
+        request.result = run();
+        request.onsuccess?.();
+        queueMicrotask(() => this.oncomplete?.());
+      } catch (error) {
+        request.error = error instanceof DOMException ? error : new DOMException(String(error), 'UnknownError');
+        this.error = request.error;
+        request.onerror?.();
+      }
     });
     return request;
   }
 }
 
 class FakeDatabase {
-  readonly objectStoreNames = { contains: (name: string) => name === SERVER_READ_CACHE_STORE };
+  readonly objectStoreNames = { contains: (name: string) => this.state.stores.has(name) };
   onversionchange: (() => void) | null = null;
   private closed = false;
 
   constructor(private readonly state: FakeDbState) { state.connections.add(this); }
 
-  createObjectStore(): void {}
-  transaction(): FakeTransaction { return new FakeTransaction(this.state); }
+  createObjectStore(name: string, options?: IDBObjectStoreParameters): void {
+    if (this.state.stores.has(name)) throw new DOMException(`Object store ${name} already exists.`, 'ConstraintError');
+    const keyPath = options?.keyPath ?? null;
+    createdObjectStores.push({ name, keyPath });
+    if (typeof keyPath !== 'string') throw new DOMException('Fake requires string keyPath.', 'DataError');
+    this.state.stores.set(name, { keyPath, rows: new Map() });
+  }
+
+  transaction(storeNames: string | string[]): FakeTransaction {
+    const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+    if (names.length !== 1) throw new DOMException('Fake supports one object store.', 'NotFoundError');
+    const storeName = names[0];
+    transactionStoreNames.push(storeName);
+    const store = this.state.stores.get(storeName);
+    if (!store) throw new DOMException(`Object store ${storeName} does not exist.`, 'NotFoundError');
+    return new FakeTransaction(storeName, store);
+  }
   close(): void {
     if (this.closed) return;
     this.closed = true;
@@ -271,9 +309,10 @@ class FakeDatabase {
 
 const fakeIndexedDb = {
   open(name: string, version: number): FakeRequest<FakeDatabase> {
+    openedDatabaseNames.push(name);
     const request = new FakeRequest<FakeDatabase>();
     queueMicrotask(() => {
-      const state = fakeDatabases.get(name) ?? { version: 0, rows: new Map(), connections: new Set(), deletionChecks: new Set() };
+      const state = fakeDatabases.get(name) ?? { version: 0, stores: new Map(), connections: new Set(), deletionChecks: new Set() };
       fakeDatabases.set(name, state);
       const upgrade = state.version < version;
       state.version = version;
@@ -284,6 +323,7 @@ const fakeIndexedDb = {
     return request;
   },
   deleteDatabase(name: string): FakeRequest<undefined> {
+    deletedDatabaseNames.push(name);
     const request = new FakeRequest<undefined>();
     queueMicrotask(() => {
       const state = fakeDatabases.get(name);
@@ -309,6 +349,11 @@ const fakeIndexedDb = {
 describe('IndexedDbServerReadCacheStore production lifecycle', () => {
   beforeEach(() => {
     fakeDatabases.clear();
+    openedDatabaseNames.length = 0;
+    deletedDatabaseNames.length = 0;
+    createdObjectStores.length = 0;
+    transactionStoreNames.length = 0;
+    extractedPutKeys.length = 0;
     Object.defineProperty(globalThis, 'indexedDB', { value: fakeIndexedDb as unknown as IDBFactory, configurable: true, writable: true });
   });
 
@@ -328,9 +373,18 @@ describe('IndexedDbServerReadCacheStore production lifecycle', () => {
 
     await first.clear();
 
-    expect(fakeDatabases.has(SERVER_READ_CACHE_DB_NAME)).toBe(false);
+    expect(fakeDatabases.has('gones-cache')).toBe(false);
     await expect(second.read('u1:leagues')).resolves.toBeNull();
     await second.write('u2:leagues', cached({ leagues: [2] }));
     await expect(second.read('u2:leagues')).resolves.toEqual(cached({ leagues: [2] }));
+
+    expect(new Set(openedDatabaseNames)).toEqual(new Set(['gones-cache']));
+    expect(deletedDatabaseNames).toEqual(['gones-cache']);
+    expect(createdObjectStores).toEqual([
+      { name: 'reads', keyPath: 'key' },
+      { name: 'reads', keyPath: 'key' }
+    ]);
+    expect(new Set(transactionStoreNames)).toEqual(new Set(['reads']));
+    expect(extractedPutKeys).toEqual(['u1:leagues', 'u2:leagues']);
   });
 });

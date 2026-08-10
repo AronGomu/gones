@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { Injector } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
 import { AuthService } from './auth.service';
@@ -25,6 +25,11 @@ function setup(meDELETE: () => Observable<void>) {
 }
 
 describe('AuthService.deleteAccount', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+  });
+
   it('sends the confirmation password once and drops the local session', async () => {
     const { service, store, sessionScope, client } = setup(() => of(undefined as unknown as void));
     const reset = vi.fn();
@@ -39,6 +44,32 @@ describe('AuthService.deleteAccount', () => {
     expect(service.profile()).toBeNull();
     expect(store.token).toBeUndefined();
     expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports successful server deletion despite purge failure and makes the next tab retry purge before login', async () => {
+    const firstTab = setup(() => of(undefined as unknown as void));
+    firstTab.sessionScope.register(() => Promise.reject(new Error('purge failed')));
+    await firstTab.service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(firstTab.service.deleteAccount('valid-password-value')).resolves.toBeUndefined();
+
+    expect(firstTab.service.profile()).toBeNull();
+    expect(firstTab.store.token).toBeUndefined();
+    const secondTab = setup(() => of(undefined as unknown as void));
+    let releaseRetry!: () => void;
+    secondTab.sessionScope.register(() => new Promise<void>((resolve) => { releaseRetry = resolve; }));
+    const nextLogin = secondTab.service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+    await vi.waitFor(() => expect(releaseRetry).toBeTypeOf('function'));
+    expect(secondTab.client.login).not.toHaveBeenCalled();
+    expect(secondTab.service.profile()).toBeNull();
+    expect(secondTab.store.token).toBeUndefined();
+
+    releaseRetry();
+    await nextLogin;
+    expect(secondTab.client.login).toHaveBeenCalledTimes(1);
+    expect(secondTab.service.profile()).not.toBeNull();
+    logged.mockRestore();
   });
 
   it('keeps the session when the server rejects the password', async () => {

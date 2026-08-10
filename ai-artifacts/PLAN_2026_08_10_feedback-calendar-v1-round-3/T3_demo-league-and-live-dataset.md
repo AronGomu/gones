@@ -147,7 +147,7 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 - [x] 9. Extend the printed summary with league + running-tournament counts. → verify: the seeder prints `2 league archives, 2 running tournaments`.
 - [x] 10. Document `leagues.json` and `live-tournaments.json` field by field in `fixtures/dev-environments/README.md`, including "archive dates are absolute on purpose". → verify: both file sections and the absolute-dates sentence are in the README diff.
 - [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. → verify: all four exit 0.
-- [x] 12. Manual: `npm run dev -- --env=demo`; signed in as `organizer@gones.test`, `/leagues-archive` lists both leagues, `Gones League 6` standings render; `/live-tournaments` shows the in-progress one on an open round and the other at standings. → verify: `ng serve` is owned by another process, so this is checked through the API the pages read (`GET /api/leagues-archive`, `GET /api/live-tournaments`) plus the seeded row counts.
+- [ ] 12. Manual: `npm run dev -- --env=demo`; signed in as `organizer@gones.test`, `/leagues-archive` lists both leagues, `Gones League 6` standings render; `/live-tournaments` shows the in-progress one on an open round and the other at standings. → automated substitute/context only, not manual execution: API reads (`GET /api/leagues-archive`, `GET /api/live-tournaments`) plus seeded row counts match expected data.
 
 ## Outputs
 
@@ -164,7 +164,7 @@ Run: `npx vitest run ops/dev-environments.test.ts`
 - [x] `npm run typecheck` passes.
 - [x] `npm run build` passes.
 - [x] `node scripts/seed-dev-environment.mjs --env=demo` exits 0; a second run exits 0 without duplicating a league (`GET /api/leagues-archive` still returns 2 non-placeholder leagues).
-- [x] Manual: `/leagues-archive/demo-league-6` renders 3 tournaments and a standings table with ≥ 9 players. → verify through the API the page reads: `GET /api/leagues-archive/<restored id>` shows 3 tournaments and `…/result` ≥ 9 standing rows.
-- [x] Manual: `/live-tournaments` as `organizer@gones.test` shows `demo-live-in-progress` on an unscored round. → verify through `GET /api/live-tournaments`: stage `round`, current round entries unscored.
+- [ ] Manual: `/leagues-archive/demo-league-6` renders 3 tournaments and a standings table with ≥ 9 players. → automated substitute/context only, not manual execution: `GET /api/leagues-archive/<restored id>` shows 3 tournaments and `…/result` ≥ 9 standing rows.
+- [ ] Manual: `/live-tournaments` as `organizer@gones.test` shows `demo-live-in-progress` on an unscored round. → automated substitute/context only, not manual execution: `GET /api/live-tournaments` shows stage `round`, current round entries unscored.
 - [x] App functional — no broken path from this slice. → verify: `npm run build` green and no `src/**` or `backend/**` file in the diff.
 - [x] Commit msg draft: `feat(dev): seed demo league archives and running tournaments` — committed as `1f6cd4e`, pushed to `origin/feat/feedback-calendar-v1-round-3`.

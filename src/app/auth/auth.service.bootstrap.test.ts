@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { Injector } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
 import { AuthService } from './auth.service';
@@ -25,6 +25,11 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
 }
 
 describe('AuthService.bootstrap', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+  });
+
   it('restores the session from the refresh cookie before the first route renders', async () => {
     const { service, store, client } = setup(() => of(token));
 

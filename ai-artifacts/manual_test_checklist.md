@@ -968,3 +968,21 @@ Human-only visual checks remain open:
       shows its cached-server warning; browser-local League/Live pages show no such warning.
 - [ ] Review calendar day-cell links at desktop and narrow widths for clipping/readability; automated
       Cypress proves correct date, time/title, route, filtering, and 3-plus-overflow behavior.
+
+## T16 post-review-concurrency-and-proof-repair
+
+Automated tests cover auth-transition serialization, purge retry/error truth, queued Web Lock session
+guards, partial-rename reload failure, fresh-mutation stale-warning clearing, and literal IndexedDB
+schema behavior. Human-only browser checks remain open:
+
+- [ ] In two real tabs, hold `gones-cache` deletion blocked during user A logout, then attempt user B
+      sign-in: B must not publish profile/catalog/cache state until deletion completes, and B data must
+      remain after A logout finishes.
+- [ ] Force cache purge failure after successful account deletion: UI remains signed out without a
+      false deletion-failed message; after storage recovers, next sign-in succeeds only after purge.
+- [ ] Queue server catalog adoption behind the Deck Archetype Web Lock, then sign out or switch users:
+      stale session catalog must not replace current browser catalog.
+- [ ] Force second local League player rename write and final player reload to fail: partial-change
+      review/retry warning remains visible rather than generic load-failed copy.
+- [ ] Load cached League and Live detail, restore network, then perform successful edits/creation:
+      cached-server warning clears; failed edits leave warning visible.

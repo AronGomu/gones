@@ -14,7 +14,7 @@ import { SessionCatalogSyncService } from './session-catalog-sync.service';
 
 function setup(listDeckArchetypes: () => ReturnType<Client['listDeckArchetypes']>) {
   const client = { listDeckArchetypes: vi.fn(listDeckArchetypes) };
-  const settings = { adoptServerCatalog: vi.fn(async () => true) };
+  const settings = { adoptServerCatalog: vi.fn(async (_names: string[], _isCurrentSession: () => boolean) => true) };
   const injector = Injector.create({ providers: [
     { provide: Client, useValue: client },
     { provide: DeckArchetypeSettingsService, useValue: settings }
@@ -28,12 +28,13 @@ function archetype(name: string): PublicDeckArchetypeResponse {
 }
 
 describe('SessionCatalogSyncService', () => {
-  it('hands the server catalog to the local one', async () => {
+  it('hands the server catalog and same current-session guard to the local one', async () => {
     const { service, settings } = setup(() => of([archetype('Server A'), archetype('Server B')]));
+    const isCurrentSession = () => true;
 
-    await service.adopt('u1', () => true);
+    await service.adopt('u1', isCurrentSession);
 
-    expect(settings.adoptServerCatalog).toHaveBeenCalledWith(['Server A', 'Server B']);
+    expect(settings.adoptServerCatalog).toHaveBeenCalledWith(['Server A', 'Server B'], isCurrentSession);
   });
 
   it('a failed catalog fetch leaves the local catalog alone', async () => {
