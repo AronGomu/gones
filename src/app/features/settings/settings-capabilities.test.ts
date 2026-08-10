@@ -5,8 +5,10 @@ const noFlags = { authV1: false, adminV1: false };
 const allFlags = { authV1: true, adminV1: true };
 
 describe('settingsCapabilities', () => {
-  it('offers no browser-authority section at all', () => {
-    const retired = ['localArchetypeMutation', 'localPlayerRename', 'migrationBundleExport'];
+  it('keeps the retired browser sections retired', () => {
+    // ADR 0032 brings back the local catalog and the local rename; ADR 0020's one-way door on the
+    // migration bundle is untouched, so that one stays off the object entirely.
+    const retired = ['migrationBundleExport'];
 
     for (const role of [null, 'User', 'Organizer', 'Admin'] as const) {
       const capabilities = settingsCapabilities(allFlags, role) as SettingsCapabilities & Record<string, unknown>;
@@ -39,12 +41,21 @@ describe('settingsCapabilities', () => {
     expect(settingsCapabilities({ ...allFlags, adminV1: false }, 'User').orgNotifications).toBe(false);
   });
 
-  it('exposes nothing to an anonymous viewer on a build with every capability off', () => {
+  it('local sections are the complement of the server sections', () => {
+    const roles = [null, 'User', 'Organizer', 'Admin'] as const;
+
+    expect(roles.map((role) => settingsCapabilities(allFlags, role).localCatalog)).toEqual([true, true, true, false]);
+    expect(roles.map((role) => settingsCapabilities(allFlags, role).localMaintenance)).toEqual([true, true, false, false]);
+  });
+
+  it('an anonymous viewer on a bare build still gets both local sections', () => {
     expect(settingsCapabilities(noFlags, null)).toEqual({
       adminCatalog: false,
       organizerMaintenance: false,
       profileLink: false,
-      orgNotifications: false
+      orgNotifications: false,
+      localCatalog: true,
+      localMaintenance: true
     });
   });
 });

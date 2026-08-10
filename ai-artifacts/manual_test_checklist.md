@@ -834,3 +834,41 @@ cannot prove rendered pixels or a live click-through — those need a human:
 - [ ] On `/settings/account`, the "Update account information" ("Modifier Information du Compte" in
       French) button spans the full width of its card, is visually centred, and sits with clear space
       below "Change email" ("Changer l'e-mail").
+
+## T12 signed-out-local-catalogs
+
+Automated coverage proves the flags and the wiring: `src/app/features/settings/settings-capabilities.test.ts`
+(the two local flags are the exact complement of the server ones — anonymous/`User` get both, an
+`Organizer` keeps only the local catalog, an `Admin` on an `adminV1` build gets neither),
+`src/app/features/settings/local-player-names.test.ts` (match + bye folding, case folding across two
+leagues, blank names skipped) and `src/app/features/settings/settings.component.test.ts` (each card
+lives inside its `@if (capabilities().local…)` guard, and no local template block or local method body
+contains `this.client.`). `src/app/backend/server-authority-boundary.test.ts` still allowlists exactly
+three IndexedDB files. A throwaway Cypress run (not committed) additionally observed, signed out with
+every `/api/` call stubbed: both local cards render, an added archetype survives a reload, renaming
+`Alice` → `Alicia` rewrote the `gones-leagues` row and bumped `documentVersion` 1 → 2, and no API call
+other than `auth/refresh` was made; signed in as `Admin`, the two local cards are absent and the server
+ones are present.
+
+What it cannot prove — rendered pixels, a second browser tab, and the League detail page after a
+rename — needs a human:
+
+- [ ] `npm run dev`, signed out, open `/settings`: a **Deck archetypes** card and a **Players** card sit
+      below the account card. Each is a collapsed expansion panel with the browser-only help text
+      ("stored in this browser only" / "leagues stored in this browser").
+- [ ] Expand Deck archetypes, add `Manual Check`, then reload the page: the archetype is still listed
+      (it lives in `localStorage` under `gones.settings`).
+- [ ] Open the site in a **second tab**, still signed out, `/settings`: the same archetype list and the
+      same players are there — both stores are origin-scoped, not user-scoped.
+- [ ] From `/leagues-archive`, create a local league with one tournament and a round naming two
+      players. Back on `/settings` → Players: both names appear with their entry/league counts.
+- [ ] Rename one of them and open that league's detail page: the round entries show the new name.
+- [ ] With DevTools → Network open, add and delete an archetype and rename a player: no request is
+      issued at all.
+- [ ] Delete an archetype: a confirmation dialog appears first, naming the archetype, with a red
+      confirm button; cancelling leaves the list untouched.
+- [ ] Sign in as `admin@gones.test`: the local Deck archetypes and Players cards are gone and the
+      server-backed Admin catalog + Players sections are shown instead. Sign in as
+      `organizer@gones.test`: the **local** Deck archetypes card is still shown (an Organizer has no
+      server catalog) while Players is the server-backed one.
+- [ ] Switch the language to French on `/settings`: both new help paragraphs read in French.

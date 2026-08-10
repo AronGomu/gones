@@ -155,22 +155,22 @@ Run: `npx vitest run src/app/features/settings`
 
 ## Impl steps
 
-- [ ] 1. Read `docs/adr/0032-signed-out-local-settings-catalogs.md`.
-- [ ] 2. Update `src/app/features/settings/settings-capabilities.test.ts`: add the two new tests, and edit the retired-section test so it only names `migrationBundleExport`, and the anonymous-equality test so it expects the six keys.
-- [ ] 3. Create `src/app/features/settings/local-player-names.test.ts` with the three `localPlayerNames` tests.
-- [ ] 4. Run `npx vitest run src/app/features/settings` — confirm red.
-- [ ] 5. Add `localCatalog` and `localMaintenance` to `SettingsCapabilities` and to `settingsCapabilities` in `src/app/features/settings/settings-capabilities.ts`, with the doc comments above.
-- [ ] 6. Create `src/app/features/settings/local-player-names.ts` with `LocalPlayerSummary` and `localPlayerNames`.
-- [ ] 7. Re-run `npx vitest run src/app/features/settings` — the capability and pure-function tests go green.
-- [ ] 8. Add the two i18n keys to both maps in `src/app/i18n/messages.ts`.
-- [ ] 9. In `src/app/features/settings/settings.component.ts`, inject `LocalLeagueArchiveBackend`, add `localPlayers`, `filteredLocalPlayers`, `localPlayersLoaded`, `loadLocalPlayers`, `saveLocalPlayerEdit`, and the six local-archetype methods.
-- [ ] 10. Add the `@if (capabilities().localCatalog)` archetype card after the `adminCatalog` card, using the existing `newArchetype` / `archetypeFilter` / `filteredArchetypes` / `editingArchetype` / `archetypeEdits` / `archetypeMessage` / `archetypeSaving` signals.
-- [ ] 11. Add the `@if (capabilities().localMaintenance)` players card after the `organizerMaintenance` card.
-- [ ] 12. Extend the existing lazy-load `effect` to call `loadLocalPlayers()` once when `capabilities().localMaintenance` is true.
-- [ ] 13. Add the two component-template tests. Run `npx vitest run src/app/features/settings` — green.
-- [ ] 14. Run `npm run test && npm run lint && npm run typecheck && npm run build`. `src/app/backend/server-authority-boundary.test.ts` must stay green — no new file may touch `indexedDB` directly.
-- [ ] 15. Manual, signed out: `/settings` shows Deck archetypes and Players. Add an archetype, reload the page — it is still there. Create a local league with a round from `/leagues-archive`, come back to `/settings` — the players appear; rename one and check the league detail page shows the new name. Open the site in a second tab — the same archetypes and players are there.
-- [ ] 16. Manual, signed in as `admin@gones.test`: the Admin server catalog is shown and the local archetype card is **not**.
+- [x] 1. Read `docs/adr/0032-signed-out-local-settings-catalogs.md`. — done when: the flag formulas below are confirmed against the ADR's viewer table.
+- [x] 2. Update `src/app/features/settings/settings-capabilities.test.ts`: add the two new tests, and edit the retired-section test so it only names `migrationBundleExport`, and the anonymous-equality test so it expects the six keys. — done when: the file contains the two new `it(...)` blocks and no longer names `localArchetypeMutation` / `localPlayerRename`.
+- [x] 3. Create `src/app/features/settings/local-player-names.test.ts` with the three `localPlayerNames` tests. — done when: the file exists with three `it(...)` blocks.
+- [x] 4. Run `npx vitest run src/app/features/settings` — confirm red. (`Test Files 3 failed | 4 passed`, `Tests 4 failed | 28 passed`) — done when: the run fails naming the new tests.
+- [x] 5. Add `localCatalog` and `localMaintenance` to `SettingsCapabilities` and to `settingsCapabilities` in `src/app/features/settings/settings-capabilities.ts`, with the doc comments above. — done when: `npx vitest run src/app/features/settings/settings-capabilities.test.ts` is green.
+- [x] 6. Create `src/app/features/settings/local-player-names.ts` with `LocalPlayerSummary` and `localPlayerNames`. — done when: `npx vitest run src/app/features/settings/local-player-names.test.ts` is green.
+- [x] 7. Re-run `npx vitest run src/app/features/settings` — the capability and pure-function tests go green. (`Test Files 2 passed`, `Tests 9 passed` for the two files; component-template tests still red by design)
+- [x] 8. Add the two i18n keys to both maps in `src/app/i18n/messages.ts`. — done when: both keys appear once in the `en` map and once in the `fr` map.
+- [x] 9. In `src/app/features/settings/settings.component.ts`, inject `LocalLeagueArchiveBackend`, add `localPlayers`, `filteredLocalPlayers`, `localPlayersLoaded`, `loadLocalPlayers`, `saveLocalPlayerEdit`, and the six local-archetype methods. — done when: `npm run typecheck` is green and every named member exists in the file.
+- [x] 10. Add the `@if (capabilities().localCatalog)` archetype card after the `adminCatalog` card, using the existing `newArchetype` / `archetypeFilter` / `filteredArchetypes` / `editingArchetype` / `archetypeEdits` / `archetypeMessage` / `archetypeSaving` signals. — done when: the ticket's `settings-local-archetype-*` `data-cy` values are all present inside that guard and `npx vitest run src/app/shared/data-cy-coverage.test.ts` is green.
+- [x] 11. Add the `@if (capabilities().localMaintenance)` players card after the `organizerMaintenance` card. — done when: the ticket's `settings-local-player*` `data-cy` values are all present inside that guard and `npx vitest run src/app/shared/data-cy-coverage.test.ts` is green.
+- [x] 12. Extend the existing lazy-load `effect` to call `loadLocalPlayers()` once when `capabilities().localMaintenance` is true. — done when: the `effect` body guards on `localPlayersLoaded` and `npm run typecheck` is green.
+- [x] 13. Add the two component-template tests. Run `npx vitest run src/app/features/settings` — green. (`Test Files 9 passed`, `Tests 55 passed` with `data-cy-coverage` + `server-authority-boundary`)
+- [x] 14. Run `npm run test && npm run lint && npm run typecheck && npm run build`. (test `99 files / 827 tests passed`; lint `All files pass linting`; typecheck silent; build `Application bundle generation complete`) `src/app/backend/server-authority-boundary.test.ts` must stay green — no new file may touch `indexedDB` directly.
+- [ ] 15. (moved to `ai-artifacts/manual_test_checklist.md` → `## T12 signed-out-local-catalogs`; reload persistence, the rename landing in the store and the empty Network log are proved headlessly, the second tab and the League detail render are not) Manual, signed out: `/settings` shows Deck archetypes and Players. Add an archetype, reload the page — it is still there. Create a local league with a round from `/leagues-archive`, come back to `/settings` — the players appear; rename one and check the league detail page shows the new name. Open the site in a second tab — the same archetypes and players are there.
+- [x] 16. Manual, signed in as `admin@gones.test`: the Admin server catalog is shown and the local archetype card is **not**. (proved headlessly with a throwaway Cypress spec, stubbed `Admin` profile: `settings-archetype-card` + `settings-players-card` exist, `settings-local-archetype-card` + `settings-local-players-card` do not — `2 passing`; spec deleted after the run)
 
 ## Outputs
 
@@ -182,14 +182,14 @@ Run: `npx vitest run src/app/features/settings`
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/settings` passes.
-- [ ] `npm run test` passes, including `src/app/backend/server-authority-boundary.test.ts` and `src/app/shared/data-cy-coverage.test.ts`.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `npm run cy:run -- --spec cypress/e2e/settings-server.cy.js` passes.
-- [ ] Manual: signed out, archetypes persist across reload and across tabs; a local-league player rename lands in the league detail page.
-- [ ] Manual: signed in as Admin, the local archetype card is hidden and the server catalog is shown.
-- [ ] Manual: DevTools → Network is empty while using either local section.
-- [ ] App functional — no broken path from this slice.
+- [x] `npx vitest run src/app/features/settings` passes. (`Test Files 9 passed | Tests 55 passed` with the two guardrail files)
+- [x] `npm run test` passes, including `src/app/backend/server-authority-boundary.test.ts` and `src/app/shared/data-cy-coverage.test.ts`. (`Test Files 99 passed (99)`, `Tests 827 passed (827)`)
+- [x] `npm run lint` passes. (`All files pass linting`)
+- [x] `npm run typecheck` passes. (no output, exit 0)
+- [x] `npm run build` passes. (`Application bundle generation complete`)
+- [x] `npm run cy:run -- --spec cypress/e2e/settings-server.cy.js` passes. (run through the NixOS `steam-run` wrapper: `4 passing`, all four capability specs green)
+- [ ] Manual: signed out, archetypes persist across reload and across tabs; a local-league player rename lands in the league detail page. (reload persistence + the rename landing in the `gones-leagues` row proved headlessly; **second tab** and the **league detail page** render stay for the human — see `ai-artifacts/manual_test_checklist.md`)
+- [x] Manual: signed in as Admin, the local archetype card is hidden and the server catalog is shown. (throwaway Cypress spec, see Impl step 16)
+- [x] Manual: DevTools → Network is empty while using either local section. (same spec intercepted every `/api/` call; after adding an archetype and renaming a local player the recorded list minus `auth/refresh` was `[]`)
+- [x] App functional — no broken path from this slice. (`npm run test` 827 passed, `settings-server.cy.js` 4 passing, build green)
 - [ ] Commit msg draft: `feat(settings): give signed-out visitors local archetype and player catalogs`
