@@ -51,6 +51,13 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
+const tournamentB: PublicTournamentView = {
+  ...tournament,
+  id: '55555555-5555-5555-5555-555555555555',
+  slug: 'paris-modern',
+  title: 'Paris Modern'
+};
+
 function setup(options: { params?: Record<string, string>; result?: Partial<AllTournamentsResult>; profile?: UserProfileResponse | null; authEnabled?: boolean } = {}) {
   const result: AllTournamentsResult = {
     items: [tournament],
@@ -292,11 +299,12 @@ describe('PublicCalendarComponent top action row layout', () => {
     expect(header).not.toContain('calendar-synced-at');
   });
 
-  it('the header keeps the view tabs and the create action', () => {
+  it('the header keeps the create action', () => {
+    // T8 moved the view tabs out of the header onto their own row below the search input; see the
+    // 'search row layout' describe block below for that assertion.
     const headerStart = source.indexOf('data-cy="calendar-header-actions"');
     const headerEnd = source.indexOf('</div>\n      </header>', headerStart);
     const header = source.slice(headerStart, headerEnd);
-    expect(header).toContain('calendar-view-tabs');
     expect(header).toContain('calendar-create-tournament');
   });
 
@@ -307,5 +315,99 @@ describe('PublicCalendarComponent top action row layout', () => {
     const rule = stylesheet.slice(ruleStart, ruleEnd);
     expect(rule).toContain('display: flex');
     expect(rule).toContain('justify-content: space-between');
+  });
+});
+
+describe('PublicCalendarComponent search row layout', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  it('the search row sits between the title and the view tabs', () => {
+    const titleIndex = source.indexOf('data-cy="calendar-title"');
+    const searchRowIndex = source.indexOf('data-cy="calendar-search-row"');
+    const viewTabsIndex = source.indexOf('data-cy="calendar-view-tabs"');
+    expect(titleIndex).toBeGreaterThan(-1);
+    expect(searchRowIndex).toBeGreaterThan(-1);
+    expect(viewTabsIndex).toBeGreaterThan(-1);
+    expect(titleIndex).toBeLessThan(searchRowIndex);
+    expect(searchRowIndex).toBeLessThan(viewTabsIndex);
+  });
+
+  it('the search input has no visible label', () => {
+    expect(source).not.toContain('calendar-search-label');
+  });
+
+  it('the search input names itself for assistive tech', () => {
+    const inputStart = source.indexOf('data-cy="calendar-search"');
+    const inputEnd = source.indexOf('>', inputStart);
+    const input = source.slice(inputStart, inputEnd);
+    expect(input).toContain(`[attr.aria-label]="i18n.t('common.search')"`);
+  });
+
+  it('the search row is not a panel', () => {
+    const rowStart = source.lastIndexOf('<form', source.indexOf('data-cy="calendar-search-row"'));
+    const rowTagEnd = source.indexOf('>', rowStart);
+    const rowTag = source.slice(rowStart, rowTagEnd);
+    expect(rowTag).not.toContain('panel');
+    expect(rowTag).not.toContain('calendar-filter-form');
+  });
+
+  it('the input is chrome-less', () => {
+    const ruleStart = stylesheet.indexOf('.calendar-search-input {');
+    expect(ruleStart).toBeGreaterThan(-1);
+    const ruleEnd = stylesheet.indexOf('}', ruleStart);
+    const rule = stylesheet.slice(ruleStart, ruleEnd);
+    expect(rule).toMatch(/border:\s*(0|none)/);
+    expect(rule).toContain('background: transparent');
+  });
+
+  it('the input is shorter than before', () => {
+    const ruleStart = stylesheet.indexOf('.calendar-search-input {');
+    const ruleEnd = stylesheet.indexOf('}', ruleStart);
+    const rule = stylesheet.slice(ruleStart, ruleEnd);
+    expect(rule).not.toContain('min-height: 48px');
+  });
+
+  it('focus is still visible', () => {
+    const ruleStart = stylesheet.indexOf('.calendar-search-input:focus-visible {');
+    expect(ruleStart).toBeGreaterThan(-1);
+    const ruleEnd = stylesheet.indexOf('}', ruleStart);
+    const rule = stylesheet.slice(ruleStart, ruleEnd);
+    expect(rule).toContain('outline');
+  });
+
+  it('the view tabs are on their own row', () => {
+    const headerStart = source.indexOf('data-cy="calendar-header-actions"');
+    const headerEnd = source.indexOf('</div>\n      </header>', headerStart);
+    const header = source.slice(headerStart, headerEnd);
+    expect(header).not.toContain('calendar-view-tabs');
+  });
+
+  it('filtering removes non-matching tournaments from both views', async () => {
+    const { component } = setup({ result: { items: [tournament, tournamentB] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The slug is the field the clone actually varies; searching it (rather than the title, whose
+    // words `Lyon` and `Legacy` also appear in the shared venue/format fields the clone keeps) is
+    // what proves the filter narrows to exactly one item instead of fuzzy-matching both.
+    component.setSearchDraft(tournament.slug);
+
+    expect(component.items()).toHaveLength(1);
+    expect(component.items()[0].id).toBe(tournament.id);
+    expect(component.groups().flatMap(group => group.items).map(item => item.id)).toEqual([tournament.id]);
+  });
+
+  it('an empty query keeps every tournament', async () => {
+    const { component } = setup({ result: { items: [tournament, tournamentB] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    component.setSearchDraft(tournament.slug);
+    component.setSearchDraft('');
+
+    expect(component.items()).toHaveLength(2);
   });
 });

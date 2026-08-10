@@ -304,11 +304,13 @@ message appears while typing, and the French runtime strings — those need a hu
 
 Automated coverage: `public-calendar.component.test.ts` proves the top row's source-level layout contract
 (back button + sync group share `calendar-top-actions`, stamp precedes the button, the icon is inline SVG
-with `aria-hidden="true"`, the header keeps only the view tabs and Create action, `.calendar-top-actions`
+with `aria-hidden="true"`, the header keeps the Create action, `.calendar-top-actions`
 is `display: flex; justify-content: space-between`). `cypress/e2e/public-calendar.cy.js`'s "Synchroniser
 forces a refetch" case clicks `[data-cy="calendar-sync"]` and asserts `[data-cy="calendar-synced-at"]`
 becomes visible afterwards. None of that proves rendered pixel position, responsive wrap, or offline
-rendering — those need a human:
+rendering — those need a human. (T8 note: the view tabs moved out of `calendar-header-actions` onto
+their own row below the search input — the line above no longer claims the header keeps them; see the
+T8 section below for that row's own manual checks.)
 
 - [ ] `npm run dev`, open `http://127.0.0.1:4200/calendar`: the back-to-menu button sits on the left of the
       top row, the Synchronise button with its circular-arrows icon is on the right, and the "last
@@ -318,3 +320,25 @@ rendering — those need a human:
 - [ ] Resize to 480px wide: the sync group wraps under the back button without horizontal overflow.
 - [ ] Throttle the network to offline (or block `fonts.googleapis.com`) and reload: the sync icon still
       renders, because it is inline SVG and not a Material Icons webfont glyph.
+
+## T8 calendar-search-row
+
+Automated coverage: `public-calendar.component.test.ts` proves the source-level layout contract (search
+row sits between `calendar-title` and `calendar-view-tabs`, no visible `<label>`, the input carries
+`[attr.aria-label]="i18n.t('common.search')"`, the search row's `<form>` tag has neither `panel` nor
+`calendar-filter-form` in its class list, `.calendar-search-input` has `border: 0` / `background:
+transparent` and no `min-height: 48px`, `.calendar-search-input:focus-visible` still sets an `outline`,
+and `calendar-view-tabs` is no longer inside `calendar-header-actions`) plus two behavioural cases proving
+the same `filterTournaments` pipeline drives both `items()` and `groups()`. `cypress/e2e/accessibility.cy.js`'s
+"every calendar filter control has a programmatic name" now runs against `[data-cy="calendar-search-row"]`
+and passes headless. None of that proves rendered pixel layout, wrap behaviour, or the debounced URL write
+in a real browser — those need a human:
+
+- [ ] `npm run dev`, open `http://127.0.0.1:4200/calendar`: the search input sits directly under the page
+      title, spans the full content width, has no visible border or background box, and the Calendar /
+      List buttons are on the row below it.
+- [ ] Type a venue city into the search input: the list tab drops non-matching tournaments as you type,
+      and the URL gains `?q=…` about 300 ms after you stop typing.
+- [ ] Tab (keyboard) into the search input: a red focus ring is visible around it.
+- [ ] Resize to 480px wide: the search row still spans the width and the Calendar / List buttons wrap
+      onto their own line under it.

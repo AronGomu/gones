@@ -1112,13 +1112,13 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 /* Public Calendar V1 */
 .public-calendar-page { gap: 1rem; }
 .public-calendar-page, .public-calendar-page * { min-width: 0; }
-.calendar-view-tabs { display: flex; flex-wrap: wrap; gap: .5rem; }
+.calendar-view-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
 .calendar-view-tabs button { min-height: 44px; }
 .calendar-view-tabs button[aria-pressed='true'] { border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 25%, var(--black-metal)); }
-.calendar-filter-form { display: grid; grid-template-columns: 1fr; gap: .35rem; padding: 1rem; width: 100%; }
-.calendar-filter-form label { display: grid; gap: .35rem; color: var(--dim-ash); font-size: .85rem; font-weight: 800; }
-.calendar-search-input { width: 100%; min-height: 48px; padding: .6rem .75rem; border: 1px solid var(--steel); background: var(--black-metal); color: var(--ash); font: inherit; }
-.calendar-filter-form input:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+.calendar-search-row { display: flex; width: 100%; margin: .35rem 0 .5rem; }
+.calendar-search-input { width: 100%; min-height: 2.25rem; padding: .3rem 0; border: 0; background: transparent; color: var(--ash); font: inherit; }
+.calendar-search-input::placeholder { color: var(--dim-ash); }
+.calendar-search-input:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
 .calendar-header-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
 .calendar-top-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .calendar-top-actions .back-button-row--top { margin-bottom: 0; }

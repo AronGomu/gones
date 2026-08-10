@@ -115,7 +115,7 @@ describe('accessibility', () => {
   it('every calendar filter control has a programmatic name', () => {
     visit('/calendar');
     cy.wait('@tournaments');
-    cy.get('[data-cy="calendar-filters"]').find('input, select, textarea').each(($control) => {
+    cy.get('[data-cy="calendar-search-row"]').find('input, select, textarea').each(($control) => {
       const element = $control[0];
       const id = element.getAttribute('id');
       const labelled = element.getAttribute('aria-label')

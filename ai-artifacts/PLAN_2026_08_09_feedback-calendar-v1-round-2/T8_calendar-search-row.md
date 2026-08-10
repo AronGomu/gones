@@ -92,9 +92,9 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Impl steps
 
-- [ ] 1. Add the ten cases above to `src/app/features/calendar/public-calendar.component.test.ts`. For the two behavioural cases, extend the file's existing `setup()` helper to accept a second catalogue item (clone the module-level `tournament` constant and change `id`, `slug` and `title`).
-- [ ] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new cases must fail.
-- [ ] 3. In `src/app/features/calendar/public-calendar.component.ts`, remove `calendar-view-tabs` from `.calendar-header-actions`. The header block becomes:
+- [x] 1. Add the ten cases above to `src/app/features/calendar/public-calendar.component.test.ts`. For the two behavioural cases, extend the file's existing `setup()` helper to accept a second catalogue item (clone the module-level `tournament` constant and change `id`, `slug` and `title`).
+- [x] 2. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts` — the new cases must fail.
+- [x] 3. In `src/app/features/calendar/public-calendar.component.ts`, remove `calendar-view-tabs` from `.calendar-header-actions`. The header block becomes:
       ```html
       <header class="section-header" data-cy="calendar-header">
         <div data-cy="calendar-header-text"><h1 id="public-calendar-title" data-cy="calendar-title">{{ i18n.t('calendar.publicTitle') }}</h1></div>
@@ -105,7 +105,7 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
         </div>
       </header>
       ```
-- [ ] 4. Directly after the `</header>`, replace the old filter form with the search row followed by the tabs row:
+- [x] 4. Directly after the `</header>`, replace the old filter form with the search row followed by the tabs row:
       ```html
       <form class="calendar-search-row" data-cy="calendar-search-row" (ngSubmit)="$event.preventDefault()">
         <input id="calendar-search" name="q" type="search" class="calendar-search-input" data-cy="calendar-search"
@@ -120,19 +120,19 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
       </div>
       ```
       The old `data-cy="calendar-filters"` value disappears. Grep for it across `cypress/` and `src/` first; if any spec selects it, update that selector to `calendar-search-row` in the same commit.
-- [ ] 5. In `src/styles.css`, delete the `.calendar-filter-form` rule (line 1110) and the `.calendar-filter-form label` rule (line 1111), and replace the `.calendar-search-input` rule (line 1112) and the focus rule (line 1113) with:
+- [x] 5. In `src/styles.css`, delete the `.calendar-filter-form` rule (line 1110) and the `.calendar-filter-form label` rule (line 1111), and replace the `.calendar-search-input` rule (line 1112) and the focus rule (line 1113) with:
       ```css
       .calendar-search-row { display: flex; width: 100%; margin: .35rem 0 .5rem; }
       .calendar-search-input { width: 100%; min-height: 2.25rem; padding: .3rem 0; border: 0; background: transparent; color: var(--ash); font: inherit; }
       .calendar-search-input::placeholder { color: var(--dim-ash); }
       .calendar-search-input:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
       ```
-- [ ] 6. In `src/styles.css`, add a rule so the tabs row is a normal row of its own now that it has left the header flex container:
+- [x] 6. In `src/styles.css`, add a rule so the tabs row is a normal row of its own now that it has left the header flex container (extended the existing `.calendar-view-tabs` rule with `align-items: center; margin-bottom: .5rem;` instead of adding a second block, per the ticket's own fallback):
       ```css
       .calendar-view-tabs { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .5rem; }
       ```
       Check first with `grep -n "calendar-view-tabs" src/styles.css` — if a rule already exists, extend it instead of adding a second.
-- [ ] 7. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
+- [x] 7. Run `npx vitest run src/app/features/calendar/public-calendar.component.test.ts src/app/shared/data-cy-coverage.test.ts` — green.
 
 ## Outputs
 
@@ -142,15 +142,15 @@ Repo rules: every rendered element needs a unique `data-cy` (`src/AGENT.md`, enf
 
 ## Validation
 
-- [ ] `npm run test` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` passes
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
-- [ ] `npx cypress run --spec cypress/e2e/accessibility.cy.js` passes — this is the gate that would catch an input left without an accessible name.
-- [ ] Manual: `npm run dev`, open `/calendar` — the search input is directly under the title, full width, with no box or border, and the Calendar / List buttons are on the row below it.
-- [ ] Manual: type a venue city — the list tab drops non-matching tournaments; the URL gains `?q=…` after the 300 ms debounce.
-- [ ] Manual: tab to the input — a red focus ring is visible.
-- [ ] Manual: at 480px the search row still spans the width and the tabs wrap under it.
-- [ ] app functional — no broken path from this slice
-- [ ] commit msg draft: `refactor(calendar): put the search filter on its own chrome-less row`
+- [x] `npm run test` passes — 592/592, 0 failed (`Test Files 84 passed (84)`)
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — clean, no output/errors
+- [x] `npm run build` passes — `Application bundle generation complete.`
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes — 6/6 passing (steam-run wrapped, LD_LIBRARY_PATH=nspr+nss)
+- [x] `npx cypress run --spec cypress/e2e/accessibility.cy.js` passes — this is the gate that would catch an input left without an accessible name. 11/11 passing, including `every calendar filter control has a programmatic name` against the renamed `[data-cy="calendar-search-row"]` selector.
+- [ ] Manual: `npm run dev`, open `/calendar` — the search input is directly under the title, full width, with no box or border, and the Calendar / List buttons are on the row below it. Not run with a human browser this session; equivalent automated proof: `the search row sits between the title and the view tabs` + `the search row is not a panel` + `the view tabs are on their own row` (component source tests, all green) plus the passing `accessibility.cy.js`/`public-calendar.cy.js` browser runs. Left unchecked per the manual-validation rule; logged to `ai-artifacts/manual_test_checklist.md`.
+- [ ] Manual: type a venue city — the list tab drops non-matching tournaments; the URL gains `?q=…` after the 300 ms debounce. Not run manually; automated proof: `filters on the keystroke but debounces the URL write by 300 ms` (existing, still green) plus the new `filtering removes non-matching tournaments from both views` case. Left unchecked, logged to the manual checklist.
+- [ ] Manual: tab to the input — a red focus ring is visible. Not run manually; automated proof: `focus is still visible` (stylesheet-text test, green) confirms the `:focus-visible` rule exists with an outline, but a human still needs to eyeball the actual rendered ring colour/visibility. Left unchecked, logged to the manual checklist.
+- [ ] Manual: at 480px the search row still spans the width and the tabs wrap under it. Not run manually; no automated viewport-rendering proof was produced for this slice specifically (the `accessibility.cy.js` 375px checks cover overflow/axe, not this row's wrap behaviour). Left unchecked, logged to the manual checklist.
+- [x] app functional — no broken path from this slice: full `npm run test` suite (592 tests), `lint`, `typecheck`, `build`, and both named cypress specs all pass end to end.
+- [x] commit msg draft: `refactor(calendar): put the search filter on its own chrome-less row` — used verbatim as the commit message.
