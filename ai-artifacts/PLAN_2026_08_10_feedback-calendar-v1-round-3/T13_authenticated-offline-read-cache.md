@@ -137,18 +137,18 @@ Run: `npx vitest run src/app/backend src/app/data src/app/auth/session-scope.ser
 
 ## Impl steps
 
-- [ ] 1. Read `docs/adr/0031-authenticated-offline-read-cache.md`.
-- [ ] 2. Create `src/app/backend/server-read-cache.service.test.ts` with the six service tests and the fake `ServerReadCacheStore`. Confirm red.
-- [ ] 3. Create `src/app/backend/server-read-cache.service.ts` with the constants, the `ServerReadCacheStore` seam, the IndexedDB-backed default store built on `openDatabase` / `get` / `put` from `./indexed-db`, `read()`, `purge()`, and the `SessionScopeService.register` call in the constructor.
-- [ ] 4. Add `'src/app/backend/server-read-cache.service.ts'` to the IndexedDB allowlist in `src/app/backend/server-authority-boundary.test.ts`, with a comment naming ADR 0031.
-- [ ] 5. Run `npx vitest run src/app/backend` — green.
-- [ ] 6. Add the logout-purge test to `src/app/auth/session-scope.service.test.ts`. Confirm it passes with the constructor registration in place.
-- [ ] 7. Add the repository test to `src/app/data/league-archive-repository.service.test.ts`. Confirm red.
-- [ ] 8. Wire `ServerReadCacheService` into `LeagueArchiveRepository.listLeagues()` and `getLeague(id)`, including the new `serverUnavailable` rule.
-- [ ] 9. Wire `ServerReadCacheService` and `LIVE_BACKEND_MODE` into `LiveTournamentRepository.list()` and `get(id)`, caching only when the mode is `'aspnet-api'`.
-- [ ] 10. Run `npx vitest run src/app/backend src/app/data src/app/auth` — green.
-- [ ] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`.
-- [ ] 12. Manual, with `npm run dev -- --env=demo`: sign in as `organizer@gones.test`, open `/leagues-archive` and `/live-tournaments` so both load. DevTools → Application → IndexedDB shows `gones-cache` → `reads` with rows keyed by that user id. Switch DevTools → Network → Offline and reload both pages: the data still renders and the League page shows its "server unavailable" notice. Log out: `gones-cache` is gone.
+- [x] 1. Read `docs/adr/0031-authenticated-offline-read-cache.md`. — criterion: the ADR's read/write/purge rules are restated in the implementation plan below before any code is written.
+- [x] 2. Create `src/app/backend/server-read-cache.service.test.ts` with the six service tests and the fake `ServerReadCacheStore`. Confirm red. — criterion: `npx vitest run src/app/backend/server-read-cache.service.test.ts` fails with the service missing.
+- [x] 3. Create `src/app/backend/server-read-cache.service.ts` with the constants, the `ServerReadCacheStore` seam, the IndexedDB-backed default store built on `openDatabase` / `get` / `put` from `./indexed-db`, `read()`, `purge()`, and the `SessionScopeService.register` call in the constructor. — criterion: the file exists and `npx vitest run src/app/backend/server-read-cache.service.test.ts` is green (all six tests).
+- [x] 4. Add `'src/app/backend/server-read-cache.service.ts'` to the IndexedDB allowlist in `src/app/backend/server-authority-boundary.test.ts`, with a comment naming ADR 0031. — criterion: `npx vitest run src/app/backend/server-authority-boundary.test.ts` green with a four-entry allowlist.
+- [x] 5. Run `npx vitest run src/app/backend` — green. (7 files, 90 tests passed.)
+- [x] 6. Add the logout-purge test to `src/app/auth/session-scope.service.test.ts`. Confirm it passes with the constructor registration in place. — criterion: `npx vitest run src/app/auth/session-scope.service.test.ts` green, and the test proves user A's rows are cleared before user B can read them.
+- [x] 7. Add the repository test to `src/app/data/league-archive-repository.service.test.ts`. Confirm red. — criterion: the new test fails before step 8's wiring lands.
+- [x] 8. Wire `ServerReadCacheService` into `LeagueArchiveRepository.listLeagues()` and `getLeague(id)`, including the new `serverUnavailable` rule. — criterion: `npx vitest run src/app/data/league-archive-repository.service.test.ts` green, cached-list test included.
+- [x] 9. Wire `ServerReadCacheService` and `LIVE_BACKEND_MODE` into `LiveTournamentRepository.list()` and `get(id)`, caching only when the mode is `'aspnet-api'`. — criterion: a test proves `browser-local` mode never reaches the cache and `aspnet-api` mode does.
+- [x] 10. Run `npx vitest run src/app/backend src/app/data src/app/auth` — green. (33 files, 291 tests passed.)
+- [x] 11. Run `npm run test && npm run lint && npm run typecheck && npm run build`. — criterion: all four exit 0. (101 files / 848 tests, "All files pass linting", clean `tsc`, bundle written to `dist/gones`.)
+- [ ] 12. Manual, with `npm run dev -- --env=demo`: sign in as `organizer@gones.test`, open `/leagues-archive` and `/live-tournaments` so both load. DevTools → Application → IndexedDB shows `gones-cache` → `reads` with rows keyed by that user id. Switch DevTools → Network → Offline and reload both pages: the data still renders and the League page shows its "server unavailable" notice. Log out: `gones-cache` is gone. — criterion: human-only; recorded in `ai-artifacts/manual_test_checklist.md` under `## T13 authenticated-offline-read-cache` rather than claimed here.
 
 ## Outputs
 
@@ -160,13 +160,13 @@ Run: `npx vitest run src/app/backend src/app/data src/app/auth/session-scope.ser
 
 ## Validation
 
-- [ ] `npx vitest run src/app/backend src/app/data src/app/auth` passes.
-- [ ] `npm run test` passes, including `src/app/backend/server-authority-boundary.test.ts` with its updated allowlist.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` passes.
-- [ ] `npm run cy:run -- --spec cypress/e2e/offline-public-read.cy.js` passes — the anonymous public cache is unaffected.
-- [ ] Manual: signed-in offline reload renders League Archives and running tournaments; logout removes `gones-cache`.
-- [ ] Manual: signing in as a second account in the same browser does not show the first account's cached leagues.
-- [ ] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `feat(offline): cache signed-in server reads and serve them when offline`
+- [x] `npx vitest run src/app/backend src/app/data src/app/auth` passes. (33 files, 293 tests.)
+- [x] `npm run test` passes, including `src/app/backend/server-authority-boundary.test.ts` with its updated allowlist. (848 tests; the boundary file alone: 12 passed with the four-entry allowlist.)
+- [x] `npm run lint` passes.
+- [x] `npm run typecheck` passes.
+- [x] `npm run build` passes.
+- [x] `npm run cy:run -- --spec cypress/e2e/offline-public-read.cy.js` passes — the anonymous public cache is unaffected. (Run as `steam-run npx cypress run --spec …` per this host's wrapper: 3/3 passing.)
+- [ ] Manual: signed-in offline reload renders League Archives and running tournaments; logout removes `gones-cache`. — criterion: written into the manual checklist (human-only).
+- [ ] Manual: signing in as a second account in the same browser does not show the first account's cached leagues. — criterion: written into the manual checklist (human-only); its automated counterpart is the `two users do not share a row` + logout-purge tests.
+- [x] App functional — no broken path from this slice. — criterion: `npm run build` green and the full vitest suite green. Additionally observed in a real browser (throwaway spec, not committed): the row is written under `<userId>:leagues`, a dead server still renders the cached league with the unavailable notice, and `gones-cache` is absent from `indexedDB.databases()` after logout.
+- [ ] Commit msg draft: `feat(offline): cache signed-in server reads and serve them when offline` — criterion: the commit on `feat/feedback-calendar-v1-round-3` carries this subject.

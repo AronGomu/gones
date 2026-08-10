@@ -5,6 +5,8 @@ import { AuthService } from '../auth/auth.service';
 import { UserProfileResponse } from '../api/generated/gones-api';
 import { LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort } from '../backend/application-backend';
 import { LocalLeagueArchiveBackend } from '../backend/local-league-archive-backend.service';
+import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from '../backend/server-read-cache.service';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { exportFullData, exportLeague } from '../domain/export-restore';
 import { attachExportChecksum } from '../domain/export-schemas';
 import { LeagueDocument, PersistedLeague } from '../domain/models';
@@ -74,10 +76,20 @@ function setup(role?: GlobalRole) {
   const local = fakeBackend('local');
   const profile = role ? ({ globalRole: role } as UserProfileResponse) : null;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
+  // The repository reads the server through the offline read cache (ADR 0031); an import never does.
+  const rows = new Map<string, CachedRead<unknown>>();
+  const cacheStore = {
+    read: async (key: string) => rows.get(key) ?? null,
+    write: async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); },
+    clear: async () => { rows.clear(); }
+  };
   const injector = Injector.create({ providers: [
     { provide: LEAGUE_ARCHIVE_BACKEND, useValue: server },
     { provide: LocalLeagueArchiveBackend, useValue: local },
-    { provide: AuthService, useValue: auth }
+    { provide: AuthService, useValue: auth },
+    { provide: SERVER_READ_CACHE_STORE_PORT, useValue: cacheStore },
+    SessionScopeService,
+    ServerReadCacheService
   ] });
   const repository = runInInjectionContext(injector, () => new LeagueArchiveRepository());
   return { service: new LeagueArchiveImportService(repository), repository, server, local };

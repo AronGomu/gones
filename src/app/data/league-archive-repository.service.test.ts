@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { AuthService } from '../auth/auth.service';
 import { UserProfileResponse } from '../api/generated/gones-api';
+import { SessionScopeService } from '../auth/session-scope.service';
 import { LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort } from '../backend/application-backend';
 import { LocalLeagueArchiveBackend } from '../backend/local-league-archive-backend.service';
+import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from '../backend/server-read-cache.service';
 import { GlobalRole } from './league-archive-command-ux';
 import { LOCAL_PLACEHOLDER_LEAGUE_ID } from './league-archive-origin';
 import { LeagueArchiveRepository } from './league-archive-repository.service';
@@ -54,18 +56,33 @@ function fakeBackend(list: PersistedLeague[], byId: Record<string, PersistedLeag
 
 type Fake = ReturnType<typeof fakeBackend>;
 
-function setup(options: { server?: Fake; local?: Fake; role?: GlobalRole } = {}) {
+/**
+ * ADR 0031 — the offline read cache sits in front of the server half only, so it is part of this
+ * harness: the real service with an in-memory store. `userId` is what arms it; without one the caller
+ * is anonymous and every read passes straight through, which is what the rest of these tests assert
+ * against.
+ */
+function setup(options: { server?: Fake; local?: Fake; role?: GlobalRole; userId?: string; cached?: Record<string, CachedRead<unknown>> } = {}) {
   const server = options.server ?? fakeBackend([league('s1'), league('s2')], { [SERVER_ID]: league(SERVER_ID) });
   const local = options.local ?? fakeBackend([league(LOCAL_ID)]);
-  const profile = options.role ? ({ globalRole: options.role } as UserProfileResponse) : null;
+  const profile = options.role || options.userId ? ({ globalRole: options.role, id: options.userId } as unknown as UserProfileResponse) : null;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
+  const rows = new Map<string, CachedRead<unknown>>(Object.entries(options.cached ?? {}));
+  const cacheStore = {
+    read: async (key: string) => rows.get(key) ?? null,
+    write: async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); },
+    clear: async () => { rows.clear(); }
+  };
   const injector = Injector.create({ providers: [
     { provide: LEAGUE_ARCHIVE_BACKEND, useValue: server },
     { provide: LocalLeagueArchiveBackend, useValue: local },
-    { provide: AuthService, useValue: auth }
+    { provide: AuthService, useValue: auth },
+    { provide: SERVER_READ_CACHE_STORE_PORT, useValue: cacheStore },
+    SessionScopeService,
+    ServerReadCacheService
   ] });
   const repository = runInInjectionContext(injector, () => new LeagueArchiveRepository());
-  return { repository, server, local };
+  return { repository, server, local, rows };
 }
 
 /** No call at all reached this fake. */
@@ -110,6 +127,36 @@ describe('LeagueArchiveRepository merged listing', () => {
     expect(repository.serverUnavailable()).toBe(true);
     await repository.listLeagues();
     expect(repository.serverUnavailable()).toBe(false);
+  });
+
+  it('serves the cached list when the server is unreachable, and says the server is unreachable', async () => {
+    const server = fakeBackend([]);
+    server.listLeagueArchives.mockRejectedValueOnce(new Error('offline'));
+    const cached = { 'u1:leagues': { value: [league('S1')], cachedAt: '2026-08-09T10:00:00.000Z' } };
+    const { repository } = setup({ server, local: fakeBackend([]), userId: 'u1', cached });
+
+    await expect(repository.listLeagues()).resolves.toEqual([league('S1')]);
+    expect(repository.serverUnavailable()).toBe(true);
+  });
+
+  it('a fulfilled server read replaces the cached list rather than merging with it', async () => {
+    const cached = { 'u1:leagues': { value: [league('S9')], cachedAt: '2026-08-09T10:00:00.000Z' } };
+    const { repository, rows } = setup({ server: fakeBackend([league('S1')]), local: fakeBackend([]), userId: 'u1', cached });
+
+    await expect(repository.listLeagues()).resolves.toEqual([league('S1')]);
+
+    expect(rows.get('u1:leagues')?.value).toEqual([league('S1')]);
+    expect(repository.serverUnavailable()).toBe(false);
+  });
+
+  it('a browser-local league is never cached: it is already offline and owns itself', async () => {
+    const { repository, rows } = setup({ userId: 'u1' });
+
+    await repository.getLeague(LOCAL_ID);
+    expect([...rows.keys()]).toEqual([]);
+
+    await repository.getLeague(SERVER_ID);
+    expect([...rows.keys()]).toEqual([`u1:league:${SERVER_ID}`]);
   });
 
   it('both stores failing propagates', async () => {

@@ -843,8 +843,9 @@ Automated coverage proves the flags and the wiring: `src/app/features/settings/s
 `src/app/features/settings/local-player-names.test.ts` (match + bye folding, case folding across two
 leagues, blank names skipped) and `src/app/features/settings/settings.component.test.ts` (each card
 lives inside its `@if (capabilities().local…)` guard, and no local template block or local method body
-contains `this.client.`). `src/app/backend/server-authority-boundary.test.ts` still allowlists exactly
-three IndexedDB files. A throwaway Cypress run (not committed) additionally observed, signed out with
+contains `this.client.`). `src/app/backend/server-authority-boundary.test.ts` allowlisted exactly
+three IndexedDB files at the time of that slice; T13 added the fourth (`server-read-cache.service.ts`,
+ADR 0031), which changes nothing the T12 checks below depend on. A throwaway Cypress run (not committed) additionally observed, signed out with
 every `/api/` call stubbed: both local cards render, an added archetype survives a reload, renaming
 `Alice` → `Alicia` rewrote the `gones-leagues` row and bumped `documentVersion` 1 → 2, and no API call
 other than `auth/refresh` was made; signed in as `Admin`, the two local cards are absent and the server
@@ -872,3 +873,42 @@ rename — needs a human:
       `organizer@gones.test`: the **local** Deck archetypes card is still shown (an Organizer has no
       server catalog) while Players is the server-backed one.
 - [ ] Switch the language to French on `/settings`: both new help paragraphs read in French.
+
+## T13 authenticated-offline-read-cache
+
+Automated coverage proves the rules: `src/app/backend/server-read-cache.service.test.ts` (a fulfilled
+read overwrites its row, a failed read falls back flagged `stale`, a failed read with no row rethrows,
+an anonymous caller caches nothing, two users never share a row, a read that lands after logout or
+after the next sign-in is written nowhere, an IndexedDB failure is a swallowed-and-logged write or a
+silent miss), `src/app/auth/session-scope.service.test.ts` (`clear()` empties the cache, and neither
+the next user nor the same user can read a row afterwards), `src/app/data/league-archive-repository.service.test.ts`
+(the cached list is served when the server is unreachable and `serverUnavailable()` says so; a
+fulfilled read replaces rather than merges; a `local-` league is never cached) and
+`src/app/data/live-tournament-repository.service.test.ts` (cached under `aspnet-api`, never under
+`browser-local`, never for a mutation). `src/app/backend/server-authority-boundary.test.ts` now
+allowlists exactly four IndexedDB files.
+
+A throwaway Cypress run (not committed, dev server + stubbed API) additionally observed, signed in as
+an Organizer on `/leagues-archive`: the `gones-cache` / `reads` store held exactly one row keyed
+`<userId>:leagues` with a `cachedAt` stamp; after the league requests were killed and the page
+reloaded, the league still rendered and `[data-cy="leagues-archive-server-unavailable"]` was present;
+after **Log out**, `indexedDB.databases()` no longer contained `gones-cache`.
+
+What that cannot prove — the real API, a real offline switch, real running tournaments, and a second
+real account — needs a human:
+
+- [ ] `npm run dev -- --env=demo`, sign in as `organizer@gones.test` (`Gones-dev-pass-123!`), open
+      `/leagues-archive` and `/live-tournaments` so both load. DevTools → Application → IndexedDB shows
+      `gones-cache` → `reads` with rows keyed by that user's id (`<userId>:leagues`,
+      `<userId>:live-tournaments`).
+- [ ] DevTools → Network → **Offline**, reload both pages: the archived Leagues and the running
+      tournaments still render, and the League page shows its "server unavailable" notice.
+- [ ] Still offline, try a write (create a League, add a Live player): it fails with an error — nothing
+      is queued and nothing is replayed when the network returns.
+- [ ] Back online, reload `/leagues-archive`: the notice is gone and the rows are refreshed (`cachedAt`
+      moves forward).
+- [ ] Log out: `gones-cache` is gone from DevTools → Application → IndexedDB.
+- [ ] Sign in as `test@gones.test` in the same browser: none of the Organizer's archived Leagues or
+      running tournaments appear, online or offline.
+- [ ] Signed out entirely, open `/calendar` offline: the public catalog still renders from its own
+      `localStorage` snapshot — this slice did not touch it.

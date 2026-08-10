@@ -108,7 +108,9 @@ describe('canonical browser store containment', () => {
       // The League browser-local adapter (ADR 0028), composing the pure domain.
       'src/app/backend/local-league-archive-backend.service.ts',
       // The Live browser-local adapter itself (anonymous + `User`), composing the pure domain.
-      'src/app/backend/local-live-backend.service.ts'
+      'src/app/backend/local-live-backend.service.ts',
+      // Per-user offline read cache for server responses (ADR 0031). Reads only; purged on logout.
+      'src/app/backend/server-read-cache.service.ts'
     ]);
   });
 

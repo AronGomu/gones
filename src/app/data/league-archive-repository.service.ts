@@ -1,6 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort, FullLeagueRestoreCommand, LeagueRestoreCommand } from '../backend/application-backend';
 import { LocalLeagueArchiveBackend } from '../backend/local-league-archive-backend.service';
+import { ServerReadCacheService } from '../backend/server-read-cache.service';
 import { AuthService } from '../auth/auth.service';
 import { getDefaultTournamentName, isUnassignedLeagueName, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
 import { createLeagueTarget } from './league-archive-command-ux';
@@ -20,26 +21,33 @@ export class LeagueArchiveRepository {
   private readonly server: LeagueArchiveBackendPort = inject(LEAGUE_ARCHIVE_BACKEND);
   private readonly local = inject(LocalLeagueArchiveBackend);
   private readonly auth = inject(AuthService);
+  private readonly cache = inject(ServerReadCacheService);
 
-  /** The last `listLeagues()` could not read the server — anonymous, offline, 401 or 403. */
+  /** The last `listLeagues()` could not read the server — anonymous, offline, 401, 403 or cached. */
   readonly serverUnavailable = signal(false);
 
   /**
    * The union of both stores. A rejected server read degrades to the local list alone and raises the
    * flag the list page renders; only both stores failing propagates.
+   *
+   * Only the server half goes through the offline read cache (ADR 0031): the browser store is already
+   * offline, and mirroring it would create two answers for one document. A cached answer still raises
+   * `serverUnavailable` — it means exactly what the banner says, that the server was not reached.
    */
   async listLeagues(): Promise<PersistedLeague[]> {
-    const [server, local] = await Promise.allSettled([this.server.listLeagueArchives(), this.local.listLeagueArchives()]);
-    this.serverUnavailable.set(server.status === 'rejected');
+    const serverRead = this.cache.read('leagues', () => this.server.listLeagueArchives());
+    const [server, local] = await Promise.allSettled([serverRead, this.local.listLeagueArchives()]);
+    this.serverUnavailable.set(server.status === 'rejected' || (server.status === 'fulfilled' && server.value.stale));
     if (server.status === 'rejected' && local.status === 'rejected') throw server.reason;
     return [
-      ...(server.status === 'fulfilled' ? server.value : []),
+      ...(server.status === 'fulfilled' ? server.value.value : []),
       ...(local.status === 'fulfilled' ? local.value : [])
     ];
   }
 
   async getLeague(id: string): Promise<PersistedLeague | null> {
-    return this.port(id).getLeagueArchive(id);
+    if (isLocalLeagueId(id)) return this.local.getLeagueArchive(id);
+    return (await this.cache.read(`league:${id}`, () => this.server.getLeagueArchive(id))).value;
   }
 
   async createLeague(name: string, idempotencyKey?: string): Promise<PersistedLeague> {

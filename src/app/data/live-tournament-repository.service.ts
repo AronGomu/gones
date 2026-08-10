@@ -1,5 +1,6 @@
-import { Inject, Injectable } from '@angular/core';
-import { LIVE_BACKEND, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand } from '../backend/application-backend';
+import { Inject, inject, Injectable } from '@angular/core';
+import { LIVE_BACKEND, LIVE_BACKEND_MODE, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand } from '../backend/application-backend';
+import { ServerReadCacheService } from '../backend/server-read-cache.service';
 import { LiveTournamentDocument } from '../domain/live-tournament';
 
 /**
@@ -9,14 +10,27 @@ import { LiveTournamentDocument } from '../domain/live-tournament';
  */
 @Injectable({ providedIn: 'root' })
 export class LiveTournamentRepository {
+  private readonly mode = inject(LIVE_BACKEND_MODE);
+  private readonly cache = inject(ServerReadCacheService);
+
   constructor(@Inject(LIVE_BACKEND) private readonly backend: LiveBackendPort) {}
 
   async list(): Promise<LiveTournamentDocument[]> {
-    return this.backend.listLiveTournaments();
+    return this.read('live-tournaments', () => this.backend.listLiveTournaments());
   }
 
   async get(id: string): Promise<LiveTournamentDocument | null> {
-    return this.backend.getLiveTournament(id);
+    return this.read(`live-tournament:${id}`, () => this.backend.getLiveTournament(id));
+  }
+
+  /**
+   * Only the server adapter is cached (ADR 0031). The browser-local adapter (ADR 0021) is already
+   * offline, and mirroring it would create two answers for one document. Reads only: a mutation that
+   * fails offline still fails, with nothing queued.
+   */
+  private async read<T>(resource: string, load: () => Promise<T>): Promise<T> {
+    if (this.mode !== 'aspnet-api') return load();
+    return (await this.cache.read(resource, load)).value;
   }
 
   async create(): Promise<LiveTournamentDocument> {
