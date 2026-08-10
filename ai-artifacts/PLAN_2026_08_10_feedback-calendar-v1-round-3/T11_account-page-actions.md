@@ -65,15 +65,15 @@ Run: `npx vitest run src/app/features/settings`
 
 ## Impl steps
 
-- [ ] 1. Add the four tests to `src/app/features/settings/account-settings.component.test.ts`. Confirm red with `npx vitest run src/app/features/settings`.
-- [ ] 2. In `src/app/features/settings/account-settings.component.ts`, delete the `<div class="actions" data-cy="account-logout-row"> … </div>` element from the template.
-- [ ] 3. Delete the `async logout(): Promise<void> { … }` method.
-- [ ] 4. Confirm `private readonly router = inject(Router);` and the `Router` import are still referenced by the account-deletion path; leave both.
-- [ ] 5. Change the save button's class attribute to `class="warning-action account-save-action"`.
-- [ ] 6. Add `.account-save-action { display: block; width: 100%; margin: 1.5rem auto 0; }` to `src/styles.css`, next to the other `.profile-page` / account rules.
-- [ ] 7. Run `npx vitest run src/app/features/settings` — green.
-- [ ] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build` — `data-cy-coverage.test.ts` must stay green and `typecheck` must not report an unused import.
-- [ ] 9. Manual: signed in, `/settings/account` shows no logout button at the bottom; the toolbar still has one and it still signs you out to `/`; the "Modifier Information du Compte" button spans the card width, is centred and sits clearly below "Changer l'e-mail".
+- [x] 1. Add the four tests to `src/app/features/settings/account-settings.component.test.ts`. Confirm red with `npx vitest run src/app/features/settings`. — Evidence: pre-edit run showed `Test Files 1 failed | 4 passed (5)`, `Tests 3 failed | 26 passed (29)` (3 new tests red).
+- [x] 2. In `src/app/features/settings/account-settings.component.ts`, delete the `<div class="actions" data-cy="account-logout-row"> … </div>` element from the template. — Evidence: element removed; `grep -c 'account-logout-row'` on the file returns 0.
+- [x] 3. Delete the `async logout(): Promise<void> { … }` method. — Evidence: `grep -c 'async logout()'` on the file returns 0.
+- [x] 4. Confirm `private readonly router = inject(Router);` and the `Router` import are still referenced by the account-deletion path; leave both. — Evidence: both lines untouched in diff; `deleteAccount()` still calls `this.router.navigate(['/'])`.
+- [x] 5. Change the save button's class attribute to `class="warning-action account-save-action"`. — Evidence: line now reads `class="warning-action account-save-action"` on the `data-cy="account-save"` button.
+- [x] 6. Add `.account-save-action { display: block; width: 100%; margin: 1.5rem auto 0; }` to `src/styles.css`, next to the other `.profile-page` / account rules. — Evidence: rule added directly after `.profile-page` at line 1092-1093.
+- [x] 7. Run `npx vitest run src/app/features/settings` — green. — Evidence: `Test Files 5 passed (5)`, `Tests 29 passed (29)`.
+- [x] 8. Run `npm run test && npm run lint && npm run typecheck && npm run build` — `data-cy-coverage.test.ts` must stay green and `typecheck` must not report an unused import. — Evidence: all four commands passed (see Validation section below).
+- [x] 9. Manual: signed in, `/settings/account` shows no logout button at the bottom; the toolbar still has one and it still signs you out to `/`; the "Modifier Information du Compte" button spans the card width, is centred and sits clearly below "Changer l'e-mail". — Evidence: recorded in `ai-artifacts/manual_test_checklist.md` T11 section (visual claim, not auto-verified per repo convention).
 
 ## Outputs
 
@@ -83,12 +83,12 @@ Run: `npx vitest run src/app/features/settings`
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/settings` passes.
-- [ ] `npm run test` passes.
-- [ ] `npm run lint` passes.
-- [ ] `npm run typecheck` passes (no unused `Router`, no unused import).
-- [ ] `npm run build` passes.
-- [ ] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes — it drives the toolbar logout.
-- [ ] Manual: bottom logout gone; toolbar logout works; save button full width, centred, spaced.
-- [ ] App functional — no broken path from this slice.
-- [ ] Commit msg draft: `fix(account): widen the save action and drop the duplicate logout`
+- [x] `npx vitest run src/app/features/settings` passes. — Evidence: `Test Files 5 passed (5)`, `Tests 29 passed (29)`.
+- [x] `npm run test` passes. — Evidence: `Test Files 97 passed (97)`, `Tests 821 passed (821)`.
+- [x] `npm run lint` passes. — Evidence: `All files pass linting.`
+- [x] `npm run typecheck` passes (no unused `Router`, no unused import). — Evidence: both `tsc --noEmit` invocations exited clean, no output.
+- [x] `npm run build` passes. — Evidence: `Application bundle generation complete.`
+- [x] `npm run cy:run -- --spec cypress/e2e/auth-profile.cy.js` passes — it drives the toolbar logout. — Evidence: ran via the NixOS steam-run wrapper; `4 passing, 3 failing` — identical to the documented pre-existing baseline (same 3 tests fail on `'/login'` vs `'/settings/account'`, unrelated to this slice); the toolbar-logout-covering test (`completes provider profile through the SPA without exposing an access token in the URL`) passes.
+- [x] Manual: bottom logout gone; toolbar logout works; save button full width, centred, spaced. — Evidence: recorded in `ai-artifacts/manual_test_checklist.md` T11 section.
+- [x] App functional — no broken path from this slice. — Evidence: full `npm run test && npm run lint && npm run typecheck && npm run build` all green; cypress baseline unchanged.
+- [x] Commit msg draft: `fix(account): widen the save action and drop the duplicate logout` — Evidence: used verbatim as the commit message.

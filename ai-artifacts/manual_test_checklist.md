@@ -816,3 +816,21 @@ live viewport — those need a human:
 - [ ] Open `/auth/complete-profile` (mid-OAuth) — no return button of either kind above the card.
 - [ ] Switch the app language to French on `/login` and `/forgot-password`: buttons read "Retour au
       menu" and "Retour à la connexion" respectively.
+
+## T11 account-page-actions
+
+Automated coverage (`src/app/features/settings/account-settings.component.test.ts`) proves the
+template source no longer contains `data-cy="account-logout-row"` or `data-cy="account-logout"`,
+that `async logout()` is gone from the component (its only caller was that row), that the
+`data-cy="account-save"` button carries `account-save-action`, that the `.account-save-action`
+stylesheet block sets `display: block`, `width: 100%`, and `margin: 1.5rem auto 0`, and that
+`src/app/app.component.ts` still carries `data-cy="logout-button"` wired to `(click)="logout()"`. It
+cannot prove rendered pixels or a live click-through — those need a human:
+
+- [ ] `npm run dev`, sign in, open `/settings/account`. Scroll to the bottom of the page: there is no
+      standalone "Log out" button below the danger-zone card.
+- [ ] The app toolbar's own account menu still has a working "Log out" entry; clicking it signs you
+      out and lands on `/`.
+- [ ] On `/settings/account`, the "Update account information" ("Modifier Information du Compte" in
+      French) button spans the full width of its card, is visually centred, and sits with clear space
+      below "Change email" ("Changer l'e-mail").

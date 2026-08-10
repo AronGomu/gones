@@ -1090,6 +1090,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .auth-submit--idle, .auth-submit:disabled { --mdc-filled-button-disabled-container-color: var(--steel); --mdc-filled-button-disabled-label-text-color: var(--dim-ash); background: var(--steel) !important; color: var(--dim-ash) !important; cursor: not-allowed; }
 .field-error { margin: -.4rem 0 0; color: oklch(88% .13 55); font-size: .9rem; font-weight: 700; }
 .profile-page { width: min(100%, 52rem); margin-inline: auto; }
+.account-save-action { display: block; width: 100%; margin: 1.5rem auto 0; }
 .privacy-group { display: grid; gap: .7rem; margin: .5rem 0; padding: 1rem; border: 1px solid var(--soot); }
 .privacy-group legend { padding-inline: .4rem; font-weight: 900; }
 .check-row { min-height: 44px; display: flex; align-items: center; gap: .7rem; }

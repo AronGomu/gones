@@ -16,12 +16,18 @@ import { Injector, runInInjectionContext, signal, WritableSignal } from '@angula
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { AccountSettingsComponent } from './account-settings.component';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { GeoService } from '../../shared/geo.service';
 import { UserProfileResponse } from '../../api/generated/gones-api';
+
+const componentSource = readFileSync(join(__dirname, 'account-settings.component.ts'), 'utf8');
+const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+const appComponentSource = readFileSync(join(__dirname, '..', '..', 'app.component.ts'), 'utf8');
 
 const baseProfile = {
   id: 'u1', email: 'a@example.test', emailVerified: true, globalRole: 'User',
@@ -97,5 +103,27 @@ describe('AccountSettingsComponent', () => {
     await component.link('google');
     expect(authStub.startLink).toHaveBeenCalledWith('google');
     expect(authStub.startLink).toHaveBeenCalledTimes(1);
+  });
+
+  it('the account page has no bottom logout row', () => {
+    expect(componentSource).not.toContain('data-cy="account-logout-row"');
+    expect(componentSource).not.toContain('data-cy="account-logout"');
+  });
+
+  it('the account page keeps no orphan logout handler', () => {
+    expect(componentSource).not.toMatch(/async logout\(\)/);
+  });
+
+  it('the update-account button is full width and centred', () => {
+    expect(componentSource).toMatch(/data-cy="account-save"[^>]*class="[^"]*account-save-action[^"]*"|class="[^"]*account-save-action[^"]*"[^>]*data-cy="account-save"/);
+    const block = stylesheet.match(/\.account-save-action\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(block).toContain('width: 100%');
+    expect(block).toContain('display: block');
+    expect(block).toContain('margin: 1.5rem auto 0');
+  });
+
+  it('the application toolbar still logs out', () => {
+    expect(appComponentSource).toContain('data-cy="logout-button"');
+    expect(appComponentSource).toContain('(click)="logout()"');
   });
 });

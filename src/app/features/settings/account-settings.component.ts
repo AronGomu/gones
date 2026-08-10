@@ -85,7 +85,7 @@ import { applyCountry, applyRegion, optionsWithStoredValue } from './location-se
           </fieldset></form>
         </section>
 
-        <button form="account-details-form" mat-flat-button class="warning-action" data-cy="account-save" type="submit" [disabled]="pending() || !isDirty()">{{ pending() ? i18n.t('common.saving') : i18n.t('account.submit') }}</button>
+        <button form="account-details-form" mat-flat-button class="warning-action account-save-action" data-cy="account-save" type="submit" [disabled]="pending() || !isDirty()">{{ pending() ? i18n.t('common.saving') : i18n.t('account.submit') }}</button>
       </mat-card-content></mat-card>
 
       <mat-card class="panel auth-card" data-cy="account-linked-accounts-card"><mat-card-content class="stack" data-cy="account-linked-accounts-card-content">
@@ -109,7 +109,6 @@ import { applyCountry, applyRegion, optionsWithStoredValue } from './location-se
         <div data-cy="account-delete-error">@for (message of fieldErrors()['currentPassword']; track message) { <p class="field-error" role="alert" data-cy="account-delete-error-message">{{ message }}</p> }</div>
       </mat-card-content></mat-card>
 
-      <div class="actions" data-cy="account-logout-row"><button mat-stroked-button type="button" class="danger-ghost-action" data-cy="account-logout" [disabled]="pending()" (click)="logout()">{{ i18n.t('auth.logout') }}</button></div>
       @if (error()) { <p class="error" role="alert" data-cy="account-error">{{ error() }}</p> }
       @if (status()) { <p class="settings-saved" role="status" aria-live="polite" data-cy="account-status">{{ status() }}</p> }
     </section>
@@ -208,8 +207,6 @@ export class AccountSettingsComponent {
   async unlink(provider: string): Promise<void> {
     await this.run(this.identityPending, async () => { await this.auth.unlink(provider); await this.loadIdentities(); this.status.set(this.i18n.t('profile.unlinked')); });
   }
-
-  async logout(): Promise<void> { await this.auth.logout(); await this.router.navigate(['/']); }
 
   async deleteAccount(): Promise<void> {
     const password = await firstValueFrom(this.dialog.open(PasswordConfirmDialogComponent, {
