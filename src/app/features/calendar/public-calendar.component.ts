@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -87,7 +87,7 @@ const SEARCH_DEBOUNCE_MS = 300;
           <nav class="calendar-month-controls" [attr.aria-label]="i18n.t('calendar.navAria')" data-cy="calendar-month-controls">
             <button mat-stroked-button type="button" data-cy="calendar-month-prev" (click)="moveMonth(-1)">{{ i18n.t('common.previous') }}</button><h2 data-cy="calendar-month-label">{{ monthLabel() }}</h2><button mat-stroked-button type="button" data-cy="calendar-month-next" (click)="moveMonth(1)">{{ i18n.t('common.next') }}</button>
           </nav>
-          <section class="public-month-grid" role="grid" [attr.aria-label]="i18n.t('calendar.monthAria')" data-cy="public-month-grid">
+          <section #monthGrid class="public-month-grid" role="grid" [style.min-height.px]="gridMinHeight()" [attr.aria-label]="i18n.t('calendar.monthAria')" data-cy="public-month-grid">
             <div class="public-month-row public-month-row--head" role="row" data-cy="calendar-month-row-head">
               @for (weekday of weekdays; track weekday) { <div class="classic-calendar__weekday" role="columnheader" data-cy="calendar-weekday">{{ weekday }}</div> }
             </div>
@@ -150,6 +150,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   private subscription?: Subscription;
   private searchDebounce?: ReturnType<typeof setTimeout>;
   private loadId = 0;
+  @ViewChild('monthGrid') private monthGrid?: ElementRef<HTMLElement>;
 
   readonly skeletons = Array.from({ length: 6 });
   readonly weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -158,6 +159,9 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly searchDraft = signal<string>(this.query().q);
   readonly allItems = signal<PublicTournamentView[]>([]);
   readonly syncedAt = signal<string | undefined>(undefined);
+  // Pins the grid height for the duration of a month change so the document cannot shrink under the
+  // scroll position that is about to be restored.
+  readonly gridMinHeight = signal<number | null>(null);
   readonly truncated = signal(false);
   readonly loading = signal(true);
   readonly stale = signal(false);
@@ -200,7 +204,23 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   }
 
   sync(): void { void this.load({ force: true }); }
-  moveMonth(amount: number): void { void this.navigate({ ...this.query(), month: shiftMonth(this.query().month, amount), page: 1 }); }
+  /**
+   * Month navigation is a query-param navigation on the same route, so the router's
+   * `scrollPositionRestoration: 'enabled'` treats it as a fresh page and scrolls back to the top —
+   * the grid re-renders in place, which is why nothing about the handler looked wrong. `scroll:
+   * 'manual'` opts this one navigation out of that restoration — the router schedules its own scroll
+   * a few hundred milliseconds after the navigation resolves and would undo any restore — and the
+   * position is captured before navigating, then re-applied once the new grid is laid out.
+   */
+  async moveMonth(amount: number): Promise<void> {
+    const top = window.scrollY;
+    this.gridMinHeight.set(this.monthGrid?.nativeElement.offsetHeight ?? null);
+    await this.navigate({ ...this.query(), month: shiftMonth(this.query().month, amount), page: 1 }, { scroll: 'manual' });
+    requestAnimationFrame(() => {
+      if (top > 0) window.scrollTo({ top });
+      this.gridMinHeight.set(null);
+    });
+  }
   setView(view: CalendarView): void {
     try { localStorage.setItem(VIEW_KEY, view); } catch { /* Preference is optional. */ }
     void this.navigate({ ...this.query(), view, page: 1 });
@@ -241,7 +261,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
     }
   }
 
-  private navigate(query: CalendarQuery): Promise<boolean> { return this.router.navigate([], { relativeTo: this.route, queryParams: buildCalendarQueryParams(query) }); }
+  private navigate(query: CalendarQuery, extras: { scroll?: 'manual' } = {}): Promise<boolean> { return this.router.navigate([], { relativeTo: this.route, queryParams: buildCalendarQueryParams(query), ...extras }); }
   private preferredView(): CalendarView {
     try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'calendar'; } catch { return 'calendar'; }
   }

@@ -18,6 +18,24 @@ const tournament = {
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]
 };
 
+// Four events on every day of August and September 2026: each cell renders three links plus the
+// overflow line, which makes both grids far taller than the viewport used by the scroll-anchor test.
+const busyMonthItems = ['2026-08', '2026-09'].flatMap(month =>
+  Array.from({ length: 28 }, (_, dayIndex) =>
+    Array.from({ length: 4 }, (_, eventIndex) => {
+      const date = `${month}-${String(dayIndex + 1).padStart(2, '0')}`;
+      return {
+        ...tournament,
+        id: `${date}-${eventIndex}`,
+        slug: `busy-${date}-${eventIndex}`,
+        title: `Busy ${date} #${eventIndex}`,
+        venueStartDate: date,
+        venueEndDate: date
+      };
+    })
+  ).flat()
+);
+
 function visit(path) {
   cy.visit(path, {
     onBeforeLoad(win) {
@@ -92,6 +110,63 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('not.exist');
 
     cy.get('@allTournaments.all').should('have.length', 1);
+  });
+
+  // Month navigation is a query-param navigation, so the router's scroll restoration puts the reader
+  // back at the top of the page. Only a real browser can settle this: jsdom has no layout, no
+  // document height and no scroller, so a component-level assertion proves nothing about the
+  // observable jump. Both months are seeded so the grid stays tall on either side of the click — a
+  // scroll position past the end of the shorter document could not survive any implementation.
+  it('keeps the window scroll position when changing month in a content-heavy month', () => {
+    cy.intercept('GET', '**/api/tournaments/all*', { items: busyMonthItems, generatedAt: '2026-08-08T10:00:00Z', count: busyMonthItems.length, truncated: false }).as('busyMonths');
+    cy.viewport(1024, 500);
+    visit('/calendar?month=2026-08&view=calendar');
+    cy.wait('@busyMonths');
+    cy.get('[data-cy="public-month-grid"]').should('be.visible');
+
+    // Scrolled as deep as a reader can be and still see the control they are about to click; the
+    // offset keeps the control clear of the sticky app toolbar.
+    cy.get('[data-cy="calendar-month-next"]').scrollIntoView({ offset: { top: -180, left: 0 } });
+    cy.window().its('scrollY').should('be.greaterThan', 100);
+    cy.window().then(win => {
+      const before = win.scrollY;
+      // `scrollBehavior: false` keeps Cypress from scrolling the button into view itself, which would
+      // move the page between the reading of `before` and the click that is under test.
+      cy.get('[data-cy="calendar-month-next"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('exist');
+      // A retrying assertion would pass on the frame before the router scrolls to the top; the wait
+      // makes the check read the settled position instead.
+      cy.wait(500);
+      cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
+
+      cy.get('[data-cy="calendar-month-prev"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('exist');
+      cy.wait(500);
+      cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
+    });
+  });
+
+  it('keeps the window scroll position when changing month in an empty month', () => {
+    cy.intercept('GET', '**/api/tournaments/all*', { items: [], generatedAt: '2026-08-08T10:00:00Z', count: 0, truncated: false }).as('emptyCatalog');
+    cy.viewport(1024, 500);
+    visit('/calendar?month=2026-08&view=calendar');
+    cy.wait('@emptyCatalog');
+    cy.get('[data-cy="public-month-grid"]').should('be.visible');
+
+    cy.get('[data-cy="calendar-month-prev"]').scrollIntoView({ offset: { top: -180, left: 0 } });
+    cy.window().its('scrollY').should('be.greaterThan', 100);
+    cy.window().then(win => {
+      const before = win.scrollY;
+      cy.get('[data-cy="calendar-month-prev"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-07-15"]').should('exist');
+      cy.wait(500);
+      cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
+
+      cy.get('[data-cy="calendar-month-next"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('exist');
+      cy.wait(500);
+      cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
+    });
   });
 
   it('caps same-day events at three and reports overflow', () => {

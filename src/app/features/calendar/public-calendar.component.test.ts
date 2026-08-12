@@ -1,5 +1,5 @@
 import '@angular/compiler';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Same rationale as account-settings.component.test.ts: no TestBed / zone.js in this repo, so
 // `effect()` is stubbed to a no-op and the component is built with a bare Injector. These tests
@@ -57,6 +57,21 @@ const tournamentB: PublicTournamentView = {
   slug: 'paris-modern',
   title: 'Paris Modern'
 };
+
+/**
+ * jsdom has no layout: `scrollY` is a getter-only property and `scrollTo` is unimplemented, so both
+ * are replaced. `requestAnimationFrame` runs its callback inline to keep the assertions synchronous
+ * with the awaited navigation.
+ */
+const scrollYDescriptor = Object.getOwnPropertyDescriptor(window, 'scrollY') as PropertyDescriptor;
+
+function stubScrolling(scrollY: number) {
+  const scrollTo = vi.fn();
+  Object.defineProperty(window, 'scrollY', { value: scrollY, configurable: true });
+  vi.stubGlobal('scrollTo', scrollTo);
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 0; });
+  return scrollTo;
+}
 
 function makeItems(count: number): PublicTournamentView[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -129,6 +144,11 @@ const verifiedUserProfile = {
 } as unknown as UserProfileResponse;
 
 describe('PublicCalendarComponent', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    Object.defineProperty(window, 'scrollY', scrollYDescriptor);
+  });
+
   it('renders the grid with zero matches: filtering to nothing keeps the catalog untouched', async () => {
     const { component } = setup();
     component.ngOnInit();
@@ -239,6 +259,63 @@ describe('PublicCalendarComponent', () => {
 
     expect(component.query().month).toBe('2026-08');
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it('moving month restores the scroll position the reader was at', async () => {
+    const { component } = setup();
+    const scrollTo = stubScrolling(800);
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await component.moveMonth(1);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 800 });
+  });
+
+  // The router schedules its own scroll well after the navigation resolves, so without this opt-out
+  // it lands on the top of the page last and the restore above is undone.
+  it('moving month opts the navigation out of the router scroll restoration', async () => {
+    const { component, navigate } = setup();
+    stubScrolling(800);
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    navigate.mockClear();
+
+    await component.moveMonth(1);
+
+    const [, extras] = navigate.mock.calls[0] as [unknown, { scroll?: string }];
+    expect(extras.scroll).toBe('manual');
+  });
+
+  it('moving month does not scroll when the reader is already at the top', async () => {
+    const { component } = setup();
+    const scrollTo = stubScrolling(0);
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await component.moveMonth(-1);
+
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  // Without the pin the document shrinks while the new month renders, and the browser clamps the
+  // scroll position that is about to be restored down to the shorter page.
+  it('moving month pins the grid height until the scroll position is restored', async () => {
+    const { component } = setup();
+    stubScrolling(800);
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    (component as unknown as { monthGrid?: { nativeElement: { offsetHeight: number } } }).monthGrid = { nativeElement: { offsetHeight: 640 } };
+
+    const pending = component.moveMonth(1);
+    expect(component.gridMinHeight()).toBe(640);
+
+    await pending;
+    expect(component.gridMinHeight()).toBeNull();
   });
 
   it('hides the create button when anonymous', () => {

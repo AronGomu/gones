@@ -42,13 +42,45 @@
 
 ## Impl steps
 
-- [ ] 1. Add `@ViewChild('monthGrid') private monthGrid?: ElementRef<HTMLElement>` and the `#monthGrid` template reference on `<section class="public-month-grid">`.
-- [ ] 2. Add `readonly gridMinHeight = signal<number | null>(null)` and bind `[style.min-height.px]="gridMinHeight()"`.
-- [ ] 3. Rewrite `moveMonth` as an async method: capture `const top = window.scrollY;` and `this.gridMinHeight.set(this.monthGrid?.nativeElement.offsetHeight ?? null);`, `await this.navigate(...)`, then `requestAnimationFrame(() => { if (top > 0) window.scrollTo({ top }); this.gridMinHeight.set(null); });`.
-- [ ] 4. Keep the template call `(click)="moveMonth(-1)"` / `(click)="moveMonth(1)"` unchanged (returning a promise from a click handler is fine; mark it `void` in the template if lint complains — use `(click)="void moveMonth(1)"` only if required by the lint rule).
-- [ ] 5. Add the three component tests to `src/app/features/calendar/public-calendar.component.test.ts`.
-- [ ] 6. Add the Cypress assertion to `cypress/e2e/public-calendar.cy.js`.
-- [ ] 7. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx cypress run --spec cypress/e2e/public-calendar.cy.js`.
+- [x] 1. Add `@ViewChild('monthGrid') private monthGrid?: ElementRef<HTMLElement>` and the `#monthGrid` template reference on `<section class="public-month-grid">`. — `public-calendar.component.ts:90` (`#monthGrid`) and `:153`.
+- [x] 2. Add `readonly gridMinHeight = signal<number | null>(null)` and bind `[style.min-height.px]="gridMinHeight()"`. — `public-calendar.component.ts:164`, bound at `:90`.
+- [x] 3. Rewrite `moveMonth` as an async method: capture `const top = window.scrollY;` and `this.gridMinHeight.set(this.monthGrid?.nativeElement.offsetHeight ?? null);`, `await this.navigate(...)`, then `requestAnimationFrame(() => { if (top > 0) window.scrollTo({ top }); this.gridMinHeight.set(null); });`. — `public-calendar.component.ts:215-223`. See the Amendment: the navigation also passes `scroll: 'manual'`.
+- [x] 4. Keep the template call `(click)="moveMonth(-1)"` / `(click)="moveMonth(1)"` unchanged. — unchanged at `:88`; `npm run lint` reports `All files pass linting.`, so no `void` was needed.
+- [x] 5. Add the three component tests to `src/app/features/calendar/public-calendar.component.test.ts`. — plus a fourth pinning `scroll: 'manual'` (Amendment); `npx vitest run src/app/features/calendar` → `Tests 198 passed (198)`.
+- [x] 6. Add the Cypress assertion to `cypress/e2e/public-calendar.cy.js`. — two specs, content-heavy month and empty month, both clicking prev and next.
+- [x] 7. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx cypress run --spec cypress/e2e/public-calendar.cy.js`. — all green, output under Validation.
+
+## Amendment — the rAF restore alone does not hold
+
+Measured on the running dev server (Chrome, viewport 1024x500, `scrollY` sampled every 20 ms after
+clicking Next) with the mechanism exactly as specified above:
+
+```
+before=950 docHeight=1450
+samples: 25ms=950 52ms=447 61ms=447 226ms=0 241ms=0 … 1460ms=0
+after=0
+```
+
+Root cause of the residual jump: `RouterScroller.scheduleScrollEvent`
+(`node_modules/@angular/router/fesm2022/_router_module-chunk.mjs:883-894`) awaits a
+`setTimeout`/`requestAnimationFrame` race and only then re-enters the zone to emit `Scroll`, so the
+router's scroll-to-top lands at ~226 ms — long after `navigate()` resolves (~60 ms) and after the
+restore in the `requestAnimationFrame` callback. The router always scrolls last and wins.
+
+Fix: the month navigation passes `scroll: 'manual'`
+(`NavigationExtras.scroll`, `node_modules/@angular/router/types/_router_module-chunk.d.ts:3176`),
+which makes `consumeScrollEvents` return early for that one navigation. It is per-navigation, so
+`withInMemoryScrolling` in `src/main.ts` stays untouched, as the ticket's assumptions require. The
+capture/restore and the `gridMinHeight` pin stay: the pin is what stops the browser clamping the
+restored position when the next month's grid is shorter (the `447 → 344` drift in the same-shape
+measurement is exactly that clamp).
+
+- [x] `scroll: 'manual'` is pinned by a unit assertion so a refactor cannot silently drop it and
+      reintroduce the jump — `moving month opts the navigation out of the router scroll restoration`
+      in `public-calendar.component.test.ts`.
+- [x] Before/after in the browser, same spec, component fix stashed then restored:
+      without the fix `AssertionError: expected 0 to be close to 267 +/- 10` in both the
+      content-heavy and the empty month; with the fix both specs pass (`Passing: 12, Failing: 0`).
 
 ## Outputs
 
@@ -57,9 +89,18 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar` passes
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
-- [ ] `npm run lint && npm run typecheck` pass
+- [x] `npx vitest run src/app/features/calendar` passes — `Test Files 16 passed (16)`, `Tests 198 passed (198)`
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes — `Tests: 12, Passing: 12, Failing: 0`, including
+      `✓ keeps the window scroll position when changing month in a content-heavy month (1400ms)` and
+      `✓ keeps the window scroll position when changing month in an empty month (1353ms)`
+- [x] `npm run lint && npm run typecheck` pass — `All files pass linting.`; `tsc --noEmit` on both projects, no output
+- [x] `npm run test` (full suite + acceptance matrix) — `Test Files 106 passed (106)`, `Tests 973 passed (973)`
+- [x] `npx cypress run --spec cypress/e2e/accessibility.cy.js` — `Tests: 11, Passing: 11, Failing: 0` (unchanged gate)
+- [x] browser measurement of the actual behaviour: `scrollY` recorded before and after clicking prev/next,
+      unchanged within 10 px in a content-heavy month and in an empty month; red without the fix
+      (`expected 0 to be close to 267 +/- 10`), green with it
 - [ ] manual check: scroll to the bottom of `/calendar`, click Next repeatedly — the viewport does not jump
-- [ ] app functional — the month label, day cells and query params still update
-- [ ] commit msg draft: `fix(calendar): keep the scroll position when changing month`
+      (human-only, listed in `ai-artifacts/manual_test_checklist.md`)
+- [x] app functional — the month label, day cells and query params still update: the existing spec
+      `✓ navigates months over the cached catalog without re-querying the API (373ms)` still passes
+- [x] commit msg draft: `fix(calendar): keep the scroll position when changing month`

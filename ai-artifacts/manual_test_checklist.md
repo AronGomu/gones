@@ -1104,3 +1104,30 @@ whether the player statistics page still looks exactly as it did before the CSS 
       did before this change (same colour, same rounding, same glow).
 - [ ] On a phone-width window, check a highlighted card and a highlighted day cell: no horizontal
       scrollbar, no text overlapping the cell border.
+
+## T5 month-navigation-scroll-anchor
+
+Automated coverage measures `window.scrollY` in a real browser before and after clicking Previous and
+Next, in a content-heavy month and in an empty one, and pins `scroll: 'manual'` on the navigation.
+What no automated test settles is how the change *feels*: whether the grid twitches, flickers or
+reflows while the new month renders, and whether the anchor still behaves on a touch device, at other
+zoom levels and after many rapid clicks.
+
+- [ ] Open `/calendar`, scroll down until the month grid fills the window, then click Next: the page
+      stays exactly where it was and only the grid contents change.
+- [ ] Click Next ten times quickly from the same position: no jump to the top, no drift upwards or
+      downwards, no flicker of empty space under the grid.
+- [ ] Do the same with Previous, including crossing a year boundary (December to January).
+- [ ] Watch the grid closely during one month change: it must not visibly collapse and re-expand while
+      the new month renders.
+- [ ] Move from a month full of events to a month with none: the page may settle slightly if the
+      document became shorter, but it must not snap back to the top.
+- [ ] Reach the month buttons with the keyboard (Tab), then activate them with Enter and with Space:
+      the scroll position behaves exactly as with the mouse.
+- [ ] On a phone-width window, or on a real phone, scroll down and change month: the position holds
+      and no horizontal scrollbar appears.
+- [ ] At 200% browser zoom, change month: the position holds and the month controls stay reachable.
+- [ ] After several month changes, use the browser's Back button: the calendar returns to the previous
+      month and the page is not left at a strange scroll position.
+- [ ] Change month, then reload the page: the reload starts at the top of the page, as any reload
+      should.
