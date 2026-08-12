@@ -847,7 +847,7 @@ describe('PublicCalendarComponent list card', () => {
   it('the card date line drops the zone and the viewer-time line stays', () => {
     const cardBody = source.slice(source.indexOf('data-cy="calendar-card-body"'), source.indexOf('data-cy="calendar-card-venue"'));
 
-    expect(cardBody).toContain('data-cy="calendar-card-date">{{ cardDate(item) }}');
+    expect(cardBody).toContain('data-cy="calendar-card-date">@for (part of highlightParts(cardDate(item));');
     expect(cardBody).not.toContain('date(item).primary');
     expect(cardBody).toContain('data-cy="calendar-card-viewer-date"');
   });
@@ -923,5 +923,65 @@ describe('PublicCalendarComponent past day cells', () => {
     const pastRules = stylesheet.split('\n').filter(line => line.startsWith('.public-month-day--past'));
     expect(pastRules.length).toBeGreaterThan(0);
     expect(pastRules.some(rule => rule.includes('opacity'))).toBe(false);
+  });
+});
+
+describe('PublicCalendarComponent search match highlighting', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  // No TestBed in this repo, so the rendered class is proved in two halves: the parts the component
+  // hands the template (highlighted flags) and the template binding that turns them into the class.
+  it('the list card title highlights the query', async () => {
+    const { component } = setup({ params: { view: 'list' } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    component.setSearchDraft('lyon');
+    const parts = component.highlightParts(tournament.title);
+
+    expect(parts.map(part => part.text).join('')).toBe(tournament.title);
+    expect(parts.filter(part => part.highlighted)).toEqual([{ text: 'Lyon', highlighted: true }]);
+
+    const titleStart = source.indexOf('data-cy="calendar-card-title"');
+    const title = source.slice(titleStart, source.indexOf('</h3>', titleStart));
+    expect(title).toContain('@for (part of highlightParts(item.title); track $index)');
+    expect(title).toContain('[class.match-highlight]="part.highlighted"');
+    expect(title).toContain(`[attr.data-cy]="'calendar-card-title-part-' + item.slug + '-' + $index"`);
+  });
+
+  it('the month cell title highlights the query', async () => {
+    const { component } = setup();
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    component.setSearchDraft('lyon');
+    expect(component.highlightParts(tournament.title).some(part => part.highlighted)).toBe(true);
+
+    const titleStart = source.indexOf('data-cy="calendar-month-day-event-title"');
+    const title = source.slice(titleStart, source.indexOf('</span>', source.indexOf('</span>', titleStart) + 1));
+    expect(title).toContain('@for (part of highlightParts(event.title); track $index)');
+    expect(title).toContain('[class.match-highlight]="part.highlighted"');
+    expect(title).toContain(`[attr.data-cy]="'calendar-month-day-event-title-part-' + event.slug + '-' + $index"`);
+  });
+
+  it('the date, venue and summary lines highlight too', () => {
+    for (const field of ['date', 'venue', 'summary']) {
+      expect(source).toContain(`[attr.data-cy]="'calendar-card-${field}-part-' + item.slug + '-' + $index"`);
+    }
+  });
+
+  // The query is user input: it reaches the DOM as interpolated text nodes only, never as HTML.
+  it('never binds the query or its parts as HTML', () => {
+    expect(source).not.toContain('innerHTML');
+    expect(source).not.toContain('bypassSecurityTrust');
+  });
+
+  it('the highlight treatment is the shared global rule, not a component-scoped copy', () => {
+    const playerDetail = readFileSync(join(__dirname, '..', 'players', 'player-detail.component.ts'), 'utf8');
+    expect(stylesheet).toContain('.match-highlight { border-radius: .18rem; background: oklch(86% 0.16 82 / .3); color: oklch(92% 0.16 82); box-shadow: 0 0 0 2px oklch(86% 0.16 82 / .16); }');
+    expect(playerDetail).not.toContain('.match-highlight {');
   });
 });

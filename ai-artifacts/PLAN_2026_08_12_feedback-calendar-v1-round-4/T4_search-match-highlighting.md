@@ -46,16 +46,16 @@
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/shared/search-highlight.ts`, moving the functions verbatim.
-- [ ] 2. Create `src/app/shared/search-highlight.test.ts` with the four pure tests; run `npx vitest run src/app/shared/search-highlight.test.ts`.
-- [ ] 3. Edit `player-detail.component.ts`: import from `../../shared/search-highlight`, delete the moved locals, keep `highlightParts()`.
-- [ ] 4. Move `.match-highlight` into `src/styles.css`; delete the component-scoped rule.
-- [ ] 5. Run `npx vitest run src/app/features/players` — unchanged, green.
-- [ ] 6. In `public-calendar.component.ts` import `highlightSearchText` / `HighlightPart`, add `highlightParts()`.
-- [ ] 7. Replace the four list-card text bindings and the month-cell title binding with the `@for` span pattern and slug-scoped `data-cy`.
-- [ ] 8. Add the two component tests to `public-calendar.component.test.ts`.
-- [ ] 9. Run `npx vitest run src/app`, `npm run lint`, `npm run typecheck`.
-- [ ] 10. Run `npx vitest run src/app/shared/data-cy-coverage.test.ts`.
+- [x] 1. Create `src/app/shared/search-highlight.ts`, moving the functions verbatim. — file exists; python diff of each moved function vs `player-detail.component.ts` printed `IDENTICAL` for all five.
+- [x] 2. Create `src/app/shared/search-highlight.test.ts` with the four pure tests; run `npx vitest run src/app/shared/search-highlight.test.ts`. — `Test Files 1 passed (1) / Tests 5 passed (5)` (four ticket cases + the markup-shaped-query literal-text case).
+- [x] 3. Edit `player-detail.component.ts`: import from `../../shared/search-highlight`, delete the moved locals, keep `highlightParts()`. — line 13 imports `HighlightPart, highlightSearchText, normalizeSearchText, searchWords`; the five moved locals are gone (`git diff --stat`: -93 lines); `highlightParts()` and `quoteSearchTerm` stay.
+- [x] 4. Move `.match-highlight` into `src/styles.css`; delete the component-scoped rule. — global rule at `src/styles.css:669`; `player-detail.component.ts` no longer contains `.match-highlight {` (asserted by the new `is the shared global rule, not a component-scoped copy` test).
+- [x] 5. Run `npx vitest run src/app/features/players` — unchanged, green. — that path holds no spec file (`No test files found`); the page is instead proved unchanged by the verbatim-move diff, `npm run typecheck`, and `npx vitest run src/app` (98 files / 801 tests passed).
+- [x] 6. In `public-calendar.component.ts` import `highlightSearchText` / `HighlightPart`, add `highlightParts()`. — import added next to `filterTournaments`; `highlightParts(text)` delegates to `highlightSearchText(text, this.searchDraft())`.
+- [x] 7. Replace the four list-card text bindings and the month-cell title binding with the `@for` span pattern and slug-scoped `data-cy`. — title/date/venue/summary + month-cell title now emit `calendar-card-{title,date,venue,summary}-part-<slug>-<i>` and `calendar-month-day-event-title-part-<slug>-<i>`.
+- [x] 8. Add the two component tests to `public-calendar.component.test.ts`. — new `search match highlighting` describe (5 tests); suite `Tests 74 passed (74)`.
+- [x] 9. Run `npx vitest run src/app`, `npm run lint`, `npm run typecheck`. — `Test Files 98 passed (98) / Tests 801 passed (801)`; `All files pass linting.`; `tsc --noEmit` clean for app + spec projects.
+- [x] 10. Run `npx vitest run src/app/shared/data-cy-coverage.test.ts`. — `Test Files 1 passed (1) / Tests 8 passed (8)`.
 
 ## Outputs
 
@@ -64,8 +64,12 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app` passes
-- [ ] `npm run lint && npm run typecheck` pass
-- [ ] manual check: search `lyon` on `/calendar`, highlight visible in list and calendar views
-- [ ] app functional — player statistics highlighting unchanged
-- [ ] commit msg draft: `feat(calendar): highlight search matches in both calendar views`
+- [x] `npx vitest run src/app` passes — `Test Files 98 passed (98) / Tests 801 passed (801)`.
+- [x] `npm run lint && npm run typecheck` pass — `All files pass linting.`; `tsc --noEmit` clean on `tsconfig.app.json` + `tsconfig.spec.json`.
+- [x] manual check: search `lyon` on `/calendar`, highlight visible in list and calendar views — done in a real browser instead of by hand: `public-calendar.cy.js` asserts `[data-cy^=calendar-month-day-event-title-part-lyon-legacy-].match-highlight` in the month grid and `[data-cy^=calendar-card-title-part-lyon-legacy-].match-highlight` plus the venue part in the list.
+- [x] app functional — player statistics highlighting unchanged — the five functions moved byte-identical (scripted diff: `IDENTICAL` × 5), the page template is untouched, `.match-highlight` is byte-identical in `styles.css`, and lint/typecheck/`npm run test` are green. No e2e spec exists for that page, so the visual is left as a human step in `manual_test_checklist.md`.
+- [x] `npm run test` passes (repo-wide gate, incl. `ops/e2e-spec-coverage.test.ts` and the acceptance matrix) — `Test Files 106 passed (106) / Tests 969 passed (969)`.
+- [x] `npx cypress run --spec cypress/e2e/accessibility.cy.js` stays 11 passing / 0 failing — `Tests: 11 / Passing: 11 / Failing: 0`.
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` green, including the browser proof that a markup-shaped query renders as literal text — `10 passing`; the new case renders a tournament titled `Lyon <img src=x onerror=alert(1)> Legacy`, types the same markup as the query, and asserts `have.text` equals the literal title with no `img` element anywhere under `[data-cy="public-calendar"]`.
+- [x] highlight foreground/background pair measured at WCAG AA (≥ 4.5:1) — `oklch(92% 0.16 82)` on `oklch(86% 0.16 82 / .3)` composited over `--iron` = **6.76:1**, over `--black-metal` = **7.55:1** (OKLab → sRGB → WCAG relative-luminance calculation).
+- [x] commit msg draft: `feat(calendar): highlight search matches in both calendar views`

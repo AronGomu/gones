@@ -182,6 +182,37 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="calendar-synced-at"]').should('be.visible');
   });
 
+  // The search query and the tournament title both reach the DOM as interpolated text nodes: the
+  // highlight binds a parts array, never HTML. A markup-shaped query and a markup-shaped title must
+  // therefore stay literal text and create no element.
+  it('highlights matches in both views and never interprets markup as HTML', () => {
+    const markupTitle = 'Lyon <img src=x onerror=alert(1)> Legacy';
+    cy.intercept('GET', '**/api/tournaments/all*', {
+      items: [{ ...tournament, title: markupTitle }],
+      generatedAt: '2026-08-08T10:00:00Z',
+      count: 1,
+      truncated: false
+    }).as('markupTournament');
+
+    visit('/calendar?month=2026-08&view=calendar');
+    cy.wait('@markupTournament');
+    cy.get('[data-cy="calendar-search"]').type('Lyon');
+    cy.get('[data-cy^="calendar-month-day-event-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
+
+    // The list view is entered through the URL rather than the tab: the tab click navigates with the
+    // query the debounce has committed so far, which would drop a query typed under 300ms ago.
+    visit('/calendar?month=2026-08&view=list&q=Lyon');
+    cy.get('[data-cy="calendar-card-title"]').should('have.text', markupTitle);
+    cy.get('[data-cy="calendar-card-title"] img').should('not.exist');
+    cy.get('[data-cy^="calendar-card-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
+    cy.get('[data-cy^="calendar-card-venue-part-lyon-legacy-"].match-highlight').should('exist');
+
+    cy.get('[data-cy="calendar-search"]').clear().type('<img src=x onerror=alert(1)>');
+    cy.get('[data-cy="calendar-card-title"]').should('have.text', markupTitle);
+    cy.get('[data-cy="calendar-card-title"] img').should('not.exist');
+    cy.get('[data-cy="public-calendar"] img').should('not.exist');
+  });
+
   it('pages the list at twenty tournaments and drops the page on search', () => {
     const manyTournaments = Array.from({ length: 25 }, (_, index) => ({
       ...tournament,

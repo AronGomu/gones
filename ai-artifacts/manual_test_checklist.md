@@ -1078,3 +1078,29 @@ reader and a real pointing device.
 - [ ] On a phone-width window, the card is still fully tappable and the "Add to calendar" button is
       still easy to hit without triggering navigation.
 - [ ] Long-press / drag to select text inside a card, release: no navigation happens on the release.
+
+## T4 search-match-highlighting
+
+Automated coverage proves the parts are computed, the class is bound, the markup-shaped query stays
+literal text, and the contrast pair measures 6.76:1. What no automated test settles is whether the
+highlight is legible and calm at real sizes, how it behaves on ellipsised and wrapped text, and
+whether the player statistics page still looks exactly as it did before the CSS moved to global.
+
+- [ ] Open `/calendar?view=list` and type `lyon` in the search box: the matching letters inside the
+      card title, date line, venue line and summary come up highlighted, the rest of the text does not.
+- [ ] Switch to the calendar view with the same query: the matching letters inside the day-cell event
+      titles are highlighted too, and the time prefix is untouched.
+- [ ] Read a highlighted card at normal zoom: the highlight is legible, not neon, and the surrounding
+      text baseline does not shift when a match appears or disappears.
+- [ ] Type an accented query (`lyón`, or `aura` against an event named `Ligue AURA`): the highlight
+      still lands on the un-accented letters and the visible text keeps its accents.
+- [ ] Type a query that only matches fuzzily (a typo like `lyoon`): the card is still listed, just
+      with no highlight — that is the accepted behaviour, not a bug.
+- [ ] Narrow the window until a day-cell event title is truncated with an ellipsis: the highlight
+      clips with the text and does not force the cell to grow or overflow.
+- [ ] Clear the search box: every highlight disappears at once and the text reflows to exactly what it
+      was before.
+- [ ] Open a player statistics page, type in its match search: the highlighting looks exactly as it
+      did before this change (same colour, same rounding, same glow).
+- [ ] On a phone-width window, check a highlighted card and a highlighted day cell: no horizontal
+      scrollbar, no text overlapping the cell border.

@@ -10,11 +10,7 @@ import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID }
 import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { I18nService } from '../../i18n/i18n.service';
-
-interface HighlightPart {
-  text: string;
-  highlighted: boolean;
-}
+import { HighlightPart, highlightSearchText, normalizeSearchText, searchWords } from '../../shared/search-highlight';
 
 @Component({
   standalone: true,
@@ -301,7 +297,6 @@ interface HighlightPart {
     .match-card__score-separator { color: var(--dim-ash); margin-inline: .12rem; }
     .score-number--win { color: oklch(82% 0.15 145); }
     .score-number--loss { color: oklch(78% 0.14 25); }
-    .match-highlight { border-radius: .18rem; background: oklch(86% 0.16 82 / .3); color: oklch(92% 0.16 82); box-shadow: 0 0 0 2px oklch(86% 0.16 82 / .16); }
     .player-detail-footer { margin-top: 2rem; }
   `]
 })
@@ -428,93 +423,7 @@ function matchHistoryContains(value: string, query: string): boolean {
   return searchWords(query).every((word) => haystack.includes(word));
 }
 
-function highlightSearchText(text: string, query: string): HighlightPart[] {
-  const words = searchWords(query);
-  if (!words.length) return [{ text, highlighted: false }];
-
-  const indexed = normalizeSearchTextWithIndex(text);
-  const ranges: Array<{ start: number; end: number }> = [];
-  for (const word of words) {
-    let index = indexed.normalized.indexOf(word);
-    while (index !== -1) {
-      ranges.push({ start: indexed.originalIndexes[index], end: indexed.originalIndexes[index + word.length - 1] + 1 });
-      index = indexed.normalized.indexOf(word, index + 1);
-    }
-  }
-
-  if (!ranges.length) return [{ text, highlighted: false }];
-  ranges.sort((a, b) => a.start - b.start || b.end - a.end);
-  const merged = ranges.reduce<Array<{ start: number; end: number }>>((acc, range) => {
-    const previous = acc.at(-1);
-    if (previous && range.start <= previous.end) previous.end = Math.max(previous.end, range.end);
-    else acc.push({ ...range });
-    return acc;
-  }, []);
-
-  const parts: HighlightPart[] = [];
-  let cursor = 0;
-  for (const range of merged) {
-    if (cursor < range.start) parts.push({ text: text.slice(cursor, range.start), highlighted: false });
-    parts.push({ text: text.slice(range.start, range.end), highlighted: true });
-    cursor = range.end;
-  }
-  if (cursor < text.length) parts.push({ text: text.slice(cursor), highlighted: false });
-  return parts;
-}
-
-function searchWords(query: string): string[] {
-  return parseSearchTerms(query).map(normalizeSearchText).filter(Boolean);
-}
-
-function parseSearchTerms(query: string): string[] {
-  const terms: string[] = [];
-  let current = '';
-  let quoted = false;
-
-  for (let index = 0; index < query.length; index += 1) {
-    const char = query[index];
-    if (char === '"') {
-      if (quoted) {
-        if (current.trim()) terms.push(current.trim());
-        current = '';
-        quoted = false;
-      } else {
-        if (current.trim()) terms.push(current.trim());
-        current = '';
-        quoted = true;
-      }
-      continue;
-    }
-
-    if (!quoted && /\s/.test(char)) {
-      if (current.trim()) terms.push(current.trim());
-      current = '';
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.trim()) terms.push(current.trim());
-  return terms;
-}
-
 function quoteSearchTerm(text: string): string {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-function normalizeSearchText(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function normalizeSearchTextWithIndex(value: string): { normalized: string; originalIndexes: number[] } {
-  let normalized = '';
-  const originalIndexes: number[] = [];
-  for (let index = 0; index < value.length; index += 1) {
-    const char = normalizeSearchText(value[index]);
-    if (!char) continue;
-    normalized += char;
-    for (let offset = 0; offset < char.length; offset += 1) originalIndexes.push(index);
-  }
-  return { normalized, originalIndexes };
-}
