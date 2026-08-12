@@ -16,7 +16,7 @@ using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
-public sealed class TournamentPublicationApiTests : IAsyncLifetime
+public sealed class EventPublicationApiTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
     private readonly MutableClock clock = new(Instant.FromUtc(2030, 1, 1, 12, 0));
@@ -46,16 +46,16 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
     [Fact]
     public async Task Preview_requires_organizer_and_org_membership_without_disclosing_foreign_org()
     {
-        using var anonymous = await Client.PostAsJsonAsync("/api/tournaments/preview", Payload(seed.Alpha.Id));
+        using var anonymous = await Client.PostAsJsonAsync("/api/events/preview", Payload(seed.Alpha.Id));
         Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
 
-        using var user = await SendAsync(HttpMethod.Post, "/api/tournaments/preview", seed.Organizer.Id, "User", Payload(seed.Alpha.Id));
+        using var user = await SendAsync(HttpMethod.Post, "/api/events/preview", seed.Organizer.Id, "User", Payload(seed.Alpha.Id));
         Assert.Equal(HttpStatusCode.Forbidden, user.StatusCode);
 
-        using var foreign = await SendAsync(HttpMethod.Post, "/api/tournaments/preview", seed.Outsider.Id, "Organizer", Payload(seed.Alpha.Id));
+        using var foreign = await SendAsync(HttpMethod.Post, "/api/events/preview", seed.Outsider.Id, "Organizer", Payload(seed.Alpha.Id));
         Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
 
-        using var missing = await SendAsync(HttpMethod.Post, "/api/tournaments/preview", seed.Outsider.Id, "Organizer", Payload(Guid.NewGuid()));
+        using var missing = await SendAsync(HttpMethod.Post, "/api/events/preview", seed.Outsider.Id, "Organizer", Payload(Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
         Assert.Equal(await ProblemCode(foreign), await ProblemCode(missing));
 
@@ -143,7 +143,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         using var tampered = await PublishAsync(seed.Organizer.Id, "tampered", tamperedTicket, payload);
         Assert.Equal(HttpStatusCode.BadRequest, tampered.StatusCode);
 
-        using var missingKey = await SendAsync(HttpMethod.Post, "/api/tournaments", seed.Organizer.Id, "Organizer", new { previewTicket = ticket, payload });
+        using var missingKey = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", new { previewTicket = ticket, payload });
         Assert.Equal(HttpStatusCode.BadRequest, missingKey.StatusCode);
 
         clock.Advance(Duration.FromMinutes(11));
@@ -234,7 +234,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
 
         using var response = await SendAsync(
             HttpMethod.Post,
-            "/api/tournaments",
+            "/api/events",
             seed.Organizer.Id,
             "Organizer",
             new { previewTicket = ticket, payload = poisoned },
@@ -290,7 +290,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, published.StatusCode);
         var slug = (await published.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString();
 
-        using var detail = await Client.GetAsync($"/api/tournaments/{slug}");
+        using var detail = await Client.GetAsync($"/api/events/{slug}");
         var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
         var bodyHtml = body.GetProperty("bodyHtml").GetString()!;
 
@@ -315,13 +315,13 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
     public async Task Draft_organization_cannot_publish_but_a_staffed_one_still_can()
     {
         var draftPayload = Payload(seed.Draft.Id) with { Title = "Draft Org Cup" };
-        using var draftPreview = await SendAsync(HttpMethod.Post, "/api/tournaments/preview", seed.Admin.Id, "Admin", draftPayload);
+        using var draftPreview = await SendAsync(HttpMethod.Post, "/api/events/preview", seed.Admin.Id, "Admin", draftPayload);
         Assert.Equal(HttpStatusCode.OK, draftPreview.StatusCode);
         var draftTicket = (await draftPreview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("previewTicket").GetString()!;
 
         using var refused = await SendAsync(
             HttpMethod.Post,
-            "/api/tournaments",
+            "/api/events",
             seed.Admin.Id,
             "Admin",
             new { previewTicket = draftTicket, payload = draftPayload },
@@ -345,7 +345,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
 
         using var staffed = await SendAsync(
             HttpMethod.Post,
-            "/api/tournaments",
+            "/api/events",
             seed.Admin.Id,
             "Admin",
             new { previewTicket = draftTicket, payload = draftPayload },
@@ -373,13 +373,13 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         }
 
         var payload = Payload(seed.Beta.Id) with { Title = "Cross Org Cup" };
-        using var adminPreview = await SendAsync(HttpMethod.Post, "/api/tournaments/preview", seed.Admin.Id, "Admin", payload);
+        using var adminPreview = await SendAsync(HttpMethod.Post, "/api/events/preview", seed.Admin.Id, "Admin", payload);
         Assert.Equal(HttpStatusCode.OK, adminPreview.StatusCode);
         var ticket = (await adminPreview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("previewTicket").GetString()!;
 
         using var foreignPublish = await SendAsync(
             HttpMethod.Post,
-            "/api/tournaments",
+            "/api/events",
             seed.Organizer.Id,
             "Organizer",
             new { previewTicket = ticket, payload },
@@ -388,7 +388,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
 
         using var missingPublish = await SendAsync(
             HttpMethod.Post,
-            "/api/tournaments",
+            "/api/events",
             seed.Organizer.Id,
             "Organizer",
             new { previewTicket = ticket, payload = payload with { OrganizationId = Guid.NewGuid() } },
@@ -398,7 +398,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
 
         using var adminPublish = await SendAsync(
             HttpMethod.Post,
-            "/api/tournaments",
+            "/api/events",
             seed.Admin.Id,
             "Admin",
             new { previewTicket = ticket, payload },
@@ -416,7 +416,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
     }
 
     private async Task<HttpResponseMessage> PreviewAsync(Guid userId, TournamentPayload payload) =>
-        await SendAsync(HttpMethod.Post, "/api/tournaments/preview", userId, "Organizer", payload);
+        await SendAsync(HttpMethod.Post, "/api/events/preview", userId, "Organizer", payload);
 
     private async Task<string> GetTicketAsync(Guid userId, TournamentPayload payload)
     {
@@ -427,7 +427,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
     }
 
     private Task<HttpResponseMessage> PublishAsync(Guid userId, string idempotencyKey, string ticket, TournamentPayload payload) =>
-        SendAsync(HttpMethod.Post, "/api/tournaments", userId, "Organizer", new { previewTicket = ticket, payload }, idempotencyKey);
+        SendAsync(HttpMethod.Post, "/api/events", userId, "Organizer", new { previewTicket = ticket, payload }, idempotencyKey);
 
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, Guid userId, string role, object body, string? idempotencyKey = null)
     {

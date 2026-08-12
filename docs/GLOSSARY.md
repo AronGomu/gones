@@ -28,7 +28,7 @@
 | word | short description | ref in code |
 | ---- | ----------------- | ----------- |
 | api | ASP.NET minimal-API host wiring every endpoint group | `backend/src/Gones.Api/Program.cs` |
-| endpoints | One minimal-API group per domain capability | `backend/src/Gones.Api/Tournaments/TournamentLifecycleEndpoints.cs` |
+| endpoints | One minimal-API group per domain capability | `backend/src/Gones.Api/Events/EventLifecycleEndpoints.cs` |
 | commands | Server-side intent transforms mirroring the Angular runner | `backend/src/Gones.Domain/Live/LiveCommands.cs` |
 | dbcontext | EF Core context, snake_case, all aggregates | `backend/src/Gones.Infrastructure/Persistence/GonesDbContext.cs` |
 | migrations | Committed EF migration set, applied before serving | `backend/src/Gones.Infrastructure/Persistence/Migrations/` |
@@ -41,7 +41,7 @@
 | reconciler | Replans event reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/EventScheduler.cs` |
 | event | The Calendar V1 record people register for, formerly Scheduled Tournament (ADR 0035) | `backend/src/Gones.Domain/Calendar/Event.cs` |
 | identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
-| registration | Participant sign-up and unregistration on a tournament | `backend/src/Gones.Api/Tournaments/TournamentRegistrationEndpoints.cs` |
+| registration | Participant sign-up and unregistration on a tournament | `backend/src/Gones.Api/Events/EventRegistrationEndpoints.cs` |
 | league archive | Archived Leagues and their result Tournaments, `/api/leagues-archive` (formerly `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs` |
 | archive tournament | A result Tournament inside the League Archive, `/tournaments-archive` (formerly Result Tournament) | `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs` |
 

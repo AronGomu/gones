@@ -13,10 +13,10 @@ const ORIGIN = 'https://gones.example';
 
 /** Anonymous public reads the installable app is allowed to serve from cache while offline. */
 const PUBLIC_GET_URLS = [
-  '/api/tournaments',
-  '/api/tournaments?from=2026-08-01&to=2026-08-31&page=1&pageSize=20',
-  '/api/tournaments/lyon-legacy',
-  '/api/tournaments/lyon-legacy.ics',
+  '/api/events',
+  '/api/events?from=2026-08-01&to=2026-08-31&page=1&pageSize=20',
+  '/api/events/lyon-legacy',
+  '/api/events/lyon-legacy.ics',
   '/api/organizations',
   '/api/organizations?page=1',
   '/api/organizations/22222222-2222-2222-2222-222222222222',
@@ -45,17 +45,17 @@ const PRIVATE_GET_URLS = [
   '/api/admin/organizations',
   '/api/admin/organizations/22222222-2222-2222-2222-222222222222/members',
   '/api/admin/notifications/dead-letters',
-  '/api/admin/tournaments/deleted',
+  '/api/admin/events/deleted',
   '/api/maintenance/player-names',
-  '/api/organizer/tournaments',
+  '/api/organizer/events',
   '/api/organizations/22222222-2222-2222-2222-222222222222/members',
   '/api/organizations/22222222-2222-2222-2222-222222222222/notification-settings',
   '/api/organizations/22222222-2222-2222-2222-222222222222/blocked-users',
   '/api/organizations/22222222-2222-2222-2222-222222222222/users/lookup',
-  '/api/tournaments/11111111-1111-1111-1111-111111111111/registrations',
-  '/api/tournaments/11111111-1111-1111-1111-111111111111/registrations/export',
-  '/api/tournaments/11111111-1111-1111-1111-111111111111/registration-capability',
-  '/api/tournaments/lyon-legacy/participants',
+  '/api/events/11111111-1111-1111-1111-111111111111/registrations',
+  '/api/events/11111111-1111-1111-1111-111111111111/registrations/export',
+  '/api/events/11111111-1111-1111-1111-111111111111/registration-capability',
+  '/api/events/lyon-legacy/participants',
   '/api/leagues-archive/league-1/export',
   '/api/live-tournaments',
   '/api/live-tournaments/live-1',
@@ -79,9 +79,9 @@ describe('service worker public read allowlist', () => {
   });
 
   it('rejects Authorization-keyed requests and every mutation on public paths', () => {
-    expect(isCacheablePublicApiRequest({ method: 'GET', url: '/api/tournaments', hasAuthorization: true })).toBe(false);
+    expect(isCacheablePublicApiRequest({ method: 'GET', url: '/api/events', hasAuthorization: true })).toBe(false);
     for (const method of ['POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']) {
-      expect(isCacheablePublicApiRequest({ method, url: '/api/tournaments' }), method).toBe(false);
+      expect(isCacheablePublicApiRequest({ method, url: '/api/events' }), method).toBe(false);
     }
   });
 
@@ -94,16 +94,16 @@ describe('service worker public read allowlist', () => {
 describe('serviceWorkerBypassInterceptor', () => {
   it('leaves anonymous public GETs cacheable', () => {
     const next = vi.fn().mockReturnValue(of(null));
-    serviceWorkerBypassInterceptor(new HttpRequest('GET', '/api/tournaments'), next).subscribe();
+    serviceWorkerBypassInterceptor(new HttpRequest('GET', '/api/events'), next).subscribe();
     expect(next.mock.calls[0][0].headers.has(NGSW_BYPASS_HEADER)).toBe(false);
   });
 
   it('bypasses the service worker for Authorization-keyed, private, and mutation requests', () => {
-    const authorized = new HttpRequest('GET', '/api/tournaments', { headers: new HttpHeaders({ Authorization: 'Bearer token' }) });
+    const authorized = new HttpRequest('GET', '/api/events', { headers: new HttpHeaders({ Authorization: 'Bearer token' }) });
     const cases: HttpRequest<unknown>[] = [
       authorized,
       new HttpRequest('GET', '/api/users/me'),
-      new HttpRequest('POST', '/api/tournaments/t-1/registrations', {})
+      new HttpRequest('POST', '/api/events/t-1/registrations', {})
     ];
     for (const request of cases) {
       const next = vi.fn().mockReturnValue(of(null));
@@ -135,7 +135,7 @@ describe('ngsw-config.json data groups', () => {
     const manifest = await buildManifest();
     const navigationMatches = manifest.navigationUrls.reduce(
       (isMatch: boolean, pattern: { positive: boolean; regex: string }) =>
-        pattern.positive ? isMatch || new RegExp(pattern.regex).test('/api/tournaments') : isMatch && !new RegExp(pattern.regex).test('/api/tournaments'),
+        pattern.positive ? isMatch || new RegExp(pattern.regex).test('/api/events') : isMatch && !new RegExp(pattern.regex).test('/api/events'),
       false
     );
     expect(navigationMatches).toBe(false);

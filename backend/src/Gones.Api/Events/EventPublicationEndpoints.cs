@@ -19,18 +19,18 @@ using NodaTime;
 using NodaTime.Text;
 using Npgsql;
 
-namespace Gones.Api.Tournaments;
+namespace Gones.Api.Events;
 
-internal static class TournamentPublicationEndpoints
+internal static class EventPublicationEndpoints
 {
-    public static void MapTournamentPublicationEndpoints(this WebApplication app)
+    public static void MapEventPublicationEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/tournaments")
+        var group = app.MapGroup("/api/events")
             .RequireAuthorization(AuthorizationPolicies.Organizer);
 
         group.MapPost("/preview", PreviewAsync)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
-            .Produces<TournamentPreviewResponse>()
+            .Produces<EventPreviewResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -38,7 +38,7 @@ internal static class TournamentPublicationEndpoints
 
         group.MapPost("/", PublishAsync)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
-            .Produces<TournamentPublishResponse>(StatusCodes.Status201Created)
+            .Produces<EventPublishResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -47,9 +47,9 @@ internal static class TournamentPublicationEndpoints
     }
 
     private static async Task<IResult> PreviewAsync(
-        TournamentPayloadRequest request,
+        EventPayloadRequest request,
         ClaimsPrincipal principal,
-        TournamentPublicationService publication,
+        EventPublicationService publication,
         CancellationToken cancellationToken)
     {
         var preview = await publication.PreviewAsync(
@@ -61,11 +61,11 @@ internal static class TournamentPublicationEndpoints
     }
 
     private static async Task<IResult> PublishAsync(
-        PublishTournamentRequest request,
+        PublishEventRequest request,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
         HttpResponse httpResponse,
         ClaimsPrincipal principal,
-        TournamentPublicationService publication,
+        EventPublicationService publication,
         CancellationToken cancellationToken)
     {
         idempotencyKey = idempotencyKey.Trim();
@@ -89,35 +89,35 @@ internal static class TournamentPublicationEndpoints
         new(new Dictionary<string, string[]> { [field] = [message] });
 }
 
-internal sealed class TournamentPublicationService(
+internal sealed class EventPublicationService(
     GonesDbContext database,
     OrganizationAccessService access,
-    TournamentPreviewTicketService tickets,
+    EventPreviewTicketService tickets,
     IClock clock)
 {
     private const int MaximumPublishAttempts = 3;
     private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<TournamentPreviewResponse> PreviewAsync(
+    public async Task<EventPreviewResponse> PreviewAsync(
         Guid userId,
         bool isAdmin,
-        TournamentPayloadRequest request,
+        EventPayloadRequest request,
         CancellationToken cancellationToken)
     {
         var normalized = await NormalizeAsync(userId, isAdmin, request, cancellationToken);
         var ticket = tickets.Issue(userId, request.OrganizationId, normalized.PayloadHash);
-        return new TournamentPreviewResponse(normalized.Render, ticket.Value, ticket.ExpiresAt);
+        return new EventPreviewResponse(normalized.Render, ticket.Value, ticket.ExpiresAt);
     }
 
     /// <summary>
     /// The HTTP publish path: a preview ticket is mandatory here, then the work is handed to
-    /// <see cref="PublishTournamentAsync"/>.
+    /// <see cref="PublishEventAsync"/>.
     /// </summary>
-    public Task<TournamentPublishOutcome> PublishAsync(
+    public Task<EventPublishOutcome> PublishAsync(
         Guid userId,
         bool isAdmin,
         string idempotencyKey,
-        PublishTournamentRequest request,
+        PublishEventRequest request,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.PreviewTicket) || request.PreviewTicket.Length > 2048)
@@ -125,7 +125,7 @@ internal sealed class TournamentPublicationService(
             throw Validation("previewTicket", "Preview ticket is required and cannot exceed 2048 characters.");
         }
         if (request.Payload is null) throw Validation("payload", "Payload is required.");
-        return PublishTournamentAsync(request.Payload, userId, isAdmin, idempotencyKey, request.PreviewTicket, cancellationToken);
+        return PublishEventAsync(request.Payload, userId, isAdmin, idempotencyKey, request.PreviewTicket, cancellationToken);
     }
 
     /// <summary>
@@ -145,8 +145,8 @@ internal sealed class TournamentPublicationService(
     /// believe they won. Nothing else calls in with a transaction open, and with none open the flow
     /// is exactly what it was: own transaction, own commit.
     /// </summary>
-    internal async Task<TournamentPublishOutcome> PublishTournamentAsync(
-        TournamentPayloadRequest request,
+    internal async Task<EventPublishOutcome> PublishEventAsync(
+        EventPayloadRequest request,
         Guid actingUserId,
         bool isAdmin,
         string idempotencyKey,
@@ -155,7 +155,7 @@ internal sealed class TournamentPublicationService(
         bool requireMembership = true)
     {
         var normalized = await NormalizeAsync(actingUserId, isAdmin, request, cancellationToken, requireMembership);
-        var ticketHash = previewTicket is null ? string.Empty : TournamentPreviewTicketService.Hash(previewTicket);
+        var ticketHash = previewTicket is null ? string.Empty : EventPreviewTicketService.Hash(previewTicket);
         var scope = $"tournament-publish:{actingUserId:D}";
 
         // Null unless a caller is already inside a transaction (approving a proposal, T26). When it
@@ -208,7 +208,7 @@ internal sealed class TournamentPublicationService(
                     if (await database.ConsumedEventPreviewTickets.AsNoTracking()
                         .AnyAsync(item => item.TicketHash == ticketHash, cancellationToken))
                     {
-                        throw new TournamentPreviewReplayException();
+                        throw new EventPreviewReplayException();
                     }
                 }
 
@@ -224,7 +224,7 @@ internal sealed class TournamentPublicationService(
                     normalized.Formats,
                     now);
                 database.Events.Add(tournament);
-                var response = new TournamentPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
+                var response = new EventPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
                 var storedResult = new StoredPublishResult(ticketHash, normalized.PayloadHash, response);
                 if (expiresAt is { } ticketExpiresAt)
                 {
@@ -274,22 +274,22 @@ internal sealed class TournamentPublicationService(
     }
 
     /// <summary>
-    /// Runs every check <c>POST /api/tournaments/preview</c> runs except the organizer-membership one,
+    /// Runs every check <c>POST /api/events/preview</c> runs except the organizer-membership one,
     /// which a proposal submitter cannot satisfy by definition. A stored proposal therefore can never
     /// carry a payload that publishing would later reject.
     /// </summary>
     public async Task ValidateProposalPayloadAsync(
         Guid submitterUserId,
-        TournamentPayloadRequest request,
+        EventPayloadRequest request,
         CancellationToken cancellationToken)
     {
         _ = await NormalizeAsync(submitterUserId, isAdmin: false, request, cancellationToken, requireMembership: false);
     }
 
-    private async Task<NormalizedTournamentPayload> NormalizeAsync(
+    private async Task<NormalizedEventPayload> NormalizeAsync(
         Guid userId,
         bool isAdmin,
-        TournamentPayloadRequest request,
+        EventPayloadRequest request,
         CancellationToken cancellationToken,
         bool requireMembership = true)
     {
@@ -312,19 +312,19 @@ internal sealed class TournamentPublicationService(
 
         try
         {
-            var baseSlug = TournamentSlugGenerator.FromTitle(request.Title);
+            var baseSlug = EventSlugGenerator.FromTitle(request.Title);
             var tournament = Event.Create(
                 request.OrganizationId,
                 userId,
                 ToDraft(request, baseSlug),
                 formats,
                 clock.GetCurrentInstant());
-            var render = new TournamentPreviewRenderResponse(
+            var render = new EventPreviewRenderResponse(
                 tournament.Title,
                 tournament.Slug,
                 tournament.Summary,
                 tournament.BodyHtml,
-                new PublicTournamentVenueResponse(tournament.StreetAddress, tournament.PostalCode, tournament.City, tournament.Country),
+                new PublicEventVenueResponse(tournament.StreetAddress, tournament.PostalCode, tournament.City, tournament.Country),
                 tournament.TimeZoneId,
                 LocalDatePattern.Iso.Format(tournament.VenueStartDate),
                 LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(tournament.VenueStartTime),
@@ -334,9 +334,9 @@ internal sealed class TournamentPublicationService(
                 tournament.EndsAtUtc,
                 tournament.Capacity,
                 tournament.Status.ToString(),
-                new PublicTournamentOrganizationResponse(organization.Id, organization.Name, organization.Description, organization.Website, organization.ContactEmail),
+                new PublicEventOrganizationResponse(organization.Id, organization.Name, organization.Description, organization.Website, organization.ContactEmail),
                 formats.Select(format => new PublicTournamentFormatResponse(format.Id, format.Name, format.Slug, format.SortOrder)).ToArray());
-            var canonical = new CanonicalTournamentPayload(
+            var canonical = new CanonicalEventPayload(
                 request.OrganizationId,
                 tournament.Title,
                 tournament.Slug,
@@ -352,7 +352,7 @@ internal sealed class TournamentPublicationService(
                 tournament.Capacity,
                 formatIds);
             var payloadHash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(canonical, StoredJsonOptions))).ToLowerInvariant();
-            return new NormalizedTournamentPayload(baseSlug, payloadHash, formats, render);
+            return new NormalizedEventPayload(baseSlug, payloadHash, formats, render);
         }
         catch (ApiException)
         {
@@ -364,7 +364,7 @@ internal sealed class TournamentPublicationService(
         }
     }
 
-    private static ScheduledTournamentDraft ToDraft(TournamentPayloadRequest request, string slug) => new(
+    private static ScheduledTournamentDraft ToDraft(EventPayloadRequest request, string slug) => new(
         request.Title,
         slug,
         request.Summary,
@@ -404,8 +404,8 @@ internal sealed class TournamentPublicationService(
         throw new ResourceConflictException();
     }
 
-    private static TournamentPublishOutcome Outcome(TournamentPublishResponse response) =>
-        new(response, $"/api/tournaments/{response.Slug}", StrongETag.Encode(1));
+    private static EventPublishOutcome Outcome(EventPublishResponse response) =>
+        new(response, $"/api/events/{response.Slug}", StrongETag.Encode(1));
 
     private static bool FixedTimeEquals(string left, string right)
     {
@@ -418,13 +418,13 @@ internal sealed class TournamentPublicationService(
     private static ApiValidationException Validation(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
 
-    private sealed record NormalizedTournamentPayload(
+    private sealed record NormalizedEventPayload(
         string BaseSlug,
         string PayloadHash,
         IReadOnlyList<TournamentFormat> Formats,
-        TournamentPreviewRenderResponse Render);
+        EventPreviewRenderResponse Render);
 
-    private sealed record CanonicalTournamentPayload(
+    private sealed record CanonicalEventPayload(
         Guid OrganizationId,
         string Title,
         string Slug,
@@ -440,10 +440,10 @@ internal sealed class TournamentPublicationService(
         int? Capacity,
         IReadOnlyList<Guid> FormatIds);
 
-    private sealed record StoredPublishResult(string TicketHash, string PayloadHash, TournamentPublishResponse Response);
+    private sealed record StoredPublishResult(string TicketHash, string PayloadHash, EventPublishResponse Response);
 }
 
-internal static class TournamentSlugGenerator
+internal static class EventSlugGenerator
 {
     public static string FromTitle(string title)
     {
@@ -467,13 +467,13 @@ internal static class TournamentSlugGenerator
         }
 
         var slug = builder.ToString().Trim('-');
-        if (slug.Length == 0) slug = "tournament";
+        if (slug.Length == 0) slug = "event";
         if (slug.Length > Event.MaximumSlugLength) slug = slug[..Event.MaximumSlugLength].TrimEnd('-');
         return TournamentSlug.Normalize(slug);
     }
 }
 
-internal sealed record TournamentPayloadRequest(
+internal sealed record EventPayloadRequest(
     Guid OrganizationId,
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
     [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
@@ -488,21 +488,21 @@ internal sealed record TournamentPayloadRequest(
     int? Capacity,
     [property: Required, MinLength(1)] IReadOnlyList<Guid> FormatIds);
 
-internal sealed record PublishTournamentRequest(
+internal sealed record PublishEventRequest(
     [property: Required] string PreviewTicket,
-    [property: Required] TournamentPayloadRequest Payload);
+    [property: Required] EventPayloadRequest Payload);
 
-internal sealed record TournamentPreviewResponse(
-    TournamentPreviewRenderResponse Render,
+internal sealed record EventPreviewResponse(
+    EventPreviewRenderResponse Render,
     string PreviewTicket,
     Instant ExpiresAt);
 
-internal sealed record TournamentPreviewRenderResponse(
+internal sealed record EventPreviewRenderResponse(
     string Title,
     string Slug,
     string? Summary,
     string? BodyHtml,
-    PublicTournamentVenueResponse Venue,
+    PublicEventVenueResponse Venue,
     string TimeZoneId,
     string VenueStartDate,
     string VenueStartTime,
@@ -512,8 +512,8 @@ internal sealed record TournamentPreviewRenderResponse(
     Instant EndsAtUtc,
     int? Capacity,
     string Status,
-    PublicTournamentOrganizationResponse Organization,
+    PublicEventOrganizationResponse Organization,
     IReadOnlyList<PublicTournamentFormatResponse> Formats);
 
-internal sealed record TournamentPublishResponse(Guid Id, string Slug, string Status);
-internal sealed record TournamentPublishOutcome(TournamentPublishResponse Response, string Location, string ETag);
+internal sealed record EventPublishResponse(Guid Id, string Slug, string Status);
+internal sealed record EventPublishOutcome(EventPublishResponse Response, string Location, string ETag);

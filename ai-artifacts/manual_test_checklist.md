@@ -1440,3 +1440,59 @@ behaves exactly as it did before the rename.
       unchanged API wire shape, not the new table names, and T16 is where they change.
 - [ ] Export a Gones backup and re-import it into a clean environment. The import report still counts
       "Scheduled Tournaments" and the imported events land in the calendar.
+
+## T16 backend-event-api-rename
+
+The API now serves the calendar under `/api/events/*`. This is a hard break: the old
+`/api/tournaments/*` paths are gone and there are no aliases. The Angular app is knowingly
+mid-rename until T17 lands, so run these against the API itself (Swagger, `curl`, Postman) rather
+than through the web app.
+
+- [ ] Ask for the calendar the old way: `curl -i http://127.0.0.1:5080/api/tournaments`. You get
+      `404` with `"code": "not_found"`. Repeat for `/api/tournaments/all`, `/api/tournaments/<slug>`,
+      `/api/tournaments/<slug>.ics`, `/api/organizer/tournaments`, `/api/admin/tournaments/deleted`
+      and `/api/tournament-proposals/approvers`. Every one is a 404. A 200 anywhere here means an
+      alias survived and the break is not clean.
+- [ ] Ask for the calendar the new way: `curl http://127.0.0.1:5080/api/events`. You get the same list
+      of events you saw before the deploy — same titles, cities, dates, formats and total count.
+- [ ] Open one event: `curl http://127.0.0.1:5080/api/events/<slug>`. Title, description HTML, venue,
+      capacity, organization and formats all read the same as before.
+- [ ] Download the calendar entry: `curl -i http://127.0.0.1:5080/api/events/<slug>.ics`. The response
+      is `200`, the content type is `text/calendar`, and the file opens in your calendar app with the
+      right date and venue.
+- [ ] Read the participant list: `curl http://127.0.0.1:5080/api/events/<slug>/participants`. The same
+      people are listed, and no private field (email, exact birth date) has appeared.
+- [ ] Sign in as `organizer@gones.test` and publish an event through `POST /api/events/preview` then
+      `POST /api/events`. Publishing returns `201` and the `Location` header points at
+      `/api/events/<slug>`.
+- [ ] Sign in as `test@gones.test` (a plain user) and try `POST /api/events/preview`. You are refused
+      with `403` — a plain account still cannot publish directly.
+- [ ] Try the same publish call signed out. You are refused with `401`, not `404`.
+- [ ] As an Admin, publish into an organization that has no organizer. You are refused with `409` and
+      the code reads `organization_is_draft` — the draft-organization rule survived the rename.
+- [ ] As `test@gones.test`, register for an upcoming event: `POST /api/events/<id>/registrations`.
+      You get `201`, and the participant count on `/api/events/<slug>` goes up by one.
+- [ ] Fill an event to capacity and try to register once more. The refusal code now reads `event_full`
+      (it used to read `tournament_full`). Do the same on a cancelled event: the code reads
+      `event_not_open`.
+- [ ] As the organizer of that event, add a participant through
+      `POST /api/events/<id>/registrations/by-organizer`. You get `201` and the `Location` header
+      points at `/api/events/<id>/registrations/<attemptId>`.
+- [ ] Export the roster: `GET /api/events/<id>/registrations/export` returns a CSV with the same
+      columns as before.
+- [ ] As an Organizer, list your events with `GET /api/organizer/events`. Your events are all there.
+      Then try `GET /api/admin/events/deleted` as that same Organizer: you are refused with `403`.
+      Sign in as `admin@gones.test` and repeat: you get `200`.
+- [ ] Submit an event request as a plain user through `POST /api/event-proposals`. Note that the
+      request body field is now `event` (it used to be `tournament`); sending the old field name is
+      rejected as a validation error. Open the emailed review link and approve it — the event appears
+      in `/api/events`.
+- [ ] Check the offline behaviour once T17 has landed and the app builds again: with the service
+      worker installed, load `/calendar`, go offline, and reload. The calendar still renders from
+      cache. This proves `ngsw-config.json` and the interceptor moved to `/api/events` together.
+- [ ] Try to delete an account that created an event. The refusal still lists the blocking relations
+      with their old labels (`scheduled_tournaments.created_by_user_id`,
+      `tournament_registration_attempts.registered_by_user_id`,
+      `tournament_lifecycle_events.actor_user_id`). T16 deliberately left these alone — the ticket
+      does not ask for them and a frontend test pins them. If the product wants them renamed, that is
+      a separate, explicitly approved wire change.

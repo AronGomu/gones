@@ -21,9 +21,9 @@
       "name": "public-calendar-reads",
       "version": 1,
       "urls": [
-        "/api/tournaments$",
-        "/api/tournaments?**",
-        "/api/tournaments/*$",
+        "/api/events$",
+        "/api/events?**",
+        "/api/events/*$",
         "/api/organizations$",
         "/api/organizations?**",
         "/api/organizations/*$"

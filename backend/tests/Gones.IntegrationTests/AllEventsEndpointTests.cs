@@ -14,7 +14,7 @@ using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
-public sealed class AllTournamentsEndpointTests : IAsyncLifetime
+public sealed class AllEventsEndpointTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
     private WebApplicationFactory<Program>? factory;
@@ -43,14 +43,14 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_is_anonymous()
     {
-        using var response = await Client.GetAsync("/api/tournaments/all");
+        using var response = await Client.GetAsync("/api/events/all");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     public async Task All_returns_future_tournaments()
     {
-        using var response = await Client.GetAsync("/api/tournaments/all");
+        using var response = await Client.GetAsync("/api/events/all");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(3, body.GetProperty("count").GetInt32());
@@ -62,7 +62,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_honours_an_explicit_from()
     {
-        using var response = await Client.GetAsync("/api/tournaments/all?from=2020-01-01");
+        using var response = await Client.GetAsync("/api/events/all?from=2020-01-01");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(5, body.GetProperty("count").GetInt32());
@@ -71,7 +71,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_ignores_paging_parameters()
     {
-        using var response = await Client.GetAsync("/api/tournaments/all?page=2&pageSize=1");
+        using var response = await Client.GetAsync("/api/events/all?page=2&pageSize=1");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(3, body.GetProperty("count").GetInt32());
@@ -81,7 +81,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_orders_by_start_then_id()
     {
-        using var response = await Client.GetAsync("/api/tournaments/all");
+        using var response = await Client.GetAsync("/api/events/all");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var items = body.GetProperty("items").EnumerateArray().ToArray();
@@ -95,7 +95,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_excludes_deleted_tournaments_and_orgs()
     {
-        using var response = await Client.GetAsync("/api/tournaments/all?from=2020-01-01");
+        using var response = await Client.GetAsync("/api/events/all?from=2020-01-01");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var slugs = body.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("slug").GetString()).ToArray();
@@ -106,7 +106,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_sets_a_strong_etag_and_cache_control()
     {
-        using var response = await Client.GetAsync("/api/tournaments/all");
+        using var response = await Client.GetAsync("/api/events/all");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Headers.ETag);
         Assert.Contains("public, max-age=3600", response.Headers.CacheControl!.ToString());
@@ -115,10 +115,10 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_returns_304_for_a_matching_etag()
     {
-        using var first = await Client.GetAsync("/api/tournaments/all");
+        using var first = await Client.GetAsync("/api/events/all");
         var etag = first.Headers.ETag!.ToString();
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/tournaments/all");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/events/all");
         request.Headers.TryAddWithoutValidation("If-None-Match", etag);
         using var replay = await Client.SendAsync(request);
         Assert.Equal(HttpStatusCode.NotModified, replay.StatusCode);
@@ -129,7 +129,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
     [Fact]
     public async Task All_changes_its_etag_when_data_changes()
     {
-        using var first = await Client.GetAsync("/api/tournaments/all");
+        using var first = await Client.GetAsync("/api/events/all");
         var etag = first.Headers.ETag!.ToString();
 
         await using (var database = CreateContext())
@@ -143,7 +143,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
             await database.SaveChangesAsync();
         }
 
-        using var second = await Client.GetAsync("/api/tournaments/all");
+        using var second = await Client.GetAsync("/api/events/all");
         var secondEtag = second.Headers.ETag!.ToString();
         Assert.NotEqual(etag, secondEtag);
     }
@@ -155,7 +155,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
             builder.UseSetting("Gones:Calendar:MaximumCatalogSize", "2"));
         using var truncatedClient = truncatedFactory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        using var response = await truncatedClient.GetAsync("/api/tournaments/all");
+        using var response = await truncatedClient.GetAsync("/api/events/all");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.GetProperty("truncated").GetBoolean());

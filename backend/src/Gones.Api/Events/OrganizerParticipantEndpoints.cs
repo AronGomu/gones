@@ -17,7 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Npgsql;
 
-namespace Gones.Api.Tournaments;
+namespace Gones.Api.Events;
 
 internal static class OrganizerParticipantEndpoints
 {
@@ -49,29 +49,29 @@ internal static class OrganizerParticipantEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        users.MapGet("/tournaments/{tournamentId:guid}/registrations", ListParticipantsAsync)
-            .WithName("ListPrivateTournamentParticipants")
-            .Produces<PrivateTournamentParticipantListResponse>()
+        users.MapGet("/events/{eventId:guid}/registrations", ListParticipantsAsync)
+            .WithName("ListPrivateEventParticipants")
+            .Produces<PrivateEventParticipantListResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound);
-        users.MapPost("/tournaments/{tournamentId:guid}/registrations/by-organizer", RegisterByOrganizerAsync)
+        users.MapPost("/events/{eventId:guid}/registrations/by-organizer", RegisterByOrganizerAsync)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .RequireRateLimiting(AuthRateLimiting.RegistrationPolicy)
-            .WithName("RegisterTournamentParticipantByOrganizer")
-            .Produces<TournamentRegistrationMutationResponse>(StatusCodes.Status201Created)
+            .WithName("RegisterEventParticipantByOrganizer")
+            .Produces<EventRegistrationMutationResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
-        users.MapDelete("/tournaments/{tournamentId:guid}/registrations/{registrationId:guid}", RemoveByOrganizerAsync)
+        users.MapDelete("/events/{eventId:guid}/registrations/{registrationId:guid}", RemoveByOrganizerAsync)
             .RequireRateLimiting(AuthRateLimiting.RegistrationPolicy)
-            .WithName("RemoveTournamentParticipantByOrganizer")
-            .Produces<TournamentRegistrationMutationResponse>()
+            .WithName("RemoveEventParticipantByOrganizer")
+            .Produces<EventRegistrationMutationResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
-        users.MapGet("/tournaments/{tournamentId:guid}/registrations/export", ExportParticipantsAsync)
+        users.MapGet("/events/{eventId:guid}/registrations/export", ExportParticipantsAsync)
             .RequireRateLimiting(AuthRateLimiting.ExportPolicy)
-            .WithName("ExportTournamentParticipants")
+            .WithName("ExportEventParticipants")
             .Produces<Stream>(StatusCodes.Status200OK, contentType: "text/csv")
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
@@ -143,14 +143,14 @@ internal static class OrganizerParticipantEndpoints
     }
 
     private static async Task<IResult> ListParticipantsAsync(
-        Guid tournamentId,
+        Guid eventId,
         int? page,
         int? pageSize,
         ClaimsPrincipal principal,
         OrganizerParticipantService participants,
         CancellationToken cancellationToken) =>
         Results.Ok(await participants.ListParticipantsAsync(
-            tournamentId,
+            eventId,
             Page(page),
             PageSize(pageSize),
             OrganizationPrincipal.UserId(principal),
@@ -158,41 +158,41 @@ internal static class OrganizerParticipantEndpoints
             cancellationToken));
 
     private static async Task<IResult> RegisterByOrganizerAsync(
-        Guid tournamentId,
+        Guid eventId,
         RegisterByOrganizerRequest request,
         ClaimsPrincipal principal,
-        TournamentRegistrationService registrations,
+        EventRegistrationService registrations,
         CancellationToken cancellationToken)
     {
         var result = await registrations.RegisterByOrganizerAsync(
-            tournamentId,
+            eventId,
             request.UserId,
             OrganizationPrincipal.UserId(principal),
             OrganizationPrincipal.IsAdmin(principal),
             cancellationToken);
-        return Results.Created($"/api/tournaments/{tournamentId:D}/registrations/{result.AttemptId:D}", result);
+        return Results.Created($"/api/events/{eventId:D}/registrations/{result.AttemptId:D}", result);
     }
 
     private static async Task<IResult> RemoveByOrganizerAsync(
-        Guid tournamentId,
+        Guid eventId,
         Guid registrationId,
         ClaimsPrincipal principal,
-        TournamentRegistrationService registrations,
+        EventRegistrationService registrations,
         CancellationToken cancellationToken) =>
         Results.Ok(await registrations.RemoveByOrganizerAsync(
-            tournamentId,
+            eventId,
             registrationId,
             OrganizationPrincipal.UserId(principal),
             OrganizationPrincipal.IsAdmin(principal),
             cancellationToken));
 
     private static Task<IResult> ExportParticipantsAsync(
-        Guid tournamentId,
+        Guid eventId,
         ClaimsPrincipal principal,
         OrganizerParticipantService participants,
         CancellationToken cancellationToken) =>
         participants.ExportParticipantsAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             OrganizationPrincipal.IsAdmin(principal),
             cancellationToken);
@@ -368,21 +368,21 @@ internal sealed class OrganizerParticipantService(
         await database.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<PrivateTournamentParticipantListResponse> ListParticipantsAsync(
-        Guid tournamentId,
+    public async Task<PrivateEventParticipantListResponse> ListParticipantsAsync(
+        Guid eventId,
         int page,
         int pageSize,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken)
     {
-        _ = await RequireTournamentAsync(tournamentId, actorUserId, isAdmin, cancellationToken);
-        var query = ActiveParticipants(tournamentId);
+        _ = await RequireEventAsync(eventId, actorUserId, isAdmin, cancellationToken);
+        var query = ActiveParticipants(eventId);
         var total = await query.CountAsync(cancellationToken);
         var items = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(item => new PrivateTournamentParticipantResponse(
+            .Select(item => new PrivateEventParticipantResponse(
                 item.Attempt.Id,
                 item.User.Id,
                 item.Profile.Username,
@@ -392,25 +392,25 @@ internal sealed class OrganizerParticipantService(
                 item.Attempt.RegisteredAt,
                 item.Attempt.RegisteredByUserId))
             .ToListAsync(cancellationToken);
-        return new PrivateTournamentParticipantListResponse(items, page, pageSize, total);
+        return new PrivateEventParticipantListResponse(items, page, pageSize, total);
     }
 
     public async Task<IResult> ExportParticipantsAsync(
-        Guid tournamentId,
+        Guid eventId,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken)
     {
-        var tournament = await RequireTournamentAsync(tournamentId, actorUserId, isAdmin, cancellationToken);
-        var query = ActiveParticipants(tournamentId);
+        var tournament = await RequireEventAsync(eventId, actorUserId, isAdmin, cancellationToken);
+        var query = ActiveParticipants(eventId);
         var rowCount = await query.CountAsync(cancellationToken);
         if (rowCount > MaximumExportRows) throw new ExportRowLimitExceededException();
 
         database.AuditRecords.Add(Audit(
             actorUserId,
             "tournament.participants.exported",
-            tournamentId,
-            JsonSerializer.Serialize(new { tournamentId, rowCount, columns = CsvColumns }),
+            eventId,
+            JsonSerializer.Serialize(new { eventId, rowCount, columns = CsvColumns }),
             clock.GetCurrentInstant()));
         await database.SaveChangesAsync(cancellationToken);
 
@@ -443,24 +443,24 @@ internal sealed class OrganizerParticipantService(
         }, "text/csv; charset=utf-8", fileName);
     }
 
-    private async Task<Event> RequireTournamentAsync(
-        Guid tournamentId,
+    private async Task<Event> RequireEventAsync(
+        Guid eventId,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken)
     {
         var tournament = await database.Events.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == tournamentId && item.DeletedAt == null, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == eventId && item.DeletedAt == null, cancellationToken)
             ?? throw new ResourceNotFoundException();
         _ = await access.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
         return tournament;
     }
 
-    private IQueryable<ParticipantJoin> ActiveParticipants(Guid tournamentId) =>
+    private IQueryable<ParticipantJoin> ActiveParticipants(Guid eventId) =>
         from attempt in database.EventRegistrationAttempts.AsNoTracking()
         join user in database.Users.AsNoTracking() on attempt.UserId equals user.Id
         join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
-        where attempt.EventId == tournamentId
+        where attempt.EventId == eventId
             && attempt.Status == TournamentRegistrationStatus.Confirmed
             && profile.ClosedAt == null
         orderby profile.NormalizedUsername, attempt.Id
@@ -526,7 +526,7 @@ internal sealed record OrganizationBlockedUserListResponse(
     int PageSize,
     int TotalCount);
 
-internal sealed record PrivateTournamentParticipantResponse(
+internal sealed record PrivateEventParticipantResponse(
     Guid AttemptId,
     Guid UserId,
     string Username,
@@ -536,8 +536,8 @@ internal sealed record PrivateTournamentParticipantResponse(
     Instant RegisteredAt,
     Guid RegisteredByUserId);
 
-internal sealed record PrivateTournamentParticipantListResponse(
-    IReadOnlyList<PrivateTournamentParticipantResponse> Items,
+internal sealed record PrivateEventParticipantListResponse(
+    IReadOnlyList<PrivateEventParticipantResponse> Items,
     int Page,
     int PageSize,
     int TotalCount);

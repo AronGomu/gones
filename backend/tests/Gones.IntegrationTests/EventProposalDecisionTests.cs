@@ -28,7 +28,7 @@ namespace Gones.IntegrationTests;
 /// reason and mails it back. A8 — one decision consumes the whole proposal, so every sibling
 /// recipient's token stops working the moment anyone decides.
 /// </summary>
-public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : IAsyncLifetime
+public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
     private readonly MutableClock clock = new(Now);
@@ -71,7 +71,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal("organizer-olga", body.GetProperty("approverUsername").GetString());
         Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("expiresAt").GetString()));
 
-        var tournament = body.GetProperty("tournament");
+        var tournament = body.GetProperty("event");
         var expected = Payload();
         Assert.Equal(expected.Title, tournament.GetProperty("title").GetString());
         Assert.Equal(expected.Summary, tournament.GetProperty("summary").GetString());
@@ -212,7 +212,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         var slug = body.GetProperty("slug").GetString();
         Assert.False(string.IsNullOrWhiteSpace(slug));
 
-        using var detail = await Client.GetAsync($"/api/tournaments/{slug}");
+        using var detail = await Client.GetAsync($"/api/events/{slug}");
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         var published = await detail.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Summer Cup", published.GetProperty("title").GetString());
@@ -279,7 +279,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(HttpStatusCode.Conflict, sibling.StatusCode);
         output.WriteLine($"sibling token approve -> {(int)sibling.StatusCode} {await sibling.Content.ReadAsStringAsync()}");
 
-        using var all = await Client.GetAsync("/api/tournaments/all");
+        using var all = await Client.GetAsync("/api/events/all");
         var items = (await all.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items");
         Assert.Equal(1, items.GetArrayLength());
 
@@ -348,7 +348,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     }
 
     /// <summary>
-    /// T11. Approving publishes without going through <c>POST /api/tournaments</c>, so the Draft gate
+    /// T11. Approving publishes without going through <c>POST /api/events</c>, so the Draft gate
     /// has to sit on the publish itself rather than on the endpoint. Emptying the organization leaves
     /// only the global-Admin recipient able to decide, and even that decision is refused: there is no
     /// organizer left to own the tournament.
@@ -410,7 +410,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(TournamentProposalStatus.Rejected, decided.Status);
         Assert.Equal(seed.Admin.Id, decided.DecidedByUserId);
         Assert.Equal(0, await stored.Events.CountAsync());
-        using var all = await Client.GetAsync("/api/tournaments/all");
+        using var all = await Client.GetAsync("/api/events/all");
         Assert.Equal(0, (await all.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength());
     }
 
@@ -503,16 +503,16 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     public async Task Reject_publishes_nothing()
     {
         var proposal = await SeedProposalAsync();
-        using var before = await Client.GetAsync("/api/tournaments/all");
+        using var before = await Client.GetAsync("/api/events/all");
         var beforeCount = (await before.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength();
 
         using var response = await RejectAsync(proposal.OrganizerToken, Reason);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        using var after = await Client.GetAsync("/api/tournaments/all");
+        using var after = await Client.GetAsync("/api/events/all");
         var afterCount = (await after.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength();
 
-        output.WriteLine($"/api/tournaments/all items before={beforeCount} after={afterCount}");
+        output.WriteLine($"/api/events/all items before={beforeCount} after={afterCount}");
         Assert.Equal(beforeCount, afterCount);
         await using var database = CreateContext();
         Assert.Equal(0, await database.Events.CountAsync());
@@ -583,11 +583,11 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     }
 
     private static string ReviewUrl(string token) =>
-        $"/api/tournament-proposals/by-token/{Uri.EscapeDataString(token)}";
+        $"/api/event-proposals/by-token/{Uri.EscapeDataString(token)}";
 
     /// <summary>
     /// Seeds a pending proposal straight into the database with both recipients' plaintext tokens in
-    /// hand. Going through <c>POST /api/tournament-proposals</c> would burn the shared IP rate-limit
+    /// hand. Going through <c>POST /api/event-proposals</c> would burn the shared IP rate-limit
     /// budget these tests need for the decision calls, and would never hand back a sibling token.
     /// </summary>
     private async Task<SeededProposal> SeedProposalAsync(TournamentFormat? extraFormat = null)

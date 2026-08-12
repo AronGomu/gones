@@ -16,59 +16,59 @@ using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using NodaTime.Text;
 
-namespace Gones.Api.Tournaments;
+namespace Gones.Api.Events;
 
-internal static class TournamentLifecycleEndpoints
+internal static class EventLifecycleEndpoints
 {
     private const int DefaultPageSize = 20;
     private const int MaximumPageSize = 100;
 
-    public static void MapTournamentLifecycleEndpoints(this WebApplication app)
+    public static void MapEventLifecycleEndpoints(this WebApplication app)
     {
         var organizer = app.MapGroup("/api").RequireAuthorization(AuthorizationPolicies.Organizer);
-        organizer.MapGet("/organizer/tournaments", ListOrganizerTournamentsAsync)
-            .WithName("ListOrganizerTournaments")
-            .Produces<TournamentManagementListResponse>();
-        organizer.MapPatch("/tournaments/{tournamentId:guid}/details", UpdateTournamentDetailsEndpointAsync)
-            .WithName("UpdateTournamentDetails")
+        organizer.MapGet("/organizer/events", ListOrganizerEventsAsync)
+            .WithName("ListOrganizerEvents")
+            .Produces<EventManagementListResponse>();
+        organizer.MapPatch("/events/{eventId:guid}/details", UpdateEventDetailsEndpointAsync)
+            .WithName("UpdateEventDetails")
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
-            .Produces<TournamentManagementResponse>()
+            .Produces<EventManagementResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
-        organizer.MapPost("/tournaments/{tournamentId:guid}/cancel", CancelTournamentAsync)
-            .WithName("CancelTournament")
-            .Produces<TournamentMutationResponse>()
+        organizer.MapPost("/events/{eventId:guid}/cancel", CancelEventAsync)
+            .WithName("CancelEvent")
+            .Produces<EventMutationResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
-        organizer.MapDelete("/tournaments/{tournamentId:guid}", DeleteTournamentAsync)
-            .WithName("DeleteTournament")
+        organizer.MapDelete("/events/{eventId:guid}", DeleteEventAsync)
+            .WithName("DeleteEvent")
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
-            .Produces<TournamentMutationResponse>()
+            .Produces<EventMutationResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
 
-        var admin = app.MapGroup("/api/admin/tournaments").RequireAuthorization(AuthorizationPolicies.Admin);
-        admin.MapGet("/deleted", ListDeletedTournamentsAsync)
-            .WithName("ListDeletedTournaments")
-            .Produces<TournamentManagementListResponse>();
-        admin.MapPost("/{tournamentId:guid}/restore", RestoreTournamentAsync)
-            .WithName("RestoreTournament")
-            .Produces<TournamentMutationResponse>()
+        var admin = app.MapGroup("/api/admin/events").RequireAuthorization(AuthorizationPolicies.Admin);
+        admin.MapGet("/deleted", ListDeletedEventsAsync)
+            .WithName("ListDeletedEvents")
+            .Produces<EventManagementListResponse>();
+        admin.MapPost("/{eventId:guid}/restore", RestoreEventAsync)
+            .WithName("RestoreEvent")
+            .Produces<EventMutationResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
     }
 
-    private static async Task<IResult> ListOrganizerTournamentsAsync(
+    private static async Task<IResult> ListOrganizerEventsAsync(
         ClaimsPrincipal principal,
         int? page,
         int? pageSize,
-        TournamentLifecycleService lifecycle,
+        EventLifecycleService lifecycle,
         CancellationToken cancellationToken) =>
         Results.Ok(await lifecycle.ListOrganizerAsync(
             OrganizationPrincipal.UserId(principal),
@@ -77,25 +77,25 @@ internal static class TournamentLifecycleEndpoints
             PageSize(pageSize),
             cancellationToken));
 
-    private static async Task<IResult> ListDeletedTournamentsAsync(
+    private static async Task<IResult> ListDeletedEventsAsync(
         int? page,
         int? pageSize,
-        TournamentLifecycleService lifecycle,
+        EventLifecycleService lifecycle,
         CancellationToken cancellationToken) =>
         Results.Ok(await lifecycle.ListDeletedAsync(Page(page), PageSize(pageSize), cancellationToken));
 
-    private static async Task<IResult> UpdateTournamentDetailsEndpointAsync(
-        Guid tournamentId,
-        UpdateTournamentDetailsRequest request,
+    private static async Task<IResult> UpdateEventDetailsEndpointAsync(
+        Guid eventId,
+        UpdateEventDetailsRequest request,
         [FromHeader(Name = "If-Match")] string? ifMatch,
         HttpResponse response,
         ClaimsPrincipal principal,
-        TournamentLifecycleService lifecycle,
+        EventLifecycleService lifecycle,
         CancellationToken cancellationToken)
     {
         RejectMassAssignment(request.AdditionalFields);
         var result = await lifecycle.UpdateDetailsAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             OrganizationPrincipal.IsAdmin(principal),
             RequiredVersion(ifMatch),
@@ -105,17 +105,17 @@ internal static class TournamentLifecycleEndpoints
         return Results.Ok(result);
     }
 
-    private static async Task<IResult> CancelTournamentAsync(
-        Guid tournamentId,
+    private static async Task<IResult> CancelEventAsync(
+        Guid eventId,
         [FromHeader(Name = "If-Match")] string? ifMatch,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
         HttpResponse response,
         ClaimsPrincipal principal,
-        TournamentLifecycleService lifecycle,
+        EventLifecycleService lifecycle,
         CancellationToken cancellationToken)
     {
         var result = await lifecycle.CancelAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             OrganizationPrincipal.IsAdmin(principal),
             RequiredVersion(ifMatch),
@@ -125,19 +125,19 @@ internal static class TournamentLifecycleEndpoints
         return Results.Ok(result);
     }
 
-    private static async Task<IResult> DeleteTournamentAsync(
-        Guid tournamentId,
-        [FromBody] DeleteTournamentRequest? request,
+    private static async Task<IResult> DeleteEventAsync(
+        Guid eventId,
+        [FromBody] DeleteEventRequest? request,
         [FromHeader(Name = "If-Match")] string? ifMatch,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
         HttpResponse response,
         ClaimsPrincipal principal,
-        TournamentLifecycleService lifecycle,
+        EventLifecycleService lifecycle,
         CancellationToken cancellationToken)
     {
         RejectMassAssignment(request?.AdditionalFields);
         var result = await lifecycle.DeleteAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             OrganizationPrincipal.IsAdmin(principal),
             RequiredVersion(ifMatch),
@@ -148,16 +148,16 @@ internal static class TournamentLifecycleEndpoints
         return Results.Ok(result);
     }
 
-    private static async Task<IResult> RestoreTournamentAsync(
-        Guid tournamentId,
+    private static async Task<IResult> RestoreEventAsync(
+        Guid eventId,
         [FromHeader(Name = "If-Match")] string? ifMatch,
         HttpResponse response,
         ClaimsPrincipal principal,
-        TournamentLifecycleService lifecycle,
+        EventLifecycleService lifecycle,
         CancellationToken cancellationToken)
     {
         var result = await lifecycle.RestoreAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             RequiredVersion(ifMatch),
             cancellationToken);
@@ -197,15 +197,15 @@ internal static class TournamentLifecycleEndpoints
     }
 }
 
-internal sealed class TournamentLifecycleService(
+internal sealed class EventLifecycleService(
     GonesDbContext database,
     OrganizationAccessService access,
-    TournamentRegistrationNotificationService registrationNotifications,
+    EventRegistrationNotificationService registrationNotifications,
     IClock clock)
 {
     private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<TournamentManagementListResponse> ListOrganizerAsync(
+    public async Task<EventManagementListResponse> ListOrganizerAsync(
         Guid userId,
         bool isAdmin,
         int page,
@@ -222,25 +222,25 @@ internal sealed class TournamentLifecycleService(
         return await ListAsync(query, page, pageSize, cancellationToken);
     }
 
-    public Task<TournamentManagementListResponse> ListDeletedAsync(
+    public Task<EventManagementListResponse> ListDeletedAsync(
         int page,
         int pageSize,
         CancellationToken cancellationToken) =>
         ListAsync(database.Events.AsNoTracking().Where(item => item.DeletedAt != null), page, pageSize, cancellationToken);
 
-    public async Task<TournamentManagementResponse> UpdateDetailsAsync(
-        Guid tournamentId,
+    public async Task<EventManagementResponse> UpdateDetailsAsync(
+        Guid eventId,
         Guid actorUserId,
         bool isAdmin,
         long expectedVersion,
-        UpdateTournamentDetailsRequest request,
+        UpdateEventDetailsRequest request,
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var tournament = await RequireActiveAsync(tournamentId, actorUserId, isAdmin, cancellationToken);
+        var tournament = await RequireActiveAsync(eventId, actorUserId, isAdmin, cancellationToken);
         RequireVersion(tournament, expectedVersion);
         var formats = await RequireFormatsAsync(request.FormatIds, cancellationToken);
-        var before = TournamentAuditSnapshot.From(tournament);
+        var before = EventAuditSnapshot.From(tournament);
         var draft = ToDraft(request, tournament.Slug);
         TournamentChangeSeverity severity;
         try
@@ -258,7 +258,7 @@ internal sealed class TournamentLifecycleService(
         }
 
         var now = clock.GetCurrentInstant();
-        var after = TournamentAuditSnapshot.From(tournament);
+        var after = EventAuditSnapshot.From(tournament);
         var changedFields = before.ChangedFields(after);
         database.AuditRecords.Add(NewAudit(actorUserId, "tournament.details.updated", tournament.Id, before.AuditDiff(after, changedFields), now));
         if (severity == TournamentChangeSeverity.Major)
@@ -280,15 +280,15 @@ internal sealed class TournamentLifecycleService(
         return await ResponseAsync(tournament, cancellationToken);
     }
 
-    public Task<TournamentMutationResponse> CancelAsync(
-        Guid tournamentId,
+    public Task<EventMutationResponse> CancelAsync(
+        Guid eventId,
         Guid actorUserId,
         bool isAdmin,
         long expectedVersion,
         string idempotencyKey,
         CancellationToken cancellationToken) =>
         ExecuteIdempotentAsync(
-            tournamentId,
+            eventId,
             actorUserId,
             isAdmin,
             expectedVersion,
@@ -300,8 +300,8 @@ internal sealed class TournamentLifecycleService(
             (tournament, now) => tournament.Cancel(now),
             cancellationToken);
 
-    public Task<TournamentMutationResponse> DeleteAsync(
-        Guid tournamentId,
+    public Task<EventMutationResponse> DeleteAsync(
+        Guid eventId,
         Guid actorUserId,
         bool isAdmin,
         long expectedVersion,
@@ -309,7 +309,7 @@ internal sealed class TournamentLifecycleService(
         string? reason,
         CancellationToken cancellationToken) =>
         ExecuteIdempotentAsync(
-            tournamentId,
+            eventId,
             actorUserId,
             isAdmin,
             expectedVersion,
@@ -321,15 +321,15 @@ internal sealed class TournamentLifecycleService(
             (tournament, now) => tournament.SoftDelete(actorUserId, reason, now),
             cancellationToken);
 
-    public async Task<TournamentMutationResponse> RestoreAsync(
-        Guid tournamentId,
+    public async Task<EventMutationResponse> RestoreAsync(
+        Guid eventId,
         Guid actorUserId,
         long expectedVersion,
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         var tournament = await database.Events.SingleOrDefaultAsync(
-            item => item.Id == tournamentId && item.DeletedAt != null,
+            item => item.Id == eventId && item.DeletedAt != null,
             cancellationToken) ?? throw new ResourceNotFoundException();
         RequireVersion(tournament, expectedVersion);
         var now = clock.GetCurrentInstant();
@@ -353,8 +353,8 @@ internal sealed class TournamentLifecycleService(
         return MutationResponse(tournament);
     }
 
-    private async Task<TournamentMutationResponse> ExecuteIdempotentAsync(
-        Guid tournamentId,
+    private async Task<EventMutationResponse> ExecuteIdempotentAsync(
+        Guid eventId,
         Guid actorUserId,
         bool isAdmin,
         long expectedVersion,
@@ -377,19 +377,19 @@ internal sealed class TournamentLifecycleService(
         {
             var stored = JsonSerializer.Deserialize<StoredLifecycleMutation>(existing.ResponseBody, StoredJsonOptions)
                 ?? throw new InvalidOperationException("Stored Tournament lifecycle result is invalid.");
-            if (stored.TournamentId != tournamentId || !string.Equals(stored.Command, command, StringComparison.Ordinal))
+            if (stored.EventId != eventId || !string.Equals(stored.Command, command, StringComparison.Ordinal))
             {
                 throw new IdempotencyConflictException();
             }
-            var retryTournament = await database.Events.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.Id == tournamentId, cancellationToken)
+            var retryEvent = await database.Events.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == eventId, cancellationToken)
                 ?? throw new ResourceNotFoundException();
-            _ = await access.RequireMemberAsync(retryTournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
+            _ = await access.RequireMemberAsync(retryEvent.OrganizationId, actorUserId, isAdmin, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return stored.Response;
         }
 
-        var tournament = await RequireActiveAsync(tournamentId, actorUserId, isAdmin, cancellationToken);
+        var tournament = await RequireActiveAsync(eventId, actorUserId, isAdmin, cancellationToken);
         RequireVersion(tournament, expectedVersion);
         var now = clock.GetCurrentInstant();
         try
@@ -435,14 +435,14 @@ internal sealed class TournamentLifecycleService(
     }
 
     private async Task<Event> RequireActiveAsync(
-        Guid tournamentId,
+        Guid eventId,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken)
     {
         var tournament = await database.Events
             .Include(item => item.Formats)
-            .SingleOrDefaultAsync(item => item.Id == tournamentId && item.DeletedAt == null, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == eventId && item.DeletedAt == null, cancellationToken)
             ?? throw new ResourceNotFoundException();
         _ = await access.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
         return tournament;
@@ -462,7 +462,7 @@ internal sealed class TournamentLifecycleService(
         return formats;
     }
 
-    private async Task<TournamentManagementListResponse> ListAsync(
+    private async Task<EventManagementListResponse> ListAsync(
         IQueryable<Event> query,
         int page,
         int pageSize,
@@ -480,10 +480,10 @@ internal sealed class TournamentLifecycleService(
             .Where(item => organizationIds.Contains(item.Id))
             .ToDictionaryAsync(item => item.Id, item => item.Name, cancellationToken);
         var items = tournaments.Select(item => ToResponse(item, organizationNames[item.OrganizationId])).ToArray();
-        return new TournamentManagementListResponse(items, page, pageSize, total);
+        return new EventManagementListResponse(items, page, pageSize, total);
     }
 
-    private async Task<TournamentManagementResponse> ResponseAsync(Event tournament, CancellationToken cancellationToken)
+    private async Task<EventManagementResponse> ResponseAsync(Event tournament, CancellationToken cancellationToken)
     {
         var organizationName = await database.Organizations.AsNoTracking()
             .Where(item => item.Id == tournament.OrganizationId)
@@ -519,13 +519,13 @@ internal sealed class TournamentLifecycleService(
     private void ForceVersionMutation(Event tournament) =>
         database.Entry(tournament).Property(item => item.UpdatedAt).IsModified = true;
 
-    private static TournamentMutationResponse MutationResponse(Event tournament, long? version = null)
+    private static EventMutationResponse MutationResponse(Event tournament, long? version = null)
     {
         var currentVersion = version ?? tournament.Version;
-        return new TournamentMutationResponse(tournament.Id, tournament.Status.ToString(), tournament.IsDeleted, currentVersion, StrongETag.Encode(currentVersion));
+        return new EventMutationResponse(tournament.Id, tournament.Status.ToString(), tournament.IsDeleted, currentVersion, StrongETag.Encode(currentVersion));
     }
 
-    private static TournamentManagementResponse ToResponse(Event item, string organizationName) => new(
+    private static EventManagementResponse ToResponse(Event item, string organizationName) => new(
         item.Id,
         item.OrganizationId,
         organizationName,
@@ -552,7 +552,7 @@ internal sealed class TournamentLifecycleService(
         item.Version,
         StrongETag.Encode(item.Version));
 
-    private static ScheduledTournamentDraft ToDraft(UpdateTournamentDetailsRequest request, string slug) => new(
+    private static ScheduledTournamentDraft ToDraft(UpdateEventDetailsRequest request, string slug) => new(
         request.Title,
         slug,
         request.Summary,
@@ -574,12 +574,12 @@ internal sealed class TournamentLifecycleService(
         return parsed.Value;
     }
 
-    private static AuditRecord NewAudit(Guid actorUserId, string action, Guid tournamentId, string diff, Instant now) => new()
+    private static AuditRecord NewAudit(Guid actorUserId, string action, Guid eventId, string diff, Instant now) => new()
     {
         ActorId = actorUserId,
         Action = action,
         EntityType = "scheduled_tournament",
-        EntityId = tournamentId.ToString("D"),
+        EntityId = eventId.ToString("D"),
         RedactedDiff = diff,
         OccurredAt = now
     };
@@ -587,10 +587,10 @@ internal sealed class TournamentLifecycleService(
     private static ApiValidationException Validation(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
 
-    private sealed record StoredLifecycleMutation(string Command, Guid TournamentId, TournamentMutationResponse Response);
+    private sealed record StoredLifecycleMutation(string Command, Guid EventId, EventMutationResponse Response);
 }
 
-internal sealed class TournamentOrganizationDeleteDependency(GonesDbContext database) : IOrganizationDeleteDependency
+internal sealed class EventOrganizationDeleteDependency(GonesDbContext database) : IOrganizationDeleteDependency
 {
     public async Task<IReadOnlyList<string>> GetBlockersAsync(Guid organizationId, CancellationToken cancellationToken)
     {
@@ -603,7 +603,7 @@ internal sealed class TournamentOrganizationDeleteDependency(GonesDbContext data
     }
 }
 
-internal sealed record UpdateTournamentDetailsRequest(
+internal sealed record UpdateEventDetailsRequest(
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
     [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
     [property: MaxLength(Event.MaximumBodyHtmlLength)] string? BodyHtml,
@@ -621,20 +621,20 @@ internal sealed record UpdateTournamentDetailsRequest(
     public IDictionary<string, JsonElement>? AdditionalFields { get; init; }
 }
 
-internal sealed record DeleteTournamentRequest(
+internal sealed record DeleteEventRequest(
     [property: MaxLength(Event.MaximumDeletedReasonLength)] string? Reason)
 {
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalFields { get; init; }
 }
 
-internal sealed record TournamentManagementListResponse(
-    IReadOnlyList<TournamentManagementResponse> Items,
+internal sealed record EventManagementListResponse(
+    IReadOnlyList<EventManagementResponse> Items,
     int Page,
     int PageSize,
     int TotalCount);
 
-internal sealed record TournamentManagementResponse(
+internal sealed record EventManagementResponse(
     Guid Id,
     Guid OrganizationId,
     string OrganizationName,
@@ -661,14 +661,14 @@ internal sealed record TournamentManagementResponse(
     long Version,
     string ETag);
 
-internal sealed record TournamentMutationResponse(
+internal sealed record EventMutationResponse(
     Guid Id,
     string Status,
     bool IsDeleted,
     long Version,
     string ETag);
 
-internal sealed record TournamentAuditSnapshot(
+internal sealed record EventAuditSnapshot(
     string Title,
     string? Summary,
     string? BodyHtml,
@@ -682,7 +682,7 @@ internal sealed record TournamentAuditSnapshot(
     int? Capacity,
     IReadOnlyList<Guid> FormatIds)
 {
-    public static TournamentAuditSnapshot From(Event tournament) => new(
+    public static EventAuditSnapshot From(Event tournament) => new(
         tournament.Title,
         tournament.Summary,
         tournament.BodyHtml,
@@ -696,10 +696,10 @@ internal sealed record TournamentAuditSnapshot(
         tournament.Capacity,
         tournament.Formats.Select(item => item.TournamentFormatId).Order().ToArray());
 
-    public bool ScheduleChanged(TournamentAuditSnapshot other) =>
+    public bool ScheduleChanged(EventAuditSnapshot other) =>
         StartsAt != other.StartsAt || EndsAt != other.EndsAt || TimeZoneId != other.TimeZoneId;
 
-    public IReadOnlyList<string> ChangedFields(TournamentAuditSnapshot other)
+    public IReadOnlyList<string> ChangedFields(EventAuditSnapshot other)
     {
         var fields = new List<string>();
         if (Title != other.Title) fields.Add("title");
@@ -717,7 +717,7 @@ internal sealed record TournamentAuditSnapshot(
         return fields;
     }
 
-    public string AuditDiff(TournamentAuditSnapshot other, IReadOnlyList<string> fields)
+    public string AuditDiff(EventAuditSnapshot other, IReadOnlyList<string> fields)
     {
         var before = ValuesFor(fields);
         var after = other.ValuesFor(fields);

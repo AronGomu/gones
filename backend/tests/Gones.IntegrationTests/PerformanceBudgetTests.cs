@@ -53,8 +53,8 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
     [Fact]
     public async Task Tournament_list_query_count_does_not_grow_with_page_size()
     {
-        var small = await MeasureAsync("/api/tournaments?pageSize=5");
-        var large = await MeasureAsync("/api/tournaments?pageSize=100");
+        var small = await MeasureAsync("/api/events?pageSize=5");
+        var large = await MeasureAsync("/api/events?pageSize=100");
 
         Assert.Equal(HttpStatusCode.OK, small.Status);
         Assert.Equal(HttpStatusCode.OK, large.Status);
@@ -68,8 +68,8 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
     [Fact]
     public async Task Tournament_list_caps_page_size_no_matter_what_the_client_asks_for()
     {
-        var huge = await MeasureAsync($"/api/tournaments?pageSize={SeededTournaments * 10}");
-        var negative = await MeasureAsync("/api/tournaments?pageSize=-1");
+        var huge = await MeasureAsync($"/api/events?pageSize={SeededTournaments * 10}");
+        var negative = await MeasureAsync("/api/events?pageSize=-1");
 
         Assert.Equal(100, huge.ItemCount);
         Assert.Equal(100, huge.PageSize);
@@ -81,7 +81,7 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
     [Fact]
     public async Task Tournament_detail_is_a_bounded_number_of_queries()
     {
-        var detail = await MeasureAsync("/api/tournaments/budget-cup-000");
+        var detail = await MeasureAsync("/api/events/budget-cup-000");
 
         Assert.Equal(HttpStatusCode.OK, detail.Status);
         Assert.True(detail.Commands <= 3, $"detail endpoint issued {detail.Commands} database commands; budget is 3.");
@@ -91,10 +91,10 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
     public async Task Public_reads_stay_inside_the_local_latency_budget()
     {
         // Warm the connection pool and query plans so the measurement is not dominated by first-hit cost.
-        await MeasureAsync("/api/tournaments?pageSize=100");
+        await MeasureAsync("/api/events?pageSize=100");
 
         var stopwatch = Stopwatch.StartNew();
-        var measured = await MeasureAsync("/api/tournaments?pageSize=100");
+        var measured = await MeasureAsync("/api/events?pageSize=100");
         stopwatch.Stop();
 
         Assert.Equal(HttpStatusCode.OK, measured.Status);

@@ -1,5 +1,6 @@
 using Gones.Api.Admin;
 using Gones.Api.Errors;
+using Gones.Api.Events;
 using Gones.Api.Health;
 using Gones.Api.Identity;
 using Gones.Api.Leagues;
@@ -10,7 +11,6 @@ using Gones.Api.Notifications;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
-using Gones.Api.Tournaments;
 using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
@@ -83,19 +83,19 @@ else
         builder.Services.AddScoped<BrevoWebhookService>();
     }
     builder.Services.AddScoped<OrganizationAccessService>();
-    builder.Services.AddScoped<TournamentPublicationService>();
-    builder.Services.AddScoped<TournamentProposalService>();
-    builder.Services.AddScoped<TournamentLifecycleService>();
-    builder.Services.AddScoped<TournamentRegistrationService>();
-    builder.Services.AddScoped<TournamentRegistrationNotificationService>();
+    builder.Services.AddScoped<EventPublicationService>();
+    builder.Services.AddScoped<EventProposalService>();
+    builder.Services.AddScoped<EventLifecycleService>();
+    builder.Services.AddScoped<EventRegistrationService>();
+    builder.Services.AddScoped<EventRegistrationNotificationService>();
     builder.Services.AddScoped<OrganizerParticipantService>();
     builder.Services.AddScoped<LeagueCommandService>();
     builder.Services.AddScoped<PlayerNameMaintenanceService>();
     builder.Services.AddScoped<LiveCommandService>();
-    builder.Services.AddSingleton(TournamentRegistrationOptions.Load(builder.Configuration));
-    builder.Services.AddScoped<IOrganizationDeleteDependency, TournamentOrganizationDeleteDependency>();
+    builder.Services.AddSingleton(EventRegistrationOptions.Load(builder.Configuration));
+    builder.Services.AddScoped<IOrganizationDeleteDependency, EventOrganizationDeleteDependency>();
     builder.Services.AddScoped<IOrganizationDeleteDependency, RegistrationOrganizationDeleteDependency>();
-    builder.Services.AddSingleton<TournamentPreviewTicketService>();
+    builder.Services.AddSingleton<EventPreviewTicketService>();
     if (runtimeConfiguration.Features.AuthV1)
     {
         builder.Services.AddGonesLocalIdentity();
@@ -188,11 +188,11 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapPlayerNameMaintenanceEndpoints();
     app.MapPublicLiveEndpoints();
     app.MapLiveCommandEndpoints();
-    app.MapPublicTournamentEndpoints();
-    app.MapTournamentPublicationEndpoints();
-    app.MapTournamentProposalEndpoints();
-    app.MapTournamentLifecycleEndpoints();
-    app.MapTournamentRegistrationEndpoints();
+    app.MapPublicEventEndpoints();
+    app.MapEventPublicationEndpoints();
+    app.MapEventProposalEndpoints();
+    app.MapEventLifecycleEndpoints();
+    app.MapEventRegistrationEndpoints();
     app.MapOrganizerParticipantEndpoints();
     if (brevoWebhookOptions is not null) app.MapBrevoWebhook(brevoWebhookOptions);
 }

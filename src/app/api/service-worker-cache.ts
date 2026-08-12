@@ -13,8 +13,8 @@ export const NGSW_BYPASS_HEADER = 'ngsw-bypass';
  * mirrors it as URL globs and `service-worker-cache.test.ts` proves the two agree.
  */
 const PUBLIC_CACHEABLE_API_PATHS: readonly RegExp[] = [
-  /^\/api\/tournaments$/,
-  /^\/api\/tournaments\/[^/]+$/,
+  /^\/api\/events$/,
+  /^\/api\/events\/[^/]+$/,
   /^\/api\/organizations$/,
   /^\/api\/organizations\/[^/]+$/,
   /^\/api\/leagues-archive$/,

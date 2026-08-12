@@ -14,7 +14,7 @@ using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
-public sealed class PublicTournamentApiTests : IAsyncLifetime
+public sealed class PublicEventApiTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
     private WebApplicationFactory<Program>? factory;
@@ -43,7 +43,7 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
     [Fact]
     public async Task List_filters_page_visibility_and_public_dto_privacy()
     {
-        using var filtered = await Client.GetAsync($"/api/tournaments?from=2035-03-04&to=2035-03-04&city=Paris&country=France&organization={seed.Alpha.Id:D}&format=pioneer&status=Published&search=Search&pageSize=5");
+        using var filtered = await Client.GetAsync($"/api/events?from=2035-03-04&to=2035-03-04&city=Paris&country=France&organization={seed.Alpha.Id:D}&format=pioneer&status=Published&search=Search&pageSize=5");
         Assert.Equal(HttpStatusCode.OK, filtered.StatusCode);
         Assert.Contains("public, max-age=60", filtered.Headers.CacheControl!.ToString());
         Assert.NotNull(filtered.Headers.ETag);
@@ -61,7 +61,7 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
         Assert.False(item.TryGetProperty("createdByUserId", out _));
         Assert.False(item.TryGetProperty("normalizedSearchText", out _));
 
-        using var defaultList = await Client.GetAsync("/api/tournaments");
+        using var defaultList = await Client.GetAsync("/api/events");
         var defaultBody = await defaultList.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(HttpStatusCode.OK, defaultList.StatusCode);
         Assert.Equal(20, defaultBody.GetProperty("pageSize").GetInt32());
@@ -70,12 +70,12 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
         Assert.DoesNotContain("completed-cup", defaultSlugs);
         Assert.DoesNotContain("deleted-cup", defaultSlugs);
 
-        using var cancelled = await Client.GetAsync("/api/tournaments?status=Cancelled&pageSize=25");
+        using var cancelled = await Client.GetAsync("/api/events?status=Cancelled&pageSize=25");
         var cancelledBody = await cancelled.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
         Assert.Contains(cancelledBody.GetProperty("items").EnumerateArray(), entry => entry.GetProperty("slug").GetString() == "cancelled-cup");
 
-        using var past = await Client.GetAsync("/api/tournaments?past=true&status=Completed");
+        using var past = await Client.GetAsync("/api/events?past=true&status=Completed");
         var pastBody = await past.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(HttpStatusCode.OK, past.StatusCode);
         Assert.Contains(pastBody.GetProperty("items").EnumerateArray(), entry => entry.GetProperty("slug").GetString() == "completed-cup");
@@ -84,7 +84,7 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
     [Fact]
     public async Task Detail_participants_and_ics_are_anonymous_cacheable_and_safe()
     {
-        using var detail = await Client.GetAsync("/api/tournaments/search-cup");
+        using var detail = await Client.GetAsync("/api/events/search-cup");
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         Assert.NotNull(detail.Headers.ETag);
         var etag = detail.Headers.ETag!.ToString();
@@ -93,20 +93,20 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
         Assert.False(detailBody.TryGetProperty("createdByUserId", out _));
         Assert.False(detailBody.TryGetProperty("deletedReason", out _));
 
-        using var notModifiedRequest = new HttpRequestMessage(HttpMethod.Get, "/api/tournaments/search-cup");
+        using var notModifiedRequest = new HttpRequestMessage(HttpMethod.Get, "/api/events/search-cup");
         notModifiedRequest.Headers.TryAddWithoutValidation("If-None-Match", etag);
         using var notModified = await Client.SendAsync(notModifiedRequest);
         Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode);
 
-        using var participants = await Client.GetAsync("/api/tournaments/search-cup/participants");
+        using var participants = await Client.GetAsync("/api/events/search-cup/participants");
         Assert.Equal(HttpStatusCode.OK, participants.StatusCode);
         var participantsBody = await participants.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(0, participantsBody.GetProperty("items").GetArrayLength());
 
-        using var missingParticipants = await Client.GetAsync("/api/tournaments/deleted-cup/participants");
+        using var missingParticipants = await Client.GetAsync("/api/events/deleted-cup/participants");
         Assert.Equal(HttpStatusCode.NotFound, missingParticipants.StatusCode);
 
-        using var ics = await Client.GetAsync("/api/tournaments/cancelled-cup.ics");
+        using var ics = await Client.GetAsync("/api/events/cancelled-cup.ics");
         Assert.Equal(HttpStatusCode.OK, ics.StatusCode);
         Assert.Equal("text/calendar", ics.Content.Headers.ContentType!.MediaType);
         var calendar = await ics.Content.ReadAsStringAsync();

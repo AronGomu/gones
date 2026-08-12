@@ -244,9 +244,9 @@ async function seedTournaments(environment, tokens, organizationIds, formatIds) 
       formatIds: entry.formatKeys.map((key) => formatIds.get(key))
     };
 
-    const previewed = await requireResponse(await api('POST', '/api/tournaments/preview', { token, body: payload }), 'tournaments', entry.key);
+    const previewed = await requireResponse(await api('POST', '/api/events/preview', { token, body: payload }), 'tournaments', entry.key);
     const { previewTicket } = await previewed.json();
-    const published = await requireResponse(await api('POST', '/api/tournaments', {
+    const published = await requireResponse(await api('POST', '/api/events', {
       token,
       body: { previewTicket, payload },
       idempotencyKey: `${environment.name}-tournament-${entry.key}`
@@ -264,7 +264,7 @@ async function seedRegistrations(environment, tokens, tournamentIds) {
     const tournament = tournamentIds.get(tournamentKey);
     // 409 covers both re-runs of this script against a stack that already carries the dataset and a
     // tournament whose start time passed while the seed was running.
-    await requireResponse(await api('POST', `/api/tournaments/${tournament.id}/registrations`, {
+    await requireResponse(await api('POST', `/api/events/${tournament.id}/registrations`, {
       token: tokens.get(normalizeFixtureEmail(userEmail)),
       idempotencyKey: `${environment.name}-registration-${tournamentKey}-${userEmail}`
     }), 'registrations', `${tournamentKey}/${userEmail}`, [409]);

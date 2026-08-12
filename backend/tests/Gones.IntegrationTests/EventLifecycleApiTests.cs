@@ -19,7 +19,7 @@ using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
-public sealed class TournamentLifecycleApiTests : IAsyncLifetime
+public sealed class EventLifecycleApiTests : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
     private readonly MutableClock clock = new(Instant.FromUtc(2030, 1, 1, 12, 0));
@@ -72,21 +72,21 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
             await database.SaveChangesAsync();
         }
 
-        using var organizerList = await SendAsync(HttpMethod.Get, "/api/organizer/tournaments?page=1&pageSize=1", seed.Organizer.Id, "Organizer");
+        using var organizerList = await SendAsync(HttpMethod.Get, "/api/organizer/events?page=1&pageSize=1", seed.Organizer.Id, "Organizer");
         Assert.Equal(HttpStatusCode.OK, organizerList.StatusCode);
         var organizerBody = await organizerList.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(1, organizerBody.GetProperty("items").GetArrayLength());
         Assert.Equal(alpha.OrganizationId, organizerBody.GetProperty("items")[0].GetProperty("organizationId").GetGuid());
         Assert.DoesNotContain(organizerBody.GetProperty("items").EnumerateArray(), item => item.GetProperty("id").GetGuid() == deleted.Id);
 
-        using var adminList = await SendAsync(HttpMethod.Get, "/api/organizer/tournaments?pageSize=100", seed.Admin.Id, "Admin");
+        using var adminList = await SendAsync(HttpMethod.Get, "/api/organizer/events?pageSize=100", seed.Admin.Id, "Admin");
         Assert.Equal(HttpStatusCode.OK, adminList.StatusCode);
         var adminListBody = await adminList.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Contains(adminListBody.GetProperty("items").EnumerateArray(), item => item.GetProperty("id").GetGuid() == beta.Id);
 
-        using var organizerDeleted = await SendAsync(HttpMethod.Get, "/api/admin/tournaments/deleted", seed.Organizer.Id, "Organizer");
+        using var organizerDeleted = await SendAsync(HttpMethod.Get, "/api/admin/events/deleted", seed.Organizer.Id, "Organizer");
         Assert.Equal(HttpStatusCode.Forbidden, organizerDeleted.StatusCode);
-        using var adminDeleted = await SendAsync(HttpMethod.Get, "/api/admin/tournaments/deleted", seed.Admin.Id, "Admin");
+        using var adminDeleted = await SendAsync(HttpMethod.Get, "/api/admin/events/deleted", seed.Admin.Id, "Admin");
         Assert.Equal(HttpStatusCode.OK, adminDeleted.StatusCode);
         var deletedBody = await adminDeleted.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Contains(deletedBody.GetProperty("items").EnumerateArray(), item => item.GetProperty("id").GetGuid() == deleted.Id);
@@ -98,23 +98,23 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Edit Cup");
         var details = Details("Renamed Cup");
 
-        using var missing = await SendJsonAsync(HttpMethod.Patch, $"/api/tournaments/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details);
+        using var missing = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details);
         Assert.Equal(HttpStatusCode.PreconditionFailed, missing.StatusCode);
-        using var stale = await SendJsonAsync(HttpMethod.Patch, $"/api/tournaments/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(99));
+        using var stale = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(99));
         Assert.Equal(HttpStatusCode.PreconditionFailed, stale.StatusCode);
-        using var outsider = await SendJsonAsync(HttpMethod.Patch, $"/api/tournaments/{tournament.Id:D}/details", seed.Outsider.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
+        using var outsider = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Outsider.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.NotFound, outsider.StatusCode);
 
         var massAssignment = JsonSerializer.Serialize(details).TrimEnd('}') + $",\"organizationId\":\"{seed.Beta.Id:D}\",\"slug\":\"hijack\",\"status\":\"Cancelled\"}}";
-        using var rejected = await SendRawJsonAsync(HttpMethod.Patch, $"/api/tournaments/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", massAssignment, StrongETag.Encode(tournament.Version));
+        using var rejected = await SendRawJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", massAssignment, StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
 
-        using var minor = await SendJsonAsync(HttpMethod.Patch, $"/api/tournaments/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
+        using var minor = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.OK, minor.StatusCode);
         Assert.Equal(StrongETag.Encode(tournament.Version + 1), minor.Headers.ETag?.Tag);
 
         var majorDetails = details with { StreetAddress = "99 Major Street", StartsAtLocal = "2035-03-05T10:00:00", EndsAtLocal = "2035-03-05T18:00:00", BodyHtml = "<p>Secret changed body</p>" };
-        using var major = await SendJsonAsync(HttpMethod.Patch, $"/api/tournaments/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", majorDetails, ifMatch: minor.Headers.ETag?.Tag);
+        using var major = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", majorDetails, ifMatch: minor.Headers.ETag?.Tag);
         Assert.Equal(HttpStatusCode.OK, major.StatusCode);
 
         await using var database = CreateContext();
@@ -141,38 +141,38 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
             await database.SaveChangesAsync();
         }
 
-        using var missingIdempotency = await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{completed.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, ifMatch: StrongETag.Encode(completed.Version));
+        using var missingIdempotency = await SendJsonAsync(HttpMethod.Post, $"/api/events/{completed.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, ifMatch: StrongETag.Encode(completed.Version));
         Assert.Equal(HttpStatusCode.BadRequest, missingIdempotency.StatusCode);
-        using var cancelled = await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{completed.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "cancel-completed", StrongETag.Encode(completed.Version));
+        using var cancelled = await SendJsonAsync(HttpMethod.Post, $"/api/events/{completed.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "cancel-completed", StrongETag.Encode(completed.Version));
         Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
-        using var cancelRetry = await SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{completed.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "cancel-completed", StrongETag.Encode(completed.Version));
+        using var cancelRetry = await SendJsonAsync(HttpMethod.Post, $"/api/events/{completed.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "cancel-completed", StrongETag.Encode(completed.Version));
         Assert.Equal(HttpStatusCode.OK, cancelRetry.StatusCode);
         Assert.Equal(cancelled.Headers.ETag?.Tag, cancelRetry.Headers.ETag?.Tag);
 
         var future = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Delete Cup");
-        using var deleted = await SendJsonAsync(HttpMethod.Delete, $"/api/tournaments/{future.Id:D}", seed.Organizer.Id, "Organizer", new { reason = "duplicate" }, "delete-future", StrongETag.Encode(future.Version));
+        using var deleted = await SendJsonAsync(HttpMethod.Delete, $"/api/events/{future.Id:D}", seed.Organizer.Id, "Organizer", new { reason = "duplicate" }, "delete-future", StrongETag.Encode(future.Version));
         Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
-        using var deleteRetry = await SendJsonAsync(HttpMethod.Delete, $"/api/tournaments/{future.Id:D}", seed.Organizer.Id, "Organizer", new { reason = "duplicate" }, "delete-future", StrongETag.Encode(future.Version));
+        using var deleteRetry = await SendJsonAsync(HttpMethod.Delete, $"/api/events/{future.Id:D}", seed.Organizer.Id, "Organizer", new { reason = "duplicate" }, "delete-future", StrongETag.Encode(future.Version));
         Assert.Equal(HttpStatusCode.OK, deleteRetry.StatusCode);
 
-        using var organizerRestore = await SendJsonAsync(HttpMethod.Post, $"/api/admin/tournaments/{future.Id:D}/restore", seed.Organizer.Id, "Organizer", new { }, ifMatch: deleted.Headers.ETag?.Tag);
+        using var organizerRestore = await SendJsonAsync(HttpMethod.Post, $"/api/admin/events/{future.Id:D}/restore", seed.Organizer.Id, "Organizer", new { }, ifMatch: deleted.Headers.ETag?.Tag);
         Assert.Equal(HttpStatusCode.Forbidden, organizerRestore.StatusCode);
-        using var restored = await SendJsonAsync(HttpMethod.Post, $"/api/admin/tournaments/{future.Id:D}/restore", seed.Admin.Id, "Admin", new { }, ifMatch: deleted.Headers.ETag?.Tag);
+        using var restored = await SendJsonAsync(HttpMethod.Post, $"/api/admin/events/{future.Id:D}/restore", seed.Admin.Id, "Admin", new { }, ifMatch: deleted.Headers.ETag?.Tag);
         Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
 
         var restoreExpired = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Restore Expired Cup");
-        using var expiredDelete = await SendJsonAsync(HttpMethod.Delete, $"/api/tournaments/{restoreExpired.Id:D}", seed.Organizer.Id, "Organizer", new { }, "delete-restore-expired", StrongETag.Encode(restoreExpired.Version));
+        using var expiredDelete = await SendJsonAsync(HttpMethod.Delete, $"/api/events/{restoreExpired.Id:D}", seed.Organizer.Id, "Organizer", new { }, "delete-restore-expired", StrongETag.Encode(restoreExpired.Version));
         Assert.Equal(HttpStatusCode.OK, expiredDelete.StatusCode);
         clock.Set(restoreExpired.StartsAtUtc);
-        using var expiredRestore = await SendJsonAsync(HttpMethod.Post, $"/api/admin/tournaments/{restoreExpired.Id:D}/restore", seed.Admin.Id, "Admin", new { }, ifMatch: expiredDelete.Headers.ETag?.Tag);
+        using var expiredRestore = await SendJsonAsync(HttpMethod.Post, $"/api/admin/events/{restoreExpired.Id:D}/restore", seed.Admin.Id, "Admin", new { }, ifMatch: expiredDelete.Headers.ETag?.Tag);
         Assert.Equal(HttpStatusCode.Conflict, expiredRestore.StatusCode);
 
         clock.Set(Instant.FromUtc(2030, 1, 1, 12, 0));
         var started = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Started Cup");
         clock.Set(started.StartsAtUtc);
-        using var lateUpdate = await SendJsonAsync(HttpMethod.Patch, $"/api/tournaments/{started.Id:D}/details", seed.Organizer.Id, "Organizer", Details("Too Late"), ifMatch: StrongETag.Encode(started.Version));
+        using var lateUpdate = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{started.Id:D}/details", seed.Organizer.Id, "Organizer", Details("Too Late"), ifMatch: StrongETag.Encode(started.Version));
         Assert.Equal(HttpStatusCode.Conflict, lateUpdate.StatusCode);
-        using var lateDelete = await SendJsonAsync(HttpMethod.Delete, $"/api/tournaments/{started.Id:D}", seed.Organizer.Id, "Organizer", new { }, "delete-late", StrongETag.Encode(started.Version));
+        using var lateDelete = await SendJsonAsync(HttpMethod.Delete, $"/api/events/{started.Id:D}", seed.Organizer.Id, "Organizer", new { }, "delete-late", StrongETag.Encode(started.Version));
         Assert.Equal(HttpStatusCode.Conflict, lateDelete.StatusCode);
     }
 
@@ -182,7 +182,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         var zero = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Zero Mail Cup");
         using var zeroUpdate = await SendJsonAsync(
             HttpMethod.Patch,
-            $"/api/tournaments/{zero.Id:D}/details",
+            $"/api/events/{zero.Id:D}/details",
             seed.Organizer.Id,
             "Organizer",
             Details("Zero Mail Cup") with { StreetAddress = "99 Zero Street" },
@@ -203,7 +203,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         }
         using var manyUpdate = await SendJsonAsync(
             HttpMethod.Patch,
-            $"/api/tournaments/{many.Id:D}/details",
+            $"/api/events/{many.Id:D}/details",
             seed.Organizer.Id,
             "Organizer",
             Details("Many Mail Cup") with
@@ -216,7 +216,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, manyUpdate.StatusCode);
         using var cancelled = await SendJsonAsync(
             HttpMethod.Post,
-            $"/api/tournaments/{many.Id:D}/cancel",
+            $"/api/events/{many.Id:D}/cancel",
             seed.Organizer.Id,
             "Organizer",
             new { },
@@ -225,7 +225,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
         using var cancelRetry = await SendJsonAsync(
             HttpMethod.Post,
-            $"/api/tournaments/{many.Id:D}/cancel",
+            $"/api/events/{many.Id:D}/cancel",
             seed.Organizer.Id,
             "Organizer",
             new { },
@@ -252,7 +252,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         }
         using var deleted = await SendJsonAsync(
             HttpMethod.Delete,
-            $"/api/tournaments/{deletedTournament.Id:D}",
+            $"/api/events/{deletedTournament.Id:D}",
             seed.Organizer.Id,
             "Organizer",
             new { reason = "cancelled venue" },
@@ -261,7 +261,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
         using var deleteRetry = await SendJsonAsync(
             HttpMethod.Delete,
-            $"/api/tournaments/{deletedTournament.Id:D}",
+            $"/api/events/{deletedTournament.Id:D}",
             seed.Organizer.Id,
             "Organizer",
             new { reason = "cancelled venue" },
@@ -291,7 +291,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         }
         using var failedCancel = await SendJsonAsync(
             HttpMethod.Post,
-            $"/api/tournaments/{rollback.Id:D}/cancel",
+            $"/api/events/{rollback.Id:D}/cancel",
             seed.Organizer.Id,
             "Organizer",
             new { },
@@ -313,8 +313,8 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Idempotent Race Cup");
         var etag = StrongETag.Encode(tournament.Version);
         var responses = await Task.WhenAll(
-            SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "same-race-key", etag),
-            SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "same-race-key", etag));
+            SendJsonAsync(HttpMethod.Post, $"/api/events/{tournament.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "same-race-key", etag),
+            SendJsonAsync(HttpMethod.Post, $"/api/events/{tournament.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "same-race-key", etag));
         using var first = responses[0];
         using var second = responses[1];
         Assert.All(responses, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
@@ -331,8 +331,8 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Race Cup");
         var etag = StrongETag.Encode(tournament.Version);
         var responses = await Task.WhenAll(
-            SendJsonAsync(HttpMethod.Post, $"/api/tournaments/{tournament.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "race-cancel", etag),
-            SendJsonAsync(HttpMethod.Delete, $"/api/tournaments/{tournament.Id:D}", seed.Organizer.Id, "Organizer", new { reason = "race" }, "race-delete", etag));
+            SendJsonAsync(HttpMethod.Post, $"/api/events/{tournament.Id:D}/cancel", seed.Organizer.Id, "Organizer", new { }, "race-cancel", etag),
+            SendJsonAsync(HttpMethod.Delete, $"/api/events/{tournament.Id:D}", seed.Organizer.Id, "Organizer", new { reason = "race" }, "race-delete", etag));
         using var first = responses[0];
         using var second = responses[1];
         Assert.Single(responses, response => response.StatusCode == HttpStatusCode.OK);

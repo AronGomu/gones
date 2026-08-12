@@ -71,12 +71,12 @@
         },
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/PublicEventApiTests.cs",
           "detail": "public read API"
         },
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/AllTournamentsEndpointTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/AllEventsEndpointTests.cs",
           "detail": "bulk present-and-future catalog with ETag caching"
         }
       ]
@@ -92,7 +92,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs",
           "detail": "preview and publish"
         },
         {
@@ -144,7 +144,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "register, unregister, capacity"
         },
         {
@@ -305,7 +305,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs",
           "detail": "ownership and role checks on mutations"
         },
         {
@@ -590,7 +590,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/PublicEventApiTests.cs",
           "detail": "public DTO shape"
         },
         {
@@ -745,7 +745,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "duplicate active registration"
         },
         {
@@ -771,7 +771,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs",
           "detail": "delete and restore"
         },
         {
@@ -1161,7 +1161,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "blocked-user refusal"
         },
         {
@@ -1192,7 +1192,7 @@
         },
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/PublicEventApiTests.cs",
           "detail": "public DTO omits private fields"
         },
         {
@@ -1307,7 +1307,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs",
           "detail": "preview ticket and publish"
         },
         {
@@ -1385,7 +1385,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs",
           "detail": "major versus minor change classification"
         },
         {
@@ -1406,7 +1406,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs",
           "detail": "delete, restore, cancel"
         },
         {
@@ -1432,7 +1432,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/PublicEventApiTests.cs",
           "detail": "visibility filtering"
         },
         {
@@ -1484,7 +1484,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/AllTournamentsEndpointTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/AllEventsEndpointTests.cs",
           "detail": "the endpoint is anonymous, ignores paging, orders by start then id and excludes deleted rows"
         },
         {
@@ -1541,7 +1541,7 @@
         },
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/PublicEventApiTests.cs",
           "detail": "the .ics endpoint"
         },
         {
@@ -1562,12 +1562,12 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentProposalTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventProposalTests.cs",
           "detail": "submission stores the payload as JSON and mails one hashed token per approver"
         },
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentProposalDecisionTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventProposalDecisionTests.cs",
           "detail": "token review, approval publishing exactly once across sibling tokens, and refusal mailing the reason"
         },
         {
@@ -1588,7 +1588,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "precondition checks"
         },
         {
@@ -1635,7 +1635,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "refusal codes"
         },
         {
@@ -1661,7 +1661,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "by-organizer endpoints"
         },
         {
@@ -1687,7 +1687,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "serializable capacity race"
         },
         {
@@ -2046,12 +2046,12 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/PublicEventApiTests.cs",
           "detail": "public reads"
         },
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentPublicationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs",
           "detail": "organizer writes"
         }
       ]
@@ -2067,7 +2067,7 @@
       "evidence": [
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentRegistrationApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventRegistrationApiTests.cs",
           "detail": "user and organizer registration routes"
         }
       ]
@@ -2088,7 +2088,7 @@
         },
         {
           "gate": "dotnet",
-          "target": "backend/tests/Gones.IntegrationTests/TournamentLifecycleApiTests.cs",
+          "target": "backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs",
           "detail": "412 on a stale If-Match and idempotent retries"
         },
         {

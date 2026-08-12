@@ -17,51 +17,51 @@ using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using Npgsql;
 
-namespace Gones.Api.Tournaments;
+namespace Gones.Api.Events;
 
-internal static class TournamentRegistrationEndpoints
+internal static class EventRegistrationEndpoints
 {
     private const int DefaultPageSize = 20;
     private const int MaximumPageSize = 100;
 
-    public static void MapTournamentRegistrationEndpoints(this WebApplication app)
+    public static void MapEventRegistrationEndpoints(this WebApplication app)
     {
         var users = app.MapGroup("/api").RequireAuthorization(AuthorizationPolicies.User);
-        users.MapPost("/tournaments/{tournamentId:guid}/registrations", RegisterAsync)
+        users.MapPost("/events/{eventId:guid}/registrations", RegisterAsync)
             .RequireRateLimiting(AuthRateLimiting.RegistrationPolicy)
-            .WithName("RegisterForTournament")
-            .Produces<TournamentRegistrationMutationResponse>(StatusCodes.Status201Created)
+            .WithName("RegisterForEvent")
+            .Produces<EventRegistrationMutationResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
-        users.MapDelete("/tournaments/{tournamentId:guid}/registrations", UnregisterAsync)
+        users.MapDelete("/events/{eventId:guid}/registrations", UnregisterAsync)
             .RequireRateLimiting(AuthRateLimiting.RegistrationPolicy)
-            .WithName("UnregisterFromTournament")
-            .Produces<TournamentRegistrationMutationResponse>()
+            .WithName("UnregisterFromEvent")
+            .Produces<EventRegistrationMutationResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
-        users.MapGet("/tournaments/{tournamentId:guid}/registration-capability", GetCapabilityAsync)
-            .WithName("GetTournamentRegistrationCapability")
-            .Produces<TournamentRegistrationCapabilityResponse>()
+        users.MapGet("/events/{eventId:guid}/registration-capability", GetCapabilityAsync)
+            .WithName("GetEventRegistrationCapability")
+            .Produces<EventRegistrationCapabilityResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound);
         users.MapGet("/users/me/registrations", ListMineAsync)
-            .WithName("ListMyTournamentRegistrations")
-            .Produces<TournamentRegistrationListResponse>();
+            .WithName("ListMyEventRegistrations")
+            .Produces<EventRegistrationListResponse>();
     }
 
     private static async Task<IResult> RegisterAsync(
-        Guid tournamentId,
+        Guid eventId,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         ClaimsPrincipal principal,
-        TournamentRegistrationService registrations,
+        EventRegistrationService registrations,
         CancellationToken cancellationToken)
     {
         var result = await registrations.RegisterAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             RequireIdempotencyKey(idempotencyKey),
             cancellationToken);
@@ -69,24 +69,24 @@ internal static class TournamentRegistrationEndpoints
     }
 
     private static async Task<IResult> UnregisterAsync(
-        Guid tournamentId,
+        Guid eventId,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         ClaimsPrincipal principal,
-        TournamentRegistrationService registrations,
+        EventRegistrationService registrations,
         CancellationToken cancellationToken) =>
         Results.Ok(await registrations.UnregisterAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             RequireIdempotencyKey(idempotencyKey),
             cancellationToken));
 
     private static async Task<IResult> GetCapabilityAsync(
-        Guid tournamentId,
+        Guid eventId,
         ClaimsPrincipal principal,
-        TournamentRegistrationService registrations,
+        EventRegistrationService registrations,
         CancellationToken cancellationToken) =>
         Results.Ok(await registrations.GetCapabilityAsync(
-            tournamentId,
+            eventId,
             OrganizationPrincipal.UserId(principal),
             cancellationToken));
 
@@ -94,7 +94,7 @@ internal static class TournamentRegistrationEndpoints
         int? page,
         int? pageSize,
         ClaimsPrincipal principal,
-        TournamentRegistrationService registrations,
+        EventRegistrationService registrations,
         CancellationToken cancellationToken) =>
         Results.Ok(await registrations.ListMineAsync(
             OrganizationPrincipal.UserId(principal),
@@ -116,9 +116,9 @@ internal static class TournamentRegistrationEndpoints
     }
 }
 
-internal sealed class TournamentRegistrationService(
+internal sealed class EventRegistrationService(
     GonesDbContext database,
-    TournamentRegistrationNotificationService notifications,
+    EventRegistrationNotificationService notifications,
     OrganizationAccessService organizationAccess,
     IClock clock)
 {
@@ -126,43 +126,43 @@ internal sealed class TournamentRegistrationService(
     private static readonly JsonSerializerOptions StoredJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
         .ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 
-    public Task<TournamentRegistrationMutationResponse> RegisterAsync(
-        Guid tournamentId,
+    public Task<EventRegistrationMutationResponse> RegisterAsync(
+        Guid eventId,
         Guid userId,
         string idempotencyKey,
         CancellationToken cancellationToken) =>
-        ExecuteSerializableAsync(() => RegisterOnceAsync(tournamentId, userId, userId, idempotencyKey, false, false, cancellationToken), cancellationToken);
+        ExecuteSerializableAsync(() => RegisterOnceAsync(eventId, userId, userId, idempotencyKey, false, false, cancellationToken), cancellationToken);
 
-    public Task<TournamentRegistrationMutationResponse> RegisterByOrganizerAsync(
-        Guid tournamentId,
+    public Task<EventRegistrationMutationResponse> RegisterByOrganizerAsync(
+        Guid eventId,
         Guid userId,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken) =>
-        ExecuteSerializableAsync(() => RegisterOnceAsync(tournamentId, userId, actorUserId, null, true, isAdmin, cancellationToken), cancellationToken);
+        ExecuteSerializableAsync(() => RegisterOnceAsync(eventId, userId, actorUserId, null, true, isAdmin, cancellationToken), cancellationToken);
 
-    public Task<TournamentRegistrationMutationResponse> RemoveByOrganizerAsync(
-        Guid tournamentId,
+    public Task<EventRegistrationMutationResponse> RemoveByOrganizerAsync(
+        Guid eventId,
         Guid registrationId,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken) =>
-        ExecuteSerializableAsync(() => RemoveByOrganizerOnceAsync(tournamentId, registrationId, actorUserId, isAdmin, cancellationToken), cancellationToken);
+        ExecuteSerializableAsync(() => RemoveByOrganizerOnceAsync(eventId, registrationId, actorUserId, isAdmin, cancellationToken), cancellationToken);
 
-    public Task<TournamentRegistrationMutationResponse> UnregisterAsync(
-        Guid tournamentId,
+    public Task<EventRegistrationMutationResponse> UnregisterAsync(
+        Guid eventId,
         Guid userId,
         string idempotencyKey,
         CancellationToken cancellationToken) =>
-        ExecuteSerializableAsync(() => UnregisterOnceAsync(tournamentId, userId, idempotencyKey, cancellationToken), cancellationToken);
+        ExecuteSerializableAsync(() => UnregisterOnceAsync(eventId, userId, idempotencyKey, cancellationToken), cancellationToken);
 
-    public async Task<TournamentRegistrationCapabilityResponse> GetCapabilityAsync(
-        Guid tournamentId,
+    public async Task<EventRegistrationCapabilityResponse> GetCapabilityAsync(
+        Guid eventId,
         Guid userId,
         CancellationToken cancellationToken)
     {
         var tournament = await database.Events.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == tournamentId && item.DeletedAt == null, cancellationToken)
+            .SingleOrDefaultAsync(item => item.Id == eventId && item.DeletedAt == null, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (!await database.Organizations.AsNoTracking().AnyAsync(
                 item => item.Id == tournament.OrganizationId && item.DeletedAt == null,
@@ -172,10 +172,10 @@ internal sealed class TournamentRegistrationService(
         }
 
         var activeParticipantCount = await database.EventRegistrationAttempts.AsNoTracking().CountAsync(
-            item => item.EventId == tournamentId && item.Status == TournamentRegistrationStatus.Confirmed,
+            item => item.EventId == eventId && item.Status == TournamentRegistrationStatus.Confirmed,
             cancellationToken);
         var hasActiveRegistration = await database.EventRegistrationAttempts.AsNoTracking().AnyAsync(
-            item => item.EventId == tournamentId
+            item => item.EventId == eventId
                 && item.UserId == userId
                 && item.Status == TournamentRegistrationStatus.Confirmed,
             cancellationToken);
@@ -191,7 +191,7 @@ internal sealed class TournamentRegistrationService(
         }
         if (tournament.Status != ScheduledTournamentStatus.Published)
         {
-            return Capability(false, false, "tournament_not_open");
+            return Capability(false, false, "event_not_open");
         }
 
         var user = await database.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == userId, cancellationToken)
@@ -211,15 +211,15 @@ internal sealed class TournamentRegistrationService(
         }
         if (tournament.Capacity is int capacity && activeParticipantCount >= capacity)
         {
-            return Capability(false, false, "tournament_full");
+            return Capability(false, false, "event_full");
         }
         return Capability(true, false, "available");
 
-        TournamentRegistrationCapabilityResponse Capability(bool canRegister, bool canUnregister, string reason) =>
+        EventRegistrationCapabilityResponse Capability(bool canRegister, bool canUnregister, string reason) =>
             new(canRegister, canUnregister, reason, activeParticipantCount, tournament.Capacity);
     }
 
-    public async Task<TournamentRegistrationListResponse> ListMineAsync(
+    public async Task<EventRegistrationListResponse> ListMineAsync(
         Guid userId,
         int page,
         int pageSize,
@@ -238,7 +238,7 @@ internal sealed class TournamentRegistrationService(
             .ThenByDescending(item => item.Attempt.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(item => new TournamentRegistrationHistoryResponse(
+            .Select(item => new EventRegistrationHistoryResponse(
                 item.Attempt.Id,
                 item.Tournament.Id,
                 item.Tournament.Slug,
@@ -253,11 +253,11 @@ internal sealed class TournamentRegistrationService(
                 item.Attempt.StatusChangedByUserId,
                 item.Attempt.StatusChangedAt))
             .ToListAsync(cancellationToken);
-        return new TournamentRegistrationListResponse(items, page, pageSize, total);
+        return new EventRegistrationListResponse(items, page, pageSize, total);
     }
 
-    private async Task<TournamentRegistrationMutationResponse> RegisterOnceAsync(
-        Guid tournamentId,
+    private async Task<EventRegistrationMutationResponse> RegisterOnceAsync(
+        Guid eventId,
         Guid userId,
         Guid actorUserId,
         string? idempotencyKey,
@@ -266,7 +266,7 @@ internal sealed class TournamentRegistrationService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-        var tournament = await LockTournamentAsync(tournamentId, cancellationToken)
+        var tournament = await LockEventAsync(eventId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (requireOrganizerAccess)
         {
@@ -276,7 +276,7 @@ internal sealed class TournamentRegistrationService(
         var scope = $"tournament-registration:{userId:D}";
         if (idempotencyKey is not null)
         {
-            var replay = await ReplayAsync(scope, idempotencyKey, tournamentId, "register", cancellationToken);
+            var replay = await ReplayAsync(scope, idempotencyKey, eventId, "register", cancellationToken);
             if (replay is not null)
             {
                 await transaction.CommitAsync(cancellationToken);
@@ -290,7 +290,7 @@ internal sealed class TournamentRegistrationService(
         {
             throw new RegistrationClosedException();
         }
-        if (tournament.Status != ScheduledTournamentStatus.Published) throw new TournamentNotOpenException();
+        if (tournament.Status != ScheduledTournamentStatus.Published) throw new EventNotOpenException();
         if (!await database.Organizations.AnyAsync(item => item.Id == tournament.OrganizationId && item.DeletedAt == null, cancellationToken))
         {
             throw new ResourceNotFoundException();
@@ -321,7 +321,7 @@ internal sealed class TournamentRegistrationService(
                 attempt.EventId == tournament.Id
                 && attempt.Status == TournamentRegistrationStatus.Confirmed, cancellationToken) >= capacity)
         {
-            throw new TournamentFullException();
+            throw new EventFullException();
         }
 
         var attempt = EventRegistrationAttempt.Register(tournament.Id, userId, actorUserId, now);
@@ -331,7 +331,7 @@ internal sealed class TournamentRegistrationService(
             actorUserId,
             requireOrganizerAccess ? "tournament.registration.confirmed_by_organizer" : "tournament.registration.confirmed",
             attempt.Id,
-            JsonSerializer.Serialize(new { fields = new[] { "status" }, tournamentId = tournament.Id, userId }),
+            JsonSerializer.Serialize(new { fields = new[] { "status" }, eventId = tournament.Id, userId }),
             now));
         MarkParticipantProjectionChanged(tournament);
         var response = ToMutation(attempt);
@@ -343,22 +343,22 @@ internal sealed class TournamentRegistrationService(
         return response;
     }
 
-    private async Task<TournamentRegistrationMutationResponse> RemoveByOrganizerOnceAsync(
-        Guid tournamentId,
+    private async Task<EventRegistrationMutationResponse> RemoveByOrganizerOnceAsync(
+        Guid eventId,
         Guid registrationId,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-        var tournament = await LockTournamentAsync(tournamentId, cancellationToken)
+        var tournament = await LockEventAsync(eventId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (tournament.DeletedAt is not null) throw new ResourceNotFoundException();
         _ = await organizationAccess.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
         var now = clock.GetCurrentInstant();
         if (now >= tournament.StartsAtUtc) throw new UnregistrationClosedException();
         var attempt = await database.EventRegistrationAttempts
-            .FromSqlInterpolated($"SELECT * FROM event_registration_attempts WHERE id = {registrationId} AND event_id = {tournamentId} AND status = 'Confirmed' FOR UPDATE")
+            .FromSqlInterpolated($"SELECT * FROM event_registration_attempts WHERE id = {registrationId} AND event_id = {eventId} AND status = 'Confirmed' FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ActiveRegistrationNotFoundException();
         var user = await database.Users.SingleAsync(item => item.Id == attempt.UserId, cancellationToken);
@@ -369,7 +369,7 @@ internal sealed class TournamentRegistrationService(
             actorUserId,
             "tournament.registration.removed_by_organizer",
             attempt.Id,
-            JsonSerializer.Serialize(new { fields = new[] { "status" }, tournamentId, userId = attempt.UserId }),
+            JsonSerializer.Serialize(new { fields = new[] { "status" }, eventId, userId = attempt.UserId }),
             now));
         MarkParticipantProjectionChanged(tournament);
         var response = ToMutation(attempt);
@@ -377,18 +377,18 @@ internal sealed class TournamentRegistrationService(
         return response;
     }
 
-    private async Task<TournamentRegistrationMutationResponse> UnregisterOnceAsync(
-        Guid tournamentId,
+    private async Task<EventRegistrationMutationResponse> UnregisterOnceAsync(
+        Guid eventId,
         Guid userId,
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-        var tournament = await LockTournamentAsync(tournamentId, cancellationToken)
+        var tournament = await LockEventAsync(eventId, cancellationToken)
             ?? throw new ResourceNotFoundException();
 
         var scope = $"tournament-registration:{userId:D}";
-        var replay = await ReplayAsync(scope, idempotencyKey, tournamentId, "unregister", cancellationToken);
+        var replay = await ReplayAsync(scope, idempotencyKey, eventId, "unregister", cancellationToken);
         if (replay is not null)
         {
             await transaction.CommitAsync(cancellationToken);
@@ -401,7 +401,7 @@ internal sealed class TournamentRegistrationService(
         var attempt = await database.EventRegistrationAttempts
             .FromSqlInterpolated($"""
                 SELECT * FROM event_registration_attempts
-                WHERE event_id = {tournamentId} AND user_id = {userId} AND status = 'Confirmed'
+                WHERE event_id = {eventId} AND user_id = {userId} AND status = 'Confirmed'
                 FOR UPDATE
                 """)
             .SingleOrDefaultAsync(cancellationToken)
@@ -414,7 +414,7 @@ internal sealed class TournamentRegistrationService(
             userId,
             "tournament.registration.cancelled_by_user",
             attempt.Id,
-            JsonSerializer.Serialize(new { fields = new[] { "status" }, tournamentId = tournament.Id, userId }),
+            JsonSerializer.Serialize(new { fields = new[] { "status" }, eventId = tournament.Id, userId }),
             now));
         MarkParticipantProjectionChanged(tournament);
         var response = ToMutation(attempt);
@@ -423,10 +423,10 @@ internal sealed class TournamentRegistrationService(
         return response;
     }
 
-    private async Task<TournamentRegistrationMutationResponse?> ReplayAsync(
+    private async Task<EventRegistrationMutationResponse?> ReplayAsync(
         string scope,
         string key,
-        Guid tournamentId,
+        Guid eventId,
         string command,
         CancellationToken cancellationToken)
     {
@@ -435,7 +435,7 @@ internal sealed class TournamentRegistrationService(
         if (existing is null) return null;
         var stored = JsonSerializer.Deserialize<StoredRegistrationMutation>(existing.ResponseBody, StoredJsonOptions)
             ?? throw new InvalidOperationException("Stored registration result is invalid.");
-        if (stored.TournamentId != tournamentId || !string.Equals(stored.Command, command, StringComparison.Ordinal))
+        if (stored.EventId != eventId || !string.Equals(stored.Command, command, StringComparison.Ordinal))
         {
             throw new IdempotencyConflictException();
         }
@@ -446,8 +446,8 @@ internal sealed class TournamentRegistrationService(
         string scope,
         string key,
         string command,
-        Guid tournamentId,
-        TournamentRegistrationMutationResponse response,
+        Guid eventId,
+        EventRegistrationMutationResponse response,
         Instant now,
         int statusCode)
     {
@@ -456,14 +456,14 @@ internal sealed class TournamentRegistrationService(
             Scope = scope,
             Key = key,
             ResponseStatusCode = statusCode,
-            ResponseBody = JsonSerializer.Serialize(new StoredRegistrationMutation(command, tournamentId, response), StoredJsonOptions),
+            ResponseBody = JsonSerializer.Serialize(new StoredRegistrationMutation(command, eventId, response), StoredJsonOptions),
             CreatedAt = now,
             ExpiresAt = now + Duration.FromHours(24)
         });
     }
 
-    private async Task<TournamentRegistrationMutationResponse> ExecuteSerializableAsync(
-        Func<Task<TournamentRegistrationMutationResponse>> action,
+    private async Task<EventRegistrationMutationResponse> ExecuteSerializableAsync(
+        Func<Task<EventRegistrationMutationResponse>> action,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
@@ -480,9 +480,9 @@ internal sealed class TournamentRegistrationService(
         }
     }
 
-    private async Task<Event?> LockTournamentAsync(Guid tournamentId, CancellationToken cancellationToken) =>
+    private async Task<Event?> LockEventAsync(Guid eventId, CancellationToken cancellationToken) =>
         await database.Events
-            .FromSqlInterpolated($"SELECT * FROM events WHERE id = {tournamentId} FOR UPDATE")
+            .FromSqlInterpolated($"SELECT * FROM events WHERE id = {eventId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
 
     private async Task SaveAndCommitAsync(
@@ -513,7 +513,7 @@ internal sealed class TournamentRegistrationService(
         return false;
     }
 
-    private static TournamentRegistrationMutationResponse ToMutation(EventRegistrationAttempt attempt) =>
+    private static EventRegistrationMutationResponse ToMutation(EventRegistrationAttempt attempt) =>
         new(attempt.Id, attempt.EventId, attempt.UserId, attempt.Status.ToString(), attempt.RegisteredAt, attempt.StatusChangedAt);
 
     private static AuditRecord NewAudit(Guid actorId, string action, Guid attemptId, string diff, Instant now) => new()
@@ -528,21 +528,21 @@ internal sealed class TournamentRegistrationService(
 
     private sealed record StoredRegistrationMutation(
         string Command,
-        Guid TournamentId,
-        TournamentRegistrationMutationResponse Response);
+        Guid EventId,
+        EventRegistrationMutationResponse Response);
 }
 
-internal sealed record TournamentRegistrationCapabilityResponse(
+internal sealed record EventRegistrationCapabilityResponse(
     bool CanRegister,
     bool CanUnregister,
     string Reason,
     int ActiveParticipantCount,
     int? Capacity);
 
-internal sealed class TournamentRegistrationNotificationService(
+internal sealed class EventRegistrationNotificationService(
     GonesDbContext database,
     INotificationOutbox outbox,
-    TournamentRegistrationOptions options)
+    EventRegistrationOptions options)
 {
     public async Task EnqueueSelfRegistrationAsync(
         EventRegistrationAttempt attempt,
@@ -552,14 +552,14 @@ internal sealed class TournamentRegistrationNotificationService(
         bool registered,
         CancellationToken cancellationToken)
     {
-        var tournamentUrl = TournamentUrl(tournament.Slug);
+        var eventUrl = EventUrl(tournament.Slug);
         outbox.Enqueue(new NotificationRequest(
             RequiredEmail(user),
             profile.PreferredLanguage,
             $"registration:{attempt.Id:D}:{(registered ? "confirmed" : "cancelled-by-user")}:participant",
             registered
-                ? new RegistrationTemplateModel(profile.Username, tournament.Title, tournamentUrl)
-                : new UnregistrationTemplateModel(profile.Username, tournament.Title, tournamentUrl),
+                ? new RegistrationTemplateModel(profile.Username, tournament.Title, eventUrl)
+                : new UnregistrationTemplateModel(profile.Username, tournament.Title, eventUrl),
             user.Id,
             tournament.Id));
 
@@ -586,7 +586,7 @@ internal sealed class TournamentRegistrationNotificationService(
                     profile.Username,
                     tournament.Title,
                     registered ? "registered" : "unregistered",
-                    tournamentUrl),
+                    eventUrl),
                 organizer.User.Id,
                 tournament.Id));
         }
@@ -602,7 +602,7 @@ internal sealed class TournamentRegistrationNotificationService(
             RequiredEmail(user),
             profile.PreferredLanguage,
             $"registration:{attempt.Id:D}:removed-by-organizer:participant",
-            new UnregistrationTemplateModel(profile.Username, tournament.Title, TournamentUrl(tournament.Slug)),
+            new UnregistrationTemplateModel(profile.Username, tournament.Title, EventUrl(tournament.Slug)),
             user.Id,
             tournament.Id));
     }
@@ -619,7 +619,7 @@ internal sealed class TournamentRegistrationNotificationService(
                 RequiredEmail(participant.User),
                 participant.Profile.PreferredLanguage,
                 $"tournament-lifecycle:{lifecycleEventId:D}:major-update:{participant.User.Id:D}",
-                new MajorUpdateTemplateModel(participant.Profile.Username, tournament.Title, "date_or_address", TournamentUrl(tournament.Slug)),
+                new MajorUpdateTemplateModel(participant.Profile.Username, tournament.Title, "date_or_address", EventUrl(tournament.Slug)),
                 participant.User.Id,
                 tournament.Id));
         }
@@ -640,25 +640,25 @@ internal sealed class TournamentRegistrationNotificationService(
                 RequiredEmail(participant.User),
                 participant.Profile.PreferredLanguage,
                 $"tournament-lifecycle:{lifecycleEventId:D}:cancellation:{participant.User.Id:D}",
-                new CancellationTemplateModel(participant.Profile.Username, tournament.Title, TournamentUrl(tournament.Slug)),
+                new CancellationTemplateModel(participant.Profile.Username, tournament.Title, EventUrl(tournament.Slug)),
                 participant.User.Id,
                 tournament.Id));
         }
     }
 
-    private async Task<List<ActiveParticipant>> ActiveParticipantsAsync(Guid tournamentId, CancellationToken cancellationToken) =>
+    private async Task<List<ActiveParticipant>> ActiveParticipantsAsync(Guid eventId, CancellationToken cancellationToken) =>
         await (
             from attempt in database.EventRegistrationAttempts
             join user in database.Users on attempt.UserId equals user.Id
             join profile in database.UserProfiles on user.Id equals profile.UserId
-            where attempt.EventId == tournamentId
+            where attempt.EventId == eventId
                 && attempt.Status == TournamentRegistrationStatus.Confirmed
                 && profile.ClosedAt == null
             orderby attempt.Id
             select new ActiveParticipant(attempt, user, profile)
         ).ToListAsync(cancellationToken);
 
-    private Uri TournamentUrl(string slug)
+    private Uri EventUrl(string slug)
     {
         if (!Uri.TryCreate(options.PublicAppOrigin, UriKind.Absolute, out var origin)
             || origin.Scheme != Uri.UriSchemeHttps
@@ -681,9 +681,9 @@ internal sealed class TournamentRegistrationNotificationService(
         UserProfile Profile);
 }
 
-internal sealed record TournamentRegistrationOptions(string? PublicAppOrigin)
+internal sealed record EventRegistrationOptions(string? PublicAppOrigin)
 {
-    public static TournamentRegistrationOptions Load(IConfiguration configuration) =>
+    public static EventRegistrationOptions Load(IConfiguration configuration) =>
         new(configuration["GONES_PUBLIC_APP_ORIGIN"]);
 }
 
@@ -700,25 +700,25 @@ internal sealed class RegistrationOrganizationDeleteDependency(GonesDbContext da
     }
 }
 
-internal sealed record TournamentRegistrationMutationResponse(
+internal sealed record EventRegistrationMutationResponse(
     Guid AttemptId,
-    Guid TournamentId,
+    Guid EventId,
     Guid UserId,
     string Status,
     Instant RegisteredAt,
     Instant? StatusChangedAt);
 
-internal sealed record TournamentRegistrationListResponse(
-    IReadOnlyList<TournamentRegistrationHistoryResponse> Items,
+internal sealed record EventRegistrationListResponse(
+    IReadOnlyList<EventRegistrationHistoryResponse> Items,
     int Page,
     int PageSize,
     int TotalCount);
 
-internal sealed record TournamentRegistrationHistoryResponse(
+internal sealed record EventRegistrationHistoryResponse(
     Guid AttemptId,
-    Guid TournamentId,
-    string TournamentSlug,
-    string TournamentTitle,
+    Guid EventId,
+    string EventSlug,
+    string EventTitle,
     string OrganizationName,
     Instant StartsAtUtc,
     string TimeZoneId,

@@ -122,28 +122,28 @@ export interface IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    tournamentsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicTournamentListResponse>;
+    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse>;
     /**
      * @return Created
      */
-    tournamentsPOST(idempotency_Key: string, body: PublishTournamentRequest): Observable<TournamentPublishResponse>;
+    eventsPOST(idempotency_Key: string, body: PublishEventRequest): Observable<EventPublishResponse>;
     /**
      * @param from (optional)
      * @return OK
      */
-    all(from: string | undefined): Observable<PublicTournamentCatalogResponse>;
+    all(from: string | undefined): Observable<PublicEventCatalogResponse>;
     /**
      * @return OK
      */
-    tournamentsGET2(slug: string): Observable<PublicTournamentDetailResponse>;
+    eventsGET2(slug: string): Observable<PublicEventDetailResponse>;
     /**
      * @return OK
      */
-    participants(slug: string): Observable<PublicTournamentParticipantListResponse>;
+    participants(slug: string): Observable<PublicEventParticipantListResponse>;
     /**
      * @return OK
      */
-    tournamentsGET3(slug: string): Observable<void>;
+    eventsGET3(slug: string): Observable<void>;
     /**
      * @param search (optional)
      * @param page (optional)
@@ -404,7 +404,7 @@ export interface IClient {
     /**
      * @return OK
      */
-    preview(body: TournamentPayloadRequest): Observable<TournamentPreviewResponse>;
+    preview(body: EventPayloadRequest): Observable<EventPreviewResponse>;
     /**
      * @return OK
      */
@@ -412,78 +412,78 @@ export interface IClient {
     /**
      * @return Created
      */
-    tournamentProposals(body: TournamentProposalRequest): Observable<TournamentProposalResponse>;
+    eventProposals(body: EventProposalRequest): Observable<EventProposalResponse>;
     /**
      * @return OK
      */
-    byToken(token: string): Observable<TournamentProposalReviewResponse>;
+    byToken(token: string): Observable<EventProposalReviewResponse>;
     /**
      * @return OK
      */
-    approve(token: string): Observable<TournamentProposalDecisionResponse>;
+    approve(token: string): Observable<EventProposalDecisionResponse>;
     /**
      * @return No Content
      */
-    reject(token: string, body: TournamentProposalRejectRequest): Observable<void>;
+    reject(token: string, body: EventProposalRejectRequest): Observable<void>;
     /**
      * @param page (optional)
      * @param pageSize (optional)
      * @return OK
      */
-    listOrganizerTournaments(page: number | undefined, pageSize: number | undefined): Observable<TournamentManagementListResponse>;
+    listOrganizerEvents(page: number | undefined, pageSize: number | undefined): Observable<EventManagementListResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    updateTournamentDetails(tournamentId: string, if_Match: string | undefined, body: UpdateTournamentDetailsRequest): Observable<TournamentManagementResponse>;
+    updateEventDetails(eventId: string, if_Match: string | undefined, body: UpdateEventDetailsRequest): Observable<EventManagementResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    cancelTournament(tournamentId: string, if_Match: string | undefined, idempotency_Key: string): Observable<TournamentMutationResponse>;
+    cancelEvent(eventId: string, if_Match: string | undefined, idempotency_Key: string): Observable<EventMutationResponse>;
     /**
      * @param if_Match (optional)
      * @param body (optional)
      * @return OK
      */
-    deleteTournament(tournamentId: string, if_Match: string | undefined, idempotency_Key: string, body: DeleteTournamentRequest | null | undefined): Observable<TournamentMutationResponse>;
+    deleteEvent(eventId: string, if_Match: string | undefined, idempotency_Key: string, body: DeleteEventRequest | null | undefined): Observable<EventMutationResponse>;
     /**
      * @param page (optional)
      * @param pageSize (optional)
      * @return OK
      */
-    listDeletedTournaments(page: number | undefined, pageSize: number | undefined): Observable<TournamentManagementListResponse>;
+    listDeletedEvents(page: number | undefined, pageSize: number | undefined): Observable<EventManagementListResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
      */
-    restoreTournament(tournamentId: string, if_Match: string | undefined): Observable<TournamentMutationResponse>;
+    restoreEvent(eventId: string, if_Match: string | undefined): Observable<EventMutationResponse>;
     /**
      * @param idempotency_Key (optional)
      * @return Created
      */
-    registerForTournament(tournamentId: string, idempotency_Key: string | undefined): Observable<TournamentRegistrationMutationResponse>;
+    registerForEvent(eventId: string, idempotency_Key: string | undefined): Observable<EventRegistrationMutationResponse>;
     /**
      * @param idempotency_Key (optional)
      * @return OK
      */
-    unregisterFromTournament(tournamentId: string, idempotency_Key: string | undefined): Observable<TournamentRegistrationMutationResponse>;
+    unregisterFromEvent(eventId: string, idempotency_Key: string | undefined): Observable<EventRegistrationMutationResponse>;
     /**
      * @param page (optional)
      * @param pageSize (optional)
      * @return OK
      */
-    listPrivateTournamentParticipants(tournamentId: string, page: number | undefined, pageSize: number | undefined): Observable<PrivateTournamentParticipantListResponse>;
+    listPrivateEventParticipants(eventId: string, page: number | undefined, pageSize: number | undefined): Observable<PrivateEventParticipantListResponse>;
     /**
      * @return OK
      */
-    getTournamentRegistrationCapability(tournamentId: string): Observable<TournamentRegistrationCapabilityResponse>;
+    getEventRegistrationCapability(eventId: string): Observable<EventRegistrationCapabilityResponse>;
     /**
      * @param page (optional)
      * @param pageSize (optional)
      * @return OK
      */
-    listMyTournamentRegistrations(page: number | undefined, pageSize: number | undefined): Observable<TournamentRegistrationListResponse>;
+    listMyEventRegistrations(page: number | undefined, pageSize: number | undefined): Observable<EventRegistrationListResponse>;
     /**
      * @param username (optional)
      * @param email (optional)
@@ -507,15 +507,15 @@ export interface IClient {
     /**
      * @return Created
      */
-    registerTournamentParticipantByOrganizer(tournamentId: string, body: RegisterByOrganizerRequest): Observable<TournamentRegistrationMutationResponse>;
+    registerEventParticipantByOrganizer(eventId: string, body: RegisterByOrganizerRequest): Observable<EventRegistrationMutationResponse>;
     /**
      * @return OK
      */
-    removeTournamentParticipantByOrganizer(tournamentId: string, registrationId: string): Observable<TournamentRegistrationMutationResponse>;
+    removeEventParticipantByOrganizer(eventId: string, registrationId: string): Observable<EventRegistrationMutationResponse>;
     /**
      * @return OK
      */
-    exportTournamentParticipants(tournamentId: string): Observable<FileResponse>;
+    exportEventParticipants(eventId: string): Observable<FileResponse>;
     /**
      * @param search (optional)
      * @param page (optional)
@@ -1896,8 +1896,8 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    tournamentsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicTournamentListResponse> {
-        let url_ = this.baseUrl + "/api/tournaments?";
+    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse> {
+        let url_ = this.baseUrl + "/api/events?";
         if (from === null)
             throw new globalThis.Error("The parameter 'from' cannot be null.");
         else if (from !== undefined)
@@ -1957,20 +1957,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsGET(response_);
+            return this.processEventsGET(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsGET(response_ as any);
+                    return this.processEventsGET(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<PublicTournamentListResponse>;
+                    return _observableThrow(e) as any as Observable<PublicEventListResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<PublicTournamentListResponse>;
+                return _observableThrow(response_) as any as Observable<PublicEventListResponse>;
         }));
     }
 
-    protected processTournamentsGET(response: HttpResponseBase): Observable<PublicTournamentListResponse> {
+    protected processEventsGET(response: HttpResponseBase): Observable<PublicEventListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -1980,7 +1980,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicTournamentListResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicEventListResponse;
             return _observableOf(result200);
             }));
         } else if (status === 304) {
@@ -2004,8 +2004,8 @@ export class Client implements IClient {
     /**
      * @return Created
      */
-    tournamentsPOST(idempotency_Key: string, body: PublishTournamentRequest): Observable<TournamentPublishResponse> {
-        let url_ = this.baseUrl + "/api/tournaments";
+    eventsPOST(idempotency_Key: string, body: PublishEventRequest): Observable<EventPublishResponse> {
+        let url_ = this.baseUrl + "/api/events";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -2022,20 +2022,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsPOST(response_);
+            return this.processEventsPOST(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsPOST(response_ as any);
+                    return this.processEventsPOST(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentPublishResponse>;
+                    return _observableThrow(e) as any as Observable<EventPublishResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentPublishResponse>;
+                return _observableThrow(response_) as any as Observable<EventPublishResponse>;
         }));
     }
 
-    protected processTournamentsPOST(response: HttpResponseBase): Observable<TournamentPublishResponse> {
+    protected processEventsPOST(response: HttpResponseBase): Observable<EventPublishResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -2045,7 +2045,7 @@ export class Client implements IClient {
         if (status === 201) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result201: any = null;
-            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentPublishResponse;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventPublishResponse;
             return _observableOf(result201);
             }));
         } else if (status === 400) {
@@ -2090,8 +2090,8 @@ export class Client implements IClient {
      * @param from (optional)
      * @return OK
      */
-    all(from: string | undefined): Observable<PublicTournamentCatalogResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/all?";
+    all(from: string | undefined): Observable<PublicEventCatalogResponse> {
+        let url_ = this.baseUrl + "/api/events/all?";
         if (from === null)
             throw new globalThis.Error("The parameter 'from' cannot be null.");
         else if (from !== undefined)
@@ -2113,14 +2113,14 @@ export class Client implements IClient {
                 try {
                     return this.processAll(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<PublicTournamentCatalogResponse>;
+                    return _observableThrow(e) as any as Observable<PublicEventCatalogResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<PublicTournamentCatalogResponse>;
+                return _observableThrow(response_) as any as Observable<PublicEventCatalogResponse>;
         }));
     }
 
-    protected processAll(response: HttpResponseBase): Observable<PublicTournamentCatalogResponse> {
+    protected processAll(response: HttpResponseBase): Observable<PublicEventCatalogResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -2130,7 +2130,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicTournamentCatalogResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicEventCatalogResponse;
             return _observableOf(result200);
             }));
         } else if (status === 304) {
@@ -2154,8 +2154,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    tournamentsGET2(slug: string): Observable<PublicTournamentDetailResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{slug}";
+    eventsGET2(slug: string): Observable<PublicEventDetailResponse> {
+        let url_ = this.baseUrl + "/api/events/{slug}";
         if (slug === undefined || slug === null)
             throw new globalThis.Error("The parameter 'slug' must be defined.");
         url_ = url_.replace("{slug}", encodeURIComponent("" + slug));
@@ -2170,20 +2170,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsGET2(response_);
+            return this.processEventsGET2(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsGET2(response_ as any);
+                    return this.processEventsGET2(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<PublicTournamentDetailResponse>;
+                    return _observableThrow(e) as any as Observable<PublicEventDetailResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<PublicTournamentDetailResponse>;
+                return _observableThrow(response_) as any as Observable<PublicEventDetailResponse>;
         }));
     }
 
-    protected processTournamentsGET2(response: HttpResponseBase): Observable<PublicTournamentDetailResponse> {
+    protected processEventsGET2(response: HttpResponseBase): Observable<PublicEventDetailResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -2193,7 +2193,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicTournamentDetailResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicEventDetailResponse;
             return _observableOf(result200);
             }));
         } else if (status === 304) {
@@ -2217,8 +2217,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    participants(slug: string): Observable<PublicTournamentParticipantListResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{slug}/participants";
+    participants(slug: string): Observable<PublicEventParticipantListResponse> {
+        let url_ = this.baseUrl + "/api/events/{slug}/participants";
         if (slug === undefined || slug === null)
             throw new globalThis.Error("The parameter 'slug' must be defined.");
         url_ = url_.replace("{slug}", encodeURIComponent("" + slug));
@@ -2239,14 +2239,14 @@ export class Client implements IClient {
                 try {
                     return this.processParticipants(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<PublicTournamentParticipantListResponse>;
+                    return _observableThrow(e) as any as Observable<PublicEventParticipantListResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<PublicTournamentParticipantListResponse>;
+                return _observableThrow(response_) as any as Observable<PublicEventParticipantListResponse>;
         }));
     }
 
-    protected processParticipants(response: HttpResponseBase): Observable<PublicTournamentParticipantListResponse> {
+    protected processParticipants(response: HttpResponseBase): Observable<PublicEventParticipantListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -2256,7 +2256,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicTournamentParticipantListResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicEventParticipantListResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -2276,8 +2276,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    tournamentsGET3(slug: string): Observable<void> {
-        let url_ = this.baseUrl + "/api/tournaments/{slug}.ics";
+    eventsGET3(slug: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/events/{slug}.ics";
         if (slug === undefined || slug === null)
             throw new globalThis.Error("The parameter 'slug' must be defined.");
         url_ = url_.replace("{slug}", encodeURIComponent("" + slug));
@@ -2291,11 +2291,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentsGET3(response_);
+            return this.processEventsGET3(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentsGET3(response_ as any);
+                    return this.processEventsGET3(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<void>;
                 }
@@ -2304,7 +2304,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processTournamentsGET3(response: HttpResponseBase): Observable<void> {
+    protected processEventsGET3(response: HttpResponseBase): Observable<void> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -5754,8 +5754,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    preview(body: TournamentPayloadRequest): Observable<TournamentPreviewResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/preview";
+    preview(body: EventPayloadRequest): Observable<EventPreviewResponse> {
+        let url_ = this.baseUrl + "/api/events/preview";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -5777,14 +5777,14 @@ export class Client implements IClient {
                 try {
                     return this.processPreview(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentPreviewResponse>;
+                    return _observableThrow(e) as any as Observable<EventPreviewResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentPreviewResponse>;
+                return _observableThrow(response_) as any as Observable<EventPreviewResponse>;
         }));
     }
 
-    protected processPreview(response: HttpResponseBase): Observable<TournamentPreviewResponse> {
+    protected processPreview(response: HttpResponseBase): Observable<EventPreviewResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -5794,7 +5794,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentPreviewResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventPreviewResponse;
             return _observableOf(result200);
             }));
         } else if (status === 400) {
@@ -5833,7 +5833,7 @@ export class Client implements IClient {
      * @return OK
      */
     approvers(organizationId: string): Observable<ProposalApproverResponse[]> {
-        let url_ = this.baseUrl + "/api/tournament-proposals/approvers?";
+        let url_ = this.baseUrl + "/api/event-proposals/approvers?";
         if (organizationId === undefined || organizationId === null)
             throw new globalThis.Error("The parameter 'organizationId' must be defined and cannot be null.");
         else
@@ -5898,8 +5898,8 @@ export class Client implements IClient {
     /**
      * @return Created
      */
-    tournamentProposals(body: TournamentProposalRequest): Observable<TournamentProposalResponse> {
-        let url_ = this.baseUrl + "/api/tournament-proposals";
+    eventProposals(body: EventProposalRequest): Observable<EventProposalResponse> {
+        let url_ = this.baseUrl + "/api/event-proposals";
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -5915,20 +5915,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processTournamentProposals(response_);
+            return this.processEventProposals(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processTournamentProposals(response_ as any);
+                    return this.processEventProposals(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentProposalResponse>;
+                    return _observableThrow(e) as any as Observable<EventProposalResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentProposalResponse>;
+                return _observableThrow(response_) as any as Observable<EventProposalResponse>;
         }));
     }
 
-    protected processTournamentProposals(response: HttpResponseBase): Observable<TournamentProposalResponse> {
+    protected processEventProposals(response: HttpResponseBase): Observable<EventProposalResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -5938,7 +5938,7 @@ export class Client implements IClient {
         if (status === 201) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result201: any = null;
-            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentProposalResponse;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventProposalResponse;
             return _observableOf(result201);
             }));
         } else if (status === 400) {
@@ -5982,8 +5982,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    byToken(token: string): Observable<TournamentProposalReviewResponse> {
-        let url_ = this.baseUrl + "/api/tournament-proposals/by-token/{token}";
+    byToken(token: string): Observable<EventProposalReviewResponse> {
+        let url_ = this.baseUrl + "/api/event-proposals/by-token/{token}";
         if (token === undefined || token === null)
             throw new globalThis.Error("The parameter 'token' must be defined.");
         url_ = url_.replace("{token}", encodeURIComponent("" + token));
@@ -6004,14 +6004,14 @@ export class Client implements IClient {
                 try {
                     return this.processByToken(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentProposalReviewResponse>;
+                    return _observableThrow(e) as any as Observable<EventProposalReviewResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentProposalReviewResponse>;
+                return _observableThrow(response_) as any as Observable<EventProposalReviewResponse>;
         }));
     }
 
-    protected processByToken(response: HttpResponseBase): Observable<TournamentProposalReviewResponse> {
+    protected processByToken(response: HttpResponseBase): Observable<EventProposalReviewResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6021,7 +6021,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentProposalReviewResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventProposalReviewResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -6053,8 +6053,8 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    approve(token: string): Observable<TournamentProposalDecisionResponse> {
-        let url_ = this.baseUrl + "/api/tournament-proposals/by-token/{token}/approve";
+    approve(token: string): Observable<EventProposalDecisionResponse> {
+        let url_ = this.baseUrl + "/api/event-proposals/by-token/{token}/approve";
         if (token === undefined || token === null)
             throw new globalThis.Error("The parameter 'token' must be defined.");
         url_ = url_.replace("{token}", encodeURIComponent("" + token));
@@ -6075,14 +6075,14 @@ export class Client implements IClient {
                 try {
                     return this.processApprove(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentProposalDecisionResponse>;
+                    return _observableThrow(e) as any as Observable<EventProposalDecisionResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentProposalDecisionResponse>;
+                return _observableThrow(response_) as any as Observable<EventProposalDecisionResponse>;
         }));
     }
 
-    protected processApprove(response: HttpResponseBase): Observable<TournamentProposalDecisionResponse> {
+    protected processApprove(response: HttpResponseBase): Observable<EventProposalDecisionResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6092,7 +6092,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentProposalDecisionResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventProposalDecisionResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -6124,8 +6124,8 @@ export class Client implements IClient {
     /**
      * @return No Content
      */
-    reject(token: string, body: TournamentProposalRejectRequest): Observable<void> {
-        let url_ = this.baseUrl + "/api/tournament-proposals/by-token/{token}/reject";
+    reject(token: string, body: EventProposalRejectRequest): Observable<void> {
+        let url_ = this.baseUrl + "/api/event-proposals/by-token/{token}/reject";
         if (token === undefined || token === null)
             throw new globalThis.Error("The parameter 'token' must be defined.");
         url_ = url_.replace("{token}", encodeURIComponent("" + token));
@@ -6204,8 +6204,8 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    listOrganizerTournaments(page: number | undefined, pageSize: number | undefined): Observable<TournamentManagementListResponse> {
-        let url_ = this.baseUrl + "/api/organizer/tournaments?";
+    listOrganizerEvents(page: number | undefined, pageSize: number | undefined): Observable<EventManagementListResponse> {
+        let url_ = this.baseUrl + "/api/organizer/events?";
         if (page === null)
             throw new globalThis.Error("The parameter 'page' cannot be null.");
         else if (page !== undefined)
@@ -6225,20 +6225,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processListOrganizerTournaments(response_);
+            return this.processListOrganizerEvents(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processListOrganizerTournaments(response_ as any);
+                    return this.processListOrganizerEvents(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentManagementListResponse>;
+                    return _observableThrow(e) as any as Observable<EventManagementListResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentManagementListResponse>;
+                return _observableThrow(response_) as any as Observable<EventManagementListResponse>;
         }));
     }
 
-    protected processListOrganizerTournaments(response: HttpResponseBase): Observable<TournamentManagementListResponse> {
+    protected processListOrganizerEvents(response: HttpResponseBase): Observable<EventManagementListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6248,7 +6248,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentManagementListResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventManagementListResponse;
             return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
@@ -6263,11 +6263,11 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    updateTournamentDetails(tournamentId: string, if_Match: string | undefined, body: UpdateTournamentDetailsRequest): Observable<TournamentManagementResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/details";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    updateEventDetails(eventId: string, if_Match: string | undefined, body: UpdateEventDetailsRequest): Observable<EventManagementResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/details";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -6284,20 +6284,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processUpdateTournamentDetails(response_);
+            return this.processUpdateEventDetails(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processUpdateTournamentDetails(response_ as any);
+                    return this.processUpdateEventDetails(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentManagementResponse>;
+                    return _observableThrow(e) as any as Observable<EventManagementResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentManagementResponse>;
+                return _observableThrow(response_) as any as Observable<EventManagementResponse>;
         }));
     }
 
-    protected processUpdateTournamentDetails(response: HttpResponseBase): Observable<TournamentManagementResponse> {
+    protected processUpdateEventDetails(response: HttpResponseBase): Observable<EventManagementResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6307,7 +6307,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentManagementResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventManagementResponse;
             return _observableOf(result200);
             }));
         } else if (status === 400) {
@@ -6346,11 +6346,11 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    cancelTournament(tournamentId: string, if_Match: string | undefined, idempotency_Key: string): Observable<TournamentMutationResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/cancel";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    cancelEvent(eventId: string, if_Match: string | undefined, idempotency_Key: string): Observable<EventMutationResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/cancel";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -6364,20 +6364,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processCancelTournament(response_);
+            return this.processCancelEvent(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processCancelTournament(response_ as any);
+                    return this.processCancelEvent(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentMutationResponse>;
+                    return _observableThrow(e) as any as Observable<EventMutationResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentMutationResponse>;
+                return _observableThrow(response_) as any as Observable<EventMutationResponse>;
         }));
     }
 
-    protected processCancelTournament(response: HttpResponseBase): Observable<TournamentMutationResponse> {
+    protected processCancelEvent(response: HttpResponseBase): Observable<EventMutationResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6387,7 +6387,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentMutationResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventMutationResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -6421,11 +6421,11 @@ export class Client implements IClient {
      * @param body (optional)
      * @return OK
      */
-    deleteTournament(tournamentId: string, if_Match: string | undefined, idempotency_Key: string, body: DeleteTournamentRequest | null | undefined): Observable<TournamentMutationResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    deleteEvent(eventId: string, if_Match: string | undefined, idempotency_Key: string, body: DeleteEventRequest | null | undefined): Observable<EventMutationResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -6443,20 +6443,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processDeleteTournament(response_);
+            return this.processDeleteEvent(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processDeleteTournament(response_ as any);
+                    return this.processDeleteEvent(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentMutationResponse>;
+                    return _observableThrow(e) as any as Observable<EventMutationResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentMutationResponse>;
+                return _observableThrow(response_) as any as Observable<EventMutationResponse>;
         }));
     }
 
-    protected processDeleteTournament(response: HttpResponseBase): Observable<TournamentMutationResponse> {
+    protected processDeleteEvent(response: HttpResponseBase): Observable<EventMutationResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6466,7 +6466,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentMutationResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventMutationResponse;
             return _observableOf(result200);
             }));
         } else if (status === 400) {
@@ -6506,8 +6506,8 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    listDeletedTournaments(page: number | undefined, pageSize: number | undefined): Observable<TournamentManagementListResponse> {
-        let url_ = this.baseUrl + "/api/admin/tournaments/deleted?";
+    listDeletedEvents(page: number | undefined, pageSize: number | undefined): Observable<EventManagementListResponse> {
+        let url_ = this.baseUrl + "/api/admin/events/deleted?";
         if (page === null)
             throw new globalThis.Error("The parameter 'page' cannot be null.");
         else if (page !== undefined)
@@ -6527,20 +6527,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processListDeletedTournaments(response_);
+            return this.processListDeletedEvents(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processListDeletedTournaments(response_ as any);
+                    return this.processListDeletedEvents(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentManagementListResponse>;
+                    return _observableThrow(e) as any as Observable<EventManagementListResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentManagementListResponse>;
+                return _observableThrow(response_) as any as Observable<EventManagementListResponse>;
         }));
     }
 
-    protected processListDeletedTournaments(response: HttpResponseBase): Observable<TournamentManagementListResponse> {
+    protected processListDeletedEvents(response: HttpResponseBase): Observable<EventManagementListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6550,7 +6550,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentManagementListResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventManagementListResponse;
             return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
@@ -6565,11 +6565,11 @@ export class Client implements IClient {
      * @param if_Match (optional)
      * @return OK
      */
-    restoreTournament(tournamentId: string, if_Match: string | undefined): Observable<TournamentMutationResponse> {
-        let url_ = this.baseUrl + "/api/admin/tournaments/{tournamentId}/restore";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    restoreEvent(eventId: string, if_Match: string | undefined): Observable<EventMutationResponse> {
+        let url_ = this.baseUrl + "/api/admin/events/{eventId}/restore";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -6582,20 +6582,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRestoreTournament(response_);
+            return this.processRestoreEvent(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRestoreTournament(response_ as any);
+                    return this.processRestoreEvent(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentMutationResponse>;
+                    return _observableThrow(e) as any as Observable<EventMutationResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentMutationResponse>;
+                return _observableThrow(response_) as any as Observable<EventMutationResponse>;
         }));
     }
 
-    protected processRestoreTournament(response: HttpResponseBase): Observable<TournamentMutationResponse> {
+    protected processRestoreEvent(response: HttpResponseBase): Observable<EventMutationResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6605,7 +6605,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentMutationResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventMutationResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -6638,11 +6638,11 @@ export class Client implements IClient {
      * @param idempotency_Key (optional)
      * @return Created
      */
-    registerForTournament(tournamentId: string, idempotency_Key: string | undefined): Observable<TournamentRegistrationMutationResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    registerForEvent(eventId: string, idempotency_Key: string | undefined): Observable<EventRegistrationMutationResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/registrations";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -6655,20 +6655,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRegisterForTournament(response_);
+            return this.processRegisterForEvent(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRegisterForTournament(response_ as any);
+                    return this.processRegisterForEvent(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentRegistrationMutationResponse>;
+                    return _observableThrow(e) as any as Observable<EventRegistrationMutationResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentRegistrationMutationResponse>;
+                return _observableThrow(response_) as any as Observable<EventRegistrationMutationResponse>;
         }));
     }
 
-    protected processRegisterForTournament(response: HttpResponseBase): Observable<TournamentRegistrationMutationResponse> {
+    protected processRegisterForEvent(response: HttpResponseBase): Observable<EventRegistrationMutationResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6678,7 +6678,7 @@ export class Client implements IClient {
         if (status === 201) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result201: any = null;
-            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationMutationResponse;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventRegistrationMutationResponse;
             return _observableOf(result201);
             }));
         } else if (status === 400) {
@@ -6723,11 +6723,11 @@ export class Client implements IClient {
      * @param idempotency_Key (optional)
      * @return OK
      */
-    unregisterFromTournament(tournamentId: string, idempotency_Key: string | undefined): Observable<TournamentRegistrationMutationResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    unregisterFromEvent(eventId: string, idempotency_Key: string | undefined): Observable<EventRegistrationMutationResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/registrations";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -6740,20 +6740,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processUnregisterFromTournament(response_);
+            return this.processUnregisterFromEvent(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processUnregisterFromTournament(response_ as any);
+                    return this.processUnregisterFromEvent(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentRegistrationMutationResponse>;
+                    return _observableThrow(e) as any as Observable<EventRegistrationMutationResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentRegistrationMutationResponse>;
+                return _observableThrow(response_) as any as Observable<EventRegistrationMutationResponse>;
         }));
     }
 
-    protected processUnregisterFromTournament(response: HttpResponseBase): Observable<TournamentRegistrationMutationResponse> {
+    protected processUnregisterFromEvent(response: HttpResponseBase): Observable<EventRegistrationMutationResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6763,7 +6763,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationMutationResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventRegistrationMutationResponse;
             return _observableOf(result200);
             }));
         } else if (status === 400) {
@@ -6803,11 +6803,11 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    listPrivateTournamentParticipants(tournamentId: string, page: number | undefined, pageSize: number | undefined): Observable<PrivateTournamentParticipantListResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations?";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    listPrivateEventParticipants(eventId: string, page: number | undefined, pageSize: number | undefined): Observable<PrivateEventParticipantListResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/registrations?";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         if (page === null)
             throw new globalThis.Error("The parameter 'page' cannot be null.");
         else if (page !== undefined)
@@ -6827,20 +6827,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processListPrivateTournamentParticipants(response_);
+            return this.processListPrivateEventParticipants(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processListPrivateTournamentParticipants(response_ as any);
+                    return this.processListPrivateEventParticipants(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<PrivateTournamentParticipantListResponse>;
+                    return _observableThrow(e) as any as Observable<PrivateEventParticipantListResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<PrivateTournamentParticipantListResponse>;
+                return _observableThrow(response_) as any as Observable<PrivateEventParticipantListResponse>;
         }));
     }
 
-    protected processListPrivateTournamentParticipants(response: HttpResponseBase): Observable<PrivateTournamentParticipantListResponse> {
+    protected processListPrivateEventParticipants(response: HttpResponseBase): Observable<PrivateEventParticipantListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6850,7 +6850,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PrivateTournamentParticipantListResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PrivateEventParticipantListResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -6870,11 +6870,11 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    getTournamentRegistrationCapability(tournamentId: string): Observable<TournamentRegistrationCapabilityResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registration-capability";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    getEventRegistrationCapability(eventId: string): Observable<EventRegistrationCapabilityResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/registration-capability";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -6886,20 +6886,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processGetTournamentRegistrationCapability(response_);
+            return this.processGetEventRegistrationCapability(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processGetTournamentRegistrationCapability(response_ as any);
+                    return this.processGetEventRegistrationCapability(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentRegistrationCapabilityResponse>;
+                    return _observableThrow(e) as any as Observable<EventRegistrationCapabilityResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentRegistrationCapabilityResponse>;
+                return _observableThrow(response_) as any as Observable<EventRegistrationCapabilityResponse>;
         }));
     }
 
-    protected processGetTournamentRegistrationCapability(response: HttpResponseBase): Observable<TournamentRegistrationCapabilityResponse> {
+    protected processGetEventRegistrationCapability(response: HttpResponseBase): Observable<EventRegistrationCapabilityResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6909,7 +6909,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationCapabilityResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventRegistrationCapabilityResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -6931,7 +6931,7 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    listMyTournamentRegistrations(page: number | undefined, pageSize: number | undefined): Observable<TournamentRegistrationListResponse> {
+    listMyEventRegistrations(page: number | undefined, pageSize: number | undefined): Observable<EventRegistrationListResponse> {
         let url_ = this.baseUrl + "/api/users/me/registrations?";
         if (page === null)
             throw new globalThis.Error("The parameter 'page' cannot be null.");
@@ -6952,20 +6952,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processListMyTournamentRegistrations(response_);
+            return this.processListMyEventRegistrations(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processListMyTournamentRegistrations(response_ as any);
+                    return this.processListMyEventRegistrations(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentRegistrationListResponse>;
+                    return _observableThrow(e) as any as Observable<EventRegistrationListResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentRegistrationListResponse>;
+                return _observableThrow(response_) as any as Observable<EventRegistrationListResponse>;
         }));
     }
 
-    protected processListMyTournamentRegistrations(response: HttpResponseBase): Observable<TournamentRegistrationListResponse> {
+    protected processListMyEventRegistrations(response: HttpResponseBase): Observable<EventRegistrationListResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6975,7 +6975,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationListResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventRegistrationListResponse;
             return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
@@ -7267,11 +7267,11 @@ export class Client implements IClient {
     /**
      * @return Created
      */
-    registerTournamentParticipantByOrganizer(tournamentId: string, body: RegisterByOrganizerRequest): Observable<TournamentRegistrationMutationResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations/by-organizer";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    registerEventParticipantByOrganizer(eventId: string, body: RegisterByOrganizerRequest): Observable<EventRegistrationMutationResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/registrations/by-organizer";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         const content_ = JSON.stringify(body);
@@ -7287,20 +7287,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRegisterTournamentParticipantByOrganizer(response_);
+            return this.processRegisterEventParticipantByOrganizer(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRegisterTournamentParticipantByOrganizer(response_ as any);
+                    return this.processRegisterEventParticipantByOrganizer(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentRegistrationMutationResponse>;
+                    return _observableThrow(e) as any as Observable<EventRegistrationMutationResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentRegistrationMutationResponse>;
+                return _observableThrow(response_) as any as Observable<EventRegistrationMutationResponse>;
         }));
     }
 
-    protected processRegisterTournamentParticipantByOrganizer(response: HttpResponseBase): Observable<TournamentRegistrationMutationResponse> {
+    protected processRegisterEventParticipantByOrganizer(response: HttpResponseBase): Observable<EventRegistrationMutationResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -7310,7 +7310,7 @@ export class Client implements IClient {
         if (status === 201) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result201: any = null;
-            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationMutationResponse;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventRegistrationMutationResponse;
             return _observableOf(result201);
             }));
         } else if (status === 403) {
@@ -7348,11 +7348,11 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    removeTournamentParticipantByOrganizer(tournamentId: string, registrationId: string): Observable<TournamentRegistrationMutationResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations/{registrationId}";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    removeEventParticipantByOrganizer(eventId: string, registrationId: string): Observable<EventRegistrationMutationResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/registrations/{registrationId}";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         if (registrationId === undefined || registrationId === null)
             throw new globalThis.Error("The parameter 'registrationId' must be defined.");
         url_ = url_.replace("{registrationId}", encodeURIComponent("" + registrationId));
@@ -7367,20 +7367,20 @@ export class Client implements IClient {
         };
 
         return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processRemoveTournamentParticipantByOrganizer(response_);
+            return this.processRemoveEventParticipantByOrganizer(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processRemoveTournamentParticipantByOrganizer(response_ as any);
+                    return this.processRemoveEventParticipantByOrganizer(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<TournamentRegistrationMutationResponse>;
+                    return _observableThrow(e) as any as Observable<EventRegistrationMutationResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<TournamentRegistrationMutationResponse>;
+                return _observableThrow(response_) as any as Observable<EventRegistrationMutationResponse>;
         }));
     }
 
-    protected processRemoveTournamentParticipantByOrganizer(response: HttpResponseBase): Observable<TournamentRegistrationMutationResponse> {
+    protected processRemoveEventParticipantByOrganizer(response: HttpResponseBase): Observable<EventRegistrationMutationResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -7390,7 +7390,7 @@ export class Client implements IClient {
         if (status === 200) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TournamentRegistrationMutationResponse;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventRegistrationMutationResponse;
             return _observableOf(result200);
             }));
         } else if (status === 404) {
@@ -7422,11 +7422,11 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    exportTournamentParticipants(tournamentId: string): Observable<FileResponse> {
-        let url_ = this.baseUrl + "/api/tournaments/{tournamentId}/registrations/export";
-        if (tournamentId === undefined || tournamentId === null)
-            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
-        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+    exportEventParticipants(eventId: string): Observable<FileResponse> {
+        let url_ = this.baseUrl + "/api/events/{eventId}/registrations/export";
+        if (eventId === undefined || eventId === null)
+            throw new globalThis.Error("The parameter 'eventId' must be defined.");
+        url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -7438,11 +7438,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processExportTournamentParticipants(response_);
+            return this.processExportEventParticipants(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processExportTournamentParticipants(response_ as any);
+                    return this.processExportEventParticipants(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<FileResponse>;
                 }
@@ -7451,7 +7451,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processExportTournamentParticipants(response: HttpResponseBase): Observable<FileResponse> {
+    protected processExportEventParticipants(response: HttpResponseBase): Observable<FileResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -10010,7 +10010,7 @@ export interface DeleteAccountRequest {
     [key: string]: any;
 }
 
-export interface DeleteTournamentRequest {
+export interface DeleteEventRequest {
     reason: string | undefined;
 
     [key: string]: any;
@@ -10051,6 +10051,201 @@ export interface EmailChangeRequest {
     newEmail: string;
     currentPassword: string;
     rateLimitAccount?: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface EventManagementListResponse {
+    items: EventManagementResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface EventManagementResponse {
+    id: string;
+    organizationId: string;
+    organizationName: string;
+    title: string;
+    slug: string;
+    summary: string | undefined;
+    bodyHtml: string | undefined;
+    streetAddress: string;
+    postalCode: string | undefined;
+    city: string;
+    country: string;
+    timeZoneId: string;
+    venueStartDate: string;
+    venueStartTime: string;
+    venueEndDate: string;
+    venueEndTime: string;
+    startsAtUtc: Instant;
+    endsAtUtc: Instant;
+    capacity: number | undefined;
+    status: string;
+    deletedAt: Instant | undefined;
+    deletedReason: string | undefined;
+    formatIds: string[];
+    version: number;
+    eTag: string;
+
+    [key: string]: any;
+}
+
+export interface EventMutationResponse {
+    id: string;
+    status: string;
+    isDeleted: boolean;
+    version: number;
+    eTag: string;
+
+    [key: string]: any;
+}
+
+export interface EventPayloadRequest {
+    organizationId: string;
+    title: string;
+    summary: string | undefined;
+    bodyHtml: string | undefined;
+    streetAddress: string;
+    postalCode: string | undefined;
+    city: string;
+    country: string;
+    timeZoneId: string;
+    startsAtLocal: string;
+    endsAtLocal: string | undefined;
+    capacity: number | undefined;
+    formatIds: string[];
+
+    [key: string]: any;
+}
+
+export interface EventPreviewRenderResponse {
+    title: string;
+    slug: string;
+    summary: string | undefined;
+    bodyHtml: string | undefined;
+    venue: PublicEventVenueResponse;
+    timeZoneId: string;
+    venueStartDate: string;
+    venueStartTime: string;
+    venueEndDate: string;
+    venueEndTime: string;
+    startsAtUtc: Instant;
+    endsAtUtc: Instant;
+    capacity: number | undefined;
+    status: string;
+    organization: PublicEventOrganizationResponse;
+    formats: PublicTournamentFormatResponse[];
+
+    [key: string]: any;
+}
+
+export interface EventPreviewResponse {
+    render: EventPreviewRenderResponse;
+    previewTicket: string;
+    expiresAt: Instant;
+
+    [key: string]: any;
+}
+
+export interface EventProposalDecisionResponse {
+    proposalId: string;
+    status: string;
+    slug: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface EventProposalRejectRequest {
+    reason: string;
+
+    [key: string]: any;
+}
+
+export interface EventProposalRequest {
+    event: EventPayloadRequest;
+    recipientUserIds: string[];
+
+    [key: string]: any;
+}
+
+export interface EventProposalResponse {
+    id: string;
+    status: string;
+    expiresAt: Instant;
+    recipientCount: number;
+
+    [key: string]: any;
+}
+
+export interface EventProposalReviewResponse {
+    id: string;
+    event: EventPayloadRequest;
+    status: string;
+    submittedByUsername: string;
+    approverUsername: string;
+    expiresAt: Instant;
+    organizationName: string;
+    formatNames: string[];
+
+    [key: string]: any;
+}
+
+export interface EventPublishResponse {
+    id: string;
+    slug: string;
+    status: string;
+
+    [key: string]: any;
+}
+
+export interface EventRegistrationCapabilityResponse {
+    canRegister: boolean;
+    canUnregister: boolean;
+    reason: string;
+    activeParticipantCount: number;
+    capacity: number | undefined;
+
+    [key: string]: any;
+}
+
+export interface EventRegistrationHistoryResponse {
+    attemptId: string;
+    eventId: string;
+    eventSlug: string;
+    eventTitle: string;
+    organizationName: string;
+    startsAtUtc: Instant;
+    timeZoneId: string;
+    status: string;
+    isCurrent: boolean;
+    registeredByUserId: string;
+    registeredAt: Instant;
+    statusChangedByUserId: string | undefined;
+    statusChangedAt: Instant | undefined;
+
+    [key: string]: any;
+}
+
+export interface EventRegistrationListResponse {
+    items: EventRegistrationHistoryResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface EventRegistrationMutationResponse {
+    attemptId: string;
+    eventId: string;
+    userId: string;
+    status: string;
+    registeredAt: Instant;
+    statusChangedAt: Instant | undefined;
 
     [key: string]: any;
 }
@@ -10540,8 +10735,8 @@ export interface PlayerStatistics {
     [key: string]: any;
 }
 
-export interface PrivateTournamentParticipantListResponse {
-    items: PrivateTournamentParticipantResponse[];
+export interface PrivateEventParticipantListResponse {
+    items: PrivateEventParticipantResponse[];
     page: number;
     pageSize: number;
     totalCount: number;
@@ -10549,7 +10744,7 @@ export interface PrivateTournamentParticipantListResponse {
     [key: string]: any;
 }
 
-export interface PrivateTournamentParticipantResponse {
+export interface PrivateEventParticipantResponse {
     attemptId: string;
     userId: string;
     username: string;
@@ -10583,6 +10778,104 @@ export interface ProposalApproverResponse {
 export interface PublicDeckArchetypeResponse {
     id: string;
     name: string;
+
+    [key: string]: any;
+}
+
+export interface PublicEventCatalogResponse {
+    items: PublicEventSummaryResponse[];
+    generatedAt: Instant;
+    count: number;
+    truncated: boolean;
+
+    [key: string]: any;
+}
+
+export interface PublicEventDetailResponse {
+    id: string;
+    title: string;
+    slug: string;
+    summary: string | undefined;
+    bodyHtml: string | undefined;
+    venue: PublicEventVenueResponse;
+    timeZoneId: string;
+    venueStartDate: string;
+    venueStartTime: string;
+    venueEndDate: string;
+    venueEndTime: string;
+    startsAtUtc: Instant;
+    endsAtUtc: Instant;
+    capacity: number | undefined;
+    status: string;
+    organization: PublicEventOrganizationResponse;
+    formats: PublicTournamentFormatResponse[];
+
+    [key: string]: any;
+}
+
+export interface PublicEventListResponse {
+    items: PublicEventSummaryResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+
+    [key: string]: any;
+}
+
+export interface PublicEventOrganizationResponse {
+    id: string;
+    name: string;
+    description: string | undefined;
+    website: string | undefined;
+    contactEmail: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface PublicEventParticipantListResponse {
+    items: PublicEventParticipantResponse[];
+
+    [key: string]: any;
+}
+
+export interface PublicEventParticipantResponse {
+    userId: string;
+    username: string;
+    firstName: string | undefined;
+    lastName: string | undefined;
+    location: string | undefined;
+    birthYear: number | undefined;
+    preferredLanguage: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface PublicEventSummaryResponse {
+    id: string;
+    title: string;
+    slug: string;
+    summary: string | undefined;
+    venue: PublicEventVenueResponse;
+    timeZoneId: string;
+    venueStartDate: string;
+    venueStartTime: string;
+    venueEndDate: string;
+    venueEndTime: string;
+    startsAtUtc: Instant;
+    endsAtUtc: Instant;
+    capacity: number | undefined;
+    status: string;
+    organization: PublicEventOrganizationResponse;
+    formats: PublicTournamentFormatResponse[];
+
+    [key: string]: any;
+}
+
+export interface PublicEventVenueResponse {
+    streetAddress: string;
+    postalCode: string | undefined;
+    city: string;
+    country: string;
 
     [key: string]: any;
 }
@@ -10679,37 +10972,6 @@ export interface PublicOrganizationResponse {
     [key: string]: any;
 }
 
-export interface PublicTournamentCatalogResponse {
-    items: PublicTournamentSummaryResponse[];
-    generatedAt: Instant;
-    count: number;
-    truncated: boolean;
-
-    [key: string]: any;
-}
-
-export interface PublicTournamentDetailResponse {
-    id: string;
-    title: string;
-    slug: string;
-    summary: string | undefined;
-    bodyHtml: string | undefined;
-    venue: PublicTournamentVenueResponse;
-    timeZoneId: string;
-    venueStartDate: string;
-    venueStartTime: string;
-    venueEndDate: string;
-    venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
-    status: string;
-    organization: PublicTournamentOrganizationResponse;
-    formats: PublicTournamentFormatResponse[];
-
-    [key: string]: any;
-}
-
 export interface PublicTournamentFormatResponse {
     id: string;
     name: string;
@@ -10719,76 +10981,9 @@ export interface PublicTournamentFormatResponse {
     [key: string]: any;
 }
 
-export interface PublicTournamentListResponse {
-    items: PublicTournamentSummaryResponse[];
-    page: number;
-    pageSize: number;
-    totalCount: number;
-
-    [key: string]: any;
-}
-
-export interface PublicTournamentOrganizationResponse {
-    id: string;
-    name: string;
-    description: string | undefined;
-    website: string | undefined;
-    contactEmail: string | undefined;
-
-    [key: string]: any;
-}
-
-export interface PublicTournamentParticipantListResponse {
-    items: PublicTournamentParticipantResponse[];
-
-    [key: string]: any;
-}
-
-export interface PublicTournamentParticipantResponse {
-    userId: string;
-    username: string;
-    firstName: string | undefined;
-    lastName: string | undefined;
-    location: string | undefined;
-    birthYear: number | undefined;
-    preferredLanguage: string | undefined;
-
-    [key: string]: any;
-}
-
-export interface PublicTournamentSummaryResponse {
-    id: string;
-    title: string;
-    slug: string;
-    summary: string | undefined;
-    venue: PublicTournamentVenueResponse;
-    timeZoneId: string;
-    venueStartDate: string;
-    venueStartTime: string;
-    venueEndDate: string;
-    venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
-    status: string;
-    organization: PublicTournamentOrganizationResponse;
-    formats: PublicTournamentFormatResponse[];
-
-    [key: string]: any;
-}
-
-export interface PublicTournamentVenueResponse {
-    streetAddress: string;
-    postalCode: string | undefined;
-    city: string;
-    country: string;
-
-    [key: string]: any;
-}
-
-export interface PublishTournamentRequest {
+export interface PublishEventRequest {
     previewTicket: string;
-    payload: TournamentPayloadRequest;
+    payload: EventPayloadRequest;
 
     [key: string]: any;
 }
@@ -10936,57 +11131,22 @@ export interface TournamentDocument {
     [key: string]: any;
 }
 
-export interface TournamentManagementListResponse {
-    items: TournamentManagementResponse[];
-    page: number;
-    pageSize: number;
-    totalCount: number;
+export interface TournamentResult {
+    scope: string;
+    incomplete: boolean;
+    provisional: boolean;
+    rows: RankingRow[];
 
     [key: string]: any;
 }
 
-export interface TournamentManagementResponse {
-    id: string;
-    organizationId: string;
-    organizationName: string;
-    title: string;
-    slug: string;
-    summary: string | undefined;
-    bodyHtml: string | undefined;
-    streetAddress: string;
-    postalCode: string | undefined;
-    city: string;
-    country: string;
-    timeZoneId: string;
-    venueStartDate: string;
-    venueStartTime: string;
-    venueEndDate: string;
-    venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
-    status: string;
-    deletedAt: Instant | undefined;
-    deletedReason: string | undefined;
-    formatIds: string[];
-    version: number;
-    eTag: string;
+export interface TransferOrganizationOwnershipRequest {
+    newOwnerUserId: string;
 
     [key: string]: any;
 }
 
-export interface TournamentMutationResponse {
-    id: string;
-    status: string;
-    isDeleted: boolean;
-    version: number;
-    eTag: string;
-
-    [key: string]: any;
-}
-
-export interface TournamentPayloadRequest {
-    organizationId: string;
+export interface UpdateEventDetailsRequest {
     title: string;
     summary: string | undefined;
     bodyHtml: string | undefined;
@@ -10999,149 +11159,6 @@ export interface TournamentPayloadRequest {
     endsAtLocal: string | undefined;
     capacity: number | undefined;
     formatIds: string[];
-
-    [key: string]: any;
-}
-
-export interface TournamentPreviewRenderResponse {
-    title: string;
-    slug: string;
-    summary: string | undefined;
-    bodyHtml: string | undefined;
-    venue: PublicTournamentVenueResponse;
-    timeZoneId: string;
-    venueStartDate: string;
-    venueStartTime: string;
-    venueEndDate: string;
-    venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
-    status: string;
-    organization: PublicTournamentOrganizationResponse;
-    formats: PublicTournamentFormatResponse[];
-
-    [key: string]: any;
-}
-
-export interface TournamentPreviewResponse {
-    render: TournamentPreviewRenderResponse;
-    previewTicket: string;
-    expiresAt: Instant;
-
-    [key: string]: any;
-}
-
-export interface TournamentProposalDecisionResponse {
-    proposalId: string;
-    status: string;
-    slug: string | undefined;
-
-    [key: string]: any;
-}
-
-export interface TournamentProposalRejectRequest {
-    reason: string;
-
-    [key: string]: any;
-}
-
-export interface TournamentProposalRequest {
-    tournament: TournamentPayloadRequest;
-    recipientUserIds: string[];
-
-    [key: string]: any;
-}
-
-export interface TournamentProposalResponse {
-    id: string;
-    status: string;
-    expiresAt: Instant;
-    recipientCount: number;
-
-    [key: string]: any;
-}
-
-export interface TournamentProposalReviewResponse {
-    id: string;
-    tournament: TournamentPayloadRequest;
-    status: string;
-    submittedByUsername: string;
-    approverUsername: string;
-    expiresAt: Instant;
-    organizationName: string;
-    formatNames: string[];
-
-    [key: string]: any;
-}
-
-export interface TournamentPublishResponse {
-    id: string;
-    slug: string;
-    status: string;
-
-    [key: string]: any;
-}
-
-export interface TournamentRegistrationCapabilityResponse {
-    canRegister: boolean;
-    canUnregister: boolean;
-    reason: string;
-    activeParticipantCount: number;
-    capacity: number | undefined;
-
-    [key: string]: any;
-}
-
-export interface TournamentRegistrationHistoryResponse {
-    attemptId: string;
-    tournamentId: string;
-    tournamentSlug: string;
-    tournamentTitle: string;
-    organizationName: string;
-    startsAtUtc: Instant;
-    timeZoneId: string;
-    status: string;
-    isCurrent: boolean;
-    registeredByUserId: string;
-    registeredAt: Instant;
-    statusChangedByUserId: string | undefined;
-    statusChangedAt: Instant | undefined;
-
-    [key: string]: any;
-}
-
-export interface TournamentRegistrationListResponse {
-    items: TournamentRegistrationHistoryResponse[];
-    page: number;
-    pageSize: number;
-    totalCount: number;
-
-    [key: string]: any;
-}
-
-export interface TournamentRegistrationMutationResponse {
-    attemptId: string;
-    tournamentId: string;
-    userId: string;
-    status: string;
-    registeredAt: Instant;
-    statusChangedAt: Instant | undefined;
-
-    [key: string]: any;
-}
-
-export interface TournamentResult {
-    scope: string;
-    incomplete: boolean;
-    provisional: boolean;
-    rows: RankingRow[];
-
-    [key: string]: any;
-}
-
-export interface TransferOrganizationOwnershipRequest {
-    newOwnerUserId: string;
 
     [key: string]: any;
 }
@@ -11175,23 +11192,6 @@ export interface UpdateOrganizationRequest {
 
 export interface UpdatePlayerArchetypeRequest {
     archetype: string;
-
-    [key: string]: any;
-}
-
-export interface UpdateTournamentDetailsRequest {
-    title: string;
-    summary: string | undefined;
-    bodyHtml: string | undefined;
-    streetAddress: string;
-    postalCode: string | undefined;
-    city: string;
-    country: string;
-    timeZoneId: string;
-    startsAtLocal: string;
-    endsAtLocal: string | undefined;
-    capacity: number | undefined;
-    formatIds: string[];
 
     [key: string]: any;
 }

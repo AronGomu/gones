@@ -27,7 +27,7 @@ namespace Gones.IntegrationTests;
 /// a review link carrying its own single-use token. Only the SHA-256 hash of a token reaches the
 /// database.
 /// </summary>
-public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLifetime
+public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
     private readonly MutableClock clock = new(Now);
@@ -57,7 +57,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
     [Fact]
     public async Task Approvers_requires_authentication()
     {
-        using var response = await Client.GetAsync("/api/tournament-proposals/approvers");
+        using var response = await Client.GetAsync("/api/event-proposals/approvers");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -125,7 +125,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var raw = await response.Content.ReadAsStringAsync();
-        output.WriteLine($"GET /api/tournament-proposals/approvers -> {raw}");
+        output.WriteLine($"GET /api/event-proposals/approvers -> {raw}");
         output.WriteLine($"seeded approver mailboxes: {seed.Organizer.Email} | {seed.Admin.Email}");
         var items = await response.Content.ReadFromJsonAsync<JsonElement>();
         foreach (var item in items.EnumerateArray())
@@ -406,13 +406,13 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
     [Fact]
     public async Task Submit_creates_no_public_tournament()
     {
-        using var before = await Client.GetAsync("/api/tournaments/all");
+        using var before = await Client.GetAsync("/api/events/all");
         var beforeCount = (await before.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength();
 
         using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), [seed.Organizer.Id]);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
-        using var after = await Client.GetAsync("/api/tournaments/all");
+        using var after = await Client.GetAsync("/api/events/all");
         var afterCount = (await after.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength();
 
         Assert.Equal(beforeCount, afterCount);
@@ -435,10 +435,10 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
     }
 
     private Task<HttpResponseMessage> SubmitAsync(Guid userId, string role, TournamentPayload payload, IReadOnlyList<Guid> recipientUserIds) =>
-        SendAsync(HttpMethod.Post, "/api/tournament-proposals", userId, role, new { tournament = payload, recipientUserIds });
+        SendAsync(HttpMethod.Post, "/api/event-proposals", userId, role, new { @event = payload, recipientUserIds });
 
     private static string ApproversUrl(Guid organizationId) =>
-        $"/api/tournament-proposals/approvers?organizationId={organizationId:D}";
+        $"/api/event-proposals/approvers?organizationId={organizationId:D}";
 
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, Guid userId, string role, object? body = null)
     {

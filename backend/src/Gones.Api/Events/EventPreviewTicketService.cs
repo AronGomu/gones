@@ -5,9 +5,9 @@ using Gones.Api.Errors;
 using Microsoft.AspNetCore.WebUtilities;
 using NodaTime;
 
-namespace Gones.Api.Tournaments;
+namespace Gones.Api.Events;
 
-internal sealed class TournamentPreviewTicketService
+internal sealed class EventPreviewTicketService
 {
     public static readonly Duration Lifetime = Duration.FromMinutes(10);
     private const int NonceLength = 12;
@@ -15,7 +15,7 @@ internal sealed class TournamentPreviewTicketService
     private readonly byte[] key;
     private readonly IClock clock;
 
-    public TournamentPreviewTicketService(IConfiguration configuration, IClock clock)
+    public EventPreviewTicketService(IConfiguration configuration, IClock clock)
     {
         var signingKey = configuration["GONES_AUTH_SIGNING_KEY"];
         if (string.IsNullOrWhiteSpace(signingKey) || signingKey.Length < 32)
@@ -27,7 +27,7 @@ internal sealed class TournamentPreviewTicketService
         this.clock = clock;
     }
 
-    public TournamentPreviewTicket Issue(Guid userId, Guid organizationId, string payloadHash)
+    public EventPreviewTicket Issue(Guid userId, Guid organizationId, string payloadHash)
     {
         var expiresAt = clock.GetCurrentInstant() + Lifetime;
         var plaintext = JsonSerializer.SerializeToUtf8Bytes(new TicketClaims(
@@ -47,7 +47,7 @@ internal sealed class TournamentPreviewTicketService
         nonce.CopyTo(packed, 0);
         tag.CopyTo(packed, nonce.Length);
         ciphertext.CopyTo(packed, nonce.Length + tag.Length);
-        return new TournamentPreviewTicket(WebEncoders.Base64UrlEncode(packed), expiresAt);
+        return new EventPreviewTicket(WebEncoders.Base64UrlEncode(packed), expiresAt);
     }
 
     public Instant Validate(string ticket, Guid userId, Guid organizationId, string payloadHash)
@@ -73,18 +73,18 @@ internal sealed class TournamentPreviewTicketService
                 || !FixedTimeEquals(claims.PayloadHash, payloadHash)
                 || clock.GetCurrentInstant() >= expiresAt)
             {
-                throw new InvalidTournamentPreviewTicketException();
+                throw new InvalidEventPreviewTicketException();
             }
 
             return expiresAt;
         }
-        catch (InvalidTournamentPreviewTicketException)
+        catch (InvalidEventPreviewTicketException)
         {
             throw;
         }
         catch (Exception exception) when (exception is FormatException or JsonException or CryptographicException or ArgumentException)
         {
-            throw new InvalidTournamentPreviewTicketException();
+            throw new InvalidEventPreviewTicketException();
         }
     }
 
@@ -102,4 +102,4 @@ internal sealed class TournamentPreviewTicketService
     private sealed record TicketClaims(Guid UserId, Guid OrganizationId, string PayloadHash, long ExpiresAtUnixSeconds);
 }
 
-internal sealed record TournamentPreviewTicket(string Value, Instant ExpiresAt);
+internal sealed record EventPreviewTicket(string Value, Instant ExpiresAt);

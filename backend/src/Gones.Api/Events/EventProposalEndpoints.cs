@@ -18,18 +18,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using NodaTime;
 
-namespace Gones.Api.Tournaments;
+namespace Gones.Api.Events;
 
 /// <summary>
 /// T16. A verified account that is neither Organizer nor Admin cannot publish a tournament; it
 /// submits a proposal instead. The proposal is stored as JSON — never as a draft tournament — and
 /// every chosen approver is mailed a review link carrying its own single-use token.
 /// </summary>
-internal static class TournamentProposalEndpoints
+internal static class EventProposalEndpoints
 {
-    public static void MapTournamentProposalEndpoints(this WebApplication app)
+    public static void MapEventProposalEndpoints(this WebApplication app)
     {
-        var proposals = app.MapGroup("/api/tournament-proposals")
+        var proposals = app.MapGroup("/api/event-proposals")
             .RequireAuthorization(AuthorizationPolicies.User);
 
         proposals.MapGet("/approvers", ListApproversAsync)
@@ -40,7 +40,7 @@ internal static class TournamentProposalEndpoints
         proposals.MapPost(string.Empty, SubmitAsync)
             .RequireRateLimiting(AuthRateLimiting.IpPolicy)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
-            .Produces<TournamentProposalResponse>(StatusCodes.Status201Created)
+            .Produces<EventProposalResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
@@ -49,18 +49,18 @@ internal static class TournamentProposalEndpoints
 
         // T17, A8: the mailed token *is* the credential, so this group is anonymous on purpose. With
         // no identity to throttle, the IP limiter is what bounds guessing at a 256-bit token.
-        var tokens = app.MapGroup("/api/tournament-proposals/by-token")
+        var tokens = app.MapGroup("/api/event-proposals/by-token")
             .AllowAnonymous()
             .RequireRateLimiting(AuthRateLimiting.IpPolicy);
 
         tokens.MapGet("/{token}", GetByTokenAsync)
-            .Produces<TournamentProposalReviewResponse>()
+            .Produces<EventProposalReviewResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         tokens.MapPost("/{token}/approve", ApproveAsync)
-            .Produces<TournamentProposalDecisionResponse>()
+            .Produces<EventProposalDecisionResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
@@ -124,16 +124,16 @@ internal static class TournamentProposalEndpoints
         select user.Id;
 
     private static async Task<IResult> SubmitAsync(
-        TournamentProposalRequest request,
+        EventProposalRequest request,
         ClaimsPrincipal principal,
-        TournamentProposalService proposals,
+        EventProposalService proposals,
         CancellationToken cancellationToken)
     {
         var response = await proposals.SubmitAsync(
             OrganizationPrincipal.UserId(principal),
             request,
             cancellationToken);
-        return Results.Created($"/api/tournament-proposals/{response.Id:D}", response);
+        return Results.Created($"/api/event-proposals/{response.Id:D}", response);
     }
 
     /// <summary>
@@ -158,7 +158,7 @@ internal static class TournamentProposalEndpoints
             .OrderBy(format => format.Slug)
             .Select(format => format.Name)
             .ToListAsync(cancellationToken);
-        return Results.Ok(new TournamentProposalReviewResponse(
+        return Results.Ok(new EventProposalReviewResponse(
             proposal.Id,
             payload,
             proposal.Status.ToString(),
@@ -187,7 +187,7 @@ internal static class TournamentProposalEndpoints
     private static async Task<IResult> ApproveAsync(
         string token,
         GonesDbContext database,
-        TournamentPublicationService publication,
+        EventPublicationService publication,
         IClock clock,
         CancellationToken cancellationToken)
     {
@@ -207,7 +207,7 @@ internal static class TournamentProposalEndpoints
             throw new ResourceConflictException();
         }
 
-        var outcome = await publication.PublishTournamentAsync(
+        var outcome = await publication.PublishEventAsync(
             payload,
             submitterUserId,
             isAdmin: false,
@@ -233,12 +233,12 @@ internal static class TournamentProposalEndpoints
             "tournament-proposal.approved",
             proposalId,
             JsonSerializer.Serialize(
-                new { approverUserId = approverUserId.ToString("D"), tournamentId = outcome.Response.Id.ToString("D") },
+                new { approverUserId = approverUserId.ToString("D"), eventId = outcome.Response.Id.ToString("D") },
                 PayloadJsonOptions),
             now));
         await SaveDecisionAsync(database, transaction, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Results.Ok(new TournamentProposalDecisionResponse(proposalId, locked.Status.ToString(), outcome.Response.Slug));
+        return Results.Ok(new EventProposalDecisionResponse(proposalId, locked.Status.ToString(), outcome.Response.Slug));
     }
 
     /// <summary>
@@ -247,7 +247,7 @@ internal static class TournamentProposalEndpoints
     /// </summary>
     private static async Task<IResult> RejectAsync(
         string token,
-        TournamentProposalRejectRequest request,
+        EventProposalRejectRequest request,
         GonesDbContext database,
         INotificationOutbox outbox,
         IConfiguration configuration,
@@ -259,7 +259,7 @@ internal static class TournamentProposalEndpoints
         var proposalId = proposal.Id;
         var approverUserId = recipient.UserId;
         var submitterUserId = proposal.SubmittedByUserId;
-        var tournamentName = Payload(proposal).Title;
+        var eventName = Payload(proposal).Title;
         var approverUsername = await UsernameAsync(database, approverUserId, cancellationToken);
         var submitterProfile = await database.UserProfiles.AsNoTracking()
             .SingleOrDefaultAsync(profile => profile.UserId == submitterUserId, cancellationToken)
@@ -302,7 +302,7 @@ internal static class TournamentProposalEndpoints
             $"tournament-proposal-rejected:{proposalId:D}",
             new TournamentProposalRejectedTemplateModel(
                 submitterProfile.Username,
-                tournamentName,
+                eventName,
                 approverUsername,
                 locked.RejectionReason!,
                 calendarUrl),
@@ -391,8 +391,8 @@ internal static class TournamentProposalEndpoints
             Convert.FromHexString(storedHash),
             Convert.FromHexString(computedHash));
 
-    private static TournamentPayloadRequest Payload(EventProposal proposal) =>
-        JsonSerializer.Deserialize<TournamentPayloadRequest>(proposal.PayloadJson, PayloadJsonOptions)
+    private static EventPayloadRequest Payload(EventProposal proposal) =>
+        JsonSerializer.Deserialize<EventPayloadRequest>(proposal.PayloadJson, PayloadJsonOptions)
             ?? throw new InvalidOperationException("Stored tournament proposal payload is invalid.");
 
     private static async Task<string> UsernameAsync(GonesDbContext database, Guid userId, CancellationToken cancellationToken) =>
@@ -433,19 +433,19 @@ internal static class TournamentProposalEndpoints
     internal static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
 }
 
-internal sealed class TournamentProposalService(
+internal sealed class EventProposalService(
     GonesDbContext database,
-    TournamentPublicationService publication,
+    EventPublicationService publication,
     INotificationOutbox outbox,
     IConfiguration configuration,
     IClock clock)
 {
-    private static readonly JsonSerializerOptions StoredJsonOptions = TournamentProposalEndpoints.PayloadJsonOptions;
+    private static readonly JsonSerializerOptions StoredJsonOptions = EventProposalEndpoints.PayloadJsonOptions;
     private const string AbsentValue = "—";
 
-    public async Task<TournamentProposalResponse> SubmitAsync(
+    public async Task<EventProposalResponse> SubmitAsync(
         Guid submitterUserId,
-        TournamentProposalRequest request,
+        EventProposalRequest request,
         CancellationToken cancellationToken)
     {
         var submitter = await database.Users.AsNoTracking()
@@ -462,12 +462,12 @@ internal sealed class TournamentProposalService(
 
         // Shape first: the recipient rule below is scoped to the target organization, so the payload
         // has to be a well-formed one before it can say which organization that is.
-        ValidatePayloadShape(request.Tournament);
-        var recipients = await LoadRecipientsAsync(request.Tournament.OrganizationId, request.RecipientUserIds, cancellationToken);
-        await publication.ValidateProposalPayloadAsync(submitterUserId, request.Tournament, cancellationToken);
+        ValidatePayloadShape(request.Event);
+        var recipients = await LoadRecipientsAsync(request.Event.OrganizationId, request.RecipientUserIds, cancellationToken);
+        await publication.ValidateProposalPayloadAsync(submitterUserId, request.Event, cancellationToken);
 
         var formatNames = await database.TournamentFormats.AsNoTracking()
-            .Where(format => request.Tournament.FormatIds.Contains(format.Id))
+            .Where(format => request.Event.FormatIds.Contains(format.Id))
             .OrderBy(format => format.SortOrder).ThenBy(format => format.Slug)
             .Select(format => format.Name)
             .ToListAsync(cancellationToken);
@@ -476,7 +476,7 @@ internal sealed class TournamentProposalService(
         var now = clock.GetCurrentInstant();
         var proposal = EventProposal.Create(
             submitterUserId,
-            JsonSerializer.Serialize(request.Tournament, StoredJsonOptions),
+            JsonSerializer.Serialize(request.Event, StoredJsonOptions),
             now);
         // Distinct token per recipient: the approver behind a review link has to be provable from
         // the token alone, so two recipients must never share one.
@@ -503,21 +503,21 @@ internal sealed class TournamentProposalService(
                 new TournamentProposalTemplateModel(
                     recipient.Username,
                     submitterProfile.Username,
-                    request.Tournament.Title,
-                    Present(request.Tournament.Summary),
-                    VenueAddress(request.Tournament),
-                    Present(request.Tournament.StartsAtLocal),
-                    Present(request.Tournament.EndsAtLocal),
-                    request.Tournament.TimeZoneId,
+                    request.Event.Title,
+                    Present(request.Event.Summary),
+                    VenueAddress(request.Event),
+                    Present(request.Event.StartsAtLocal),
+                    Present(request.Event.EndsAtLocal),
+                    request.Event.TimeZoneId,
                     formatNames.Count > 0 ? string.Join(", ", formatNames) : AbsentValue,
-                    request.Tournament.Capacity?.ToString(CultureInfo.InvariantCulture) ?? AbsentValue,
+                    request.Event.Capacity?.ToString(CultureInfo.InvariantCulture) ?? AbsentValue,
                     reviewUrl),
                 recipient.UserId));
         }
 
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return new TournamentProposalResponse(proposal.Id, proposal.Status.ToString(), proposal.ExpiresAt, links.Count);
+        return new EventProposalResponse(proposal.Id, proposal.Status.ToString(), proposal.ExpiresAt, links.Count);
     }
 
     private async Task<IReadOnlyList<ProposalRecipient>> LoadRecipientsAsync(
@@ -532,16 +532,16 @@ internal sealed class TournamentProposalService(
         }
         // Refused before the lookup runs, so an oversized list costs one comparison rather than a
         // query. The annotation on the request record says the same thing to the OpenAPI contract.
-        if (requested.Length > TournamentProposalEndpoints.MaximumRecipientCount)
+        if (requested.Length > EventProposalEndpoints.MaximumRecipientCount)
         {
             throw Validation(
                 "recipientUserIds",
-                $"At most {TournamentProposalEndpoints.MaximumRecipientCount} approvers can be chosen.");
+                $"At most {EventProposalEndpoints.MaximumRecipientCount} approvers can be chosen.");
         }
 
         // T26: the same org-scoped rule the picker was populated from. A global Organizer with no
         // standing over this organization is not a valid recipient, whatever the client sent.
-        var authorized = TournamentProposalEndpoints.ApproverUserIds(database, organizationId);
+        var authorized = EventProposalEndpoints.ApproverUserIds(database, organizationId);
         var found = await (
             from user in database.Users.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
@@ -566,16 +566,16 @@ internal sealed class TournamentProposalService(
     /// The endpoint filter only validates the top-level request, so the nested payload's own
     /// annotations are applied here — the proposal must satisfy the same contract as a direct publish.
     /// </summary>
-    private static void ValidatePayloadShape(TournamentPayloadRequest payload)
+    private static void ValidatePayloadShape(EventPayloadRequest payload)
     {
         var results = new List<ValidationResult>();
         if (Validator.TryValidateObject(payload, new ValidationContext(payload), results, validateAllProperties: true)) return;
         var failures = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         foreach (var result in results)
         {
-            foreach (var member in result.MemberNames.DefaultIfEmpty("tournament"))
+            foreach (var member in result.MemberNames.DefaultIfEmpty("event"))
             {
-                var key = $"tournament.{JsonNamingPolicy.CamelCase.ConvertName(member)}";
+                var key = $"event.{JsonNamingPolicy.CamelCase.ConvertName(member)}";
                 if (!failures.TryGetValue(key, out var messages)) failures[key] = messages = [];
                 messages.Add(result.ErrorMessage ?? "Invalid value.");
             }
@@ -587,7 +587,7 @@ internal sealed class TournamentProposalService(
             StringComparer.Ordinal));
     }
 
-    private static string VenueAddress(TournamentPayloadRequest payload) => string.Join(
+    private static string VenueAddress(EventPayloadRequest payload) => string.Join(
         ", ",
         new[]
         {
@@ -606,16 +606,16 @@ internal sealed class TournamentProposalService(
 
 internal sealed record ProposalApproverResponse(Guid Id, string Username, string GlobalRole);
 
-internal sealed record TournamentProposalRequest(
-    [property: Required] TournamentPayloadRequest Tournament,
-    [property: Required, MinLength(1), MaxLength(TournamentProposalEndpoints.MaximumRecipientCount)]
+internal sealed record EventProposalRequest(
+    [property: Required] EventPayloadRequest Event,
+    [property: Required, MinLength(1), MaxLength(EventProposalEndpoints.MaximumRecipientCount)]
     IReadOnlyList<Guid> RecipientUserIds);
 
-internal sealed record TournamentProposalResponse(Guid Id, string Status, Instant ExpiresAt, int RecipientCount);
+internal sealed record EventProposalResponse(Guid Id, string Status, Instant ExpiresAt, int RecipientCount);
 
-internal sealed record TournamentProposalReviewResponse(
+internal sealed record EventProposalReviewResponse(
     Guid Id,
-    TournamentPayloadRequest Tournament,
+    EventPayloadRequest Event,
     string Status,
     string SubmittedByUsername,
     string ApproverUsername,
@@ -623,11 +623,11 @@ internal sealed record TournamentProposalReviewResponse(
     string OrganizationName,
     IReadOnlyList<string> FormatNames);
 
-internal sealed record TournamentProposalDecisionResponse(Guid ProposalId, string Status, string? Slug);
+internal sealed record EventProposalDecisionResponse(Guid ProposalId, string Status, string? Slug);
 
 /// <summary>
 /// The upper bound is the stored column, not a round number: a reason validation lets through has to
 /// be a reason the database can keep.
 /// </summary>
-internal sealed record TournamentProposalRejectRequest(
+internal sealed record EventProposalRejectRequest(
     [property: Required, StringLength(EventProposal.MaximumRejectionReasonLength, MinimumLength = 1)] string Reason);

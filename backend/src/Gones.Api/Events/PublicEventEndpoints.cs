@@ -14,9 +14,9 @@ using Microsoft.Net.Http.Headers;
 using NodaTime;
 using NodaTime.Text;
 
-namespace Gones.Api.Tournaments;
+namespace Gones.Api.Events;
 
-internal static partial class PublicTournamentEndpoints
+internal static partial class PublicEventEndpoints
 {
     public const int DefaultPageSize = 20;
     public const int MaximumPageSize = 100;
@@ -24,32 +24,32 @@ internal static partial class PublicTournamentEndpoints
     private const string PublicCacheControl = "public, max-age=60";
     private const string CatalogCacheControl = "public, max-age=3600";
 
-    public static void MapPublicTournamentEndpoints(this WebApplication app)
+    public static void MapPublicEventEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/tournaments", ListAsync)
+        app.MapGet("/api/events", ListAsync)
             .AllowAnonymous()
-            .Produces<PublicTournamentListResponse>()
+            .Produces<PublicEventListResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
-        app.MapGet("/api/tournaments/all", ListAllAsync)
+        app.MapGet("/api/events/all", ListAllAsync)
             .AllowAnonymous()
-            .Produces<PublicTournamentCatalogResponse>()
+            .Produces<PublicEventCatalogResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest);
 
-        app.MapGet("/api/tournaments/{slug}", GetAsync)
+        app.MapGet("/api/events/{slug}", GetAsync)
             .AllowAnonymous()
-            .Produces<PublicTournamentDetailResponse>()
+            .Produces<PublicEventDetailResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        app.MapGet("/api/tournaments/{slug}/participants", ListParticipantsAsync)
+        app.MapGet("/api/events/{slug}/participants", ListParticipantsAsync)
             .AllowAnonymous()
-            .Produces<PublicTournamentParticipantListResponse>()
+            .Produces<PublicEventParticipantListResponse>()
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        app.MapGet("/api/tournaments/{slug}.ics", GetIcsAsync)
+        app.MapGet("/api/events/{slug}.ics", GetIcsAsync)
             .AllowAnonymous()
             .Produces(StatusCodes.Status200OK, contentType: "text/calendar")
             .Produces(StatusCodes.Status304NotModified)
@@ -82,7 +82,7 @@ internal static partial class PublicTournamentEndpoints
         var organizationId = ParseOrganization(organization);
         var statuses = ParseStatuses(status);
         var showPast = past == true || includePast == true;
-        var query = VisibleTournaments(database);
+        var query = VisibleEvents(database);
 
         if (fromDate is not null) query = query.Where(item => item.Tournament.VenueStartDate >= fromDate);
         if (toDate is not null) query = query.Where(item => item.Tournament.VenueStartDate <= toDate);
@@ -118,7 +118,7 @@ internal static partial class PublicTournamentEndpoints
             .ThenBy(item => item.Tournament.Id)
             .Skip((pageNumber - 1) * size)
             .Take(size)
-            .Select(item => new TournamentRow(
+            .Select(item => new EventRow(
                 item.Tournament.Id,
                 item.Tournament.Title,
                 item.Tournament.Slug,
@@ -145,12 +145,12 @@ internal static partial class PublicTournamentEndpoints
                 item.Organization.ContactEmail))
             .ToListAsync(cancellationToken);
 
-        var formatsByTournament = await LoadFormatsAsync(database, pageRows.Select(item => item.Id).ToArray(), cancellationToken);
-        var items = pageRows.Select(row => ToSummary(row, formatsByTournament)).ToArray();
+        var formatsByEvent = await LoadFormatsAsync(database, pageRows.Select(item => item.Id).ToArray(), cancellationToken);
+        var items = pageRows.Select(row => ToSummary(row, formatsByEvent)).ToArray();
         var etag = HashETag($"{total}:{pageNumber}:{size}:{string.Join('|', pageRows.Select(row => $"{row.Id:N}:{row.Version}:{row.UpdatedAt.ToUnixTimeTicks()}"))}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        return Results.Ok(new PublicTournamentListResponse(items, pageNumber, size, total));
+        return Results.Ok(new PublicEventListResponse(items, pageNumber, size, total));
     }
 
     private static async Task<IResult> ListAllAsync(
@@ -165,7 +165,7 @@ internal static partial class PublicTournamentEndpoints
     {
         var ceiling = configuration.GetValue("Gones:Calendar:MaximumCatalogSize", MaximumCatalogSize);
         var fromDate = ParseDateQuery(from, nameof(from));
-        var query = VisibleTournaments(database);
+        var query = VisibleEvents(database);
         query = fromDate is not null
             ? query.Where(item => item.Tournament.VenueStartDate >= fromDate)
             : query.Where(item => item.Tournament.EndsAtUtc >= clock.GetCurrentInstant());
@@ -188,7 +188,7 @@ internal static partial class PublicTournamentEndpoints
             .OrderBy(item => item.Tournament.StartsAtUtc)
             .ThenBy(item => item.Tournament.Id)
             .Take(ceiling)
-            .Select(item => new TournamentRow(
+            .Select(item => new EventRow(
                 item.Tournament.Id,
                 item.Tournament.Title,
                 item.Tournament.Slug,
@@ -215,25 +215,25 @@ internal static partial class PublicTournamentEndpoints
                 item.Organization.ContactEmail))
             .ToListAsync(cancellationToken);
 
-        var formatsByTournament = await LoadFormatsAsync(database, pageRows.Select(row => row.Id).ToArray(), cancellationToken);
-        var items = pageRows.Select(row => ToSummary(row, formatsByTournament)).ToArray();
+        var formatsByEvent = await LoadFormatsAsync(database, pageRows.Select(row => row.Id).ToArray(), cancellationToken);
+        var items = pageRows.Select(row => ToSummary(row, formatsByEvent)).ToArray();
         var truncated = total > ceiling;
         if (truncated)
         {
-            loggerFactory.CreateLogger("Gones.Api.Tournaments")
+            loggerFactory.CreateLogger("Gones.Api.Events")
                 .LogWarning("Public tournament catalog truncated: total={Total} ceiling={Ceiling}", total, ceiling);
         }
 
         response.Headers.ETag = etag;
         response.Headers.CacheControl = CatalogCacheControl;
-        return Results.Ok(new PublicTournamentCatalogResponse(items, clock.GetCurrentInstant(), items.Length, truncated));
+        return Results.Ok(new PublicEventCatalogResponse(items, clock.GetCurrentInstant(), items.Length, truncated));
     }
 
-    private static IQueryable<TournamentQueryItem> VisibleTournaments(GonesDbContext database) =>
+    private static IQueryable<EventQueryItem> VisibleEvents(GonesDbContext database) =>
         from tournament in database.Events.AsNoTracking()
         join org in database.Organizations.AsNoTracking() on tournament.OrganizationId equals org.Id
         where tournament.DeletedAt == null && org.DeletedAt == null
-        select new TournamentQueryItem { Tournament = tournament, Organization = org };
+        select new EventQueryItem { Tournament = tournament, Organization = org };
 
     private static async Task<IResult> GetAsync(
         string slug,
@@ -243,11 +243,11 @@ internal static partial class PublicTournamentEndpoints
         CancellationToken cancellationToken)
     {
         var row = await LoadDetailAsync(database, slug, cancellationToken);
-        var formatsByTournament = await LoadFormatsAsync(database, [row.Id], cancellationToken);
+        var formatsByEvent = await LoadFormatsAsync(database, [row.Id], cancellationToken);
         var etag = HashETag($"{row.Id:N}:{row.Version}:{row.UpdatedAt.ToUnixTimeTicks()}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        return Results.Ok(ToDetail(row, formatsByTournament));
+        return Results.Ok(ToDetail(row, formatsByEvent));
     }
 
     private static async Task<IResult> ListParticipantsAsync(
@@ -266,7 +266,7 @@ internal static partial class PublicTournamentEndpoints
             select profile
         ).ToListAsync(cancellationToken);
         var participants = profiles
-            .Select(profile => new PublicTournamentParticipantResponse(
+            .Select(profile => new PublicEventParticipantResponse(
                 profile.UserId,
                 profile.Username,
                 profile.IsFirstNamePublic ? profile.FirstName : null,
@@ -275,7 +275,7 @@ internal static partial class PublicTournamentEndpoints
                 profile.IsBirthDatePublic ? profile.BirthDate?.Year : null,
                 profile.IsPreferredLanguagePublic ? profile.PreferredLanguage : null))
             .ToList();
-        return Results.Ok(new PublicTournamentParticipantListResponse(participants));
+        return Results.Ok(new PublicEventParticipantListResponse(participants));
     }
 
     private static string? JoinLocation(UserProfile profile)
@@ -301,14 +301,14 @@ internal static partial class PublicTournamentEndpoints
         return Results.Text(BuildIcs(row), "text/calendar; charset=utf-8", Encoding.UTF8);
     }
 
-    private static async Task<TournamentRow> LoadDetailAsync(GonesDbContext database, string slug, CancellationToken cancellationToken)
+    private static async Task<EventRow> LoadDetailAsync(GonesDbContext database, string slug, CancellationToken cancellationToken)
     {
         var normalizedSlug = TournamentSlug.Normalize(slug);
         return await (
             from tournament in database.Events.AsNoTracking()
             join organization in database.Organizations.AsNoTracking() on tournament.OrganizationId equals organization.Id
             where tournament.DeletedAt == null && organization.DeletedAt == null && tournament.Slug == normalizedSlug
-            select new TournamentRow(
+            select new EventRow(
                 tournament.Id,
                 tournament.Title,
                 tournament.Slug,
@@ -340,14 +340,14 @@ internal static partial class PublicTournamentEndpoints
 
     private static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>>> LoadFormatsAsync(
         GonesDbContext database,
-        IReadOnlyCollection<Guid> tournamentIds,
+        IReadOnlyCollection<Guid> eventIds,
         CancellationToken cancellationToken)
     {
-        if (tournamentIds.Count == 0) return new Dictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>>();
+        if (eventIds.Count == 0) return new Dictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>>();
         var rows = await (
             from link in database.EventFormats.AsNoTracking()
             join format in database.TournamentFormats.AsNoTracking() on link.TournamentFormatId equals format.Id
-            where tournamentIds.Contains(link.EventId) && format.DeletedAt == null
+            where eventIds.Contains(link.EventId) && format.DeletedAt == null
             orderby format.SortOrder, format.Name, format.Id
             select new { link.EventId, format.Id, format.Name, format.Slug, format.SortOrder }
         ).ToListAsync(cancellationToken);
@@ -358,12 +358,12 @@ internal static partial class PublicTournamentEndpoints
                 group => (IReadOnlyList<PublicTournamentFormatResponse>)group.Select(item => new PublicTournamentFormatResponse(item.Id, item.Name, item.Slug, item.SortOrder)).ToArray());
     }
 
-    private static PublicTournamentSummaryResponse ToSummary(TournamentRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByTournament) => new(
+    private static PublicEventSummaryResponse ToSummary(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent) => new(
         row.Id,
         row.Title,
         row.Slug,
         row.Summary,
-        new PublicTournamentVenueResponse(row.StreetAddress, row.PostalCode, row.City, row.Country),
+        new PublicEventVenueResponse(row.StreetAddress, row.PostalCode, row.City, row.Country),
         row.TimeZoneId,
         FormatDate(row.VenueStartDate),
         FormatTime(row.VenueStartTime),
@@ -373,13 +373,13 @@ internal static partial class PublicTournamentEndpoints
         row.EndsAtUtc,
         row.Capacity,
         row.Status.ToString(),
-        new PublicTournamentOrganizationResponse(row.OrganizationId, row.OrganizationName, row.OrganizationDescription, row.OrganizationWebsite, row.OrganizationContactEmail),
-        formatsByTournament.TryGetValue(row.Id, out var formats) ? formats : []);
+        new PublicEventOrganizationResponse(row.OrganizationId, row.OrganizationName, row.OrganizationDescription, row.OrganizationWebsite, row.OrganizationContactEmail),
+        formatsByEvent.TryGetValue(row.Id, out var formats) ? formats : []);
 
-    private static PublicTournamentDetailResponse ToDetail(TournamentRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByTournament)
+    private static PublicEventDetailResponse ToDetail(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent)
     {
-        var summary = ToSummary(row, formatsByTournament);
-        return new PublicTournamentDetailResponse(
+        var summary = ToSummary(row, formatsByEvent);
+        return new PublicEventDetailResponse(
             summary.Id,
             summary.Title,
             summary.Slug,
@@ -399,7 +399,7 @@ internal static partial class PublicTournamentEndpoints
             summary.Formats);
     }
 
-    private static string BuildIcs(TournamentRow row)
+    private static string BuildIcs(EventRow row)
     {
         var builder = new StringBuilder();
         builder.AppendLine("BEGIN:VCALENDAR");
@@ -478,7 +478,7 @@ internal static partial class PublicTournamentEndpoints
     [GeneratedRegex("\\r\\n|\\n|\\r")]
     private static partial Regex IcsLineBreaks();
 
-    private sealed record TournamentRow(
+    private sealed record EventRow(
         Guid Id,
         string Title,
         string Slug,
@@ -505,31 +505,31 @@ internal static partial class PublicTournamentEndpoints
         string? OrganizationContactEmail,
         string? BodyHtml = null);
 
-    private sealed class TournamentQueryItem
+    private sealed class EventQueryItem
     {
         public required Event Tournament { get; init; }
         public required Organization Organization { get; init; }
     }
 }
 
-internal sealed record PublicTournamentCatalogResponse(
-    IReadOnlyList<PublicTournamentSummaryResponse> Items,
+internal sealed record PublicEventCatalogResponse(
+    IReadOnlyList<PublicEventSummaryResponse> Items,
     Instant GeneratedAt,
     int Count,
     bool Truncated);
 
-internal sealed record PublicTournamentListResponse(
-    IReadOnlyList<PublicTournamentSummaryResponse> Items,
+internal sealed record PublicEventListResponse(
+    IReadOnlyList<PublicEventSummaryResponse> Items,
     int Page,
     int PageSize,
     int TotalCount);
 
-internal sealed record PublicTournamentSummaryResponse(
+internal sealed record PublicEventSummaryResponse(
     Guid Id,
     string Title,
     string Slug,
     string? Summary,
-    PublicTournamentVenueResponse Venue,
+    PublicEventVenueResponse Venue,
     string TimeZoneId,
     string VenueStartDate,
     string VenueStartTime,
@@ -539,16 +539,16 @@ internal sealed record PublicTournamentSummaryResponse(
     Instant EndsAtUtc,
     int? Capacity,
     string Status,
-    PublicTournamentOrganizationResponse Organization,
+    PublicEventOrganizationResponse Organization,
     IReadOnlyList<PublicTournamentFormatResponse> Formats);
 
-internal sealed record PublicTournamentDetailResponse(
+internal sealed record PublicEventDetailResponse(
     Guid Id,
     string Title,
     string Slug,
     string? Summary,
     string? BodyHtml,
-    PublicTournamentVenueResponse Venue,
+    PublicEventVenueResponse Venue,
     string TimeZoneId,
     string VenueStartDate,
     string VenueStartTime,
@@ -558,16 +558,16 @@ internal sealed record PublicTournamentDetailResponse(
     Instant EndsAtUtc,
     int? Capacity,
     string Status,
-    PublicTournamentOrganizationResponse Organization,
+    PublicEventOrganizationResponse Organization,
     IReadOnlyList<PublicTournamentFormatResponse> Formats);
 
-internal sealed record PublicTournamentVenueResponse(
+internal sealed record PublicEventVenueResponse(
     string StreetAddress,
     string? PostalCode,
     string City,
     string Country);
 
-internal sealed record PublicTournamentOrganizationResponse(
+internal sealed record PublicEventOrganizationResponse(
     Guid Id,
     string Name,
     string? Description,
@@ -580,9 +580,9 @@ internal sealed record PublicTournamentFormatResponse(
     string Slug,
     int SortOrder);
 
-internal sealed record PublicTournamentParticipantListResponse(IReadOnlyList<PublicTournamentParticipantResponse> Items);
+internal sealed record PublicEventParticipantListResponse(IReadOnlyList<PublicEventParticipantResponse> Items);
 
-internal sealed record PublicTournamentParticipantResponse(
+internal sealed record PublicEventParticipantResponse(
     Guid UserId,
     string Username,
     string? FirstName,
