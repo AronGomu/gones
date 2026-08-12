@@ -198,6 +198,24 @@ describe('public Calendar V1', () => {
     cy.get('gones-server-sanitized-html a').should('have.attr', 'target', '_blank').and('have.attr', 'rel', 'noopener noreferrer');
     cy.get('[data-cy="tournament-ics"]').should('have.attr', 'href').and('contain', '/api/tournaments/lyon-legacy.ics');
 
+    // The hero is a layout claim, so read the rendered text and geometry rather than the template.
+    cy.get('[data-cy="tournament-detail-title"]').should('have.text', '[Legacy] Lyon Legacy (32)');
+    cy.get('[data-cy="tournament-detail-fact-organization"]').should('not.exist');
+    cy.get('[data-cy="tournament-detail-when-where"]').should('contain.text', 'Europe/Paris').and('contain.text', '1 Rue Test, 69001, Lyon, France');
+    cy.get('[data-cy="tournament-detail-hero"] > :last-child').should('have.attr', 'data-cy', 'tournament-detail-actions');
+    cy.get('[data-cy="tournament-detail-when"]').then(($when) => {
+      cy.get('[data-cy="tournament-detail-where"]').then(($where) => {
+        expect($where[0].getBoundingClientRect().top, 'date and location share one row')
+          .to.be.closeTo($when[0].getBoundingClientRect().top, 2);
+      });
+    });
+    cy.get('[data-cy="tournament-detail-actions"]').then(($actions) => {
+      cy.get('[data-cy="tournament-detail-organization-website"]').then(($website) => {
+        expect($website[0].getBoundingClientRect().right, 'website button hugs the right edge')
+          .to.be.closeTo($actions[0].getBoundingClientRect().right, 2);
+      });
+    });
+
     cy.viewport(375, 812);
     cy.document().then(document => expect(document.documentElement.scrollWidth).to.be.at.most(375));
   });

@@ -32,9 +32,9 @@
 
 ## TDD
 
-1. **Red** — component tests in a new `src/app/features/calendar/tournament-detail-view.component.test.ts`.
-2. **Green** — reflow the template.
-3. **Refactor** — drop unused i18n keys and helper methods.
+- [x] 1. **Red** — component tests in a new `src/app/features/calendar/tournament-detail-view.component.test.ts`. — criterion: vitest reports failures for the new file (`Tests  7 failed (7)`).
+- [x] 2. **Green** — reflow the template. — criterion: `npx vitest run src/app/features/calendar` green.
+- [x] 3. **Refactor** — drop unused i18n keys and helper methods. — criterion: `formats()` removed; every candidate i18n key still referenced elsewhere (`calendar.organization`/`format`/`capacity`/`venueTime`/`common.location` → kept, still used by tournament-request / organizer-create / my-registrations).
 
 ## Test plan
 
@@ -50,15 +50,15 @@
 
 ## Impl steps
 
-- [ ] 1. Create `src/app/features/calendar/tournament-detail-view.component.test.ts` with the seven tests, using a fixture object typed as `PublicTournamentDetailResponse`.
-- [ ] 2. Run `npx vitest run src/app/features/calendar/tournament-detail-view.component.test.ts` — red.
-- [ ] 3. Add `titleFormat` computed; rewrite the `<h1>` with the three spans.
-- [ ] 4. Replace the `<dl class="event-facts">` with the `event-when-where` row plus the viewer-time line.
-- [ ] 5. Delete the organization / formats / capacity fact blocks.
-- [ ] 6. Move `<div class="info-actions info-actions--end">` to the end of the hero `<section>`, keeping ICS then website.
-- [ ] 7. Add the two CSS rules to `src/styles.css`.
-- [ ] 8. `grep -rn "tournament-detail-fact-" src cypress` and update every stale selector.
-- [ ] 9. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx vitest run src/app/shared/data-cy-coverage.test.ts`.
+- [x] 1. Create `src/app/features/calendar/tournament-detail-view.component.test.ts` with the seven tests, using a fixture object typed as `PublicTournamentDetailResponse`. — file exists, 7 `it(...)` blocks matching the Test plan rows.
+- [x] 2. Run `npx vitest run src/app/features/calendar/tournament-detail-view.component.test.ts` — red. — output `Tests  7 failed (7)`.
+- [x] 3. Add `titleFormat` computed; rewrite the `<h1>` with the three spans. — component line 46 + `<h1>` carries `tournament-detail-title-format` / `-text` / `-capacity`.
+- [x] 4. Replace the `<dl class="event-facts">` with the `event-when-where` row plus the viewer-time line. — `grep -rn "event-facts" src` returns styles.css only; `tournament-detail-when-where` row present with the viewer line under it.
+- [x] 5. Delete the organization / formats / capacity fact blocks. — `grep -rn "tournament-detail-fact-" src cypress` returns only `tournament-detail-fact-date-viewer`.
+- [x] 6. Move `<div class="info-actions info-actions--end">` to the end of the hero `<section>`, keeping ICS then website. — actions `<div>` is the last child of `event-hero`; ICS anchor precedes the website anchor.
+- [x] 7. Add the two CSS rules to `src/styles.css`. — `.info-actions--end { justify-content: flex-end; }` (line 115) and `.event-when-where { … }` (line 331).
+- [x] 8. `grep -rn "tournament-detail-fact-" src cypress` and update every stale selector. — no cypress spec referenced the removed selectors; only the kept viewer line matches.
+- [x] 9. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx vitest run src/app/shared/data-cy-coverage.test.ts`. — see Validation.
 
 ## Outputs
 
@@ -67,9 +67,12 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar` passes
-- [ ] `npm run lint && npm run typecheck` pass
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js,cypress/e2e/organizer-tournament-create.cy.js` passes (the preview reuses this component)
-- [ ] manual check: open an event page and the organizer preview — both render the new hero
-- [ ] app functional — description section, participants and registration section untouched
-- [ ] commit msg draft: `feat(calendar): reflow the event detail hero`
+- [x] `npx vitest run src/app/features/calendar` passes — `Test Files  17 passed (17)`, `Tests  205 passed (205)`
+- [x] `npm run lint && npm run typecheck` pass — `All files pass linting.`; `tsc --noEmit` on app + spec projects silent
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js,cypress/e2e/organizer-tournament-create.cy.js` passes (the preview reuses this component) — `public-calendar.cy.js 12/12`, `organizer-tournament-create.cy.js 7/7`
+- [x] `npm run test` — `Test Files  107 passed (107)`, `Tests  980 passed (980)` (includes `data-cy-coverage` and the acceptance matrix)
+- [x] `npx cypress run --spec cypress/e2e/accessibility.cy.js` — `11 passing`, 0 failing (hard gate held, `public tournament detail has no WCAG A/AA violations` and the 375px overflow case included)
+- [x] browser-read layout evidence (not template source): `public-calendar.cy.js` asserts `tournament-detail-title` `have.text` `[Legacy] Lyon Legacy (32)`, `tournament-detail-when`/`-where` bounding-rect tops equal within 2px, `tournament-detail-hero > :last-child` is `tournament-detail-actions`, and the website button's right edge matches the actions row's
+- [x] manual check: open an event page and the organizer preview — both render the new hero — covered by the two cypress specs above (public detail + organizer preview render the same component); human steps appended to `ai-artifacts/manual_test_checklist.md` under `## T6 detail-hero-reflow`
+- [x] app functional — description section, participants and registration section untouched — diff touches only the hero block; `tournament-registration.cy.js` selectors unchanged, `npm run test` green
+- [x] commit msg draft: `feat(calendar): reflow the event detail hero`

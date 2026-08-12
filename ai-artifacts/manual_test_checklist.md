@@ -1131,3 +1131,30 @@ zoom levels and after many rapid clicks.
       month and the page is not left at a strange scroll position.
 - [ ] Change month, then reload the page: the reload starts at the top of the page, as any reload
       should.
+
+## T6 detail-hero-reflow
+
+Automated coverage reads the rendered hero in a real browser: the title text is exactly
+`[Legacy] Lyon Legacy (32)`, the date and the location share one row, the actions row is the last
+child of the hero with the website button on its right edge, and 375px stays free of horizontal
+overflow. What no automated test settles is whether the denser hero still reads well with long
+titles, many formats, a long address, French copy, and in the organizer preview.
+
+- [ ] Open an event page (`/calendar/tournaments/…`): the title reads `[Format] Title (capacity)` on
+      one line, and the date and the location sit on the single line under it, separated by `-`.
+- [ ] Open an event with several formats: the bracket lists them joined by ` / ` and the row still
+      wraps gracefully instead of pushing the page wider.
+- [ ] Open an event with no capacity, and one with no format: no empty `()`, no empty `[]`, no stray
+      spacing left behind.
+- [ ] Confirm no organization block and no organization ID appear anywhere on the page — only the
+      organization name above the title.
+- [ ] Check that the "Organization Website" button sits at the bottom right of the hero card and that
+      "Add to calendar" sits to its left; both still open / download correctly.
+- [ ] Open an event whose time zone differs from yours: the "Your time" line still appears under the
+      date-and-location row.
+- [ ] Switch the language to French: the hero labels and buttons stay translated and nothing overflows.
+- [ ] Repeat on a phone-width window: title, date-and-location and the buttons wrap without a
+      horizontal scrollbar and without the buttons overlapping the text.
+- [ ] Open the organizer preview (create / edit a tournament, then look at the rendered preview): it
+      shows the same new hero as the public page.
+- [ ] Scroll below the hero: the description, participants and registration sections are unchanged.
