@@ -83,14 +83,16 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         Assert.Equal(OrganizationRoles.Owner, meBody[0].GetProperty("role").GetString());
         Assert.False(meBody[0].TryGetProperty("email", out _));
 
-        using var addOrganizer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", ownerToken, new
+        // Both membership grants are admin-only: creating a membership is what promotes the account
+        // to the global Organizer role. The Owner keeps removal and the organization-role flip.
+        using var addOrganizer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
         {
             userId = organizer.Id,
             role = OrganizationRoles.Organizer
         });
         Assert.Equal(HttpStatusCode.Created, addOrganizer.StatusCode);
 
-        using var transfer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", ownerToken, new
+        using var transfer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", adminToken, new
         {
             newOwnerUserId = organizer.Id
         });
@@ -107,13 +109,25 @@ public sealed class OrganizationApiTests : IAsyncLifetime
             .Select(item => item.Role)
             .SingleAsync());
 
+        // Cross-org writes stay IDOR-safe on the endpoints an Owner still calls: a stranger cannot
+        // tell an organization they are not in from one that does not exist.
         var outsiderToken = await LoginAsync(outsiderEmail);
+        using var crossOrgRemove = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{organizer.Id:D}", outsiderToken);
+        Assert.Equal(HttpStatusCode.NotFound, crossOrgRemove.StatusCode);
+        using var crossOrgRole = await SendAuthorizedAsync(HttpMethod.Put, $"/api/organizations/{orgId:D}/members/{owner.Id:D}/role", outsiderToken, new
+        {
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.NotFound, crossOrgRole.StatusCode);
+
+        // The two grant endpoints answer before any organization is loaded, so a non-admin gets the
+        // same 403 whatever the organization is - which leaks less, not more.
         using var crossOrg = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", outsiderToken, new
         {
             userId = outsider.Id,
             role = OrganizationRoles.Organizer
         });
-        Assert.Equal(HttpStatusCode.NotFound, crossOrg.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, crossOrg.StatusCode);
 
         using var secondOrg = await SendAuthorizedAsync(HttpMethod.Post, "/api/admin/organizations", adminToken, new
         {
@@ -127,7 +141,9 @@ public sealed class OrganizationApiTests : IAsyncLifetime
             userId = owner.Id,
             role = OrganizationRoles.Organizer
         });
-        Assert.Equal(HttpStatusCode.NotFound, crossWrite.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, crossWrite.StatusCode);
+        using var crossWriteRemove = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", betaOwnerToken);
+        Assert.Equal(HttpStatusCode.NotFound, crossWriteRemove.StatusCode);
 
         // Admin bypass can still manage foreign org members.
         using var adminAdd = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{secondId:D}/members", adminToken, new
@@ -215,7 +231,7 @@ public sealed class OrganizationApiTests : IAsyncLifetime
 
         // T11: the sole Owner may leave once nobody else is left - that returns the org to Draft.
         // With a second member present the org would be left ownerless, so that removal still conflicts.
-        using var addSecond = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", ownerToken, new
+        using var addSecond = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
         {
             userId = second.Id,
             role = OrganizationRoles.Organizer
@@ -230,6 +246,129 @@ public sealed class OrganizationApiTests : IAsyncLifetime
 
         using var removeLastOwner = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", ownerToken);
         Assert.Equal(HttpStatusCode.NoContent, removeLastOwner.StatusCode);
+    }
+
+    /// <summary>
+    /// T11 review repair: creating a membership is what promotes an account to the global
+    /// <c>Organizer</c> role, and that role gates surfaces no organization scopes - so an Owner must
+    /// not be able to mint one. Removing a member and flipping an organization role grant nothing and
+    /// stay Owner-callable; restricting them would cost capability and buy no security.
+    /// </summary>
+    [Fact]
+    public async Task Only_an_admin_can_grant_a_membership_or_transfer_ownership()
+    {
+        var adminEmail = $"admin-grant-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-grant-{Guid.NewGuid():N}@example.test";
+        var candidateEmail = $"cand-grant-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adk"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owk"));
+        await RegisterAndVerifyAsync(candidateEmail, UniqueUsername("Cak"));
+        await PromoteToAdminAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var candidate = await database.Users.SingleAsync(item => item.NormalizedEmail == candidateEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        var orgId = await CreateOrganizationAsync(adminToken, $"Grant Guard {Guid.NewGuid():N}", owner.Id);
+        var ownerToken = await LoginAsync(ownerEmail);
+
+        // Refused for the Owner, and nothing moved: no membership, no promotion.
+        using var ownerAdd = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", ownerToken, new
+        {
+            userId = candidate.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, ownerAdd.StatusCode);
+        using var ownerTransfer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", ownerToken, new
+        {
+            newOwnerUserId = candidate.Id
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, ownerTransfer.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(candidateEmail));
+        Assert.Equal(0, await database.OrganizationMembers.AsNoTracking()
+            .CountAsync(item => item.OrganizationId == orgId && item.UserId == candidate.Id));
+
+        // The same two calls as an Admin do the work.
+        using var adminAdd = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+        {
+            userId = candidate.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, adminAdd.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(candidateEmail));
+
+        // Owner-callable still: a role flip leaves the membership, so it grants nothing.
+        using var ownerRole = await SendAuthorizedAsync(HttpMethod.Put, $"/api/organizations/{orgId:D}/members/{candidate.Id:D}/role", ownerToken, new
+        {
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.NoContent, ownerRole.StatusCode);
+
+        using var adminTransfer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", adminToken, new
+        {
+            newOwnerUserId = candidate.Id
+        });
+        Assert.Equal(HttpStatusCode.NoContent, adminTransfer.StatusCode);
+
+        // Owner-callable still: a removal can only strip privilege inside the Owner's own
+        // organization, which is exactly what the derivation says should happen.
+        var newOwnerToken = await LoginAsync(candidateEmail);
+        using var removeByOwner = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", newOwnerToken);
+        Assert.Equal(HttpStatusCode.NoContent, removeByOwner.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(ownerEmail));
+    }
+
+    /// <summary>
+    /// T11 review repair: the derivation counts memberships in live organizations only, so archiving
+    /// an organization is a membership change for everyone in it - and restoring it is the mirror.
+    /// Without this, archiving a member's only organization left them a global <c>Organizer</c> with
+    /// zero live memberships and a still-valid token.
+    /// </summary>
+    [Fact]
+    public async Task Archiving_and_restoring_an_organization_re_derives_the_member_roles()
+    {
+        var adminEmail = $"admin-arc-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-arc-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Ada"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owa"));
+        await PromoteToAdminAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var admin = await database.Users.SingleAsync(item => item.NormalizedEmail == adminEmail.ToUpperInvariant());
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        var orgId = await CreateOrganizationAsync(adminToken, $"Archive Derive {Guid.NewGuid():N}", owner.Id);
+
+        // An Admin member proves the archive does not move Admin either.
+        using var addAdmin = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+        {
+            userId = admin.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addAdmin.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(ownerEmail));
+
+        var ownerToken = await LoginAsync(ownerEmail);
+        using var beforeArchive = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", ownerToken);
+        Assert.Equal(HttpStatusCode.OK, beforeArchive.StatusCode);
+
+        using var archive = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/organizations/{orgId:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, archive.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(ownerEmail));
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(adminEmail));
+
+        // The demotion bites on the very next request: the security stamp rotated with the role.
+        using var staleAfterArchive = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", ownerToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, staleAfterArchive.StatusCode);
+
+        using var restore = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/organizations/{orgId:D}/restore", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, restore.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(ownerEmail));
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(adminEmail));
+
+        // Create, archive, restore - three derivations for the owner, none for the admin.
+        Assert.Equal(3, await AuditCountAsync("organization.role.derived", owner.Id));
+        Assert.Equal(0, await AuditCountAsync("organization.role.derived", admin.Id));
     }
 
     /// <summary>
@@ -288,7 +427,8 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(subjectEmail));
         Assert.Equal(2, await AuditCountAsync("organization.role.derived", subject.Id));
 
-        // A soft-deleted organization does not count as a membership: the role follows the live ones.
+        // Re-granting the membership promotes again. (The soft-deleted-organization case is its own
+        // test: Archiving_and_restoring_an_organization_re_derives_the_member_roles.)
         using var addBack = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{firstOrgId:D}/members", adminToken, new
         {
             userId = subject.Id,

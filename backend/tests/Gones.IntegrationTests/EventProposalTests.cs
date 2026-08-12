@@ -383,7 +383,8 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
 
             Assert.DoesNotContain("{{", rendered.TextBody, StringComparison.Ordinal);
             Assert.DoesNotContain("{{", rendered.HtmlBody, StringComparison.Ordinal);
-            Assert.Contains("/tournament-requests/", rendered.TextBody, StringComparison.Ordinal);
+            Assert.Contains("/event-requests/", rendered.TextBody, StringComparison.Ordinal);
+            Assert.DoesNotContain("/tournament-requests/", rendered.TextBody, StringComparison.Ordinal);
             Assert.NotEmpty(rendered.Subject);
         }
 

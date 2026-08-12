@@ -10,7 +10,7 @@ import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID }
 import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { I18nService } from '../../i18n/i18n.service';
-import { HighlightPart, highlightSearchText, normalizeSearchText, searchWords } from '../../shared/search-highlight';
+import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchText, searchWords } from '../../shared/search-highlight';
 
 @Component({
   standalone: true,
@@ -378,7 +378,7 @@ export class PlayerDetailComponent {
 
   filterByExact(text: string, event?: Event): void {
     event?.stopPropagation();
-    this.matchSearch.set(quoteSearchTerm(text));
+    this.matchSearch.set(escapeSearchTerm(text));
   }
 
   clearMatchSearch(): void { this.matchSearch.set(''); }
@@ -421,9 +421,5 @@ function matchChronologyValue(match: PlayerMatch): number {
 function matchHistoryContains(value: string, query: string): boolean {
   const haystack = normalizeSearchText(value);
   return searchWords(query).every((word) => haystack.includes(word));
-}
-
-function quoteSearchTerm(text: string): string {
-  return `"${text.replace(/"/g, '""')}"`;
 }
 

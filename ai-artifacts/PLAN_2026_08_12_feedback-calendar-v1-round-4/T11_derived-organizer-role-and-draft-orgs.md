@@ -260,3 +260,182 @@ Losing a lock race no longer leaves as a 500 either. `ApiExceptionHandler` maps 
       `npm run typecheck` (clean), `npm run api:check` (exit 0 — the API surface did not move)
 - [x] `Admin` is never moved by any of the three paths — see R1, R2 and R3 evidence
       (`derived=0`, `unchanged=1` on each, admin token still answering 200 afterwards)
+
+## Review repair
+
+The round's final review found a privilege-escalation blocker and four correctness gaps in what this
+ticket shipped. Deriving `global_role` from membership made *creating a membership* an act of granting
+a global role — and `POST /api/organizations/{id}/members` / `POST .../transfer-ownership` authorize
+with `access.RequireOwnerAsync(...)`, so a plain organization Owner, not just an Admin, could mint an
+account into global `Organizer`. That role gates surfaces with **no** organization scoping
+(`LeagueCommandEndpoints.cs:23`, including `DELETE /api/leagues-archive/{id}`, `LiveCommandEndpoints.cs:30`,
+`PlayerNameMaintenanceEndpoints.cs:23`). Before this round only `AdminRoleService.ChangeRoleAsync`
+(admin-only) could grant it, so the round widened granting authority from `{Admin}` to
+`{Admin, every org Owner}`.
+
+**Decision (parent, after the premise check below): the two endpoints that *mint* a membership are
+admin-only; the two that do not stay Owner-callable.** `POST /members` and `POST /transfer-ownership`
+create a membership — a transfer can hand the organization to someone who is not a member yet — and
+that is what promotes an account. `DELETE /members/{id}` grants nothing: it can only strip privilege
+from a member of the Owner's own organization, which is exactly what the derivation model says should
+happen. `PUT /members/{id}/role` flips Owner/Organizer and leaves the membership, so the derived
+global role is untouched. Restricting those two would have cost real capability and bought no
+security. This matches `feedback.md` item 7 ("allow **admin only** to create organization and those
+organization can be assigned to user"). It is deliberately *not* solved by requiring `Admin` on the
+league/live/maintenance surfaces — organizers legitimately use those (ADR 0021, ADR 0028).
+
+**Premise check, on the record.** The brief said the only callers were admin screens. That was wrong
+and was corrected before any code was written: `src/app/app.routes.ts:34` maps `organizations/:id`
+with **no `canActivate`** while every `admin/*` sibling carries `adminGuard`, and
+`organizer-organizations.component.ts:26` links a plain Owner straight into it. The owner-tools panel
+there is a genuine non-admin surface. The route guard is deliberately left alone — the server is the
+boundary and Owners are supposed to reach that page — so the fix is server-side plus hiding the two
+controls that would now always fail.
+
+- [x] RR1. The two membership *grants* require `Admin`; removal and role-change stay Owner-callable.
+      *evidence:* `.RequireAuthorization(AuthorizationPolicies.Admin)` on `OrganizationEndpoints.cs`
+      `POST /members` and `POST /transfer-ownership`, plus `if (!actorIsAdmin) throw new
+      AdminMembershipGrantRequiredException();` at the head of `OrganizationService.AddMemberAsync`
+      and `TransferOwnershipAsync` as defence in depth. Live, against the Docker stack:
+      ```
+      admin creates the organization -> 201; owner global_role = Organizer
+      [as plain org Owner] POST   /members            -> 403 {"code":"forbidden",...}
+      [as plain org Owner] POST   /transfer-ownership -> 403 {"code":"forbidden",...}
+        nothing moved: candidate global_role = User, memberships = 0
+      [as Admin]           POST   /members            -> 201; candidate global_role = Organizer
+      [as plain org Owner] PUT    /members/{id}/role  -> 204  (kept: a role flip grants nothing)
+      [as plain org Owner] DELETE /members/{id}       -> 204  (kept: a removal only strips)
+                                                       -> candidate global_role = User
+      [as Admin]           POST   /transfer-ownership -> 204; candidate global_role = Organizer
+      ```
+      Integration: `OrganizationApiTests.Only_an_admin_can_grant_a_membership_or_transfer_ownership`.
+      *criterion:* a plain Owner is refused on both grant endpoints with nothing written, an Admin
+      succeeds on both, and the Owner still passes on removal and role-change.
+- [x] RR2. The UI shows no control the server will refuse.
+      *evidence:* `organization-detail.component.ts` renders the add-member form only for an Admin
+      (`org.addMemberAdminOnly` copy in its place, en + fr) and drops the `Owner` option from a
+      member's role select unless the viewer is an Admin or that member already *is* the Owner — the
+      Owner option is the ownership transfer. `admin-orgs.cy.js` owner flow now asserts
+      `org-add-member-form` absent, `org-add-member-admin-only` visible,
+      `org-member-role-owner-{mate}` absent and `org-member-role-organizer-{mate}` present; its
+      stubbed `last_owner` removal case passes unchanged. `npx cypress run --spec
+      cypress/e2e/admin-orgs.cy.js` → `5 passing`.
+      *criterion:* an Owner keeps the member list, the remove buttons, the role select and the
+      notification settings, and is shown the reason instead of a form that 403s.
+- [x] RR3. Archiving or restoring an organization re-derives its members' roles.
+      *evidence:* `OrganizationService.SoftDeleteAsync` and `RestoreAsync` now lock the membership
+      rows (`LockMemberUserIdsAsync`, taken between the organization lock and the user locks the sync
+      takes — the global order) and call `SyncAfterMembershipChangeAsync` between `SaveChangesAsync`
+      and `CommitAsync`. Live:
+      ```
+      admin creates the organization -> 201; sole member global_role = Organizer
+      their token before the archive, GET /api/users/me/organizations -> 200
+      archive the organization -> 204; global_role = User
+      the SAME token, GET /api/users/me/organizations -> 401  (stamp rotated with the role)
+      restore the organization -> 204; global_role = Organizer
+      audit organization.role.derived rows for them = 3
+      ```
+      Integration: `OrganizationApiTests.Archiving_and_restoring_an_organization_re_derives_the_member_roles`
+      (also asserts an `Admin` member is not moved in either direction, 0 derivations).
+      *criterion:* archiving a member's only organization demotes them and kills their in-flight
+      token; restoring promotes them back; `Admin` is untouched.
+- [x] RR4. A follow-up migration heals the case the first heal missed.
+      *evidence:* `20260812210000_HealOrganizerRolesWithoutLiveMembership` — the already-applied
+      `20260812154508` is not edited. Its predicate is `NOT EXISTS (membership joined to a live
+      organization)`, a superset of the first's `id NOT IN (SELECT user_id FROM organization_members)`,
+      so the pair is order-independent and a healed database selects nothing. Against the dev database,
+      seeded with the exact missed shape:
+      ```
+      before: heal-archived-only  Organizer  has_membership_row=t  has_live_membership=f   <- first heal skipped it
+              heal-live-member    Organizer  has_membership_row=t  has_live_membership=t
+              heal-admin-archived Admin      has_membership_row=t  has_live_membership=f
+      after the migrator ran:
+              heal-archived-only  | User      | stamp_rotated=t
+              heal-live-member    | Organizer | stamp_rotated=f
+              heal-admin-archived | Admin     | stamp_rotated=f
+      audit: organization.healed.demoted | user | 22222222-…-0001 |
+             {"after": "User", "before": "Organizer", "reason": "no_live_membership"} | actor_id NULL
+      replaying the migration's own Up statements verbatim: INSERT 0 0 / UPDATE 0,
+             users_digest and orgs_digest identical before and after
+      ```
+      Registered in the smoke allowlist (`scripts/smoke-full-stack.mjs:56`). Integration:
+      `OrganizationMembershipHealTests.Organizers_whose_only_membership_is_in_an_archived_organization_are_demoted`.
+      *criterion:* the archived-only Organizer is demoted with its own audit row, `Admin` and a live
+      member are untouched, and a second execution changes nothing.
+- [x] RR5. The closure sync saves inside the mapped catch.
+      *evidence:* `AdminAccountService.cs` — `SyncAfterMembershipChangeAsync` moved inside the
+      `try { … } catch (DbUpdateException)`, above `SaveChangesAsync`, so a concurrent write leaves as
+      the mapped 409 instead of an unhandled 500. `AdminAuditAndClosureTests` → `Passed: 8`.
+      *criterion:* every save in the closure transaction is covered by the conflict catch.
+- [x] RR6. Highlighting and filtering use one tokenizer.
+      *evidence:* `splitSearchTerms` (whitespace / `,` / `;`, backslash escapes) now lives in
+      `src/app/shared/search-highlight.ts` and is what `searchWords` and `event-fuzzy-search.ts` both
+      call; `player-detail.component.ts` groups an exact-match filter with the new `escapeSearchTerm`
+      instead of quotes, so its one-term behaviour is unchanged. New tests in
+      `search-highlight.test.ts` pin `lyon,legacy` → both words highlighted and an escaped separator
+      staying one term.
+      *criterion:* a query that filters the calendar to a card highlights inside that card.
+- [x] RR7. Approval mail links the canonical review path.
+      *evidence:* `EventProposalEndpoints.cs:488` → `$"/event-requests/{Uri.EscapeDataString(token)}"`.
+      `EventProposalTests` asserts `/event-requests/` present **and** `/tournament-requests/` absent;
+      `NotificationTemplateRendererTests` fixtures updated. The retired route keeps its redirect
+      (`app.routes.ts:92`, pinned by `data-mode-routes.test.ts:242`); `event-proposal.cy.js` → `3 passing`.
+      *criterion:* the mail points at `/event-requests/{token}` and the old path still redirects.
+- [x] RR8. Dead `.event-facts` rules deleted.
+      *evidence:* `src/styles.css` — the four rules removed; `grep -rn event-facts src cypress` prints
+      only the negative assertion in `event-detail-view.component.test.ts:118`, which still passes.
+      *criterion:* no `.event-facts` rule ships and the T6 hero assertions stay green.
+- [x] RR9. The ICS ordering assertion cannot pass on an absent element.
+      *evidence:* `event-detail-view.component.test.ts` asserts `actions` contains
+      `data-cy="event-ics"` before comparing `indexOf` (which returns -1 for an absent element).
+      *criterion:* the presence assertion precedes the ordering one.
+- [x] RR10. `whenSessionReady()` is driven for real.
+      *evidence:* two tests in `auth.service.test.ts` start `bootstrap()` on a pending refresh
+      subject, assert the promise has not settled, then settle it — once with a value, once with an
+      error — and assert it resolves (never rejects) in both. Mutation-checked: replacing the body
+      with `Promise.resolve()` fails both (`expect(await settledOrPending(ready)).toBe('pending')` →
+      `Received: undefined`), where the guard tests stay green.
+      *criterion:* the tests fail when the real implementation is stubbed out.
+- [x] RR11. The hard API break is pinned.
+      *evidence:* `ApiBoundaryTests.Retired_tournament_collection_paths_have_no_api_alias` — 404 on
+      `/api/tournaments` and `/api/tournaments/all`, plus `/api/events` and `/api/events/all` asserted
+      present in the same endpoint table so the 404 is the rename and not a disabled feature.
+      Mutation-checked: re-adding `app.MapGet("/api/tournaments", ListAsync)` fails it
+      (`Assert.DoesNotContain() Failure: Item found in set`).
+      *criterion:* a re-added API alias fails a gate.
+- [x] RR12. The heal's SQL idempotency is pinned, not EF's bookkeeping.
+      *evidence:* `OrganizationMembershipHealTests.Re_running_the_heal_changes_nothing` still calls
+      `MigrateAsync()` (a no-op via `__EFMigrationsHistory`) and then replays both migrations'
+      `UpOperations` `SqlOperation`s straight down the connection inside a transaction, asserting at
+      least five statements ran and that the snapshot is unchanged.
+      *criterion:* the statements themselves are re-executed and compared, not just the history table.
+- [x] RR13. The soft-deleted-organization comment matches its test.
+      *evidence:* `OrganizationApiTests.cs` — the tail of `Membership_changes_derive_the_global_organizer_role`
+      now says what it does (re-granting promotes again) and points at
+      `Archiving_and_restoring_an_organization_re_derives_the_member_roles`, which exercises the
+      soft-deleted case the old comment claimed.
+      *criterion:* no comment claims coverage the assertions do not provide.
+
+### Review repair validation
+
+- [x] `dotnet build backend/Gones.sln` — `Build succeeded. 0 Warning(s) 0 Error(s)`
+- [x] targeted integration runs — `OrganizationApiTests` 15 passed,
+      `AdminAuditAndClosureTests|ApiBoundaryTests` 52 passed, `OrganizationMembershipHealTests`
+      9 passed, `EventProposalTests|EventPublicationApiTests` 37 passed,
+      `EventProposalDecisionTests` 22 passed; 0 failed in each
+- [x] `dotnet test backend/tests/Gones.UnitTests` 198 passed, `backend/tests/Gones.ArchitectureTests`
+      17 passed, 0 failed
+- [ ] full `dotnet test backend/Gones.sln` — **left unchecked, unchanged host defect**: Testcontainers
+      loses the port race on random classes (`RootlessKit … bind: address already in use`). Observed
+      once here as `Failed: 2, Passed: 57` on `EventProposalTests|EventPublicationApiTests|EventProposalDecisionTests`,
+      with both failures inside `InitializeAsync` (`DockerContainer.StartAsync`) and zero assertion
+      failures; the same filter re-run immediately passed 37/37. Gated on the targeted runs above.
+- [x] `npm run test` (110 files / 1026 tests passed), `npm run lint` (`All files pass linting.`),
+      `npm run typecheck` (clean), `npm run api:check` (exit 0 — the API surface did not move: a 403
+      from a policy is not a declared response)
+- [x] Cypress — `admin-orgs.cy.js` 5 passing, `public-calendar.cy.js` 12 passing,
+      `accessibility.cy.js` 11 passing, `event-proposal.cy.js` 3 passing
+- [x] the dev stack is left running and intact — no `docker compose down`, no volume drop, no DB
+      reset. The API image was rebuilt with the V1 feature flags from `scripts/dev-environments.mjs`
+      (`devComposeEnv`) and answers on `http://127.0.0.1:5080`; the parent-owned dev server on :4200
+      was not touched.

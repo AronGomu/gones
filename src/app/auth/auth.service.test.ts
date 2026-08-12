@@ -333,4 +333,52 @@ describe('AuthService', () => {
     expect(store.token).toBeUndefined();
     expect(service.profile()).toBeNull();
   });
+
+  // Route guards await this before reading profile(). Driven against the real service, not a stub:
+  // a body replaced by Promise.resolve() would keep every guard test green while letting guards
+  // decide on the null profile that precedes the startup refresh.
+  describe('whenSessionReady', () => {
+    /** Resolves once `promise` settles, or to the marker if it is still pending on the next turns. */
+    async function settledOrPending<T>(promise: Promise<T>): Promise<T | 'pending'> {
+      return await Promise.race([promise, Promise.resolve().then(() => Promise.resolve()).then(() => 'pending' as const)]);
+    }
+
+    it('stays pending while the startup refresh is in flight, then resolves once it succeeds', async () => {
+      const refresh = new Subject<AccessTokenResponse>();
+      const { service, client } = setup(() => refresh);
+      const bootstrap = service.bootstrap();
+
+      expect(await settledOrPending(service.whenSessionReady())).toBe('pending');
+      expect(service.bootstrapped()).toBe(false);
+
+      // The subject only replays to a live subscriber, so wait for the restore to reach it.
+      await vi.waitFor(() => expect(client.refresh).toHaveBeenCalled());
+      refresh.next(token);
+      refresh.complete();
+      await bootstrap;
+
+      await expect(service.whenSessionReady()).resolves.toBeUndefined();
+      expect(service.bootstrapped()).toBe(true);
+      expect(service.profile()).toEqual(profile);
+    });
+
+    it('resolves rather than rejects when the startup refresh fails, because signed-out is an answer', async () => {
+      const refresh = new Subject<AccessTokenResponse>();
+      const { service, client } = setup(() => refresh);
+      const bootstrap = service.bootstrap();
+      const ready = service.whenSessionReady();
+
+      expect(await settledOrPending(ready)).toBe('pending');
+
+      await vi.waitFor(() => expect(client.refresh).toHaveBeenCalled());
+      refresh.error(new Error('refresh failed'));
+      await bootstrap;
+
+      await expect(ready).resolves.toBeUndefined();
+      await expect(service.whenSessionReady()).resolves.toBeUndefined();
+      expect(service.bootstrapped()).toBe(true);
+      expect(service.bootstrapFailed()).toBe(true);
+      expect(service.profile()).toBeNull();
+    });
+  });
 });

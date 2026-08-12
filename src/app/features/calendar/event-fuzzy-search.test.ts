@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PublicEventView } from './public-calendar';
-import { filterEvents, searchableText, splitSearchTerms } from './event-fuzzy-search';
+import { splitSearchTerms } from '../../shared/search-highlight';
+import { filterEvents, searchableText } from './event-fuzzy-search';
 
 function makeItem(overrides: Partial<PublicEventView>): PublicEventView {
   return {

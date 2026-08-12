@@ -38,40 +38,41 @@ export function highlightSearchText(text: string, query: string): HighlightPart[
 }
 
 export function searchWords(query: string): string[] {
-  return parseSearchTerms(query).map(normalizeSearchText).filter(Boolean);
+  return splitSearchTerms(query).map(normalizeSearchText).filter(Boolean);
 }
 
-function parseSearchTerms(query: string): string[] {
+/**
+ * The one tokenizer every search surface uses. Highlighting has to split a query exactly like the
+ * filter that selected the rows, or a query such as `lyon,legacy` filters to a card and then
+ * highlights nothing in it. Separators are whitespace, `,` and `;`; a backslash escapes the next
+ * character, which is how a term that contains a separator stays one term.
+ */
+export function splitSearchTerms(query: string): string[] {
   const terms: string[] = [];
   let current = '';
-  let quoted = false;
-
-  for (let index = 0; index < query.length; index += 1) {
+  for (let index = 0; index < query.length; index++) {
     const char = query[index];
-    if (char === '"') {
-      if (quoted) {
-        if (current.trim()) terms.push(current.trim());
+    if (char === '\\' && index + 1 < query.length) {
+      current += query[index + 1];
+      index++;
+      continue;
+    }
+    if (char === ',' || char === ';' || /\s/.test(char)) {
+      if (current) {
+        terms.push(current);
         current = '';
-        quoted = false;
-      } else {
-        if (current.trim()) terms.push(current.trim());
-        current = '';
-        quoted = true;
       }
       continue;
     }
-
-    if (!quoted && /\s/.test(char)) {
-      if (current.trim()) terms.push(current.trim());
-      current = '';
-      continue;
-    }
-
     current += char;
   }
-
-  if (current.trim()) terms.push(current.trim());
+  if (current) terms.push(current);
   return terms;
+}
+
+/** Escapes every separator so `splitSearchTerms` reads the whole value back as one term. */
+export function escapeSearchTerm(text: string): string {
+  return text.replace(/[\\,;\s]/g, (char) => `\\${char}`);
 }
 
 export function normalizeSearchText(value: string): string {

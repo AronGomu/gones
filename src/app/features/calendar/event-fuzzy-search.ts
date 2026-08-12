@@ -1,28 +1,6 @@
 import Fuse from 'fuse.js';
+import { splitSearchTerms } from '../../shared/search-highlight';
 import { PublicEventView } from './public-calendar';
-
-export function splitSearchTerms(query: string): string[] {
-  const terms: string[] = [];
-  let current = '';
-  for (let index = 0; index < query.length; index++) {
-    const char = query[index];
-    if (char === '\\' && index + 1 < query.length) {
-      current += query[index + 1];
-      index++;
-      continue;
-    }
-    if (char === ',' || char === ';' || /\s/.test(char)) {
-      if (current) {
-        terms.push(current);
-        current = '';
-      }
-      continue;
-    }
-    current += char;
-  }
-  if (current) terms.push(current);
-  return terms;
-}
 
 export function searchableText(item: PublicEventView): string {
   return [

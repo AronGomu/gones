@@ -194,12 +194,13 @@ internal sealed class AdminAccountService(
                 removedMembershipCount = memberships.Count
             }), now));
 
-        // The subject is demoted above by closure itself; the accounts that inherited an organization
-        // are the ones whose derived role has to catch up with their new membership.
-        await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, transferMap.Values, cancellationToken);
-
         try
         {
+            // The subject is demoted above by closure itself; the accounts that inherited an
+            // organization are the ones whose derived role has to catch up with their new
+            // membership. It saves, so it belongs inside the catch: a concurrent write has to leave
+            // as the mapped conflict, not as an unhandled 500.
+            await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, transferMap.Values, cancellationToken);
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }

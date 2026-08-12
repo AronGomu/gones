@@ -1310,6 +1310,30 @@ confirmation dialog opens after the server confirms the registration.
       `DELETE /api/organizations/<org>/members/<id>`): both answers are ordinary ones — a success or a
       409/404 problem document. Neither is a 500 and the API log records no `deadlock detected`.
 
+### Review repair — membership grants are admin-only, archive/restore re-derives
+
+- [ ] Sign in as a plain organization **Owner** (not an admin) and open `/organizations/<their org>`.
+      The member list, the remove buttons, the role select and the notification settings are all
+      there; the "add member" form is **not** — in its place is "Only an administrator can add a
+      member or hand over ownership."
+- [ ] On that same page, open the role select on a member who is not the Owner: it offers `Organizer`
+      only. The `Owner` option — which is the ownership transfer — is gone for a non-admin.
+- [ ] As that Owner, remove a member: it still works, and that member drops back to a plain user if
+      that was their last membership. Removing and re-adding is no longer symmetric on purpose: an
+      Owner may strip a role, only an admin may grant one.
+- [ ] With the same Owner's token, call the two refused endpoints by hand — they answer 403 and
+      nothing moves:
+      `curl -X POST .../api/organizations/<org>/members -d '{"userId":"<id>","role":"Organizer"}'`
+      and `curl -X POST .../api/organizations/<org>/transfer-ownership -d '{"newOwnerUserId":"<id>"}'`.
+      The same two calls with an admin token succeed.
+- [ ] As admin, archive an organization whose only member is an organizer (`/admin/organizations` →
+      delete). That account is a plain user immediately: any signed-in tab of theirs fails on its next
+      action, and the organizer entry points are gone when they sign back in.
+- [ ] Restore that same organization: the account is an organizer again, without anyone re-adding
+      them. Archive is not a way to strip a role permanently, and restore is not a way to keep one.
+- [ ] Archive an organization that also has an `Admin` member: the admin screens keep working and the
+      account is still an administrator — the archive never moves an `Admin` either.
+
 ## T12 membership-heal-migration
 
 - [ ] Before running the migration job on a real database, take the backup from `docs/OPERATIONS.md`
@@ -1324,6 +1348,11 @@ confirmation dialog opens after the server confirms the registration.
       `select action, count(*) from audit_records where action like 'organization.healed.%' group by action;`
       against the two lists: one `organization.healed.archived` row per organization, one
       `organization.healed.demoted` row per account, no more and no fewer.
+- [ ] Before the job, also list the case the first heal walked past — an organizer whose only
+      membership sits in an already-archived organization:
+      `select u.id, u.email from asp_net_users u where u.global_role = 'Organizer' and not exists (select 1 from organization_members m join organizations o on o.id = m.organization_id where m.user_id = u.id and o.deleted_at is null);`
+      The follow-up migration `20260812210000_HealOrganizerRolesWithoutLiveMembership` is what demotes
+      these, with a `"reason":"no_live_membership"` audit row each.
 - [ ] Re-run the migration job. It exits 0, the audit counts above are unchanged and nothing else
       moved: the heal runs once, not on every deploy.
 - [ ] As an administrator, open `/admin/organizations` with "include deleted" on: every archived
@@ -1436,8 +1465,10 @@ behaves exactly as it did before the rename.
       worker plans reminders (`select count(*) from scheduled_notifications where event_id = '<id>';`
       is greater than zero).
 - [ ] Try to delete an account that created an event. The refusal still lists the blocking relations,
-      and those labels still read `scheduled_tournaments.created_by_user_id` etc. — they are the
-      unchanged API wire shape, not the new table names, and T16 is where they change.
+      and those labels still read `scheduled_tournaments.created_by_user_id` etc. — they are stable
+      identifiers for a relation, not the current table names, so they stay exactly as they are
+      (ADR 0025 §Restricted relations, ADR 0035). T16 renamed the API paths and did **not** touch
+      them; a label that has changed is a regression, not the plan.
 - [ ] Export a Gones backup and re-import it into a clean environment. The import report still counts
       "Scheduled Tournaments" and the imported events land in the calendar.
 - [ ] Run the full-stack smoke against the deployed stack (`npm run smoke`). It now expects

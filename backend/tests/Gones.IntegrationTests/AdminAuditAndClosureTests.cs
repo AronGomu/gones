@@ -98,8 +98,10 @@ public sealed class AdminAuditAndClosureTests : IAsyncLifetime
         var orgA = (await createA.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         var orgB = (await createB.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
-        var ownerToken = await LoginAsync(ownerEmail);
-        using var addMate = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgA:D}/members", ownerToken, new
+        // The owner signs in so the closure below has a live refresh session to revoke.
+        _ = await LoginAsync(ownerEmail);
+        // Adding a member is admin-only: it grants the global Organizer role.
+        using var addMate = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgA:D}/members", adminToken, new
         {
             userId = mate.Id,
             role = OrganizationRoles.Organizer
@@ -229,15 +231,15 @@ public sealed class AdminAuditAndClosureTests : IAsyncLifetime
             ownerUserId = owner.Id
         });
         var orgId = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
-        var ownerToken = await LoginAsync(ownerEmail);
-        using var addMate = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", ownerToken, new
+        // Both membership grants - adding a member and transferring ownership - are admin-only.
+        using var addMate = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
         {
             userId = mate.Id,
             role = OrganizationRoles.Organizer
         });
         Assert.Equal(HttpStatusCode.Created, addMate.StatusCode);
 
-        using var transfer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", ownerToken, new
+        using var transfer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", adminToken, new
         {
             newOwnerUserId = mate.Id
         });

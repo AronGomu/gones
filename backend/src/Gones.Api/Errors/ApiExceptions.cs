@@ -62,6 +62,16 @@ public sealed class DirectPublicationRequiredException() : ApiException("direct_
 /// organizer is added.
 /// </summary>
 public sealed class OrganizationIsDraftException() : ApiException("organization_is_draft", "Organization has no organizer and cannot publish.", StatusCodes.Status409Conflict);
+/// <summary>
+/// Creating a membership is what promotes an account to the global <c>Organizer</c> role, and that
+/// role gates surfaces no organization scopes (the league archive, the live server, player-name
+/// maintenance). An organization Owner minting memberships would therefore be minting privilege far
+/// outside their own organization, so only an administrator may add a member or transfer ownership.
+/// Removing a member and changing a member's organization role stay Owner-callable: neither grants
+/// anything - a removal can only strip privilege from a member of the Owner's own organization, and
+/// an Owner/Organizer flip leaves the membership, and so the derived global role, untouched.
+/// </summary>
+public sealed class AdminMembershipGrantRequiredException() : ApiException("admin_membership_grant_required", "Only an administrator can add an organization member or transfer ownership.", StatusCodes.Status403Forbidden);
 public sealed class RegistrationBlockedException() : ApiException("registration_blocked", "Registration is blocked for this organization.", StatusCodes.Status403Forbidden);
 public sealed class RegistrationAlreadyActiveException() : ApiException("registration_already_active", "User already has an active registration for this Tournament.", StatusCodes.Status409Conflict);
 public sealed class EventFullException() : ApiException("event_full", "Tournament has no registration slots available.", StatusCodes.Status409Conflict);

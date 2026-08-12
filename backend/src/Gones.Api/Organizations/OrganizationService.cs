@@ -155,11 +155,16 @@ internal sealed class OrganizationService(
             throw new ResourceConflictException();
         }
 
+        // The derivation counts memberships in live organizations only, so archiving one is a
+        // membership change for everyone in it: their last live membership can disappear here.
+        var memberUserIds = await LockMemberUserIdsAsync(organizationId, cancellationToken);
+
         organization.SoftDelete(clock.GetCurrentInstant());
         database.AuditRecords.Add(NewAudit(actorUserId, "admin.organization.deleted", "organization", organization.Id,
             JsonSerializer.Serialize(new { fields = new[] { "deletedAt" }, name = organization.Name }),
             clock.GetCurrentInstant()));
         await database.SaveChangesAsync(cancellationToken);
+        await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, memberUserIds, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -183,11 +188,16 @@ internal sealed class OrganizationService(
             throw new ResourceConflictException();
         }
 
+        // Mirror of the archive: the memberships become live again, so the roles they imply have to
+        // catch up in the same transaction.
+        var memberUserIds = await LockMemberUserIdsAsync(organizationId, cancellationToken);
+
         organization.Restore(clock.GetCurrentInstant());
         database.AuditRecords.Add(NewAudit(actorUserId, "admin.organization.restored", "organization", organization.Id,
             JsonSerializer.Serialize(new { fields = new[] { "deletedAt" }, name = organization.Name }),
             clock.GetCurrentInstant()));
         await database.SaveChangesAsync(cancellationToken);
+        await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, memberUserIds, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 
@@ -199,6 +209,9 @@ internal sealed class OrganizationService(
         bool actorIsAdmin,
         CancellationToken cancellationToken)
     {
+        // Defence in depth behind the Admin policy on the route: creating a membership grants the
+        // global Organizer role, so it never runs for a non-admin actor whatever calls this.
+        if (!actorIsAdmin) throw new AdminMembershipGrantRequiredException();
         if (!OrganizationRoles.IsKnown(role)) throw Validation("role", "Role must be Owner or Organizer.");
         if (role == OrganizationRoles.Owner)
         {
@@ -371,6 +384,8 @@ internal sealed class OrganizationService(
         bool actorIsAdmin,
         CancellationToken cancellationToken)
     {
+        // Same reason as AddMemberAsync: a transfer to a non-member mints a membership.
+        if (!actorIsAdmin) throw new AdminMembershipGrantRequiredException();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         _ = await access.RequireOwnerAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
         var organization = await LockOrganizationAsync(organizationId, cancellationToken)
@@ -483,6 +498,22 @@ internal sealed class OrganizationService(
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return settings;
+    }
+
+    /// <summary>
+    /// Locks the organization's membership rows and returns their user ids. Taken between the
+    /// organization lock and the user locks the sync then takes, which is the global lock order.
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>> LockMemberUserIdsAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        var members = await database.OrganizationMembers
+            .FromSqlInterpolated($"""
+                SELECT * FROM organization_members
+                WHERE organization_id = {organizationId}
+                FOR UPDATE
+                """)
+            .ToListAsync(cancellationToken);
+        return members.Select(member => member.UserId).ToList();
     }
 
     private async Task<Organization?> LockOrganizationAsync(Guid organizationId, CancellationToken cancellationToken) =>

@@ -37,7 +37,11 @@ internal static class OrganizationEndpoints
         org.MapGet("/members", ListMembersAsync)
             .Produces<IReadOnlyList<OrganizationMemberResponse>>()
             .ProducesProblem(StatusCodes.Status404NotFound);
+        // Adding a member is what promotes the account to the global Organizer role, so it is
+        // admin-only; removing one and flipping an organization role grant nothing and stay with the
+        // Owner. See AdminMembershipGrantRequiredException.
         org.MapPost("/members", AddMemberAsync)
+            .RequireAuthorization(AuthorizationPolicies.Admin)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .Produces<OrganizationMemberResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -53,7 +57,10 @@ internal static class OrganizationEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
+        // A transfer can hand the organization to someone who is not a member yet, which mints a
+        // membership - same reason as POST /members.
         org.MapPost("/transfer-ownership", TransferOwnershipAsync)
+            .RequireAuthorization(AuthorizationPolicies.Admin)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)

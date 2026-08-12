@@ -123,6 +123,9 @@ describe('EventDetailViewComponent hero', () => {
     expect(actionsStart).toBeGreaterThan(-1);
     const actions = source.slice(actionsStart, source.indexOf('</div>', actionsStart));
     expect(actions).toContain('data-cy="event-detail-organization-website"');
+    // Presence first: indexOf returns -1 for an absent element, which would pass the ordering
+    // assertion below without the calendar button existing at all.
+    expect(actions).toContain('data-cy="event-ics"');
     expect(actions.indexOf('data-cy="event-ics"')).toBeLessThan(actions.indexOf('data-cy="event-detail-organization-website"'));
     expect(actionsStart).toBeGreaterThan(source.indexOf('data-cy="event-detail-when-where"'));
     expect(stylesheet).toContain('.info-actions--end { justify-content: flex-end; }');

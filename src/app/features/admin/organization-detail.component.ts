@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -41,19 +41,23 @@ import { I18nService } from '../../i18n/i18n.service';
                   <div class="admin-row-grid member-row" [attr.data-cy]="'org-member-' + member.username">
                     <div [attr.data-cy]="'org-member-summary-' + member.userId"><strong [attr.data-cy]="'org-member-username-' + member.userId">{{ member.username }}</strong><p class="muted" [attr.data-cy]="'org-member-id-' + member.userId">{{ member.userId }}</p></div>
                     <select [ngModel]="member.role" [attr.data-cy]="'org-member-role-' + member.userId" [attr.aria-label]="i18n.t('org.roleFor', { username: member.username })" (ngModelChange)="changeRole(member, $event)">
-                      <option value="Owner" [attr.data-cy]="'org-member-role-owner-' + member.userId">Owner</option>
+                      @if (isAdmin() || member.role === 'Owner') { <option value="Owner" [attr.data-cy]="'org-member-role-owner-' + member.userId">Owner</option> }
                       <option value="Organizer" [attr.data-cy]="'org-member-role-organizer-' + member.userId">Organizer</option>
                     </select>
                     <button mat-stroked-button type="button" class="danger-ghost-action" [attr.data-cy]="'org-member-remove-' + member.userId" [disabled]="pending()" (click)="remove(member)">{{ i18n.t('common.remove') }}</button>
                   </div>
                 }
-                <form class="auth-form admin-inline-form" data-cy="org-add-member-form" (ngSubmit)="addMember()">
-                  <label for="org-member-user" data-cy="org-member-user-label">{{ i18n.t('org.addUserId') }}</label>
-                  <input id="org-member-user" data-cy="org-member-user" name="newMemberUserId" [(ngModel)]="newMemberUserId" />
-                  <label for="org-member-role" data-cy="org-new-member-role-label">{{ i18n.t('org.role') }}</label>
-                  <select id="org-member-role" data-cy="org-new-member-role" name="newMemberRole" [(ngModel)]="newMemberRole"><option value="Organizer" data-cy="org-new-member-role-organizer">Organizer</option><option value="Owner" data-cy="org-new-member-role-owner">Owner</option></select>
-                  <button mat-flat-button type="submit" data-cy="org-add-member-submit" [disabled]="pending()">{{ i18n.t('common.add') }}</button>
-                </form>
+                <!-- Adding a member grants the global Organizer role, so the server takes it from an
+                     admin only; showing the form to an Owner would be a control that always fails. -->
+                @if (isAdmin()) {
+                  <form class="auth-form admin-inline-form" data-cy="org-add-member-form" (ngSubmit)="addMember()">
+                    <label for="org-member-user" data-cy="org-member-user-label">{{ i18n.t('org.addUserId') }}</label>
+                    <input id="org-member-user" data-cy="org-member-user" name="newMemberUserId" [(ngModel)]="newMemberUserId" />
+                    <label for="org-member-role" data-cy="org-new-member-role-label">{{ i18n.t('org.role') }}</label>
+                    <select id="org-member-role" data-cy="org-new-member-role" name="newMemberRole" [(ngModel)]="newMemberRole"><option value="Organizer" data-cy="org-new-member-role-organizer">Organizer</option><option value="Owner" data-cy="org-new-member-role-owner">Owner</option></select>
+                    <button mat-flat-button type="submit" data-cy="org-add-member-submit" [disabled]="pending()">{{ i18n.t('common.add') }}</button>
+                  </form>
+                } @else { <p class="muted" data-cy="org-add-member-admin-only">{{ i18n.t('org.addMemberAdminOnly') }}</p> }
               </div>
               @if (settings(); as prefs) {
                 <form class="auth-form" data-cy="org-notification-settings" (ngSubmit)="saveSettings()">
@@ -85,6 +89,8 @@ export class OrganizationDetailComponent {
   readonly error = signal('');
   readonly manageError = signal('');
   readonly status = signal('');
+  /** Membership grants - add a member, hand over ownership - are admin-only server-side. */
+  readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');
   newMemberUserId = '';
   newMemberRole = 'Organizer';
   private organizationId = '';

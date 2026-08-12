@@ -27,6 +27,8 @@ function mockSession(globalRole = 'Admin') {
   cy.intercept('GET', '**/api/users/me', profile(globalRole));
 }
 
+const MATE_ID = '88888888-8888-8888-8888-888888888888';
+
 const SEED_MARKER = 'gones.e2e.storage-seeded';
 
 function seedStorage(win) {
@@ -100,11 +102,23 @@ describe('admin organization and account controls', () => {
     cy.get('[data-cy="my-org-card-Owned Club"]').should('be.visible');
 
     cy.intercept('GET', '**/api/organizations/org-owned', { id: 'org-owned', name: 'Owned Club', description: '', website: '', contactEmail: '', createdAt: '2026-08-01T00:00:00Z' });
-    cy.intercept('GET', '**/api/organizations/org-owned/members', [{ userId: adminProfile.id, username: 'owner-user', role: 'Owner', createdAt: '2026-08-01T00:00:00Z' }]);
+    cy.intercept('GET', '**/api/organizations/org-owned/members', [
+      { userId: adminProfile.id, username: 'owner-user', role: 'Owner', createdAt: '2026-08-01T00:00:00Z' },
+      { userId: MATE_ID, username: 'mate-user', role: 'Organizer', createdAt: '2026-08-01T00:00:00Z' }
+    ]);
     cy.intercept('GET', '**/api/organizations/org-owned/notification-settings', { organizationId: 'org-owned', notifyOnRegistration: true, notifyOnUnregistration: false, updatedAt: '2026-08-01T00:00:00Z' });
     cy.intercept('DELETE', '**/api/organizations/org-owned/members/**', { statusCode: 409, body: { code: 'last_owner' } }).as('removeOwner');
     visit('/organizations/org-owned');
     cy.get('[data-cy="org-owner-panel"]').should('be.visible');
+    // Adding a member and handing over ownership grant the global Organizer role, so the server
+    // takes them from an Admin only; an Owner is shown the reason instead of a control that fails.
+    cy.get('[data-cy="org-add-member-form"]').should('not.exist');
+    cy.get('[data-cy="org-add-member-admin-only"]').should('be.visible');
+    // The current Owner keeps their own value in the select; promoting anyone else to Owner is the
+    // ownership transfer, so that option is gone for a non-admin.
+    cy.get(`[data-cy="org-member-role-owner-${adminProfile.id}"]`).should('exist');
+    cy.get(`[data-cy="org-member-role-owner-${MATE_ID}"]`).should('not.exist');
+    cy.get(`[data-cy="org-member-role-organizer-${MATE_ID}"]`).should('exist');
     cy.on('window:confirm', () => true);
     cy.get('[data-cy="org-member-owner-user"] button').click();
     cy.wait('@removeOwner');

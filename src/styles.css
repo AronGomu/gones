@@ -331,10 +331,6 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .event-hero, .event-section { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 2rem); }
 .event-when-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
 .maps-icon { width: 1em; height: 1em; margin-right: .3rem; vertical-align: -0.125em; }
-.event-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .75rem; margin: 0; }
-.event-facts div { padding: .85rem; border: 1px solid var(--soot); background: var(--black-metal); }
-.event-facts dt { color: oklch(75% 0.12 35); font-size: .75rem; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
-.event-facts dd { margin: .25rem 0 0; color: var(--ash); font-weight: 800; }
 .event-tournament-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); grid-auto-rows: 4.75rem; gap: .5rem; }
 .event-description-fallback { margin: 0; color: var(--dim-ash); white-space: pre-wrap; line-height: 1.7; }
 .settings-panel mat-card-content { display: grid; gap: 1rem; }

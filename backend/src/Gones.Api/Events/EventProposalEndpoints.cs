@@ -485,7 +485,7 @@ internal sealed class EventProposalService(
         {
             var token = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
             proposal.AddRecipient(recipient.UserId, AccountLifecycleService.Hash(token), now);
-            links.Add((recipient, new Uri(reviewOrigin, $"/tournament-requests/{Uri.EscapeDataString(token)}")));
+            links.Add((recipient, new Uri(reviewOrigin, $"/event-requests/{Uri.EscapeDataString(token)}")));
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);

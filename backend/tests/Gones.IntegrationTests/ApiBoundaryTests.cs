@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Gones.Api.Errors;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -499,6 +500,42 @@ public sealed class ApiBoundaryTests : IClassFixture<WebApplicationFactory<Progr
         var problem = await JsonSerializer.DeserializeAsync<JsonElement>(context.Response.Body);
         Assert.Equal("conflict", problem.GetProperty("code").GetString());
         Assert.Equal(StatusCodes.Status409Conflict, problem.GetProperty("status").GetInt32());
+    }
+
+    /// <summary>
+    /// ADR 0035 renamed the calendar entity and deliberately gave the API no alias, unlike the
+    /// frontend routes which keep permanent redirects. Nothing pinned that: a re-added
+    /// <c>/api/tournaments</c> would have passed every gate. The canonical routes are asserted from
+    /// the same endpoint table, so the absence below is the rename and not a router that mapped
+    /// nothing at all.
+    /// </summary>
+    [Fact]
+    public async Task Retired_tournament_collection_paths_have_no_api_alias()
+    {
+        using var retired = await client.GetAsync("/api/tournaments");
+        using var retiredAll = await client.GetAsync("/api/tournaments/all");
+        Assert.Equal(HttpStatusCode.NotFound, retired.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, retiredAll.StatusCode);
+
+        using var calendarFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("GONES_FEATURES:CALENDAR_V1", "true");
+            // Routes are mapped at startup; nothing here opens a connection, so an unreachable
+            // host is enough to satisfy the feature's configuration requirement.
+            builder.UseSetting("GONES_DB_CONNECTION", "Host=127.0.0.1;Port=1;Database=none;Username=none;Password=none");
+            builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
+        });
+        _ = calendarFactory.CreateClient();
+        var routes = calendarFactory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Select(endpoint => "/" + endpoint.RoutePattern.RawText!.TrimStart('/'))
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("/api/events", routes);
+        Assert.Contains("/api/events/all", routes);
+        Assert.DoesNotContain("/api/tournaments", routes);
+        Assert.DoesNotContain("/api/tournaments/all", routes);
     }
 
     private static async Task<string?> ProblemCode(HttpResponseMessage response)

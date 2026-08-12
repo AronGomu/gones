@@ -25,7 +25,7 @@ public sealed class NotificationTemplateRendererTests
             "Europe/Paris",
             "Legacy",
             "64",
-            new Uri("https://app.example/tournament-requests/secret-review-token")),
+            new Uri("https://app.example/event-requests/secret-review-token")),
         new TournamentProposalRejectedTemplateModel(
             "Alice",
             "Legacy Lyon",
@@ -83,7 +83,7 @@ public sealed class NotificationTemplateRendererTests
             "Europe/Paris",
             "Legacy",
             "64",
-            new Uri("https://app.example/tournament-requests/secret-review-token"));
+            new Uri("https://app.example/event-requests/secret-review-token"));
         string[] fields =
         [
             model.ApproverName, model.SubmitterName, model.TournamentName, model.TournamentSummary,
