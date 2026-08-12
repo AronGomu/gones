@@ -24,11 +24,29 @@ function mockFormats() {
   cy.intercept('GET', '**/api/formats', [{ id: formatId, name: 'Legacy', slug: 'legacy', sortOrder: 1 }]).as('formats');
 }
 
+function seedLanguage(win, language) {
+  win.localStorage.setItem('gones.settings.language', language);
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
+}
+
+// Breadcrumbs and dialog copy are translated, so the language has to be in localStorage before the
+// bundle runs. `onBeforeLoad` is Cypress' only pre-boot hook and on the release profile it stops
+// firing once `ngsw-worker.js` has registered: the worker answers the navigation from Cache Storage,
+// that response never passes through the Cypress proxy, and Cypress cannot inject the script that
+// calls `onBeforeLoad`. The app then boots on its default `fr` and an English assertion reads French.
+// Seeding again from the loaded page and raising the `storage` event the app already listens for to
+// follow settings changed in another tab pins it — a same-window write never fires that event on its
+// own. The wait on `gones.settings` is what makes the branch honest: the app persists that key while
+// it boots, so reaching it means the language read below is the one the app actually booted on.
 function visit(path, language = 'en') {
-  cy.visit(path, { onBeforeLoad(win) {
-    win.localStorage.setItem('gones.settings.language', language);
-    win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
-  } });
+  cy.visit(path, { onBeforeLoad: (win) => seedLanguage(win, language) });
+  cy.window().its('localStorage').invoke('getItem', 'gones.settings').should('be.a', 'string');
+  cy.window().then((win) => {
+    if (win.localStorage.getItem('gones.settings.language') === language) return;
+    seedLanguage(win, language);
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.language', newValue: language }));
+  });
+  cy.document().its('documentElement.lang').should('eq', language);
 }
 
 describe('Organizer Event management', () => {

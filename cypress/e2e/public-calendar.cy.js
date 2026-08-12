@@ -36,13 +36,36 @@ const busyMonthItems = ['2026-08', '2026-09'].flatMap(month =>
   ).flat()
 );
 
+function seedLanguage(win) {
+  win.localStorage.setItem('gones.settings.language', 'en');
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+}
+
+// Every translated assertion below reads whatever language the app booted on, and the default is
+// `fr` (`deck-archetype-settings.service.ts`), so the seed has to be in localStorage *before* the
+// bundle runs. `onBeforeLoad` is Cypress' only pre-boot hook and on the release profile it does not
+// always fire: `ngsw-worker.js` registers on the first page a spec loads, and from then on it
+// answers the navigation out of Cache Storage. That response never passes through the Cypress
+// proxy, so Cypress cannot inject the script that calls `onBeforeLoad`, and the seed is silently
+// skipped. The dev server registers no worker at all (`provideServiceWorker` is gated on
+// `environment.production`), which is why the same spec is green on :4200 and red on :8081.
+//
+// So: seed pre-boot when Cypress can, and when it could not, write the seed from the loaded page and
+// raise the `storage` event the app already listens for to follow settings changed in another tab — a
+// same-window write never fires it on its own. That re-reads localStorage and flips the language
+// signal in place. Reloading instead would work too, but a second boot re-runs the catalog fetch and
+// breaks the request counters this spec asserts on. The wait on `gones.settings` is what makes the
+// branch honest: the app persists that key while it boots, so reaching it means the language below is
+// the one the app actually booted on rather than a value read before it had written anything.
 function visit(path) {
-  cy.visit(path, {
-    onBeforeLoad(win) {
-      win.localStorage.setItem('gones.settings.language', 'en');
-      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
-    }
+  cy.visit(path, { onBeforeLoad: seedLanguage });
+  cy.window().its('localStorage').invoke('getItem', 'gones.settings').should('be.a', 'string');
+  cy.window().then((win) => {
+    if (win.localStorage.getItem('gones.settings.language') === 'en') return;
+    seedLanguage(win);
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.language', newValue: 'en' }));
   });
+  cy.document().its('documentElement.lang').should('eq', 'en');
 }
 
 describe('public Calendar V1', () => {
@@ -93,11 +116,11 @@ describe('public Calendar V1', () => {
     cy.wait('@allEvents');
     cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('be.visible');
 
-    // The witness that the grid moved has to be locale-independent. The month label is translated,
-    // and on the release build the ngsw worker can answer the navigation from cache so
-    // `onBeforeLoad`'s language seed never runs — asserting 'August' there reads `août 2026`. The day
-    // cell's `datetime` attribute is the machine-readable ISO date and is never translated. A
-    // mid-month day is picked because it is always in-month, never a muted leading/trailing cell
+    // The witness that the grid moved is locale-independent by construction: the day cell's
+    // `datetime` attribute is the machine-readable ISO date and is never translated, where the month
+    // label is. `visit()` pins the language, so asserting 'August' would work too — but the grid
+    // moving is not a claim about translation, and this way the test cannot break when it does not.
+    // A mid-month day is picked because it is always in-month, never a muted leading/trailing cell
     // borrowed from a neighbouring month.
     cy.get('[data-cy="calendar-month-next"]').click();
     cy.location('search').should('contain', 'month=2026-09');

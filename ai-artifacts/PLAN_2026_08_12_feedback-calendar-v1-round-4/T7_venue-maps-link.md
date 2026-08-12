@@ -84,3 +84,59 @@
 - [x] (added) `npx cypress run --spec cypress/e2e/accessibility.cy.js` stays at 11 passing / 0 failing
 - [x] (added) `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
 - [x] commit msg draft: `feat(calendar): link the event location to Google Maps`
+
+## Repair
+
+`npm run e2e:ci` (release profile, frontend on `http://127.0.0.1:8081`) failed the box-10 assertion that
+the same spec passes on the dev server: the `aria-label` rendered `Ouvrir … dans Google Maps` where
+the spec expects `Open … in Google Maps`.
+
+- [x] **Diagnosis** — root cause proven, not guessed. Criterion: an instrumented run reports whether
+  `onBeforeLoad` ran on each visit. A throwaway `cypress/e2e/tmp-diag.cy.js` counted the invocations
+  and read `navigator.serviceWorker.controller` on the release build:
+
+  ```
+  [{"label":"a-first","beforeLoadRuns":1,"swAtBeforeLoad":false,"htmlLang":"en","lsLang":"en","swController":false},
+   {"label":"b-second","beforeLoadRuns":0,"htmlLang":"fr","lsLang":"fr","swController":true},
+   {"label":"c-pre",   "beforeLoadRuns":0,"htmlLang":"fr","lsLang":"fr","swController":true},
+   {"label":"c-post",  "beforeLoadRuns":0,"htmlLang":"fr","lsLang":"fr","swController":true}]
+  ```
+
+  `onBeforeLoad` fires on the first visit of a spec and never again: `ngsw-worker.js` registers during
+  that first boot and from then on answers the navigation from Cache Storage, so the document never
+  passes through the Cypress proxy and Cypress cannot inject the script that calls `onBeforeLoad`. The
+  language seed is silently skipped and the app boots on its default `fr`
+  (`deck-archetype-settings.service.ts:23`, `loadSettingsLanguage()` falling through to `'fr'`). The dev
+  server registers no worker — `provideServiceWorker(..., { enabled: environment.production })`,
+  `src/main.ts:84` — which is exactly why the spec is green on :4200 and red on :8081. Nothing is
+  wrong with the T7 code: the `aria-label` is correct in both catalogs.
+- [x] **Fix** — the `visit()` helper seeds pre-boot as before, then waits for the app to persist
+  `gones.settings` and, when the language it booted on is not the requested one, writes the seed and
+  raises the `storage` event the app already listens for to follow settings changed in another tab
+  (`deck-archetype-settings.service.ts:29` → `refreshFromStorage()`); a same-window write never fires
+  that event on its own. A closing `documentElement.lang` assertion makes the helper wait for the
+  language to have settled. The `aria-label` assertion is kept verbatim as the accessibility evidence.
+  The stale comment in the month-navigation test (which described the seed as permanently broken on
+  the release build) is re-stated: the ISO `datetime` witness stays, because the claim under test is
+  that the grid moved, not that the month label is translated.
+
+  A reload was tried first and rejected: on `public-calendar.cy.js` the second boot re-ran the catalog
+  fetch before the read cache had been persisted, so the ADR 0023 request counter flaked —
+  `navigates months over the cached catalog without re-querying the API` failed `expected 2, actual 1`
+  at `:132` in one gate run and passed in another. The `storage` event issues no navigation and no
+  request, so the counters are untouched.
+
+  The gate then surfaced the same defect in two specs this round added — both green on :4200, both red
+  on :8081, neither present at the branch point `ff6e9e6` (`git show ff6e9e6:cypress/e2e/organizer-tournament-create.cy.js`
+  and `…-management.cy.js` have no breadcrumb case and no `language` argument), so both are this
+  round's fallout rather than pre-existing:
+  - `organizer-event-create.cy.js:302` — `serves /events/new with a Create Event breadcrumb in both languages`, `-'Créer un événement' +'Create Event'` (second `visit()` of the test kept the first one's `en`).
+  - `organizer-event-management.cy.js:130` — `redirects the retired organizer and admin paths onto the canonical Event paths`, `-'Mes événements' +'My Events'` (seed skipped, app booted on the default `fr`).
+
+  Criterion: all three specs green against both origins.
+  - `baseUrl=http://127.0.0.1:8081` → `public-calendar` 12/12, `organizer-event-create` 9/9, `organizer-event-management` 4/4, `All specs passed!`
+  - `baseUrl=http://127.0.0.1:4200` → same three, 12/12, 9/9, 4/4, `All specs passed!`
+- [x] **Green gate** — `npm run e2e:ci` ran to completion with `EXIT=0`, 22 specs / 100 tests, zero
+  failures; `Full-stack release smoke passed.` and `Deterministic V1 seed complete.` in the same log.
+  `npm run test` 110 files / 1026 tests passed, `npm run lint` “All files pass linting.”,
+  `npm run typecheck` clean.
