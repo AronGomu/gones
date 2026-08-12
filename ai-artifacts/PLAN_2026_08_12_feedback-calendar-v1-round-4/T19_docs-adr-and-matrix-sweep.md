@@ -92,6 +92,8 @@
 - [x] manual check — no browser available in this session, so the three documents were parsed instead: every tag balanced, zero unclosed elements and zero mismatched closes in `event-proposal-flow.html`, `calendar-data-flow.html`, `organization-membership-model.html` and `event-vocabulary-rename.html`.
 - [x] app functional — documentation-only commit: the diff touches `*.md`, `*.html` and `ops/acceptance-matrix.json` only, no `src/`, no `backend/`, no `scripts/`.
 - [x] commit msg draft: `docs(adr): record the Event rename, derived organizer role and guard fix`
+- [x] published — commit `762e00e` on `feat/feedback-calendar-v1-round-4`, pushed (`a8ec503..762e00e HEAD -> feat/feedback-calendar-v1-round-4`). 18 files, +527/-107, documentation only. `ai-artifacts/MAKE_PROGRESS_feedback-calendar-v1-round-4.md` left untracked on purpose — it is not this ticket's file.
+- [x] manual QA checklist updated — `## T19 docs-adr-and-matrix-sweep` appended to `ai-artifacts/manual_test_checklist.md`, and the stale steps later tickets invalidated were repaired in place: T1 (`/organizer/tournaments`, `/tournaments/new`), T6 and T7 (the `/calendar/tournaments/…` detail path), T14 (seven `/tournaments/new` steps) and T17 (the detail path, the "Cancel Tournament" label T18 retitled, `/organizer/tournaments*` and `/admin/tournaments/deleted`). The deliberate old-path steps in T16 and T18, which exist to prove the 404s and the redirects, were left alone.
 
 ### Assumptions
 
