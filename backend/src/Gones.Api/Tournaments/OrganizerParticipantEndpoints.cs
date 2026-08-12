@@ -443,13 +443,13 @@ internal sealed class OrganizerParticipantService(
         }, "text/csv; charset=utf-8", fileName);
     }
 
-    private async Task<ScheduledTournament> RequireTournamentAsync(
+    private async Task<Event> RequireTournamentAsync(
         Guid tournamentId,
         Guid actorUserId,
         bool isAdmin,
         CancellationToken cancellationToken)
     {
-        var tournament = await database.ScheduledTournaments.AsNoTracking()
+        var tournament = await database.Events.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == tournamentId && item.DeletedAt == null, cancellationToken)
             ?? throw new ResourceNotFoundException();
         _ = await access.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
@@ -457,10 +457,10 @@ internal sealed class OrganizerParticipantService(
     }
 
     private IQueryable<ParticipantJoin> ActiveParticipants(Guid tournamentId) =>
-        from attempt in database.TournamentRegistrationAttempts.AsNoTracking()
+        from attempt in database.EventRegistrationAttempts.AsNoTracking()
         join user in database.Users.AsNoTracking() on attempt.UserId equals user.Id
         join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
-        where attempt.TournamentId == tournamentId
+        where attempt.EventId == tournamentId
             && attempt.Status == TournamentRegistrationStatus.Confirmed
             && profile.ClosedAt == null
         orderby profile.NormalizedUsername, attempt.Id
@@ -497,7 +497,7 @@ internal sealed class OrganizerParticipantService(
         OccurredAt = now
     };
 
-    private sealed record ParticipantJoin(TournamentRegistrationAttempt Attempt, Gones.Infrastructure.Identity.ApplicationUser User, UserProfile Profile);
+    private sealed record ParticipantJoin(EventRegistrationAttempt Attempt, Gones.Infrastructure.Identity.ApplicationUser User, UserProfile Profile);
     private sealed record CsvParticipantRow(string Username, string FirstName, string LastName, string Email, Instant RegisteredAt);
 }
 

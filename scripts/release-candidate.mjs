@@ -266,7 +266,7 @@ try {
   console.log('\n=== the Worker leader picks the scheduler work up ===');
   compose(['restart', 'worker'], { stdio: 'ignore' });
   const planned = await waitForSql(
-    `select count(*) from scheduled_notifications where tournament_id = '${journeyState.tournamentId}' and status = 'Planned';`,
+    `select count(*) from scheduled_notifications where event_id = '${journeyState.tournamentId}' and status = 'Planned';`,
     (value) => value !== '0', 120);
   check(planned !== '0', `the singleton Worker plans the reminder ladder for the published tournament (${planned})`);
   const delivered = await waitFor(async () => composeOut(['logs', '--no-color', '--tail', '2000', 'fake-brevo']).stdout.includes('accepted send'), 90);

@@ -6,17 +6,17 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Gones.Infrastructure.Persistence;
 
-internal sealed class TournamentProposalConfiguration : VersionedEntityConfiguration<TournamentProposal>
+internal sealed class EventProposalConfiguration : VersionedEntityConfiguration<EventProposal>
 {
-    public override void Configure(EntityTypeBuilder<TournamentProposal> builder)
+    public override void Configure(EntityTypeBuilder<EventProposal> builder)
     {
         base.Configure(builder);
-        builder.ToTable("tournament_proposals");
+        builder.ToTable("event_proposals");
         // The submitted tournament stays opaque JSON: nothing here is ever read by the public
-        // calendar, which only knows about scheduled_tournaments.
+        // calendar, which only knows about events.
         builder.Property(proposal => proposal.PayloadJson).HasColumnType("jsonb");
         builder.Property(proposal => proposal.Status).HasConversion<string>().HasMaxLength(20);
-        builder.Property(proposal => proposal.RejectionReason).HasMaxLength(TournamentProposal.MaximumRejectionReasonLength);
+        builder.Property(proposal => proposal.RejectionReason).HasMaxLength(EventProposal.MaximumRejectionReasonLength);
         builder.HasIndex(proposal => proposal.SubmittedByUserId);
         // Sweeping expired pending proposals is an index scan, not a table scan.
         builder.HasIndex(proposal => new { proposal.Status, proposal.ExpiresAt });
@@ -41,16 +41,16 @@ internal sealed class TournamentProposalConfiguration : VersionedEntityConfigura
     }
 }
 
-internal sealed class TournamentProposalRecipientConfiguration : VersionedEntityConfiguration<TournamentProposalRecipient>
+internal sealed class EventProposalRecipientConfiguration : VersionedEntityConfiguration<EventProposalRecipient>
 {
-    public override void Configure(EntityTypeBuilder<TournamentProposalRecipient> builder)
+    public override void Configure(EntityTypeBuilder<EventProposalRecipient> builder)
     {
         base.Configure(builder);
-        builder.ToTable("tournament_proposal_recipients");
+        builder.ToTable("event_proposal_recipients");
         // Only the SHA-256 hash of a review token is ever stored; the plaintext exists solely
         // inside the mailed link.
         builder.Property(recipient => recipient.TokenHash)
-            .HasMaxLength(TournamentProposalRecipient.TokenHashLength)
+            .HasMaxLength(EventProposalRecipient.TokenHashLength)
             .IsFixedLength();
         builder.HasIndex(recipient => recipient.TokenHash).IsUnique();
         // One token per approver per proposal, so a review link names exactly one approver.

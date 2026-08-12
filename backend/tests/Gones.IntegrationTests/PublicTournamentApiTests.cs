@@ -124,7 +124,7 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
         await database.Database.ExecuteSqlRawAsync("SET enable_seqscan = off");
         var datePlan = string.Join('\n', await database.Database.SqlQueryRaw<string>("""
             EXPLAIN SELECT id
-            FROM scheduled_tournaments
+            FROM events
             WHERE deleted_at IS NULL
               AND venue_start_date >= DATE '2035-03-01'
               AND venue_start_date <= DATE '2035-03-31'
@@ -133,15 +133,15 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
             """).ToListAsync());
         var formatPlan = string.Join('\n', await database.Database.SqlQueryRaw<string>("""
             EXPLAIN SELECT st.id
-            FROM scheduled_tournaments st
-            JOIN scheduled_tournament_formats stf ON stf.scheduled_tournament_id = st.id
+            FROM events st
+            JOIN event_formats stf ON stf.event_id = st.id
             JOIN tournament_formats tf ON tf.id = stf.tournament_format_id
             WHERE st.deleted_at IS NULL AND tf.slug = 'pioneer'
             LIMIT 20
             """).ToListAsync());
 
-        Assert.Contains("ix_scheduled_tournaments_venue_start_date_venue_start_time_id", datePlan);
-        Assert.Contains("ix_scheduled_tournament_formats_tournament_format_id", formatPlan);
+        Assert.Contains("ix_events_venue_start_date_venue_start_time_id", datePlan);
+        Assert.Contains("ix_event_formats_tournament_format_id", formatPlan);
     }
 
     private WebApplicationFactory<Program> CreateFactory() =>
@@ -181,7 +181,7 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
 
         for (var index = 0; index < 22; index++)
         {
-            database.ScheduledTournaments.Add(ScheduledTournament.Create(
+            database.Events.Add(Event.Create(
                 alpha.Id,
                 user.Id,
                 Draft($"Page Cup {index:00}", $"page-cup-{index:00}", new LocalDateTime(2035, 1, 1 + index, 10, 0), "Lyon", "Paged", null),
@@ -189,21 +189,21 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
                 Now));
         }
 
-        database.ScheduledTournaments.Add(ScheduledTournament.Create(
+        database.Events.Add(Event.Create(
             alpha.Id,
             user.Id,
             Draft("Search Cup", "search-cup", new LocalDateTime(2035, 3, 4, 10, 0), "Paris", "Search", "<p>Public <strong>body</strong></p>"),
             [legacy, pioneer],
             Now));
-        var cancelled = ScheduledTournament.Create(
+        var cancelled = Event.Create(
             alpha.Id,
             user.Id,
             Draft("Cancelled Cup", "cancelled-cup", new LocalDateTime(2035, 3, 5, 10, 0), "Paris", "Cancelled", "<p>Cancelled body</p>"),
             [legacy],
             Now);
         cancelled.Cancel(Now.Plus(Duration.FromMinutes(1)));
-        database.ScheduledTournaments.Add(cancelled);
-        var completed = ScheduledTournament.Create(
+        database.Events.Add(cancelled);
+        var completed = Event.Create(
             beta.Id,
             user.Id,
             Draft("Completed Cup", "completed-cup", new LocalDateTime(2020, 1, 2, 10, 0), "Lyon", "Past", null),
@@ -211,15 +211,15 @@ public sealed class PublicTournamentApiTests : IAsyncLifetime
             Instant.FromUtc(2019, 12, 1, 12, 0));
         completed.AdvanceLifecycle(Instant.FromUtc(2020, 1, 2, 12, 0));
         completed.AdvanceLifecycle(Instant.FromUtc(2020, 1, 2, 19, 0));
-        database.ScheduledTournaments.Add(completed);
-        var deleted = ScheduledTournament.Create(
+        database.Events.Add(completed);
+        var deleted = Event.Create(
             beta.Id,
             user.Id,
             Draft("Deleted Cup", "deleted-cup", new LocalDateTime(2035, 3, 6, 10, 0), "Lyon", "Deleted", null),
             [legacy],
             Now);
         deleted.SoftDelete(user.Id, "hidden", Now.Plus(Duration.FromMinutes(1)));
-        database.ScheduledTournaments.Add(deleted);
+        database.Events.Add(deleted);
         await database.SaveChangesAsync();
         return new SeedRows(alpha, beta);
     }

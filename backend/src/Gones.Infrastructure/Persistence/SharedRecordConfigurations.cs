@@ -56,9 +56,9 @@ internal sealed class AuditRecordConfiguration : VersionedEntityConfiguration<Au
     }
 }
 
-internal sealed class ConsumedTournamentPreviewTicketConfiguration : IEntityTypeConfiguration<ConsumedTournamentPreviewTicket>
+internal sealed class ConsumedEventPreviewTicketConfiguration : IEntityTypeConfiguration<ConsumedEventPreviewTicket>
 {
-    public void Configure(EntityTypeBuilder<ConsumedTournamentPreviewTicket> builder)
+    public void Configure(EntityTypeBuilder<ConsumedEventPreviewTicket> builder)
     {
         builder.HasKey(entity => entity.TicketHash);
         builder.Property(entity => entity.TicketHash).HasMaxLength(64);

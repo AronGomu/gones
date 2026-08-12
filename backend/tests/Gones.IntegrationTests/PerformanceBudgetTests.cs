@@ -108,7 +108,7 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
     {
         await using var database = CreateContext();
         var indexes = await database.Database
-            .SqlQuery<string>($"SELECT indexdef FROM pg_indexes WHERE tablename = 'scheduled_tournaments'")
+            .SqlQuery<string>($"SELECT indexdef FROM pg_indexes WHERE tablename = 'events'")
             .ToListAsync();
         var combined = string.Join('\n', indexes).ToLowerInvariant();
 
@@ -176,7 +176,7 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
         for (var index = 0; index < SeededTournaments; index++)
         {
             var startsAt = new LocalDateTime(2035, 1, 1, 10, 0).PlusDays(index);
-            database.ScheduledTournaments.Add(ScheduledTournament.Create(
+            database.Events.Add(Event.Create(
                 organization.Id,
                 user.Id,
                 new ScheduledTournamentDraft(

@@ -34,7 +34,7 @@ public sealed class AuditRecord : VersionedEntity
     public required Instant OccurredAt { get; init; }
 }
 
-public sealed class ConsumedTournamentPreviewTicket
+public sealed class ConsumedEventPreviewTicket
 {
     public required string TicketHash { get; init; }
     public required Instant ExpiresAt { get; init; }

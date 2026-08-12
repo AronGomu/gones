@@ -11,11 +11,11 @@ public enum TournamentRegistrationStatus
     RemovedByOrganizer
 }
 
-public sealed class TournamentRegistrationAttempt : VersionedEntity
+public sealed class EventRegistrationAttempt : VersionedEntity
 {
-    private TournamentRegistrationAttempt() { }
+    private EventRegistrationAttempt() { }
 
-    public Guid TournamentId { get; private init; }
+    public Guid EventId { get; private init; }
     public Guid UserId { get; private init; }
     public TournamentRegistrationStatus Status { get; private set; }
     public Guid RegisteredByUserId { get; private init; }
@@ -25,7 +25,7 @@ public sealed class TournamentRegistrationAttempt : VersionedEntity
 
     public bool IsActive => Status == TournamentRegistrationStatus.Confirmed;
 
-    public static TournamentRegistrationAttempt Register(
+    public static EventRegistrationAttempt Register(
         Guid tournamentId,
         Guid userId,
         Guid registeredByUserId,
@@ -34,9 +34,9 @@ public sealed class TournamentRegistrationAttempt : VersionedEntity
         RequireId(tournamentId, nameof(tournamentId));
         RequireId(userId, nameof(userId));
         RequireId(registeredByUserId, nameof(registeredByUserId));
-        return new TournamentRegistrationAttempt
+        return new EventRegistrationAttempt
         {
-            TournamentId = tournamentId,
+            EventId = tournamentId,
             UserId = userId,
             Status = TournamentRegistrationStatus.Confirmed,
             RegisteredByUserId = registeredByUserId,

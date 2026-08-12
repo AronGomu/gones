@@ -67,7 +67,7 @@ public sealed class ScheduledNotification
     private ScheduledNotification() { }
 
     public Guid Id { get; private init; } = Guid.NewGuid();
-    public Guid TournamentId { get; private init; }
+    public Guid EventId { get; private init; }
     public Guid RegistrationAttemptId { get; private init; }
     public Guid UserId { get; private init; }
     public ScheduledNotificationType Type { get; private init; }
@@ -92,7 +92,7 @@ public sealed class ScheduledNotification
         if (occurrence.ScheduledAtUtc <= now) throw new ArgumentOutOfRangeException(nameof(occurrence), "Past reminders cannot be planned.");
         return new ScheduledNotification
         {
-            TournamentId = tournamentId,
+            EventId = tournamentId,
             RegistrationAttemptId = registrationAttemptId,
             UserId = userId,
             Type = occurrence.Type,
@@ -161,7 +161,7 @@ public sealed class NotificationHistory
     public string TemplateKey { get; private init; } = string.Empty;
     public string DedupeKey { get; private init; } = string.Empty;
     public Guid? UserId { get; private init; }
-    public Guid? TournamentId { get; private init; }
+    public Guid? EventId { get; private init; }
     public Instant SentAt { get; private init; }
 
     public static NotificationHistory Successful(
@@ -179,7 +179,7 @@ public sealed class NotificationHistory
             TemplateKey = RequireText(templateKey, MaximumTemplateKeyLength, nameof(templateKey)),
             DedupeKey = RequireText(dedupeKey, MaximumDedupeKeyLength, nameof(dedupeKey)),
             UserId = userId,
-            TournamentId = tournamentId,
+            EventId = tournamentId,
             SentAt = sentAt
         };
     }

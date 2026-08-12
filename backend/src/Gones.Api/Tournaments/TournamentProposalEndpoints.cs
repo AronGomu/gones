@@ -324,7 +324,7 @@ internal static class TournamentProposalEndpoints
     /// link stops publishing — checking only at submission meant a stale mail outlived the standing
     /// that justified it.
     /// </summary>
-    private static async Task<(TournamentProposal Proposal, TournamentProposalRecipient Recipient)> ResolveTokenAsync(
+    private static async Task<(EventProposal Proposal, EventProposalRecipient Recipient)> ResolveTokenAsync(
         string token,
         GonesDbContext database,
         IClock clock,
@@ -332,13 +332,13 @@ internal static class TournamentProposalEndpoints
     {
         if (string.IsNullOrWhiteSpace(token) || token.Length > MaximumTokenLength) throw new ResourceNotFoundException();
         var tokenHash = AccountLifecycleService.Hash(token);
-        var recipient = await database.TournamentProposalRecipients
+        var recipient = await database.EventProposalRecipients
             .SingleOrDefaultAsync(item => item.TokenHash == tokenHash, cancellationToken);
         // The index lookup already matched, but the comparison that decides is the constant-time one:
         // it costs nothing here and keeps a future non-indexed scan from leaking a prefix by timing.
         if (recipient is null || !FixedTimeEquals(recipient.TokenHash, tokenHash)) throw new ResourceNotFoundException();
 
-        var proposal = await database.TournamentProposals
+        var proposal = await database.EventProposals
             .SingleOrDefaultAsync(item => item.Id == recipient.ProposalId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (proposal.ExpiresAt <= clock.GetCurrentInstant()) throw new ResourceNotFoundException();
@@ -357,13 +357,13 @@ internal static class TournamentProposalEndpoints
     /// Re-reads the proposal under a row lock so two approvers deciding at the same instant are
     /// serialized rather than both seeing <c>Pending</c>. The optimistic version is the second net.
     /// </summary>
-    private static async Task<TournamentProposal> LockAsync(
+    private static async Task<EventProposal> LockAsync(
         GonesDbContext database,
         Guid proposalId,
         CancellationToken cancellationToken)
     {
-        var rows = await database.TournamentProposals
-            .FromSql($"SELECT * FROM tournament_proposals WHERE id = {proposalId} FOR UPDATE")
+        var rows = await database.EventProposals
+            .FromSql($"SELECT * FROM event_proposals WHERE id = {proposalId} FOR UPDATE")
             .ToListAsync(cancellationToken);
         return rows.Count == 1 ? rows[0] : throw new ResourceNotFoundException();
     }
@@ -391,7 +391,7 @@ internal static class TournamentProposalEndpoints
             Convert.FromHexString(storedHash),
             Convert.FromHexString(computedHash));
 
-    private static TournamentPayloadRequest Payload(TournamentProposal proposal) =>
+    private static TournamentPayloadRequest Payload(EventProposal proposal) =>
         JsonSerializer.Deserialize<TournamentPayloadRequest>(proposal.PayloadJson, PayloadJsonOptions)
             ?? throw new InvalidOperationException("Stored tournament proposal payload is invalid.");
 
@@ -474,7 +474,7 @@ internal sealed class TournamentProposalService(
 
         var reviewOrigin = AccountLifecycleOptions.Load(configuration).PublicOrigin;
         var now = clock.GetCurrentInstant();
-        var proposal = TournamentProposal.Create(
+        var proposal = EventProposal.Create(
             submitterUserId,
             JsonSerializer.Serialize(request.Tournament, StoredJsonOptions),
             now);
@@ -489,7 +489,7 @@ internal sealed class TournamentProposalService(
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        database.TournamentProposals.Add(proposal);
+        database.EventProposals.Add(proposal);
         await database.SaveChangesAsync(cancellationToken);
 
         // Enqueued only once the proposal is durable: no mail may point at a review link that
@@ -630,4 +630,4 @@ internal sealed record TournamentProposalDecisionResponse(Guid ProposalId, strin
 /// be a reason the database can keep.
 /// </summary>
 internal sealed record TournamentProposalRejectRequest(
-    [property: Required, StringLength(TournamentProposal.MaximumRejectionReasonLength, MinimumLength = 1)] string Reason);
+    [property: Required, StringLength(EventProposal.MaximumRejectionReasonLength, MinimumLength = 1)] string Reason);

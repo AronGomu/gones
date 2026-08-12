@@ -18,7 +18,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<SchemaVersion> SchemaVersions => Set<SchemaVersion>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<AuditRecord> AuditRecords => Set<AuditRecord>();
-    public DbSet<ConsumedTournamentPreviewTicket> ConsumedTournamentPreviewTickets => Set<ConsumedTournamentPreviewTicket>();
+    public DbSet<ConsumedEventPreviewTicket> ConsumedEventPreviewTickets => Set<ConsumedEventPreviewTicket>();
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
     public DbSet<NotificationOutboxRecord> NotificationOutboxRecords => Set<NotificationOutboxRecord>();
     public DbSet<NotificationDeliveryEvent> NotificationDeliveryEvents => Set<NotificationDeliveryEvent>();
@@ -37,12 +37,12 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();
     public DbSet<OrganizationBlockedUser> OrganizationBlockedUsers => Set<OrganizationBlockedUser>();
     public DbSet<OrganizationNotificationSettings> OrganizationNotificationSettings => Set<OrganizationNotificationSettings>();
-    public DbSet<ScheduledTournament> ScheduledTournaments => Set<ScheduledTournament>();
-    public DbSet<ScheduledTournamentFormat> ScheduledTournamentFormats => Set<ScheduledTournamentFormat>();
-    public DbSet<TournamentProposal> TournamentProposals => Set<TournamentProposal>();
-    public DbSet<TournamentProposalRecipient> TournamentProposalRecipients => Set<TournamentProposalRecipient>();
-    public DbSet<TournamentLifecycleEvent> TournamentLifecycleEvents => Set<TournamentLifecycleEvent>();
-    public DbSet<TournamentRegistrationAttempt> TournamentRegistrationAttempts => Set<TournamentRegistrationAttempt>();
+    public DbSet<Event> Events => Set<Event>();
+    public DbSet<EventFormat> EventFormats => Set<EventFormat>();
+    public DbSet<EventProposal> EventProposals => Set<EventProposal>();
+    public DbSet<EventProposalRecipient> EventProposalRecipients => Set<EventProposalRecipient>();
+    public DbSet<EventLifecycleEntry> EventLifecycleEntries => Set<EventLifecycleEntry>();
+    public DbSet<EventRegistrationAttempt> EventRegistrationAttempts => Set<EventRegistrationAttempt>();
     public DbSet<ScheduledNotification> ScheduledNotifications => Set<ScheduledNotification>();
     public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();
     public DbSet<LeagueArchiveAggregate> LeagueArchiveAggregates => Set<LeagueArchiveAggregate>();

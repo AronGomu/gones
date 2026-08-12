@@ -13,11 +13,11 @@ public enum TournamentProposalStatus
 /// <summary>
 /// A tournament a non-organizer asked an Organizer or Admin to publish on their behalf.
 ///
-/// The submitted tournament is kept as opaque JSON rather than as a draft <see cref="ScheduledTournament"/>:
+/// The submitted tournament is kept as opaque JSON rather than as a draft <see cref="Event"/>:
 /// the public calendar reads scheduled tournaments only, so an unapproved proposal has no way to
 /// surface there. Approval (T17) is what turns the payload into a real tournament.
 /// </summary>
-public sealed class TournamentProposal : VersionedEntity
+public sealed class EventProposal : VersionedEntity
 {
     public const int MaximumPayloadJsonLength = 32_000;
     public const int MaximumRejectionReasonLength = 500;
@@ -25,9 +25,9 @@ public sealed class TournamentProposal : VersionedEntity
     /// <summary>A8: a review link stays usable for seven days, then the proposal is dead.</summary>
     public static readonly Duration Lifetime = Duration.FromDays(7);
 
-    private readonly List<TournamentProposalRecipient> recipients = [];
+    private readonly List<EventProposalRecipient> recipients = [];
 
-    private TournamentProposal() { }
+    private EventProposal() { }
 
     public Guid SubmittedByUserId { get; private init; }
     public string PayloadJson { get; private init; } = string.Empty;
@@ -38,11 +38,11 @@ public sealed class TournamentProposal : VersionedEntity
     public Guid? DecidedByUserId { get; private set; }
     public string? RejectionReason { get; private set; }
 
-    public IReadOnlyList<TournamentProposalRecipient> Recipients => recipients;
+    public IReadOnlyList<EventProposalRecipient> Recipients => recipients;
 
     public bool IsPending => Status == TournamentProposalStatus.Pending;
 
-    public static TournamentProposal Create(Guid submittedByUserId, string payloadJson, Instant now)
+    public static EventProposal Create(Guid submittedByUserId, string payloadJson, Instant now)
     {
         RequireId(submittedByUserId, nameof(submittedByUserId));
         ArgumentException.ThrowIfNullOrWhiteSpace(payloadJson);
@@ -51,7 +51,7 @@ public sealed class TournamentProposal : VersionedEntity
             throw new ArgumentException($"Payload cannot exceed {MaximumPayloadJsonLength} characters.", nameof(payloadJson));
         }
 
-        return new TournamentProposal
+        return new EventProposal
         {
             SubmittedByUserId = submittedByUserId,
             PayloadJson = payloadJson,
@@ -65,7 +65,7 @@ public sealed class TournamentProposal : VersionedEntity
     /// Every approver gets its own token, so the approver behind a review link is provable from the
     /// token alone. Only the hash is ever handed in — the plaintext lives solely in the mailed link.
     /// </summary>
-    public TournamentProposalRecipient AddRecipient(Guid userId, string tokenHash, Instant sentAt)
+    public EventProposalRecipient AddRecipient(Guid userId, string tokenHash, Instant sentAt)
     {
         RequireId(userId, nameof(userId));
         if (!IsPending) throw new InvalidOperationException("Only a pending proposal can gain recipients.");
@@ -74,7 +74,7 @@ public sealed class TournamentProposal : VersionedEntity
             throw new ArgumentException("Recipient is already on this proposal.", nameof(userId));
         }
 
-        var recipient = TournamentProposalRecipient.Create(Id, userId, tokenHash, sentAt);
+        var recipient = EventProposalRecipient.Create(Id, userId, tokenHash, sentAt);
         recipients.Add(recipient);
         return recipient;
     }
@@ -114,19 +114,19 @@ public sealed class TournamentProposal : VersionedEntity
     }
 }
 
-public sealed class TournamentProposalRecipient : VersionedEntity
+public sealed class EventProposalRecipient : VersionedEntity
 {
     /// <summary>SHA-256, lowercase hex.</summary>
     public const int TokenHashLength = 64;
 
-    private TournamentProposalRecipient() { }
+    private EventProposalRecipient() { }
 
     public Guid ProposalId { get; private init; }
     public Guid UserId { get; private init; }
     public string TokenHash { get; private init; } = string.Empty;
     public Instant SentAt { get; private init; }
 
-    internal static TournamentProposalRecipient Create(Guid proposalId, Guid userId, string tokenHash, Instant sentAt)
+    internal static EventProposalRecipient Create(Guid proposalId, Guid userId, string tokenHash, Instant sentAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tokenHash);
         if (tokenHash.Length != TokenHashLength || !tokenHash.All(character => char.IsAsciiDigit(character) || character is >= 'a' and <= 'f'))
@@ -134,7 +134,7 @@ public sealed class TournamentProposalRecipient : VersionedEntity
             throw new ArgumentException("Token hash must be lowercase SHA-256 hexadecimal.", nameof(tokenHash));
         }
 
-        return new TournamentProposalRecipient
+        return new EventProposalRecipient
         {
             ProposalId = proposalId,
             UserId = userId,

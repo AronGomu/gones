@@ -2,7 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 /**
- * Mirror of the server allowlist in `TournamentContentSanitizer` (C# `ScheduledTournament.cs`).
+ * Mirror of the server allowlist in `TournamentContentSanitizer` (C# `Event.cs`).
  * The server is the sanitizer of record; this list exists so a compromised or mis-deployed API
  * cannot turn `bypassSecurityTrustHtml` into stored XSS.
  */

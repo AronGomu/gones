@@ -205,7 +205,7 @@ internal sealed class TournamentPublicationService(
                         actingUserId,
                         request.OrganizationId,
                         normalized.PayloadHash);
-                    if (await database.ConsumedTournamentPreviewTickets.AsNoTracking()
+                    if (await database.ConsumedEventPreviewTickets.AsNoTracking()
                         .AnyAsync(item => item.TicketHash == ticketHash, cancellationToken))
                     {
                         throw new TournamentPreviewReplayException();
@@ -217,18 +217,18 @@ internal sealed class TournamentPublicationService(
                     cancellationToken);
                 var slug = await NextSlugAsync(normalized.BaseSlug, cancellationToken);
                 var now = clock.GetCurrentInstant();
-                var tournament = ScheduledTournament.Create(
+                var tournament = Event.Create(
                     request.OrganizationId,
                     actingUserId,
                     ToDraft(request, slug),
                     normalized.Formats,
                     now);
-                database.ScheduledTournaments.Add(tournament);
+                database.Events.Add(tournament);
                 var response = new TournamentPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
                 var storedResult = new StoredPublishResult(ticketHash, normalized.PayloadHash, response);
                 if (expiresAt is { } ticketExpiresAt)
                 {
-                    database.ConsumedTournamentPreviewTickets.Add(new ConsumedTournamentPreviewTicket
+                    database.ConsumedEventPreviewTickets.Add(new ConsumedEventPreviewTicket
                     {
                         TicketHash = ticketHash,
                         ExpiresAt = ticketExpiresAt
@@ -313,7 +313,7 @@ internal sealed class TournamentPublicationService(
         try
         {
             var baseSlug = TournamentSlugGenerator.FromTitle(request.Title);
-            var tournament = ScheduledTournament.Create(
+            var tournament = Event.Create(
                 request.OrganizationId,
                 userId,
                 ToDraft(request, baseSlug),
@@ -388,7 +388,7 @@ internal sealed class TournamentPublicationService(
 
     private async Task<string> NextSlugAsync(string baseSlug, CancellationToken cancellationToken)
     {
-        var existing = await database.ScheduledTournaments.AsNoTracking()
+        var existing = await database.Events.AsNoTracking()
             .Where(item => item.Slug == baseSlug || EF.Functions.Like(item.Slug, baseSlug + "-%"))
             .Select(item => item.Slug)
             .ToListAsync(cancellationToken);
@@ -396,7 +396,7 @@ internal sealed class TournamentPublicationService(
         for (var suffix = 2; suffix < int.MaxValue; suffix++)
         {
             var suffixText = $"-{suffix.ToString(CultureInfo.InvariantCulture)}";
-            var prefix = baseSlug[..Math.Min(baseSlug.Length, ScheduledTournament.MaximumSlugLength - suffixText.Length)].TrimEnd('-');
+            var prefix = baseSlug[..Math.Min(baseSlug.Length, Event.MaximumSlugLength - suffixText.Length)].TrimEnd('-');
             var candidate = prefix + suffixText;
             if (!existing.Contains(candidate, StringComparer.Ordinal)) return candidate;
         }
@@ -468,21 +468,21 @@ internal static class TournamentSlugGenerator
 
         var slug = builder.ToString().Trim('-');
         if (slug.Length == 0) slug = "tournament";
-        if (slug.Length > ScheduledTournament.MaximumSlugLength) slug = slug[..ScheduledTournament.MaximumSlugLength].TrimEnd('-');
+        if (slug.Length > Event.MaximumSlugLength) slug = slug[..Event.MaximumSlugLength].TrimEnd('-');
         return TournamentSlug.Normalize(slug);
     }
 }
 
 internal sealed record TournamentPayloadRequest(
     Guid OrganizationId,
-    [property: Required, MaxLength(ScheduledTournament.MaximumTitleLength)] string Title,
-    [property: MaxLength(ScheduledTournament.MaximumSummaryLength)] string? Summary,
-    [property: MaxLength(ScheduledTournament.MaximumBodyHtmlLength)] string? BodyHtml,
-    [property: Required, MaxLength(ScheduledTournament.MaximumAddressLength)] string StreetAddress,
-    [property: MaxLength(ScheduledTournament.MaximumPostalCodeLength)] string? PostalCode,
-    [property: Required, MaxLength(ScheduledTournament.MaximumCityLength)] string City,
-    [property: Required, MaxLength(ScheduledTournament.MaximumCountryLength)] string Country,
-    [property: Required, MaxLength(ScheduledTournament.MaximumTimeZoneLength)] string TimeZoneId,
+    [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
+    [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
+    [property: MaxLength(Event.MaximumBodyHtmlLength)] string? BodyHtml,
+    [property: Required, MaxLength(Event.MaximumAddressLength)] string StreetAddress,
+    [property: MaxLength(Event.MaximumPostalCodeLength)] string? PostalCode,
+    [property: Required, MaxLength(Event.MaximumCityLength)] string City,
+    [property: Required, MaxLength(Event.MaximumCountryLength)] string Country,
+    [property: Required, MaxLength(Event.MaximumTimeZoneLength)] string TimeZoneId,
     [property: Required] string StartsAtLocal,
     string? EndsAtLocal,
     int? Capacity,

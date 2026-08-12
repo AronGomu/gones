@@ -69,7 +69,7 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
         List<string> oldDedupe;
         await using (var before = CreateContext())
         {
-            oldDedupe = await before.ScheduledNotifications.Where(item => item.TournamentId == tournament.Id).Select(item => item.DedupeKey).ToListAsync();
+            oldDedupe = await before.ScheduledNotifications.Where(item => item.EventId == tournament.Id).Select(item => item.DedupeKey).ToListAsync();
         }
 
         var changedDate = new LocalDate(2030, 6, 20);
@@ -80,19 +80,19 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
         await using (var update = CreateContext())
         {
             await update.Database.ExecuteSqlInterpolatedAsync($"""
-                UPDATE scheduled_tournaments
+                UPDATE events
                 SET venue_start_date = {changedDate}, venue_end_date = {changedDate},
                     starts_at_utc = {changedStart}, ends_at_utc = {changedEnd}, updated_at = {clock.GetCurrentInstant()}, version = version + 1
                 WHERE id = {tournament.Id}
                 """);
-            var marker = TournamentLifecycleEvent.Create(
+            var marker = EventLifecycleEntry.Create(
                 tournament.Id,
                 seed.User.Id,
                 TournamentLifecycleEventType.MajorDetailsUpdated,
                 TournamentReminderPlanAction.RecalculateFuture,
                 clock.GetCurrentInstant());
             markerId = marker.Id;
-            update.TournamentLifecycleEvents.Add(marker);
+            update.EventLifecycleEntries.Add(marker);
             await update.SaveChangesAsync();
         }
 
@@ -101,9 +101,9 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
         Assert.All(
             await verification.ScheduledNotifications.Where(item => oldDedupe.Contains(item.DedupeKey)).ToListAsync(),
             item => Assert.Equal(ScheduledNotificationStatus.Cancelled, item.Status));
-        Assert.Contains(await verification.ScheduledNotifications.Where(item => item.TournamentId == tournament.Id).ToListAsync(),
+        Assert.Contains(await verification.ScheduledNotifications.Where(item => item.EventId == tournament.Id).ToListAsync(),
             item => item.Status == ScheduledNotificationStatus.Planned && !oldDedupe.Contains(item.DedupeKey));
-        Assert.NotNull((await verification.TournamentLifecycleEvents.SingleAsync(item => item.Id == markerId)).ReminderPlanProcessedAt);
+        Assert.NotNull((await verification.EventLifecycleEntries.SingleAsync(item => item.Id == markerId)).ReminderPlanProcessedAt);
     }
 
     [Fact]
@@ -119,9 +119,9 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
 
         await using (var mutation = CreateContext())
         {
-            (await mutation.ScheduledTournaments.SingleAsync(item => item.Id == cancelled.Id)).Cancel(clock.GetCurrentInstant());
-            (await mutation.ScheduledTournaments.SingleAsync(item => item.Id == deleted.Id)).SoftDelete(seed.User.Id, null, clock.GetCurrentInstant());
-            (await mutation.TournamentRegistrationAttempts.SingleAsync(item => item.Id == unregisteredRegistration.Id)).CancelByUser(seed.User.Id, clock.GetCurrentInstant());
+            (await mutation.Events.SingleAsync(item => item.Id == cancelled.Id)).Cancel(clock.GetCurrentInstant());
+            (await mutation.Events.SingleAsync(item => item.Id == deleted.Id)).SoftDelete(seed.User.Id, null, clock.GetCurrentInstant());
+            (await mutation.EventRegistrationAttempts.SingleAsync(item => item.Id == unregisteredRegistration.Id)).CancelByUser(seed.User.Id, clock.GetCurrentInstant());
             await mutation.SaveChangesAsync();
         }
         await using (var refresh = CreateContext()) Assert.True(await Reconciler(refresh).RefreshDailyAsync(CancellationToken.None));
@@ -186,8 +186,8 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
         var deleted = await CreateTournamentAsync(new LocalDate(2030, 1, 2), new LocalTime(12, 0), new LocalTime(13, 0));
         await using (var mutation = CreateContext())
         {
-            (await mutation.ScheduledTournaments.SingleAsync(item => item.Id == cancelled.Id)).Cancel(clock.GetCurrentInstant());
-            (await mutation.ScheduledTournaments.SingleAsync(item => item.Id == deleted.Id)).SoftDelete(seed.User.Id, null, clock.GetCurrentInstant());
+            (await mutation.Events.SingleAsync(item => item.Id == cancelled.Id)).Cancel(clock.GetCurrentInstant());
+            (await mutation.Events.SingleAsync(item => item.Id == deleted.Id)).SoftDelete(seed.User.Id, null, clock.GetCurrentInstant());
             await mutation.SaveChangesAsync();
         }
 
@@ -215,15 +215,15 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
     private async Task AssertStatus(Guid tournamentId, ScheduledTournamentStatus status)
     {
         await using var database = CreateContext();
-        Assert.Equal(status, (await database.ScheduledTournaments.SingleAsync(item => item.Id == tournamentId)).Status);
+        Assert.Equal(status, (await database.Events.SingleAsync(item => item.Id == tournamentId)).Status);
     }
 
-    private async Task<ScheduledTournament> CreateTournamentAsync(LocalDate date, LocalTime? start = null, LocalTime? end = null)
+    private async Task<Event> CreateTournamentAsync(LocalDate date, LocalTime? start = null, LocalTime? end = null)
     {
         await using var database = CreateContext();
         var legacy = await database.TournamentFormats.SingleAsync(item => item.Slug == TournamentFormat.LegacySlug);
         var slug = $"cup-{Guid.NewGuid():N}";
-        var tournament = ScheduledTournament.Create(
+        var tournament = Event.Create(
             seed.Organization.Id,
             seed.User.Id,
             new ScheduledTournamentDraft(
@@ -241,16 +241,16 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
                 64),
             [legacy],
             clock.GetCurrentInstant());
-        database.ScheduledTournaments.Add(tournament);
+        database.Events.Add(tournament);
         await database.SaveChangesAsync();
         return tournament;
     }
 
-    private async Task<TournamentRegistrationAttempt> RegisterAsync(Guid tournamentId, Guid userId)
+    private async Task<EventRegistrationAttempt> RegisterAsync(Guid tournamentId, Guid userId)
     {
         await using var database = CreateContext();
-        var attempt = TournamentRegistrationAttempt.Register(tournamentId, userId, userId, clock.GetCurrentInstant());
-        database.TournamentRegistrationAttempts.Add(attempt);
+        var attempt = EventRegistrationAttempt.Register(tournamentId, userId, userId, clock.GetCurrentInstant());
+        database.EventRegistrationAttempts.Add(attempt);
         await database.SaveChangesAsync();
         return attempt;
     }

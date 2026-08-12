@@ -24,12 +24,12 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
         var seed = await SeedAsync(db);
-        var tournament = ScheduledTournament.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now);
-        db.ScheduledTournaments.Add(tournament);
+        var tournament = Event.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now);
+        db.Events.Add(tournament);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        var stored = await db.ScheduledTournaments.Include(item => item.Formats).SingleAsync(item => item.Id == tournament.Id);
+        var stored = await db.Events.Include(item => item.Formats).SingleAsync(item => item.Id == tournament.Id);
 
         Assert.Equal("legacy-cup", stored.Slug);
         Assert.Equal(ScheduledTournamentStatus.Published, stored.Status);
@@ -44,8 +44,8 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
         var seed = await SeedAsync(db);
-        db.ScheduledTournaments.Add(ScheduledTournament.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now));
-        db.ScheduledTournaments.Add(ScheduledTournament.Create(seed.SecondOrganization.Id, seed.User.Id, Draft(), [seed.Legacy], Now));
+        db.Events.Add(Event.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now));
+        db.Events.Add(Event.Create(seed.SecondOrganization.Id, seed.User.Id, Draft(), [seed.Legacy], Now));
         await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
 
         db.ChangeTracker.Clear();
@@ -63,22 +63,22 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
     {
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
-        var indexNames = await db.Database.SqlQueryRaw<string>("SELECT indexname FROM pg_indexes WHERE tablename IN ('scheduled_tournaments', 'scheduled_tournament_formats') ORDER BY indexname").ToListAsync();
+        var indexNames = await db.Database.SqlQueryRaw<string>("SELECT indexname FROM pg_indexes WHERE tablename IN ('events', 'event_formats') ORDER BY indexname").ToListAsync();
 
-        Assert.Contains("ix_scheduled_tournaments_venue_start_date_venue_start_time_id", indexNames);
-        Assert.Contains("ix_scheduled_tournaments_starts_at_utc", indexNames);
-        Assert.Contains("ix_scheduled_tournaments_status", indexNames);
-        Assert.Contains("ix_scheduled_tournaments_city_country", indexNames);
-        Assert.Contains("ix_scheduled_tournaments_slug", indexNames);
-        Assert.Contains("ix_scheduled_tournaments_organization_id_slug", indexNames);
-        Assert.Contains("ix_scheduled_tournament_formats_tournament_format_id", indexNames);
+        Assert.Contains("ix_events_venue_start_date_venue_start_time_id", indexNames);
+        Assert.Contains("ix_events_starts_at_utc", indexNames);
+        Assert.Contains("ix_events_status", indexNames);
+        Assert.Contains("ix_events_city_country", indexNames);
+        Assert.Contains("ix_events_slug", indexNames);
+        Assert.Contains("ix_events_organization_id_slug", indexNames);
+        Assert.Contains("ix_event_formats_tournament_format_id", indexNames);
     }
 
     private static async Task InsertRawTournamentAsync(GonesDbContext db, SeedRows seed, Guid id, bool endsBeforeStart, int capacity, string status)
     {
         var end = endsBeforeStart ? Instant.FromUtc(2026, 8, 2, 7, 0) : Instant.FromUtc(2026, 8, 2, 16, 0);
         await db.Database.ExecuteSqlRawAsync("""
-            INSERT INTO scheduled_tournaments
+            INSERT INTO events
                 (id, organization_id, title, slug, summary, body_html, street_address, postal_code, city, country, time_zone_id,
                  venue_start_date, venue_start_time, venue_end_date, venue_end_time, starts_at_utc, ends_at_utc, capacity, status,
                  created_by_user_id, created_at, updated_at, normalized_search_text, version)

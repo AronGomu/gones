@@ -134,7 +134,7 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
 
         await using (var database = CreateContext())
         {
-            database.ScheduledTournaments.Add(ScheduledTournament.Create(
+            database.Events.Add(Event.Create(
                 seed.Alpha.Id,
                 seed.UserId,
                 Draft("Fresh Cup", "fresh-cup", new LocalDateTime(2035, 6, 1, 10, 0), "Lyon", "Fresh", null),
@@ -196,24 +196,24 @@ public sealed class AllTournamentsEndpointTests : IAsyncLifetime
         await database.SaveChangesAsync();
 
         var tiedStart = new LocalDateTime(2035, 2, 6, 10, 0);
-        database.ScheduledTournaments.Add(ScheduledTournament.Create(
+        database.Events.Add(Event.Create(
             alpha.Id, user.Id, Draft("Future One", "future-one", new LocalDateTime(2035, 2, 5, 10, 0), "Lyon", "Future", null), [legacy], Now));
-        database.ScheduledTournaments.Add(ScheduledTournament.Create(
+        database.Events.Add(Event.Create(
             alpha.Id, user.Id, Draft("Future Two", "future-two", tiedStart, "Lyon", "Future", null), [legacy], Now));
-        database.ScheduledTournaments.Add(ScheduledTournament.Create(
+        database.Events.Add(Event.Create(
             alpha.Id, user.Id, Draft("Future Three", "future-three", tiedStart, "Lyon", "Future", null), [legacy], Now));
 
-        database.ScheduledTournaments.Add(ScheduledTournament.Create(
+        database.Events.Add(Event.Create(
             alpha.Id, user.Id, Draft("Past One", "past-one", new LocalDateTime(2020, 1, 5, 10, 0), "Lyon", "Past", null), [legacy], Instant.FromUtc(2019, 12, 1, 12, 0)));
-        database.ScheduledTournaments.Add(ScheduledTournament.Create(
+        database.Events.Add(Event.Create(
             alpha.Id, user.Id, Draft("Past Two", "past-two", new LocalDateTime(2020, 1, 6, 10, 0), "Lyon", "Past", null), [legacy], Instant.FromUtc(2019, 12, 1, 12, 0)));
 
-        var deleted = ScheduledTournament.Create(
+        var deleted = Event.Create(
             alpha.Id, user.Id, Draft("Deleted Cup", "deleted-cup", new LocalDateTime(2035, 2, 8, 10, 0), "Lyon", "Deleted", null), [legacy], Now);
         deleted.SoftDelete(user.Id, "hidden", Now.Plus(Duration.FromMinutes(1)));
-        database.ScheduledTournaments.Add(deleted);
+        database.Events.Add(deleted);
 
-        database.ScheduledTournaments.Add(ScheduledTournament.Create(
+        database.Events.Add(Event.Create(
             deletedOrg.Id, user.Id, Draft("Org Deleted Cup", "org-deleted-cup", new LocalDateTime(2035, 2, 9, 10, 0), "Lyon", "OrgDeleted", null), [legacy], Now));
         await database.SaveChangesAsync();
 

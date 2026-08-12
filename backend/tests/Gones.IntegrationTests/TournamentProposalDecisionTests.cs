@@ -177,7 +177,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     public async Task Get_by_token_rejects_an_expired_token()
     {
         var proposal = await SeedProposalAsync();
-        clock.Advance(TournamentProposal.Lifetime + Duration.FromMinutes(1));
+        clock.Advance(EventProposal.Lifetime + Duration.FromMinutes(1));
 
         using var expired = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
         using var unknown = await Client.GetAsync(ReviewUrl(NewToken()));
@@ -219,7 +219,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
 
         // Ownership and audit reflect who proposed it, not who approved it.
         await using var database = CreateContext();
-        var tournament = await database.ScheduledTournaments.AsNoTracking().SingleAsync();
+        var tournament = await database.Events.AsNoTracking().SingleAsync();
         Assert.Equal(slug, tournament.Slug);
         Assert.Equal(seed.Submitter.Id, tournament.CreatedByUserId);
         Assert.Equal(seed.Alpha.Id, tournament.OrganizationId);
@@ -234,7 +234,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await using var database = CreateContext();
-        var stored = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        var stored = await database.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(TournamentProposalStatus.Approved, stored.Status);
         Assert.Equal(seed.Organizer.Id, stored.DecidedByUserId);
         Assert.Equal(Now, stored.DecidedAt);
@@ -257,7 +257,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal("tournament_proposal", audit.EntityType);
         Assert.Equal(proposal.Id.ToString("D"), audit.EntityId);
         Assert.Equal(seed.Organizer.Id, audit.ActorId);
-        var tournamentId = await database.ScheduledTournaments.AsNoTracking().Select(item => item.Id).SingleAsync();
+        var tournamentId = await database.Events.AsNoTracking().Select(item => item.Id).SingleAsync();
         Assert.Contains(seed.Organizer.Id.ToString("D"), audit.RedactedDiff, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(tournamentId.ToString("D"), audit.RedactedDiff, StringComparison.OrdinalIgnoreCase);
         // Audit storage stays free of submitted content.
@@ -284,8 +284,8 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(1, items.GetArrayLength());
 
         await using var database = CreateContext();
-        Assert.Equal(1, await database.ScheduledTournaments.CountAsync());
-        var stored = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        Assert.Equal(1, await database.Events.CountAsync());
+        var stored = await database.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(TournamentProposalStatus.Approved, stored.Status);
         // The first decider owns the decision; the sibling never overwrote it.
         Assert.Equal(seed.Organizer.Id, stored.DecidedByUserId);
@@ -316,8 +316,8 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(HttpStatusCode.NotFound, review.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, approve.StatusCode);
         await using var stored = CreateContext();
-        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
-        Assert.Equal(TournamentProposalStatus.Pending, (await stored.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(0, await stored.Events.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.EventProposals.AsNoTracking().SingleAsync()).Status);
     }
 
     /// <summary>
@@ -343,8 +343,8 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(HttpStatusCode.NotFound, approve.StatusCode);
         Assert.Equal(HttpStatusCode.OK, adminReview.StatusCode);
         await using var stored = CreateContext();
-        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
-        Assert.Equal(TournamentProposalStatus.Pending, (await stored.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(0, await stored.Events.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.EventProposals.AsNoTracking().SingleAsync()).Status);
     }
 
     /// <summary>
@@ -374,8 +374,8 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal("organization_is_draft", problem.GetProperty("code").GetString());
 
         await using var stored = CreateContext();
-        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
-        Assert.Equal(TournamentProposalStatus.Pending, (await stored.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(0, await stored.Events.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.EventProposals.AsNoTracking().SingleAsync()).Status);
     }
 
     /// <summary>
@@ -391,8 +391,8 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
 
         await using var blocker = CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
-        var held = (await blocker.TournamentProposals
-            .FromSql($"SELECT * FROM tournament_proposals WHERE id = {proposal.Id} FOR UPDATE")
+        var held = (await blocker.EventProposals
+            .FromSql($"SELECT * FROM event_proposals WHERE id = {proposal.Id} FOR UPDATE")
             .ToListAsync()).Single();
 
         var approving = Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
@@ -406,10 +406,10 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         output.WriteLine($"approve losing the race -> {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}");
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         await using var stored = CreateContext();
-        var decided = await stored.TournamentProposals.AsNoTracking().SingleAsync();
+        var decided = await stored.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(TournamentProposalStatus.Rejected, decided.Status);
         Assert.Equal(seed.Admin.Id, decided.DecidedByUserId);
-        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
+        Assert.Equal(0, await stored.Events.CountAsync());
         using var all = await Client.GetAsync("/api/tournaments/all");
         Assert.Equal(0, (await all.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength());
     }
@@ -424,7 +424,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("reason", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
         await using var database = CreateContext();
-        Assert.Equal(TournamentProposalStatus.Pending, (await database.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(TournamentProposalStatus.Pending, (await database.EventProposals.AsNoTracking().SingleAsync()).Status);
     }
 
     [Fact]
@@ -433,18 +433,18 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         var proposal = await SeedProposalAsync();
 
         using var oversized = await RejectAsync(proposal.OrganizerToken, new string('x', 2001));
-        // The stored column is varchar(TournamentProposal.MaximumRejectionReasonLength): anything
+        // The stored column is varchar(EventProposal.MaximumRejectionReasonLength): anything
         // above it must be refused by validation, never by an unhandled domain throw.
         using var aboveColumn = await RejectAsync(
             proposal.OrganizerToken,
-            new string('y', TournamentProposal.MaximumRejectionReasonLength + 1));
+            new string('y', EventProposal.MaximumRejectionReasonLength + 1));
 
         Assert.Equal(HttpStatusCode.BadRequest, oversized.StatusCode);
         Assert.Contains("reason", await oversized.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.BadRequest, aboveColumn.StatusCode);
         Assert.Contains("reason", await aboveColumn.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
         await using var database = CreateContext();
-        Assert.Equal(TournamentProposalStatus.Pending, (await database.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(TournamentProposalStatus.Pending, (await database.EventProposals.AsNoTracking().SingleAsync()).Status);
     }
 
     [Fact]
@@ -456,7 +456,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         await using var database = CreateContext();
-        var stored = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        var stored = await database.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(TournamentProposalStatus.Rejected, stored.Status);
         Assert.Equal(Reason, stored.RejectionReason);
         Assert.Equal(seed.Organizer.Id, stored.DecidedByUserId);
@@ -515,7 +515,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         output.WriteLine($"/api/tournaments/all items before={beforeCount} after={afterCount}");
         Assert.Equal(beforeCount, afterCount);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.ScheduledTournaments.CountAsync());
+        Assert.Equal(0, await database.Events.CountAsync());
     }
 
     [Fact]
@@ -529,7 +529,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         Assert.Equal(HttpStatusCode.OK, approve.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, reject.StatusCode);
         await using var database = CreateContext();
-        var stored = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        var stored = await database.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(TournamentProposalStatus.Approved, stored.Status);
         Assert.Null(stored.RejectionReason);
         Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync());
@@ -594,7 +594,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     {
         var organizerToken = NewToken();
         var adminToken = NewToken();
-        var proposal = TournamentProposal.Create(
+        var proposal = EventProposal.Create(
             seed.Submitter.Id,
             JsonSerializer.Serialize(Payload(extraFormat), PayloadJsonOptions),
             clock.GetCurrentInstant());
@@ -602,7 +602,7 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
         proposal.AddRecipient(seed.Admin.Id, Sha256Hex(adminToken), clock.GetCurrentInstant());
 
         await using var database = CreateContext();
-        database.TournamentProposals.Add(proposal);
+        database.EventProposals.Add(proposal);
         await database.SaveChangesAsync();
         return new SeededProposal(proposal.Id, organizerToken, adminToken);
     }

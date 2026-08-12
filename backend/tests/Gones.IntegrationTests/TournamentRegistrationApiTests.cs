@@ -66,7 +66,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             database.OrganizationBlockedUsers.Add(OrganizationBlockedUser.Block(seed.Organization.Id, seed.Blocked.Id, clock.GetCurrentInstant()));
-            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(open.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(open.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
             await database.SaveChangesAsync();
         }
         await AssertProblem(await RegisterAsync(open.Id, seed.Blocked.Id, "blocked"), HttpStatusCode.Forbidden, "registration_blocked");
@@ -75,7 +75,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         var full = await CreateTournamentAsync("Full Cup", 1);
         await using (var database = CreateContext())
         {
-            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(full.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(full.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
             await database.SaveChangesAsync();
         }
         await AssertProblem(await RegisterAsync(full.Id, seed.User.Id, "full"), HttpStatusCode.Conflict, "tournament_full");
@@ -86,7 +86,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         deleted.SoftDelete(seed.Organizer.Id, "hidden", clock.GetCurrentInstant());
         await using (var database = CreateContext())
         {
-            database.ScheduledTournaments.UpdateRange(cancelled, deleted);
+            database.Events.UpdateRange(cancelled, deleted);
             await database.SaveChangesAsync();
         }
         await AssertProblem(await RegisterAsync(cancelled.Id, seed.User.Id, "cancelled"), HttpStatusCode.Conflict, "tournament_not_open");
@@ -142,7 +142,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         Assert.Equal("CancelledByUser", history.GetProperty("items")[1].GetProperty("status").GetString());
 
         await using var verificationDatabase = CreateContext();
-        var attempts = await verificationDatabase.TournamentRegistrationAttempts.Where(item => item.UserId == seed.User.Id).OrderBy(item => item.RegisteredAt).ToListAsync();
+        var attempts = await verificationDatabase.EventRegistrationAttempts.Where(item => item.UserId == seed.User.Id).OrderBy(item => item.RegisteredAt).ToListAsync();
         Assert.Equal(2, attempts.Count);
         Assert.NotEqual(attempts[0].Id, attempts[1].Id);
         Assert.Equal(TournamentRegistrationStatus.CancelledByUser, attempts[0].Status);
@@ -238,7 +238,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
 
         await using (var database = CreateContext())
         {
-            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(tournament.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(tournament.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
             await database.SaveChangesAsync();
         }
         using var full = await SendAsync(HttpMethod.Get, $"/api/tournaments/{tournament.Id:D}/registration-capability", seed.Organizer.Id);
@@ -298,7 +298,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         var tournament = await CreateTournamentAsync("Block Cup", 10);
         await using (var database = CreateContext())
         {
-            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.User.Id, clock.GetCurrentInstant()));
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.User.Id, clock.GetCurrentInstant()));
             await database.SaveChangesAsync();
         }
 
@@ -317,7 +317,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
 
         await using (var database = CreateContext())
         {
-            Assert.Equal(TournamentRegistrationStatus.Confirmed, (await database.TournamentRegistrationAttempts.SingleAsync()).Status);
+            Assert.Equal(TournamentRegistrationStatus.Confirmed, (await database.EventRegistrationAttempts.SingleAsync()).Status);
         }
 
         clock.Set(clock.GetCurrentInstant() + Duration.FromHours(2));
@@ -381,7 +381,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
         await using (var database = CreateContext())
         {
-            var attempt = await database.TournamentRegistrationAttempts.SingleAsync(item => item.Id == registrationId);
+            var attempt = await database.EventRegistrationAttempts.SingleAsync(item => item.Id == registrationId);
             Assert.Equal(TournamentRegistrationStatus.RemovedByOrganizer, attempt.Status);
             Assert.Equal(seed.Organizer.Id, attempt.RegisteredByUserId);
             Assert.Equal(seed.Organizer.Id, attempt.StatusChangedByUserId);
@@ -407,7 +407,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
                 "France", "Rhône", "Lyon", new LocalDate(1990, 4, 17),
                 "en", false, false, false, false, false,
                 clock.GetCurrentInstant().InUtc().Date, clock.GetCurrentInstant());
-            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.Organizer.Id, clock.GetCurrentInstant()));
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.Organizer.Id, clock.GetCurrentInstant()));
             await database.SaveChangesAsync();
         }
 
@@ -481,7 +481,7 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         }
 
         await using var database = CreateContext();
-        Assert.Equal(1, await database.TournamentRegistrationAttempts.CountAsync(item => item.TournamentId == tournament.Id && item.Status == TournamentRegistrationStatus.Confirmed));
+        Assert.Equal(1, await database.EventRegistrationAttempts.CountAsync(item => item.EventId == tournament.Id && item.Status == TournamentRegistrationStatus.Confirmed));
     }
 
     private async Task EnableOrganizerNoticesAsync()
@@ -492,17 +492,17 @@ public sealed class TournamentRegistrationApiTests : IAsyncLifetime
         await database.SaveChangesAsync();
     }
 
-    private async Task<ScheduledTournament> CreateTournamentAsync(string title, int capacity)
+    private async Task<Event> CreateTournamentAsync(string title, int capacity)
     {
         await using var database = CreateContext();
         var legacy = await database.TournamentFormats.SingleAsync(item => item.Id == seed.Legacy.Id);
-        var tournament = ScheduledTournament.Create(
+        var tournament = Event.Create(
             seed.Organization.Id,
             seed.Organizer.Id,
             new ScheduledTournamentDraft(title, title.ToLowerInvariant().Replace(' ', '-'), "Summary", null, "12 Street", null, "Paris", "France", "Europe/Paris", new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), capacity),
             [legacy],
             clock.GetCurrentInstant());
-        database.ScheduledTournaments.Add(tournament);
+        database.Events.Add(tournament);
         await database.SaveChangesAsync();
         return tournament;
     }

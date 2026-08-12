@@ -1399,3 +1399,44 @@ confirmation dialog opens after the server confirms the registration.
       reference-load error with a working Retry button.
 - [ ] Walk `/tournaments/new` as an administrator with the keyboard only: Tab reaches the organization
       picker, arrow keys move through the options and the focus ring stays visible.
+
+## T15 backend-event-entity-rename
+
+The calendar's database tables and CLR types are now named after Event. Nothing users see should have
+moved: the API still answers on `/api/tournaments/*` and the frontend is untouched until T16. These
+steps look for the things automated tests cannot see — that real rows survived and that the app still
+behaves exactly as it did before the rename.
+
+- [ ] Before deploying, record the row counts of the calendar tables under their old names:
+      `select count(*) from scheduled_tournaments;` and the same for `scheduled_tournament_formats`,
+      `tournament_registration_attempts`, `tournament_lifecycle_events`, `tournament_proposals`,
+      `tournament_proposal_recipients`, `consumed_tournament_preview_tickets`. Keep the numbers.
+- [ ] Deploy and re-run the counts under the new names: `events`, `event_formats`,
+      `event_registration_attempts`, `event_lifecycle_entries`, `event_proposals`,
+      `event_proposal_recipients`, `consumed_event_preview_tickets`. Every number matches the one you
+      recorded. If any count dropped, stop and roll back — the migration is a rename, so a smaller
+      number means data was lost.
+- [ ] Confirm the old table names are gone: `select to_regclass('public.scheduled_tournaments');`
+      returns empty. A row here means the migration only half-applied.
+- [ ] Confirm the tables that must NOT move are still there: `tournament_formats`,
+      `league_archive_aggregates`, `live_aggregates`, `scheduled_notifications`, `notification_history`.
+- [ ] Open `/calendar` as an anonymous visitor. The same events are listed as before the deploy, in the
+      same order, with the same formats, cities and dates.
+- [ ] Open one event's detail page. Title, description HTML, venue, capacity and the participant count
+      all render as before.
+- [ ] Filter the calendar by format and by city. Results are unchanged and the page stays fast — these
+      queries rely on indexes that the migration renamed.
+- [ ] Sign in as `test@gones.test` and register for an upcoming event, then unregister. Both succeed
+      and the participant count moves accordingly.
+- [ ] Sign in as `organizer@gones.test`, publish a new event, edit its date, then cancel it. Each step
+      succeeds and the event's status is correct on the public page.
+- [ ] As a plain user, submit an event request for approval; as an organizer, open the emailed review
+      link and approve it. The approved event appears in the calendar.
+- [ ] Check the reminder emails still schedule: after publishing an event and registering for it, the
+      worker plans reminders (`select count(*) from scheduled_notifications where event_id = '<id>';`
+      is greater than zero).
+- [ ] Try to delete an account that created an event. The refusal still lists the blocking relations,
+      and those labels still read `scheduled_tournaments.created_by_user_id` etc. — they are the
+      unchanged API wire shape, not the new table names, and T16 is where they change.
+- [ ] Export a Gones backup and re-import it into a clean environment. The import report still counts
+      "Scheduled Tournaments" and the imported events land in the calendar.

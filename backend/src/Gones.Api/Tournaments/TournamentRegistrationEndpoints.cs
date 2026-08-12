@@ -161,7 +161,7 @@ internal sealed class TournamentRegistrationService(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var tournament = await database.ScheduledTournaments.AsNoTracking()
+        var tournament = await database.Events.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == tournamentId && item.DeletedAt == null, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (!await database.Organizations.AsNoTracking().AnyAsync(
@@ -171,11 +171,11 @@ internal sealed class TournamentRegistrationService(
             throw new ResourceNotFoundException();
         }
 
-        var activeParticipantCount = await database.TournamentRegistrationAttempts.AsNoTracking().CountAsync(
-            item => item.TournamentId == tournamentId && item.Status == TournamentRegistrationStatus.Confirmed,
+        var activeParticipantCount = await database.EventRegistrationAttempts.AsNoTracking().CountAsync(
+            item => item.EventId == tournamentId && item.Status == TournamentRegistrationStatus.Confirmed,
             cancellationToken);
-        var hasActiveRegistration = await database.TournamentRegistrationAttempts.AsNoTracking().AnyAsync(
-            item => item.TournamentId == tournamentId
+        var hasActiveRegistration = await database.EventRegistrationAttempts.AsNoTracking().AnyAsync(
+            item => item.EventId == tournamentId
                 && item.UserId == userId
                 && item.Status == TournamentRegistrationStatus.Confirmed,
             cancellationToken);
@@ -226,8 +226,8 @@ internal sealed class TournamentRegistrationService(
         CancellationToken cancellationToken)
     {
         var query =
-            from attempt in database.TournamentRegistrationAttempts.AsNoTracking()
-            join tournament in database.ScheduledTournaments.AsNoTracking() on attempt.TournamentId equals tournament.Id
+            from attempt in database.EventRegistrationAttempts.AsNoTracking()
+            join tournament in database.Events.AsNoTracking() on attempt.EventId equals tournament.Id
             join organization in database.Organizations.AsNoTracking() on tournament.OrganizationId equals organization.Id
             where attempt.UserId == userId
             select new { Attempt = attempt, Tournament = tournament, OrganizationName = organization.Name };
@@ -309,23 +309,23 @@ internal sealed class TournamentRegistrationService(
         {
             throw new RegistrationBlockedException();
         }
-        if (await database.TournamentRegistrationAttempts.AnyAsync(attempt =>
-                attempt.TournamentId == tournament.Id
+        if (await database.EventRegistrationAttempts.AnyAsync(attempt =>
+                attempt.EventId == tournament.Id
                 && attempt.UserId == userId
                 && attempt.Status == TournamentRegistrationStatus.Confirmed, cancellationToken))
         {
             throw new RegistrationAlreadyActiveException();
         }
         if (tournament.Capacity is int capacity
-            && await database.TournamentRegistrationAttempts.CountAsync(attempt =>
-                attempt.TournamentId == tournament.Id
+            && await database.EventRegistrationAttempts.CountAsync(attempt =>
+                attempt.EventId == tournament.Id
                 && attempt.Status == TournamentRegistrationStatus.Confirmed, cancellationToken) >= capacity)
         {
             throw new TournamentFullException();
         }
 
-        var attempt = TournamentRegistrationAttempt.Register(tournament.Id, userId, actorUserId, now);
-        database.TournamentRegistrationAttempts.Add(attempt);
+        var attempt = EventRegistrationAttempt.Register(tournament.Id, userId, actorUserId, now);
+        database.EventRegistrationAttempts.Add(attempt);
         await notifications.EnqueueSelfRegistrationAsync(attempt, tournament, user, profile, registered: true, cancellationToken);
         database.AuditRecords.Add(NewAudit(
             actorUserId,
@@ -357,8 +357,8 @@ internal sealed class TournamentRegistrationService(
         _ = await organizationAccess.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
         var now = clock.GetCurrentInstant();
         if (now >= tournament.StartsAtUtc) throw new UnregistrationClosedException();
-        var attempt = await database.TournamentRegistrationAttempts
-            .FromSqlInterpolated($"SELECT * FROM tournament_registration_attempts WHERE id = {registrationId} AND tournament_id = {tournamentId} AND status = 'Confirmed' FOR UPDATE")
+        var attempt = await database.EventRegistrationAttempts
+            .FromSqlInterpolated($"SELECT * FROM event_registration_attempts WHERE id = {registrationId} AND event_id = {tournamentId} AND status = 'Confirmed' FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ActiveRegistrationNotFoundException();
         var user = await database.Users.SingleAsync(item => item.Id == attempt.UserId, cancellationToken);
@@ -398,10 +398,10 @@ internal sealed class TournamentRegistrationService(
         if (tournament.DeletedAt is not null) throw new ResourceNotFoundException();
         var now = clock.GetCurrentInstant();
         if (now >= tournament.StartsAtUtc) throw new UnregistrationClosedException();
-        var attempt = await database.TournamentRegistrationAttempts
+        var attempt = await database.EventRegistrationAttempts
             .FromSqlInterpolated($"""
-                SELECT * FROM tournament_registration_attempts
-                WHERE tournament_id = {tournamentId} AND user_id = {userId} AND status = 'Confirmed'
+                SELECT * FROM event_registration_attempts
+                WHERE event_id = {tournamentId} AND user_id = {userId} AND status = 'Confirmed'
                 FOR UPDATE
                 """)
             .SingleOrDefaultAsync(cancellationToken)
@@ -480,9 +480,9 @@ internal sealed class TournamentRegistrationService(
         }
     }
 
-    private async Task<ScheduledTournament?> LockTournamentAsync(Guid tournamentId, CancellationToken cancellationToken) =>
-        await database.ScheduledTournaments
-            .FromSqlInterpolated($"SELECT * FROM scheduled_tournaments WHERE id = {tournamentId} FOR UPDATE")
+    private async Task<Event?> LockTournamentAsync(Guid tournamentId, CancellationToken cancellationToken) =>
+        await database.Events
+            .FromSqlInterpolated($"SELECT * FROM events WHERE id = {tournamentId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
 
     private async Task SaveAndCommitAsync(
@@ -501,7 +501,7 @@ internal sealed class TournamentRegistrationService(
         }
     }
 
-    private void MarkParticipantProjectionChanged(ScheduledTournament tournament) =>
+    private void MarkParticipantProjectionChanged(Event tournament) =>
         database.Entry(tournament).Property(item => item.UpdatedAt).IsModified = true;
 
     private static bool IsSerializationFailure(Exception exception)
@@ -513,8 +513,8 @@ internal sealed class TournamentRegistrationService(
         return false;
     }
 
-    private static TournamentRegistrationMutationResponse ToMutation(TournamentRegistrationAttempt attempt) =>
-        new(attempt.Id, attempt.TournamentId, attempt.UserId, attempt.Status.ToString(), attempt.RegisteredAt, attempt.StatusChangedAt);
+    private static TournamentRegistrationMutationResponse ToMutation(EventRegistrationAttempt attempt) =>
+        new(attempt.Id, attempt.EventId, attempt.UserId, attempt.Status.ToString(), attempt.RegisteredAt, attempt.StatusChangedAt);
 
     private static AuditRecord NewAudit(Guid actorId, string action, Guid attemptId, string diff, Instant now) => new()
     {
@@ -545,8 +545,8 @@ internal sealed class TournamentRegistrationNotificationService(
     TournamentRegistrationOptions options)
 {
     public async Task EnqueueSelfRegistrationAsync(
-        TournamentRegistrationAttempt attempt,
-        ScheduledTournament tournament,
+        EventRegistrationAttempt attempt,
+        Event tournament,
         ApplicationUser user,
         UserProfile profile,
         bool registered,
@@ -593,8 +593,8 @@ internal sealed class TournamentRegistrationNotificationService(
     }
 
     public void EnqueueOrganizerRemoval(
-        TournamentRegistrationAttempt attempt,
-        ScheduledTournament tournament,
+        EventRegistrationAttempt attempt,
+        Event tournament,
         ApplicationUser user,
         UserProfile profile)
     {
@@ -608,7 +608,7 @@ internal sealed class TournamentRegistrationNotificationService(
     }
 
     public async Task EnqueueMajorUpdateAsync(
-        ScheduledTournament tournament,
+        Event tournament,
         Guid lifecycleEventId,
         CancellationToken cancellationToken)
     {
@@ -626,7 +626,7 @@ internal sealed class TournamentRegistrationNotificationService(
     }
 
     public async Task CancelActiveRegistrationsAsync(
-        ScheduledTournament tournament,
+        Event tournament,
         Guid lifecycleEventId,
         Guid actorUserId,
         Instant now,
@@ -648,10 +648,10 @@ internal sealed class TournamentRegistrationNotificationService(
 
     private async Task<List<ActiveParticipant>> ActiveParticipantsAsync(Guid tournamentId, CancellationToken cancellationToken) =>
         await (
-            from attempt in database.TournamentRegistrationAttempts
+            from attempt in database.EventRegistrationAttempts
             join user in database.Users on attempt.UserId equals user.Id
             join profile in database.UserProfiles on user.Id equals profile.UserId
-            where attempt.TournamentId == tournamentId
+            where attempt.EventId == tournamentId
                 && attempt.Status == TournamentRegistrationStatus.Confirmed
                 && profile.ClosedAt == null
             orderby attempt.Id
@@ -676,7 +676,7 @@ internal sealed class TournamentRegistrationNotificationService(
         !string.IsNullOrWhiteSpace(user.Email) ? user.Email : throw new InvalidOperationException("Registration notification user lacks email.");
 
     private sealed record ActiveParticipant(
-        TournamentRegistrationAttempt Attempt,
+        EventRegistrationAttempt Attempt,
         ApplicationUser User,
         UserProfile Profile);
 }
@@ -691,10 +691,10 @@ internal sealed class RegistrationOrganizationDeleteDependency(GonesDbContext da
 {
     public async Task<IReadOnlyList<string>> GetBlockersAsync(Guid organizationId, CancellationToken cancellationToken)
     {
-        var blocked = await database.TournamentRegistrationAttempts.AsNoTracking().AnyAsync(attempt =>
+        var blocked = await database.EventRegistrationAttempts.AsNoTracking().AnyAsync(attempt =>
             attempt.Status == TournamentRegistrationStatus.Confirmed
-            && database.ScheduledTournaments.Any(tournament =>
-                tournament.Id == attempt.TournamentId && tournament.OrganizationId == organizationId),
+            && database.Events.Any(tournament =>
+                tournament.Id == attempt.EventId && tournament.OrganizationId == organizationId),
             cancellationToken);
         return blocked ? ["active_registration"] : [];
     }

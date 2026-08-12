@@ -147,7 +147,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.TournamentProposals.CountAsync());
+        Assert.Equal(0, await database.EventProposals.CountAsync());
     }
 
     [Fact]
@@ -159,7 +159,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Equal(HttpStatusCode.Forbidden, organizer.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, admin.StatusCode);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.TournamentProposals.CountAsync());
+        Assert.Equal(0, await database.EventProposals.CountAsync());
     }
 
     [Fact]
@@ -171,7 +171,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("recipientUserIds", body, StringComparison.OrdinalIgnoreCase);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.TournamentProposals.CountAsync());
+        Assert.Equal(0, await database.EventProposals.CountAsync());
     }
 
     [Fact]
@@ -185,8 +185,8 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
         Assert.Contains("recipientUserIds", await unknown.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.TournamentProposals.CountAsync());
-        Assert.Equal(0, await database.TournamentProposalRecipients.CountAsync());
+        Assert.Equal(0, await database.EventProposals.CountAsync());
+        Assert.Equal(0, await database.EventProposalRecipients.CountAsync());
     }
 
     /// <summary>
@@ -205,8 +205,8 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         // One unrelated name poisons the whole submission: no partial send.
         Assert.Equal(HttpStatusCode.BadRequest, mixed.StatusCode);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.TournamentProposals.CountAsync());
-        Assert.Equal(0, await database.TournamentProposalRecipients.CountAsync());
+        Assert.Equal(0, await database.EventProposals.CountAsync());
+        Assert.Equal(0, await database.EventProposalRecipients.CountAsync());
         Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync());
     }
 
@@ -235,7 +235,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Equal(HttpStatusCode.BadRequest, atCap.StatusCode);
         Assert.Contains("approvers are invalid", atCapBody, StringComparison.OrdinalIgnoreCase);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.TournamentProposals.CountAsync());
+        Assert.Equal(0, await database.EventProposals.CountAsync());
     }
 
     /// <summary>
@@ -257,10 +257,10 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         await using var database = CreateContext();
-        var proposal = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        var proposal = await database.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(seed.Submitter.Id, proposal.SubmittedByUserId);
         Assert.Contains(seed.Alpha.Id.ToString("D"), proposal.PayloadJson, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(1, await database.TournamentProposalRecipients.CountAsync());
+        Assert.Equal(1, await database.EventProposalRecipients.CountAsync());
     }
 
     [Fact]
@@ -275,7 +275,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Equal(2, body.GetProperty("recipientCount").GetInt32());
 
         await using var database = CreateContext();
-        var proposal = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        var proposal = await database.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(proposalId, proposal.Id);
         Assert.Equal(TournamentProposalStatus.Pending, proposal.Status);
         Assert.Equal(seed.Submitter.Id, proposal.SubmittedByUserId);
@@ -283,7 +283,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Null(proposal.DecidedByUserId);
         Assert.Contains("Summer Cup", proposal.PayloadJson, StringComparison.Ordinal);
 
-        var recipients = await database.TournamentProposalRecipients.AsNoTracking()
+        var recipients = await database.EventProposalRecipients.AsNoTracking()
             .Where(recipient => recipient.ProposalId == proposalId)
             .ToListAsync();
         Assert.Equal(2, recipients.Count);
@@ -299,7 +299,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         await using var database = CreateContext();
-        var hashes = await database.TournamentProposalRecipients.AsNoTracking()
+        var hashes = await database.EventProposalRecipients.AsNoTracking()
             .Select(recipient => recipient.TokenHash)
             .ToListAsync();
         Assert.Equal(2, hashes.Count);
@@ -313,9 +313,9 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         foreach (var token in tokens)
         {
             // Casting the whole row to text covers every column at once: no column may hold the plaintext.
-            var inProposals = await CountRowsContainingAsync("tournament_proposals", token);
-            var inRecipients = await CountRowsContainingAsync("tournament_proposal_recipients", token);
-            output.WriteLine($"plaintext={token} len={token.Length} rows_holding_plaintext: tournament_proposals={inProposals} tournament_proposal_recipients={inRecipients}");
+            var inProposals = await CountRowsContainingAsync("event_proposals", token);
+            var inRecipients = await CountRowsContainingAsync("event_proposal_recipients", token);
+            output.WriteLine($"plaintext={token} len={token.Length} rows_holding_plaintext: event_proposals={inProposals} event_proposal_recipients={inRecipients}");
             Assert.Equal(0, inProposals);
             Assert.Equal(0, inRecipients);
             Assert.Contains(AccountLifecycleHash(token), hashes, StringComparer.Ordinal);
@@ -398,7 +398,7 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         await using var database = CreateContext();
-        var proposal = await database.TournamentProposals.AsNoTracking().SingleAsync();
+        var proposal = await database.EventProposals.AsNoTracking().SingleAsync();
         Assert.Equal(Now, proposal.CreatedAt);
         Assert.Equal(proposal.CreatedAt + Duration.FromDays(7), proposal.ExpiresAt);
     }
@@ -417,8 +417,8 @@ public sealed class TournamentProposalTests(ITestOutputHelper output) : IAsyncLi
 
         Assert.Equal(beforeCount, afterCount);
         await using var database = CreateContext();
-        Assert.Equal(0, await database.ScheduledTournaments.CountAsync());
-        Assert.Equal(1, await database.TournamentProposals.CountAsync());
+        Assert.Equal(0, await database.Events.CountAsync());
+        Assert.Equal(1, await database.EventProposals.CountAsync());
     }
 
     [Fact]

@@ -13,7 +13,7 @@ public sealed class TournamentRegistrationTests
     [Fact]
     public void Confirmed_attempt_can_be_cancelled_by_user_once()
     {
-        var attempt = TournamentRegistrationAttempt.Register(TournamentId, UserId, UserId, Now);
+        var attempt = EventRegistrationAttempt.Register(TournamentId, UserId, UserId, Now);
 
         attempt.CancelByUser(UserId, Now + Duration.FromMinutes(1));
 
@@ -26,7 +26,7 @@ public sealed class TournamentRegistrationTests
     [Fact]
     public void Tournament_cancellation_is_terminal_and_preserves_registration_actor_history()
     {
-        var attempt = TournamentRegistrationAttempt.Register(TournamentId, UserId, UserId, Now);
+        var attempt = EventRegistrationAttempt.Register(TournamentId, UserId, UserId, Now);
         var organizerId = Guid.NewGuid();
 
         attempt.CancelByTournament(organizerId, Now + Duration.FromMinutes(1));
@@ -41,7 +41,7 @@ public sealed class TournamentRegistrationTests
     public void Organizer_removal_is_distinct_terminal_status_with_actor_history()
     {
         var organizerId = Guid.NewGuid();
-        var attempt = TournamentRegistrationAttempt.Register(TournamentId, UserId, organizerId, Now);
+        var attempt = EventRegistrationAttempt.Register(TournamentId, UserId, organizerId, Now);
 
         attempt.RemoveByOrganizer(organizerId, Now + Duration.FromMinutes(1));
 

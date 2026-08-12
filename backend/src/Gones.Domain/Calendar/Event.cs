@@ -39,12 +39,12 @@ public enum TournamentReminderPlanAction
     CancelFuture
 }
 
-public sealed class TournamentLifecycleEvent
+public sealed class EventLifecycleEntry
 {
-    private TournamentLifecycleEvent() { }
+    private EventLifecycleEntry() { }
 
     public Guid Id { get; private init; } = Guid.NewGuid();
-    public Guid TournamentId { get; private init; }
+    public Guid EventId { get; private init; }
     public Guid ActorUserId { get; private init; }
     public TournamentLifecycleEventType EventType { get; private init; }
     public TournamentReminderPlanAction ReminderPlanAction { get; private init; }
@@ -58,7 +58,7 @@ public sealed class TournamentLifecycleEvent
         ReminderPlanProcessedAt = now;
     }
 
-    public static TournamentLifecycleEvent Create(
+    public static EventLifecycleEntry Create(
         Guid tournamentId,
         Guid actorUserId,
         TournamentLifecycleEventType eventType,
@@ -67,9 +67,9 @@ public sealed class TournamentLifecycleEvent
     {
         if (tournamentId == Guid.Empty) throw new ArgumentException("Tournament ID cannot be empty.", nameof(tournamentId));
         if (actorUserId == Guid.Empty) throw new ArgumentException("Actor user ID cannot be empty.", nameof(actorUserId));
-        return new TournamentLifecycleEvent
+        return new EventLifecycleEntry
         {
-            TournamentId = tournamentId,
+            EventId = tournamentId,
             ActorUserId = actorUserId,
             EventType = eventType,
             ReminderPlanAction = reminderPlanAction,
@@ -92,7 +92,7 @@ public sealed record ScheduledTournamentDraft(
     LocalDateTime? EndsAtLocal,
     int? Capacity);
 
-public sealed class ScheduledTournament : VersionedEntity
+public sealed class Event : VersionedEntity
 {
     public const int MaximumTitleLength = 160;
     public const int MaximumSlugLength = 120;
@@ -106,7 +106,7 @@ public sealed class ScheduledTournament : VersionedEntity
     public const int MaximumDeletedReasonLength = 300;
     public const int MaximumSearchTextLength = 600;
 
-    private ScheduledTournament() { }
+    private Event() { }
 
     public Guid OrganizationId { get; private init; }
     public string Title { get; private set; } = string.Empty;
@@ -133,11 +133,11 @@ public sealed class ScheduledTournament : VersionedEntity
     public Guid? DeletedByUserId { get; private set; }
     public string? DeletedReason { get; private set; }
     public string NormalizedSearchText { get; private set; } = string.Empty;
-    public ICollection<ScheduledTournamentFormat> Formats { get; private set; } = new List<ScheduledTournamentFormat>();
+    public ICollection<EventFormat> Formats { get; private set; } = new List<EventFormat>();
 
     public bool IsDeleted => DeletedAt is not null;
 
-    public static ScheduledTournament Create(
+    public static Event Create(
         Guid organizationId,
         Guid createdByUserId,
         ScheduledTournamentDraft draft,
@@ -147,7 +147,7 @@ public sealed class ScheduledTournament : VersionedEntity
         if (organizationId == Guid.Empty) throw new ArgumentException("Organization ID cannot be empty.", nameof(organizationId));
         if (createdByUserId == Guid.Empty) throw new ArgumentException("Creator user ID cannot be empty.", nameof(createdByUserId));
         TournamentFormatSelection.RequireLegacyForV1(selectedFormats);
-        var tournament = new ScheduledTournament
+        var tournament = new Event
         {
             OrganizationId = organizationId,
             CreatedByUserId = createdByUserId,
@@ -257,7 +257,7 @@ public sealed class ScheduledTournament : VersionedEntity
         Formats.Clear();
         foreach (var format in selectedFormats.OrderBy(format => format.Slug, StringComparer.Ordinal))
         {
-            Formats.Add(ScheduledTournamentFormat.Create(Id, format.Id));
+            Formats.Add(EventFormat.Create(Id, format.Id));
         }
         UpdatedAt = now;
     }
@@ -352,20 +352,20 @@ public sealed class ScheduledTournament : VersionedEntity
         int? Capacity);
 }
 
-public sealed class ScheduledTournamentFormat
+public sealed class EventFormat
 {
-    private ScheduledTournamentFormat() { }
+    private EventFormat() { }
 
-    public Guid ScheduledTournamentId { get; private init; }
+    public Guid EventId { get; private init; }
     public Guid TournamentFormatId { get; private init; }
 
-    public static ScheduledTournamentFormat Create(Guid scheduledTournamentId, Guid tournamentFormatId)
+    public static EventFormat Create(Guid scheduledTournamentId, Guid tournamentFormatId)
     {
         if (scheduledTournamentId == Guid.Empty) throw new ArgumentException("Tournament ID cannot be empty.", nameof(scheduledTournamentId));
         if (tournamentFormatId == Guid.Empty) throw new ArgumentException("Format ID cannot be empty.", nameof(tournamentFormatId));
-        return new ScheduledTournamentFormat
+        return new EventFormat
         {
-            ScheduledTournamentId = scheduledTournamentId,
+            EventId = scheduledTournamentId,
             TournamentFormatId = tournamentFormatId
         };
     }
@@ -377,9 +377,9 @@ public static class TournamentSlug
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(slug);
         var normalized = slug.Trim().ToLowerInvariant();
-        if (normalized.Length > ScheduledTournament.MaximumSlugLength)
+        if (normalized.Length > Event.MaximumSlugLength)
         {
-            throw new ArgumentException($"Slug cannot exceed {ScheduledTournament.MaximumSlugLength} characters.", nameof(slug));
+            throw new ArgumentException($"Slug cannot exceed {Event.MaximumSlugLength} characters.", nameof(slug));
         }
 
         if (normalized.Any(ch => !(char.IsAsciiLetterOrDigit(ch) || ch is '-')))
@@ -401,7 +401,7 @@ public static class TournamentContentSanitizer
     public static string? Sanitize(string? html)
     {
         if (string.IsNullOrWhiteSpace(html)) return null;
-        if (html.Length > ScheduledTournament.MaximumBodyHtmlLength) throw new ArgumentException($"Body HTML cannot exceed {ScheduledTournament.MaximumBodyHtmlLength} characters.", nameof(html));
+        if (html.Length > Event.MaximumBodyHtmlLength) throw new ArgumentException($"Body HTML cannot exceed {Event.MaximumBodyHtmlLength} characters.", nameof(html));
         var settings = new XmlReaderSettings
         {
             DtdProcessing = DtdProcessing.Prohibit,

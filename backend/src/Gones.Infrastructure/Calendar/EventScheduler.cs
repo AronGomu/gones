@@ -94,10 +94,10 @@ public sealed class TournamentScheduleReconciler(
             return false;
         }
 
-        List<TournamentLifecycleEvent> pendingEvents = [];
+        List<EventLifecycleEntry> pendingEvents = [];
         if (requirePendingLifecycleEvent)
         {
-            pendingEvents = await database.TournamentLifecycleEvents
+            pendingEvents = await database.EventLifecycleEntries
                 .Where(item => item.ReminderPlanAction != TournamentReminderPlanAction.None && item.ReminderPlanProcessedAt == null)
                 .OrderBy(item => item.OccurredAt)
                 .ThenBy(item => item.Id)
@@ -111,10 +111,10 @@ public sealed class TournamentScheduleReconciler(
         }
 
         using var activity = GonesTelemetry.Activities.StartActivity("scheduler.plan", ActivityKind.Internal);
-        var affectedTournamentIds = pendingEvents.Select(item => item.TournamentId).Distinct().ToArray();
+        var affectedTournamentIds = pendingEvents.Select(item => item.EventId).Distinct().ToArray();
         var candidates = await (
-            from registration in database.TournamentRegistrationAttempts.AsNoTracking()
-            join tournament in database.ScheduledTournaments.AsNoTracking() on registration.TournamentId equals tournament.Id
+            from registration in database.EventRegistrationAttempts.AsNoTracking()
+            join tournament in database.Events.AsNoTracking() on registration.EventId equals tournament.Id
             join user in database.Users.AsNoTracking() on registration.UserId equals user.Id
             join profile in database.UserProfiles.AsNoTracking() on registration.UserId equals profile.UserId
             where registration.Status == TournamentRegistrationStatus.Confirmed
@@ -135,7 +135,7 @@ public sealed class TournamentScheduleReconciler(
 
         var existing = await database.ScheduledNotifications
             .Where(item => item.ScheduledAtUtc > now
-                && (!requirePendingLifecycleEvent || affectedTournamentIds.Contains(item.TournamentId)))
+                && (!requirePendingLifecycleEvent || affectedTournamentIds.Contains(item.EventId)))
             .ToListAsync(cancellationToken);
         var existingByDedupe = existing.ToDictionary(item => item.DedupeKey, StringComparer.Ordinal);
         var expectedDedupe = new HashSet<string>(StringComparer.Ordinal);
@@ -222,8 +222,8 @@ public sealed class TournamentReminderDispatcher(
         var timely = due.Where(item => item.ScheduledAtUtc >= now - options.LateTolerance).ToArray();
         var registrationIds = timely.Select(item => item.RegistrationAttemptId).Distinct().ToArray();
         var recipients = await (
-            from registration in database.TournamentRegistrationAttempts.AsNoTracking()
-            join tournament in database.ScheduledTournaments.AsNoTracking() on registration.TournamentId equals tournament.Id
+            from registration in database.EventRegistrationAttempts.AsNoTracking()
+            join tournament in database.Events.AsNoTracking() on registration.EventId equals tournament.Id
             join user in database.Users.AsNoTracking() on registration.UserId equals user.Id
             join profile in database.UserProfiles.AsNoTracking() on registration.UserId equals profile.UserId
             where registrationIds.Contains(registration.Id)
@@ -311,10 +311,10 @@ public sealed class TournamentLifecyclePoller(
     {
         var now = clock.GetCurrentInstant();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var tournaments = await database.ScheduledTournaments
+        var tournaments = await database.Events
             .FromSqlInterpolated($"""
                 SELECT *
-                FROM scheduled_tournaments
+                FROM events
                 WHERE deleted_at IS NULL
                   AND ((status = 'Published' AND starts_at_utc <= {now})
                     OR (status = 'InProgress' AND ends_at_utc <= {now}))

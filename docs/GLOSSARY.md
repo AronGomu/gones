@@ -38,7 +38,8 @@
 | processor | Drains the outbox, applies the retry ladder | `backend/src/Gones.Infrastructure/Notifications/NotificationProcessor.cs` |
 | transport | Email provider adapter: Brevo, or local file sink | `backend/src/Gones.Infrastructure/Notifications/BrevoEmailTransport.cs` |
 | worker | Background service: heartbeat, scheduling, notifications, cleanup | `backend/src/Gones.Worker/Worker.cs` |
-| reconciler | Replans tournament reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/TournamentScheduler.cs` |
+| reconciler | Replans event reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/EventScheduler.cs` |
+| event | The Calendar V1 record people register for, formerly Scheduled Tournament (ADR 0035) | `backend/src/Gones.Domain/Calendar/Event.cs` |
 | identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
 | registration | Participant sign-up and unregistration on a tournament | `backend/src/Gones.Api/Tournaments/TournamentRegistrationEndpoints.cs` |
 | league archive | Archived Leagues and their result Tournaments, `/api/leagues-archive` (formerly `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs` |

@@ -589,7 +589,7 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         var orgId = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         var now = NodaTime.SystemClock.Instance.GetCurrentInstant();
         var legacy = await database.TournamentFormats.SingleAsync(item => item.Slug == TournamentFormat.LegacySlug);
-        var tournament = ScheduledTournament.Create(
+        var tournament = Event.Create(
             orgId,
             owner.Id,
             new ScheduledTournamentDraft(
@@ -607,7 +607,7 @@ public sealed class OrganizationApiTests : IAsyncLifetime
                 32),
             [legacy],
             now);
-        database.ScheduledTournaments.Add(tournament);
+        database.Events.Add(tournament);
         await database.SaveChangesAsync();
 
         using var blockedByTournament = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/organizations/{orgId:D}", adminToken);

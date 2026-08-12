@@ -156,7 +156,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             foreach (var planned in plan.ScheduledTournaments)
             {
                 var selectedFormats = formats.Where(format => planned.FormatSlugs.Contains(format.Slug, StringComparer.Ordinal)).ToArray();
-                var tournament = ScheduledTournament.Create(mapping.OrganizationId, mapping.OwnerUserId, planned.Draft, selectedFormats, now);
+                var tournament = Event.Create(mapping.OrganizationId, mapping.OwnerUserId, planned.Draft, selectedFormats, now);
                 if (planned.StatusPolicy == "cancelled")
                 {
                     tournament.Cancel(now);
@@ -168,7 +168,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
                     tournament.AdvanceLifecycle(now);
                 }
 
-                database.ScheduledTournaments.Add(tournament);
+                database.Events.Add(tournament);
             }
         }
 
@@ -313,7 +313,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
         }
 
         var scheduledSourceIds = plan.ScheduledTournaments.Select(item => item.Draft.Slug).ToArray();
-        var storedScheduled = await database.ScheduledTournaments
+        var storedScheduled = await database.Events
             .AsNoTracking()
             .CountAsync(tournament => scheduledSourceIds.Contains(tournament.Slug) && tournament.DeletedAt == null, cancellationToken);
         if (storedScheduled != plan.ScheduledTournaments.Count)
@@ -357,7 +357,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             .Where(archetype => archetype.DeletedAt == null)
             .Select(archetype => archetype.NormalizedName)
             .ToListAsync(cancellationToken);
-        var slugs = await database.ScheduledTournaments
+        var slugs = await database.Events
             .AsNoTracking()
             .Select(tournament => tournament.Slug)
             .ToListAsync(cancellationToken);

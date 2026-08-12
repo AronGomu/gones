@@ -20,7 +20,7 @@ Two independent enforcement points, with the server remaining the sanitizer of r
 
 | Layer | Component | Behaviour on disallowed markup |
 | --- | --- | --- |
-| Server (authoritative) | `TournamentContentSanitizer` in `backend/src/Gones.Domain/Calendar/ScheduledTournament.cs` | Rejects the write (`validation_failed`, HTTP 400) or drops the node before storage. Content is never persisted unsanitized. |
+| Server (authoritative) | `TournamentContentSanitizer` in `backend/src/Gones.Domain/Calendar/Event.cs` | Rejects the write (`validation_failed`, HTTP 400) or drops the node before storage. Content is never persisted unsanitized. |
 | Client (defense in depth) | `withSafeExternalLinks` in `src/app/features/calendar/server-sanitized-html.component.ts` | Unwraps the element to its text content and strips every non-allowlisted attribute before `bypassSecurityTrustHtml`. |
 | Browser | CSP served by `deploy/nginx/default.conf` | `script-src 'self'`, `object-src 'none'`, `frame-src 'none'`, `img-src 'self' data:` — inline and remote script from injected markup cannot execute. |
 

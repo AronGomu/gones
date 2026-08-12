@@ -76,7 +76,7 @@ function census() {
     SELECT
       (SELECT count(*) FROM league_archive_aggregates WHERE document_id IN (${ids(sources.map((source) => source.leagueId))})) || '|' ||
       (SELECT count(*) FROM live_aggregates WHERE document_id IN (${ids(sources.map((source) => source.liveId))})) || '|' ||
-      (SELECT count(*) FROM scheduled_tournaments WHERE slug IN (${ids(sources.map((source) => source.slug))})) || '|' ||
+      (SELECT count(*) FROM events WHERE slug IN (${ids(sources.map((source) => source.slug))})) || '|' ||
       (SELECT count(*) FROM deck_archetypes WHERE normalized_name IN (${ids(sources.map((source) => source.archetypeKey))})) || '|' ||
       (SELECT count(*) FROM audit_records WHERE action = 'migration.import') || '|' ||
       (SELECT count(*) FROM idempotency_records WHERE scope = 'migration-import');

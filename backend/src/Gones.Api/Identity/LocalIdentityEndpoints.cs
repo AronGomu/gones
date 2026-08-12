@@ -409,16 +409,16 @@ internal static class LocalIdentityEndpoints
     private static readonly (string Relation, Func<GonesDbContext, Guid, IQueryable<Guid>> Rows)[] BlockingRelations =
     [
         ("scheduled_tournaments.created_by_user_id",
-            (database, userId) => database.ScheduledTournaments.Where(item => item.CreatedByUserId == userId).Select(item => item.Id)),
+            (database, userId) => database.Events.Where(item => item.CreatedByUserId == userId).Select(item => item.Id)),
         ("scheduled_tournaments.deleted_by_user_id",
-            (database, userId) => database.ScheduledTournaments.Where(item => item.DeletedByUserId == userId).Select(item => item.Id)),
+            (database, userId) => database.Events.Where(item => item.DeletedByUserId == userId).Select(item => item.Id)),
         // The account's own attempts go with it, so only an attempt filed for somebody else blocks.
         ("tournament_registration_attempts.registered_by_user_id",
-            (database, userId) => database.TournamentRegistrationAttempts.Where(item => item.UserId != userId && item.RegisteredByUserId == userId).Select(item => item.Id)),
+            (database, userId) => database.EventRegistrationAttempts.Where(item => item.UserId != userId && item.RegisteredByUserId == userId).Select(item => item.Id)),
         ("tournament_registration_attempts.status_changed_by_user_id",
-            (database, userId) => database.TournamentRegistrationAttempts.Where(item => item.UserId != userId && item.StatusChangedByUserId == userId).Select(item => item.Id)),
+            (database, userId) => database.EventRegistrationAttempts.Where(item => item.UserId != userId && item.StatusChangedByUserId == userId).Select(item => item.Id)),
         ("tournament_lifecycle_events.actor_user_id",
-            (database, userId) => database.TournamentLifecycleEvents.Where(item => item.ActorUserId == userId).Select(item => item.Id)),
+            (database, userId) => database.EventLifecycleEntries.Where(item => item.ActorUserId == userId).Select(item => item.Id)),
         // Blocks aimed at the account cascade away with it; only blocks it handed out survive.
         ("organization_blocked_users.blocked_by_user_id",
             (database, userId) => database.OrganizationBlockedUsers.Where(item => item.UserId != userId && item.BlockedByUserId == userId).Select(item => item.Id)),
@@ -459,7 +459,7 @@ internal static class LocalIdentityEndpoints
     {
         await database.NotificationHistory.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.ScheduledNotifications.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
-        await database.TournamentRegistrationAttempts.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.EventRegistrationAttempts.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.UserProfiles.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
     }
 

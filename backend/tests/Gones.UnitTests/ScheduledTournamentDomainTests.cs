@@ -18,7 +18,7 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Throws<ArgumentException>(() => Create(Draft() with { City = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { Country = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { TimeZoneId = "Europe/Nope" }));
-        Assert.Throws<ArgumentException>(() => ScheduledTournament.Create(OrganizationId, UserId, Draft(), [TournamentFormat.Create("Modern", "modern", 1, Now)], Now));
+        Assert.Throws<ArgumentException>(() => Event.Create(OrganizationId, UserId, Draft(), [TournamentFormat.Create("Modern", "modern", 1, Now)], Now));
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class ScheduledTournamentDomainTests
     public void Major_change_classification_separates_content_from_schedule_and_venue()
     {
         var legacy = TournamentFormat.CreateLegacy(Now);
-        var tournament = ScheduledTournament.Create(OrganizationId, UserId, Draft(), [legacy], Now);
+        var tournament = Event.Create(OrganizationId, UserId, Draft(), [legacy], Now);
         Assert.Equal(TournamentChangeSeverity.None, tournament.ClassifyChange(Draft(), [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Title = "Renamed Cup" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Summary = "Side events" }, [legacy]));
@@ -153,8 +153,8 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Equal("<h2>Title</h2><p>See <a href=\"https://example.test/path?q=1\">rules</a></p><ul><li><em>One</em></li></ul>", sanitized);
     }
 
-    private static ScheduledTournament Create(ScheduledTournamentDraft? draft = null) =>
-        ScheduledTournament.Create(OrganizationId, UserId, draft ?? Draft(), [TournamentFormat.CreateLegacy(Now)], Now);
+    private static Event Create(ScheduledTournamentDraft? draft = null) =>
+        Event.Create(OrganizationId, UserId, draft ?? Draft(), [TournamentFormat.CreateLegacy(Now)], Now);
 
     private static ScheduledTournamentDraft Draft() => new(
         Title: "Legacy Cup",

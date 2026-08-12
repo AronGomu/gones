@@ -52,7 +52,7 @@ INSERT INTO organizations
   (id, name, normalized_name, created_at, updated_at, version)
 VALUES
   ('${organizationId}', 'Scheduler Smoke ${suffix.slice(0, 8)}', upper('Scheduler Smoke ${suffix.slice(0, 8)}'), now(), now(), 1);
-INSERT INTO scheduled_tournaments
+INSERT INTO events
   (id, organization_id, title, slug, street_address, city, country, time_zone_id,
    venue_start_date, venue_start_time, venue_end_date, venue_end_time, starts_at_utc, ends_at_utc,
    status, created_by_user_id, created_at, updated_at, normalized_search_text, version)
@@ -63,12 +63,12 @@ VALUES
   ('${reminderTournamentId}', '${organizationId}', 'Reminder Smoke', 'reminder-${suffix}', '1 Main Street', 'UTC', 'Test', 'Etc/UTC',
    current_date + 1, time '12:00', current_date + 1, time '13:00', now() + interval '1 day', now() + interval '25 hours',
    'Published', '${userId}', now(), now(), 'REMINDER SMOKE UTC TEST', 1);
-INSERT INTO tournament_registration_attempts
-  (id, tournament_id, user_id, status, registered_by_user_id, registered_at, version)
+INSERT INTO event_registration_attempts
+  (id, event_id, user_id, status, registered_by_user_id, registered_at, version)
 VALUES
   ('${registrationId}', '${reminderTournamentId}', '${userId}', 'Confirmed', '${userId}', now(), 1);
 INSERT INTO scheduled_notifications
-  (id, tournament_id, registration_attempt_id, user_id, type, scheduled_at_utc, dedupe_key, status, created_at, updated_at)
+  (id, event_id, registration_attempt_id, user_id, type, scheduled_at_utc, dedupe_key, status, created_at, updated_at)
 VALUES
   ('${dueId}', '${reminderTournamentId}', '${registrationId}', '${userId}', 'DayOne', now() + interval '2 seconds', '${dueDedupe}', 'Planned', now(), now()),
   ('${missedId}', '${reminderTournamentId}', '${registrationId}', '${userId}', 'DayTwo', now() - interval '2 minutes', '${missedDedupe}', 'Planned', now(), now());
@@ -80,7 +80,7 @@ for (let attempt = 0; attempt < 90; attempt++) {
     SELECT
       (SELECT status FROM scheduled_notifications WHERE id = '${dueId}') || '|' ||
       (SELECT status FROM scheduled_notifications WHERE id = '${missedId}') || '|' ||
-      (SELECT status FROM scheduled_tournaments WHERE id = '${lifecycleTournamentId}') || '|' ||
+      (SELECT status FROM events WHERE id = '${lifecycleTournamentId}') || '|' ||
       (SELECT count(*) FROM notification_history WHERE dedupe_key = '${dueDedupe}');
   `, true);
   if (state === 'Enqueued|Missed|Completed|1') break;

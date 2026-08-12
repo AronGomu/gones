@@ -414,10 +414,10 @@ public static partial class MigrationPlanner
 
             var title = source.Title.Trim();
             if (title.Length == 0) eventErrors.Add(Missing(entity.Id, "title"));
-            if (title.Length > ScheduledTournament.MaximumTitleLength)
+            if (title.Length > Event.MaximumTitleLength)
             {
-                sanitation.Add(new MigrationSanitationChange(entity.Id, "truncatedTitle", $"title shortened to {ScheduledTournament.MaximumTitleLength} characters"));
-                title = title[..ScheduledTournament.MaximumTitleLength];
+                sanitation.Add(new MigrationSanitationChange(entity.Id, "truncatedTitle", $"title shortened to {Event.MaximumTitleLength} characters"));
+                title = title[..Event.MaximumTitleLength];
             }
 
             var rawSlug = eventMapping.Slug ?? source.Slug;
@@ -551,10 +551,10 @@ public static partial class MigrationPlanner
     {
         var summary = source.Description.Trim();
         if (summary.Length == 0) return null;
-        if (summary.Length > ScheduledTournament.MaximumSummaryLength)
+        if (summary.Length > Event.MaximumSummaryLength)
         {
-            sanitation.Add(new MigrationSanitationChange(eventId, "truncatedSummary", $"description shortened from {summary.Length} to {ScheduledTournament.MaximumSummaryLength} characters"));
-            summary = summary[..ScheduledTournament.MaximumSummaryLength].Trim();
+            sanitation.Add(new MigrationSanitationChange(eventId, "truncatedSummary", $"description shortened from {summary.Length} to {Event.MaximumSummaryLength} characters"));
+            summary = summary[..Event.MaximumSummaryLength].Trim();
         }
 
         return summary.Length == 0 ? null : summary;
@@ -573,13 +573,13 @@ public static partial class MigrationPlanner
         {
             try
             {
-                body = html.Length <= ScheduledTournament.MaximumBodyHtmlLength ? TournamentContentSanitizer.Sanitize(html) : throw new ArgumentException("too long");
+                body = html.Length <= Event.MaximumBodyHtmlLength ? TournamentContentSanitizer.Sanitize(html) : throw new ArgumentException("too long");
             }
             catch (ArgumentException)
             {
                 var text = WhitespaceRegex().Replace(HtmlTagRegex().Replace(html, " "), " ").Trim();
                 text = text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-                if (text.Length > ScheduledTournament.MaximumBodyHtmlLength) text = text[..ScheduledTournament.MaximumBodyHtmlLength];
+                if (text.Length > Event.MaximumBodyHtmlLength) text = text[..Event.MaximumBodyHtmlLength];
                 sanitation.Add(new MigrationSanitationChange(eventId, "strippedUnsafeHtml", "rich description contained markup outside the allowed subset; only its text content was kept"));
                 body = text.Length == 0 ? null : text;
             }
@@ -591,7 +591,7 @@ public static partial class MigrationPlanner
             if (Uri.TryCreate(externalLink, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && !string.IsNullOrWhiteSpace(uri.Host))
             {
                 var linkHtml = $"<p><a href=\"{uri.AbsoluteUri}\">{System.Security.SecurityElement.Escape(uri.AbsoluteUri)}</a></p>";
-                if ((body?.Length ?? 0) + linkHtml.Length <= ScheduledTournament.MaximumBodyHtmlLength)
+                if ((body?.Length ?? 0) + linkHtml.Length <= Event.MaximumBodyHtmlLength)
                 {
                     body = body is null ? linkHtml : body + linkHtml;
                     sanitation.Add(new MigrationSanitationChange(eventId, "convertedExternalLink", $"externalLink converted to a body link: {uri.AbsoluteUri}"));
@@ -786,7 +786,7 @@ public static partial class MigrationPlanner
         }
 
         var slug = builder.ToString().Trim('-');
-        return slug.Length > ScheduledTournament.MaximumSlugLength ? slug[..ScheduledTournament.MaximumSlugLength].Trim('-') : slug;
+        return slug.Length > Event.MaximumSlugLength ? slug[..Event.MaximumSlugLength].Trim('-') : slug;
     }
 
     private sealed record LegacyCalendarEvent(

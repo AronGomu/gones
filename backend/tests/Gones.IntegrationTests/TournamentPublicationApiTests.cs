@@ -67,7 +67,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
     public async Task Preview_normalizes_on_server_rejects_zone_and_dst_gap_and_creates_no_draft()
     {
         await using var before = CreateContext();
-        var initialCount = await before.ScheduledTournaments.CountAsync();
+        var initialCount = await before.Events.CountAsync();
 
         var payload = Payload(seed.Alpha.Id) with
         {
@@ -88,7 +88,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Equal("2035-03-04T09:00:00Z", render.GetProperty("startsAtUtc").GetString());
 
         await using var after = CreateContext();
-        Assert.Equal(initialCount, await after.ScheduledTournaments.CountAsync());
+        Assert.Equal(initialCount, await after.Events.CountAsync());
 
         using var invalidZone = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id) with { TimeZoneId = "Mars/Olympus" });
         Assert.Equal(HttpStatusCode.BadRequest, invalidZone.StatusCode);
@@ -125,7 +125,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
 
         await using var database = CreateContext();
-        Assert.Equal(1, await database.ScheduledTournaments.CountAsync(item => item.Id == tournamentId));
+        Assert.Equal(1, await database.Events.CountAsync(item => item.Id == tournamentId));
         Assert.Equal(1, await database.AuditRecords.CountAsync(item => item.Action == "tournament.published" && item.EntityId == tournamentId.ToString("D")));
         Assert.Equal(1, await database.IdempotencyRecords.CountAsync(item => item.Scope.Contains(seed.Organizer.Id.ToString("D")) && item.Key == "publish-once"));
     }
@@ -175,7 +175,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Contains(HttpStatusCode.Conflict, responses.Select(response => response.StatusCode));
 
         await using var database = CreateContext();
-        Assert.Equal(1, await database.ScheduledTournaments.CountAsync(item => item.Title == "Replay Race Cup"));
+        Assert.Equal(1, await database.Events.CountAsync(item => item.Title == "Replay Race Cup"));
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Equal("Published", body.GetProperty("status").GetString());
 
         await using var database = CreateContext();
-        var stored = await database.ScheduledTournaments.AsNoTracking().SingleAsync(entity => entity.Id == id);
+        var stored = await database.Events.AsNoTracking().SingleAsync(entity => entity.Id == id);
         Assert.Equal(seed.Organizer.Id, stored.CreatedByUserId);
         Assert.Null(stored.DeletedAt);
         Assert.Null(stored.DeletedByUserId);
@@ -331,7 +331,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
 
         await using (var database = CreateContext())
         {
-            Assert.Equal(0, await database.ScheduledTournaments.CountAsync(item => item.OrganizationId == seed.Draft.Id));
+            Assert.Equal(0, await database.Events.CountAsync(item => item.OrganizationId == seed.Draft.Id));
             // The refusal must not burn the idempotency key or the preview ticket either.
             Assert.Equal(0, await database.IdempotencyRecords.CountAsync(item => item.Key == "draft-org-publish"));
         }
@@ -407,7 +407,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
 
         await using (var verify = CreateContext())
         {
-            var stored = await verify.ScheduledTournaments.SingleAsync(item => item.Title == "Cross Org Cup");
+            var stored = await verify.Events.SingleAsync(item => item.Title == "Cross Org Cup");
             Assert.Equal(seed.Beta.Id, stored.OrganizationId);
             Assert.Equal(seed.Admin.Id, stored.CreatedByUserId);
             // The two refusals wrote nothing at all, not even an idempotency record to replay.

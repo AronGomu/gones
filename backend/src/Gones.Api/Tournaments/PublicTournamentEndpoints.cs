@@ -101,8 +101,8 @@ internal static partial class PublicTournamentEndpoints
         if (!string.IsNullOrWhiteSpace(format))
         {
             var formatSlug = TournamentFormat.ValidateSlug(format);
-            query = query.Where(item => database.ScheduledTournamentFormats.Any(join =>
-                join.ScheduledTournamentId == item.Tournament.Id
+            query = query.Where(item => database.EventFormats.Any(join =>
+                join.EventId == item.Tournament.Id
                 && database.TournamentFormats.Any(fmt => fmt.Id == join.TournamentFormatId && fmt.DeletedAt == null && fmt.Slug == formatSlug)));
         }
         if (statuses.Count > 0) query = query.Where(item => statuses.Contains(item.Tournament.Status));
@@ -230,7 +230,7 @@ internal static partial class PublicTournamentEndpoints
     }
 
     private static IQueryable<TournamentQueryItem> VisibleTournaments(GonesDbContext database) =>
-        from tournament in database.ScheduledTournaments.AsNoTracking()
+        from tournament in database.Events.AsNoTracking()
         join org in database.Organizations.AsNoTracking() on tournament.OrganizationId equals org.Id
         where tournament.DeletedAt == null && org.DeletedAt == null
         select new TournamentQueryItem { Tournament = tournament, Organization = org };
@@ -257,9 +257,9 @@ internal static partial class PublicTournamentEndpoints
     {
         var tournament = await LoadDetailAsync(database, slug, cancellationToken);
         var profiles = await (
-            from attempt in database.TournamentRegistrationAttempts.AsNoTracking()
+            from attempt in database.EventRegistrationAttempts.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on attempt.UserId equals profile.UserId
-            where attempt.TournamentId == tournament.Id
+            where attempt.EventId == tournament.Id
                 && attempt.Status == TournamentRegistrationStatus.Confirmed
                 && profile.ClosedAt == null
             orderby profile.NormalizedUsername, profile.UserId
@@ -305,7 +305,7 @@ internal static partial class PublicTournamentEndpoints
     {
         var normalizedSlug = TournamentSlug.Normalize(slug);
         return await (
-            from tournament in database.ScheduledTournaments.AsNoTracking()
+            from tournament in database.Events.AsNoTracking()
             join organization in database.Organizations.AsNoTracking() on tournament.OrganizationId equals organization.Id
             where tournament.DeletedAt == null && organization.DeletedAt == null && tournament.Slug == normalizedSlug
             select new TournamentRow(
@@ -345,14 +345,14 @@ internal static partial class PublicTournamentEndpoints
     {
         if (tournamentIds.Count == 0) return new Dictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>>();
         var rows = await (
-            from link in database.ScheduledTournamentFormats.AsNoTracking()
+            from link in database.EventFormats.AsNoTracking()
             join format in database.TournamentFormats.AsNoTracking() on link.TournamentFormatId equals format.Id
-            where tournamentIds.Contains(link.ScheduledTournamentId) && format.DeletedAt == null
+            where tournamentIds.Contains(link.EventId) && format.DeletedAt == null
             orderby format.SortOrder, format.Name, format.Id
-            select new { link.ScheduledTournamentId, format.Id, format.Name, format.Slug, format.SortOrder }
+            select new { link.EventId, format.Id, format.Name, format.Slug, format.SortOrder }
         ).ToListAsync(cancellationToken);
         return rows
-            .GroupBy(item => item.ScheduledTournamentId)
+            .GroupBy(item => item.EventId)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<PublicTournamentFormatResponse>)group.Select(item => new PublicTournamentFormatResponse(item.Id, item.Name, item.Slug, item.SortOrder)).ToArray());
@@ -507,7 +507,7 @@ internal static partial class PublicTournamentEndpoints
 
     private sealed class TournamentQueryItem
     {
-        public required ScheduledTournament Tournament { get; init; }
+        public required Event Tournament { get; init; }
         public required Organization Organization { get; init; }
     }
 }

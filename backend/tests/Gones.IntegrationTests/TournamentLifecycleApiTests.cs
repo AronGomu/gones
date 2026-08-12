@@ -68,7 +68,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         deleted.SoftDelete(seed.Organizer.Id, "duplicate", clock.GetCurrentInstant());
         await using (var database = CreateContext())
         {
-            database.ScheduledTournaments.Update(deleted);
+            database.Events.Update(deleted);
             await database.SaveChangesAsync();
         }
 
@@ -118,7 +118,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, major.StatusCode);
 
         await using var database = CreateContext();
-        var markers = await database.TournamentLifecycleEvents.Where(item => item.TournamentId == tournament.Id).ToListAsync();
+        var markers = await database.EventLifecycleEntries.Where(item => item.EventId == tournament.Id).ToListAsync();
         var marker = Assert.Single(markers);
         Assert.Equal(TournamentLifecycleEventType.MajorDetailsUpdated, marker.EventType);
         Assert.Equal(TournamentReminderPlanAction.RecalculateFuture, marker.ReminderPlanAction);
@@ -126,7 +126,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Equal(2, audits.Count);
         Assert.Contains("bodyChanged", audits[1].RedactedDiff, StringComparison.Ordinal);
         Assert.DoesNotContain("Secret changed body", audits[1].RedactedDiff, StringComparison.Ordinal);
-        Assert.Equal(seed.Alpha.Id, (await database.ScheduledTournaments.SingleAsync(item => item.Id == tournament.Id)).OrganizationId);
+        Assert.Equal(seed.Alpha.Id, (await database.Events.SingleAsync(item => item.Id == tournament.Id)).OrganizationId);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         completed.AdvanceLifecycle(completed.EndsAtUtc);
         await using (var database = CreateContext())
         {
-            database.ScheduledTournaments.Update(completed);
+            database.Events.Update(completed);
             await database.SaveChangesAsync();
         }
 
@@ -196,9 +196,9 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         var many = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Many Mail Cup");
         await using (var database = CreateContext())
         {
-            database.TournamentRegistrationAttempts.AddRange(
-                TournamentRegistrationAttempt.Register(many.Id, seed.Organizer.Id, seed.Organizer.Id, clock.GetCurrentInstant()),
-                TournamentRegistrationAttempt.Register(many.Id, seed.Outsider.Id, seed.Outsider.Id, clock.GetCurrentInstant()));
+            database.EventRegistrationAttempts.AddRange(
+                EventRegistrationAttempt.Register(many.Id, seed.Organizer.Id, seed.Organizer.Id, clock.GetCurrentInstant()),
+                EventRegistrationAttempt.Register(many.Id, seed.Outsider.Id, seed.Outsider.Id, clock.GetCurrentInstant()));
             await database.SaveChangesAsync();
         }
         using var manyUpdate = await SendJsonAsync(
@@ -236,14 +236,14 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             Assert.Equal(4, await database.NotificationOutboxRecords.CountAsync(item => item.TournamentId == many.Id));
-            Assert.Equal(2, await database.TournamentRegistrationAttempts.CountAsync(item =>
-                item.TournamentId == many.Id && item.Status == TournamentRegistrationStatus.CancelledByTournament));
+            Assert.Equal(2, await database.EventRegistrationAttempts.CountAsync(item =>
+                item.EventId == many.Id && item.Status == TournamentRegistrationStatus.CancelledByTournament));
         }
 
         var deletedTournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Delete Mail Cup");
         await using (var database = CreateContext())
         {
-            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(
                 deletedTournament.Id,
                 seed.Organizer.Id,
                 seed.Organizer.Id,
@@ -271,7 +271,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             Assert.Equal(1, await database.NotificationOutboxRecords.CountAsync(item => item.TournamentId == deletedTournament.Id));
-            Assert.Equal(TournamentRegistrationStatus.CancelledByTournament, (await database.TournamentRegistrationAttempts.SingleAsync(item => item.TournamentId == deletedTournament.Id)).Status);
+            Assert.Equal(TournamentRegistrationStatus.CancelledByTournament, (await database.EventRegistrationAttempts.SingleAsync(item => item.EventId == deletedTournament.Id)).Status);
         }
 
         var rollback = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Rollback Mail Cup");
@@ -282,7 +282,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         {
             database.Users.Add(invalidRecipient);
             database.UserProfiles.Add(Profile(invalidRecipient.Id, "InvalidRecipient"));
-            database.TournamentRegistrationAttempts.Add(TournamentRegistrationAttempt.Register(
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(
                 rollback.Id,
                 invalidRecipient.Id,
                 invalidRecipient.Id,
@@ -300,9 +300,9 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.InternalServerError, failedCancel.StatusCode);
         await using (var database = CreateContext())
         {
-            Assert.Equal(ScheduledTournamentStatus.Published, (await database.ScheduledTournaments.SingleAsync(item => item.Id == rollback.Id)).Status);
-            Assert.Equal(TournamentRegistrationStatus.Confirmed, (await database.TournamentRegistrationAttempts.SingleAsync(item => item.TournamentId == rollback.Id)).Status);
-            Assert.Equal(0, await database.TournamentLifecycleEvents.CountAsync(item => item.TournamentId == rollback.Id));
+            Assert.Equal(ScheduledTournamentStatus.Published, (await database.Events.SingleAsync(item => item.Id == rollback.Id)).Status);
+            Assert.Equal(TournamentRegistrationStatus.Confirmed, (await database.EventRegistrationAttempts.SingleAsync(item => item.EventId == rollback.Id)).Status);
+            Assert.Equal(0, await database.EventLifecycleEntries.CountAsync(item => item.EventId == rollback.Id));
             Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync(item => item.TournamentId == rollback.Id));
         }
     }
@@ -321,7 +321,7 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Equal(first.Headers.ETag?.Tag, second.Headers.ETag?.Tag);
 
         await using var database = CreateContext();
-        Assert.Equal(1, await database.TournamentLifecycleEvents.CountAsync(item => item.TournamentId == tournament.Id));
+        Assert.Equal(1, await database.EventLifecycleEntries.CountAsync(item => item.EventId == tournament.Id));
         Assert.Equal(1, await database.AuditRecords.CountAsync(item => item.EntityId == tournament.Id.ToString("D") && item.Action == "tournament.cancelled"));
     }
 
@@ -339,17 +339,17 @@ public sealed class TournamentLifecycleApiTests : IAsyncLifetime
         Assert.Single(responses, response => response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict);
 
         await using var database = CreateContext();
-        Assert.Equal(1, await database.TournamentLifecycleEvents.CountAsync(item => item.TournamentId == tournament.Id));
+        Assert.Equal(1, await database.EventLifecycleEntries.CountAsync(item => item.EventId == tournament.Id));
         Assert.Equal(1, await database.AuditRecords.CountAsync(item => item.EntityId == tournament.Id.ToString("D") && (item.Action == "tournament.cancelled" || item.Action == "tournament.deleted")));
     }
 
-    private async Task<ScheduledTournament> CreateTournamentAsync(Guid organizationId, Guid creatorId, string title)
+    private async Task<Event> CreateTournamentAsync(Guid organizationId, Guid creatorId, string title)
     {
         await using var database = CreateContext();
         var legacy = await database.TournamentFormats.SingleAsync(item => item.Id == seed.Legacy.Id);
         var slug = title.ToLowerInvariant().Replace(' ', '-');
-        var tournament = ScheduledTournament.Create(organizationId, creatorId, Draft(title, slug), [legacy], clock.GetCurrentInstant());
-        database.ScheduledTournaments.Add(tournament);
+        var tournament = Event.Create(organizationId, creatorId, Draft(title, slug), [legacy], clock.GetCurrentInstant());
+        database.Events.Add(tournament);
         await database.SaveChangesAsync();
         return tournament;
     }

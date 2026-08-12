@@ -225,9 +225,9 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await using (var seed = CreateContext())
         {
             var tournament = await SeedTournamentAsync(seed, owner.UserId);
-            var attempt = TournamentRegistrationAttempt.Register(tournament.Id, participant.UserId, participant.UserId, SeedNow);
+            var attempt = EventRegistrationAttempt.Register(tournament.Id, participant.UserId, participant.UserId, SeedNow);
             attempt.RemoveByOrganizer(organizer.UserId, SeedNow);
-            seed.TournamentRegistrationAttempts.Add(attempt);
+            seed.EventRegistrationAttempts.Add(attempt);
             await seed.SaveChangesAsync();
         }
 
@@ -340,8 +340,8 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         await using (var seed = CreateContext())
         {
             var tournament = await SeedTournamentAsync(seed, owner.UserId);
-            seed.TournamentRegistrationAttempts.Add(
-                TournamentRegistrationAttempt.Register(tournament.Id, account.UserId, account.UserId, SeedNow));
+            seed.EventRegistrationAttempts.Add(
+                EventRegistrationAttempt.Register(tournament.Id, account.UserId, account.UserId, SeedNow));
             await seed.SaveChangesAsync();
         }
 
@@ -350,7 +350,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         await using var afterwards = CreateContext();
         Assert.False(await afterwards.Users.AnyAsync(item => item.Id == account.UserId));
-        Assert.Equal(0, await afterwards.TournamentRegistrationAttempts.CountAsync(item => item.UserId == account.UserId));
+        Assert.Equal(0, await afterwards.EventRegistrationAttempts.CountAsync(item => item.UserId == account.UserId));
     }
 
     /// <summary>
@@ -449,7 +449,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         return organization.Id;
     }
 
-    private static async Task<ScheduledTournament> SeedTournamentAsync(GonesDbContext database, Guid createdByUserId)
+    private static async Task<Event> SeedTournamentAsync(GonesDbContext database, Guid createdByUserId)
     {
         var organizationId = await SeedOrganizationAsync(database);
         var legacy = await database.TournamentFormats.SingleOrDefaultAsync(format => format.Slug == TournamentFormat.LegacySlug);
@@ -460,8 +460,8 @@ public sealed class AccountDeletionTests : IAsyncLifetime
             await database.SaveChangesAsync();
         }
 
-        var tournament = ScheduledTournament.Create(organizationId, createdByUserId, Draft(), [legacy], SeedNow);
-        database.ScheduledTournaments.Add(tournament);
+        var tournament = Event.Create(organizationId, createdByUserId, Draft(), [legacy], SeedNow);
+        database.Events.Add(tournament);
         await database.SaveChangesAsync();
         return tournament;
     }

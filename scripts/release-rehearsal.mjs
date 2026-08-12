@@ -245,8 +245,8 @@ try {
   // the registration request itself (C27). Restarting the singleton Worker runs that pass now rather
   // than in 24 hours — the same effect the next day would have, and it re-proves restart safety.
   compose(['restart', 'worker'], { stdio: 'ignore' });
-  await waitForSql(`select count(*) from scheduled_notifications where tournament_id = '${tournamentId}';`, (value) => value !== '0', 90);
-  const plannedTypes = psql(`select string_agg(distinct type, ',') from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`);
+  await waitForSql(`select count(*) from scheduled_notifications where event_id = '${tournamentId}';`, (value) => value !== '0', 90);
+  const plannedTypes = psql(`select string_agg(distinct type, ',') from scheduled_notifications where event_id = '${tournamentId}' and status = 'Planned';`);
   check(plannedTypes.includes('DayOne') && plannedTypes.includes('DayTwo') && plannedTypes.includes('Monthly') && plannedTypes.includes('Saturday'),
     `registration plans the whole reminder ladder (${plannedTypes})`);
 
@@ -259,14 +259,14 @@ try {
   // That is a pre-existing Worker/DbContext scoping defect, not something this rehearsal introduced,
   // and papering over it here would turn a real finding into a green tick. See the C43 report.
   const pendingEvents = await waitForSql(
-    'select count(*) from tournament_lifecycle_events where reminder_plan_action <> \'None\' and reminder_plan_processed_at is null;',
+    'select count(*) from event_lifecycle_entries where reminder_plan_action <> \'None\' and reminder_plan_processed_at is null;',
     (value) => value === '0', 60);
   check(pendingEvents === '0', `the scheduler drains every pending lifecycle event (${pendingEvents} left)`);
 
-  const beforeMove = psql(`select coalesce(max(scheduled_at_utc)::text, '') from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`);
+  const beforeMove = psql(`select coalesce(max(scheduled_at_utc)::text, '') from scheduled_notifications where event_id = '${tournamentId}' and status = 'Planned';`);
   journey('date-change', 'the Organizer moves the tournament date');
   const afterMove = await waitForSql(
-    `select coalesce(max(scheduled_at_utc)::text, '') from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`,
+    `select coalesce(max(scheduled_at_utc)::text, '') from scheduled_notifications where event_id = '${tournamentId}' and status = 'Planned';`,
     (value) => value !== beforeMove && value !== '', 30);
   check(afterMove !== beforeMove && afterMove !== '', `a date change replans the pending reminders (${beforeMove} -> ${afterMove})`);
   const majorUpdate = await waitForSql(
@@ -276,10 +276,10 @@ try {
 
   // Cancelling raises a lifecycle event, so the reconcile pass picks it up on its next poll.
   journey('cancel', 'the Organizer cancels the tournament');
-  const cancelledStatus = await waitForSql(`select status from scheduled_tournaments where id = '${tournamentId}';`, (value) => value === 'Cancelled', 30);
+  const cancelledStatus = await waitForSql(`select status from events where id = '${tournamentId}';`, (value) => value === 'Cancelled', 30);
   check(cancelledStatus === 'Cancelled', `the tournament is cancelled (${cancelledStatus})`);
   const cancelledReminders = await waitForSql(
-    `select count(*) from scheduled_notifications where tournament_id = '${tournamentId}' and status = 'Planned';`,
+    `select count(*) from scheduled_notifications where event_id = '${tournamentId}' and status = 'Planned';`,
     (value) => value === '0', 60);
   check(cancelledReminders === '0', `cancellation stops every pending reminder (${cancelledReminders} still planned)`);
   const cancellationMessage = await waitForSql(
@@ -294,14 +294,14 @@ try {
   journey('spare-register', 'the participant registers on the second tournament');
   compose(['restart', 'worker'], { stdio: 'ignore' });
   const sparePlanned = await waitForSql(
-    `select count(*) from scheduled_notifications where tournament_id = '${spareTournamentId}' and status = 'Planned';`,
+    `select count(*) from scheduled_notifications where event_id = '${spareTournamentId}' and status = 'Planned';`,
     (value) => value !== '0', 90);
   check(sparePlanned !== '0', `the second registration plans its own reminders (${sparePlanned})`);
 
   journey('unregister', 'the participant unregisters');
   compose(['restart', 'worker'], { stdio: 'ignore' });
   const afterUnregister = await waitForSql(
-    `select count(*) from scheduled_notifications where tournament_id = '${spareTournamentId}' and status = 'Planned';`,
+    `select count(*) from scheduled_notifications where event_id = '${spareTournamentId}' and status = 'Planned';`,
     (value) => value === '0', 90);
   check(afterUnregister === '0', `unregistering stops every pending reminder for that participant (${afterUnregister} still planned)`);
 
