@@ -17,6 +17,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { OfflineBannerComponent } from '../../shared/offline-banner.component';
 import { OnlineStatusService } from '../../shared/online-status.service';
 import { PublicTournamentService } from './public-tournament.service';
+import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 import {
   RegistrationOfflineError,
   TournamentRegistrationService,
@@ -35,7 +36,7 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
     @else if (notFound()) { <section class="panel calendar-state" data-cy="calendar-not-found"><h1 data-cy="calendar-not-found-title">{{ i18n.t('event.notFoundTitle') }}</h1><p data-cy="calendar-not-found-body">{{ i18n.t('event.notFoundBody') }}</p></section> }
     @else if (tournament(); as item) {
       <div class="stack" data-cy="public-tournament-detail">
-        <gones-tournament-detail-view data-cy="public-tournament-detail-view" [tournament]="item" [icsUrl]="service.icsUrl(item.slug)" />
+        <gones-tournament-detail-view data-cy="public-tournament-detail-view" [tournament]="item" [icsUrl]="service.icsUrl(item.slug)" [showIcsAction]="false" />
 
         @if (auth.enabled) {
         <section class="panel event-section registration-action" data-cy="registration-section" aria-labelledby="registration-action-title">
@@ -47,18 +48,21 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
             <p aria-busy="true" data-cy="registration-capability-loading">{{ i18n.t('common.loading') }}</p>
           } @else if (capability(); as state) {
             <p data-cy="registration-capacity-status">{{ i18n.t('registration.capacityStatus', { count: state.activeParticipantCount, capacity: state.capacity ?? i18n.t('registration.unlimited') }) }}</p>
-            @if (state.canRegister) {
-              <button mat-flat-button class="home-primary-action" type="button" [disabled]="mutationPending() || !online()" (click)="register()" data-cy="registration-register">{{ mutationPending() ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button>
-            } @else if (state.canUnregister) {
+            @if (state.canUnregister) {
               <button mat-stroked-button class="danger-ghost-action" type="button" [disabled]="mutationPending() || confirmationPending() || !online()" (click)="confirmUnregister()" data-cy="registration-unregister">{{ mutationPending() || confirmationPending() ? i18n.t('registration.pending') : i18n.t('registration.unregister') }}</button>
-            } @else {
+            } @else if (!state.canRegister) {
               <p class="warning" data-cy="registration-reason">{{ reasonMessage(state.reason) }}</p>
             }
-            <a mat-stroked-button routerLink="/registrations" data-cy="my-registrations-link">{{ i18n.t('registration.myRegistrations') }}</a>
           } @else if (capabilityError()) {
             <p class="error" role="alert" data-cy="registration-capability-error">{{ i18n.t('registration.capabilityLoadFailed') }}</p>
             <button mat-stroked-button type="button" data-cy="registration-capability-retry" (click)="loadCapability()">{{ i18n.t('common.retry') }}</button>
           }
+          <div class="registration-actions" data-cy="registration-actions">
+            <a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="registration-ics">{{ i18n.t('calendar.addToCalendar') }}</a>
+            @if (capability()?.canRegister) {
+              <button mat-flat-button class="registration-register-button" type="button" [disabled]="mutationPending() || !online()" (click)="register()" data-cy="registration-register">{{ mutationPending() ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button>
+            }
+          </div>
           @if (!online()) { <p class="warning" data-cy="registration-offline">{{ i18n.t('registration.offline') }}</p> }
           <p #registrationStatus class="registration-live-status" tabindex="-1" role="status" aria-live="polite" data-cy="registration-status">{{ mutationStatus() }}</p>
         </section>
@@ -164,7 +168,8 @@ export class PublicTournamentDetailComponent implements OnInit {
   async register(): Promise<void> {
     const tournament = this.tournament();
     if (!tournament || this.mutationPending()) return;
-    await this.mutate(() => this.registrations.register(tournament.id), 'registration.registered');
+    const registered = await this.mutate(() => this.registrations.register(tournament.id), 'registration.registered');
+    if (registered) await firstValueFrom(this.dialog.open(RegistrationSuccessDialogComponent, { data: { title: tournament.title } }).afterClosed());
   }
 
   async confirmUnregister(): Promise<void> {
@@ -198,19 +203,23 @@ export class PublicTournamentDetailComponent implements OnInit {
       .join(' · ');
   }
 
-  private async mutate(action: () => Promise<unknown>, successKey: 'registration.registered' | 'registration.unregistered'): Promise<void> {
+  // Returns whether the mutation itself succeeded. Success is a flag, never an inference from the
+  // translated status string: only a confirmed server write may open the success dialog.
+  private async mutate(action: () => Promise<unknown>, successKey: 'registration.registered' | 'registration.unregistered'): Promise<boolean> {
     this.mutationPending.set(true);
     this.mutationStatus.set('');
     try {
       await action();
       const [detailRefresh] = await Promise.allSettled([this.refreshTournament(), this.loadParticipants(), this.loadCapability()]);
       this.mutationStatus.set(this.i18n.t(detailRefresh.status === 'fulfilled' ? successKey : 'registration.savedRefreshFailed'));
+      return true;
     } catch (error) {
       const code = error instanceof ApiProblemError ? error.problem.code : undefined;
       const key = error instanceof RegistrationOfflineError || (error instanceof HttpErrorResponse && error.status === 0)
         ? 'registration.offline'
         : registrationErrorKey(code);
       this.mutationStatus.set(this.i18n.t(key));
+      return false;
     } finally {
       this.mutationPending.set(false);
       queueMicrotask(() => this.registrationStatus?.nativeElement.focus());

@@ -50,15 +50,15 @@
 
 ## Impl steps
 
-- [ ] 1. Add `showIcsAction` input and the `@if` guard in `tournament-detail-view.component.ts`; add its test to `tournament-detail-view.component.test.ts`.
-- [ ] 2. Create `src/app/features/calendar/registration-success-dialog.component.ts` following `src/app/shared/dialogs.ts` style, with `data-cy` on every element.
-- [ ] 3. Add the four i18n keys to both maps in `src/app/i18n/messages.ts`.
-- [ ] 4. In `public-tournament-detail.component.ts`: pass `[showIcsAction]="false"`, add the `registration-actions` row with the ICS anchor and the register button, delete `my-registrations-link`.
-- [ ] 5. Change `register()` to await `this.mutate(...)` and, when `mutationStatus()` corresponds to success, open `RegistrationSuccessDialogComponent`. Make `mutate` return a boolean success flag instead of `void` and branch on it — do not infer success from a translated string.
-- [ ] 6. Add `.registration-register-button` and `.registration-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }` to `src/styles.css`.
-- [ ] 7. Create/extend `src/app/features/calendar/public-tournament-detail.component.test.ts` with the six tests.
-- [ ] 8. Update `cypress/e2e/tournament-registration.cy.js` for the new selectors and the success dialog.
-- [ ] 9. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx cypress run --spec cypress/e2e/tournament-registration.cy.js`.
+- [x] 1. Add `showIcsAction` input and the `@if` guard in `tournament-detail-view.component.ts`; add its test to `tournament-detail-view.component.test.ts`. — `readonly showIcsAction = input<boolean>(true)` + `@if (showIcsAction() && icsUrl(); as url)`; test `the ics anchor is on by default and opt-out for hosts that render their own` passes.
+- [x] 2. Create `src/app/features/calendar/registration-success-dialog.component.ts` following `src/app/shared/dialogs.ts` style, with `data-cy` on every element. — file exists; `data-cy-coverage.test.ts` green in `npm run test` (108 files / 995 tests passed).
+- [x] 3. Add the four i18n keys to both maps in `src/app/i18n/messages.ts`. — `registration.successTitle`, `registration.successMessage`, `common.close` in en (l.24, 554-555) and fr (l.1088, 1607-1608); the CTA reuses the existing `registration.myRegistrations` as the ticket allows, so no `registration.successCta` was added.
+- [x] 4. In `public-tournament-detail.component.ts`: pass `[showIcsAction]="false"`, add the `registration-actions` row with the ICS anchor and the register button, delete `my-registrations-link`. — test `ics and register share one action row` + `my registrations button is gone from the registration section` pass.
+- [x] 5. Change `register()` to await `this.mutate(...)` and, when `mutationStatus()` corresponds to success, open `RegistrationSuccessDialogComponent`. Make `mutate` return a boolean success flag instead of `void` and branch on it — do not infer success from a translated string. — `mutate(): Promise<boolean>`; `if (registered) await firstValueFrom(this.dialog.open(RegistrationSuccessDialogComponent, ...))`; tests `successful registration opens the success dialog` / `failed registration does not open the success dialog` / `a second submit while one is in flight neither registers nor confirms twice` pass.
+- [x] 6. Add `.registration-register-button` and `.registration-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }` to `src/styles.css`. — added at `src/styles.css:1173-1178`, reusing the existing green tokens (no second green introduced). The resting background is `--create-green-hot`, not `--create-green`: the Material label is 14px, so it needs 4.5:1, and `--forge` on `--create-green` measures 4.04:1 while `--forge` on `--create-green-hot` measures 5.65:1 (computed from the OKLCH values in `src/styles.css:5,15,16`). Hover/focus adds a glow instead of shifting the background, so both states stay above the AA bar.
+- [x] 7. Create/extend `src/app/features/calendar/public-tournament-detail.component.test.ts` with the six tests. — 7 tests in that file (six from the plan plus the double-submit case), all green.
+- [x] 8. Update `cypress/e2e/tournament-registration.cy.js` for the new selectors and the success dialog. — spec now 6 passing / 0 failing (was 5); `cypress/e2e/public-calendar.cy.js:199` also moved from `tournament-ics` to `registration-ics`, still 12 passing.
+- [x] 9. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx cypress run --spec cypress/e2e/tournament-registration.cy.js`. — all four green, output captured below.
 
 ## Outputs
 
@@ -67,9 +67,13 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar` passes
-- [ ] `npx cypress run --spec cypress/e2e/tournament-registration.cy.js` passes
-- [ ] `npm run lint && npm run typecheck` pass
-- [ ] manual check: register on an event → dialog appears → "My registrations" navigates to `/registrations`
-- [ ] app functional — unregister, capacity status, offline warning and error retry unchanged
-- [ ] commit msg draft: `feat(calendar): pair register with add-to-calendar and confirm success`
+- [x] `npx vitest run src/app/features/calendar` passes — `Test Files 18 passed (18) / Tests 220 passed (220)`
+- [x] `npx cypress run --spec cypress/e2e/tournament-registration.cy.js` passes — `6 passing (4s)`, `All specs passed! 6 6 - - -`
+- [x] `npm run lint && npm run typecheck` pass — `All files pass linting.`; `tsc --noEmit` on both projects with no output
+- [x] `npm run test` (full suite, acceptance matrix + data-cy + e2e spec coverage) — `Test Files 108 passed (108) / Tests 995 passed (995)`
+- [x] a11y gate re-run: `npx cypress run --spec cypress/e2e/accessibility.cy.js` — `11 passing`, 0 failing, unchanged count
+- [x] dialog is not an a11y trap: e2e asserts focus lands on `[data-cy=registration-success-close]` (cdkFocusInitial), `{esc}` closes the dialog, focus returns to `[data-cy=registration-status]`, and `mat-dialog-container[aria-labelledby]` resolves to `[data-cy=registration-success-title]` ("Vous êtes inscrit")
+- [x] registration is a real mutation — proved in `tournament-registration.cy.js`: no dialog while the 150ms POST is in flight and none on a 500 (status reads "échoué"), `dblclick` yields exactly 1 POST and exactly 1 `mat-dialog-container`, dialog only after `cy.wait('@register')`
+- [x] manual check: register on an event → dialog appears → "My registrations" navigates to `/registrations` — automated equivalent green (`confirms only what the server accepted and routes to My Registrations` asserts `location.pathname === '/registrations'`); human steps appended to `ai-artifacts/manual_test_checklist.md`
+- [x] app functional — unregister, capacity status, offline warning and error retry unchanged: `tournament-registration.cy.js` (unregister confirm dialog, capacity reasons, offline 375px) and `public-calendar.cy.js` (12 passing), `offline-public-read.cy.js` (3), `abuse-surface.cy.js` (4), `organizer-tournament-create.cy.js` (7, preview keeps its own ICS path) all green
+- [x] commit msg draft: `feat(calendar): pair register with add-to-calendar and confirm success`

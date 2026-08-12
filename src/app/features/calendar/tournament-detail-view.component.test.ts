@@ -127,4 +127,10 @@ describe('TournamentDetailViewComponent hero', () => {
     expect(actionsStart).toBeGreaterThan(source.indexOf('data-cy="tournament-detail-when-where"'));
     expect(stylesheet).toContain('.info-actions--end { justify-content: flex-end; }');
   });
+
+  it('the ics anchor is on by default and opt-out for hosts that render their own', () => {
+    expect(build().showIcsAction()).toBe(true);
+    expect(source).toContain('@if (showIcsAction() && icsUrl(); as url)');
+    expect(source).toContain('@if ((showIcsAction() && icsUrl()) || tournament().organization.website)');
+  });
 });

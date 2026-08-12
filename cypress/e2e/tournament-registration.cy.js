@@ -94,10 +94,28 @@ describe('public participant registration', () => {
     }).as('unregister');
 
     visit('/calendar/tournaments/lyon-legacy');
+    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/tournaments/lyon-legacy.ics');
+    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-register"]').should('exist');
+    cy.get('[data-cy="my-registrations-link"]').should('not.exist');
+
     cy.get('[data-cy="registration-register"]').dblclick();
+    // The dialog is a receipt, not an optimistic guess: nothing is confirmed while the POST is in
+    // flight (the intercept above answers with a 150ms delay).
+    cy.get('[data-cy="registration-success-title"]').should('not.exist');
     cy.wait('@register');
     cy.wrap(null).should(() => expect(registerCalls).to.eq(1));
+
+    // One POST, one dialog: the second click of the dblclick must not stack a second confirmation.
+    cy.get('mat-dialog-container').should('have.length', 1);
+    cy.get('[data-cy="registration-success-message"]').should('contain.text', 'Lyon Legacy');
+    cy.focused().should('have.attr', 'data-cy', 'registration-success-close');
+    cy.get('mat-dialog-container').invoke('attr', 'aria-labelledby').then(id => {
+      cy.get(`#${id}`).should('have.attr', 'data-cy', 'registration-success-title').and('contain.text', 'Vous êtes inscrit');
+    });
+    cy.get('body').type('{esc}');
+    cy.get('mat-dialog-container').should('not.exist');
     cy.get('[data-cy="registration-status"]').should('have.focus').and('contain.text', 'confirmée');
+
     cy.get('[data-cy="registration-unregister"]').click();
     cy.get('mat-dialog-container').should('contain.text', 'Annuler votre inscription').find('button').contains('Annuler l’inscription').click();
     cy.wait('@unregister');
@@ -108,6 +126,26 @@ describe('public participant registration', () => {
       expect(keys[0]).to.be.a('string').and.not.be.empty;
       expect(keys[1]).not.to.eq(keys[0]);
     });
+  });
+
+  it('confirms only what the server accepted and routes to My Registrations', () => {
+    authenticated();
+    cy.intercept('GET', '**/api/users/me/registrations?*', { items: [], page: 1, pageSize: 100, totalCount: 0 });
+    cy.intercept('GET', '**/api/tournaments/*/registration-capability', { canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 });
+    cy.intercept('POST', '**/api/tournaments/*/registrations', { statusCode: 500, body: { title: 'boom', status: 500 } }).as('failed');
+
+    visit('/calendar/tournaments/lyon-legacy');
+    cy.get('[data-cy="registration-register"]').click();
+    cy.wait('@failed');
+    cy.get('[data-cy="registration-status"]').should('contain.text', 'échoué');
+    cy.get('mat-dialog-container').should('not.exist');
+
+    cy.intercept('POST', '**/api/tournaments/*/registrations', { statusCode: 201, body: { attemptId: 'attempt', tournamentId: tournament.id, userId: 'user', status: 'Confirmed', registeredAt: '2030-01-01T00:00:00Z' } }).as('register');
+    cy.get('[data-cy="registration-register"]').click();
+    cy.wait('@register');
+    cy.get('[data-cy="registration-success-my-registrations"]').click();
+    cy.get('mat-dialog-container').should('not.exist');
+    cy.location('pathname').should('eq', '/registrations');
   });
 
   it('rejects offline writes without request or optimistic capacity change at 375px', () => {

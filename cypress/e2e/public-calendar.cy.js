@@ -196,7 +196,9 @@ describe('public Calendar V1', () => {
     cy.wait('@detail');
     cy.get('[data-cy="public-tournament-detail"]').should('contain.text', 'Europe/Paris').and('contain.text', 'Cancelled');
     cy.get('gones-server-sanitized-html a').should('have.attr', 'target', '_blank').and('have.attr', 'rel', 'noopener noreferrer');
-    cy.get('[data-cy="tournament-ics"]').should('have.attr', 'href').and('contain', '/api/tournaments/lyon-legacy.ics');
+    // The hero no longer owns the ICS action: it sits in the registration action row (T8).
+    cy.get('[data-cy="tournament-ics"]').should('not.exist');
+    cy.get('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/tournaments/lyon-legacy.ics');
 
     // The hero is a layout claim, so read the rendered text and geometry rather than the template.
     cy.get('[data-cy="tournament-detail-title"]').should('have.text', '[Legacy] Lyon Legacy (32)');

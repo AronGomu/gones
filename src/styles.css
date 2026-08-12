@@ -1170,6 +1170,12 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .public-tournament-detail .rich-content a { overflow-wrap: anywhere; }
 .registration-action { display: grid; justify-items: start; gap: .75rem; }
 .registration-action p { margin: 0; }
+.registration-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+/* --create-green-hot, not --create-green: the label is 14px, so it needs 4.5:1, and forge on
+   --create-green is only 4.04:1 while forge on --create-green-hot is 5.65:1. Hover adds a glow
+   instead of shifting the background, which keeps both states above the AA bar. */
+.registration-register-button:not(:disabled) { --mdc-filled-button-container-color: var(--create-green-hot); --mdc-filled-button-label-text-color: var(--forge); --mat-filled-button-state-layer-color: var(--forge); background-color: var(--create-green-hot) !important; color: var(--forge) !important; font-weight: 900; }
+.registration-register-button:not(:disabled):hover, .registration-register-button:not(:disabled):focus-visible { box-shadow: 0 12px 24px color-mix(in oklch, var(--create-green) 30%, transparent), 0 0 0 3px color-mix(in oklch, var(--create-green) 22%, transparent); }
 .registration-live-status:empty { min-height: 0; margin: 0; }
 .registration-live-status:not(:empty) { border-left: 3px solid var(--create-green); padding: .65rem .8rem; background: color-mix(in oklch, var(--create-green) 12%, var(--black-metal)); }
 .registration-live-status:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
@@ -1195,6 +1201,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .public-month-day:has(.public-month-event) { min-height: 5.5rem; }
   .public-tournament-card, .registration-card { grid-template-columns: 1fr; }
   .public-tournament-card .calendar-event__actions > *, .registration-action > a, .registration-action > button { width: 100%; }
+  .registration-actions, .registration-actions > a, .registration-actions > button { width: 100%; }
 }
 
 /* Organizer Tournament create + management */

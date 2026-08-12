@@ -1181,3 +1181,37 @@ target, the icon and the fallback when an event has no address.
 - [ ] Repeat on a phone-width window: the icon and the address stay on the date-and-location row and
       wrap without a horizontal scrollbar.
 - [ ] Open the organizer preview of a tournament: the location there behaves the same way.
+
+## T8 registration-action-row-and-dialog
+
+"Add to calendar" and "Register" now sit on the same row inside the Registration block of an event
+page, the register button is green, the standalone "My registrations" button is gone, and a
+confirmation dialog opens after the server confirms the registration.
+
+- [ ] Open an event page while signed out: the Registration block shows the sign-in prompt and
+      "Add to calendar" is still there and still downloads the `.ics` file.
+- [ ] Sign in as a user who can register and open an open event: "Add to calendar" and a green
+      "Register" button sit side by side on one row, and there is no separate "My registrations"
+      button anywhere in the block.
+- [ ] Click "Register": the button shows the saving label, and the confirmation dialog appears only
+      after the request comes back — never instantly.
+- [ ] Read the dialog: it names the event you registered for and offers "Close" and
+      "My Registrations".
+- [ ] Click "My Registrations" in the dialog: the dialog closes and you land on the My Registrations
+      page with that event listed.
+- [ ] Register on another event and press Escape instead: the dialog closes, the green status line
+      below the actions reads the confirmation, and the keyboard focus is back on that status line.
+- [ ] Register once more and check the dialog with the keyboard only: Tab cycles between "Close" and
+      "My Registrations" without escaping to the page behind it.
+- [ ] Double-click "Register" fast on a fresh event: exactly one registration is created (check the
+      participant count and My Registrations) and exactly one dialog opens.
+- [ ] Force a failure (register on an event that just filled up, or go offline mid-click): an error
+      message appears in the status line and NO success dialog opens.
+- [ ] Cancel a registration: the old confirm dialog still appears and behaves as before — no success
+      dialog after cancelling.
+- [ ] Repeat on a phone-width window: the two buttons stack full width, the dialog fits the screen
+      and there is no horizontal scrollbar.
+- [ ] Switch the language to French: dialog title, message, "Fermer" and "Mes inscriptions" are all
+      translated.
+- [ ] Open the organizer preview of a tournament: the hero looks exactly as before this change
+      (no registration row, no "Register" button).
