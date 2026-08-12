@@ -93,6 +93,9 @@ internal static class OrganizationEndpoints
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
+        admin.MapGet("/{organizationId:guid}/members", ListAdminOrganizationMembersAsync)
+            .Produces<IReadOnlyList<AdminOrganizationMemberResponse>>()
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     private static async Task<IResult> ListPublicOrganizationsAsync(
@@ -339,15 +342,44 @@ internal static class OrganizationEndpoints
                 item.DeletedAt,
                 item.CreatedAt,
                 item.UpdatedAt,
-                item.Version))
+                item.Version,
+                database.OrganizationMembers.Count(member => member.OrganizationId == item.Id)))
             .ToListAsync(cancellationToken);
         return Results.Ok(new AdminOrganizationListResponse(items, pageNumber, size, total));
+    }
+
+    private static async Task<IResult> ListAdminOrganizationMembersAsync(
+        Guid organizationId,
+        GonesDbContext database,
+        CancellationToken cancellationToken)
+    {
+        // Soft-deleted organizations keep their roster, so the 404 rule is the stored row itself.
+        var exists = await database.Organizations.AsNoTracking()
+            .AnyAsync(item => item.Id == organizationId, cancellationToken);
+        if (!exists) throw new ResourceNotFoundException();
+
+        var members = await (
+            from member in database.OrganizationMembers.AsNoTracking()
+            join user in database.Users.AsNoTracking() on member.UserId equals user.Id
+            join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
+            where member.OrganizationId == organizationId
+            orderby member.Role == OrganizationRoles.Owner ? 0 : 1, profile.NormalizedUsername
+            select new AdminOrganizationMemberResponse(
+                member.UserId,
+                profile.Username,
+                user.Email ?? string.Empty,
+                user.GlobalRole,
+                member.Role,
+                member.CreatedAt)
+        ).ToListAsync(cancellationToken);
+        return Results.Ok(members);
     }
 
     private static async Task<IResult> CreateOrganizationAsync(
         CreateOrganizationRequest request,
         ClaimsPrincipal principal,
         OrganizationService organizations,
+        GonesDbContext database,
         CancellationToken cancellationToken)
     {
         var organization = await organizations.CreateAsync(
@@ -358,7 +390,9 @@ internal static class OrganizationEndpoints
             request.ContactEmail,
             request.OwnerUserId,
             cancellationToken);
-        return Results.Created($"/api/admin/organizations/{organization.Id:D}", ToAdminResponse(organization));
+        return Results.Created(
+            $"/api/admin/organizations/{organization.Id:D}",
+            ToAdminResponse(organization, await CountMembersAsync(database, organization.Id, cancellationToken)));
     }
 
     private static async Task<IResult> UpdateOrganizationAsync(
@@ -366,6 +400,7 @@ internal static class OrganizationEndpoints
         UpdateOrganizationRequest request,
         ClaimsPrincipal principal,
         OrganizationService organizations,
+        GonesDbContext database,
         CancellationToken cancellationToken)
     {
         var organization = await organizations.UpdateAsync(
@@ -376,7 +411,7 @@ internal static class OrganizationEndpoints
             request.Website,
             request.ContactEmail,
             cancellationToken);
-        return Results.Ok(ToAdminResponse(organization));
+        return Results.Ok(ToAdminResponse(organization, await CountMembersAsync(database, organization.Id, cancellationToken)));
     }
 
     private static async Task<IResult> DeleteOrganizationAsync(
@@ -399,7 +434,10 @@ internal static class OrganizationEndpoints
         return Results.NoContent();
     }
 
-    private static AdminOrganizationResponse ToAdminResponse(Organization organization) =>
+    private static Task<int> CountMembersAsync(GonesDbContext database, Guid organizationId, CancellationToken cancellationToken) =>
+        database.OrganizationMembers.AsNoTracking().CountAsync(member => member.OrganizationId == organizationId, cancellationToken);
+
+    private static AdminOrganizationResponse ToAdminResponse(Organization organization, int memberCount) =>
         new(
             organization.Id,
             organization.Name,
@@ -409,7 +447,8 @@ internal static class OrganizationEndpoints
             organization.DeletedAt,
             organization.CreatedAt,
             organization.UpdatedAt,
-            organization.Version);
+            organization.Version,
+            memberCount);
 
     private static OrganizationNotificationSettingsResponse ToNotificationResponse(OrganizationNotificationSettings settings) =>
         new(settings.OrganizationId, settings.NotifyOnRegistration, settings.NotifyOnUnregistration, settings.UpdatedAt);
@@ -444,6 +483,14 @@ internal sealed record OrganizationMemberResponse(
     string Role,
     Instant CreatedAt);
 
+internal sealed record AdminOrganizationMemberResponse(
+    Guid UserId,
+    string Username,
+    string Email,
+    string GlobalRole,
+    string Role,
+    Instant CreatedAt);
+
 internal sealed record AdminOrganizationListResponse(
     IReadOnlyList<AdminOrganizationResponse> Items,
     int Page,
@@ -459,7 +506,12 @@ internal sealed record AdminOrganizationResponse(
     Instant? DeletedAt,
     Instant CreatedAt,
     Instant UpdatedAt,
-    long Version);
+    long Version,
+    int MemberCount)
+{
+    /// <summary>A Draft organization is one nobody staffs yet; it is derived, never stored.</summary>
+    public bool IsDraft => MemberCount == 0;
+}
 
 internal sealed record OrganizationNotificationSettingsResponse(
     Guid OrganizationId,

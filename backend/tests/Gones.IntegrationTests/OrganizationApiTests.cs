@@ -336,6 +336,145 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         Assert.Equal(await ProblemCode(idor), await ProblemCode(missing));
     }
 
+    [Fact]
+    public async Task Admin_reads_any_roster_with_identities_and_non_admins_are_refused()
+    {
+        var adminEmail = $"admin-r-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-r-{Guid.NewGuid():N}@example.test";
+        var organizerEmail = $"organizer-r-{Guid.NewGuid():N}@example.test";
+        var plainEmail = $"plain-r-{Guid.NewGuid():N}@example.test";
+        var ownerUsername = UniqueUsername("Zwr");
+        var organizerUsername = UniqueUsername("Awr");
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adr"));
+        await RegisterAndVerifyAsync(ownerEmail, ownerUsername);
+        await RegisterAndVerifyAsync(organizerEmail, organizerUsername);
+        await RegisterAndVerifyAsync(plainEmail, UniqueUsername("Plr"));
+        await PromoteToAdminAsync(adminEmail);
+        await AssignGlobalRoleAsync(organizerEmail, GlobalRoles.Organizer);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var organizer = await database.Users.SingleAsync(item => item.NormalizedEmail == organizerEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+
+        using var create = await SendAuthorizedAsync(HttpMethod.Post, "/api/admin/organizations", adminToken, new
+        {
+            name = $"Roster Club {Guid.NewGuid():N}",
+            ownerUserId = owner.Id
+        });
+        var orgId = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        using var addOrganizer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+        {
+            userId = organizer.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addOrganizer.StatusCode);
+
+        using var roster = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations/{orgId:D}/members", adminToken);
+        Assert.Equal(HttpStatusCode.OK, roster.StatusCode);
+        var members = await roster.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(2, members.GetArrayLength());
+
+        // Owner first even though the organizer sorts earlier by username.
+        var first = members[0];
+        var second = members[1];
+        Assert.Equal(OrganizationRoles.Owner, first.GetProperty("role").GetString());
+        Assert.Equal(owner.Id, first.GetProperty("userId").GetGuid());
+        Assert.Equal(ownerUsername, first.GetProperty("username").GetString());
+        Assert.Equal(ownerEmail, first.GetProperty("email").GetString());
+        Assert.Equal(GlobalRoles.User, first.GetProperty("globalRole").GetString());
+        Assert.Equal(OrganizationRoles.Organizer, second.GetProperty("role").GetString());
+        Assert.Equal(organizerUsername, second.GetProperty("username").GetString());
+        Assert.Equal(GlobalRoles.Organizer, second.GetProperty("globalRole").GetString());
+
+        // The roster carries identities and nothing else - no hashes, tokens or verification secrets.
+        Assert.Equal(
+            new[] { "userId", "username", "email", "globalRole", "role", "createdAt" }.Order(),
+            first.EnumerateObject().Select(property => property.Name).Order());
+
+        using var anonymous = await Client.GetAsync($"/api/admin/organizations/{orgId:D}/members");
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+
+        var plainToken = await LoginAsync(plainEmail);
+        using var plain = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations/{orgId:D}/members", plainToken);
+        Assert.Equal(HttpStatusCode.Forbidden, plain.StatusCode);
+
+        // Global Organizer, and a member of this very organization, is still refused.
+        var organizerToken = await LoginAsync(organizerEmail);
+        using var organizerRead = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations/{orgId:D}/members", organizerToken);
+        Assert.Equal(HttpStatusCode.Forbidden, organizerRead.StatusCode);
+
+        using var unknown = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations/{Guid.NewGuid():D}/members", adminToken);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+
+        using var deletedCreate = await SendAuthorizedAsync(HttpMethod.Post, "/api/admin/organizations", adminToken, new
+        {
+            name = $"Deleted Roster Club {Guid.NewGuid():N}",
+            ownerUserId = owner.Id
+        });
+        var deletedOrgId = (await deletedCreate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        using var softDelete = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/organizations/{deletedOrgId:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, softDelete.StatusCode);
+
+        using var deletedRoster = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations/{deletedOrgId:D}/members", adminToken);
+        Assert.Equal(HttpStatusCode.OK, deletedRoster.StatusCode);
+        var deletedMembers = await deletedRoster.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, deletedMembers.GetArrayLength());
+        Assert.Equal(owner.Id, deletedMembers[0].GetProperty("userId").GetGuid());
+    }
+
+    [Fact]
+    public async Task Admin_organization_list_reports_member_count_and_draft_state()
+    {
+        var adminEmail = $"admin-c-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-c-{Guid.NewGuid():N}@example.test";
+        var organizerEmail = $"organizer-c-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adc"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owc"));
+        await RegisterAndVerifyAsync(organizerEmail, UniqueUsername("Ogc"));
+        await PromoteToAdminAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var organizer = await database.Users.SingleAsync(item => item.NormalizedEmail == organizerEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        var marker = $"{Guid.NewGuid():N}";
+
+        using var create = await SendAuthorizedAsync(HttpMethod.Post, "/api/admin/organizations", adminToken, new
+        {
+            name = $"Staffed {marker}",
+            ownerUserId = owner.Id
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var created = await create.Content.ReadFromJsonAsync<JsonElement>();
+        var orgId = created.GetProperty("id").GetGuid();
+        Assert.Equal(1, created.GetProperty("memberCount").GetInt32());
+        Assert.False(created.GetProperty("isDraft").GetBoolean());
+
+        using var addOrganizer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+        {
+            userId = organizer.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addOrganizer.StatusCode);
+
+        // A member-less organization can only exist as a stored row, so seed one directly.
+        database.Organizations.Add(Organization.Create($"Draft {marker}", null, null, null, NodaTime.SystemClock.Instance.GetCurrentInstant()));
+        await database.SaveChangesAsync();
+
+        using var list = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations?search={marker}", adminToken);
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        var body = await list.Content.ReadFromJsonAsync<JsonElement>();
+        var items = body.GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(2, items.Count);
+        var staffed = items.Single(item => item.GetProperty("name").GetString() == $"Staffed {marker}");
+        var draft = items.Single(item => item.GetProperty("name").GetString() == $"Draft {marker}");
+        Assert.Equal(2, staffed.GetProperty("memberCount").GetInt32());
+        Assert.False(staffed.GetProperty("isDraft").GetBoolean());
+        Assert.Equal(0, draft.GetProperty("memberCount").GetInt32());
+        Assert.True(draft.GetProperty("isDraft").GetBoolean());
+    }
+
     private sealed class BlockingOrganizationDeleteDependency : IOrganizationDeleteDependency
     {
         public Task<IReadOnlyList<string>> GetBlockersAsync(Guid organizationId, CancellationToken cancellationToken) =>
@@ -356,11 +495,13 @@ public sealed class OrganizationApiTests : IAsyncLifetime
             builder.UseSetting("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT", "1000");
         });
 
-    private async Task PromoteToAdminAsync(string email)
+    private Task PromoteToAdminAsync(string email) => AssignGlobalRoleAsync(email, GlobalRoles.Admin);
+
+    private async Task AssignGlobalRoleAsync(string email, string role)
     {
         await using var database = CreateContext();
         var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
-        user.AssignGlobalRole(GlobalRoles.Admin);
+        user.AssignGlobalRole(role);
         user.SecurityStamp = Guid.NewGuid().ToString("N");
         await database.SaveChangesAsync();
     }

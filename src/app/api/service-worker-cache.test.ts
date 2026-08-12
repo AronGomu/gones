@@ -43,6 +43,7 @@ const PRIVATE_GET_URLS = [
   '/api/admin/users',
   '/api/admin/audit',
   '/api/admin/organizations',
+  '/api/admin/organizations/22222222-2222-2222-2222-222222222222/members',
   '/api/admin/notifications/dead-letters',
   '/api/admin/tournaments/deleted',
   '/api/maintenance/player-names',

@@ -1232,3 +1232,26 @@ confirmation dialog opens after the server confirms the registration.
       "Email verified" column.
 - [ ] Run `npm run dev:accounts` on a stack that is already up: only `admin@gones.test` and
       `test@gones.test` are (re-)seeded, and both still sign in with the documented password.
+
+## T10 org-membership-read-model
+
+- [ ] Sign in as `admin@gones.test`, then in a terminal read a roster with that admin's token:
+      `curl -H "Authorization: Bearer <admin token>" http://127.0.0.1:5080/api/admin/organizations/<org id>/members`.
+      Each row shows only the member's `userId`, `username`, `email`, `globalRole`, `role` and
+      `createdAt` — no password hash, no token, no email-verification field.
+- [ ] Repeat the same URL with no `Authorization` header at all: the API answers 401 and returns no
+      roster body.
+- [ ] Repeat it with the token of `test@gones.test` (plain user): 403, no roster body.
+- [ ] Repeat it with the token of `organizer@gones.test`, who owns "Gones Lyon", against the
+      "Gones Lyon" id: still 403 — owning an organization does not grant the admin read.
+- [ ] Ask for a roster with a random UUID as the organization id, using the admin token: 404.
+- [ ] As admin, soft-delete an organization from `/admin/organizations`, then read its roster with
+      the admin token: it still answers 200 and still lists the members.
+- [ ] Read `GET /api/admin/organizations/` as admin and check the list: every item carries a
+      `memberCount`, and `isDraft` is true only where `memberCount` is 0.
+- [ ] Open `/admin/organizations` in the browser as admin: the list, the create form, the edit form,
+      delete and restore all behave exactly as before.
+- [ ] Re-run `npm run backend:test` on a host whose ephemeral port range
+      (`sysctl net.ipv4.ip_local_port_range`) does NOT overlap rootless docker's published-port range,
+      and confirm 0 failures — the failures seen on the development host are Testcontainers startup
+      errors (`RootlessKit PortManager.AddPort(): bind: address already in use`), not test failures.
