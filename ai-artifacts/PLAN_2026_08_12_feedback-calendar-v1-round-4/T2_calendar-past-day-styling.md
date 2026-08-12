@@ -66,3 +66,88 @@
 - [x] manual check: open `/calendar`, confirm days before today are dimmed and today is not → done in a real browser (Electron 138, dev server :4200) with a throwaway spec, since the vitest suite has no DOM. On the real system date 2026-08-12: the `2026-08-11` cell has `data-cy="calendar-month-day-past"`, class `public-month-day--past` and computed `opacity: 0.5`; the `2026-08-12` cell has `data-cy="calendar-month-day"`, no past class and computed `opacity: 1`; `2026-08-13` is not past. Navigating to September shows zero past cells, navigating back restores them. Spec deleted after the run — human-facing steps are in `ai-artifacts/manual_test_checklist.md`.
 - [x] app functional — month navigation, day events and the "+N more" marker unchanged → `npx cypress run --spec cypress/e2e/public-calendar.cy.js` against :4200 → `8 passing`, including the `+1` more-marker assertion and the month prev/next assertions.
 - [x] commit msg draft: `feat(calendar): dim past days in the month grid`
+
+## Repair
+
+**Regression.** The shipped technique — `.public-month-day--past { opacity: .5; }` on the whole cell —
+turned the accessibility gate RED. `opacity` on a container composites every descendant against what
+is behind it, so the dimming applied to the event chips and the day numbers as well, not just to the
+cell's own paint. `npx cypress run --spec cypress/e2e/accessibility.cy.js` (which enforces
+`wcag2a, wcag2aa, wcag21a, wcag21aa`) went from 11 passing to `9 passing, 2 failing`:
+
+```
+1) public calendar list and calendar views have no WCAG A/AA violations:
+   -[ 'calendar (month view): color-contrast' ]  +[]
+2) public surfaces pass axe at 375px too:
+   -[ 'calendar @375px: color-contrast' ]  +[]
+```
+
+Measured before (axe-core `color-contrast` node data, `/calendar` at the real date 2026-08-12):
+
+| Node | fg on bg | Ratio | Needs |
+| ---- | -------- | ----- | ----- |
+| `time[datetime="2026-08-11"]` (past, in month) | `#4e423a` on `#150403` | **2.06:1** | 4.5:1 |
+| `time[datetime="2026-07-26"]` (past + out of month) | `#4e423a` on `#0c0201` | **2.11:1** | 4.5:1 |
+| `.public-month-event__time` on a past day | `#65574d` on `#240402` | **2.76:1** | 4.5:1 |
+| `.public-month-event__title` on a past day | `#7d746e` on `#240402` | **4.20:1** | 4.5:1 |
+
+**Technique chosen.** Drop the blanket `opacity` and express "past" with two properties that only
+touch the cell's own paint, using existing theme tokens:
+
+- a darker cell tint — `background: color-mix(in oklch, var(--forge) 45%, var(--iron))`, and
+  `color-mix(in oklch, var(--forge) 80%, var(--iron))` when the cell is also `--muted`, so the
+  out-of-month past cells stay a step below the plain out-of-month ones instead of the later
+  `--past` rule flattening them;
+- the day number keeps `color: var(--steel); font-weight: 700` — muted next to `--ash`/900, but a
+  real foreground colour rather than a composited one;
+- the event chips are left untouched, so they render at full strength on a past day.
+
+A *darker* tint (not a lighter one) is what keeps the chips safe: their background is
+`color-mix(in oklch, var(--blood) 18%, transparent)`, so it composites over the cell and a darker
+cell can only raise the ratio of the light chip text.
+
+Measured after (same axe run, now from `results.passes`):
+
+| Node | fg on bg | Ratio | Needs |
+| ---- | -------- | ----- | ----- |
+| `time` on a past in-month day (`2026-08-01`…`2026-08-11`) | `#928373` on `#120302` | **5.49:1** | 4.5:1 |
+| `time` on a past out-of-month day (`2026-07-26`…`2026-07-31`) | `#928373` on `#090101` | **5.62:1** | 4.5:1 |
+| `.public-month-event__time` on the past `2026-08-01` chip | `#c1ad99` on `#320202` | **8.47:1** | 4.5:1 |
+| `.public-month-event__title` on the past `2026-08-01` chip | `#f0e6db` on `#320202` | **14.88:1** | 4.5:1 |
+| `time` on today / future (`2026-08-12`…`2026-08-31`) | `#f0e6db` on `#1f0704` | **15.63:1** | 4.5:1 |
+| `time` on a future out-of-month day (`2026-09-01`…) | `#928373` on `#0e0201` | **5.56:1** | 4.5:1 |
+
+The T2 contract is unchanged: `isPastCalendarDay` is untouched, past cells keep
+`data-cy="calendar-month-day-past"`, non-past cells keep `data-cy="calendar-month-day"`, and today is
+never dimmed.
+
+- [x] R1. Flip the `.public-month-day--past` style assertion in
+      `src/app/features/calendar/public-calendar.component.test.ts` to the new rules first, and add a
+      guard that no `.public-month-day--past` rule may contain `opacity`. → verify: red run before the
+      CSS change → `Tests 1 failed | 68 passed (69)` at `public-calendar.component.test.ts:919`.
+- [x] R2. Replace the `opacity` rule in `src/styles.css:1141-1145` with the darker tint + the
+      `--past.--muted` stack rule, keeping the existing `> time` rule, and comment why `opacity` is
+      banned here. → verify: `npx vitest run src/app/features/calendar` → `16 files / 189 tests passed`.
+- [x] R3. Re-measure in the browser rather than assuming the ratios: dump axe's `color-contrast`
+      `violations` **and** `passes` node data plus the computed styles of each cell kind, through a
+      throwaway spec against the dev server on :4200. → verify: `PROBE calendar (month view) violations`
+      printed `[]`; the two ratio tables above are that run's output. Spec deleted afterwards
+      (`ops/e2e-spec-coverage.test.ts` fails on any spec that is not wired into CI, which is how the
+      deletion is enforced).
+- [x] R4. Past cells still read as distinct from today — computed styles from the same run:
+      past in-month `background: oklch(0.1295 0.03375 30.55)`, day number `oklch(0.62 0.03 70)` at
+      weight `700`; today `background: oklch(0.17 0.045 31)`, day number `oklch(0.93 0.018 72)` at
+      weight `900`; both at `opacity: 1`, `filter: none`. Past out-of-month
+      `background: oklch(0.098 0.025 30.2)` sits below future out-of-month `oklch(0.1178 0.0305 30.42)`,
+      and the two are further split by weight `700` vs `900`. 17 past cells, 25 non-past, today among
+      the non-past.
+
+### Repair validation
+
+- [x] `npx cypress run --spec cypress/e2e/accessibility.cy.js` → `11 passing (4s)`, `0 failing`
+      (was `9 passing, 2 failing`).
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` → `9 passing (5s)`, `0 failing`.
+- [x] `npm run test` → `Test Files 105 passed (105) / Tests 959 passed (959)`.
+- [x] `npm run lint` → `All files pass linting`; `npm run typecheck` → both `tsc --noEmit` projects
+      exit silent.
+- [x] commit msg: `fix(calendar): keep past-day styling above the AA contrast bar`

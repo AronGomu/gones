@@ -1025,24 +1025,30 @@ test covers is a real browser session restored from the refresh cookie on a real
 
 ## T2 calendar-past-day-styling
 
-Automated tests cover the pure `isPastCalendarDay` helper, the template bindings and the two CSS
-rules, and a browser run confirmed the computed opacity on the day the change was written. What no
-automated test covers is how the dimming actually reads to a human eye, across themes, zoom levels
-and a date that is not the day the tests were written.
+A past day is a **darker cell with a muted day number**, not a faded cell: the first attempt used
+`opacity: .5` on the whole cell, which dragged the event chips and the day numbers down to 2.1:1 and
+failed the axe gate. The event chips on a past day now render at full strength. Automated tests cover
+the pure `isPastCalendarDay` helper, the template bindings, the CSS rules and the axe contrast gate.
+What no automated test covers is whether the recessed cell still *reads* as past to a human eye,
+across zoom levels and on a date that is not the day the change was written.
 
-- [ ] Open `/calendar` in the month view on today's real date: every cell before today looks clearly
-      dimmer than today's cell, and today's cell is at full strength.
-- [ ] Today's cell is not dimmed and its day number is still the bright, heavy one.
-- [ ] Tomorrow and the rest of the month are not dimmed.
-- [ ] Cells from the previous/next month that are already greyed out are still readable when they are
-      also past — the two treatments stack without turning the number invisible.
-- [ ] A tournament chip sitting on a past day is still readable and still clickable, and its link opens
-      the right tournament page.
-- [ ] A past day carrying more than three tournaments still shows the "+N more" marker, and the marker
-      is still legible through the dimming.
-- [ ] Page back a month: the whole grid is dimmed. Page forward two months: nothing is dimmed.
-- [ ] Zoom the browser to 200% and check the past cells are still readable, not washed out.
-- [ ] Leave the calendar open past local midnight, then reload: yesterday is now dimmed too.
+- [ ] Open `/calendar` in the month view on today's real date: every cell before today has a visibly
+      darker background than today's cell, and its day number is the softer, lighter-weight one.
+- [ ] Today's cell is not darkened and its day number is still the bright, heavy one.
+- [ ] Tomorrow and the rest of the month are not darkened.
+- [ ] Cells from the previous month that are already greyed out go one step darker again when they are
+      past — they still read as a different shade from the greyed-out *next*-month cells at the bottom
+      of the grid, and their numbers stay perfectly readable.
+- [ ] A tournament chip sitting on a past day is at full strength — same red left bar, same crisp
+      title and time as a chip on a future day — and it is still clickable and opens the right
+      tournament page.
+- [ ] A past day carrying more than three tournaments still shows the "+N more" marker, at the same
+      legibility as on a future day.
+- [ ] Page back a month: every cell is darkened. Page forward two months: nothing is darkened.
+- [ ] Zoom the browser to 200%: past day numbers and past-day chips are still comfortably readable.
+- [ ] Squint at the grid from a step back: the past block still separates from today and the days to
+      come without anything looking washed out or broken.
+- [ ] Leave the calendar open past local midnight, then reload: yesterday is now darkened too.
 
 ## T3 list-card-click-hover-time
 

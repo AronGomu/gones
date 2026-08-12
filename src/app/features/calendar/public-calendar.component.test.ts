@@ -912,8 +912,16 @@ describe('PublicCalendarComponent past day cells', () => {
     expect(cell).toContain(`[attr.data-cy]="isPast(day.date) ? 'calendar-month-day-past' : 'calendar-month-day'"`);
   });
 
-  it('the past cell is dimmed with a muted day number', () => {
-    expect(stylesheet).toContain('.public-month-day--past { opacity: .5; }');
+  // Blanket `opacity` on the cell dragged every descendant below the AA contrast bar (axe
+  // color-contrast, 2.06:1 on the day number). The past state is a darker cell plus a muted-but-AA
+  // day number instead, and the event chips stay at full strength.
+  it('the past cell is a darker tint with a muted day number, never a blanket opacity', () => {
+    expect(stylesheet).toContain('.public-month-day--past { background: color-mix(in oklch, var(--forge) 45%, var(--iron)); }');
+    expect(stylesheet).toContain('.public-month-day--past.public-month-day--muted { background: color-mix(in oklch, var(--forge) 80%, var(--iron)); }');
     expect(stylesheet).toContain('.public-month-day--past > time { color: var(--steel); font-weight: 700; }');
+
+    const pastRules = stylesheet.split('\n').filter(line => line.startsWith('.public-month-day--past'));
+    expect(pastRules.length).toBeGreaterThan(0);
+    expect(pastRules.some(rule => rule.includes('opacity'))).toBe(false);
   });
 });
