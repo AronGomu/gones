@@ -19,12 +19,39 @@ namespace Gones.Api.Organizations;
 /// refresh sessions, which is what makes the demotion take effect on the subject's very next request
 /// rather than at their next token refresh: <c>ValidateSecurityStampAndRoleAsync</c> compares both
 /// the stamp and the baked-in role claim against the stored row on every authenticated call.
+///
+/// <para><b>Lock order.</b> Every transaction that writes memberships takes its row locks in the
+/// order <c>organizations</c> → <c>organization_members</c> → <c>asp_net_users</c> → the rows hanging
+/// off a user (<c>user_profiles</c>, <c>refresh_sessions</c>, <c>external_identities</c>), and locks
+/// several rows of the same table in ascending id order. The derived role is a consequence of the
+/// membership rows, so the subject's user row can only be locked after them - which fixes the order
+/// for everyone else: <see cref="Gones.Api.Admin.AdminAccountService"/> reads the subject unlocked for
+/// its pre-checks and takes the user locks after the organization work, and
+/// <see cref="OrganizationService"/> calls this sync last. The one apparent exception,
+/// <c>OrganizationService.CreateAsync</c>, locks the owner before inserting the organization, but the
+/// only other rows it touches are ones it creates itself and no other transaction can see, so it
+/// cannot be part of a wait cycle.</para>
 /// </summary>
 internal sealed class OrganizationMembershipRoleService(
     GonesDbContext database,
     RefreshSessionService sessionService,
     IClock clock)
 {
+    /// <summary>
+    /// Syncs several subjects in one pass, always in ascending id order so that two transactions
+    /// touching the same pair of accounts can never take those row locks the opposite way round.
+    /// </summary>
+    public async Task SyncAfterMembershipChangeAsync(
+        Guid actorUserId,
+        IEnumerable<Guid> subjectUserIds,
+        CancellationToken cancellationToken)
+    {
+        foreach (var subjectUserId in subjectUserIds.Distinct().OrderBy(item => item))
+        {
+            await SyncAfterMembershipChangeAsync(actorUserId, subjectUserId, cancellationToken);
+        }
+    }
+
     public async Task SyncAfterMembershipChangeAsync(
         Guid actorUserId,
         Guid subjectUserId,

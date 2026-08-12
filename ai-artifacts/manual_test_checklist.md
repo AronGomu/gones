@@ -1285,3 +1285,27 @@ confirmation dialog opens after the server confirms the registration.
       whole publish flow is unchanged from before this ticket.
 - [ ] As the sole Owner of an organization that still has another member, try to remove yourself:
       the app still refuses and asks you to transfer ownership first.
+- [ ] As admin, create a brand-new organization from `/admin/organizations` and give it an owner who
+      is currently a plain user (`test@gones.test` with no membership). Sign in as that owner: they
+      are an organizer straight away — creating the organization is what promoted them, no separate
+      "add member" step needed.
+- [ ] Do that same creation while the future owner has a signed-in tab open in a second profile:
+      their next action in that tab fails and sends them back to sign in.
+- [ ] As admin, transfer an organization's ownership to someone who is *not* a member of it yet.
+      Sign in as the new owner: they are an organizer. The previous owner is still a member and still
+      an organizer; remove them from the organization and they drop back to a plain user.
+- [ ] Transfer an organization to `admin@gones.test`: the admin screens still work and the account is
+      still an administrator.
+- [ ] As admin, close an account that solely owns an organization (`/admin/users` → disable) and hand
+      that organization to a plain user. The account that inherits it becomes an organizer, any open
+      tab of theirs is signed out on its next action, and the closed account keeps no organization and
+      no organizer role.
+- [ ] Close an account whose organization is handed to `admin@gones.test`: the admin stays an
+      administrator.
+- [ ] As admin, soft-delete an organization whose only member is one account, then close that
+      account. The closure goes through without asking for an ownership transfer; restore the
+      organization afterwards and it shows as a Draft with 0 members.
+- [ ] Fire an account closure and a membership change on the same account at the same time (two
+      terminals, one `POST /api/admin/users/<id>/disable`, one
+      `DELETE /api/organizations/<org>/members/<id>`): both answers are ordinary ones — a success or a
+      409/404 problem document. Neither is a 500 and the API log records no `deadlock detected`.

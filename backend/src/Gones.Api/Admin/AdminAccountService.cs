@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Gones.Api.Errors;
 using Gones.Api.Identity;
+using Gones.Api.Organizations;
 using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
 using Gones.Domain.Persistence;
@@ -16,6 +17,7 @@ internal sealed class AdminAccountService(
     GonesDbContext database,
     UserManager<ApplicationUser> userManager,
     RefreshSessionService sessionService,
+    OrganizationMembershipRoleService membershipRoles,
     IClock clock)
 {
     public async Task<AccountClosureImpact> GetClosureImpactAsync(
@@ -72,16 +74,18 @@ internal sealed class AdminAccountService(
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         var now = clock.GetCurrentInstant();
 
-        var subject = await database.Users
-            .FromSqlInterpolated($"SELECT * FROM asp_net_users WHERE id = {subjectUserId} FOR UPDATE")
-            .SingleOrDefaultAsync(cancellationToken)
+        // Lock order (see OrganizationMembershipRoleService): organizations -> organization_members
+        // -> asp_net_users. The pre-checks therefore read the subject unlocked, the organization work
+        // below takes its locks first, and every check that guards the write is re-run once the user
+        // rows are actually held.
+        var preview = await database.Users.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == subjectUserId, cancellationToken)
             ?? throw new ResourceNotFoundException();
-        var profile = await database.UserProfiles
-            .FromSqlInterpolated($"SELECT * FROM user_profiles WHERE user_id = {subjectUserId} FOR UPDATE")
-            .SingleOrDefaultAsync(cancellationToken)
+        var previewProfile = await database.UserProfiles.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == subjectUserId, cancellationToken)
             ?? throw new ResourceNotFoundException();
 
-        if (!string.Equals(profile.Username, confirmedUsername.Trim(), StringComparison.Ordinal))
+        if (!string.Equals(previewProfile.Username, confirmedUsername.Trim(), StringComparison.Ordinal))
         {
             throw Validation("confirmedUsername", "Typed username does not match the target account.");
         }
@@ -95,28 +99,12 @@ internal sealed class AdminAccountService(
             throw Validation("ownershipTransfers", "Duplicate organization transfers are not allowed.");
         }
 
-        var adminCount = await database.Users.CountAsync(user => user.GlobalRole == GlobalRoles.Admin, cancellationToken);
-        var block = AccountClosurePolicy.EvaluateBlock(
-            actorUserId,
-            subjectUserId,
-            subject.GlobalRole,
-            profile.IsClosed,
-            adminCount,
-            soleOwned.Select(item => item.OrganizationId).ToArray(),
-            transferMap.Keys.ToHashSet());
-        if (block is not null)
-        {
-            throw block switch
-            {
-                "already_closed" => new ResourceConflictException(),
-                "self_close" => new ResourceConflictException(),
-                "last_admin" => new ResourceConflictException(),
-                "missing_owner_transfer" => Validation("ownershipTransfers", "Every solely owned organization requires a new Owner."),
-                _ => new ResourceConflictException()
-            };
-        }
+        await EnsureNotBlockedAsync(
+            actorUserId, subjectUserId, preview.GlobalRole, previewProfile.IsClosed, soleOwned, transferMap, cancellationToken);
 
-        foreach (var org in soleOwned)
+        // Ascending organization id, so two closures sharing organizations queue up instead of
+        // deadlocking on each other.
+        foreach (var org in soleOwned.OrderBy(item => item.OrganizationId))
         {
             if (!transferMap.TryGetValue(org.OrganizationId, out var newOwnerUserId))
             {
@@ -139,6 +127,28 @@ internal sealed class AdminAccountService(
                 """)
             .ToListAsync(cancellationToken);
         database.OrganizationMembers.RemoveRange(memberships);
+
+        // Every user row this closure writes, locked in one ascending-id pass: the subject plus the
+        // incoming owners the membership sync below promotes.
+        ApplicationUser? locked = null;
+        foreach (var userId in transferMap.Values.Append(subjectUserId).Distinct().OrderBy(item => item))
+        {
+            var user = await database.Users
+                .FromSqlInterpolated($"SELECT * FROM asp_net_users WHERE id = {userId} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken);
+            if (userId == subjectUserId) locked = user;
+        }
+
+        var subject = locked ?? throw new ResourceNotFoundException();
+        var profile = await database.UserProfiles
+            .FromSqlInterpolated($"SELECT * FROM user_profiles WHERE user_id = {subjectUserId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ResourceNotFoundException();
+
+        // Re-run under the row locks: the organization work above ran with the subject unlocked, so a
+        // concurrent closure or role change may have moved the ground in the meantime.
+        await EnsureNotBlockedAsync(
+            actorUserId, subjectUserId, subject.GlobalRole, profile.IsClosed, soleOwned, transferMap, cancellationToken);
 
         var identities = await database.ExternalIdentities
             .FromSqlInterpolated($"SELECT * FROM external_identities WHERE user_id = {subjectUserId} FOR UPDATE")
@@ -183,6 +193,10 @@ internal sealed class AdminAccountService(
                 removedProviders,
                 removedMembershipCount = memberships.Count
             }), now));
+
+        // The subject is demoted above by closure itself; the accounts that inherited an organization
+        // are the ones whose derived role has to catch up with their new membership.
+        await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, transferMap.Values, cancellationToken);
 
         try
         {
@@ -270,6 +284,36 @@ internal sealed class AdminAccountService(
                 reason = "account_closure"
             }), now));
         await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task EnsureNotBlockedAsync(
+        Guid actorUserId,
+        Guid subjectUserId,
+        string globalRole,
+        bool isClosed,
+        IReadOnlyList<SoleOwnerOrganizationImpact> soleOwned,
+        IReadOnlyDictionary<Guid, Guid> transferMap,
+        CancellationToken cancellationToken)
+    {
+        var adminCount = await database.Users.CountAsync(user => user.GlobalRole == GlobalRoles.Admin, cancellationToken);
+        var block = AccountClosurePolicy.EvaluateBlock(
+            actorUserId,
+            subjectUserId,
+            globalRole,
+            isClosed,
+            adminCount,
+            soleOwned.Select(item => item.OrganizationId).ToArray(),
+            transferMap.Keys.ToHashSet());
+        if (block is null) return;
+
+        throw block switch
+        {
+            "already_closed" => new ResourceConflictException(),
+            "self_close" => new ResourceConflictException(),
+            "last_admin" => new ResourceConflictException(),
+            "missing_owner_transfer" => Validation("ownershipTransfers", "Every solely owned organization requires a new Owner."),
+            _ => new ResourceConflictException()
+        };
     }
 
     private async Task<IReadOnlyList<SoleOwnerOrganizationImpact>> LoadSoleOwnedAsync(

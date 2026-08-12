@@ -69,6 +69,9 @@ internal sealed class OrganizationService(
         try
         {
             await database.SaveChangesAsync(cancellationToken);
+            // The owner membership is a membership like any other: creating the organization is what
+            // makes its owner an Organizer.
+            await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, owner.Id, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return organization;
         }
@@ -430,6 +433,12 @@ internal sealed class OrganizationService(
         try
         {
             await database.SaveChangesAsync(cancellationToken);
+            // A transfer can hand the organization to someone who was not a member yet, so both sides
+            // are re-derived; the outgoing owner keeps a membership and normally does not move.
+            await membershipRoles.SyncAfterMembershipChangeAsync(
+                actorUserId,
+                [previousOwnerUserId, newOwnerUserId],
+                cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException)

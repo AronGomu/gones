@@ -459,6 +459,116 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, demotedPreview.StatusCode);
     }
 
+    /// <summary>
+    /// T11 repair: creating an organization writes the owner membership, so it derives the role like
+    /// any other membership write - otherwise every new organization is born owned by a plain User.
+    /// </summary>
+    [Fact]
+    public async Task Creating_an_organization_derives_the_owner_role()
+    {
+        var adminEmail = $"admin-c-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-c-{Guid.NewGuid():N}@example.test";
+        var adminOwnerEmail = $"adminowner-c-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adc"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owc"));
+        await RegisterAndVerifyAsync(adminOwnerEmail, UniqueUsername("Aoc"));
+        await PromoteToAdminAsync(adminEmail);
+        await PromoteToAdminAsync(adminOwnerEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var adminOwner = await database.Users.SingleAsync(item => item.NormalizedEmail == adminOwnerEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+
+        // The owner is holding a live User token at the moment the organization is created under them.
+        var (ownerToken, ownerCookie) = await LoginWithCookieAsync(ownerEmail);
+        using var beforeCreate = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", ownerToken);
+        Assert.Equal(HttpStatusCode.OK, beforeCreate.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(ownerEmail));
+
+        var orgId = await CreateOrganizationAsync(adminToken, $"Created Derive {Guid.NewGuid():N}", owner.Id);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(ownerEmail));
+        Assert.Equal(1, await AuditCountAsync("organization.role.derived", owner.Id));
+
+        // The token in flight dies on the next request, and its refresh session with it.
+        using var afterCreate = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", ownerToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterCreate.StatusCode);
+        using var refreshAfterCreate = await RefreshAsync(ownerCookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshAfterCreate.StatusCode);
+
+        // Re-authenticating hands out the derived role, which opens the Organizer-only route.
+        var organizerToken = await LoginAsync(ownerEmail);
+        using var preview = await SendAuthorizedAsync(HttpMethod.Post, "/api/tournaments/preview", organizerToken, new { organizationId = orgId });
+        Assert.NotEqual(HttpStatusCode.Forbidden, preview.StatusCode);
+
+        // An Admin owner is left alone here too.
+        var adminOwnerToken = await LoginAsync(adminOwnerEmail);
+        await CreateOrganizationAsync(adminToken, $"Created Admin Owner {Guid.NewGuid():N}", adminOwner.Id);
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(adminOwnerEmail));
+        Assert.Equal(0, await AuditCountAsync("organization.role.derived", adminOwner.Id));
+        Assert.Equal(1, await AuditCountAsync("organization.role.unchanged", adminOwner.Id));
+        using var stillAdmin = await SendAuthorizedAsync(HttpMethod.Get, "/api/admin/organizations", adminOwnerToken);
+        Assert.Equal(HttpStatusCode.OK, stillAdmin.StatusCode);
+    }
+
+    /// <summary>
+    /// T11 repair: an ownership transfer can hand the organization to someone who was not a member
+    /// yet, so both sides are re-derived.
+    /// </summary>
+    [Fact]
+    public async Task Transferring_ownership_derives_both_roles()
+    {
+        var adminEmail = $"admin-t-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-t-{Guid.NewGuid():N}@example.test";
+        var heirEmail = $"heir-t-{Guid.NewGuid():N}@example.test";
+        var adminHeirEmail = $"adminheir-t-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adt"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owt"));
+        await RegisterAndVerifyAsync(heirEmail, UniqueUsername("Het"));
+        await RegisterAndVerifyAsync(adminHeirEmail, UniqueUsername("Aht"));
+        await PromoteToAdminAsync(adminEmail);
+        await PromoteToAdminAsync(adminHeirEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var heir = await database.Users.SingleAsync(item => item.NormalizedEmail == heirEmail.ToUpperInvariant());
+        var adminHeir = await database.Users.SingleAsync(item => item.NormalizedEmail == adminHeirEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+
+        var orgId = await CreateOrganizationAsync(adminToken, $"Transfer Derive {Guid.NewGuid():N}", owner.Id);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(ownerEmail));
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(heirEmail));
+
+        var heirToken = await LoginAsync(heirEmail);
+        using var transfer = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", adminToken, new
+        {
+            newOwnerUserId = heir.Id
+        });
+        Assert.Equal(HttpStatusCode.NoContent, transfer.StatusCode);
+
+        // The heir holds a membership now; the outgoing owner keeps one, so both are Organizers.
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(heirEmail));
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(ownerEmail));
+        Assert.Equal(1, await AuditCountAsync("organization.role.derived", heir.Id));
+        using var staleHeirToken = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", heirToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, staleHeirToken.StatusCode);
+
+        // Dropping the outgoing owner takes their role back and leaves the heir owning it.
+        using var removeOldOwner = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, removeOldOwner.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(ownerEmail));
+
+        // Handing it to an Admin does not move the Admin either.
+        using var transferToAdmin = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/transfer-ownership", adminToken, new
+        {
+            newOwnerUserId = adminHeir.Id
+        });
+        Assert.Equal(HttpStatusCode.NoContent, transferToAdmin.StatusCode);
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(adminHeirEmail));
+        Assert.Equal(0, await AuditCountAsync("organization.role.derived", adminHeir.Id));
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(heirEmail));
+    }
+
     [Fact]
     public async Task Soft_delete_hides_public_rows_restore_and_delete_blockers()
     {
@@ -624,7 +734,8 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         Assert.Equal(owner.Id, first.GetProperty("userId").GetGuid());
         Assert.Equal(ownerUsername, first.GetProperty("username").GetString());
         Assert.Equal(ownerEmail, first.GetProperty("email").GetString());
-        Assert.Equal(GlobalRoles.User, first.GetProperty("globalRole").GetString());
+        // Creating the organization derived the owner's global role, so the roster shows an Organizer.
+        Assert.Equal(GlobalRoles.Organizer, first.GetProperty("globalRole").GetString());
         Assert.Equal(OrganizationRoles.Organizer, second.GetProperty("role").GetString());
         Assert.Equal(organizerUsername, second.GetProperty("username").GetString());
         Assert.Equal(GlobalRoles.Organizer, second.GetProperty("globalRole").GetString());

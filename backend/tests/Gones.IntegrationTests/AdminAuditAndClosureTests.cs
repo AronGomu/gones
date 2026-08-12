@@ -253,6 +253,224 @@ public sealed class AdminAuditAndClosureTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NoContent, close.StatusCode);
     }
 
+    /// <summary>
+    /// T11 repair: a closure hands the solely owned organizations to someone else, which is a
+    /// membership write - the incoming owner has to come out of it as an Organizer.
+    /// </summary>
+    [Fact]
+    public async Task Closing_an_account_derives_the_incoming_owner_roles()
+    {
+        var adminEmail = $"heir-admin-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"heir-owner-{Guid.NewGuid():N}@example.test";
+        var heirEmail = $"heir-plain-{Guid.NewGuid():N}@example.test";
+        var adminHeirEmail = $"heir-adm-{Guid.NewGuid():N}@example.test";
+        var ownerUsername = UniqueUsername("HOwn");
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("HAdm"));
+        await RegisterAndVerifyAsync(ownerEmail, ownerUsername);
+        await RegisterAndVerifyAsync(heirEmail, UniqueUsername("HHei"));
+        await RegisterAndVerifyAsync(adminHeirEmail, UniqueUsername("HAhe"));
+        await PromoteToAdminAsync(adminEmail);
+        await PromoteToAdminAsync(adminHeirEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var heir = await database.Users.SingleAsync(item => item.NormalizedEmail == heirEmail.ToUpperInvariant());
+        var adminHeir = await database.Users.SingleAsync(item => item.NormalizedEmail == adminHeirEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+
+        var orgA = await CreateOrganizationAsync(adminToken, $"Heir Club A {Guid.NewGuid():N}", owner.Id);
+        var orgB = await CreateOrganizationAsync(adminToken, $"Heir Club B {Guid.NewGuid():N}", owner.Id);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(owner.Id));
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(heir.Id));
+
+        // The heir is holding a live User token at the moment the organization lands on them.
+        var heirToken = await LoginAsync(heirEmail);
+
+        using var close = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/users/{owner.Id:D}/disable", adminToken, new
+        {
+            confirmedUsername = ownerUsername,
+            ownershipTransfers = new[]
+            {
+                new { organizationId = orgA, newOwnerUserId = heir.Id },
+                new { organizationId = orgB, newOwnerUserId = adminHeir.Id }
+            }
+        });
+        Assert.Equal(HttpStatusCode.NoContent, close.StatusCode);
+
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(heir.Id));
+        Assert.Equal(1, await AuditCountAsync("organization.role.derived", heir.Id));
+        using var staleHeirToken = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", heirToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, staleHeirToken.StatusCode);
+
+        // The Admin heir inherits an organization without being moved off Admin.
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(adminHeir.Id));
+        Assert.Equal(0, await AuditCountAsync("organization.role.derived", adminHeir.Id));
+        Assert.Equal(1, await AuditCountAsync("organization.role.unchanged", adminHeir.Id));
+
+        // And the closed account keeps no membership and no derived role.
+        database.ChangeTracker.Clear();
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(owner.Id));
+        Assert.Empty(await database.OrganizationMembers.AsNoTracking().Where(item => item.UserId == owner.Id).ToListAsync());
+        Assert.Equal(heir.Id, await database.OrganizationMembers.AsNoTracking()
+            .Where(item => item.OrganizationId == orgA && item.Role == OrganizationRoles.Owner)
+            .Select(item => item.UserId)
+            .SingleAsync());
+        Assert.Equal(adminHeir.Id, await database.OrganizationMembers.AsNoTracking()
+            .Where(item => item.OrganizationId == orgB && item.Role == OrganizationRoles.Owner)
+            .Select(item => item.UserId)
+            .SingleAsync());
+    }
+
+    /// <summary>
+    /// T11 repair: only a live organization forces an ownership transfer, so a soft-deleted one is
+    /// the one shape that can lose its last member to a closure. It comes back as a Draft and the
+    /// closed account keeps no stale Organizer role.
+    /// </summary>
+    [Fact]
+    public async Task Closing_the_only_member_of_a_deleted_organization_returns_it_to_draft()
+    {
+        var adminEmail = $"draft-admin-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"draft-owner-{Guid.NewGuid():N}@example.test";
+        var ownerUsername = UniqueUsername("DOwn");
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("DAdm"));
+        await RegisterAndVerifyAsync(ownerEmail, ownerUsername);
+        await PromoteToAdminAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        var marker = $"{Guid.NewGuid():N}";
+        var orgId = await CreateOrganizationAsync(adminToken, $"Draft Closure {marker}", owner.Id);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(owner.Id));
+
+        using var softDelete = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/organizations/{orgId:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, softDelete.StatusCode);
+
+        // A deleted organization is not a solely owned one, so no transfer is demanded for it.
+        using var impact = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/users/{owner.Id:D}/closure-impact", adminToken);
+        var impactBody = await impact.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, impactBody.GetProperty("soleOwnedOrganizations").GetArrayLength());
+
+        using var close = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/users/{owner.Id:D}/disable", adminToken, new
+        {
+            confirmedUsername = ownerUsername,
+            ownershipTransfers = Array.Empty<object>()
+        });
+        Assert.Equal(HttpStatusCode.NoContent, close.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(owner.Id));
+        Assert.Empty(await database.OrganizationMembers.AsNoTracking().Where(item => item.UserId == owner.Id).ToListAsync());
+
+        using var restore = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/organizations/{orgId:D}/restore", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, restore.StatusCode);
+        using var list = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations?search={marker}", adminToken);
+        var listed = (await list.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().Single();
+        Assert.Equal(orgId, listed.GetProperty("id").GetGuid());
+        Assert.Equal(0, listed.GetProperty("memberCount").GetInt32());
+        Assert.True(listed.GetProperty("isDraft").GetBoolean());
+    }
+
+    /// <summary>
+    /// T11 repair, lock order: a closure and a membership change on the same account both take the
+    /// organization row before the user row. Running them head-on must end in two clean answers -
+    /// never a 500, never a deadlock abort surfaced raw.
+    /// </summary>
+    [Fact]
+    public async Task Closure_racing_a_membership_change_answers_cleanly()
+    {
+        var adminEmail = $"lock-admin-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("LAdm"));
+        await PromoteToAdminAsync(adminEmail);
+        var adminToken = await LoginAsync(adminEmail);
+        var observed = new List<int>();
+
+        for (var round = 0; round < 8; round++)
+        {
+            var victimEmail = $"lock-victim-{Guid.NewGuid():N}@example.test";
+            var mateEmail = $"lock-mate-{Guid.NewGuid():N}@example.test";
+            var victimUsername = UniqueUsername("LVic");
+            await RegisterAndVerifyAsync(victimEmail, victimUsername);
+            await RegisterAndVerifyAsync(mateEmail, UniqueUsername("LMat"));
+
+            await using var database = CreateContext();
+            var victim = await database.Users.AsNoTracking().SingleAsync(item => item.NormalizedEmail == victimEmail.ToUpperInvariant());
+            var mate = await database.Users.AsNoTracking().SingleAsync(item => item.NormalizedEmail == mateEmail.ToUpperInvariant());
+            var orgId = await CreateOrganizationAsync(adminToken, $"Lock Club {Guid.NewGuid():N}", victim.Id);
+            using var addMate = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+            {
+                userId = mate.Id,
+                role = OrganizationRoles.Organizer
+            });
+            Assert.Equal(HttpStatusCode.Created, addMate.StatusCode);
+
+            // The closure locks the organization to transfer it away and the user row to anonymize
+            // it; the removal locks the same two rows to drop the member and derive their role.
+            var closure = SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/users/{victim.Id:D}/disable", adminToken, new
+            {
+                confirmedUsername = victimUsername,
+                ownershipTransfers = new[] { new { organizationId = orgId, newOwnerUserId = mate.Id } }
+            });
+            var removal = SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{victim.Id:D}", adminToken);
+            var responses = await Task.WhenAll(closure, removal);
+
+            foreach (var response in responses)
+            {
+                var status = (int)response.StatusCode;
+                observed.Add(status);
+                var body = await response.Content.ReadAsStringAsync();
+                Assert.True(status < 500, $"Expected a mapped answer, got {status}: {body}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    // Every refusal is a problem document with a code of its own, not a leaked abort.
+                    var code = JsonDocument.Parse(body).RootElement.GetProperty("code").GetString();
+                    Assert.False(string.IsNullOrEmpty(code));
+                    Assert.NotEqual("internal_error", code);
+                }
+                response.Dispose();
+            }
+
+            // Whichever side won, the account ends closed, memberless and demoted, and the
+            // organization keeps the member that inherited it.
+            database.ChangeTracker.Clear();
+            Assert.NotNull(await database.UserProfiles.AsNoTracking()
+                .Where(item => item.UserId == victim.Id)
+                .Select(item => item.ClosedAt)
+                .SingleAsync());
+            Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(victim.Id));
+            Assert.Empty(await database.OrganizationMembers.AsNoTracking().Where(item => item.UserId == victim.Id).ToListAsync());
+            Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(mate.Id));
+            Assert.Equal(mate.Id, await database.OrganizationMembers.AsNoTracking()
+                .Where(item => item.OrganizationId == orgId)
+                .Select(item => item.UserId)
+                .SingleAsync());
+        }
+
+        Assert.Equal(16, observed.Count);
+    }
+
+    private async Task<Guid> CreateOrganizationAsync(string adminToken, string name, Guid ownerUserId)
+    {
+        using var response = await SendAuthorizedAsync(HttpMethod.Post, "/api/admin/organizations", adminToken, new { name, ownerUserId });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+    }
+
+    /// <summary>By id, not by email: a closed account no longer carries the address it signed up with.</summary>
+    private async Task<string> GlobalRoleAsync(Guid userId)
+    {
+        await using var database = CreateContext();
+        return await database.Users.AsNoTracking()
+            .Where(item => item.Id == userId)
+            .Select(item => item.GlobalRole)
+            .SingleAsync();
+    }
+
+    private async Task<int> AuditCountAsync(string action, Guid subjectUserId)
+    {
+        await using var database = CreateContext();
+        return await database.AuditRecords.AsNoTracking()
+            .CountAsync(item => item.Action == action && item.EntityId == subjectUserId.ToString("D"));
+    }
+
     private WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {

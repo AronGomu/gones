@@ -134,3 +134,129 @@
       *evidence:* `Test Files 109 passed (109) / Tests 1000 passed (1000)`; `All files pass linting.`; `tsc --noEmit` clean on both projects.
 - [x] `npm run api:check` reports the generated client is up to date — exit 0, no output (no OpenAPI drift: the new 409 reuses the already-declared `Status409Conflict` on `POST /api/tournaments`).
 - [ ] commit msg draft: `feat(orgs): derive the Organizer role from membership and gate draft orgs`
+
+## Repair
+
+The role derivation shipped in `bde7b3a` only ran on two of the five paths that write organization
+memberships, so the system kept minting fresh violations of the very invariant the ticket
+established: `OrganizationService.CreateAsync` left the new owner a plain `User`,
+`OrganizationService.TransferOwnershipAsync` left an incoming owner who was not a member yet a plain
+`User`, and `AdminAccountService.CloseAsync` handed organizations to a successor without deriving
+their role. Review also found the two services locking the same two rows in opposite orders.
+
+**Lock order chosen: `organizations` → `organization_members` → `asp_net_users` → the rows that hang
+off a user (`user_profiles`, `refresh_sessions`, `external_identities`), several rows of one table in
+ascending id order.** The derived role is a *consequence* of the membership rows, so the subject's
+user row can only be locked after the rows that decide it — that fixes the order, and every
+organization write path already followed it. Only `AdminAccountService.CloseAsync` locked the other
+way (`AdminAccountService.cs:76`, user before organization), so it is the one that moved: its
+pre-checks now read the subject unlocked, the user locks are taken after the organization work, and
+every check that guards the write is re-run under those locks. The single exception is
+`CreateAsync`, which locks the owner before inserting the organization — the only other rows it
+touches are ones it creates itself and no other transaction can see, so it cannot be part of a wait
+cycle. The order is written down on `OrganizationMembershipRoleService`, next to the reason for it.
+
+Losing a lock race no longer leaves as a 500 either. `ApiExceptionHandler` maps Postgres `40P01`
+(deadlock detected) and `40001` (serialization failure) anywhere in the exception chain to the usual
+409 `conflict`. That is deliberately in the handler and not a `DbUpdateException` catch in
+`RemoveMemberAsync`: Postgres raises those from a locking `SELECT ... FOR UPDATE` too, which no
+`SaveChangesAsync` catch would ever see.
+
+- [x] R1. `OrganizationService.CreateAsync` derives the owner's role.
+      *evidence:* `OrganizationService.cs:74` — sync between `SaveChangesAsync` and `CommitAsync`.
+      Live, against the Docker stack:
+      ```
+      owner … global_role before = User
+      owner token before create, GET /api/users/me/organizations -> 200
+      POST /api/admin/organizations -> 201
+      owner global_role after create = Organizer   audit organization.role.derived = 1
+      same owner token, GET /api/users/me/organizations -> 401
+      admin-owned org create -> 201; admin owner global_role = Admin; derived=0 unchanged=1
+      admin owner token still works, GET /api/admin/organizations -> 200
+      ```
+      Integration: `OrganizationApiTests.Creating_an_organization_derives_the_owner_role`.
+      *criterion:* an owner who is `User` at creation ends `Organizer`, their in-flight token is
+      refused on the next request, and an `Admin` owner stays `Admin`.
+- [x] R2. `OrganizationService.TransferOwnershipAsync` derives both sides.
+      *evidence:* `OrganizationService.cs:438` — both user ids handed to the sync in ascending id
+      order. Live:
+      ```
+      heir … global_role before = User
+      POST /api/organizations/{id}/transfer-ownership -> 204
+      heir global_role after transfer = Organizer   derived = 1
+      outgoing owner global_role = Organizer (still a member)
+      heir token from before, GET /api/users/me/organizations -> 401
+      DELETE outgoing owner membership -> 204; their global_role = User
+      transfer to an Admin -> 204; admin heir global_role = Admin; derived=0
+      ```
+      Integration: `OrganizationApiTests.Transferring_ownership_derives_both_roles`.
+      *criterion:* both users end at the role their memberships imply and an `Admin` is not moved.
+- [x] R3. `AdminAccountService.CloseAsync` derives the incoming owners' roles.
+      *evidence:* `AdminAccountService.cs:199` — the transfer targets are synced inside the closure
+      transaction. Live:
+      ```
+      closing account global_role = Organizer; successor global_role = User
+      POST /api/admin/users/{id}/disable -> 204
+      successor global_role after closure = Organizer   derived = 1
+      successor token from before, GET /api/users/me/organizations -> 401
+      closed account global_role = User; memberships left = 0
+      closure with an Admin successor -> 204; admin successor global_role = Admin; derived=0 unchanged=1
+      ```
+      Integration: `AdminAuditAndClosureTests.Closing_an_account_derives_the_incoming_owner_roles`.
+      *criterion:* the account that inherits an organization comes out an `Organizer`, an `Admin`
+      successor stays `Admin`, and the closed account keeps neither membership nor role.
+- [x] R4. A closure that empties an organization returns it to Draft with no stale `Organizer`.
+      *evidence:* a closure only empties an organization that is soft-deleted — a live organization
+      the subject solely owns demands an ownership transfer first (`missing_owner_transfer`), so it
+      always keeps its new owner. Live:
+      ```
+      lone owner global_role = Organizer
+      soft delete the organization -> 204
+      close the only member -> 204; their global_role = User
+      restore the organization -> 204
+      organization member count = 0 (Draft)
+      ```
+      Integration: `AdminAuditAndClosureTests.Closing_the_only_member_of_a_deleted_organization_returns_it_to_draft`.
+      *criterion:* the organization comes back as a 0-member Draft and the closed account is `User`.
+- [x] R5. One lock order in both services, and a lost race that answers cleanly.
+      *evidence:* the order at the database level, on the live stack — the two old orders deadlock,
+      the one new order does not:
+      ```
+      === BEFORE: OrganizationService (organization -> user) vs the old AdminAccountService (user -> organization) ===
+        [org->user] ERROR:  deadlock detected
+        [org->user] DETAIL:  Process 11763 waits for ShareLock on transaction 1947; blocked by process 11770.
+        [org->user] Process 11770 waits for ShareLock on transaction 1946; blocked by process 11763.
+        [org->user] CONTEXT:  while locking tuple (0,9) in relation "asp_net_users"
+        [org->user] ROLLBACK
+      === AFTER: both services take the organization first ===
+        [A org->user] COMMIT
+        [B org->user] COMMIT
+      ```
+      And head-on through the API, 6 rounds of closure versus member removal on the same account:
+      ```
+      round 0: disable=204 removeMember=409(conflict) -> victim=User memberships=0 mate=Organizer org=1
+      … rounds 1-5 identical …
+      5xx answers: 0
+      deadlock aborts in the API log: 0
+      internal_error answers: 0
+      ```
+      Integration: `AdminAuditAndClosureTests.Closure_racing_a_membership_change_answers_cleanly`
+      (8 rounds) and `ApiBoundaryTests.Lost_lock_races_are_mapped_to_a_conflict` (`40P01` and `40001`
+      both map to 409 `conflict`, never 500).
+      *criterion:* both services take the organization row before the user row, and two overlapping
+      operations on one account end in two mapped answers — no 500, no raw deadlock abort.
+
+### Repair validation
+
+- [x] `dotnet build backend/Gones.sln` — `Build succeeded. 0 Warning(s) 0 Error(s)`
+- [x] targeted integration runs — `OrganizationApiTests` 13 passed, `AdminAuditAndClosureTests`
+      7 passed, `ApiBoundaryTests` 44 passed, `TournamentPublicationApiTests`+`TournamentProposalTests`
+      36 passed, `TournamentProposalDecisionTests` 22 passed,
+      `TournamentRegistrationApiTests`+`TournamentLifecycleApiTests`+`MigrationImportServiceTests`
+      25 passed; 0 failed in each
+- [x] `dotnet test backend/tests/Gones.UnitTests` 198 passed, `backend/tests/Gones.ArchitectureTests`
+      17 passed, 0 failed
+- [x] `npm run test` (109 files / 1000 tests passed), `npm run lint` (`All files pass linting.`),
+      `npm run typecheck` (clean), `npm run api:check` (exit 0 — the API surface did not move)
+- [x] `Admin` is never moved by any of the three paths — see R1, R2 and R3 evidence
+      (`derived=0`, `unchanged=1` on each, admin token still answering 200 afterwards)

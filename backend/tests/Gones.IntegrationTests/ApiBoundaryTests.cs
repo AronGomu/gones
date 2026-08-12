@@ -6,8 +6,13 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Gones.Api.Errors;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 
 namespace Gones.IntegrationTests;
 
@@ -469,6 +474,32 @@ public sealed class ApiBoundaryTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     private sealed record LogRecord(string Message, string Exception, IReadOnlyList<string> State, IReadOnlyList<string> Scopes);
+
+    /// <summary>
+    /// T11 repair: Postgres aborts the loser of a deadlock or of a failed serialization. That is a
+    /// concurrency outcome the caller can retry, so it leaves as the same 409 as any other conflict
+    /// instead of a raw 500 - and it is mapped here because a locking SELECT can raise it just as
+    /// well as a save can.
+    /// </summary>
+    [Theory]
+    [InlineData(PostgresErrorCodes.DeadlockDetected)]
+    [InlineData(PostgresErrorCodes.SerializationFailure)]
+    public async Task Lost_lock_races_are_mapped_to_a_conflict(string sqlState)
+    {
+        var handler = new ApiExceptionHandler(NullLogger<ApiExceptionHandler>.Instance);
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/api/organizations/members";
+        context.Response.Body = new MemoryStream();
+        var aborted = new PostgresException("aborted", "ERROR", "ERROR", sqlState);
+
+        Assert.True(await handler.TryHandleAsync(context, new DbUpdateException("save failed", aborted), CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status409Conflict, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        var problem = await JsonSerializer.DeserializeAsync<JsonElement>(context.Response.Body);
+        Assert.Equal("conflict", problem.GetProperty("code").GetString());
+        Assert.Equal(StatusCodes.Status409Conflict, problem.GetProperty("status").GetInt32());
+    }
 
     private static async Task<string?> ProblemCode(HttpResponseMessage response)
     {

@@ -1,5 +1,6 @@
 using Gones.Api.Security;
 using Microsoft.AspNetCore.Diagnostics;
+using Npgsql;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 
@@ -13,6 +14,7 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         {
             ApiValidationException validation => (validation.StatusCode, validation.Code, validation.SafeMessage, validation.Errors),
             ApiException known => (known.StatusCode, known.Code, known.SafeMessage, null),
+            _ when IsLostLockRace(exception) => (StatusCodes.Status409Conflict, "conflict", "Request conflicts with current resource state.", null),
             BadHttpRequestException badRequest when badRequest.StatusCode == StatusCodes.Status413PayloadTooLarge => (badRequest.StatusCode, "request_too_large", "Request body exceeds the allowed size.", null),
             BadHttpRequestException badRequest => (badRequest.StatusCode, "malformed_request", "Request is malformed.", null),
             _ => (StatusCodes.Status500InternalServerError, "internal_error", "An unexpected error occurred.", null)
@@ -47,5 +49,24 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         context.Response.StatusCode = status;
         await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: cancellationToken);
         return true;
+    }
+
+    /// <summary>
+    /// Postgres aborts one side of a deadlock or of a failed serialization instead of letting it
+    /// hang. Losing that race is a concurrency outcome, not a server fault, and the caller may simply
+    /// retry - so it leaves as the same 409 any other conflict does rather than as a raw 500. It can
+    /// surface from a locking <c>SELECT ... FOR UPDATE</c> as well as from a save, which is why it is
+    /// mapped here instead of in each write path.
+    /// </summary>
+    private static bool IsLostLockRace(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException { SqlState: PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure })
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
