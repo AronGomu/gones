@@ -117,6 +117,50 @@ describe('admin organization and account controls', () => {
     cy.get('[data-cy="org-manage-denied"]').should('be.visible');
   });
 
+  it('assigns an organization to a plain user and renders the server refusal on removal', () => {
+    mockSession('Admin');
+    const orgId = '66666666-6666-6666-6666-666666666666';
+    const userId = '77777777-7777-7777-7777-777777777777';
+    let roster = [];
+    let organization = { id: orgId, name: 'Draft Club', description: '', website: '', contactEmail: '', deletedAt: null, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z', version: 1, memberCount: 0, isDraft: true };
+
+    cy.intercept('GET', '**/api/admin/organizations?*', req => req.reply({ items: [organization], page: 1, pageSize: 20, totalCount: 1 })).as('orgs');
+    cy.intercept('GET', '**/api/admin/users?*', {
+      items: [{ id: userId, email: 'plain@example.test', emailVerified: true, globalRole: 'User', username: 'plain-user', firstName: 'Plain', lastName: 'User', isClosed: false, createdAt: '2026-08-01T00:00:00Z' }],
+      page: 1,
+      pageSize: 100,
+      totalCount: 1
+    }).as('pickerUsers');
+    cy.intercept('GET', `**/api/admin/organizations/${orgId}/members`, req => req.reply(roster)).as('roster');
+    cy.intercept('POST', `**/api/organizations/${orgId}/members`, req => {
+      expect(req.body).to.deep.eq({ userId, role: 'Organizer' });
+      roster = [{ userId, username: 'plain-user', email: 'plain@example.test', globalRole: 'Organizer', role: 'Organizer', createdAt: '2026-08-02T00:00:00Z' }];
+      organization = { ...organization, memberCount: 1, isDraft: false };
+      req.reply({ statusCode: 201, body: { userId, username: 'plain-user', role: 'Organizer', createdAt: '2026-08-02T00:00:00Z' } });
+    }).as('addMember');
+
+    visit('/admin/organizations');
+    cy.get('[data-cy="admin-org-detail-empty"]').should('be.visible');
+    cy.get(`[data-cy="admin-org-draft-${orgId}"]`).should('be.visible');
+    cy.get(`[data-cy="admin-org-select-${orgId}"]`).click();
+    cy.wait('@roster');
+    cy.location('search').should('contain', `organization=${orgId}`);
+    cy.get(`[data-cy="admin-org-select-${orgId}"]`).should('have.attr', 'aria-current', 'true');
+
+    cy.get('[data-cy="admin-org-member-search"]').type('plain');
+    cy.get(`[data-cy="admin-org-member-option-${userId}"]`).should('contain.text', 'plain@example.test').click();
+    cy.wait('@addMember');
+    cy.get(`[data-cy="admin-org-member-${userId}"]`).should('contain.text', 'plain-user');
+    cy.get(`[data-cy="admin-org-draft-${orgId}"]`).should('not.exist');
+    cy.get(`[data-cy="admin-org-member-option-${userId}"]`).should('not.exist');
+
+    cy.intercept('DELETE', `**/api/organizations/${orgId}/members/${userId}`, { statusCode: 409, body: { code: 'last_owner', status: 409 } }).as('removeMember');
+    cy.on('window:confirm', () => true);
+    cy.get(`[data-cy="admin-org-member-remove-${userId}"]`).click();
+    cy.wait('@removeMember');
+    cy.get('[data-cy="admin-orgs-error"]').should('be.visible').and('contain.text', 'last_owner');
+  });
+
   it('requires typed Username and ownership-transfer summary for account disable impact', () => {
     mockSession('Admin');
     const userId = '22222222-2222-2222-2222-222222222222';

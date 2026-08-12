@@ -1340,3 +1340,39 @@ confirmation dialog opens after the server confirms the registration.
 - [ ] Confirm nothing was invented: no account gained a role and no organization gained a member.
       An account that holds a membership but is still a plain user stays a plain user until the next
       membership change is made through the app.
+
+## T13 admin-organization-workbench
+
+- [ ] As an administrator, open `/admin/organizations`. The screen is two panes: organizations on the
+      left, an empty right pane telling you to pick one. Nothing is selected yet.
+- [ ] Click "New organization", create one with yourself as owner. It appears in the left list with
+      the member count you expect. Cancel-free reload of the page keeps the list intact.
+- [ ] Select an organization. The right pane fills with its name, its edit form and its organizer
+      chips, the left row is visibly marked as the current one, and the address bar gained
+      `?organization=<id>`. Reload the page — the same organization is still selected.
+- [ ] Type a few letters of a username in the member search. Only matching accounts are offered, each
+      showing username, e-mail and current global role, and accounts already in the roster are not
+      offered a second time.
+- [ ] Click an account. It becomes an organizer chip without a second confirmation, and the left row's
+      member count goes up. Open `/admin/users` in another tab: that account is now `Organizer`.
+- [ ] Remove a member. You are asked to confirm, by name, before anything happens. Say no once and
+      nothing changes; say yes and the chip disappears and the count drops.
+- [ ] Remove the last member of an organization. It is allowed, and the left row now carries the Draft
+      badge with 0 members. On `/admin/users`, the removed account is a plain `User` again unless it
+      still belongs to another organization.
+- [ ] While that organization is a Draft, try to publish one of its events from the organizer screens.
+      The refusal is shown as a readable message on screen, not a silent failure.
+- [ ] Try to remove the sole Owner of an organization that still has other members. The server refuses
+      and the refusal text is visible on the organization screen.
+- [ ] Edit the selected organization (name, description, website, contact e-mail) and save. The left
+      list shows the new name. Delete it — the selection clears and the right pane returns to its
+      empty state. Turn on "include deleted", select it again and restore it.
+- [ ] Page through the organization list with the previous/next buttons while an organization is
+      selected: the selection and the roster stay on the organization you picked.
+- [ ] Narrow the browser to phone width. The two panes stack instead of scrolling sideways, and every
+      control is still reachable.
+- [ ] Walk the whole screen with the keyboard only: Tab reaches the search field, the create toggle,
+      every organization row, every chip's remove button and every picker option, and the focus ring
+      is visible on each.
+- [ ] On a site with more than 500 accounts, confirm the picker shows the "only the first 500 accounts
+      are listed" warning and that the accounts it does list are usable.

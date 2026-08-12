@@ -54,15 +54,15 @@
 
 ## Impl steps
 
-- [ ] 1. Write `src/app/features/admin/admin-organizations.component.test.ts` with the seven component tests; run `npx vitest run src/app/features/admin` — red.
-- [ ] 2. Add the seven i18n keys to both maps in `src/app/i18n/messages.ts`.
-- [ ] 3. Restructure the template into `.admin-org-workbench` with the two panes, keeping every existing control reachable.
-- [ ] 4. Add roster state: `readonly selectedId = signal<string>('')`, `readonly members = signal<AdminOrganizationMemberResponse[]>([])`, `loadMembers()`, `addMember(userId)`, `removeMember(userId)`.
-- [ ] 5. Add user-list state: `readonly users = signal<AdminUserSummaryResponse[]>([])`, `readonly userCapReached = signal(false)`, `loadUsers()` paging at `pageSize: 100` up to `MAX_PICKER_USERS = 500`.
-- [ ] 6. Mirror the selection into the query string alongside the existing paged params.
-- [ ] 7. Add the CSS to `src/styles.css`.
-- [ ] 8. Update `cypress/e2e/admin-orgs.cy.js` for the new selectors and add the assignment flow.
-- [ ] 9. Run `npx vitest run src/app`, `npm run lint`, `npm run typecheck`, `npx vitest run src/app/shared/data-cy-coverage.test.ts`, `npx cypress run --spec cypress/e2e/admin-orgs.cy.js`.
+- [x] 1. Write `src/app/features/admin/admin-organizations.component.test.ts` with the seven component tests; run `npx vitest run src/app/features/admin` — red. — criterion: the seven tests exist and fail before the component changes. Evidence: `Tests 7 failed | 3 passed (10)`, `TypeError: component.select is not a function`.
+- [x] 2. Add the seven i18n keys to both maps in `src/app/i18n/messages.ts`. — criterion: each key present in `en` and `fr`; `npm run test` i18n parity green. Evidence: `admin.organizationRoster/addMember/removeMember/draftOrganization/selectOrganization/userPickerCapped/memberCount` (+ `admin.newOrganization`, `admin.confirmRemoveMember`, `admin.actionFailedCode`) in both maps; 1007 vitest tests pass.
+- [x] 3. Restructure the template into `.admin-org-workbench` with the two panes, keeping every existing control reachable. — criterion: `admin-org-list-pane` / `admin-org-detail-pane` / `admin-org-detail-empty` render and search, include-deleted, create, edit, delete, restore, pager stay present. Evidence: component template + Cypress `assigns an organization to a plain user …` passing.
+- [x] 4. Add roster state: `readonly selectedId = signal<string>('')`, `readonly members = signal<AdminOrganizationMemberResponse[]>([])`, `loadMembers()`, `addMember(userId)`, `removeMember(userId)`. — criterion: roster tests green. Evidence: `selecting an organization loads its roster`, `adding a member calls the members endpoint and reloads roster and list`, `removing the last member is allowed …` pass.
+- [x] 5. Add user-list state: `readonly users = signal<AdminUserSummaryResponse[]>([])`, `readonly userCapReached = signal(false)`, `loadUsers()` paging at `pageSize: 100` up to `MAX_PICKER_USERS = 500`. — criterion: cap test green with every call at `pageSize` 100. Evidence: `warns when the user picker hits its cap` passes.
+- [x] 6. Mirror the selection into the query string alongside the existing paged params. — criterion: `?organization=<id>` written on select and read on construction. Evidence: `restores the selection from the organization query parameter` passes; Cypress asserts `cy.location('search')` contains `organization=<id>`.
+- [x] 7. Add the CSS to `src/styles.css`. — criterion: `.admin-org-workbench` grid + `@media (max-width: 900px)` collapse present. Evidence: `src/styles.css` lines added after `.admin-row-grid`.
+- [x] 8. Update `cypress/e2e/admin-orgs.cy.js` for the new selectors and add the assignment flow. — criterion: spec passes with the added flow. Evidence: `5 passing (4s)`, previously 4.
+- [x] 9. Run `npx vitest run src/app`, `npm run lint`, `npm run typecheck`, `npx vitest run src/app/shared/data-cy-coverage.test.ts`, `npx cypress run --spec cypress/e2e/admin-orgs.cy.js`. — criterion: all green. Evidence: `Test Files 110 passed (110) / Tests 1007 passed (1007)`, `All files pass linting.`, typecheck silent, `5 passing`.
 
 ## Outputs
 
@@ -71,9 +71,11 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/admin` passes
-- [ ] `npx cypress run --spec cypress/e2e/admin-orgs.cy.js` passes
-- [ ] `npm run lint && npm run typecheck` pass
-- [ ] manual check: as admin, create an org, add two users, remove one, remove the last one, confirm the Draft badge and the role changes on `/admin/users`
-- [ ] app functional — organization edit, delete, restore and paging still work
-- [ ] commit msg draft: `feat(admin): manage organizations and their organizers on one screen`
+- [x] `npx vitest run src/app/features/admin` passes — `Test Files 2 passed (2) / Tests 10 passed (10)`
+- [x] `npx cypress run --spec cypress/e2e/admin-orgs.cy.js` passes — `5 passing (4s)`, 0 failing
+- [x] `npm run lint && npm run typecheck` pass — `All files pass linting.`; `tsc --noEmit` on app + spec projects silent
+- [ ] manual check: as admin, create an org, add two users, remove one, remove the last one, confirm the Draft badge and the role changes on `/admin/users` — browser half is human-only, moved to `ai-artifacts/manual_test_checklist.md`. The data half was verified against the live dev API (create → `memberCount 1`, add `gones-player-1` → `globalRole Organizer`, remove → back to `User`, remove last member → `memberCount 0, isDraft true`).
+- [x] app functional — organization edit, delete, restore and paging still work — live API run against `http://127.0.0.1:5080`: `PUT 200`, `DELETE 204`, `restore 204`, `?page=1&pageSize=2` → `page 1 size 2 total 19`
+- [x] commit msg draft: `feat(admin): manage organizations and their organizers on one screen`
+- [x] hard gate: `npx cypress run --spec cypress/e2e/accessibility.cy.js` still `11 passing`, 0 failing (route not added to the axe sweep by this ticket)
+- [x] full suite: `npm run test` — `Test Files 110 passed (110) / Tests 1007 passed (1007)`
