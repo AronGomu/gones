@@ -29,6 +29,7 @@ export class AuthService {
   private readonly coordination = inject(AuthSessionCoordinationService);
   private readonly catalogSync = inject(SessionCatalogSyncService);
   private refreshFlight?: Observable<void>;
+  private bootstrapFlight?: Promise<void>;
 
   readonly enabled = dataAuthority().authV1;
   readonly profile = signal<UserProfileResponse | null>(null);
@@ -38,6 +39,26 @@ export class AuthService {
 
   async bootstrap(): Promise<void> {
     if (!this.enabled || this.bootstrapped()) return;
+    this.bootstrapFlight = this.restoreSession();
+    try {
+      await this.bootstrapFlight;
+    } finally {
+      this.bootstrapFlight = undefined;
+    }
+  }
+
+  /**
+   * Route guards must decide on the restored session, never on the null profile that precedes it:
+   * the startup refresh is in flight for as long as the network takes, and a synchronous read of
+   * `profile()` before it settles answers for a visitor the app has not identified yet.
+   */
+  whenSessionReady(): Promise<void> {
+    if (this.bootstrapped()) return Promise.resolve();
+    // A failed restore still settles the session — it means "signed out", which is a decidable answer.
+    return this.bootstrapFlight?.catch(() => undefined) ?? Promise.resolve();
+  }
+
+  private async restoreSession(): Promise<void> {
     let generation: number | undefined;
     let profileEstablishmentStarted = false;
     try {

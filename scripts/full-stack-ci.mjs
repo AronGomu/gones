@@ -90,6 +90,10 @@ try {
     if (sessionBrowser.status !== 0) process.exitCode = sessionBrowser.status ?? 1;
   }
   if (!process.exitCode) {
+    const routeGuardBrowser = runCypress('cypress/e2e/auth-route-guards.cy.js');
+    if (routeGuardBrowser.status !== 0) process.exitCode = routeGuardBrowser.status ?? 1;
+  }
+  if (!process.exitCode) {
     const leagueBrowser = runCypress('cypress/e2e/league-server.cy.js');
     if (leagueBrowser.status !== 0) process.exitCode = leagueBrowser.status ?? 1;
   }

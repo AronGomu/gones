@@ -1003,3 +1003,22 @@ checks remain open:
       replays once without hanging; wrong-password account deletion rejects once without refresh.
 - [ ] In a browser context with Web Locks disabled, login/OAuth/bootstrap/refresh make no auth network
       request or session publication; logout/clear still remove local auth and purge private cache.
+
+## T1 session-ready-auth-guards
+
+Automated tests cover the guard decisions themselves (unit tests for the four guards, plus a Cypress
+spec for the signed-out `/registrations` redirect and the signed-in pass-through). What no automated
+test covers is a real browser session restored from the refresh cookie on a real network:
+
+- [ ] Signed out, hard-reload `/registrations` (Ctrl+Shift+R): you land on `/login?returnUrl=%2Fregistrations`
+      and the registrations page never flashes on screen, not even for a frame.
+- [ ] From that login page, sign in: you land back on `/registrations` and the list loads.
+- [ ] Signed in, hard-reload `/registrations` directly: the page renders and you are never bounced to
+      `/login` while the startup refresh is still running.
+- [ ] Throttle the network to "Slow 3G" in DevTools and hard-reload `/registrations` while signed in:
+      the app waits for the session restore, then shows the page — no redirect to `/login`.
+- [ ] Signed in as a plain User, open `/admin`: you are sent to `/` with `?denied=/admin`.
+- [ ] Signed in as an Organizer, open `/organizer/tournaments`: the page renders; open `/admin`: you are
+      sent to `/` with `?denied=/admin`.
+- [ ] With an unverified e-mail, open `/tournaments/new`: you are sent to `/verify-email?email=<your address>`.
+- [ ] Sign out from a page behind a guard: you are moved off it and cannot reach it again with the back button.

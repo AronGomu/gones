@@ -45,16 +45,17 @@
 
 ## Impl steps
 
-- [ ] 1. Create `cypress/e2e/auth-route-guards.cy.js` with the guest redirect spec; run `npx cypress run --spec cypress/e2e/auth-route-guards.cy.js` and paste the observed result into the commit message draft.
-- [ ] 2. Create `src/app/auth/auth.guards.test.ts` with the four unit tests, using a fake `AuthService` provided through `TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: fake }] })`.
-- [ ] 3. Run `npx vitest run src/app/auth/auth.guards.test.ts` and confirm the waiting test fails.
-- [ ] 4. In `src/app/auth/auth.service.ts`, add `whenSessionReady(): Promise<void>` — returns `Promise.resolve()` when `this.bootstrapped()`, otherwise a promise resolved by an `effect` on `bootstrapped` created with `EffectRef` cleanup, or by awaiting the in-flight `bootstrap()` promise stored in a new private field `bootstrapFlight?: Promise<void>` set in `bootstrap()`.
-- [ ] 5. Store the in-flight promise: in `bootstrap()`, wrap the existing body so `this.bootstrapFlight` holds it and is cleared in `finally`.
-- [ ] 6. In `src/app/auth/auth.guards.ts`, change `userGuard` to `async (_route, state) => { const auth = inject(AuthService); const router = inject(Router); await auth.whenSessionReady(); return auth.profile() ? true : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } }); }` — capture `inject()` results BEFORE the first `await`.
-- [ ] 7. Apply the same shape to `roleGuard()`, `organizerGuard`, `adminGuard` and `verifiedEmailGuard`, keeping every redirect target byte-identical.
-- [ ] 8. Run `npx vitest run src/app/auth` — all green.
-- [ ] 9. Run `npm run lint && npm run typecheck`.
-- [ ] 10. Re-run the Cypress spec from step 1 — green.
+- [x] 1. Create `cypress/e2e/auth-route-guards.cy.js` with the guest redirect spec; run `npx cypress run --spec cypress/e2e/auth-route-guards.cy.js` and paste the observed result into the commit message draft. — pre-fix run: `2 passing (2s)`, both guest cases already green (the browser topology awaits `provideAppInitializer`, so the race does not reproduce end-to-end); kept as the regression test.
+- [x] 2. Create `src/app/auth/auth.guards.test.ts` with the four unit tests, using a fake `AuthService` provided through `TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: fake }] })`. — written into the existing, matrix-pinned `src/app/auth/auth-guards.test.ts` (`ops/acceptance-matrix.json` targets that path twice) instead of a dot-named twin, with the repo's `Injector.create` guard-test style.
+- [x] 3. Run `npx vitest run src/app/auth/auth.guards.test.ts` and confirm the waiting test fails. — `npx vitest run src/app/auth/auth-guards.test.ts` → `Tests 5 failed (5)`, waiting test: `TypeError: You must provide a Promise to expect() when using .resolves, not 'object'`.
+- [x] 4. In `src/app/auth/auth.service.ts`, add `whenSessionReady(): Promise<void>` — returns `Promise.resolve()` when `this.bootstrapped()`, otherwise a promise resolved by an `effect` on `bootstrapped` created with `EffectRef` cleanup, or by awaiting the in-flight `bootstrap()` promise stored in a new private field `bootstrapFlight?: Promise<void>` set in `bootstrap()`.
+- [x] 5. Store the in-flight promise: in `bootstrap()`, wrap the existing body so `this.bootstrapFlight` holds it and is cleared in `finally`. — body moved to `private restoreSession()`; `bootstrap()` awaits `this.bootstrapFlight` and clears it in `finally`.
+- [x] 6. In `src/app/auth/auth.guards.ts`, change `userGuard` to `async (_route, state) => { const auth = inject(AuthService); const router = inject(Router); await auth.whenSessionReady(); return auth.profile() ? true : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } }); }` — capture `inject()` results BEFORE the first `await`.
+- [x] 7. Apply the same shape to `roleGuard()`, `organizerGuard`, `adminGuard` and `verifiedEmailGuard`, keeping every redirect target byte-identical.
+- [x] 8. Run `npx vitest run src/app/auth` — all green. — `Test Files 20 passed (20)`, `Tests 127 passed (127)`.
+- [x] 9. Run `npm run lint && npm run typecheck`. — `All files pass linting.`; typecheck exits clean with no output.
+- [x] 10. Re-run the Cypress spec from step 1 — green. — `3 passing (4s)` (two guest cases + the signed-in pass-through).
+- [x] 11. Wire the new spec into `scripts/full-stack-ci.mjs` so `ops/e2e-spec-coverage.test.ts` stays green. — `npm run test` → `Test Files 105 passed (105)`, `Tests 940 passed (940)`.
 
 ## Outputs
 
@@ -64,10 +65,10 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/auth` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run typecheck` passes
-- [ ] `npx cypress run --spec cypress/e2e/auth-route-guards.cy.js` passes
-- [ ] manual check: sign out, hard-reload `/registrations`, land on `/login`, sign in, land back on `/registrations`
-- [ ] app functional — signed-in navigation to `/registrations`, `/admin`, `/organizer/tournaments` still works
-- [ ] commit msg draft: `fix(auth): decide route guards only after session restore`
+- [x] `npx vitest run src/app/auth` passes — `Test Files 20 passed (20)`, `Tests 127 passed (127)`
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — clean exit, no diagnostics
+- [x] `npx cypress run --spec cypress/e2e/auth-route-guards.cy.js` passes — `3 passing`, `All specs passed!`
+- [ ] manual check: sign out, hard-reload `/registrations`, land on `/login`, sign in, land back on `/registrations` — handed to a human in `ai-artifacts/manual_test_checklist.md` (`## T1 session-ready-auth-guards`); not agent-verifiable
+- [x] app functional — signed-in navigation to `/registrations`, `/admin`, `/organizer/tournaments` still works — `auth-route-guards.cy.js` signed-in case + `admin-orgs.cy.js` (4 passing), `organizer-tournament-management.cy.js` (3 passing), `tournament-registration.cy.js` (5 passing); `npm run build` completes
+- [x] commit msg draft: `fix(auth): decide route guards only after session restore`
