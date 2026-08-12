@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Plan: Feedback Calendar V1 Round 4</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--local{border-color:var(--rust)}
+  .card--server{border-color:var(--green)}
+  .card--cache{border-color:var(--hot)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--local{border-color:var(--rust);color:var(--rust)}
+  .tag--server{border-color:var(--green);color:var(--green)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style></head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Plan · 2026-08-12</p>
+  <h1>Feedback Calendar V1 — Round 4</h1>
+  <p class="lede">19 feedback items, 19 commit-sized tickets, in three blocks: calendar and event-detail
+  polish first, then the admin organization workbench with a derived Organizer role, then the full
+  Tournament → Event rename as the closing sweep. The app compiles and runs after every ticket.</p>
+</header>
+
+<h2>Goal</h2>
+
+<p>Ship every item of <code>feedback.md</code>: calendar page polish, event detail reflow, a single
+admin screen for the many-to-many organization ↔ organizer graph, a session-ready fix for guarded
+routes, generated demo-account documentation, and the calendar-domain rename across database, API,
+frontend and routes.</p>
+
+<div class="split">
+  <div class="card card--server">
+    <h3><span class="tag tag--server">in scope</span> Shipping</h3>
+    <ul>
+      <li>Calendar page: past-day dimming, clickable cards, hover, local time, search highlighting, scroll anchor</li>
+      <li>Event detail: title row, when/where row, maps link, action row, success dialog</li>
+      <li>Admin: organization workbench, derived Organizer role, Draft organizations, all-orgs picker</li>
+      <li>Auth: session-ready guards</li>
+      <li>Docs: generated <code>DEMO_ACCOUNTS.md</code>, ADRs 0033-0035</li>
+      <li>Rename: <code>Event</code> entities, <code>/api/events/*</code>, <code>/events/:slug</code></li>
+    </ul>
+  </div>
+  <div class="card card--local">
+    <h3><span class="tag tag--local">out of scope</span> Deferred</h3>
+    <ul>
+      <li>Event as a container of several tournaments</li>
+      <li>Server-side paginated user search (until the 500 cap trips)</li>
+      <li>Cancellation and notification flows for deleted organizations</li>
+      <li>Renaming <code>tournament_formats</code>, the league archive, the live domain</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Three blocks, one chain</h2>
+
+<div class="flow">
+  <div>T1 ─ auth guard fix — the reported <code>/registrations</code> bug and the whole race class</div>
+  <div>T2 … T9 ─ polish — calendar view, list view, detail page, demo docs</div>
+  <div>T10 … T14 ─ organizations — read model, derived role, heal migration, workbench, picker</div>
+  <div>T15 … T18 ─ rename — entities and tables, API, frontend symbols, routes</div>
+  <div>T19 ─ documentation, ADR status, acceptance matrix</div>
+</div>
+
+<div class="note">
+  <strong>Why the rename is last.</strong> It touches every file the polish tickets touch. Renaming
+  once at the end beats rebasing eighteen tickets across a mechanical diff.
+</div>
+
+<h2>Ticket order</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>ID</th><th>Title</th><th>Feedback</th><th>Commit outcome</th></tr></thead>
+  <tbody>
+    <tr><td>T1</td><td>Session-ready auth guards</td><td>18</td><td>Guards decide only after session restore; guest on <code>/registrations</code> lands on <code>/login</code></td></tr>
+    <tr><td>T2</td><td>Calendar past-day styling</td><td>1</td><td>Days before today render dimmed</td></tr>
+    <tr><td>T3</td><td>List card click, hover, local time</td><td>2, 3, 11</td><td>Whole card navigates, ICS still works, no zone suffix, hover lift</td></tr>
+    <tr><td>T4</td><td>Search match highlighting</td><td>4</td><td>Matches highlighted in both views, sharing the player-page helper</td></tr>
+    <tr><td>T5</td><td>Month navigation scroll anchor</td><td>10</td><td>Prev/next month keeps the scroll position</td></tr>
+    <tr><td>T6</td><td>Event detail hero reflow</td><td>13, 14, 15, 17</td><td><code>[format] Title (capacity)</code>, one when/where row, website bottom-right, org block gone</td></tr>
+    <tr><td>T7</td><td>Venue maps link</td><td>12</td><td>Location links to Google Maps with an icon, new tab</td></tr>
+    <tr><td>T8</td><td>Registration action row + dialog</td><td>16</td><td>Green register beside add-to-calendar, success dialog links to my registrations</td></tr>
+    <tr><td>T9</td><td>Generated DEMO_ACCOUNTS.md</td><td>19</td><td>Demo logins generated from fixtures, asserted by a test</td></tr>
+    <tr><td>T10</td><td>Org membership read model</td><td>7</td><td>Admin reads any roster; member count and Draft flag on the list</td></tr>
+    <tr><td>T11</td><td>Derived Organizer role + draft orgs</td><td>7</td><td>Membership drives <code>globalRole</code>; Draft orgs cannot publish</td></tr>
+    <tr><td>T12</td><td>One-shot membership heal migration</td><td>7</td><td>Legacy violations healed once, audited</td></tr>
+    <tr><td>T13</td><td>Admin organization workbench</td><td>7</td><td>Two-pane screen creates orgs and edits rosters</td></tr>
+    <tr><td>T14</td><td>Admin all-organizations picker</td><td>8</td><td>Admin can create an event for any organization</td></tr>
+    <tr><td>T15</td><td>Backend Event entity rename</td><td>9</td><td>Tables and types renamed, data-preserving migration</td></tr>
+    <tr><td>T16</td><td>Backend Event API rename</td><td>9</td><td><code>/api/events/*</code> only, OpenAPI regenerated</td></tr>
+    <tr><td>T17</td><td>Frontend Event symbol rename</td><td>9</td><td>Angular calendar feature speaks Event, app functional again</td></tr>
+    <tr><td>T18</td><td>Event routes + breadcrumbs</td><td>5, 6, 9</td><td><code>/events/:slug</code> canonical, redirects, "Create Event" breadcrumb</td></tr>
+    <tr><td>T19</td><td>Docs, ADR and matrix sweep</td><td>—</td><td>ADRs accepted, docs and acceptance matrix match the shipped system</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Decisions carried in from the grill</h2>
+
+<table>
+  <thead><tr><th>Question</th><th>Decision</th></tr></thead>
+  <tbody>
+    <tr><td>Rename depth</td><td>Full: DB, API, DTOs, Angular, routes, i18n — calendar domain only</td></tr>
+    <tr><td>Event shape</td><td>Pure rename; one event = one conceptual tournament, no child rows</td></tr>
+    <tr><td>API compatibility</td><td>Hard break, no aliases (ADR 0022 precedent); frontend redirects permanent</td></tr>
+    <tr><td>Organizer role</td><td>Derived from membership both ways; <code>Admin</code> never changed</td></tr>
+    <tr><td>Zero-member org</td><td>Legal, called Draft, cannot publish; removing the last member is allowed</td></tr>
+    <tr><td>Legacy data</td><td>One-shot heal migration with an audit record per change</td></tr>
+    <tr><td>User picker</td><td>Fetch all, filter client-side, cap 500 with a visible warning</td></tr>
+    <tr><td>Guard fix</td><td>All auth guards await session readiness</td></tr>
+    <tr><td>Demo docs</td><td>Generated from the demo fixtures, asserted by a test</td></tr>
+  </tbody>
+</table>
+
+<h2>Assumptions</h2>
+
+<ul>
+  <li>Draft is derived from the member count, never stored.</li>
+  <li>Past calendar day = venue date strictly before today; today is never dimmed.</li>
+  <li>Highlighting marks literal substring matches inside fuzzy-matched cards.</li>
+  <li>Every rendered element carries <code>data-cy</code>; every i18n key exists in both the <code>en</code> and <code>fr</code> maps.</li>
+  <li>The frontend is knowingly mid-rename between T16 and T17; those commits stay adjacent.</li>
+</ul>
+
+<div class="note warn">
+  <strong>Riskiest ticket: T15.</strong> EF scaffolds a drop-and-recreate for an entity rename. The
+  migration must be hand-corrected into rename operations or every event row is lost. The gate is
+  <code>grep -n "DropTable\|CreateTable"</code> on the new migration printing nothing.
+</div>
+
+<footer>
+  Index: <code>ai-artifacts/PLAN_2026_08_12_feedback-calendar-v1-round-4.md</code> ·
+  Tickets: <code>ai-artifacts/PLAN_2026_08_12_feedback-calendar-v1-round-4/T{n}_*.md</code> ·
+  Grill: <code>ai-artifacts/GRILL_2026_08_12_feedback-calendar-v1-round-4/ANSWERS.md</code> ·
+  ADRs 0033, 0034, 0035
+</footer>
+
+</div>
+</body>
+</html>

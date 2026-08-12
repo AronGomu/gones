@@ -1,143 +1,36 @@
 # Feedback Calendar V1 Implementation
 
-## General
+1. on calendar page, calendar view : show on the calendar all the dates that are passed (starting form yetersday) as different as ye to come days. Choose design.
 
-1. When logged-in in header menubar : update button to redirect to profile to be <a> appearance link instead.
+2. on calendar page, list view : remove button view page and replace it b making the entire card clickable. Make sure to keep add to calendar button interactable and working.
 
-2. When logged-in in header menubar : Apply red danger appearance to "Se deconnecter" button.
+3. on calendar page, list view: Give only the hour in the timezone do nto precise the GTM. Information is already present with localisation.
 
-3. Update AGENT.md file for frontend to add rule : every html element must have cy-data acting as unique identifier for element component.
+4. on calendar page, list view & calendar view : When searching, highlight matching text in search like for stat player
 
-4. Anonymous and logged user have access to live-tournaments and ligue
+5. When on tournaments/new page, breadcrumb show : "Not Found". Fix to "Create Tournament"
 
-5. On first visit of application : open about page first.
-   Cache in browser so that next visits go to menu / home page afterward.
+6. When on tournaments/new page, rename
 
-## (archived) Leagues feature
+7. Create admin page with organization section to allow admin only to create organization and those organization can be assign to user and transform them into organizer of their organization. An organisation can have several organizer. An organizer can be in different organization (many to many). All must be done from a single screen. Tell me best way to design that UI/UX.
+   Admin can assign itself organizations too as normal user
 
-1. Rename the feature to store (archive) leagues and tournaments within leagues to "leagues-archive" and "tournament-archive".
+8. Admin always has access to all organization for creating a new tournament event
 
-## Login page
+9. rename /tournaments/new to /events/new. Glboally rename all of that. Those all are event of 1 or more tournaments, use "Event" for back and front
 
-1. Remove "Compte" text (above "Se connecter"). Update design doc : "by default DO NOT add kicker to titles"
+10. on calendar page calendar view, when clicking on previous and next buttons, the calendar disapearing does change scrollbar position. Make sure to stay exactly on same position because its a hassle to always rescroll back down for each time we click next month and try to see the tournaments of that month
 
-2. Add margin between "Se connecter" buttons and "Continuer avec Google" / "Continuer avec Facebook" buttons row.
+11. on calendar page list view : add cool hover effect for cards of list like other cards in application
 
-3. Use Google and Facebook official logos instead of plain text.
+12. on http://localhost:4200/calendar/tournaments/{id} page, make location a clickable link that open maps in another tab with the adress. Add little google maps icon.
 
-4. Add margin between "Continuer avec Google" / "Continuer avec Facebook" buttons row and "Creer un compte" / "Mot de passe oublie" row
+13. on http://localhost:4200/calendar/tournaments/{id} page : move tournament format and capacity on title row like that : [{format}] {title} ({capacity})
+14. on http://localhost:4200/calendar/tournaments/{id} page : move date and time and location on same row : {date + time} - {location with link to maps}
+15. on http://localhost:4200/calendar/tournaments/{id} page : move button "Organization Website" to be bottom right of section
+16. on http://localhost:4200/calendar/tournaments/{id} page : move add to calendar to be on same line as register button, make register button green. remove My registrations buttons. instead make dialog that confirm the registrations and show a button to go look at "my registrations"
+17. on http://localhost:4200/calendar/tournaments/{id} page : remove the organization id block. there should be no block left
 
-5. In Menubar : remove "Se connecter" button.
+18. http://localhost:4200/registrations page : the page is accessible to non logged user. thats bug. fix it. Only logged user can access it.
 
-6. If user login to account (already existing account) : redirect to last non-login visited page (page from where user clicked "Se connecter" button) or home page as fallback.
-
-7. Login is not saved. Update front & back to cache user connexion as cookie. On application startup, auto-connect user if cookie present.
-
-8. Warning message when logged without account verification is not properly centered.
-
-## register page
-
-1. Add confirm password input
-
-2. Fix same margin issues from login page
-
-## Profile page
-
-1. Update "Nom d’utilisateur" input label -> "Pseudo".
-
-2. "Lieu" input should be split into 3 differents input :
-   1. Country
-   2. Region (French "Departement" size)
-   3. City
-      Replace text input by select for each of them.
-      Use already existing public database for each.
-
-3. "Année de naissance" input should be date input
-
-4. "Enregister" button should be disabled if no change to user information.
-
-5. Rename "Enregister" button to "Modifier Information du Compte"
-
-6. "Enregister" button should use warning color (should be yellow/orange).
-
-7. "Enregister" button should have confirmation dialog to validate update.
-
-8. "Enregister" button action do not register in backend. Information is not saved on application reload.
-
-9. Regroup "Paramètres e-mail" with previous section.
-
-10. In "Comptes liés" : remove password requirement to link account. Remove input and conditions.
-
-11. At the bottom of page : Add "Supprimer Compte" button with confirmation dialog that ask to input valid password to validate action.
-    Make sure to add logic for account deletion in backend if not already existing.
-
-12. Merge Settings page into Profile page.
-
-13. Rename Profile page as settings page.
-
-14. Update Settings page can only be accessible when logged in.
-
-## Sessions page
-
-1. Remove feature.
-
-## Registration page
-
-1. When logged, add card link in home / menu page to registration page.
-
-2. Add return to menu top and bottom buttons
-
-3. Remove "Compte" kicker
-
-## Home / Menu page
-
-1. Rewire Settings card redirection to go to merged profile and settings page.
-
-## live tournaments page
-
-1. Update backend to allow user (anonymous, user,...) to start and manage live tournaments.
-
-## Calendar Page view=calendar
-
-1. "calendar-filters" must be 1 row taking whole width.
-
-2. When loading calendar page : request to server all current present to future ALL tournaments.
-   Cache results with call timestamp.
-   DO NOT send request if request has already been executed in last 24h.
-
-3. remove "appliquer" button from "calendar-filters".
-
-4. Add new button "Synchroniser".
-   Located top right of page.
-   Manual button to Redo the request to fetch ALL tournaments.
-   Replace "appliquer" button but must be removed from form because independant action
-
-5. remove "Tournois publics" kicker
-
-6. "calendar-filters" form now filters on already loaded and cached tournaments result
-
-7. Replace all inputs by 1 single input.
-   Add placeholder : 'Recherchez statut, pays, region, ville, nom organiation, format, date'.
-   Make it fuzzy find on ALL TOURNAMENT DATA except tournament description.
-   Commas (",") are counted as word separator unless preceded with anti-slash "\,". Same for all regular separator.
-
-8. Even if no tournament found -> show calendar (but no events on any dates).
-
-9. For all validated account user type : add button "Creer Tournoi" next to "Synchronizer" button.
-   Redirect to tournament event creation page.
-
-## Tournament Event Creation page
-
-1. Must be same page for all user type.
-
-2. Only difference :
-   For Admin & Organizer -> instantly create the tournament
-   For other validated account user -> On click event submission :
-   1. open dialog with checkbox lists of admins & organizers
-   2. user check 1 or more
-   3. Send mail to all selected
-   4. Mail contain all event data inputed in form.
-      Add redirection link to dedicated page :
-      Page also has event description AND :
-   - Validate button -> accept event request and add it to backend database as public event
-   - Cancel -> deny request & redirect to new page with textarea to describe cancelation reasons and button "Envoyer Email Raisons Annulation".
+19. generate markdown files that contains all demo admin/organizer/user logins and what they should have at project root.

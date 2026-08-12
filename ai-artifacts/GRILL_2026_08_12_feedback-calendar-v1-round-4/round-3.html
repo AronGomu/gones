@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feedback round 4 — rename depth, org admin screen, detail page rules</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { margin:0 0 32px; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    .facts ul { margin:10px 0 0; padding-left:20px; color:var(--muted); font-size:.9rem; }
+    .facts code { color:var(--accent); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 3 · Resolving the membership contradiction</span>
+    <h1>Three answers describe three different legal states for a member-less organization</h1>
+    <p class="lede">Round 1 said an org cannot exist without an organizer. Round 2 Q4 blocks removing the last one (409), Q5 allows creating an org with none, Q6 auto-heals member-less orgs away. Those cannot all be true at once. Four questions settle the actual rule, then the frontier is empty and I write the plan.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <span class="node"><b>Feedback round 4</b></span><span class="arrow">→</span>
+    <span class="node">Direction (R1)</span><span class="arrow">→</span>
+    <span class="node">Rename set + routes (R2, settled)</span><span class="arrow">→</span>
+    <span class="node active">Org lifecycle rule</span><span class="arrow">·</span>
+    <span class="node active">Demotion side effects</span><span class="arrow">·</span>
+    <span class="node active">Heal scope</span><span class="arrow">→</span>
+    <span class="node">Ticket plan</span>
+  </nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>The contradiction</b>Same state, three verdicts.</figcaption>
+      <svg viewBox="0 0 340 200" role="img" aria-labelledby="t1 d1">
+        <title id="t1">Conflicting verdicts on a zero-member organization</title>
+        <desc id="d1">A zero member organization is legal at creation, illegal to reach by removal, and destroyed by the migration.</desc>
+        <rect x="105" y="80" width="130" height="42" rx="10" class="svg-node active"/>
+        <text x="170" y="99" text-anchor="middle" class="svg-label">Org, 0 members</text>
+        <text x="170" y="114" text-anchor="middle" class="svg-note">is this state legal?</text>
+        <path d="M60 40 L128 78" class="svg-line"/><text x="52" y="32" text-anchor="middle" class="svg-accent" font-size="11">create</text>
+        <text x="52" y="46" text-anchor="middle" class="svg-note">allowed (Q5)</text>
+        <path d="M280 40 L212 78" class="svg-line"/><text x="288" y="32" text-anchor="middle" class="svg-accent" font-size="11">remove last</text>
+        <text x="288" y="46" text-anchor="middle" class="svg-note">409 (Q4)</text>
+        <path d="M170 122 L170 160" class="svg-line"/><text x="170" y="176" text-anchor="middle" class="svg-accent" font-size="11">migration</text>
+        <text x="170" y="190" text-anchor="middle" class="svg-note">archived (Q6)</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>Blast radius of a demotion</b>What the ex-organizer leaves behind.</figcaption>
+      <svg viewBox="0 0 340 200" role="img" aria-labelledby="t2 d2">
+        <title id="t2">Artifacts owned by a demoted organizer</title>
+        <desc id="d2">Published events, pending proposals and participant lists remain after the user loses the Organizer role.</desc>
+        <rect x="110" y="10" width="120" height="34" rx="9" class="svg-node active"/><text x="170" y="32" text-anchor="middle" class="svg-label">User loses role</text>
+        <rect x="8" y="110" width="98" height="34" rx="9" class="svg-node"/><text x="57" y="132" text-anchor="middle" class="svg-label">published</text>
+        <rect x="120" y="110" width="100" height="34" rx="9" class="svg-node"/><text x="170" y="132" text-anchor="middle" class="svg-label">proposals</text>
+        <rect x="234" y="110" width="98" height="34" rx="9" class="svg-node"/><text x="283" y="132" text-anchor="middle" class="svg-label">registrants</text>
+        <path d="M150 44 L70 108" class="svg-line"/><path d="M170 44 L170 108" class="svg-line"/><path d="M192 44 L272 108" class="svg-line"/>
+        <text x="170" y="176" text-anchor="middle" class="svg-note">events belong to the org, not the person — but the org may now be empty</text>
+      </svg>
+    </figure>
+  </section>
+
+  <section class="facts">
+    <b>Facts checked since round 2</b>
+    <ul>
+      <li><code>Organization</code> already has soft delete: <code>DeletedAt</code>, <code>IsActive =&gt; DeletedAt is null</code>, plus a restore path — source <code>backend/src/Gones.Domain/Organizations/Organization.cs</code>. So "archive" needs no new column; it is the existing soft delete.</li>
+      <li>Updating a soft-deleted org already throws — the domain refuses writes on deleted orgs.</li>
+      <li>Settled and not re-asked: calendar-domain-only rename, hard API break to <code>/api/events/*</code>, canonical <code>/events/:slug</code> + <code>/events/new</code> with redirects from the old paths, session-ready guards, generated <code>DEMO_ACCOUNTS.md</code>, polish → org admin → rename slicing.</li>
+    </ul>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="What is the single rule for a zero-member organization?">
+      <legend>1. Pick the one rule for a zero-member org</legend>
+      <p class="why">Q4, Q5 and Q6 currently disagree; every downstream ticket (endpoint, dialog, migration, tests) depends on which one wins.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Draft lifecycle: an org with zero members is legal but flagged Draft — it cannot publish events; removing the last member is allowed and sends the org back to Draft; only Draft orgs older than the migration get archived"><span><b>Draft is a real state, reachable both ways</b><span class="rank">Recommended</span><span class="detail">Consistent with your Q5 answer, no 409 needed, publishing is the only gate; costs a computed Draft badge in the admin list and a publish-time check.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Asymmetric: creating an org with zero members is allowed, but once it has had a member, removing the last one returns 409 organization_requires_member"><span><b>Asymmetric — create empty, never empty again</b><span class="rank">Second</span><span class="detail">Literally what Q4 plus Q5 said; the rule is hard to explain and needs a 'has ever had members' flag to implement honestly.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Strict: creation requires at least one member and removing the last one returns 409; there is no zero-member state at all"><span><b>Strict — zero members impossible</b><span class="rank">Third</span><span class="detail">Cleanest invariant and simplest queries; overrides your Q5 draft answer and forces the admin to pick a member up front.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. Draft orgs should also be hidden from the public organization list"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What happens to an organization's published events when it loses all members or is deleted?">
+      <legend>2. Published events of an org that empties out or is deleted?</legend>
+      <p class="why">Events are owned by the org; registrants already signed up for them, so this is user-visible data, not bookkeeping.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Emptying an org changes nothing for already-published events; only new publications are blocked. Deleting the org hides its future events from the calendar but keeps past ones and all registrations"><span><b>Publish-gate only; delete hides future events</b><span class="rank">Recommended</span><span class="detail">Never breaks a registration someone already made; keeps history intact for the archive and for player stats.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Deleting an org cancels its future events and notifies registrants"><span><b>Cascade cancel + notify</b><span class="rank">Second</span><span class="detail">Honest to attendees; pulls the notification pipeline into this round and needs a cancellation state on Event.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Block deleting an org that still has future published events"><span><b>Block the delete</b><span class="rank">Third</span><span class="detail">Simplest and safest data-wise; the admin must clean up event by event first.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. deleted orgs must disappear from the calendar filters immediately"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Does the auto-heal migration keep running after deploy, or is it a one-shot?">
+      <legend>3. Auto-heal — one-shot or continuously enforced?</legend>
+      <p class="why">Q6 archives member-less orgs, but Q5 lets you create exactly that state on purpose; a recurring job would delete legitimate drafts.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="One-shot: the EF migration soft-deletes member-less orgs and demotes org-less Organizers once, at deploy; afterwards the lifecycle rule from Q1 governs and nothing runs on a schedule"><span><b>One-shot at migration</b><span class="rank">Recommended</span><span class="detail">Cleans legacy rows without ever touching a deliberately-created draft; the migration writes an audit record listing what it changed.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Recurring background job re-applies the invariant on a schedule"><span><b>Recurring enforcement</b><span class="rank">Second</span><span class="detail">Self-healing forever; will eventually eat a draft org someone created five minutes earlier.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. print the affected rows in the deploy log"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Guardrail for the client-side user list at scale?">
+      <legend>4. Guardrail on the fetch-all user picker?</legend>
+      <p class="why">You chose client-side filtering while expecting hundreds of users; a cap turns a future slow page into a visible, fixable signal instead of a mystery.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Fetch all with a hard cap of 1000 users, client-side filter, and an explicit banner plus a failing test when the cap is hit so the server-side search gets built then"><span><b>Cap at 1000 + visible warning</b><span class="rank">Recommended</span><span class="detail">Keeps this round small and makes the ceiling impossible to miss later.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Fetch all, no cap, no warning"><span><b>No guardrail</b><span class="rank">Second</span><span class="detail">Least code now; degrades silently, exactly where you already predicted growth.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. cap at 500 instead"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 3 · Org lifecycle rule — Feedback round 4\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

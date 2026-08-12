@@ -1,0 +1,89 @@
+# T17: Frontend Event symbol rename
+
+**Plan:** `./ai-artifacts/PLAN_2026_08_12_feedback-calendar-v1-round-4.md`
+**Depends:** T16
+**Commit outcome:** the Angular calendar feature compiles and passes against `/api/events/*`, with services, components, types and tests renamed from Tournament to Event; routes and breadcrumbs still use the old paths (renamed in T18).
+
+## Context (self-contained)
+
+- Goal: ship round 4 of `feedback.md`. This block renames the calendar domain from Tournament to Event, back and front.
+- This slice: frontend source symbols and API calls. T16 broke the old API paths deliberately, so the app is only functional again at the end of THIS ticket.
+- Out of scope here: router paths, redirects, breadcrumbs and i18n labels (T18); the archive (`leagues-archive`, `tournaments-archive`) and live (`live-tournaments`) features, which keep their names.
+- Assumptions in force: the generated client `src/app/api/generated/gones-api.ts` already exposes the Event-named operations after T16 — do not hand-edit it.
+
+## Requirements
+
+- Directory rename `src/app/features/calendar/` stays (the feature is still the calendar), but the files inside are renamed:
+  | old | new |
+  | --- | --- |
+  | `public-tournament.service.ts` (+ test) | `public-event.service.ts` |
+  | `public-tournament-detail.component.ts` (+ test) | `public-event-detail.component.ts` |
+  | `tournament-detail-view.component.ts` (+ test) | `event-detail-view.component.ts` |
+  | `tournament-registration.service.ts` (+ test) | `event-registration.service.ts` |
+  | `tournament-proposal.service.ts` | `event-proposal.service.ts` |
+  | `tournament-fuzzy-search.ts` (+ test) | `event-fuzzy-search.ts` |
+  | `tournament-management.ts` (+ test) | `event-management.ts` |
+  | `tournament-request.component.ts` (+ test) | `event-request.component.ts` |
+  | `organizer-tournament-create.component.ts` (+ tests) | `organizer-event-create.component.ts` |
+  | `organizer-tournament-list.component.ts` | `organizer-event-list.component.ts` |
+  | `all-tournaments-cache.service.ts` (+ test) | `all-events-cache.service.ts` |
+  | `admin-deleted-tournaments.component.ts` | `admin-deleted-events.component.ts` |
+  | `tournament-proposal-submit.test.ts` | `event-proposal-submit.test.ts` |
+- Class/type renames: `PublicTournamentService` → `PublicEventService`, `PublicTournamentDetailComponent` → `PublicEventDetailComponent`, `TournamentDetailViewComponent` → `EventDetailViewComponent` (selector `gones-tournament-detail-view` → `gones-event-detail-view`), `TournamentRegistrationService` → `EventRegistrationService`, `AllTournamentsCacheService` → `AllEventsCacheService`, `OrganizerTournamentCreateComponent` → `OrganizerEventCreateComponent`, `OrganizerTournamentListComponent` → `OrganizerEventListComponent`, `AdminDeletedTournamentsComponent` → `AdminDeletedEventsComponent`, `TournamentRequestComponent` → `EventRequestComponent`, `PublicTournamentView` → `PublicEventView`, `TournamentDetailView` → `EventDetailView`, `TournamentOrganizationOption` → `EventOrganizationOption`, `TournamentDatePresentation` → `EventDatePresentation`.
+- Function renames in `public-calendar.ts`: `tournamentsByDate` → `eventsByDate`, `groupTournamentsByVenueDate` → `groupEventsByVenueDate`, `sortTournamentsForList` → `sortEventsForList`, `paginateTournaments` → `paginateEvents`, `tournamentDatePresentation` → `eventDatePresentation`, `tournamentCardDatePresentation` → `eventCardDatePresentation` (added in T3), `filterTournaments` → `filterEvents`, `searchableText` unchanged, `MAX_DAY_CELL_EVENTS` unchanged.
+- All `Client.*` calls switch to the Event-named generated operations; the generated method names come from T16's OpenAPI — read them from `src/app/api/generated/gones-api.ts` rather than guessing.
+- `src/app/features/calendar/tournament-registration.service.ts` maps API error codes; update `registrationErrorKey()` for the `event_*` codes renamed in T16.
+- `src/app/api/service-worker-cache.ts` and `src/app/backend/*` may hold `/api/tournaments` URL strings — find them with `grep -rn "api/tournaments" src --include=*.ts` and update. Do NOT touch strings belonging to the archive or live domains (`grep` context check first).
+- `data-cy` values that read `tournament-…` on calendar screens become `event-…`; update the Cypress specs in the same commit (`cypress/e2e/public-calendar.cy.js`, `tournament-registration.cy.js` → `event-registration.cy.js`, `organizer-tournament-create.cy.js` → `organizer-event-create.cy.js`, `tournament-proposal.cy.js` → `event-proposal.cy.js`, `organizer-tournament-management.cy.js` → `organizer-event-management.cy.js`).
+- Keep `src/app/features/calendar/public-calendar.component.ts` and `public-calendar.ts` file names as they are — the page is still the calendar.
+
+## Inputs
+
+- `src/app/features/calendar/` — 30+ files; enumerate with `ls src/app/features/calendar`.
+- `src/app/api/generated/gones-api.ts` — regenerated by T16; the source of truth for method names.
+- `src/app/app.routes.ts` — imports the renamed components through `loadComponent`; update the import paths and symbol names here, but leave the route `path` strings untouched (T18 changes them).
+- `src/app/features/calendar/tournament-registration.service.ts` — `registrationErrorKey(code)` mapping.
+- **From Depends:** T16 renamed the API to `/api/events/*`, renamed DTOs (`PublicEventSummaryResponse`, `PublicEventDetailResponse`, `PublicEventParticipantResponse`, `EventRegistrationCapabilityResponse`, `EventPreviewRenderResponse`, `PublishEventRequest`, `EventPublishResponse`) and renamed `tournament_*` error codes to `event_*`.
+
+## TDD
+
+1. **Red** — `npm run typecheck` fails everywhere the old client methods are called; that is the red state for this mechanical ticket. Additionally update one behavioural test first: `src/app/features/calendar/public-calendar.component.test.ts` asserting the calendar loads through the Event service.
+2. **Green** — rename files, symbols and calls until `npm run test` and `npm run cy:run` pass.
+3. **Refactor** — remove any now-duplicated helper.
+
+## Test plan
+
+| Test | Input | Expect |
+| ---- | ---- | ------ |
+| `calendar page loads from the events endpoint` | stubbed `AllEventsCacheService` | list renders, no call to a `tournaments` URL |
+| `detail page loads an event` | stubbed `PublicEventService.detail(slug)` | hero renders |
+| `registration errors map to event codes` | `registrationErrorKey('event_capacity_reached')` | returns the existing capacity i18n key |
+| `no source file references the old API path` | `grep -rn "api/tournaments" src --include=*.ts` | prints nothing outside the archive domain |
+| full suites | `npm run test`, `npm run cy:run` | green |
+
+## Impl steps
+
+- [ ] 1. Rename the files per the map with `git mv` so history follows.
+- [ ] 2. Rename the classes, types and functions; fix every import.
+- [ ] 3. Point every `Client.*` call at the Event operations from the regenerated client.
+- [ ] 4. Update `registrationErrorKey()` for the `event_*` codes.
+- [ ] 5. `grep -rn "api/tournaments" src --include=*.ts` and update the survivors (skip archive/live).
+- [ ] 6. Update calendar `data-cy` prefixes and the matching Cypress specs; `git mv` the spec files.
+- [ ] 7. Update `src/app/app.routes.ts` imports and symbol names only.
+- [ ] 8. Run `npm run typecheck`, `npm run lint`, `npm run test`.
+- [ ] 9. Run `npm run cy:run`.
+- [ ] 10. Run `npx vitest run src/app/shared/data-cy-coverage.test.ts` and `npx vitest run ops/e2e-spec-coverage.test.ts` (spec names are asserted there).
+
+## Outputs
+
+- Files touched: all renamed files under `src/app/features/calendar/`, `src/app/app.routes.ts`, `src/app/api/service-worker-cache.ts`, Cypress specs, `ops/e2e-spec-coverage.test.ts` if it lists spec files.
+- Behaviour change: none intended — the app talks to `/api/events/*` and is functional again.
+
+## Validation
+
+- [ ] `npm run typecheck && npm run lint && npm run test` pass
+- [ ] `npm run cy:run` passes
+- [ ] `grep -rn "api/tournaments" src --include=*.ts` prints nothing
+- [ ] manual check: `npm run dev`, browse the calendar, open an event, register, add to calendar
+- [ ] app functional — full round trip against the renamed API
+- [ ] commit msg draft: `refactor(calendar): rename frontend calendar symbols to Event`

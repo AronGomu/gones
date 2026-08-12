@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Organization Membership Model</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--local{border-color:var(--rust)}
+  .card--server{border-color:var(--green)}
+  .card--cache{border-color:var(--hot)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--local{border-color:var(--rust);color:var(--rust)}
+  .tag--server{border-color:var(--green);color:var(--green)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style></head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Organization Membership Model</h1>
+  <p class="lede">Organizations and organizers form a many-to-many graph, and that graph is the only
+  source of truth for the <code>Organizer</code> global role. An organization with no member is not
+  an error — it is Draft, and Draft organizations cannot publish events.</p>
+</header>
+
+<h2>The two sides</h2>
+
+<div class="split">
+  <div class="card card--server">
+    <h3><span class="tag tag--server">table</span> <code>organizations</code></h3>
+    <p>Soft-deleted through <code>deleted_at</code>; <code>IsActive =&gt; DeletedAt is null</code>.
+    Deletion is reversible via the admin restore endpoint. An organization's roster lives in
+    <code>organization_members</code>.</p>
+  </div>
+  <div class="card card--server">
+    <h3><span class="tag tag--server">table</span> <code>organization_members</code></h3>
+    <p>One row per (organization, user) pair with an organization role: <code>Owner</code> or
+    <code>Organizer</code>. This table decides the account-wide <code>global_role</code>.</p>
+  </div>
+  <div class="card card--cache">
+    <h3><span class="tag tag--danger">derived</span> Draft</h3>
+    <p>Zero members. Never stored — computed as <code>memberCount == 0</code> and surfaced as
+    <code>isDraft</code> on the admin organization response.</p>
+  </div>
+</div>
+
+<h2>Role transitions</h2>
+
+<table>
+  <thead><tr><th>Event</th><th>Before</th><th>After</th><th>Side effects</th></tr></thead>
+  <tbody>
+    <tr><td>First membership added</td><td><code>User</code></td><td><code>Organizer</code></td><td>security stamp rotated, refresh sessions revoked, audit <code>organization.role.derived</code></td></tr>
+    <tr><td>Second membership added</td><td><code>Organizer</code></td><td><code>Organizer</code></td><td>audit <code>organization.role.unchanged</code></td></tr>
+    <tr><td>One of two memberships removed</td><td><code>Organizer</code></td><td><code>Organizer</code></td><td>none</td></tr>
+    <tr><td>Last membership removed</td><td><code>Organizer</code></td><td><code>User</code></td><td>security stamp rotated, sessions revoked, audit</td></tr>
+    <tr><td>Any membership change</td><td><code>Admin</code></td><td><code>Admin</code></td><td>never demoted; audit <code>organization.role.unchanged</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Organization lifecycle</h2>
+
+<div class="flow">
+  <div>create org (no members) ─→ <strong>Draft</strong> · editable · restorable · <em>cannot publish</em></div>
+  <div>add first member ─→ <strong>Active</strong> · publishes events · member promoted to Organizer</div>
+  <div>remove last member ─→ back to <strong>Draft</strong> · 204, no conflict · member demoted to User</div>
+  <div>delete org ─→ <strong>soft-deleted</strong> · future events hidden · past events + registrations kept</div>
+  <div>restore org ─→ previous state, Draft or Active depending on the roster</div>
+</div>
+
+<div class="note">
+  <strong>Why no 409 on the last removal.</strong> Blocking the removal forces an admin to delete a
+  whole organization just to remove a person from it. Draft is the honest state: the record exists,
+  it simply cannot act until someone staffs it. Publishing is where the invariant is enforced —
+  <code>409 organization_is_draft</code>.
+</div>
+
+<h2>Enforcement points</h2>
+
+<table>
+  <thead><tr><th>Where</th><th>Rule</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td><code>OrganizationService.AddMemberAsync</code></td><td>sync the derived role after the write, inside the transaction</td><td>201 with the member</td></tr>
+    <tr><td><code>OrganizationService.RemoveMemberAsync</code></td><td>same sync; last member allowed</td><td>204</td></tr>
+    <tr><td>Event publication</td><td>organization must have at least one member</td><td><code>409 organization_is_draft</code></td></tr>
+    <tr><td>Event create picker</td><td>Draft and deleted organizations filtered out</td><td>not offered</td></tr>
+    <tr><td>One-shot heal migration</td><td>legacy member-less orgs soft-deleted, org-less Organizers demoted</td><td>one audit row per change</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <strong>One shot, never recurring.</strong> The heal runs inside a single EF migration. A scheduled
+  job would eventually archive a Draft organization created deliberately minutes earlier.
+</div>
+
+<h2>Admin surface</h2>
+
+<p><code>/admin/organizations</code> is the single screen for both sides of the graph: organizations
+with create on the left, the selected organization's roster on the right — member chips plus a user
+picker. The picker fetches users once and filters client-side, capped at 500 accounts with a visible
+warning past that point; server-side search is deliberately deferred until the cap is reached.</p>
+
+<p>The users screen no longer grants the <code>Organizer</code> role by hand. There is exactly one
+way to become an organizer: be a member of an organization.</p>
+
+<footer>
+  ADR 0034 — Derived Organizer Role and Draft Organizations · read with
+  <code>docs/adr/0034-derived-organizer-role-and-draft-organizations.md</code>
+</footer>
+
+</div>
+</body>
+</html>

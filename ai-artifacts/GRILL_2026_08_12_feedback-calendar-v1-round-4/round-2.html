@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Feedback round 4 — rename depth, org admin screen, detail page rules</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { margin:0 0 32px; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    .facts ul { margin:10px 0 0; padding-left:20px; color:var(--muted); font-size:.9rem; }
+    .facts code { color:var(--accent); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 2 · Rename target set, org invariants</span>
+    <h1>Which tables actually become "Event", and what happens when an org loses its last organizer</h1>
+    <p class="lede">Round 1 settled the direction: full rename, pure rename (no child tournaments), two-pane admin screen, derived Organizer role, session-ready guards, generated DEMO_ACCOUNTS.md, polish-first slicing. Two of your precisions opened new decisions — the exact rename target set, and the hard "never zero" invariants on both sides of the membership graph.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <span class="node"><b>Feedback round 4</b></span><span class="arrow">→</span>
+    <span class="node">Direction (settled R1)</span><span class="arrow">→</span>
+    <span class="node active">Rename target set</span><span class="arrow">·</span>
+    <span class="node active">Route + API compatibility</span><span class="arrow">·</span>
+    <span class="node active">Membership invariants</span><span class="arrow">·</span>
+    <span class="node active">Legacy data backfill</span><span class="arrow">→</span>
+    <span class="node">Ticket plan</span>
+  </nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Calendar entities today</b>Not everything named Tournament belongs to the calendar.</figcaption>
+      <svg viewBox="0 0 340 210" role="img" aria-labelledby="t1 d1">
+        <title id="t1">Entity map</title>
+        <desc id="d1">ScheduledTournament with its format, proposal, lifecycle and registration satellites, beside shared TournamentFormat lookup and the separate archive and live aggregates.</desc>
+        <rect x="98" y="82" width="140" height="40" rx="10" class="svg-node active"/><text x="168" y="107" text-anchor="middle" class="svg-label">ScheduledTournament</text>
+        <rect x="8" y="10" width="130" height="30" rx="8" class="svg-node active"/><text x="73" y="30" text-anchor="middle" class="svg-label">…Format (join)</text>
+        <rect x="198" y="10" width="134" height="30" rx="8" class="svg-node active"/><text x="265" y="30" text-anchor="middle" class="svg-label">TournamentProposal</text>
+        <rect x="8" y="164" width="130" height="30" rx="8" class="svg-node active"/><text x="73" y="184" text-anchor="middle" class="svg-label">LifecycleEvent</text>
+        <rect x="198" y="164" width="134" height="30" rx="8" class="svg-node active"/><text x="265" y="184" text-anchor="middle" class="svg-label">RegistrationAttempt</text>
+        <path d="M120 82 L82 40" class="svg-line"/><path d="M216 82 L252 40" class="svg-line"/>
+        <path d="M120 122 L82 164" class="svg-line"/><path d="M216 122 L252 164" class="svg-line"/>
+        <text x="168" y="140" text-anchor="middle" class="svg-note">shared lookup TournamentFormat + archive/live aggregates sit outside</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>The deadlock case</b>User is the only member of the only org they belong to.</figcaption>
+      <svg viewBox="0 0 340 200" role="img" aria-labelledby="t2 d2">
+        <title id="t2">Last member removal conflict</title>
+        <desc id="d2">Removing the sole membership would both empty the organization and demote the user, violating both invariants at once.</desc>
+        <rect x="18" y="80" width="110" height="40" rx="10" class="svg-node active"/><text x="73" y="105" text-anchor="middle" class="svg-label">Org X</text>
+        <rect x="212" y="80" width="110" height="40" rx="10" class="svg-node active"/><text x="267" y="105" text-anchor="middle" class="svg-label">User Y</text>
+        <path d="M128 100 L212 100" class="svg-line"/>
+        <text x="170" y="92" text-anchor="middle" class="svg-accent" font-size="11">only link</text>
+        <text x="170" y="150" text-anchor="middle" class="svg-note">remove it → org has 0 organizers AND user is Organizer with 0 orgs</text>
+        <text x="170" y="170" text-anchor="middle" class="svg-note">something must give: block, cascade-archive, or demote</text>
+      </svg>
+    </figure>
+  </section>
+
+  <section class="facts">
+    <b>Facts checked since round 1</b>
+    <ul>
+      <li>The calendar entity is <code>ScheduledTournament</code>, with satellites <code>ScheduledTournamentFormat</code>, <code>TournamentProposal</code>, <code>TournamentProposalRecipient</code>, <code>TournamentLifecycleEvent</code>, <code>TournamentRegistrationAttempt</code>, <code>ConsumedTournamentPreviewTicket</code> — source <code>backend/src/Gones.Infrastructure/Persistence/GonesDbContext.cs</code>.</li>
+      <li><code>TournamentFormat</code> is a shared lookup table (Modern, Legacy…), also used by the archive domain — renaming it would be wrong.</li>
+      <li><code>LeagueArchiveAggregate</code> / <code>LiveAggregate</code> are separate domains (ADR 0022, ADR 0021).</li>
+      <li>Public API surface to rename: <code>/api/tournaments</code>, <code>/api/tournaments/all</code>, <code>/api/tournaments/{slug}</code>, <code>/api/tournaments/{slug}/participants</code>, <code>/api/tournaments/{slug}.ics</code>, plus the organizer/publication/registration groups — source <code>backend/src/Gones.Api/Tournaments/*.cs</code>.</li>
+      <li>Precedent: the archive rename (ADR 0022) kept frontend redirects but deliberately gave the API <b>no</b> alias.</li>
+      <li>Membership already modelled as <code>OrganizationMember</code>; <code>OrganizationService.cs</code> is ~500 lines and already owns add/remove member paths.</li>
+    </ul>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="Which entities and tables are in the rename target set?">
+      <legend>1. Which tables are in the rename set?</legend>
+      <p class="why">"Rename everything" is unimplementable literally — some Tournament-named tables belong to other domains, and one is a shared lookup.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Calendar domain only: ScheduledTournament→Event, ScheduledTournamentFormat→EventFormat, TournamentProposal(+Recipient)→EventProposal, TournamentLifecycleEvent→EventLifecycleEntry, TournamentRegistrationAttempt→EventRegistrationAttempt, ConsumedTournamentPreviewTicket→ConsumedEventPreviewTicket. TournamentFormat lookup, archive and live aggregates untouched"><span><b>Calendar domain only</b><span class="rank">Recommended</span><span class="detail">Renames exactly what the user calls an event; keeps the shared format lookup and the archive/live vocabulary intact.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Calendar domain plus rename the shared TournamentFormat lookup to GameFormat"><span><b>Also rename the shared lookup</b><span class="rank">Second</span><span class="detail">Removes the last confusing name; touches the archive domain and its fixtures, widening the diff.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Only ScheduledTournament itself; leave satellite table names as Tournament*"><span><b>Head entity only</b><span class="rank">Third</span><span class="detail">Smallest migration; leaves EventProposal-shaped concepts still called Tournament, i.e. half-renamed.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. also rename the C# namespace Gones.Api.Tournaments to Gones.Api.Events"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Do old API paths keep serving after the rename?">
+      <legend>2. Do the old <code>/api/tournaments/*</code> paths keep working?</legend>
+      <p class="why">Installed PWAs and the offline read cache hold URLs; but ADR 0022 set a precedent of no API aliases.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Hard break: /api/events/* only, matching the ADR 0022 no-API-alias precedent; frontend routes still redirect"><span><b>Hard break on the API</b><span class="rank">Recommended</span><span class="detail">One surface to maintain and test, consistent with existing precedent; a stale cached SPA gets 404s until it reloads.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Dual-serve old paths as 301 redirects for one release, then delete"><span><b>Temporary 301 aliases</b><span class="rank">Second</span><span class="detail">Zero-downtime for stale clients; needs a removal ticket that will be forgotten, and doubles contract tests for a release.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. also bump the service worker so stale shells reload"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What is the canonical public frontend route for an event?">
+      <legend>3. Canonical public route for an event page?</legend>
+      <p class="why"><code>/events/:slug</code> is currently a redirect <i>into</i> <code>/calendar/tournaments/:slug</code>; after the rename the arrow must flip, and the calendar prefix may or may not survive.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Canonical /events/:slug and /events/new; /calendar stays as the browse page; old /calendar/tournaments/:slug and /tournaments/new redirect to the new paths"><span><b>Flat /events/*, /calendar keeps browsing</b><span class="rank">Recommended</span><span class="detail">Matches feedback item 9 literally, shortest URLs, calendar stays the view not the namespace.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep the calendar prefix: /calendar/events/:slug and /calendar/events/new"><span><b>Namespaced under /calendar</b><span class="rank">Second</span><span class="detail">Preserves the current information hierarchy and breadcrumbs; longer URLs, and item 9 says /events/new.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. breadcrumb should read Calendar › Create Event even on the flat route"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What happens when removing the last organizer of an organization?">
+      <legend>4. Removing an org's last organizer — what happens?</legend>
+      <p class="why">You said an organization cannot exist without at least one organizer; the system must do something concrete at that boundary.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Block it: API returns 409 organization_requires_member, UI disables the remove control on the last chip with a tooltip; deleting the org is the way out"><span><b>Block the removal (409)</b><span class="rank">Recommended</span><span class="detail">Invariant is never violated, error is explicit and testable; admin must consciously choose to delete or transfer the org.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Allow it, and cascade: the organization is archived/deactivated in the same transaction"><span><b>Cascade-archive the org</b><span class="rank">Second</span><span class="detail">One click does the intuitive thing; a silent destructive side effect on events belonging to that org.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Require a replacement in the same action: removal dialog forces picking another organizer first"><span><b>Forced hand-over</b><span class="rank">Third</span><span class="detail">Best data hygiene; the heaviest UI of the three and awkward when the org genuinely ends.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. what should happen to that org's published events when the org is deleted?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Can an organization be created without members, and can a user be made Organizer without an organization?">
+      <legend>5. Creation side of the same invariant?</legend>
+      <p class="why">The mirror of Q4: if orgs must always have a member, the create action cannot leave one empty.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Create dialog requires at least one member; the admin may pick itself. Promoting a user to Organizer with zero orgs is impossible — the role control is removed from the users screen and driven only by membership"><span><b>Member required at creation, role is never set by hand</b><span class="rank">Recommended</span><span class="detail">Both invariants hold by construction and there is exactly one way to become an Organizer.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Allow creating a draft org with no members, blocked from publishing events until it has one"><span><b>Draft orgs allowed</b><span class="rank">Second</span><span class="detail">Nicer admin flow (create now, staff later); introduces a state your invariant says should not exist.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. an admin adding itself as member must not lose the Admin role — confirm"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How is existing data that violates the new invariants handled?">
+      <legend>6. Existing violating rows — what does the migration do?</legend>
+      <p class="why">Today's DB may hold member-less orgs and Organizers with no membership; the invariant needs a defined starting point.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Migration reports only: a script lists violating rows and the deploy runbook says fix them by hand; no automatic data change"><span><b>Report, fix by hand</b><span class="rank">Recommended</span><span class="detail">Never destroys data you cannot recover; needs one manual step per environment, and the dev DB is disposable anyway.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Migration auto-heals: member-less orgs are archived, org-less Organizers are demoted to User"><span><b>Auto-heal</b><span class="rank">Second</span><span class="detail">Guarantees a clean state immediately; silently demotes real people if the data was merely mid-edit.</span></span></label>
+        <label class="choice"><input type="checkbox" value="No backfill: enforce only on new writes, tolerate legacy violations"><span><b>Enforce forward only</b><span class="rank">Third</span><span class="detail">Cheapest; the invariant is then not actually an invariant, and queries must stay defensive.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. prod has no real data yet — just auto-heal"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How does the member picker handle hundreds of users?">
+      <legend>7. User picker at hundreds of users — confirm the shape?</legend>
+      <p class="why">You flagged the scale; loading all users into a client-side autocomplete stops working around a few hundred rows.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Server-side search endpoint GET /api/admin/users?query=&page=&pageSize= with debounced autocomplete, min 2 characters, 20 results per page; org list pane paginated too"><span><b>Server-side debounced search</b><span class="rank">Recommended</span><span class="detail">Scales indefinitely and reuses the existing admin users endpoint shape; needs a loading state and an empty state.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Client-side filtering over a full user list fetched once"><span><b>Fetch all, filter locally</b><span class="rank">Second</span><span class="detail">Instant filtering and trivial code; a heavy first request that degrades exactly as you grow.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. search must match email as well as display name"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 2 · Rename target set, org invariants — Feedback round 4\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

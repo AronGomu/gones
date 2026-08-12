@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Calendar Event Vocabulary</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--local{border-color:var(--rust)}
+  .card--server{border-color:var(--green)}
+  .card--cache{border-color:var(--hot)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--local{border-color:var(--rust);color:var(--rust)}
+  .tag--server{border-color:var(--green);color:var(--green)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style></head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Calendar Event Vocabulary</h1>
+  <p class="lede">The calendar domain is renamed from Tournament to Event through every ring: domain
+  types, PostgreSQL tables, API paths, frontend symbols and routes. The archived League domain, the
+  Live domain and the shared format lookup keep their names.</p>
+</header>
+
+<h2>What is renamed</h2>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Ring</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    <tr><td>Domain type</td><td><code>ScheduledTournament</code></td><td><code>Event</code></td></tr>
+    <tr><td>Domain type</td><td><code>ScheduledTournamentFormat</code></td><td><code>EventFormat</code></td></tr>
+    <tr><td>Domain type</td><td><code>TournamentProposal</code>, <code>TournamentProposalRecipient</code></td><td><code>EventProposal</code>, <code>EventProposalRecipient</code></td></tr>
+    <tr><td>Domain type</td><td><code>TournamentLifecycleEvent</code></td><td><code>EventLifecycleEntry</code></td></tr>
+    <tr><td>Domain type</td><td><code>TournamentRegistrationAttempt</code></td><td><code>EventRegistrationAttempt</code></td></tr>
+    <tr><td>Domain type</td><td><code>ConsumedTournamentPreviewTicket</code></td><td><code>ConsumedEventPreviewTicket</code></td></tr>
+    <tr><td>Table</td><td><code>scheduled_tournaments</code></td><td><code>events</code></td></tr>
+    <tr><td>Table</td><td><code>scheduled_tournament_formats</code></td><td><code>event_formats</code></td></tr>
+    <tr><td>Table</td><td><code>tournament_registration_attempts</code></td><td><code>event_registration_attempts</code></td></tr>
+    <tr><td>Table</td><td><code>tournament_lifecycle_events</code></td><td><code>event_lifecycle_entries</code></td></tr>
+    <tr><td>Table</td><td><code>tournament_proposals</code>, <code>tournament_proposal_recipients</code></td><td><code>event_proposals</code>, <code>event_proposal_recipients</code></td></tr>
+    <tr><td>Column</td><td><code>tournament_id</code>, <code>scheduled_tournament_id</code></td><td><code>event_id</code></td></tr>
+    <tr><td>API</td><td><code>/api/tournaments/*</code></td><td><code>/api/events/*</code></td></tr>
+    <tr><td>Route</td><td><code>/calendar/tournaments/:slug</code></td><td><code>/events/:slug</code></td></tr>
+    <tr><td>Route</td><td><code>/tournaments/new</code></td><td><code>/events/new</code></td></tr>
+    <tr><td>Route</td><td><code>/organizer/tournaments/*</code></td><td><code>/organizer/events/*</code></td></tr>
+    <tr><td>Route</td><td><code>/tournament-requests/:token</code></td><td><code>/event-requests/:token</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>What is not renamed</h2>
+
+<div class="split">
+  <div class="card card--local">
+    <h3><span class="tag tag--local">shared</span> <code>tournament_formats</code></h3>
+    <p>The format lookup (Modern, Legacy, …) is used by the archive domain too. Renaming it would
+    widen the diff into a domain this decision does not touch.</p>
+  </div>
+  <div class="card card--local">
+    <h3><span class="tag tag--local">separate</span> League archive</h3>
+    <p><code>leagues-archive</code> / <code>tournaments-archive</code> already carry their own
+    vocabulary from ADR 0022. Historical result tournaments stay tournaments.</p>
+  </div>
+  <div class="card card--local">
+    <h3><span class="tag tag--local">separate</span> Live tournaments</h3>
+    <p><code>live-tournaments</code> is the browser-run tournament (ADR 0021). A live tournament is
+    genuinely a tournament, not an event.</p>
+  </div>
+</div>
+
+<h2>Compatibility</h2>
+
+<div class="flow">
+  <div>API ─→ <strong>hard break</strong>. <code>/api/tournaments/*</code> returns 404. No aliases, per the ADR 0022 precedent.</div>
+  <div>Frontend routes ─→ <strong>permanent redirects</strong>, parameters preserved. Bookmarks keep working.</div>
+  <div>Browse page ─→ <code>/calendar</code> stays. The calendar is a view, not a namespace.</div>
+  <div>Wire shape ─→ unchanged apart from renamed fields; DTOs move from <code>Tournament*</code> to <code>Event*</code>, JSON <code>tournamentId</code> becomes <code>eventId</code>.</div>
+</div>
+
+<div class="note warn">
+  <strong>The migration is a rename, never a drop.</strong> EF scaffolds <code>DropTable</code> +
+  <code>CreateTable</code> for an entity rename because the model snapshot still carries the old CLR
+  name at diff time. Applying that scaffold would delete every event. The migration is hand-corrected
+  into <code>RenameTable</code>, <code>RenameColumn</code>, <code>RenameIndex</code> and
+  <code>ALTER TABLE … RENAME CONSTRAINT</code>, exactly like
+  <code>20260809122735_RenameLeagueArchiveTables.cs</code>.
+</div>
+
+<h2>Scope of the concept</h2>
+
+<p>An Event is today's record renamed. It is tied to a single tournament conceptually, and that
+tournament has no row of its own. Modelling an event as a container of several tournaments — with
+per-tournament capacity, formats and registration — is deferred to a later epic.</p>
+
+<h2>Commit order</h2>
+
+<div class="flow">
+  <div>1 ─ entities, tables, hand-corrected migration. HTTP surface untouched, OpenAPI byte-identical.</div>
+  <div>2 ─ endpoints, DTOs, error codes; OpenAPI and the generated Angular client regenerated.</div>
+  <div>3 ─ frontend services, components, types, <code>data-cy</code> values, Cypress specs.</div>
+  <div>4 ─ routes, redirects, breadcrumbs, i18n labels.</div>
+</div>
+
+<p>The frontend is knowingly mid-rename between commits 2 and 3; those two commits stay adjacent.</p>
+
+<footer>
+  ADR 0035 — Calendar Event Vocabulary · read with
+  <code>docs/adr/0035-calendar-event-vocabulary.md</code> and ADR 0022
+</footer>
+
+</div>
+</body>
+</html>
