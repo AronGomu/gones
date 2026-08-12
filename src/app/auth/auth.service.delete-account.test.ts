@@ -102,6 +102,7 @@ describe('AuthService.deleteAccount', () => {
     const reset = vi.fn();
     sessionScope.register(reset);
     await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+    const generation = localStorage.getItem('gones.auth.sessionGeneration');
 
     await expect(service.deleteAccount('wrong')).rejects.toThrow('Bad Request');
 
@@ -109,7 +110,7 @@ describe('AuthService.deleteAccount', () => {
     expect(service.profile()).not.toBeNull();
     expect(store.token).toBe('memory-token');
     expect(reset).not.toHaveBeenCalled();
-    expect(localStorage.getItem('gones.auth.sessionGeneration')).toBeNull();
+    expect(localStorage.getItem('gones.auth.sessionGeneration')).toBe(generation);
     expect(localStorage.getItem('gones.auth.privatePurgeRequired')).toBeNull();
   });
 
@@ -121,6 +122,7 @@ describe('AuthService.deleteAccount', () => {
     const reset = vi.fn();
     sessionScope.register(reset);
     await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
+    const generation = localStorage.getItem('gones.auth.sessionGeneration');
 
     const update = service.updateProfile({ firstName: 'Updated' } as Parameters<AuthService['updateProfile']>[0]);
     await expect(service.deleteAccount('wrong')).rejects.toThrow('Bad Request');
@@ -131,7 +133,7 @@ describe('AuthService.deleteAccount', () => {
     expect(service.profile()?.firstName).toBe('Updated');
     expect(store.token).toBe('memory-token');
     expect(reset).not.toHaveBeenCalled();
-    expect(localStorage.getItem('gones.auth.sessionGeneration')).toBeNull();
+    expect(localStorage.getItem('gones.auth.sessionGeneration')).toBe(generation);
     expect(localStorage.getItem('gones.auth.privatePurgeRequired')).toBeNull();
   });
 });

@@ -1,7 +1,9 @@
 import '@angular/compiler';
 import { describe, expect, it, vi } from 'vitest';
 import { Injector, runInInjectionContext, signal } from '@angular/core';
+import { AuthSessionCoordinationService } from '../auth/auth-session-coordination.service';
 import { AuthService } from '../auth/auth.service';
+import { installFakeWebLocks } from '../auth/fake-web-locks';
 import { UserProfileResponse } from '../api/generated/gones-api';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort } from '../backend/application-backend';
@@ -63,10 +65,13 @@ type Fake = ReturnType<typeof fakeBackend>;
  * against.
  */
 function setup(options: { server?: Fake; local?: Fake; role?: GlobalRole; userId?: string; cached?: Record<string, CachedRead<unknown>> } = {}) {
+  installFakeWebLocks();
   const server = options.server ?? fakeBackend([league('s1'), league('s2')], { [SERVER_ID]: league(SERVER_ID) });
   const local = options.local ?? fakeBackend([league(LOCAL_ID)]);
   const profile = options.role || options.userId ? ({ globalRole: options.role, id: options.userId } as unknown as UserProfileResponse) : null;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
+  const coordination = new AuthSessionCoordinationService();
+  if (options.userId) coordination.bindProfile(options.userId, coordination.generation());
   const rows = new Map<string, CachedRead<unknown>>(Object.entries(options.cached ?? {}));
   const cacheStore = {
     read: async (key: string) => rows.get(key) ?? null,
@@ -77,6 +82,7 @@ function setup(options: { server?: Fake; local?: Fake; role?: GlobalRole; userId
     { provide: LEAGUE_ARCHIVE_BACKEND, useValue: server },
     { provide: LocalLeagueArchiveBackend, useValue: local },
     { provide: AuthService, useValue: auth },
+    { provide: AuthSessionCoordinationService, useValue: coordination },
     { provide: SERVER_READ_CACHE_STORE_PORT, useValue: cacheStore },
     SessionScopeService,
     ServerReadCacheService

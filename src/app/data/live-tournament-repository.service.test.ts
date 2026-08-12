@@ -2,7 +2,9 @@ import '@angular/compiler';
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { describe, expect, it, vi } from 'vitest';
 import { UserProfileResponse } from '../api/generated/gones-api';
+import { AuthSessionCoordinationService } from '../auth/auth-session-coordination.service';
 import { AuthService } from '../auth/auth.service';
+import { installFakeWebLocks } from '../auth/fake-web-locks';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { LIVE_BACKEND, LIVE_BACKEND_MODE, LiveBackendMode, LiveBackendPort } from '../backend/application-backend';
 import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from '../backend/server-read-cache.service';
@@ -22,6 +24,7 @@ function document(id = LIVE_ID): LiveTournamentDocument {
 }
 
 function setup(options: { mode?: LiveBackendMode; userId?: string; cached?: Record<string, CachedRead<unknown>> } = {}) {
+  installFakeWebLocks();
   const mutation = vi.fn(async () => document());
   const backend = {
     listLiveTournaments: vi.fn(async () => [document()]),
@@ -49,10 +52,13 @@ function setup(options: { mode?: LiveBackendMode; userId?: string; cached?: Reco
     clear: async () => { rows.clear(); }
   };
   const profile = signal<UserProfileResponse | null>(options.userId ? ({ id: options.userId } as UserProfileResponse) : null);
+  const coordination = new AuthSessionCoordinationService();
+  if (options.userId) coordination.bindProfile(options.userId, coordination.generation());
   const injector = Injector.create({ providers: [
     { provide: LIVE_BACKEND, useValue: backend },
     { provide: LIVE_BACKEND_MODE, useValue: options.mode ?? 'aspnet-api' },
     { provide: AuthService, useValue: { profile } as unknown as AuthService },
+    { provide: AuthSessionCoordinationService, useValue: coordination },
     { provide: SERVER_READ_CACHE_STORE_PORT, useValue: cacheStore },
     SessionScopeService,
     ServerReadCacheService

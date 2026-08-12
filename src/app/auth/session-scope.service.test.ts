@@ -5,6 +5,7 @@ import { UserProfileResponse } from '../api/generated/gones-api';
 import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from '../backend/server-read-cache.service';
 import { AuthSessionCoordinationService } from './auth-session-coordination.service';
 import { AuthService } from './auth.service';
+import { installFakeWebLocks } from './fake-web-locks';
 import { SessionScopeService, isServiceWorkerDataCache } from './session-scope.service';
 
 describe('SessionScopeService', () => {
@@ -41,6 +42,7 @@ describe('SessionScopeService', () => {
    * browser. `AuthService.clear()` (logout, failed bootstrap, account deletion) is what calls this.
    */
   it('purges the authenticated read cache before the next user can read it', async () => {
+    installFakeWebLocks();
     const rows = new Map<string, CachedRead<unknown>>();
     const store = {
       read: async (key: string) => rows.get(key) ?? null,
@@ -49,9 +51,11 @@ describe('SessionScopeService', () => {
     };
     const sessionScope = create();
     const profile = signal<UserProfileResponse | null>({ id: 'user-a' } as UserProfileResponse);
+    const coordination = new AuthSessionCoordinationService();
+    coordination.bindProfile('user-a', coordination.generation());
     const injector = Injector.create({ providers: [
       { provide: AuthService, useValue: { profile } as unknown as AuthService },
-      AuthSessionCoordinationService,
+      { provide: AuthSessionCoordinationService, useValue: coordination },
       { provide: SessionScopeService, useValue: sessionScope },
       { provide: SERVER_READ_CACHE_STORE_PORT, useValue: store }
     ] });

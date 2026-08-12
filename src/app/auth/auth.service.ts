@@ -29,7 +29,6 @@ export class AuthService {
   private readonly coordination = inject(AuthSessionCoordinationService);
   private readonly catalogSync = inject(SessionCatalogSyncService);
   private refreshFlight?: Observable<void>;
-  private profileEstablishment?: object;
 
   readonly enabled = dataAuthority().authV1;
   readonly profile = signal<UserProfileResponse | null>(null);
@@ -41,7 +40,6 @@ export class AuthService {
     if (!this.enabled || this.bootstrapped()) return;
     let generation: number | undefined;
     let profileEstablishmentStarted = false;
-    const profileEstablishment = this.profileEstablishment ?? null;
     try {
       generation = await this.prepareEstablishment();
       const response = await firstValueFrom(this.client.refresh());
@@ -53,7 +51,7 @@ export class AuthService {
         await this.invalidateAndPurgeIgnoringFailure();
         throw error;
       }
-      if (generation !== undefined && !profileEstablishmentStarted) await this.clearFailedEstablishment(generation, profileEstablishment);
+      if (generation !== undefined && !profileEstablishmentStarted) await this.clearFailedEstablishment(generation);
     } finally {
       this.bootstrapped.set(true);
     }
@@ -136,7 +134,7 @@ export class AuthService {
   async updateProfile(request: PatchUserProfileRequest): Promise<UserProfileResponse> {
     const guard = this.captureCurrentSession();
     const profile = await firstValueFrom(this.client.mePATCH(request));
-    await this.coordination.withLock(() => {
+    await this.coordination.withAvailableLock(() => {
       this.assertCurrentSession(guard.generation, guard.profile);
       this.profile.set(profile);
     });
@@ -146,7 +144,7 @@ export class AuthService {
   async requestEmailChange(request: EmailChangeRequest): Promise<void> {
     const guard = this.captureCurrentSession();
     await firstValueFrom(this.client.emailChange(request));
-    await this.coordination.withLock(() => {
+    await this.coordination.withAvailableLock(() => {
       this.assertCurrentSession(guard.generation, guard.profile);
       this.profile.update(profile => profile ? { ...profile, emailVerified: false } : null);
     });
@@ -165,13 +163,12 @@ export class AuthService {
   }
 
   private async refreshAccessTokenOnce(): Promise<void> {
-    const profileEstablishment = this.profileEstablishment ?? null;
     const generation = await this.prepareEstablishmentOrFailClosed();
     try {
       const response = await firstValueFrom(this.client.refresh());
-      await this.coordination.withLock(() => this.publishToken(response, generation));
+      await this.coordination.withAvailableLock(() => this.publishToken(response, generation));
     } catch (error) {
-      await this.clearFailedEstablishment(generation, profileEstablishment);
+      await this.clearFailedEstablishment(generation);
       throw error;
     }
   }
@@ -186,39 +183,31 @@ export class AuthService {
   }
 
   private async prepareEstablishment(): Promise<number> {
-    this.coordination.requireAvailable();
-    return await this.coordination.withLock(async () => {
+    return await this.coordination.withAvailableLock(async () => {
       await this.ensurePurgeComplete();
       return this.coordination.generation();
     });
   }
 
   private async establishProfile(response: AccessTokenResponse, generation: number): Promise<UserProfileResponse> {
-    const establishment = {};
-    this.profileEstablishment = establishment;
+    let sessionGeneration = generation;
     try {
-      await this.coordination.withLock(() => {
-        this.assertProfileEstablishment(establishment);
-        this.publishToken(response, generation);
+      await this.coordination.withAvailableLock(() => {
+        this.assertGeneration(generation);
+        sessionGeneration = this.coordination.advanceGeneration();
+        this.tokens.set(response.accessToken);
       });
       const profile = await firstValueFrom(this.client.meGET());
-      await this.coordination.withLock(() => {
-        this.assertProfileEstablishment(establishment);
-        this.assertGeneration(generation);
+      await this.coordination.withAvailableLock(() => {
+        this.assertGeneration(sessionGeneration);
+        this.coordination.bindProfile(profile.id, sessionGeneration);
         this.profile.set(profile);
       });
-      await this.catalogSync.adopt(profile.id, () => this.isPublishedSessionCurrent(profile, generation, establishment));
-      await this.coordination.withLock(() => {
-        this.assertProfileEstablishment(establishment);
-        this.assertCurrentSession(generation, profile);
-      });
-      if (this.profileEstablishment === establishment) this.profileEstablishment = undefined;
+      await this.catalogSync.adopt(profile.id, () => this.isPublishedSessionCurrent(profile, sessionGeneration));
+      await this.coordination.withAvailableLock(() => this.assertCurrentSession(sessionGeneration, profile));
       return profile;
     } catch (error) {
-      if (this.profileEstablishment === establishment) {
-        await this.clearFailedEstablishment(generation, establishment);
-        if (this.profileEstablishment === establishment) this.profileEstablishment = undefined;
-      }
+      await this.clearFailedEstablishment(sessionGeneration);
       throw error;
     }
   }
@@ -226,13 +215,15 @@ export class AuthService {
   private captureCurrentSession(): { generation: number; profile: UserProfileResponse } {
     this.coordination.requireAvailable();
     const profile = this.profile();
-    if (!profile || this.coordination.isPurgeRequired()) throw new Error('authSessionTransitionSuperseded');
+    if (!profile || !this.coordination.isProfileScopeCurrent(profile.id)) throw new Error('authSessionTransitionSuperseded');
     return { generation: this.coordination.generation(), profile };
   }
 
   private assertCurrentSession(generation: number, profile: UserProfileResponse): void {
     this.assertGeneration(generation);
-    if (this.profile() !== profile) throw new Error('authSessionTransitionSuperseded');
+    if (this.profile() !== profile || !this.coordination.isProfileScopeCurrent(profile.id, generation)) {
+      throw new Error('authSessionTransitionSuperseded');
+    }
   }
 
   private assertGeneration(generation: number): void {
@@ -246,18 +237,13 @@ export class AuthService {
     this.tokens.set(response.accessToken);
   }
 
-  private assertProfileEstablishment(establishment: object): void {
-    if (this.profileEstablishment !== establishment) throw new Error('authSessionTransitionSuperseded');
+  private isPublishedSessionCurrent(profile: UserProfileResponse, generation: number): boolean {
+    return this.profile() === profile && this.coordination.isProfileScopeCurrent(profile.id, generation);
   }
 
-  private isPublishedSessionCurrent(profile: UserProfileResponse, generation: number, establishment: object): boolean {
-    return this.profileEstablishment === establishment && this.profile() === profile && !this.coordination.isPurgeRequired() && this.coordination.generation() === generation;
-  }
-
-  private async clearFailedEstablishment(generation: number, establishment?: object | null): Promise<void> {
+  private async clearFailedEstablishment(generation: number): Promise<void> {
     await this.coordination.withLock(async () => {
       if (this.coordination.generation() !== generation) return;
-      if (establishment !== undefined && this.profileEstablishment !== (establishment ?? undefined)) return;
       await this.invalidateAndPurgeIgnoringFailure();
     });
   }

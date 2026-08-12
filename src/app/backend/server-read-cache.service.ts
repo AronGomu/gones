@@ -68,12 +68,12 @@ export class ServerReadCacheService {
     try {
       value = await load();
     } catch (error) {
-      if (!this.isCurrent(scope)) throw error;
+      if (!await this.isCurrent(scope)) throw error;
       const row = await this.cached(key);
-      if (!this.isCurrent(scope) || !row) throw error;
+      if (!row || !await this.isCurrent(scope)) throw error;
       return { value: row.value as T, stale: true, cachedAt: row.cachedAt };
     }
-    if (this.isCurrent(scope)) await this.remember(scope, key, value);
+    await this.remember(scope, key, value);
     return { value, stale: false };
   }
 
@@ -91,7 +91,15 @@ export class ServerReadCacheService {
     return `${scope.profileId}:${resource}`;
   }
 
-  private isCurrent(scope: AuthCacheScope): boolean {
+  private async isCurrent(scope: AuthCacheScope): Promise<boolean> {
+    try {
+      return await this.coordination.withAvailableLock(() => this.isCurrentUnlocked(scope));
+    } catch {
+      return false;
+    }
+  }
+
+  private isCurrentUnlocked(scope: AuthCacheScope): boolean {
     return this.coordination.isCacheScopeCurrent(scope, this.auth.profile()?.id);
   }
 
@@ -107,13 +115,11 @@ export class ServerReadCacheService {
   /** A broken cache must never break a working server read, so the write failure stops here. */
   private async remember(scope: AuthCacheScope, key: string, value: unknown): Promise<void> {
     try {
-      const write = async () => {
-        if (!this.isCurrent(scope)) return;
+      await this.coordination.withAvailableLock(async () => {
+        if (!this.isCurrentUnlocked(scope)) return;
         await this.store.write(key, { value, cachedAt: new Date().toISOString() });
-        if (!this.isCurrent(scope)) await this.store.clear();
-      };
-      if (globalThis.navigator?.locks) await this.coordination.withLock(write);
-      else await write();
+        if (!this.isCurrentUnlocked(scope)) await this.store.clear();
+      });
     } catch (error) {
       logBoundaryError('server-read-cache.write', error);
     }

@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { Injector } from '@angular/core';
 import { BehaviorSubject, firstValueFrom, Observable, of, Subject, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
 import { AuthSessionCoordinationService } from './auth-session-coordination.service';
@@ -13,6 +13,7 @@ import { SessionScopeService } from './session-scope.service';
 const profile = { id: 'u1', email: 'u@example.test', emailVerified: true, globalRole: 'User', username: 'user', firstName: 'U', lastName: 'Ser', preferredLanguage: 'en', isFirstNamePublic: false, isLastNamePublic: false, isLocationPublic: false, isBirthDatePublic: false, isPreferredLanguagePublic: false } as unknown as UserProfileResponse;
 const profileB = { ...profile, id: 'u2', email: 'u2@example.test', username: 'user-b' } as UserProfileResponse;
 const token = { accessToken: 'memory-token', tokenType: 'Bearer', expiresAt: {} } as AccessTokenResponse;
+const tokenB = { ...token, accessToken: 'user-b-token' } as AccessTokenResponse;
 
 function setup(refresh: () => Observable<AccessTokenResponse>) {
   const client = {
@@ -39,11 +40,14 @@ describe('AuthService', () => {
     installFakeWebLocks();
   });
 
+  afterEach(() => vi.restoreAllMocks());
+
   it('keeps access token in memory only', async () => {
     const { service, store } = setup(() => of(token));
     await service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined });
     expect(store.token).toBe('memory-token');
-    expect(localStorage.length).toBe(0);
+    expect([...Array(localStorage.length)].map((_, index) => localStorage.key(index))).toEqual(['gones.auth.sessionGeneration']);
+    expect(localStorage.getItem('gones.auth.sessionGeneration')).toBe('1');
     expect(sessionStorage.length).toBe(0);
   });
 
@@ -55,6 +59,72 @@ describe('AuthService', () => {
     result.next(token);
     await Promise.all([first, second]);
     expect(client.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let an older refresh overwrite a newer same-generation login', async () => {
+    const refreshResult = new Subject<AccessTokenResponse>();
+    const { service, store, client } = setup(() => refreshResult);
+    service.profile.set(profile);
+    store.set(token.accessToken);
+    const staleRefresh = firstValueFrom(service.refreshAccessToken());
+    await vi.waitFor(() => expect(client.refresh).toHaveBeenCalledTimes(1));
+
+    client.login.mockReturnValue(of(tokenB));
+    client.meGET.mockReturnValue(of(profileB));
+    await service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
+    refreshResult.next(token);
+    refreshResult.complete();
+
+    await expect(staleRefresh).rejects.toThrow('authSessionTransitionSuperseded');
+    expect(store.token).toBe(tokenB.accessToken);
+    expect(service.profile()).toBe(profileB);
+  });
+
+  it('does not let an older refresh failure purge a newer same-generation login', async () => {
+    const refreshResult = new Subject<AccessTokenResponse>();
+    const refreshError = new Error('stale refresh failed');
+    const { service, store, client } = setup(() => refreshResult);
+    service.profile.set(profile);
+    store.set(token.accessToken);
+    const staleRefresh = firstValueFrom(service.refreshAccessToken());
+    await vi.waitFor(() => expect(client.refresh).toHaveBeenCalledTimes(1));
+
+    client.login.mockReturnValue(of(tokenB));
+    client.meGET.mockReturnValue(of(profileB));
+    await service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
+    refreshResult.error(refreshError);
+
+    await expect(staleRefresh).rejects.toBe(refreshError);
+    expect(store.token).toBe(tokenB.accessToken);
+    expect(service.profile()).toBe(profileB);
+  });
+
+  it('fails closed before login when localStorage is readable but unwritable', async () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('quota', 'QuotaExceededError'); });
+    const { service, store, client } = setup(() => of(token));
+
+    await expect(service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined })).rejects.toThrow('authCoordinationUnavailable');
+
+    expect(client.login).not.toHaveBeenCalled();
+    expect(store.token).toBeUndefined();
+    expect(service.profile()).toBeNull();
+  });
+
+  it('still clears and purges locally when coordination metadata cannot be written', async () => {
+    const { service, store, sessionScope, client } = setup(() => of(token));
+    const reset = vi.fn();
+    sessionScope.register(reset);
+    service.profile.set(profile);
+    store.set(token.accessToken);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('quota', 'QuotaExceededError'); });
+
+    await expect(service.clear()).resolves.toBeUndefined();
+
+    expect(store.token).toBeUndefined();
+    expect(service.profile()).toBeNull();
+    expect(reset).toHaveBeenCalledTimes(1);
+    await expect(service.login({ email: 'u@example.test', password: 'password', deviceLabel: undefined })).rejects.toThrow('authCoordinationUnavailable');
+    expect(client.login).not.toHaveBeenCalled();
   });
 
   it('drops user-scoped state on logout so a later session cannot read it', async () => {

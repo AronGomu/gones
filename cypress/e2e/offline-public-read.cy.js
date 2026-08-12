@@ -100,8 +100,12 @@ describe('offline public reads and rejected writes', () => {
     cy.wait('@tournaments');
 
     cy.window().then(win => {
-      const localKeys = Object.keys(win.localStorage).filter(key => /users|auth|admin|registration-capability|participants/.test(key));
-      expect(localKeys, 'private responses in local cache').to.deep.eq([]);
+      const keys = Object.keys(win.localStorage);
+      const authKeys = keys.filter(key => key.startsWith('gones.auth.')).sort();
+      expect(authKeys, 'auth storage contains coordination metadata only').to.deep.eq(['gones.auth.sessionGeneration']);
+      expect(win.localStorage.getItem('gones.auth.sessionGeneration')).to.match(/^\d+$/);
+      const privateKeys = keys.filter(key => /users|admin|registration-capability|participants/.test(key));
+      expect(privateKeys, 'private responses in local cache').to.deep.eq([]);
       if (!win.caches) return undefined;
       return win.caches.keys()
         .then(names => Promise.all(names.map(name => win.caches.open(name).then(cache => cache.keys()))))

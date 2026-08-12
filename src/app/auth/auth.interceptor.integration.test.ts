@@ -54,6 +54,8 @@ function setup(handler: (request: HttpRequest<unknown>) => Observable<HttpEvent<
   injectorRef.current = injector;
   const service = injector.get(AuthService);
   const store = injector.get(ApiAccessTokenStore);
+  const coordination = injector.get(AuthSessionCoordinationService);
+  coordination.bindProfile(originalProfile.id, coordination.generation());
   service.profile.set(originalProfile);
   store.set('expired-token');
   return { service, store };

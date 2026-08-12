@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserProfileResponse } from '../api/generated/gones-api';
 import { AuthSessionCoordinationService } from '../auth/auth-session-coordination.service';
 import { AuthService } from '../auth/auth.service';
+import { installFakeWebLocks } from '../auth/fake-web-locks';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { CachedRead, IndexedDbServerReadCacheStore, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from './server-read-cache.service';
 
@@ -33,6 +34,7 @@ function setup(options: { userId?: string | null; store?: Store } = {}) {
   const auth = { profile } as unknown as AuthService;
   const sessionScope = new SessionScopeService();
   const coordination = new AuthSessionCoordinationService();
+  if (options.userId) coordination.bindProfile(options.userId, coordination.generation());
   const injector = Injector.create({ providers: [
     { provide: AuthService, useValue: auth },
     { provide: AuthSessionCoordinationService, useValue: coordination },
@@ -47,7 +49,12 @@ function cached(value: unknown): CachedRead<unknown> {
   return { value, cachedAt: '2026-08-09T10:00:00.000Z' };
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  installFakeWebLocks();
+});
+
+afterEach(() => vi.restoreAllMocks());
 
 describe('ServerReadCacheService reads', () => {
   it('a successful read is cached under the signed-in user', async () => {
@@ -125,6 +132,30 @@ describe('ServerReadCacheService session boundary', () => {
     expect(store.rows.size).toBe(0);
   });
 
+  it('a stale other-tab profile cannot capture a newer shared generation', async () => {
+    const { service, store, profile } = setup({ userId: 'u1' });
+    const otherTab = new AuthSessionCoordinationService();
+    await otherTab.withAvailableLock(() => otherTab.advanceGeneration());
+    await store.clear();
+
+    await expect(service.read('leagues', () => Promise.resolve([1]))).resolves.toEqual({ value: [1], stale: false });
+
+    expect(profile()?.id).toBe('u1');
+    expect(store.rows.size).toBe(0);
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
+  it('an old profile cannot cache during same-tab token-to-profile publication', async () => {
+    const { service, store, profile, coordination } = setup({ userId: 'u1' });
+    await coordination.withAvailableLock(() => coordination.advanceGeneration());
+
+    await expect(service.read('leagues', () => Promise.resolve([1]))).resolves.toEqual({ value: [1], stale: false });
+
+    expect(profile()?.id).toBe('u1');
+    expect(store.rows.size).toBe(0);
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
   it('never reads user A cache when a rejected request lands after logout', async () => {
     const store = fakeStore({ 'u1:leagues': cached(['user-a']) });
     const { service, profile } = setup({ userId: 'u1', store });
@@ -187,15 +218,66 @@ describe('ServerReadCacheService session boundary', () => {
 
   it('returns original server error when fallback lookup spans another tab invalidation', async () => {
     const store = fakeStore({ 'u1:leagues': cached(['old']) });
+    let capturedRow: CachedRead<unknown> | null | undefined;
     let releaseRead!: () => void;
-    store.read.mockImplementationOnce((key: string) => new Promise((resolve) => {
-      releaseRead = () => resolve(store.rows.get(key) ?? null);
-    }));
+    store.read.mockImplementationOnce((key: string) => {
+      capturedRow = store.rows.get(key) ?? null;
+      return new Promise((resolve) => {
+        releaseRead = () => resolve(capturedRow ?? null);
+      });
+    });
     const tabB = setup({ userId: 'u1', store });
     const tabA = new AuthSessionCoordinationService();
     const serverError = new Error('original server error');
     const pending = tabB.service.read('leagues', () => Promise.reject(serverError));
     await vi.waitFor(() => expect(releaseRead).toBeTypeOf('function'));
+    expect(capturedRow?.value).toEqual(['old']);
+
+    tabA.invalidateSession();
+    await store.clear();
+    tabA.markPurgeComplete();
+    releaseRead();
+
+    await expect(pending).rejects.toBe(serverError);
+    expect(tabB.profile()?.id).toBe('u1');
+  });
+
+  it('does not recreate a purged row when localStorage becomes unwritable', async () => {
+    const store = fakeStore({ 'u1:leagues': cached(['old']) });
+    const tabB = setup({ userId: 'u1', store });
+    const tabA = new AuthSessionCoordinationService();
+    let resolveLoad!: (value: number[]) => void;
+    const pending = tabB.service.read('leagues', () => new Promise<number[]>((resolve) => { resolveLoad = resolve; }));
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('quota', 'QuotaExceededError'); });
+
+    tabA.invalidateSession();
+    await store.clear();
+    tabA.markPurgeComplete();
+    resolveLoad([1]);
+
+    await expect(pending).resolves.toEqual({ value: [1], stale: false });
+    expect(tabB.profile()?.id).toBe('u1');
+    expect(store.rows.size).toBe(0);
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
+  it('does not return a captured stale row when localStorage becomes unwritable', async () => {
+    const store = fakeStore({ 'u1:leagues': cached(['old']) });
+    let capturedRow: CachedRead<unknown> | null | undefined;
+    let releaseRead!: () => void;
+    store.read.mockImplementationOnce((key: string) => {
+      capturedRow = store.rows.get(key) ?? null;
+      return new Promise((resolve) => {
+        releaseRead = () => resolve(capturedRow ?? null);
+      });
+    });
+    const tabB = setup({ userId: 'u1', store });
+    const tabA = new AuthSessionCoordinationService();
+    const serverError = new Error('original server error');
+    const pending = tabB.service.read('leagues', () => Promise.reject(serverError));
+    await vi.waitFor(() => expect(releaseRead).toBeTypeOf('function'));
+    expect(capturedRow?.value).toEqual(['old']);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('quota', 'QuotaExceededError'); });
 
     tabA.invalidateSession();
     await store.clear();

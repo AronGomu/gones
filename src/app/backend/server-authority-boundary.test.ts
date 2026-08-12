@@ -114,19 +114,23 @@ describe('canonical browser store containment', () => {
     ]);
   });
 
-  it('permits only exact marker/generation storage operations for auth coordination', () => {
+  it('permits only exact marker/generation/probe storage operations for auth coordination', () => {
     const authSource = readFileSync(join(sourceRoot, 'app', 'auth', 'auth.service.ts'), 'utf8');
     const coordinationSource = readFileSync(join(sourceRoot, 'app', 'auth', 'auth-session-coordination.service.ts'), 'utf8');
     expect(authSource).not.toMatch(/localStorage\??\.(get|set|remove)Item/);
+    expect(coordinationSource).toContain("const AUTH_COORDINATION_PROBE_KEY = 'gones.auth.coordinationProbe';");
     expect(coordinationSource).toContain("const AUTH_PRIVATE_PURGE_REQUIRED_KEY = 'gones.auth.privatePurgeRequired';");
     expect(coordinationSource).toContain("const AUTH_SESSION_GENERATION_KEY = 'gones.auth.sessionGeneration';");
 
     const allowed = new Map([
-      ['globalThis.localStorage?.getItem(AUTH_SESSION_GENERATION_KEY)', 2],
-      ['globalThis.localStorage?.getItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 2],
-      ['globalThis.localStorage?.setItem(AUTH_SESSION_GENERATION_KEY, String(nextGeneration))', 1],
+      ['globalThis.localStorage?.getItem(AUTH_SESSION_GENERATION_KEY)', 3],
+      ['globalThis.localStorage?.getItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 4],
+      ['globalThis.localStorage?.setItem(AUTH_SESSION_GENERATION_KEY, String(generation))', 1],
       ["globalThis.localStorage?.setItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY, '1')", 1],
-      ['globalThis.localStorage?.removeItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 1]
+      ['globalThis.localStorage?.removeItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 1],
+      ["globalThis.localStorage?.setItem(AUTH_COORDINATION_PROBE_KEY, '1')", 1],
+      ['globalThis.localStorage?.getItem(AUTH_COORDINATION_PROBE_KEY)', 2],
+      ['globalThis.localStorage?.removeItem(AUTH_COORDINATION_PROBE_KEY)', 1]
     ]);
     let unexplained = coordinationSource;
     for (const [operation, count] of allowed) {
