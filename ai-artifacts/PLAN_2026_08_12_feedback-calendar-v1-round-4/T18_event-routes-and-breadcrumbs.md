@@ -96,4 +96,5 @@
 - [x] every renamed i18n key moved in BOTH maps — `messages.ts` types `fr` as `Record<MessageKey, string>`, so `npm run typecheck` fails on any key that only moved in `en`; no missing-key placeholder renders (Cypress asserts the literal labels)
 - [ ] manual check: open `/tournaments/new` → lands on `/events/new` with a "Create Event" breadcrumb; open an old `/calendar/tournaments/:slug` bookmark → lands on `/events/:slug`
 - [x] app functional — calendar browse, event detail, create, organizer management and admin deleted-events pages all reachable (Cypress specs above cover each surface)
-- [ ] commit msg draft: `feat(events): make /events the canonical calendar route`
+- [x] commit msg draft: `feat(events): make /events the canonical calendar route` — committed as `4e3cda7` and pushed to `origin/feat/feedback-calendar-v1-round-4` (`74daaaf..4e3cda7`)
+- [x] manual checklist published — `ai-artifacts/manual_test_checklist.md` gained a `## T18 event-routes-and-breadcrumbs` section, human-only steps, bookmark/deep-link check on `/calendar/tournaments/lyon-legacy` first
