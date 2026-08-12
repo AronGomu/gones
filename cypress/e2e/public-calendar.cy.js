@@ -203,8 +203,14 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="tournament-detail-fact-organization"]').should('not.exist');
     cy.get('[data-cy="tournament-detail-when-where"]').should('contain.text', 'Europe/Paris').and('contain.text', '1 Rue Test, 69001, Lyon, France');
     cy.get('[data-cy="tournament-detail-hero"] > :last-child').should('have.attr', 'data-cy', 'tournament-detail-actions');
+    cy.get('[data-cy="tournament-detail-where-link"]')
+      .should('have.attr', 'target', '_blank')
+      .and('have.attr', 'rel', 'noopener noreferrer')
+      .and('have.attr', 'href', 'https://www.google.com/maps/search/?api=1&query=1%20Rue%20Test%2C%2069001%2C%20Lyon%2C%20France')
+      .and('have.attr', 'aria-label', 'Open 1 Rue Test, 69001, Lyon, France in Google Maps');
+    cy.get('[data-cy="tournament-detail-where-link"] svg.maps-icon').should('exist');
     cy.get('[data-cy="tournament-detail-when"]').then(($when) => {
-      cy.get('[data-cy="tournament-detail-where"]').then(($where) => {
+      cy.get('[data-cy="tournament-detail-where-link"]').then(($where) => {
         expect($where[0].getBoundingClientRect().top, 'date and location share one row')
           .to.be.closeTo($when[0].getBoundingClientRect().top, 2);
       });

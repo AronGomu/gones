@@ -14,7 +14,8 @@ import {
   statusPresentation,
   tournamentCardDatePresentation,
   tournamentDatePresentation,
-  tournamentsByDate
+  tournamentsByDate,
+  venueMapsUrl
 } from './public-calendar';
 
 function make(count: number): PublicTournamentView[] {
@@ -289,5 +290,29 @@ describe('isPastCalendarDay', () => {
 
   it('compares across month and year boundaries', () => {
     expect(isPastCalendarDay('2025-12-31', '2026-01-01')).toBe(true);
+  });
+});
+
+describe('venueMapsUrl', () => {
+  it('encodes the full address', () => {
+    expect(venueMapsUrl({ streetAddress: '1 rue de la Ré', postalCode: '69001', city: 'Lyon', country: 'France' }))
+      .toBe('https://www.google.com/maps/search/?api=1&query=1%20rue%20de%20la%20R%C3%A9%2C%2069001%2C%20Lyon%2C%20France');
+  });
+
+  it('skips missing parts', () => {
+    expect(venueMapsUrl({ city: 'Lyon' })).toBe('https://www.google.com/maps/search/?api=1&query=Lyon');
+  });
+
+  it('returns null for an empty venue', () => {
+    expect(venueMapsUrl({})).toBeNull();
+  });
+
+  // The venue comes from the API, so the query has to stay a percent-encoded payload of one fixed
+  // host: no separator, quote or space may survive as a live character in the URL.
+  it('percent-encodes separators, quotes and spaces without moving the host', () => {
+    const url = venueMapsUrl({ streetAddress: '1 "Bar" & Grill', city: 'Lyon' });
+
+    expect(url).toBe('https://www.google.com/maps/search/?api=1&query=1%20%22Bar%22%20%26%20Grill%2C%20Lyon');
+    expect(url!.slice(url!.indexOf('&query='))).not.toMatch(/[ "]|&(?!query=)/);
   });
 });

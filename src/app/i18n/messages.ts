@@ -539,6 +539,7 @@ const en = {
   'calendar.detailLoadFailed': 'Could not load this tournament.',
   'calendar.capacity': 'Capacity',
   'calendar.organizationWebsite': 'Organization website',
+  'calendar.openInMaps': 'Open {address} in Google Maps',
 
   // Tournament registration
   'registration.title': 'Registration',
@@ -1589,6 +1590,7 @@ const fr: Record<MessageKey, string> = {
   'calendar.detailLoadFailed': 'Impossible de charger ce tournoi.',
   'calendar.capacity': 'Capacité',
   'calendar.organizationWebsite': 'Site de l’organisation',
+  'calendar.openInMaps': 'Ouvrir {address} dans Google Maps',
 
   // Inscription aux tournois
   'registration.title': 'Inscription',

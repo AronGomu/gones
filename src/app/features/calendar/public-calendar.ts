@@ -94,6 +94,15 @@ export function isPastCalendarDay(date: string, today: string): boolean {
   return date < today;
 }
 
+/**
+ * Google Maps search link for a venue, or null when the venue carries no address. The host is
+ * fixed and the address — API data — only ever reaches the URL percent-encoded.
+ */
+export function venueMapsUrl(venue: { streetAddress?: string; postalCode?: string; city?: string; country?: string }): string | null {
+  const address = [venue.streetAddress, venue.postalCode, venue.city, venue.country].filter(Boolean).join(', ');
+  return address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
+}
+
 export const MAX_DAY_CELL_EVENTS = 3;
 
 /** Tournaments keyed by their venue start date, each list sorted by start time then title. */

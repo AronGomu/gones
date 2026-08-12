@@ -1158,3 +1158,26 @@ titles, many formats, a long address, French copy, and in the organizer preview.
 - [ ] Open the organizer preview (create / edit a tournament, then look at the rendered preview): it
       shows the same new hero as the public page.
 - [ ] Scroll below the hero: the description, participants and registration sections are unchanged.
+
+## T7 venue-maps-link
+
+The location on an event page is now a link to Google Maps, prefixed by a small map-pin icon. The
+URL is built in the browser from the venue fields, so the checks below are about the real link
+target, the icon and the fallback when an event has no address.
+
+- [ ] Open an event page (`/calendar/tournaments/…`) with an address: the location shows a small
+      map-pin icon and reads the same text as before (street, postal code, city, country).
+- [ ] Click the location: Google Maps opens in a NEW tab (the event page stays open behind it) and
+      lands on that exact address.
+- [ ] Come back to the event tab and confirm nothing changed there — no navigation, no lost scroll.
+- [ ] Open an event whose address contains an accent, a `&` or a quote: the opened map still shows
+      the full address, not a truncated one.
+- [ ] Open an event with no address at all: the location is plain text (or empty) with no icon and
+      nothing is clickable.
+- [ ] Switch the language to French, hover the location: the screen-reader label reads
+      "Ouvrir … dans Google Maps"; in English it reads "Open … in Google Maps".
+- [ ] Tab to the location with the keyboard: it receives a visible focus ring and Enter opens the
+      map in a new tab.
+- [ ] Repeat on a phone-width window: the icon and the address stay on the date-and-location row and
+      wrap without a horizontal scrollbar.
+- [ ] Open the organizer preview of a tournament: the location there behaves the same way.

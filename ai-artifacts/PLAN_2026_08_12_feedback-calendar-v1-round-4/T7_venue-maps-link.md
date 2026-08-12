@@ -45,25 +45,42 @@
 
 ## Impl steps
 
-- [ ] 1. Add `venueMapsUrl` to `src/app/features/calendar/public-calendar.ts`.
-- [ ] 2. Add the three pure tests to `src/app/features/calendar/public-calendar.test.ts`; run vitest — red then green.
-- [ ] 3. Add `calendar.openInMaps` to the `en` and `fr` maps in `src/app/i18n/messages.ts`.
-- [ ] 4. Add `mapsUrl` computed to `tournament-detail-view.component.ts` and the `@if (mapsUrl(); as url) { … } @else { … }` branch in the when-where row.
-- [ ] 5. Inline the SVG pin: `<svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>`.
-- [ ] 6. Add the `.maps-icon` CSS to `src/styles.css`.
-- [ ] 7. Add the two component tests to `tournament-detail-view.component.test.ts`.
-- [ ] 8. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx vitest run src/app/shared/data-cy-coverage.test.ts`.
-- [ ] 9. Run `npx vitest run src/app/i18n` (message-parity test) if one exists; otherwise grep both maps for the new key.
+- [x] 1. Add `venueMapsUrl` to `src/app/features/calendar/public-calendar.ts`.
+- [x] 2. Add the three pure tests to `src/app/features/calendar/public-calendar.test.ts`; run vitest — red then green.
+- [x] 3. Add `calendar.openInMaps` to the `en` and `fr` maps in `src/app/i18n/messages.ts`.
+- [x] 4. Add `mapsUrl` computed to `tournament-detail-view.component.ts` and the `@if (mapsUrl(); as url) { … } @else { … }` branch in the when-where row.
+- [x] 5. Inline the SVG pin: `<svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>`.
+- [x] 6. Add the `.maps-icon` CSS to `src/styles.css`.
+- [x] 7. Add the two component tests to `tournament-detail-view.component.test.ts`.
+- [x] 8. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`, `npx vitest run src/app/shared/data-cy-coverage.test.ts`.
+- [x] 9. Run `npx vitest run src/app/i18n` (message-parity test) if one exists; otherwise grep both maps for the new key.
+- [x] 10. (added — adjacent contract) Update `cypress/e2e/public-calendar.cy.js`: the detail case reads `[data-cy=tournament-detail-where]` for the shared-row geometry, but with a venue present that element is now `[data-cy=tournament-detail-where-link]`. Point the geometry assertion at the link and assert `target`/`rel`/`href`. Criterion: `npx cypress run --spec cypress/e2e/public-calendar.cy.js` green.
+- [x] 11. (added — security) Prove URL encoding with a venue containing `&`, spaces and a quote; assert the host stays `https://www.google.com/maps/search/` and the payload is fully percent-encoded. Criterion: the pure test passes in `npx vitest run src/app/features/calendar`.
 
 ## Outputs
 
 - Files touched: `src/app/features/calendar/public-calendar.ts`, `public-calendar.test.ts`, `tournament-detail-view.component.ts`, `tournament-detail-view.component.test.ts`, `src/app/i18n/messages.ts`, `src/styles.css`.
 - Behaviour change: location is an external link with an icon.
 
+## Evidence
+
+| Box | Evidence |
+| --- | --- |
+| 1, 2, 11 | `npx vitest run src/app/features/calendar/public-calendar.test.ts` — red first (`TypeError: venueMapsUrl is not a function`, 4 failed), green after impl (43 passed) |
+| 3, 9 | `grep -n openInMaps src/app/i18n/messages.ts` → `542: 'calendar.openInMaps': 'Open {address} in Google Maps'` and `1593: 'calendar.openInMaps': 'Ouvrir {address} dans Google Maps'`. No en/fr parity spec exists (`src/app/i18n` holds only `import-label.test.ts`, 1 passed), so the grep is the fallback the step names |
+| 4, 5, 6, 7 | `npx vitest run src/app/features/calendar src/app/shared/data-cy-coverage.test.ts src/app/i18n` → 19 files / 220 tests passed, including the two new component tests and the data-cy coverage gate |
+| 8 | `npm run lint` → "All files pass linting."; `npm run typecheck` → clean |
+| 10 | `npx cypress run --spec cypress/e2e/public-calendar.cy.js` → 12 passing / 0 failing |
+| a11y gate | `npx cypress run --spec cypress/e2e/accessibility.cy.js` → 11 passing / 0 failing |
+| full suite | `npm run test` → 107 files / 986 tests passed |
+
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar` passes
-- [ ] `npm run lint && npm run typecheck` pass
-- [ ] manual check: click the location on an event page → Google Maps opens in a new tab at that address
-- [ ] app functional — events without an address still render the location line
-- [ ] commit msg draft: `feat(calendar): link the event location to Google Maps`
+- [x] `npx vitest run src/app/features/calendar` passes
+- [x] `npm run lint && npm run typecheck` pass
+- [x] manual check — browser-asserted in `public-calendar.cy.js`: the location anchor carries `href="https://www.google.com/maps/search/?api=1&query=1%20Rue%20Test%2C%2069001%2C%20Lyon%2C%20France"`, `target="_blank"`, `rel="noopener noreferrer"`. The final human click-through to google.com is listed in `ai-artifacts/manual_test_checklist.md`.
+- [x] app functional — events without an address still render the location line
+- [x] (added) `npm run test` passes
+- [x] (added) `npx cypress run --spec cypress/e2e/accessibility.cy.js` stays at 11 passing / 0 failing
+- [x] (added) `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
+- [x] commit msg draft: `feat(calendar): link the event location to Google Maps`

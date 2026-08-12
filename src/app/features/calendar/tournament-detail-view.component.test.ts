@@ -93,6 +93,26 @@ describe('TournamentDetailViewComponent hero', () => {
     expect(stylesheet).toContain('.event-when-where {');
   });
 
+  it('location renders as a maps link', () => {
+    const component = build({ venue: { city: 'Lyon' } } as Partial<PublicTournamentDetailResponse>);
+    expect(component.mapsUrl()).toBe('https://www.google.com/maps/search/?api=1&query=Lyon');
+    const link = whenWhere.slice(whenWhere.indexOf('data-cy="tournament-detail-where-link"'));
+    expect(link).toContain('[href]="url"');
+    expect(link).toContain('target="_blank"');
+    expect(link).toContain('rel="noopener noreferrer"');
+    expect(link).toContain(`i18n.t('calendar.openInMaps', { address: venue() })`);
+    expect(link).toContain('class="maps-icon"');
+    expect(link).toContain('aria-hidden="true"');
+    expect(stylesheet).toContain('.maps-icon {');
+  });
+
+  it('location stays plain text without an address', () => {
+    const component = build({ venue: {} } as Partial<PublicTournamentDetailResponse>);
+    expect(component.mapsUrl()).toBeNull();
+    expect(whenWhere).toContain('@if (mapsUrl(); as url)');
+    expect(whenWhere).toContain('@else { <span data-cy="tournament-detail-where">{{ venue() }}</span> }');
+  });
+
   it('organization fact block is gone', () => {
     expect(source).not.toContain('tournament-detail-fact-organization');
     expect(source).not.toContain('class="event-facts"');
