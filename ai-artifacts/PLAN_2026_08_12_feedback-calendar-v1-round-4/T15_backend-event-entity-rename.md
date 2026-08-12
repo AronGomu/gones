@@ -117,3 +117,39 @@
 - [x] `## T15 backend-event-entity-rename` section appended to `ai-artifacts/manual_test_checklist.md` — 14 human-only steps including the operator's pre/post row-count check; no other ticket's section touched
 - [x] commit msg draft: `refactor(calendar): rename the scheduled tournament entity to Event` — committed as `c763f8d`
 - [x] `git push origin HEAD` — `ce06927..c763f8d  HEAD -> feat/feedback-calendar-v1-round-4`
+
+## Repair 2
+
+**Defect.** `c763f8d` added migration `20260812164333_RenameCalendarTournamentToEvent` but did not
+register it in the `expectedMigrations` allowlist at `scripts/smoke-full-stack.mjs:56`. That list is
+compared byte-for-byte against `__EFMigrationsHistory` by the full-stack smoke, and
+`scripts/release-preflight.mjs:324` parses the same literal for its `migration` mismatch class — so
+the smoke and the release gate were both broken on this branch by T15.
+
+**Fix.** Append `'20260812164333_RenameCalendarTournamentToEvent'` to `expectedMigrations`. One
+entry, no other change: the rest of the list was already current (T12's heal migration is present)
+and the whole list was re-checked against the migrations on disk, not assumed.
+
+- [x] R2.1 Reproduce the defect. *Criterion: the migration comparison fails with the missing id named.*
+  Evidence: `PostgreSQL migrations differ. Expected … 20260812154508_HealOrganizationMembershipInvariants; got … 20260812154508_HealOrganizationMembershipInvariants, 20260812164333_RenameCalendarTournamentToEvent` — exactly one trailing entry unmatched.
+- [x] R2.2 Reproduce it on the release gate. *Criterion: `evaluatePreflight` reports a `migration` finding.*
+  Evidence: `on disk: 28, allowlist: 27` / `migration gate: FAIL — the smoke allowlist does not match the shipped migrations (missing 20260812164333_RenameCalendarTournamentToEvent; stale none)`.
+- [x] R2.3 Check the whole allowlist against the migrations on disk, not just the tail. *Criterion: the mismatch is a single-entry gap with no stale ids.*
+  Evidence: the same finding reports `stale none`; after the fix `on disk: 28, allowlist: 28`.
+- [x] R2.4 Register the migration id in `expectedMigrations`. *Criterion: a one-line diff in `scripts/smoke-full-stack.mjs`.*
+  Evidence: `git diff --stat scripts/smoke-full-stack.mjs` → `1 file changed, 1 insertion(+), 1 deletion(-)`.
+- [x] R2.5 Sweep `scripts/` and `ops/` for anything else the rename broke. *Criterion: no other gate references a renamed table, column or path.*
+  Evidence: `grep -rn` for `scheduled_tournaments|scheduled_tournament_formats|tournament_registration_attempts|tournament_lifecycle_events|tournament_proposals|tournament_proposal_recipients|consumed_tournament_preview_tickets|scheduled_tournament_id` over `scripts/ ops/` prints nothing (T15 already moved `release-rehearsal.mjs`, `release-candidate.mjs`, `smoke-migration.mjs`, `smoke-scheduler.mjs`); every `target` path in `ops/acceptance-matrix.json` still exists (0 missing).
+- [x] R2.6 The migration-history comparison passes after the fix. *Criterion: the smoke's comparison, run against the live dev database, matches.*
+  Evidence: `Migration-history comparison passed.` (exit 0) against `__EFMigrationsHistory` in the running dev stack.
+- [x] R2.7 The release preflight's `migration` class passes after the fix. *Criterion: `evaluatePreflight` reports no `migration` finding.*
+  Evidence: `on disk: 28, allowlist: 28` / `migration gate: PASS` (exit 0).
+- [ ] R2.8 Full `node scripts/smoke-full-stack.mjs`. **Left unchecked — unrelated host/stack limit**, not this fix: the script buffers `docker compose logs worker` through `spawnSync` at its 1 MB default `maxBuffer`, and the dev stack (up ~2 h, OTEL console exporter) has emitted 950 MB of worker logs, so it dies at `scripts/smoke-full-stack.mjs:53` with `spawnSync docker ENOBUFS` before reaching the migration comparison — same failure before and after this fix. Not repaired here: out of this repair's scope, reported to the parent. Gated instead on R2.6, which runs the same three commands and the same assertions with the log read streamed instead of buffered.
+- [ ] R2.9 Full `node scripts/release-preflight.mjs`. **Left unchecked — cannot build its context on this host**: it stops in `readCandidateConfiguration` (`scripts/release-preflight.mjs:304`) with `error while interpolating services.migrator.image: required variable GONES_IMAGE_MIGRATOR is missing a value: the release candidate must name the immutable migrator digest` — the candidate stack needs a built, digest-pinned release, which this branch has not produced. It never reaches any gate. Gated instead on R2.7, which drives the exported pure `evaluatePreflight` with the context built by the CLI's own reader logic.
+
+### Repair 2 validation
+
+- [x] `npm run test` passes — `Test Files 110 passed (110) / Tests 1022 passed (1022)`
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — exit 0
+- [x] the dev stack is left running and intact — no `docker compose down`, no volume drop, no DB reset; only read-only `ps` / `logs` / `psql -Atc select` calls were made, and the API still answers on `http://127.0.0.1:5080`

@@ -1440,6 +1440,9 @@ behaves exactly as it did before the rename.
       unchanged API wire shape, not the new table names, and T16 is where they change.
 - [ ] Export a Gones backup and re-import it into a clean environment. The import report still counts
       "Scheduled Tournaments" and the imported events land in the calendar.
+- [ ] Run the full-stack smoke against the deployed stack (`npm run smoke`). It now expects
+      `20260812164333_RenameCalendarTournamentToEvent` as the last applied migration; a `PostgreSQL
+      migrations differ` failure naming it means the environment is still on the pre-rename schema.
 
 ## T16 backend-event-api-rename
 
