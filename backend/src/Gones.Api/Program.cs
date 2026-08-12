@@ -111,6 +111,7 @@ else
         if (runtimeConfiguration.Features.AdminV1)
         {
             builder.Services.AddScoped<AdminRoleService>();
+            builder.Services.AddScoped<OrganizationMembershipRoleService>();
             builder.Services.AddScoped<AdminCatalogService>();
             builder.Services.AddScoped<AdminAccountService>();
             builder.Services.AddScoped<OrganizationService>();

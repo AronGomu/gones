@@ -56,10 +56,12 @@ public sealed class OrganizationDomainTests
     public void Sole_owner_cannot_be_removed_or_demoted_without_transfer()
     {
         var owner = OrganizationMember.Create(Guid.NewGuid(), Guid.NewGuid(), OrganizationRoles.Owner, Now);
-        Assert.Throws<InvalidOperationException>(() => OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 1));
+        Assert.Throws<InvalidOperationException>(() => OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 1, memberCount: 2));
         Assert.Throws<InvalidOperationException>(() => OrganizationMembershipPolicy.EnsureCanDemote(owner, OrganizationRoles.Organizer, ownerCount: 1));
         OrganizationMembershipPolicy.EnsureCanDemote(owner, OrganizationRoles.Organizer, ownerCount: 2);
-        OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 2);
+        OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 2, memberCount: 2);
+        // T11: the last member may leave - that empties the organization back to Draft.
+        OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 1, memberCount: 1);
     }
 
     [Fact]

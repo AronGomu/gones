@@ -1255,3 +1255,33 @@ confirmation dialog opens after the server confirms the registration.
       (`sysctl net.ipv4.ip_local_port_range`) does NOT overlap rootless docker's published-port range,
       and confirm 0 failures — the failures seen on the development host are Testcontainers startup
       errors (`RootlessKit PortManager.AddPort(): bind: address already in use`), not test failures.
+
+## T11 derived-organizer-role-and-draft-orgs
+
+- [ ] Sign in as `admin@gones.test` and, from `/admin/organizations`, add `test@gones.test` (a plain
+      user) to any organization. Then sign in as `test@gones.test`: the account now behaves as an
+      organizer — the organizer entry points appear and that organization is offered when publishing
+      an event.
+- [ ] Do the same, but keep an already-signed-in `test@gones.test` browser tab open in a second
+      profile *before* the admin adds them. The moment the admin adds them, the open tab's next
+      action fails and the app sends them back to sign in: the change is enforced on the very next
+      request, not at the next token refresh.
+- [ ] With `test@gones.test` now an organizer of exactly one organization, have the admin remove
+      them from it. Sign in as `test@gones.test` again: every organizer entry point is gone and no
+      organization is offered when publishing.
+- [ ] Repeat that removal while `test@gones.test` has a signed-in tab open: that session stops
+      working immediately too, and "stay signed in" does not resurrect the organizer role.
+- [ ] Add `admin@gones.test` to an organization, then remove them from it. In both cases the admin
+      screens stay reachable and the account is still an administrator — membership never moves an
+      Admin, in either direction, and the admin's own session is not signed out.
+- [ ] As admin, remove the last remaining member of an organization: the removal succeeds (no
+      conflict message), the organization is still listed, and it now shows as a Draft with 0 members.
+- [ ] While that organization is a Draft, edit its name and description, delete it, then restore it:
+      all four still work.
+- [ ] As admin, try to publish an event for that Draft organization: the API refuses with
+      "Organization has no organizer and cannot publish." Add an organizer back and publish the same
+      event again: it goes through.
+- [ ] As `organizer@gones.test`, publish an event for "Gones Lyon" (a staffed organization): the
+      whole publish flow is unchanged from before this ticket.
+- [ ] As the sole Owner of an organization that still has another member, try to remove yourself:
+      the app still refuses and asks you to transfer ownership first.

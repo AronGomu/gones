@@ -305,6 +305,55 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Equal("nosniff", detail.Headers.GetValues("X-Content-Type-Options").Single());
     }
 
+    /// <summary>
+    /// T11: an organization with no members is a Draft, and a Draft cannot publish. Only an admin can
+    /// even reach the publish path for one - a member-less organization has nobody whose membership
+    /// check could pass - so the refusal is proved with an admin caller, server-side, and a staffed
+    /// organization in the same run proves the gate is not blanket.
+    /// </summary>
+    [Fact]
+    public async Task Draft_organization_cannot_publish_but_a_staffed_one_still_can()
+    {
+        var draftPayload = Payload(seed.Draft.Id) with { Title = "Draft Org Cup" };
+        using var draftPreview = await SendAsync(HttpMethod.Post, "/api/tournaments/preview", seed.Admin.Id, "Admin", draftPayload);
+        Assert.Equal(HttpStatusCode.OK, draftPreview.StatusCode);
+        var draftTicket = (await draftPreview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("previewTicket").GetString()!;
+
+        using var refused = await SendAsync(
+            HttpMethod.Post,
+            "/api/tournaments",
+            seed.Admin.Id,
+            "Admin",
+            new { previewTicket = draftTicket, payload = draftPayload },
+            "draft-org-publish");
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal("organization_is_draft", await ProblemCode(refused));
+
+        await using (var database = CreateContext())
+        {
+            Assert.Equal(0, await database.ScheduledTournaments.CountAsync(item => item.OrganizationId == seed.Draft.Id));
+            // The refusal must not burn the idempotency key or the preview ticket either.
+            Assert.Equal(0, await database.IdempotencyRecords.CountAsync(item => item.Key == "draft-org-publish"));
+        }
+
+        // Staffing the organization lifts the gate with no other change.
+        await using (var database = CreateContext())
+        {
+            database.OrganizationMembers.Add(OrganizationMember.Create(seed.Draft.Id, seed.Organizer.Id, OrganizationRoles.Organizer, Now));
+            await database.SaveChangesAsync();
+        }
+
+        using var staffed = await SendAsync(
+            HttpMethod.Post,
+            "/api/tournaments",
+            seed.Admin.Id,
+            "Admin",
+            new { previewTicket = draftTicket, payload = draftPayload },
+            "draft-org-publish");
+        Assert.Equal(HttpStatusCode.Created, staffed.StatusCode);
+        Assert.Equal("draft-org-cup", (await staffed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString());
+    }
+
     private async Task<HttpResponseMessage> PreviewAsync(Guid userId, TournamentPayload payload) =>
         await SendAsync(HttpMethod.Post, "/api/tournaments/preview", userId, "Organizer", payload);
 
@@ -347,12 +396,16 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         var organizer = User("Organizer");
         var secondOrganizer = User("SecondOrganizer");
         var outsider = User("Outsider");
+        var admin = User("Admin");
+        admin.AssignGlobalRole(GlobalRoles.Admin);
         var alpha = Organization.Create("Alpha Club", "Public alpha", "https://alpha.example", "alpha@example.test", Now);
         var beta = Organization.Create("Beta Club", null, null, null, Now);
+        // Member-less on purpose: this is the Draft organization T11's publish gate must refuse.
+        var draft = Organization.Create("Draft Club", null, null, null, Now);
         var legacy = await database.TournamentFormats.SingleOrDefaultAsync(format => format.Slug == TournamentFormat.LegacySlug)
             ?? TournamentFormat.CreateLegacy(Now);
-        database.Users.AddRange(organizer, secondOrganizer, outsider);
-        database.Organizations.AddRange(alpha, beta);
+        database.Users.AddRange(organizer, secondOrganizer, outsider, admin);
+        database.Organizations.AddRange(alpha, beta, draft);
         if (database.Entry(legacy).State == EntityState.Detached) database.TournamentFormats.Add(legacy);
         await database.SaveChangesAsync();
         database.OrganizationMembers.AddRange(
@@ -360,7 +413,7 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
             OrganizationMember.Create(alpha.Id, secondOrganizer.Id, OrganizationRoles.Organizer, Now),
             OrganizationMember.Create(beta.Id, outsider.Id, OrganizationRoles.Organizer, Now));
         await database.SaveChangesAsync();
-        return new SeedRows(alpha, beta, organizer, secondOrganizer, outsider, legacy);
+        return new SeedRows(alpha, beta, draft, organizer, secondOrganizer, outsider, admin, legacy);
     }
 
     private static ApplicationUser User(string prefix)
@@ -407,7 +460,15 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
     private HttpClient Client => client ?? throw new InvalidOperationException("Client not initialized.");
     private static readonly Instant Now = Instant.FromUtc(2030, 1, 1, 12, 0);
 
-    private sealed record SeedRows(Organization Alpha, Organization Beta, ApplicationUser Organizer, ApplicationUser SecondOrganizer, ApplicationUser Outsider, TournamentFormat Legacy);
+    private sealed record SeedRows(
+        Organization Alpha,
+        Organization Beta,
+        Organization Draft,
+        ApplicationUser Organizer,
+        ApplicationUser SecondOrganizer,
+        ApplicationUser Outsider,
+        ApplicationUser Admin,
+        TournamentFormat Legacy);
 
     private sealed record TournamentPayload(
         Guid OrganizationId,

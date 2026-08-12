@@ -56,6 +56,12 @@ public sealed class EmailVerificationRequiredException() : ApiException("email_v
 /// so letting them mail an approval request to each other would be a pointless detour.
 /// </summary>
 public sealed class DirectPublicationRequiredException() : ApiException("direct_publication_required", "Organizers and administrators publish tournaments directly.", StatusCodes.Status403Forbidden);
+/// <summary>
+/// An organization with no members is a Draft: nobody represents it, so nothing may be published in
+/// its name. Draft is derived from the member count, never stored, so this clears the moment an
+/// organizer is added.
+/// </summary>
+public sealed class OrganizationIsDraftException() : ApiException("organization_is_draft", "Organization has no organizer and cannot publish.", StatusCodes.Status409Conflict);
 public sealed class RegistrationBlockedException() : ApiException("registration_blocked", "Registration is blocked for this organization.", StatusCodes.Status403Forbidden);
 public sealed class RegistrationAlreadyActiveException() : ApiException("registration_already_active", "User already has an active registration for this Tournament.", StatusCodes.Status409Conflict);
 public sealed class TournamentFullException() : ApiException("tournament_full", "Tournament has no registration slots available.", StatusCodes.Status409Conflict);

@@ -13,6 +13,7 @@ namespace Gones.Api.Organizations;
 internal sealed class OrganizationService(
     GonesDbContext database,
     OrganizationAccessService access,
+    OrganizationMembershipRoleService membershipRoles,
     IEnumerable<IOrganizationDeleteDependency> deleteDependencies,
     IClock clock)
 {
@@ -232,6 +233,7 @@ internal sealed class OrganizationService(
         try
         {
             await database.SaveChangesAsync(cancellationToken);
+            await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, memberUserId, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return member;
         }
@@ -267,9 +269,12 @@ internal sealed class OrganizationService(
         var ownerCount = await database.OrganizationMembers.CountAsync(
             item => item.OrganizationId == organizationId && item.Role == OrganizationRoles.Owner,
             cancellationToken);
+        var memberCount = await database.OrganizationMembers.CountAsync(
+            item => item.OrganizationId == organizationId,
+            cancellationToken);
         try
         {
-            OrganizationMembershipPolicy.EnsureCanRemove(member, ownerCount);
+            OrganizationMembershipPolicy.EnsureCanRemove(member, ownerCount, memberCount);
         }
         catch (InvalidOperationException)
         {
@@ -286,6 +291,7 @@ internal sealed class OrganizationService(
                 fields = new[] { "removed" }
             }), clock.GetCurrentInstant()));
         await database.SaveChangesAsync(cancellationToken);
+        await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, memberUserId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 

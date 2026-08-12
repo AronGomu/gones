@@ -178,7 +178,7 @@ public sealed class OrganizationApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Sole_owner_cannot_be_removed_without_transfer_and_db_enforces_one_owner()
+    public async Task Sole_owner_cannot_be_demoted_without_transfer_and_db_enforces_one_owner()
     {
         var adminEmail = $"admin-o-{Guid.NewGuid():N}@example.test";
         var ownerEmail = $"owner-o-{Guid.NewGuid():N}@example.test";
@@ -200,9 +200,6 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         var orgId = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         var ownerToken = await LoginAsync(ownerEmail);
 
-        using var removeOwner = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", ownerToken);
-        Assert.Equal(HttpStatusCode.Conflict, removeOwner.StatusCode);
-
         using var demoteOwner = await SendAuthorizedAsync(HttpMethod.Put, $"/api/organizations/{orgId:D}/members/{owner.Id:D}/role", ownerToken, new
         {
             role = OrganizationRoles.Organizer
@@ -215,6 +212,251 @@ public sealed class OrganizationApiTests : IAsyncLifetime
             write.OrganizationMembers.Add(OrganizationMember.Create(orgId, second.Id, OrganizationRoles.Owner, NodaTime.SystemClock.Instance.GetCurrentInstant()));
             await write.SaveChangesAsync();
         });
+
+        // T11: the sole Owner may leave once nobody else is left - that returns the org to Draft.
+        // With a second member present the org would be left ownerless, so that removal still conflicts.
+        using var addSecond = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", ownerToken, new
+        {
+            userId = second.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addSecond.StatusCode);
+
+        using var removeOwnerWithPeers = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", ownerToken);
+        Assert.Equal(HttpStatusCode.Conflict, removeOwnerWithPeers.StatusCode);
+
+        using var removeSecond = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{second.Id:D}", ownerToken);
+        Assert.Equal(HttpStatusCode.NoContent, removeSecond.StatusCode);
+
+        using var removeLastOwner = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", ownerToken);
+        Assert.Equal(HttpStatusCode.NoContent, removeLastOwner.StatusCode);
+    }
+
+    /// <summary>
+    /// T11 test-plan rows 1-4: the global role is derived from membership, server-side, on every add
+    /// and remove. The organization role (Owner/Organizer) is untouched by this - only the global one.
+    /// </summary>
+    [Fact]
+    public async Task Membership_changes_derive_the_global_organizer_role()
+    {
+        var adminEmail = $"admin-g-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-g-{Guid.NewGuid():N}@example.test";
+        var subjectEmail = $"subject-g-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adg"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owg"));
+        await RegisterAndVerifyAsync(subjectEmail, UniqueUsername("Sug"));
+        await PromoteToAdminAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var subject = await database.Users.SingleAsync(item => item.NormalizedEmail == subjectEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(subjectEmail));
+
+        var firstOrgId = await CreateOrganizationAsync(adminToken, $"Derive First {Guid.NewGuid():N}", owner.Id);
+        var secondOrgId = await CreateOrganizationAsync(adminToken, $"Derive Second {Guid.NewGuid():N}", owner.Id);
+
+        // Row 1 - the first membership promotes User -> Organizer and records the derivation.
+        using var addFirst = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{firstOrgId:D}/members", adminToken, new
+        {
+            userId = subject.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addFirst.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(subjectEmail));
+        Assert.Equal(1, await AuditCountAsync("organization.role.derived", subject.Id));
+
+        // Row 2 - a second membership changes nothing but is still recorded.
+        using var addSecond = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{secondOrgId:D}/members", adminToken, new
+        {
+            userId = subject.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addSecond.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(subjectEmail));
+        Assert.Equal(1, await AuditCountAsync("organization.role.derived", subject.Id));
+        Assert.Equal(1, await AuditCountAsync("organization.role.unchanged", subject.Id));
+
+        // Row 4 - one of two memberships removed keeps Organizer.
+        using var removeSecond = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{secondOrgId:D}/members/{subject.Id:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, removeSecond.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(subjectEmail));
+
+        // Row 3 - the last membership removed demotes Organizer -> User.
+        using var removeFirst = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{firstOrgId:D}/members/{subject.Id:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, removeFirst.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(subjectEmail));
+        Assert.Equal(2, await AuditCountAsync("organization.role.derived", subject.Id));
+
+        // A soft-deleted organization does not count as a membership: the role follows the live ones.
+        using var addBack = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{firstOrgId:D}/members", adminToken, new
+        {
+            userId = subject.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addBack.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(subjectEmail));
+    }
+
+    /// <summary>T11 test-plan row 5: membership never moves an Admin, in either direction.</summary>
+    [Fact]
+    public async Task Admin_keeps_the_admin_role_on_both_membership_operations()
+    {
+        var adminEmail = $"admin-k-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-k-{Guid.NewGuid():N}@example.test";
+        var subjectEmail = $"subject-k-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adk"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owk"));
+        await RegisterAndVerifyAsync(subjectEmail, UniqueUsername("Suk"));
+        await PromoteToAdminAsync(adminEmail);
+        await PromoteToAdminAsync(subjectEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var subject = await database.Users.SingleAsync(item => item.NormalizedEmail == subjectEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        var orgId = await CreateOrganizationAsync(adminToken, $"Admin Immune {Guid.NewGuid():N}", owner.Id);
+        var subjectToken = await LoginAsync(subjectEmail);
+
+        using var add = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+        {
+            userId = subject.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, add.StatusCode);
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(subjectEmail));
+
+        using var remove = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{subject.Id:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(subjectEmail));
+
+        // No security stamp was rotated either, so the admin's session survives both operations.
+        Assert.Equal(0, await AuditCountAsync("organization.role.derived", subject.Id));
+        Assert.Equal(2, await AuditCountAsync("organization.role.unchanged", subject.Id));
+        using var stillAdmin = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations/{orgId:D}/members", subjectToken);
+        Assert.Equal(HttpStatusCode.OK, stillAdmin.StatusCode);
+    }
+
+    /// <summary>
+    /// T11 test-plan rows 6 and 8: emptying an organization is allowed, returns it to Draft, and a
+    /// Draft organization is still editable, deletable and restorable.
+    /// </summary>
+    [Fact]
+    public async Task Removing_the_last_member_returns_the_organization_to_draft()
+    {
+        var adminEmail = $"admin-e-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-e-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Ade"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owe"));
+        await PromoteToAdminAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        var marker = $"{Guid.NewGuid():N}";
+        var orgId = await CreateOrganizationAsync(adminToken, $"Emptied {marker}", owner.Id);
+
+        using var remove = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{owner.Id:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(ownerEmail));
+
+        using var list = await SendAuthorizedAsync(HttpMethod.Get, $"/api/admin/organizations?search={marker}", adminToken);
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        var listed = (await list.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").EnumerateArray().Single();
+        Assert.Equal(orgId, listed.GetProperty("id").GetGuid());
+        Assert.Equal(0, listed.GetProperty("memberCount").GetInt32());
+        Assert.True(listed.GetProperty("isDraft").GetBoolean());
+
+        using var publicGet = await Client.GetAsync($"/api/organizations/{orgId:D}");
+        Assert.Equal(HttpStatusCode.OK, publicGet.StatusCode);
+
+        // Row 8 - a Draft organization is still fully manageable by an admin.
+        using var update = await SendAuthorizedAsync(HttpMethod.Put, $"/api/admin/organizations/{orgId:D}", adminToken, new
+        {
+            name = $"Emptied {marker} renamed",
+            description = "Still editable"
+        });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        var updated = await update.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, updated.GetProperty("memberCount").GetInt32());
+        Assert.True(updated.GetProperty("isDraft").GetBoolean());
+
+        using var softDelete = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/organizations/{orgId:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, softDelete.StatusCode);
+        using var restore = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/organizations/{orgId:D}/restore", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, restore.StatusCode);
+
+        // And an organizer can be put back, which promotes them again.
+        using var addBack = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+        {
+            userId = owner.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, addBack.StatusCode);
+        Assert.Equal(GlobalRoles.Organizer, await GlobalRoleAsync(ownerEmail));
+    }
+
+    /// <summary>
+    /// T11 test-plan row 9 plus the privilege-boundary requirement: the derived change is enforced
+    /// server-side and takes effect on the very next request, not at the next token refresh. The
+    /// access token already in the caller's hand stops working because the security stamp rotated and
+    /// the baked-in role claim no longer matches the stored one; the refresh session is revoked too,
+    /// so there is no way to trade the old session for a token carrying the old role.
+    /// </summary>
+    [Fact]
+    public async Task Derived_role_change_is_immediate_and_revokes_refresh_sessions()
+    {
+        var adminEmail = $"admin-s-{Guid.NewGuid():N}@example.test";
+        var ownerEmail = $"owner-s-{Guid.NewGuid():N}@example.test";
+        var subjectEmail = $"subject-s-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Ads"));
+        await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Ows"));
+        await RegisterAndVerifyAsync(subjectEmail, UniqueUsername("Sus"));
+        await PromoteToAdminAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var owner = await database.Users.SingleAsync(item => item.NormalizedEmail == ownerEmail.ToUpperInvariant());
+        var subject = await database.Users.SingleAsync(item => item.NormalizedEmail == subjectEmail.ToUpperInvariant());
+        var adminToken = await LoginAsync(adminEmail);
+        var orgId = await CreateOrganizationAsync(adminToken, $"Session Club {Guid.NewGuid():N}", owner.Id);
+
+        var (userToken, userCookie) = await LoginWithCookieAsync(subjectEmail);
+        using var beforePromotion = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", userToken);
+        Assert.Equal(HttpStatusCode.OK, beforePromotion.StatusCode);
+
+        using var add = await SendAuthorizedAsync(HttpMethod.Post, $"/api/organizations/{orgId:D}/members", adminToken, new
+        {
+            userId = subject.Id,
+            role = OrganizationRoles.Organizer
+        });
+        Assert.Equal(HttpStatusCode.Created, add.StatusCode);
+
+        using var afterPromotion = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", userToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterPromotion.StatusCode);
+        using var refreshAfterPromotion = await RefreshAsync(userCookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshAfterPromotion.StatusCode);
+
+        // Re-authenticating hands out the promoted role, and it really is an Organizer token.
+        var (organizerToken, organizerCookie) = await LoginWithCookieAsync(subjectEmail);
+        using var previewAllowed = await SendAuthorizedAsync(HttpMethod.Post, "/api/tournaments/preview", organizerToken, new { organizationId = orgId });
+        Assert.NotEqual(HttpStatusCode.Forbidden, previewAllowed.StatusCode);
+
+        using var remove = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{subject.Id:D}", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(subjectEmail));
+
+        // The stale Organizer token is refused on the next request - not at the next refresh.
+        using var afterDemotion = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", organizerToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, afterDemotion.StatusCode);
+        using var staleOrganizerPreview = await SendAuthorizedAsync(HttpMethod.Post, "/api/tournaments/preview", organizerToken, new { organizationId = orgId });
+        Assert.Equal(HttpStatusCode.Unauthorized, staleOrganizerPreview.StatusCode);
+        using var refreshAfterDemotion = await RefreshAsync(organizerCookie);
+        Assert.Equal(HttpStatusCode.Unauthorized, refreshAfterDemotion.StatusCode);
+
+        // And a fresh login is back to a plain User, refused by the Organizer policy.
+        var demotedToken = await LoginAsync(subjectEmail);
+        using var demotedPreview = await SendAuthorizedAsync(HttpMethod.Post, "/api/tournaments/preview", demotedToken, new { organizationId = orgId });
+        Assert.Equal(HttpStatusCode.Forbidden, demotedPreview.StatusCode);
     }
 
     [Fact]
@@ -495,6 +737,29 @@ public sealed class OrganizationApiTests : IAsyncLifetime
             builder.UseSetting("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT", "1000");
         });
 
+    private async Task<Guid> CreateOrganizationAsync(string adminToken, string name, Guid ownerUserId)
+    {
+        using var response = await SendAuthorizedAsync(HttpMethod.Post, "/api/admin/organizations", adminToken, new { name, ownerUserId });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+    }
+
+    private async Task<string> GlobalRoleAsync(string email)
+    {
+        await using var database = CreateContext();
+        return await database.Users.AsNoTracking()
+            .Where(item => item.NormalizedEmail == email.ToUpperInvariant())
+            .Select(item => item.GlobalRole)
+            .SingleAsync();
+    }
+
+    private async Task<int> AuditCountAsync(string action, Guid subjectUserId)
+    {
+        await using var database = CreateContext();
+        return await database.AuditRecords.AsNoTracking()
+            .CountAsync(item => item.Action == action && item.EntityId == subjectUserId.ToString("D"));
+    }
+
     private Task PromoteToAdminAsync(string email) => AssignGlobalRoleAsync(email, GlobalRoles.Admin);
 
     private async Task AssignGlobalRoleAsync(string email, string role)
@@ -527,6 +792,24 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         });
 
     private Task<string> LoginAsync(string email) => LoginWithClientAsync(Client, email, "valid-password-value");
+
+    private async Task<(string Token, string Cookie)> LoginWithCookieAsync(string email)
+    {
+        using var response = await Client.PostAsJsonAsync("/api/auth/login", new { email, password = "valid-password-value", deviceLabel = "test" });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var cookie = response.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("gones_refresh=", StringComparison.Ordinal))
+            .Split(';', 2)[0];
+        return (body.GetProperty("accessToken").GetString()!, cookie);
+    }
+
+    private Task<HttpResponseMessage> RefreshAsync(string cookie)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/refresh");
+        request.Headers.Add("Cookie", cookie);
+        return Client.SendAsync(request);
+    }
 
     private static async Task<string> LoginWithClientAsync(HttpClient httpClient, string email, string password)
     {

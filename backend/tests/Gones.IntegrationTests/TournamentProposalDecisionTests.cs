@@ -348,6 +348,37 @@ public sealed class TournamentProposalDecisionTests(ITestOutputHelper output) : 
     }
 
     /// <summary>
+    /// T11. Approving publishes without going through <c>POST /api/tournaments</c>, so the Draft gate
+    /// has to sit on the publish itself rather than on the endpoint. Emptying the organization leaves
+    /// only the global-Admin recipient able to decide, and even that decision is refused: there is no
+    /// organizer left to own the tournament.
+    /// </summary>
+    [Fact]
+    public async Task Approving_a_proposal_for_a_draft_organization_is_refused()
+    {
+        var proposal = await SeedProposalAsync();
+        await using (var database = CreateContext())
+        {
+            var memberships = await database.OrganizationMembers
+                .Where(member => member.OrganizationId == seed.Alpha.Id)
+                .ToListAsync();
+            database.OrganizationMembers.RemoveRange(memberships);
+            await database.SaveChangesAsync();
+        }
+
+        using var approve = await Client.PostAsync(ReviewUrl(proposal.AdminToken) + "/approve", null);
+
+        output.WriteLine($"draft-org approve -> {(int)approve.StatusCode} {await approve.Content.ReadAsStringAsync()}");
+        Assert.Equal(HttpStatusCode.Conflict, approve.StatusCode);
+        var problem = await approve.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("organization_is_draft", problem.GetProperty("code").GetString());
+
+        await using var stored = CreateContext();
+        Assert.Equal(0, await stored.ScheduledTournaments.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.TournamentProposals.AsNoTracking().SingleAsync()).Status);
+    }
+
+    /// <summary>
     /// T26. The race made deterministic: an outside transaction holds the proposal's row lock, so
     /// approve stalls wherever it first needs that row, and the refusal commits while it waits.
     /// Publishing before the lock leaves a live, registerable tournament hanging off a rejected

@@ -186,6 +186,17 @@ internal sealed class TournamentPublicationService(
                     return Outcome(stored.Response);
                 }
 
+                // T11: an organization with no members is a Draft and publishes nothing. The check sits
+                // here rather than in NormalizeAsync so that previewing and validating a proposal payload
+                // stay open, and inside the transaction so it cannot race a membership removal. It is
+                // below the idempotency replay on purpose: a request that already published stays
+                // replayable even if the organization was emptied afterwards.
+                if (!await database.OrganizationMembers
+                        .AnyAsync(member => member.OrganizationId == request.OrganizationId, cancellationToken))
+                {
+                    throw new OrganizationIsDraftException();
+                }
+
                 Instant? expiresAt = null;
                 if (previewTicket is not null)
                 {

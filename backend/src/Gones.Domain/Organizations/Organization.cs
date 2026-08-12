@@ -281,11 +281,17 @@ public sealed class OrganizationNotificationSettings : VersionedEntity
 
 public static class OrganizationMembershipPolicy
 {
-    public static void EnsureCanRemove(OrganizationMember target, int ownerCount)
+    /// <summary>
+    /// The sole Owner may only leave when nobody is left behind: that empties the organization and
+    /// returns it to Draft, which is a state it is allowed to be in. Leaving other members behind
+    /// would strand them under an organization no one can administer, so that still requires a
+    /// transfer first.
+    /// </summary>
+    public static void EnsureCanRemove(OrganizationMember target, int ownerCount, int memberCount)
     {
-        if (target.IsOwner && ownerCount <= 1)
+        if (target.IsOwner && ownerCount <= 1 && memberCount > 1)
         {
-            throw new InvalidOperationException("Sole organization Owner cannot be removed without transfer.");
+            throw new InvalidOperationException("Sole organization Owner cannot be removed while other members remain.");
         }
     }
 
