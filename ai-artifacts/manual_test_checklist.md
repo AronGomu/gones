@@ -1018,9 +1018,9 @@ test covers is a real browser session restored from the refresh cookie on a real
 - [ ] Throttle the network to "Slow 3G" in DevTools and hard-reload `/registrations` while signed in:
       the app waits for the session restore, then shows the page — no redirect to `/login`.
 - [ ] Signed in as a plain User, open `/admin`: you are sent to `/` with `?denied=/admin`.
-- [ ] Signed in as an Organizer, open `/organizer/tournaments`: the page renders; open `/admin`: you are
+- [ ] Signed in as an Organizer, open `/organizer/events`: the page renders; open `/admin`: you are
       sent to `/` with `?denied=/admin`.
-- [ ] With an unverified e-mail, open `/tournaments/new`: you are sent to `/verify-email?email=<your address>`.
+- [ ] With an unverified e-mail, open `/events/new`: you are sent to `/verify-email?email=<your address>`.
 - [ ] Sign out from a page behind a guard: you are moved off it and cannot reach it again with the back button.
 
 ## T2 calendar-past-day-styling
@@ -1140,7 +1140,7 @@ child of the hero with the website button on its right edge, and 375px stays fre
 overflow. What no automated test settles is whether the denser hero still reads well with long
 titles, many formats, a long address, French copy, and in the organizer preview.
 
-- [ ] Open an event page (`/calendar/tournaments/…`): the title reads `[Format] Title (capacity)` on
+- [ ] Open an event page (`/events/…`): the title reads `[Format] Title (capacity)` on
       one line, and the date and the location sit on the single line under it, separated by `-`.
 - [ ] Open an event with several formats: the bracket lists them joined by ` / ` and the row still
       wraps gracefully instead of pushing the page wider.
@@ -1165,7 +1165,7 @@ The location on an event page is now a link to Google Maps, prefixed by a small 
 URL is built in the browser from the venue fields, so the checks below are about the real link
 target, the icon and the fallback when an event has no address.
 
-- [ ] Open an event page (`/calendar/tournaments/…`) with an address: the location shows a small
+- [ ] Open an event page (`/events/…`) with an address: the location shows a small
       map-pin icon and reads the same text as before (street, postal code, city, country).
 - [ ] Click the location: Google Maps opens in a NEW tab (the event page stays open behind it) and
       lands on that exact address.
@@ -1379,25 +1379,25 @@ confirmation dialog opens after the server confirms the registration.
 
 ## T14 admin-all-organizations-picker
 
-- [ ] Sign in as `admin@gones.test` and open `/tournaments/new`. The organization picker offers every
+- [ ] Sign in as `admin@gones.test` and open `/events/new`. The organization picker offers every
       active organization on the site — including ones you do not belong to — sorted by name, not the
       empty list an administrator's own memberships would produce.
 - [ ] Pick an organization you are not a member of, fill the form, preview and publish. The event is
       created and you land on its public detail page under that organization's name.
 - [ ] In `/admin/organizations`, remove the last member of an organization so it carries the Draft
-      badge. Reload `/tournaments/new`: that organization is no longer offered in the picker. Staff it
+      badge. Reload `/events/new`: that organization is no longer offered in the picker. Staff it
       again and it comes back.
-- [ ] Delete an organization from `/admin/organizations`, then reload `/tournaments/new`: the deleted
+- [ ] Delete an organization from `/admin/organizations`, then reload `/events/new`: the deleted
       organization is not offered. Restore it and it is offered again.
-- [ ] Sign in as `organizer@gones.test` and open `/tournaments/new`. The picker still shows only the
+- [ ] Sign in as `organizer@gones.test` and open `/events/new`. The picker still shows only the
       organizations that account belongs to — `Gones Lyon` and nothing else.
-- [ ] Sign in as `test@gones.test` (plain user) and open `/tournaments/new`. The picker still shows the
+- [ ] Sign in as `test@gones.test` (plain user) and open `/events/new`. The picker still shows the
       public catalogue and the page still offers "submit for approval", not direct publishing.
-- [ ] As an administrator, keep `/tournaments/new` open, have the API go down (or block
+- [ ] As an administrator, keep `/events/new` open, have the API go down (or block
       `/api/admin/organizations` in the browser dev tools) and reload. The picker falls back to your
       own memberships rather than going empty; when nothing at all can be loaded the page shows the
       reference-load error with a working Retry button.
-- [ ] Walk `/tournaments/new` as an administrator with the keyboard only: Tab reaches the organization
+- [ ] Walk `/events/new` as an administrator with the keyboard only: Tab reaches the organization
       picker, arrow keys move through the options and the focus ring stays visible.
 
 ## T15 backend-event-entity-rename
@@ -1508,22 +1508,22 @@ actually reads on screen, and the one flow that needs a real signed-in account.
       literal `{tournament}` placeholder.
 - [ ] Switch the language to French on `/calendar` and re-read the same screens plus an event detail
       page. Every label is still translated — no English fallback and no key text leaking through.
-- [ ] Click an event card. The detail page opens at `/calendar/tournaments/<slug>` (that path is
-      deliberately unchanged until T18), the hero, venue link and description all render, and the
-      card styling still looks right — the CSS class names were intentionally left as
-      `.public-tournament-card` / `.public-tournament-detail`.
+- [ ] Click an event card. The detail page opens — on the final tree that is `/events/<slug>`, since
+      T18 made it canonical and turned `/calendar/tournaments/<slug>` into a redirect. The hero,
+      venue link and description all render, and the card styling still looks right — the CSS class
+      names were intentionally left as `.public-tournament-card` / `.public-tournament-detail`.
 - [ ] Press `Add to calendar` on the detail page and open the downloaded `.ics` in a calendar app.
       The date, time and venue match what the page shows.
 - [ ] Sign in as `test@gones.test`, register for an upcoming event, and confirm the success dialog
       appears, the participant count goes up, and `/registrations` lists the attempt with the right
       event title and venue time. Then unregister and confirm the list updates.
-- [ ] Sign in as `organizer@gones.test`. Visit `/organizer/tournaments`, edit an event, and save a
+- [ ] Sign in as `organizer@gones.test`. Visit `/organizer/events`, edit an event, and save a
       major change. The confirmation dialog lists the changed fields in readable prose, and the
-      "Cancel Tournament" / "Annuler le tournoi" button still reads that way (labels move in T18).
-- [ ] Visit `/organizer/tournaments/<id>/participants`. The heading reads `Participants — <event
+      cancel confirmation reads "Cancel Event" / "Annuler l'événement" — T18 retitled those labels.
+- [ ] Visit `/organizer/events/<id>/participants`. The heading reads `Participants — <event
       title>` with the real title interpolated, and the remove/block dialogs name the event and the
       organization rather than showing `{tournament}`.
-- [ ] Sign in as `admin@gones.test` and open `/admin/tournaments/deleted`. Deleted events are listed
+- [ ] Sign in as `admin@gones.test` and open `/admin/events/deleted`. Deleted events are listed
       and `Restore` works.
 - [ ] With the service worker installed, load `/calendar`, go offline and reload. The calendar still
       renders from cache and the offline banner appears.
@@ -1563,3 +1563,104 @@ browser redirect, the breadcrumb text a person reads, and a bookmark that predat
       renders.
 - [ ] Publish an event through `/events/new`. After publishing, the browser ends up on
       `/events/<slug>` and that page shows the event you just created.
+
+## T19 docs-adr-and-matrix-sweep
+
+This ticket changed documentation only — no runtime behaviour, no `src/`, no `backend/`. There is
+nothing to click in the app. What a human has to check is whether the documents now tell the truth
+about the app the previous eighteen tickets shipped, and whether the two HTML architecture pages
+still render. Read each document with the running app beside you and disprove it if you can.
+
+### The three ADRs say what the code does
+
+- [ ] `docs/adr/0033-session-ready-route-guards.md` reads `Accepted`. Open
+      `src/app/auth/auth.guards.ts` next to it: all four guards are `async`, each awaits
+      `auth.whenSessionReady()` before touching `profile()`, and each calls `inject()` above that
+      await. The redirect targets in the ADR are the ones in the file.
+- [ ] `docs/adr/0034-derived-organizer-role-and-draft-organizations.md` reads `Accepted` and no longer
+      claims the users screen stopped granting the Organizer role. Prove the correction the hard way:
+      sign in as `admin@gones.test`, open `/admin/users`, press `Grant Organizer` on a plain account —
+      it still works. Then add that account to an organization in `/admin/organizations` and remove it
+      again: the account is back to `User`, because the derived sync overwrote the hand grant. That is
+      exactly what the ADR now says.
+- [ ] `docs/adr/0035-calendar-event-vocabulary.md` reads `Accepted` and carries a
+      "Shipped, and where it diverged" section. Spot-check three of its kept identifiers against the
+      tree: `ScheduledTournamentStatus` in `backend/src/Gones.Domain/Calendar/Event.cs`,
+      `gones.calendar-v1.all-tournaments` in the browser's Local Storage on `/calendar`, and
+      `data-cy="admin-nav-deleted-tournaments"` in the DOM of `/admin`.
+- [ ] The same ADR's redirect list matches the address bar: `/organizer/tournaments/new` and
+      `/admin/tournaments/deleted` really do land on `/events/new` and `/admin/events/deleted`.
+- [ ] `docs/adr/0025-hard-account-deletion.md` now explains that its `scheduled_tournaments.*`
+      relation labels are shipped wire strings rather than table names. Trigger a real
+      `account_owns_records` refusal (an account that created an event, Settings → Supprimer Compte)
+      and read the error text: it names `scheduled_tournaments.created_by_user_id`, not `events.*`.
+- [ ] `docs/adr/0023` and `docs/adr/0030` still read as the historical records they are, each with a
+      one-line pointer to ADR 0035 at the top rather than rewritten paths.
+
+### The HTML architecture pages render and match the screen
+
+- [ ] Open `docs/event-proposal-flow.html` in a browser (`file://` is fine). It renders: no raw HTML,
+      no broken table, dark theme intact. The endpoints table reads `/api/event-proposals*` and the
+      role table reads `/events/new` and `POST /api/events`.
+- [ ] Walk one real proposal with that page open: sign in as `test@gones.test`, submit an event for
+      approval, open the mailed link. Every step on the page matches what happens, including the
+      reviewer page rendering the description as plain text.
+- [ ] Open `docs/calendar-data-flow.html`. Compare its pipeline against DevTools → Network on
+      `/calendar`: one `GET /api/events/all` on a cold load, nothing on a month change, nothing while
+      typing, and a request with `If-None-Match` only when you press Synchronise.
+- [ ] Same page, the day-cell note: it now says the grid's geometry is month-only but its cells carry
+      up to three filtered events plus "+N more". Type a search term and confirm the cell contents
+      change while the grid keeps its size — the note is right and the old "day numbers and nothing
+      else" claim was not.
+- [ ] Same page, the past-day note: past cells are a darker tint with a muted day number, never a
+      faded cell.
+- [ ] Open `docs/organization-membership-model.html`. Its transition table matches reality: add a
+      second membership to an already-Organizer account and the account does not change role; remove
+      one of two and it still does not. Remove the last one and it drops to `User`.
+- [ ] Same page, the enforcement table: publishing under a member-less organization is refused, and
+      the organization picker on `/events/new` does not offer it.
+- [ ] Open `docs/event-vocabulary-rename.html`. The rename table now includes
+      `consumed_tournament_preview_tickets` and `/admin/tournaments/deleted`, and the new
+      "identifiers that stayed" table matches what you spot-checked for ADR 0035.
+
+### The prose documents
+
+- [ ] `AGENT.md` "What Gones is" names the three surfaces (Event calendar, League Archive, Live
+      Tournament) and says "scheduled tournament" is retired. Nothing in it points at a path that
+      404s.
+- [ ] `README.md` opens with the Event calendar and its canonical routes.
+- [ ] `docs/CONTEXT.md` has entries for **Event**, **Scheduled Tournament** (retired), **Organization**
+      and **Draft Organization**, and the relationships section names the membership rule.
+- [ ] `docs/GLOSSARY.md` carries `scheduled tournament` as a retired term plus `membership` and
+      `draft organization`, each pointing at a file that exists.
+- [ ] `docs/DESIGN.md` has an "Event Calendar and Event Detail" subsection. Read its four rules with
+      `/calendar` and an event page open: past-day tone, whole-card link with the ICS button opting
+      out, marked search text, and month navigation that does not scroll you to the top.
+- [ ] `docs/OPERATIONS.md` §8 "Membership heal migration" still describes
+      `20260812154508_HealOrganizationMembershipInvariants` accurately — one shot, demote-only, empty
+      `Down`, two audit actions with a NULL actor.
+- [ ] `git grep -n "tournament-proposal-flow"` returns nothing outside the T19 ticket file: the old
+      document name is gone from the repository.
+
+### The acceptance matrix
+
+- [ ] `npm run acceptance:matrix` prints `103/103 non-deferred capability rows proved (3 deferred)`
+      and `24/24 final acceptance checklist rows proved`.
+- [ ] The four new rows are there and each names a gate you can run yourself:
+      `doc03-session-ready-guards`, `doc04-derived-organizer-role`, `doc04-draft-organizations`,
+      `doc09-event-routes`.
+- [ ] Break one on purpose: point any new row's `evidence.target` at a file that does not exist, run
+      `npx vitest run ops/acceptance-matrix.test.ts`, watch it fail with that target named, then undo.
+      A matrix that cannot fail proves nothing.
+- [ ] No row's capability text still calls a calendar record a tournament, and the rows about the
+      archive (`doc09-archive-rename`), the Live domain (`doc09-local-live-store`) and the shared
+      format catalogue (`doc05-formats`) still do — those three are different domains.
+
+### Known, and not this ticket's
+
+- [ ] `scripts/smoke-full-stack.mjs` `expectedMigrations` does not list
+      `20260812164333_RenameCalendarTournamentToEvent`, so `npm run smoke:full-stack` and the
+      allowlist parse in `scripts/release-preflight.mjs` fail on this tree. Confirm it is still open
+      before the round is called done.
+- [ ] `/admin/users` still offers Grant/Revoke Organizer. Documented, not removed — confirm the docs
+      say so rather than pretending otherwise.

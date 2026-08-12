@@ -49,6 +49,12 @@ belonging — who created a tournament, who moved a registration, who blocked a 
 - `organization_blocked_users.blocked_by_user_id`
 - `organization_blocked_users.unblocked_by_user_id`
 
+ADR 0035 renamed three of those tables (`scheduled_tournaments` → `events`,
+`tournament_registration_attempts` → `event_registration_attempts`, `tournament_lifecycle_events` →
+`event_lifecycle_entries`) but deliberately **not** these labels: they are the strings the `409`
+returns and `src/app/features/settings/account-delete.test.ts` pins them. They are therefore stable
+identifiers for a relation, not the current table names.
+
 **An account that still owns any of these rows cannot be deleted.** A pre-flight query runs after the
 password check and again inside the delete transaction; a hit returns `409` with the code
 `account_owns_records` and a `relations` array naming the offending `table.column` pairs. The refusal

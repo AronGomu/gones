@@ -52,7 +52,7 @@
 <header class="top">
   <p class="kick">Gones · Architecture</p>
   <h1>Calendar Data Flow</h1>
-  <p class="lede">One request a day fetches every present-and-future tournament. Everything the user
+  <p class="lede">One request a day fetches every present-and-future event. Everything the user
   types after that filters a local array. The month grid never disappears.</p>
 </header>
 
@@ -85,10 +85,10 @@
 
 <div class="pipeline">
   <div class="local">PublicCalendarComponent — <code>searchDraft()</code>, month, view <span class="badge">signals</span></div>
-  <div class="local">filterTournaments(allItems(), q) — fuse.js over normalized text <span class="badge">pure</span></div>
-  <div class="local">AllTournamentsCacheService.load() <span class="badge">24 h TTL</span></div>
-  <div class="net">localStorage <code>gones.calendar-v1.all-tournaments</code> — items + etag + fetchedAt</div>
-  <div class="net">GET /api/tournaments/all?from=… — If-None-Match <span class="badge">only on miss / force</span></div>
+  <div class="local">filterEvents(allItems(), q) — fuse.js over normalized text <span class="badge">pure</span></div>
+  <div class="local">AllEventsCacheService.load() <span class="badge">24 h TTL</span></div>
+  <div class="net">localStorage <code>gones.calendar-v1.all-tournaments</code> — items + etag + fetchedAt <span class="badge">key kept, ADR 0035</span></div>
+  <div class="net">GET /api/events/all?from=… — If-None-Match <span class="badge">only on miss / force</span></div>
   <div class="net">PostgreSQL events ⋈ organizations</div>
 </div>
 
@@ -98,7 +98,7 @@
 <table>
   <thead><tr><th>User action</th><th>Network</th><th>Why</th></tr></thead>
   <tbody>
-    <tr><td>First page load of the day</td><td><code>GET /api/tournaments/all</code></td><td>cache empty or older than 24 h</td></tr>
+    <tr><td>First page load of the day</td><td><code>GET /api/events/all</code></td><td>cache empty or older than 24 h</td></tr>
     <tr><td>Reload, same day</td><td><em>none</em></td><td>cache is fresh</td></tr>
     <tr><td>Typing in the search field</td><td><em>none</em></td><td>filtering is local</td></tr>
     <tr><td>Next / previous month</td><td><em>none</em></td><td>the whole catalog is already in memory</td></tr>
@@ -139,13 +139,13 @@ EXCLUDED: summary / description  ← long free text, deliberately not searched</
 
 <h2>The bulk endpoint</h2>
 
-<pre>GET /api/tournaments/all?from=2026-08-08          # anonymous
+<pre>GET /api/events/all?from=2026-08-08               # anonymous
 
 200 OK
 ETag: "9f2c…"                                     # sha256(count : maxUpdatedAt : lastId)
 Cache-Control: public, max-age=3600
 {
-  "items":       [ …PublicTournamentSummaryResponse… ],
+  "items":       [ …PublicEventSummaryResponse… ],
   "generatedAt": "2026-08-08T09:14:02Z",
   "count":       137,
   "truncated":   false
@@ -166,30 +166,51 @@ Cache-Control: public, max-age=3600
 differently. Document order on <code>/calendar</code>:</p>
 
 <pre>[ back to menu ]                          [ synchronised 12:04 ] [ ⟳ Synchronise ]
-Public tournaments                                              [ Create tournament ]
+Event Calendar                                                     [ Create Event ]
 &lt;search input — no label, no border, no background&gt;
 [ Calendar ] [ List ]
 ────────────────────────────────────────────────────────────────────────────────
 calendar tab                              │  list tab
   [ Previous ]      August 2026   [ Next ]│    venue-date group headings
-  ┌─────┬─────┬─────┬─────┬─────┬─────┐   │    tournament cards, 20 per page
+  ┌─────┬─────┬─────┬─────┬─────┬─────┐   │    event cards, 20 per page
   │  1  │  2  │  3  │  4  │  5  │  6  │   │    [ Previous ]  Page 1 of 3  [ Next ]
+  │ 19:00 Modern              │        │   │
   └─────┴─────┴─────┴─────┴─────┴─────┘   │</pre>
 
 <div class="note">
-  <strong>The month grid holds day numbers and nothing else.</strong> Tournament entries were removed
-  from the day cells deliberately: the calendar tab is a date surface, the list tab is the discovery
-  surface. <code>buildMonthDays(month)</code> therefore takes only a month and no longer depends on the
-  filtered set, so typing in the search box does not re-render the grid.
+  <strong>The grid's geometry is month-only; its contents are not.</strong>
+  <code>buildMonthDays(month)</code> still takes a month and nothing else, so the shape of the grid
+  never depends on the filtered set. The cells themselves do carry events: each renders up to
+  <code>MAX_DAY_CELL_EVENTS</code> (3) links from <code>dayEventIndex</code>, which is built over the
+  <em>filtered</em> <code>items()</code>, plus a “+N more” line past that. Typing therefore re-renders
+  the cell contents while the grid keeps its size and position.
+</div>
+
+<div class="note">
+  <strong>Past days are dimmed with a tint, never with <code>opacity</code>.</strong> A blanket opacity
+  drags the day number under the contrast floor. <code>.public-month-day--past</code> darkens the cell
+  background with <code>color-mix</code> and sets the day number to <code>var(--steel)</code> at weight
+  700 — measured 5.49–5.62:1, AA at every cell tone. A vitest assertion in
+  <code>public-calendar.component.test.ts</code> fails if an <code>opacity</code> rule reappears on
+  that selector.
+</div>
+
+<div class="note">
+  <strong>Month navigation preserves the scroll position.</strong> Month change is a query-param
+  navigation on the same route, which the router's <code>scrollPositionRestoration</code> treats as a
+  fresh page. <code>moveMonth()</code> captures <code>window.scrollY</code>, pins the grid height so the
+  document cannot shrink underneath it, navigates with <code>scroll: 'manual'</code> for that one
+  navigation, and restores the offset on the next frame.
 </div>
 
 <h2>What the filter still drives</h2>
 
 <div class="pipeline">
-  <div class="local">searchDraft() → filterTournaments(allItems(), q) → <code>items()</code></div>
+  <div class="local">searchDraft() → filterEvents(allItems(), q) → <code>items()</code></div>
   <div class="local">items() → empty-state panel <span class="badge">both tabs</span></div>
-  <div class="local">items() → sortTournamentsForList() → paginateTournaments(…, page) → <code>groups()</code> <span class="badge">list tab</span></div>
-  <div class="net">the month grid reads none of the above — only <code>query().month</code></div>
+  <div class="local">items() → sortEventsForList() → paginateEvents(…, page) → <code>groups()</code> <span class="badge">list tab</span></div>
+  <div class="local">items() → eventsByDate() → <code>dayEventIndex()</code> → day-cell links <span class="badge">calendar tab</span></div>
+  <div class="net">the grid's <em>shape</em> reads none of the above — only <code>query().month</code></div>
 </div>
 
 <p>The search text is debounced 300 ms into the <code>q</code> query parameter. Changing <code>q</code>,
@@ -202,15 +223,22 @@ URL, so a shared link stays clean.</p>
 <table>
   <tr><th>Symbol</th><th>Where</th><th>Rule</th></tr>
   <tr><td><code>PAGE_SIZE</code></td><td><code>public-calendar.ts</code></td><td>20</td></tr>
-  <tr><td><code>sortTournamentsForList</code></td><td>same</td><td>venue date, then start time, then title, then id — a stable flat order is what makes paging deterministic</td></tr>
+  <tr><td><code>sortEventsForList</code></td><td>same</td><td>venue date, then start time, then title, then id — a stable flat order is what makes paging deterministic</td></tr>
   <tr><td><code>calendarPageCount</code></td><td>same</td><td><code>max(1, ceil(total / 20))</code> — an empty list is still one page</td></tr>
   <tr><td><code>clampCalendarPage</code></td><td>same</td><td>out-of-range, fractional and <code>NaN</code> pages resolve to a real page</td></tr>
-  <tr><td><code>paginateTournaments</code></td><td>same</td><td>slices after clamping, so a hand-edited URL never renders an empty list</td></tr>
+  <tr><td><code>paginateEvents</code></td><td>same</td><td>slices after clamping, so a hand-edited URL never renders an empty list</td></tr>
 </table>
 </div>
 
-<p>Grouping happens <em>after</em> paging: the 20 tournaments of the current page are then split into
+<p>Grouping happens <em>after</em> paging: the 20 events of the current page are then split into
 venue-date sections. Paging by group would give pages of wildly different sizes.</p>
+
+<h3>Matched text</h3>
+
+<p>Titles rendered in the day cells and in the list are split by
+<code>highlightSearchText()</code> (<code>src/app/shared/search-highlight.ts</code>) into plain and
+matched parts, and the matched parts carry <code>.match-highlight</code>. The search itself is still
+the fuzzy filter above; highlighting is a presentation pass over the same terms.</p>
 
 <h2>Boundary rules this respects</h2>
 
@@ -223,7 +251,7 @@ venue-date sections. Paging by group would give pages of wildly different sizes.
   <li><code>localStorage</code> holds a cache of anonymous <code>GET</code> responses and nothing else —
   the same justification the pre-existing entries in the
   <code>server-authority-boundary.test.ts</code> allowlist carry. It is never a mutation source.</li>
-  <li>The paged <code>GET /api/tournaments</code> stays, contract-tested. It is the documented public
+  <li>The paged <code>GET /api/events</code> stays, contract-tested. It is the documented public
   read API; this application simply no longer calls it.</li>
 </ul>
 

@@ -1,6 +1,8 @@
 # Gones
 
-Gones is an Angular single-page PWA for consulting tournament League results, exporting Gones source-data backups, and editing League source data.
+Gones is an Angular single-page PWA for the public **Event** calendar people register for, for consulting tournament League results, for exporting Gones source-data backups, and for editing League source data.
+
+The calendar record is an Event (`/calendar`, `/events/:slug`, `/events/new`, `/api/events`). "Scheduled tournament" is the retired name for it (ADR 0035); a tournament here is either an archived result or a browser-run Live Tournament.
 
 ## Data authority
 

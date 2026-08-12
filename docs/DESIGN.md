@@ -226,6 +226,29 @@ Gones should rely mostly on tonal layering, borders, and surface contrast. Shado
 - **Actions:** Page and section actions wrap to full-width buttons on phones so import, edit, add, save, and delete controls remain reachable.
 - **Text:** Long player names, deck names, League names, and Tournament names must wrap inside cards instead of pushing the viewport wider.
 
+### Event Calendar and Event Detail
+
+The public calendar (`/calendar`) and the event page (`/events/:slug`) carry four rules that are
+design decisions, not component details:
+
+- **Dim a past day with tone, never with `opacity`.** A past day cell darkens its background and
+  drops its day number to Muted Steel at label weight. A blanket `opacity` drags the number under the
+  contrast floor; the tint keeps it at AA (measured 5.49–5.62:1 across the cell tones). A test fails
+  if an `opacity` rule reappears on the past-day selector.
+- **A list card is one target.** An event card in the list is the link — the whole card, keyboard
+  included. Controls that live inside it, such as the ICS export button, stop the click and the
+  Enter/Space key so they never navigate as a side effect.
+- **Matched search text is marked, not restyled.** Filtering highlights the matching run inside the
+  title with an accent-tinted span. The card's own hierarchy does not change while the user types.
+- **Month navigation keeps the reader's place.** Moving to the next or previous month must not scroll
+  the page back to the top; the grid holds its height for the duration of the swap.
+
+On the detail page the register action sits **beside** add-to-calendar rather than under it, and a
+successful registration confirms in a dialog. The venue block links out to Google Maps from the
+formatted address. Register is a creation action, so it is green — Create Green Hot rather than
+Create Green, because the label is 14px and dark text on Create Green is only 4.04:1. Hover adds a
+glow instead of shifting the background, which keeps both states above AA.
+
 ### League Cards
 
 - **Purpose:** Large clickable destinations for opening Leagues.

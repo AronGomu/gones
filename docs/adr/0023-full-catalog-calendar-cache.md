@@ -4,6 +4,9 @@
 
 Accepted. Amends the Calendar V1 read path; does not touch the write path or ADR 0020's authority.
 
+Historical paths: every `/api/tournaments*` route quoted below is now `/api/events*`, and the
+vocabulary is Event, per ADR 0035. The text is left as it was written; only the names moved.
+
 ## Context
 
 The public calendar filtered server-side: six inputs (status, city, country, organization, format,

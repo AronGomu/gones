@@ -17,7 +17,7 @@
 | repository | Angular signal store fronting one backend port | `src/app/data/league-archive-repository.service.ts` |
 | runner | Live tournament pairing and result-entry screen | `src/app/features/live-tournaments/live-tournament-runner.component.ts` |
 | local Live store | Offline IndexedDB Live authority for anonymous and `User`, never synced (ADR 0021) | `src/app/backend/local-live-backend.service.ts` |
-| calendar | Public tournament calendar feature and its detail page | `src/app/features/calendar/public-calendar.component.ts` |
+| calendar | Public Event calendar feature and its detail page | `src/app/features/calendar/public-calendar.component.ts` |
 | guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
 | session | Access-token scope and cache purge on sign-out | `src/app/auth/session-scope.service.ts` |
 | i18n | French/English message catalogue and language signal | `src/app/i18n/i18n.service.ts` |
@@ -40,8 +40,11 @@
 | worker | Background service: heartbeat, scheduling, notifications, cleanup | `backend/src/Gones.Worker/Worker.cs` |
 | reconciler | Replans event reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/EventScheduler.cs` |
 | event | The Calendar V1 record people register for, formerly Scheduled Tournament (ADR 0035) | `backend/src/Gones.Domain/Calendar/Event.cs` |
+| scheduled tournament | **Retired term** for an event (ADR 0035). Left only in identifiers the rename kept on purpose | `docs/adr/0035-calendar-event-vocabulary.md` |
+| membership | The (organization, user) roster row that derives the global `Organizer` role (ADR 0034) | `backend/src/Gones.Api/Organizations/OrganizationMembershipRoleService.cs` |
+| draft organization | An organization with zero members: derived `isDraft`, cannot publish an event | `backend/src/Gones.Api/Organizations/OrganizationEndpoints.cs` |
 | identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
-| registration | Participant sign-up and unregistration on a tournament | `backend/src/Gones.Api/Events/EventRegistrationEndpoints.cs` |
+| registration | Participant sign-up and unregistration on an event | `backend/src/Gones.Api/Events/EventRegistrationEndpoints.cs` |
 | league archive | Archived Leagues and their result Tournaments, `/api/leagues-archive` (formerly `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs` |
 | archive tournament | A result Tournament inside the League Archive, `/tournaments-archive` (formerly Result Tournament) | `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs` |
 

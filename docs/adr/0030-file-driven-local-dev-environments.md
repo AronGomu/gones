@@ -4,6 +4,9 @@
 
 Accepted. Local development topology only. Changes nothing about release or production deployment.
 
+Historical paths: the `/api/tournaments*` routes quoted below are now `/api/events*` per ADR 0035.
+The text is left as it was written; only the names moved.
+
 ## Context
 
 ADR 0029 gave `npm run dev` two fixed accounts, so a developer can sign in. It stops there. Behind

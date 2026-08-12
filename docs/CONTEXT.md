@@ -30,9 +30,26 @@ _Formerly_: the Leagues feature, `/api/leagues`
 _Avoid_: Calendar, Live Tournament
 
 **Archive Tournament**:
-A historical result Tournament stored inside the League Archive, served under the `/tournaments-archive` path segment (ADR 0022). Distinct from the Calendar Tournament people register for and from a Live Tournament being run.
+A historical result Tournament stored inside the League Archive, served under the `/tournaments-archive` path segment (ADR 0022). Distinct from the Event people register for and from a Live Tournament being run.
 _Formerly_: Result Tournament
 _Avoid_: Scheduled Tournament
+
+**Event**:
+The Calendar V1 record an organizer publishes and a User registers for: title, venue, venue-local dates, formats, capacity. It is served under `/api/events`, browsed at `/calendar`, read at `/events/:slug` and persisted in `events` (ADR 0035). An Event is tied to a single tournament conceptually, and that tournament has no row of its own.
+_Formerly_: Scheduled Tournament, Calendar Tournament, `/api/tournaments`
+_Avoid_: Tournament on its own, Archive Tournament, Live Tournament
+
+**Scheduled Tournament**:
+Retired (ADR 0035). The word the Calendar V1 record carried before the rename. It survives only inside identifiers the rename deliberately left alone — `ScheduledTournamentStatus`, the import planner, the `account_owns_records` relation labels — never in product language.
+_Avoid_: as a name for anything new
+
+**Organization**:
+The association an Event is published under. It owns a roster of members in `organization_members`, each an `Owner` or an `Organizer`, and that roster is the only source of truth for the account-wide Organizer role (ADR 0034).
+_Avoid_: Club, team, Gones organization data
+
+**Draft Organization**:
+An Organization with zero members. Never stored — derived as `memberCount == 0` and surfaced as `isDraft`. It can be created, edited, restored and deleted, but publishing an Event under it is refused with `409 organization_is_draft`, and the Event-create picker does not offer it (ADR 0034).
+_Avoid_: Empty organization, inactive organization, Draft as a state of an Event
 
 **Tournament Import**:
 The act of bringing externally formatted tournament data into Gones.
@@ -271,6 +288,10 @@ _Avoid_: Migration, deployment
 - A Tournament counts toward a **League Result** when it belongs to that League
 - League dates are descriptive and do not filter which Tournaments count
 - A **SpiceRack Import** is one possible kind of **Tournament Import**
+- An **Event** belongs to exactly one **Organization**
+- An **Organization** may have zero or more members; with zero it is a **Draft Organization**
+- A **Draft Organization** may hold existing **Events** but may not publish a new one
+- A **User** holding at least one **Organization** membership is an **Organizer User**; losing the last one returns them to **User**, and an **Admin User** is never changed by membership
 - A build has exactly one **Data Authority**: either **Legacy Browser Mode** or **Server Mode**
 - A build with no satisfiable **Data Authority** refuses to start rather than choosing one
 - **Legacy Browser Mode** produces a **Migration Bundle** and never reaches the Gones API

@@ -84,7 +84,7 @@
     {
       "id": "doc00-tournaments",
       "doc": "00-vision-projets.md",
-      "capability": "V1 tournaments: an Organizer publishes, edits, cancels and deletes a dated tournament.",
+      "capability": "V1 events: an Organizer publishes, edits, cancels and deletes a dated event.",
       "status": "proved",
       "acceptance": [
         "product-organizer-lifecycle"
@@ -110,7 +110,7 @@
     {
       "id": "doc00-structures",
       "doc": "00-vision-projets.md",
-      "capability": "V1 structures: organizations own tournaments and carry member roles.",
+      "capability": "V1 structures: organizations own events and carry member roles.",
       "status": "proved",
       "acceptance": [
         "product-admin"
@@ -162,7 +162,7 @@
     {
       "id": "doc00-notifications",
       "doc": "00-vision-projets.md",
-      "capability": "V1 notifications: transactional email and reminders around the tournament date.",
+      "capability": "V1 notifications: transactional email and reminders around the event date.",
       "status": "proved",
       "acceptance": [
         "product-notifications"
@@ -711,7 +711,7 @@
     {
       "id": "doc02-uniqueness",
       "doc": "02-modeles-donnees.md",
-      "capability": "Uniqueness constraints on email, username, organization name and tournament slug.",
+      "capability": "Uniqueness constraints on email, username, organization name and event slug.",
       "status": "proved",
       "acceptance": [
         "eng-db-constraints"
@@ -737,7 +737,7 @@
     {
       "id": "doc02-registration-constraint",
       "doc": "02-modeles-donnees.md",
-      "capability": "At most one active registration per (tournament, user) enforced in the database.",
+      "capability": "At most one active registration per (event, user) enforced in the database.",
       "status": "proved",
       "acceptance": [
         "eng-db-constraints"
@@ -1073,6 +1073,27 @@
       ]
     },
     {
+      "id": "doc03-session-ready-guards",
+      "doc": "03-authentification.md",
+      "capability": "Every route guard awaits the session restore before it decides, so a guarded page never renders against an unsettled session (ADR 0033).",
+      "status": "proved",
+      "acceptance": [
+        "product-auth"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/auth/auth-guards.test.ts",
+          "detail": "the guard waits for the session restore, then redirects an anonymous visitor with the return url"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/auth-route-guards.cy.js",
+          "detail": "a signed-out visit to /registrations lands on /login with the return url instead of the page shell"
+        }
+      ]
+    },
+    {
       "id": "doc04-hierarchy",
       "doc": "04-utilisateurs-et-organisation.md",
       "capability": "Visitor, User, Organizer and Admin capability hierarchy.",
@@ -1297,6 +1318,58 @@
       ]
     },
     {
+      "id": "doc04-derived-organizer-role",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "The global Organizer role is derived from organization membership on every write path: the first membership promotes, the last removal demotes, Admin is never changed, and the change revokes the subject sessions (ADR 0034).",
+      "status": "proved",
+      "acceptance": [
+        "product-admin"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+          "detail": "membership add/remove, organization create and ownership transfer each derive the role; Admin is untouched"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/OrganizationMembershipHealTests.cs",
+          "detail": "the one-shot heal demotes org-less Organizers and archives member-less organizations, with one audit row per change"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/admin-orgs.cy.js",
+          "detail": "adding a member from /admin/organizations clears the Draft badge and the roster reports the derived Organizer role"
+        }
+      ]
+    },
+    {
+      "id": "doc04-draft-organizations",
+      "doc": "04-utilisateurs-et-organisation.md",
+      "capability": "A member-less organization is Draft: it exists, is editable and restorable, but publishing an event under it is refused with 409 organization_is_draft and the event-create picker does not offer it.",
+      "status": "proved",
+      "acceptance": [
+        "product-organizer-lifecycle"
+      ],
+      "evidence": [
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs",
+          "detail": "publishing under a member-less organization answers 409 organization_is_draft"
+        },
+        {
+          "gate": "dotnet",
+          "target": "backend/tests/Gones.IntegrationTests/EventProposalDecisionTests.cs",
+          "detail": "approving a proposal for a Draft organization is refused with the same code"
+        },
+        {
+          "gate": "vitest",
+          "target": "src/app/features/calendar/organizer-event-create.component.test.ts",
+          "detail": "the organization picker filters out draft and deleted organizations"
+        }
+      ]
+    },
+    {
       "id": "doc05-creation",
       "doc": "05-gestion-tournoi.md",
       "capability": "Organizer create -> preview -> publish workflow with required and optional fields.",
@@ -1424,7 +1497,7 @@
     {
       "id": "doc05-visibility",
       "doc": "05-gestion-tournoi.md",
-      "capability": "Public visibility rules for past, cancelled and completed tournaments.",
+      "capability": "Public visibility rules for past, cancelled and completed events.",
       "status": "proved",
       "acceptance": [
         "product-public-calendar"
@@ -1507,7 +1580,7 @@
     {
       "id": "doc05-capacity",
       "doc": "05-gestion-tournoi.md",
-      "capability": "Capacity and full-tournament rules on the public tournament page.",
+      "capability": "Capacity and full-event rules on the public event page.",
       "status": "proved",
       "acceptance": [
         "product-registration"
@@ -1521,14 +1594,14 @@
         {
           "gate": "vitest",
           "target": "src/app/features/calendar/public-event.service.test.ts",
-          "detail": "full-tournament presentation"
+          "detail": "full-event presentation"
         }
       ]
     },
     {
       "id": "doc05-ics",
       "doc": "05-gestion-tournoi.md",
-      "capability": "A tournament exports an ICS entry using the venue time zone.",
+      "capability": "An event exports an ICS entry using the venue time zone.",
       "status": "proved",
       "acceptance": [
         "product-public-calendar"
@@ -1554,7 +1627,7 @@
     {
       "id": "doc05-proposals",
       "doc": "05-gestion-tournoi.md",
-      "capability": "A non-organizer submits a tournament proposal; a mailed single-use link lets the chosen approver publish it or decline it with a reason.",
+      "capability": "A non-organizer submits an event proposal; a mailed single-use link lets the chosen approver publish it or decline it with a reason.",
       "status": "proved",
       "acceptance": [
         "product-organizer-lifecycle"
@@ -1580,7 +1653,7 @@
     {
       "id": "doc06-conditions",
       "doc": "06-gestion-inscription.md",
-      "capability": "Registration requires a verified account and an open, published, future tournament.",
+      "capability": "Registration requires a verified account and an open, published, future event.",
       "status": "proved",
       "acceptance": [
         "product-registration"
@@ -1747,7 +1820,7 @@
     {
       "id": "doc06-tournament-events",
       "doc": "06-gestion-inscription.md",
-      "capability": "Tournament cancellation or deletion terminates registrations and their reminders.",
+      "capability": "Event cancellation or deletion terminates registrations and their reminders.",
       "status": "proved",
       "acceptance": [
         "product-notifications"
@@ -1789,7 +1862,7 @@
     {
       "id": "doc07-reminders",
       "doc": "07-notifications.md",
-      "capability": "Monthly, last-month Saturday, J-2 and J-1 reminders are planned from the tournament date.",
+      "capability": "Monthly, last-month Saturday, J-2 and J-1 reminders are planned from the event date.",
       "status": "proved",
       "acceptance": [
         "product-notifications"
@@ -2038,7 +2111,7 @@
     {
       "id": "doc08-tournament-endpoints",
       "doc": "08-api-rest.md",
-      "capability": "The documented tournament endpoint set exists, including public reads.",
+      "capability": "The documented event endpoint set exists, including public reads.",
       "status": "proved",
       "acceptance": [
         "product-public-calendar"
@@ -2127,7 +2200,7 @@
     {
       "id": "doc09-public-pages",
       "doc": "09-frontend-angular.md",
-      "capability": "Public pages: calendar, list, tournament detail, anonymous participant count.",
+      "capability": "Public pages: calendar, list, event detail, anonymous participant count.",
       "status": "proved",
       "acceptance": [
         "product-public-calendar"
@@ -2174,7 +2247,7 @@
     {
       "id": "doc09-organizer-pages",
       "doc": "09-frontend-angular.md",
-      "capability": "Organizer pages: tournament form, preview, my tournaments, participant management.",
+      "capability": "Organizer pages: event form, preview, my events, participant management.",
       "status": "proved",
       "acceptance": [
         "product-organizer-lifecycle"
@@ -2500,6 +2573,32 @@
           "gate": "rehearsal",
           "target": "scripts/release-candidate.mjs",
           "detail": "the served content-security-policy names the injected origin"
+        }
+      ]
+    },
+    {
+      "id": "doc09-event-routes",
+      "doc": "09-frontend-angular.md",
+      "capability": "/events/:slug and /events/new are the canonical calendar routes; the retired /calendar/tournaments/:slug, /tournaments/new and /organizer/tournaments/* paths redirect permanently with their parameters (ADR 0035).",
+      "status": "proved",
+      "acceptance": [
+        "product-public-calendar"
+      ],
+      "evidence": [
+        {
+          "gate": "vitest",
+          "target": "src/app/data-mode-routes.test.ts",
+          "detail": "the canonical event routes are registered and every retired path resolves to a parameter-preserving redirect"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/public-calendar.cy.js",
+          "detail": "/calendar/tournaments/:slug lands on the /events/:slug page in the browser"
+        },
+        {
+          "gate": "cypress",
+          "target": "cypress/e2e/organizer-event-create.cy.js",
+          "detail": "/tournaments/new and /organizer/tournaments/new both land on /events/new"
         }
       ]
     }

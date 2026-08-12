@@ -88,7 +88,7 @@
   <tbody>
     <tr><td>First membership added</td><td><code>User</code></td><td><code>Organizer</code></td><td>security stamp rotated, refresh sessions revoked, audit <code>organization.role.derived</code></td></tr>
     <tr><td>Second membership added</td><td><code>Organizer</code></td><td><code>Organizer</code></td><td>audit <code>organization.role.unchanged</code></td></tr>
-    <tr><td>One of two memberships removed</td><td><code>Organizer</code></td><td><code>Organizer</code></td><td>none</td></tr>
+    <tr><td>One of two memberships removed</td><td><code>Organizer</code></td><td><code>Organizer</code></td><td>audit <code>organization.role.unchanged</code>; no stamp rotation, sessions kept</td></tr>
     <tr><td>Last membership removed</td><td><code>Organizer</code></td><td><code>User</code></td><td>security stamp rotated, sessions revoked, audit</td></tr>
     <tr><td>Any membership change</td><td><code>Admin</code></td><td><code>Admin</code></td><td>never demoted; audit <code>organization.role.unchanged</code></td></tr>
   </tbody>
@@ -120,9 +120,20 @@
     <tr><td><code>OrganizationService.RemoveMemberAsync</code></td><td>same sync; last member allowed</td><td>204</td></tr>
     <tr><td>Event publication</td><td>organization must have at least one member</td><td><code>409 organization_is_draft</code></td></tr>
     <tr><td>Event create picker</td><td>Draft and deleted organizations filtered out</td><td>not offered</td></tr>
+    <tr><td>Organization created</td><td>the owner's membership is written, then synced</td><td>201 with the organization</td></tr>
+    <tr><td>Ownership transfer / account closure</td><td><code>AdminAccountService</code> syncs every affected subject in ascending id order</td><td>204</td></tr>
     <tr><td>One-shot heal migration</td><td>legacy member-less orgs soft-deleted, org-less Organizers demoted</td><td>one audit row per change</td></tr>
   </tbody>
 </table>
+
+<div class="note">
+  <strong>One lock order, everywhere.</strong> <code>organizations</code> →
+  <code>organization_members</code> → <code>asp_net_users</code> → the rows hanging off a user, and
+  ascending id order within a table. The derived role is a consequence of the membership rows, so the
+  subject's user row can only be locked after them — which fixes the order for every other writer. A
+  deadlock or serialization failure that escapes anyway is mapped to <code>409</code>, not
+  <code>500</code>: losing that race is a concurrency outcome the caller may retry.
+</div>
 
 <div class="note warn">
   <strong>One shot, never recurring.</strong> The heal runs inside a single EF migration. A scheduled
@@ -136,8 +147,21 @@ with create on the left, the selected organization's roster on the right — mem
 picker. The picker fetches users once and filters client-side, capped at 500 accounts with a visible
 warning past that point; server-side search is deliberately deferred until the cap is reached.</p>
 
-<p>The users screen no longer grants the <code>Organizer</code> role by hand. There is exactly one
-way to become an organizer: be a member of an organization.</p>
+<div class="note">
+  <strong>Known ceiling.</strong> Neither list is virtualised. The account picker pages the admin user
+  list 100 rows at a time up to <code>MAX_PICKER_USERS</code> = 500 and renders the survivors in one
+  pass; the organization list on the left renders every organization the admin endpoint returns. At
+  this data size that is cheaper than a virtual scroller, and the cap warning is what tells an
+  operator the day it stops being true.
+</div>
+
+<p>Membership is where the <code>Organizer</code> role is meant to come from, and every path that
+writes memberships re-derives it. The manual override was <em>not</em> removed:
+<code>/admin/users</code> still renders Grant/Revoke Organizer, backed by
+<code>POST /api/admin/users/{id}/roles/{role}/grant</code> — the same endpoint pair that grants
+<code>Admin</code>. A hand-granted Organizer therefore survives only until the next membership write
+on that account, which overwrites it from the roster. Retiring the Organizer half of those buttons is
+a follow-up, not something this model already did.</p>
 
 <footer>
   ADR 0034 — Derived Organizer Role and Draft Organizations · read with

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gones — Tournament Proposal Flow</title>
+<title>Gones — Event Proposal Flow</title>
 <style>
   :root{
     --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
@@ -55,7 +55,7 @@
 
 <header class="top">
   <p class="kick">Gones · Architecture</p>
-  <h1>Tournament Proposal Flow</h1>
+  <h1>Event Proposal Flow</h1>
   <p class="lede">One creation page for every role. Organizers and admins publish. Everyone else with
   a verified account proposes, and a reviewer decides from a link in their inbox — no login required.</p>
 </header>
@@ -64,12 +64,12 @@
 
 <div class="scroll">
 <table>
-  <thead><tr><th>Role</th><th>Reaches <code>/tournaments/new</code></th><th>Submit does</th><th>Result</th></tr></thead>
+  <thead><tr><th>Role</th><th>Reaches <code>/events/new</code></th><th>Submit does</th><th>Result</th></tr></thead>
   <tbody>
     <tr><td>Anonymous</td><td><span class="tag tag--no">no</span> bounced to <code>/login</code></td><td>—</td><td>—</td></tr>
     <tr><td>Unverified account</td><td><span class="tag tag--no">no</span> bounced to <code>/verify-email</code></td><td>—</td><td>—</td></tr>
     <tr><td>Verified <code>User</code></td><td><span class="tag tag--ok">yes</span></td><td>opens the approver dialog</td><td><span class="tag tag--wait">pending</span> proposal + emails</td></tr>
-    <tr><td><code>Organizer</code> / <code>Admin</code></td><td><span class="tag tag--ok">yes</span></td><td><code>POST /api/tournaments/</code></td><td><span class="tag tag--ok">published</span> immediately</td></tr>
+    <tr><td><code>Organizer</code> / <code>Admin</code></td><td><span class="tag tag--ok">yes</span></td><td><code>POST /api/events</code></td><td><span class="tag tag--ok">published</span> immediately</td></tr>
   </tbody>
 </table>
 </div>
@@ -78,12 +78,12 @@
 
 <ol class="steps">
   <li><strong>Fill the form</strong><span>Same component, same <code>FormGroup</code>, same validator as direct publishing. Nothing about the payload differs.</span></li>
-  <li><strong>Submit → approver dialog</strong><span><code>GET /api/tournament-proposals/approvers</code> returns every Organizer and Admin as <code>{ id, username, globalRole }</code>. Never an email address. Admins listed first.</span></li>
-  <li><strong>Check one or more, send</strong><span><code>POST /api/tournament-proposals</code> with <code>{ tournament, recipientUserIds }</code>. Confirm is disabled until at least one box is checked.</span></li>
-  <li><strong>Server stores the payload</strong><span>A <code>event_proposals</code> row holds the payload as <code>jsonb</code> with a 7-day expiry. It is <em>not</em> a draft tournament — there is no path from a pending proposal into the public calendar.</span></li>
+  <li><strong>Submit → approver dialog</strong><span><code>GET /api/event-proposals/approvers</code> returns every Organizer and Admin as <code>{ id, username, globalRole }</code>. Never an email address. Admins listed first.</span></li>
+  <li><strong>Check one or more, send</strong><span><code>POST /api/event-proposals</code> with the event payload and <code>recipientUserIds</code>. Confirm is disabled until at least one box is checked.</span></li>
+  <li><strong>Server stores the payload</strong><span>An <code>event_proposals</code> row holds the payload as <code>jsonb</code> with a 7-day expiry. It is <em>not</em> a draft event — there is no path from a pending proposal into the public calendar.</span></li>
   <li><strong>One token per recipient</strong><span>32 random bytes, base64url. The database stores only <code>sha256(token)</code>. The plaintext exists in exactly one place: the link in that recipient's email.</span></li>
-  <li><strong>Emails go out through the outbox</strong><span>Template <code>tournament-proposal</code>, recipient's locale, dedupe key <code>tournament-proposal:{proposalId}:{userId}</code>. Body carries every submitted field.</span></li>
-  <li><strong>Reviewer opens the link</strong><span><code>/tournament-requests/{token}</code> — anonymous route, no guard, renders signed out.</span></li>
+  <li><strong>Emails go out through the outbox</strong><span>Template <code>tournament-proposal</code>, recipient's locale, dedupe key <code>tournament-proposal:{proposalId}:{userId}</code>. Body carries every submitted field. The template and dedupe keys keep their pre-rename names on purpose (ADR 0035): renaming a dedupe key re-sends mail already deduplicated under the old one.</span></li>
+  <li><strong>Reviewer opens the link</strong><span><code>/event-requests/{token}</code> — anonymous route, no guard, renders signed out. <code>/tournament-requests/{token}</code> permanently redirects to it.</span></li>
   <li><strong>Validate or Refuse</strong><span>Approve publishes with the <em>submitter</em> as acting user. Refuse opens a reason textarea and mails it back.</span></li>
 </ol>
 
@@ -142,7 +142,7 @@ POST .../approve
                                 SaveChanges → concurrency conflict
                                 → 409 Conflict, nothing published
 
-Result: exactly one public tournament.</pre>
+Result: exactly one public event.</pre>
 
 <p>The proposal row's optimistic-concurrency version is the arbiter. A
 <code>DbUpdateConcurrencyException</code> maps to <code>ResourceConflictException</code>, and the page
@@ -154,9 +154,9 @@ switches to its <em>already handled</em> state.</p>
 <table>
   <thead><tr><th>Route</th><th>Auth</th><th>Notes</th></tr></thead>
   <tbody>
-    <tr><td><code>GET /api/tournament-proposals/approvers</code></td><td>User</td><td>no emails in the response</td></tr>
-    <tr><td><code>POST /api/tournament-proposals</code></td><td>User, verified</td><td><code>403</code> for Organizer/Admin; rate-limited</td></tr>
-    <tr><td><code>GET /api/tournament-proposals/by-token/{token}</code></td><td>anonymous</td><td><code>404</code> unknown/expired, <code>409</code> decided</td></tr>
+    <tr><td><code>GET /api/event-proposals/approvers</code></td><td>User</td><td>no emails in the response</td></tr>
+    <tr><td><code>POST /api/event-proposals</code></td><td>User, verified</td><td><code>403</code> for Organizer/Admin; rate-limited</td></tr>
+    <tr><td><code>GET /api/event-proposals/by-token/{token}</code></td><td>anonymous</td><td><code>404</code> unknown/expired, <code>409</code> decided</td></tr>
     <tr><td><code>POST .../by-token/{token}/approve</code></td><td>anonymous</td><td>publishes as the submitter</td></tr>
     <tr><td><code>POST .../by-token/{token}/reject</code></td><td>anonymous</td><td>reason 1–2000 chars, mails the submitter</td></tr>
   </tbody>
@@ -164,8 +164,9 @@ switches to its <em>already handled</em> state.</p>
 </div>
 
 <footer>
-  Gones · <code>docs/tournament-proposal-flow.html</code> · decision record:
-  <a href="adr/0024-tournament-proposal-signed-token-approval.md">ADR 0024</a>.
+  Gones · <code>docs/event-proposal-flow.html</code> · decision records:
+  <a href="adr/0024-tournament-proposal-signed-token-approval.md">ADR 0024</a> and
+  <a href="adr/0035-calendar-event-vocabulary.md">ADR 0035</a> (the Event rename).
 </footer>
 
 </div>

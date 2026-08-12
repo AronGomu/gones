@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed. Amends nothing; complements ADR 0029 (deterministic local development accounts) only in
+Accepted. Amends nothing; complements ADR 0029 (deterministic local development accounts) only in
 that both concern how a session becomes usable.
 
 ## Context
@@ -42,3 +42,9 @@ of an injection context.
 - Guards are now promise-returning, so guard unit tests must await the result.
 - A regression Cypress spec, `cypress/e2e/auth-route-guards.cy.js`, pins the signed-out
   `/registrations` behaviour.
+
+## Shipped
+
+All four guards in `src/app/auth/auth.guards.ts` are `async` and `await auth.whenSessionReady()`
+before reading `profile()`, with `inject()` called above that await. The redirect targets are the
+ones decided above. Nothing diverged from this decision.

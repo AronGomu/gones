@@ -5,8 +5,15 @@ Single context initialisation file for every agent working in this repository.
 
 ## What Gones is
 
-Angular single-page PWA to consult tournament League results, export Gones source-data backups, and
-edit League source data, backed by an ASP.NET API and PostgreSQL.
+Angular single-page PWA with three surfaces: the public **Event** calendar people register for
+(Calendar V1 — browse at `/calendar`, an event at `/events/:slug`, publish at `/events/new`), the
+**League Archive** of past tournament results, and the browser-run **Live Tournament**. It also
+exports Gones source-data backups and edits League source data. Backed by an ASP.NET API and
+PostgreSQL.
+
+The calendar record is an **Event**, never a "scheduled tournament" — that term is retired (ADR
+0035). A tournament in this repository is either an archive result (ADR 0022) or a Live Tournament
+(ADR 0021).
 
 There is exactly one data authority and every build declares it (ADR 0020): `dataMode: server`.
 The API database owns everything — Calendar V1, auth, organizer, admin, League. The browser
@@ -44,7 +51,11 @@ violation — read `docs/adr/0021-role-scoped-browser-live-store.md` and
 | `.agents/skills/` | project skills: `ship` (engineering pipeline), `start-gones-server` |
 | repository root | `DEMO_ACCOUNTS.md` — every demo login and what it can do, generated from the demo fixtures by `npm run docs:demo-accounts` |
 
-ADRs live in `docs/adr/` (lowercase — tests and cross-references point there).
+ADRs live in `docs/adr/` (lowercase — tests and cross-references point there). The three newest bind
+the current shape of the app: **0033** every auth guard awaits `AuthService.whenSessionReady()`
+before it decides, **0034** the global `Organizer` role is derived from organization membership and a
+member-less organization is Draft and cannot publish, **0035** the calendar domain is Event through
+every ring, with no `/api/tournaments*` aliases and permanent frontend redirects.
 
 ## Commands
 
@@ -68,7 +79,8 @@ Gates: `npm run e2e:ci`, `npm run acceptance:matrix`, `npm run release:rehearsal
 ## Rules for agents
 
 - Read `docs/CONTEXT.md` for the domain vocabulary and product rules before touching domain code —
-  it is the language contract (Tournament, League, Round Import, Player Statistics, …).
+  it is the language contract (Event, Draft Organization, Tournament, League, Round Import, Player
+  Statistics, …).
 - Read `docs/GLOSSARY.md` for the short words the user and agents use to name parts of the codebase.
 - A capability is not proved without executable evidence: `ops/acceptance-matrix.json` maps every V1
   capability to a test or rehearsal that actually runs.

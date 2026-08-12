@@ -77,15 +77,22 @@
     <tr><td>Table</td><td><code>tournament_registration_attempts</code></td><td><code>event_registration_attempts</code></td></tr>
     <tr><td>Table</td><td><code>tournament_lifecycle_events</code></td><td><code>event_lifecycle_entries</code></td></tr>
     <tr><td>Table</td><td><code>tournament_proposals</code>, <code>tournament_proposal_recipients</code></td><td><code>event_proposals</code>, <code>event_proposal_recipients</code></td></tr>
+    <tr><td>Table</td><td><code>consumed_tournament_preview_tickets</code></td><td><code>consumed_event_preview_tickets</code></td></tr>
     <tr><td>Column</td><td><code>tournament_id</code>, <code>scheduled_tournament_id</code></td><td><code>event_id</code></td></tr>
     <tr><td>API</td><td><code>/api/tournaments/*</code></td><td><code>/api/events/*</code></td></tr>
     <tr><td>Route</td><td><code>/calendar/tournaments/:slug</code></td><td><code>/events/:slug</code></td></tr>
     <tr><td>Route</td><td><code>/tournaments/new</code></td><td><code>/events/new</code></td></tr>
     <tr><td>Route</td><td><code>/organizer/tournaments/*</code></td><td><code>/organizer/events/*</code></td></tr>
     <tr><td>Route</td><td><code>/tournament-requests/:token</code></td><td><code>/event-requests/:token</code></td></tr>
+    <tr><td>Route</td><td><code>/admin/tournaments/deleted</code></td><td><code>/admin/events/deleted</code></td></tr>
   </tbody>
 </table>
 </div>
+
+<p>Seven tables, five foreign-key columns, seven primary keys, eighteen foreign keys and thirty-two
+indexes are renamed in place by <code>20260812164333_RenameCalendarTournamentToEvent</code>.
+<code>scheduled_notifications</code> and <code>notification_history</code> belong to the notification
+domain and keep their table names — only their FK column moves to <code>event_id</code>.</p>
 
 <h2>What is not renamed</h2>
 
@@ -105,6 +112,23 @@
     <p><code>live-tournaments</code> is the browser-run tournament (ADR 0021). A live tournament is
     genuinely a tournament, not an event.</p>
   </div>
+</div>
+
+<h3>Identifiers inside the renamed domain that stayed</h3>
+
+<div class="scroll">
+<table>
+  <thead><tr><th>Identifier</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><code>ScheduledTournamentStatus</code>, <code>ScheduledTournamentDraft</code></td><td>the status enum and the write-side draft record of <code>Event</code>; no wire, table or URL effect</td></tr>
+    <tr><td><code>PlannedScheduledTournament</code>, <code>MigrationPlan.ScheduledTournaments</code></td><td>the import planner speaks the vocabulary of the pre-rename bundles it reads (ADR 0020)</td></tr>
+    <tr><td><code>tournament-proposal</code>, <code>tournament-proposal-rejected</code></td><td>notification template and outbox dedupe keys; a rename re-sends mail already deduplicated</td></tr>
+    <tr><td><code>scheduled_tournaments.*</code> in the <code>account_owns_records</code> <code>relations</code> array</td><td>shipped wire strings pinned by a frontend test; ADR 0025 records that they no longer match a table name</td></tr>
+    <tr><td><code>gones.calendar-v1.all-tournaments</code></td><td><code>localStorage</code> key; a rename silently discards every reader's cached catalogue</td></tr>
+    <tr><td>export/import bundle keys, CSS class names</td><td>wire format and pure presentation</td></tr>
+    <tr><td><code>data-cy="admin-nav-deleted-tournaments"</code>, i18n key <code>event.tournamentEvent</code></td><td>one missed selector and one dead key; churn without benefit</td></tr>
+  </tbody>
+</table>
 </div>
 
 <h2>Compatibility</h2>
