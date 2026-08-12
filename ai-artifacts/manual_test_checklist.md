@@ -1215,3 +1215,20 @@ confirmation dialog opens after the server confirms the registration.
       translated.
 - [ ] Open the organizer preview of a tournament: the hero looks exactly as before this change
       (no registration row, no "Register" button).
+
+## T9 demo-accounts-doc
+
+- [ ] Run `npm run dev -- --env=demo` on a machine you are happy to reset, then open
+      `DEMO_ACCOUNTS.md`: every email in the table can sign in with the password the file documents.
+- [ ] Sign in as `admin@gones.test`: the admin screens are reachable and every organization is
+      visible, as the "What they can do" column claims.
+- [ ] Sign in as `organizer@gones.test`: the organization offered when creating or publishing an
+      event is "Gones Lyon" — the one the table lists on that row — and no other.
+- [ ] Sign in as `organizer2@gones.test`: same check against "Ligue AURA".
+- [ ] Sign in as `test@gones.test` (plain user): the calendar, event registration and
+      My Registrations all work, and no organizer or admin entry point appears.
+- [ ] Sign in as `unverified@gones.test`: the app blocks the write actions and points at email
+      verification, matching the "cannot write until the email is verified" note and the `no` in the
+      "Email verified" column.
+- [ ] Run `npm run dev:accounts` on a stack that is already up: only `admin@gones.test` and
+      `test@gones.test` are (re-)seeded, and both still sign in with the documented password.

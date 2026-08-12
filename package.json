@@ -36,7 +36,8 @@
     "backup:rehearsal": "node scripts/backup-restore-rehearsal.mjs",
     "db:reset": "node scripts/reset-local-stack.mjs",
     "db:seed": "node scripts/seed-local.mjs",
-    "geo:generate": "node scripts/generate-geo.mjs"
+    "geo:generate": "node scripts/generate-geo.mjs",
+    "docs:demo-accounts": "node scripts/generate-demo-accounts-doc.mjs"
   },
   "devDependencies": {
     "@angular/build": "^21.2.20",

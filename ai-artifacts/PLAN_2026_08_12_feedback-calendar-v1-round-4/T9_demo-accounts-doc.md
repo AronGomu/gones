@@ -37,9 +37,9 @@
 
 ## TDD
 
-1. **Red** — write `ops/demo-accounts-doc.test.ts` before the generator exists; it fails to import.
-2. **Green** — write the generator, run it, commit the output.
-3. **Refactor** — none.
+- [x] 1. **Red** — write `ops/demo-accounts-doc.test.ts` before the generator exists; it fails to import. Evidence: `Failed to resolve import "../scripts/generate-demo-accounts-doc.mjs"`, `Test Files 1 failed (1) / Tests no tests`.
+- [x] 2. **Green** — write the generator, run it, commit the output. Evidence: `npx vitest run ops/demo-accounts-doc.test.ts` → `Tests 5 passed (5)`.
+- [x] 3. **Refactor** — none. Evidence: no refactor commit; `simplify` pass found nothing to merge (single-use helpers, no repo equivalent of `renderDemoAccountsDoc`).
 
 ## Test plan
 
@@ -53,13 +53,13 @@
 
 ## Impl steps
 
-- [ ] 1. Create `ops/demo-accounts-doc.test.ts` with the five assertions; run `npx vitest run ops/demo-accounts-doc.test.ts` — red.
-- [ ] 2. Create `scripts/generate-demo-accounts-doc.mjs` with `renderDemoAccountsDoc(accounts, organizations, password)` returning the full markdown string, and a `main()` that writes `DEMO_ACCOUNTS.md` when `import.meta.url` is the entry point.
-- [ ] 3. Run `node scripts/generate-demo-accounts-doc.mjs`; inspect `DEMO_ACCOUNTS.md`.
-- [ ] 4. Re-run `npx vitest run ops/demo-accounts-doc.test.ts` — green.
-- [ ] 5. Add the `docs:demo-accounts` npm script to `package.json`.
-- [ ] 6. Add the one-line mention to `AGENT.md`.
-- [ ] 7. Run `npm run test` to confirm the ops suite still passes as a whole.
+- [x] 1. Create `ops/demo-accounts-doc.test.ts` with the five assertions; run `npx vitest run ops/demo-accounts-doc.test.ts` — red. Evidence: red on the missing import (see TDD 1).
+- [x] 2. Create `scripts/generate-demo-accounts-doc.mjs` with `renderDemoAccountsDoc(accounts, organizations, password)` returning the full markdown string, and a `main()` that writes `DEMO_ACCOUNTS.md` when `import.meta.url` is the entry point. Evidence: file exists, `main()` guarded by `fileURLToPath(import.meta.url) === process.argv[1]`.
+- [x] 3. Run `node scripts/generate-demo-accounts-doc.mjs`; inspect `DEMO_ACCOUNTS.md`. Evidence: `Wrote DEMO_ACCOUNTS.md from fixtures/dev-environments/demo/accounts.json and fixtures/dev-environments/demo/organizations.json.`; 7 rows, one per fixture account.
+- [x] 4. Re-run `npx vitest run ops/demo-accounts-doc.test.ts` — green. Evidence: `Test Files 1 passed (1) / Tests 5 passed (5)`.
+- [x] 5. Add the `docs:demo-accounts` npm script to `package.json`. Evidence: `npm run docs:demo-accounts` runs the generator; re-run leaves the file byte-identical (sha256 `ac0ff1c25d96c1f5…` before and after).
+- [x] 6. Add the one-line mention to `AGENT.md`. Evidence: repository-layout table row `| repository root | \`DEMO_ACCOUNTS.md\` … |`.
+- [x] 7. Run `npm run test` to confirm the ops suite still passes as a whole. Evidence: `Test Files 109 passed (109) / Tests 1000 passed (1000)`.
 
 ## Outputs
 
@@ -68,8 +68,11 @@
 
 ## Validation
 
-- [ ] `npx vitest run ops/demo-accounts-doc.test.ts` passes
-- [ ] `npm run test` passes
-- [ ] manual check: `npm run dev -- --env=demo`, sign in with each documented account, capabilities match the table
-- [ ] app functional — no runtime code touched
-- [ ] commit msg draft: `docs(dev): generate DEMO_ACCOUNTS.md from the demo fixtures`
+- [x] `npx vitest run ops/demo-accounts-doc.test.ts` passes — `Tests 5 passed (5)`
+- [x] drift gate proved: mutate a fixture → `npx vitest run ops/demo-accounts-doc.test.ts` red with the re-run hint → revert → green. Evidence: renaming `gones-player-1` → `gones-player-1-drifted` in `accounts.json` produced `AssertionError: DEMO_ACCOUNTS.md is out of date: re-run \`npm run docs:demo-accounts\` and commit the result.` with the row-level diff; after restoring the fixture (`git diff fixtures/` empty) the file passes again.
+- [x] `npm run test` passes — `Test Files 109 passed (109) / Tests 1000 passed (1000)`
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — `tsc --noEmit` on both projects, no output
+- [ ] manual check: `npm run dev -- --env=demo`, sign in with each documented account, capabilities match the table — human-only, moved to `ai-artifacts/manual_test_checklist.md`; not run here because `--env=demo` resets the local database of the parent-owned running stack
+- [x] app functional — no runtime code touched. Evidence: diff touches no `src/` or `backend/` path; running dev server still answers `http://127.0.0.1:4200/` with `200`
+- [x] commit msg draft: `docs(dev): generate DEMO_ACCOUNTS.md from the demo fixtures`
