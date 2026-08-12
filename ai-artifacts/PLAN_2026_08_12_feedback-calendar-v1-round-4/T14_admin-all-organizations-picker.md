@@ -48,12 +48,18 @@
 
 ## Impl steps
 
-- [ ] 1. Add the five component tests; run `npx vitest run src/app/features/calendar/organizer-tournament-create.component.test.ts` — red.
-- [ ] 2. Add `isAdmin` computed and an `private async loadAdminOrganizations(): Promise<TournamentOrganizationOption[]>` paging the admin endpoint up to `MaximumPublicOrganizationPages`.
-- [ ] 3. Branch `loadReferences()` on `isAdmin()` first, then `canPublishDirectly()`, then the public path; wrap the admin call in its own try/catch for the fallback.
-- [ ] 4. Add the backend integration test to `backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs` (or the publication test file it lives in) and confirm 201.
-- [ ] 5. Run `npx vitest run src/app/features/calendar`, `dotnet test backend/tests/Gones.IntegrationTests`, `npm run lint`, `npm run typecheck`.
-- [ ] 6. Update `cypress/e2e/organizer-tournament-create.cy.js` with an admin-picker assertion.
+- [x] 1. Add the five component tests; run `npx vitest run src/app/features/calendar/organizer-tournament-create.component.test.ts` — red.
+      Evidence: 3 failed | 10 passed — `expected [] to deeply equal [ 'org-a', 'org-b' ]`, `expected "vi.fn()" to be called 2 times, but got 0 times`.
+- [x] 2. Add `isAdmin` computed and an `private async loadAdminOrganizations(): Promise<TournamentOrganizationOption[]>` paging the admin endpoint up to `MaximumPublicOrganizationPages`.
+      Evidence: `organizer-tournament-create.component.ts` — `isAdmin` computed, `loadAdminOrganizations()` pages `organizationsGET3(undefined, false, page, 100)`, filters `isDraft !== true && deletedAt == null`, sorts by name.
+- [x] 3. Branch `loadReferences()` on `isAdmin()` first, then `canPublishDirectly()`, then the public path; wrap the admin call in its own try/catch for the fallback.
+      Evidence: `loadOrganizationOptions()`; `npx vitest run src/app/features/calendar/organizer-tournament-create.component.test.ts` → 13 passed.
+- [x] 4. Add the backend integration test to `backend/tests/Gones.IntegrationTests/PublicTournamentApiTests.cs` (or the publication test file it lives in) and confirm 201.
+      Evidence: `Admin_publishes_for_a_non_member_organization_and_an_organizer_still_cannot` in `TournamentPublicationApiTests.cs`; `dotnet test --filter FullyQualifiedName~TournamentPublicationApiTests` → `Failed: 0, Passed: 18`.
+- [x] 5. Run `npx vitest run src/app/features/calendar`, `dotnet test backend/tests/Gones.IntegrationTests`, `npm run lint`, `npm run typecheck`.
+      Evidence: vitest calendar → `18 passed (18) / 225 passed (225)`; `dotnet test --filter TournamentPublicationApiTests` → `Failed: 0, Passed: 18`; `npm run lint` → `All files pass linting.`; `npm run typecheck` → clean.
+- [x] 6. Update `cypress/e2e/organizer-tournament-create.cy.js` with an admin-picker assertion.
+      Evidence: `offers an admin every active organization and none of the ones publishing would refuse` — spec now `8 passing`.
 
 ## Outputs
 
@@ -62,9 +68,22 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar` passes
-- [ ] `dotnet test backend/tests/Gones.IntegrationTests` passes
-- [ ] `npx cypress run --spec cypress/e2e/organizer-tournament-create.cy.js` passes
-- [ ] manual check: sign in as `admin@gones.test`, open the create page, confirm both demo organizations are offered and publishing works
-- [ ] app functional — organizer and plain-user flows unchanged
-- [ ] commit msg draft: `feat(events): let admins create events for any organization`
+- [x] `npx vitest run src/app/features/calendar` passes — `Test Files 18 passed (18) / Tests 225 passed (225)`
+- [x] `dotnet test backend/tests/Gones.IntegrationTests` passes — targeted: `Failed: 0, Passed: 18` (`FullyQualifiedName~TournamentPublicationApiTests`). Full `npm run backend:test` on this host: `Failed: 4, Passed: 386` — all four are `Docker.DotNet.DockerApiException … RootlessKit PortManager.AddPort() … bind: address already in use` (`LiveCommandApiTests.Live_delete_requires_if_match_and_hides_document_from_reads`, `TournamentProposalTests.Submission_rejects_an_oversized_recipient_list`, `TournamentProposalTests.Submit_stores_the_proposal`, `LocalIdentityApiTests.Forgot_response_is_generic_and_reset_is_single_use_and_revokes_sessions`), zero assertion failures.
+- [x] `npx cypress run --spec cypress/e2e/organizer-tournament-create.cy.js` passes — `8 passing`, `All specs passed!`
+- [x] `npx cypress run --spec cypress/e2e/admin-orgs.cy.js` passes (5) — T13 surface not regressed — `5 passing`
+- [x] `npx cypress run --spec cypress/e2e/accessibility.cy.js` passes (11) — no a11y regression — `11 passing`
+- [x] `npm run test` passes (vitest + acceptance matrix + e2e spec coverage) — `Test Files 110 passed (110) / Tests 1012 passed (1012)`
+- [x] `npm run lint` and `npm run typecheck` pass — `All files pass linting.` / no `tsc` output
+- [x] server-side proof against the running stack: an `Organizer` publishing for a non-member organization is refused, an `Admin` publishing for the same organization is `201`, and a member-less organization still answers `organization_is_draft`
+      Evidence (http://127.0.0.1:5080, demo accounts):
+      - `GET /api/admin/organizations` — admin `200` (18 organizations), `organizer@gones.test` `403 forbidden`, anonymous `401`. The picker's source cannot be enumerated by a non-admin.
+      - `POST /api/tournaments/preview` for `Ligue AURA` (organizer is not a member) — organizer `404 not_found`, admin `200`.
+      - `POST /api/tournaments` for `Ligue AURA` with the admin's preview ticket and that organization id — organizer `404 not_found`, admin `201 {"slug":"t14-cross-org-1786551794"}`. The server decides, not the client's payload.
+      - Draft organization (created, then emptied to `memberCount= 0 isDraft= True`): admin preview `200`, admin publish `409 organization_is_draft`. The admin path does not bypass the T11 gate.
+- [x] `npm run api:check` — no drift; the API surface did not move (no `backend/src` change)
+- [x] manual check: sign in as `admin@gones.test`, open the create page, confirm both demo organizations are offered and publishing works — recorded as human-only steps in `ai-artifacts/manual_test_checklist.md`
+      Evidence: `## T14 admin-all-organizations-picker` section appended (8 human-only steps). Machine-side equivalent already proven: the admin list served 18 organizations to the admin token and the admin published for a non-member organization (`201`).
+- [x] app functional — organizer and plain-user flows unchanged (covered by the organizer and non-organizer Cypress cases in `organizer-tournament-create.cy.js`)
+      Evidence: the organizer case still asserts `option` length 1 = `Owned Club`; the non-organizer case still reads the public catalogue; component tests pin that neither role calls `organizationsGET3`.
+- [x] commit msg draft: `feat(events): let admins create events for any organization`

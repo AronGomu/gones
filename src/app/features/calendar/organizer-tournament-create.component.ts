@@ -24,7 +24,10 @@ interface RecoveryError { message: string; action: RecoveryAction; }
  */
 export interface TournamentOrganizationOption { id: string; name: string; }
 
-/** The public list is paginated and the picker is not, so pages are pulled at the endpoint's cap. */
+/**
+ * Neither the public catalogue nor the admin catalogue is paginated in the picker, so both are
+ * pulled page by page at the endpoint's cap, under the same ceiling.
+ */
 const PublicOrganizationPageSize = 100;
 const MaximumPublicOrganizationPages = 20;
 
@@ -215,6 +218,7 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
     const role = this.auth.profile()?.globalRole;
     return role === 'Organizer' || role === 'Admin';
   });
+  private readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');
   readonly proposalPending = signal(false);
   readonly proposalSentCount = signal<number | null>(null);
   readonly proposalError = signal('');
@@ -274,15 +278,7 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
         this.form.controls.organizationId.disable({ emitEvent: false });
         this.applyCanonical(tournament);
       } else {
-        // T26. Two different questions, two different lists. Publishing directly is gated on the
-        // caller's own membership, so an organizer is only offered organizations they belong to —
-        // anything else would only earn a 403 at publish time. Proposing is the opposite case: the
-        // submitter is by definition not a member of the organization they are proposing for, so
-        // the picker reads the anonymous public catalogue. Offering it costs nothing, because the
-        // approver on the other end must represent that organization before anything is published.
-        const organizations = this.canPublishDirectly()
-          ? (await firstValueFrom(this.client.organizationsAll())).map(item => ({ id: item.id, name: item.name }))
-          : await this.loadPublicOrganizations();
+        const organizations = await this.loadOrganizationOptions();
         this.organizations.set(organizations);
         if (!organizations.some(item => item.id === this.form.controls.organizationId.value)) {
           this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
@@ -307,6 +303,55 @@ export class OrganizerTournamentCreateComponent implements OnInit, AfterViewInit
    */
   private syncSelectedOrganization(): void {
     this.selectedOrganizationId.set(this.form.getRawValue().organizationId);
+  }
+
+  /**
+   * T26. Two different questions, two different lists. Publishing directly is gated on the caller's
+   * own membership, so an organizer is only offered organizations they belong to — anything else
+   * would only earn a refusal at publish time. Proposing is the opposite case: the submitter is by
+   * definition not a member of the organization they are proposing for, so the picker reads the
+   * anonymous public catalogue. Offering it costs nothing, because the approver on the other end
+   * must represent that organization before anything is published.
+   *
+   * T14 adds the third question. The server treats an admin as a member of every organization, so
+   * an admin's own memberships — usually none — are the wrong list: they read the admin catalogue
+   * instead. When that admin-only call is what failed, the picker falls back to the organizer path
+   * rather than showing an admin nothing at all.
+   */
+  private async loadOrganizationOptions(): Promise<TournamentOrganizationOption[]> {
+    if (this.isAdmin()) {
+      try {
+        return await this.loadAdminOrganizations();
+      } catch {
+        // Fall through to the membership list below.
+      }
+    }
+    if (this.canPublishDirectly()) {
+      return (await firstValueFrom(this.client.organizationsAll())).map(item => ({ id: item.id, name: item.name }));
+    }
+    return this.loadPublicOrganizations();
+  }
+
+  /**
+   * The admin catalogue lists every organization, including the two kinds publishing still refuses:
+   * a soft-deleted one, and a Draft — an organization nobody staffs yet, which answers
+   * `organization_is_draft` (T11). Offering either would only produce a refusal at publish time, so
+   * they are left out here. Pages are counted by rows read, not rows kept, so filtering cannot make
+   * the loop believe the list is unfinished.
+   */
+  private async loadAdminOrganizations(): Promise<TournamentOrganizationOption[]> {
+    const options: TournamentOrganizationOption[] = [];
+    let read = 0;
+    for (let page = 1; page <= MaximumPublicOrganizationPages; page++) {
+      const response = await firstValueFrom(this.client.organizationsGET3(undefined, false, page, PublicOrganizationPageSize));
+      const items = response.items ?? [];
+      read += items.length;
+      options.push(...items
+        .filter(item => item.isDraft !== true && item.deletedAt == null)
+        .map(item => ({ id: item.id, name: item.name })));
+      if (!items.length || read >= response.totalCount) break;
+    }
+    return options.sort((left, right) => left.name.localeCompare(right.name));
   }
 
   /**

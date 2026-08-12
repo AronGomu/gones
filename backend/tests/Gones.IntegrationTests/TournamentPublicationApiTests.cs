@@ -354,6 +354,67 @@ public sealed class TournamentPublicationApiTests : IAsyncLifetime
         Assert.Equal("draft-org-cup", (await staffed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString());
     }
 
+    /// <summary>
+    /// T14: the create form offers an admin every organization, so the widening has to be the
+    /// server's rather than the picker's. An admin publishes for an organization they do not belong
+    /// to; an organizer sending the very same payload - and even the admin's preview ticket - is
+    /// refused, and refused indistinguishably from an organization that does not exist, so no
+    /// picker can be turned into an enumeration oracle.
+    /// </summary>
+    [Fact]
+    public async Task Admin_publishes_for_a_non_member_organization_and_an_organizer_still_cannot()
+    {
+        await using (var database = CreateContext())
+        {
+            Assert.False(await database.OrganizationMembers
+                .AnyAsync(member => member.OrganizationId == seed.Beta.Id && member.UserId == seed.Admin.Id));
+            Assert.False(await database.OrganizationMembers
+                .AnyAsync(member => member.OrganizationId == seed.Beta.Id && member.UserId == seed.Organizer.Id));
+        }
+
+        var payload = Payload(seed.Beta.Id) with { Title = "Cross Org Cup" };
+        using var adminPreview = await SendAsync(HttpMethod.Post, "/api/tournaments/preview", seed.Admin.Id, "Admin", payload);
+        Assert.Equal(HttpStatusCode.OK, adminPreview.StatusCode);
+        var ticket = (await adminPreview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("previewTicket").GetString()!;
+
+        using var foreignPublish = await SendAsync(
+            HttpMethod.Post,
+            "/api/tournaments",
+            seed.Organizer.Id,
+            "Organizer",
+            new { previewTicket = ticket, payload },
+            "cross-org-organizer");
+        Assert.Equal(HttpStatusCode.NotFound, foreignPublish.StatusCode);
+
+        using var missingPublish = await SendAsync(
+            HttpMethod.Post,
+            "/api/tournaments",
+            seed.Organizer.Id,
+            "Organizer",
+            new { previewTicket = ticket, payload = payload with { OrganizationId = Guid.NewGuid() } },
+            "cross-org-missing");
+        Assert.Equal(HttpStatusCode.NotFound, missingPublish.StatusCode);
+        Assert.Equal(await ProblemCode(foreignPublish), await ProblemCode(missingPublish));
+
+        using var adminPublish = await SendAsync(
+            HttpMethod.Post,
+            "/api/tournaments",
+            seed.Admin.Id,
+            "Admin",
+            new { previewTicket = ticket, payload },
+            "cross-org-admin");
+        Assert.Equal(HttpStatusCode.Created, adminPublish.StatusCode);
+
+        await using (var verify = CreateContext())
+        {
+            var stored = await verify.ScheduledTournaments.SingleAsync(item => item.Title == "Cross Org Cup");
+            Assert.Equal(seed.Beta.Id, stored.OrganizationId);
+            Assert.Equal(seed.Admin.Id, stored.CreatedByUserId);
+            // The two refusals wrote nothing at all, not even an idempotency record to replay.
+            Assert.Equal(0, await verify.IdempotencyRecords.CountAsync(item => item.Key == "cross-org-organizer" || item.Key == "cross-org-missing"));
+        }
+    }
+
     private async Task<HttpResponseMessage> PreviewAsync(Guid userId, TournamentPayload payload) =>
         await SendAsync(HttpMethod.Post, "/api/tournaments/preview", userId, "Organizer", payload);
 

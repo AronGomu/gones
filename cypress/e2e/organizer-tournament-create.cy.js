@@ -58,6 +58,24 @@ function mockPublicOrganizations() {
   }).as('publicOrganizations');
 }
 
+// T14. An admin belongs to no organization in particular, so the picker reads the admin catalogue
+// rather than their own memberships. The catalogue carries what publishing would still refuse — a
+// Draft organization (nobody staffs it) and a soft-deleted one — so both are answered here to prove
+// the picker leaves them out.
+function mockAdminOrganizations() {
+  cy.intercept('GET', '**/api/admin/organizations*', {
+    items: [
+      { id: otherOrgId, name: 'Zebra Club', description: '', website: '', contactEmail: '', deletedAt: null, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z', version: 1, memberCount: 2, isDraft: false },
+      { id: '44444444-4444-4444-4444-444444444444', name: 'Draft Club', description: '', website: '', contactEmail: '', deletedAt: null, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z', version: 1, memberCount: 0, isDraft: true },
+      { id: '55555555-5555-5555-5555-555555555555', name: 'Gone Club', description: '', website: '', contactEmail: '', deletedAt: '2026-08-02T00:00:00Z', createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-02T00:00:00Z', version: 2, memberCount: 1, isDraft: false },
+      { id: ownOrgId, name: 'Owned Club', description: '', website: '', contactEmail: '', deletedAt: null, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z', version: 1, memberCount: 1, isDraft: false }
+    ],
+    page: 1,
+    pageSize: 100,
+    totalCount: 4
+  }).as('adminOrganizations');
+}
+
 function visit(path = '/tournaments/new') {
   cy.visit(path, {
     onBeforeLoad(win) {
@@ -155,6 +173,22 @@ describe('Organizer Tournament create, preview, publish', () => {
     cy.get('#tournament-zone').should('have.attr', 'aria-describedby').and('contain', 'tournament-zone-error');
     cy.get('#tournament-zone').should('have.attr', 'aria-invalid', 'true');
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(375));
+  });
+
+  it('offers an admin every active organization and none of the ones publishing would refuse', () => {
+    mockSession('Admin');
+    mockReferences();
+    mockAdminOrganizations();
+    visit();
+    cy.wait(['@adminOrganizations', '@formats']);
+    // Sorted by name, Draft and soft-deleted left out.
+    cy.get('[data-cy="tournament-organization"] option').should('have.length', 2);
+    cy.get('[data-cy="tournament-organization"] option').eq(0).should('contain.text', 'Owned Club');
+    cy.get('[data-cy="tournament-organization"] option').eq(1).should('contain.text', 'Zebra Club');
+    cy.get(`[data-cy="tournament-organization-option-${otherOrgId}"]`).should('exist');
+    // An admin's own memberships are the wrong list, so the picker never asks for them.
+    cy.get('@myOrganizations.all').should('have.length', 0);
+    cy.get('[data-cy="tournament-preview-submit"]').should('be.visible').and('be.enabled');
   });
 
   it('renders server preview through public detail view, preserves form on Back, and invalidates ticket after edit', () => {

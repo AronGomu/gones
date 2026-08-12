@@ -1376,3 +1376,26 @@ confirmation dialog opens after the server confirms the registration.
       is visible on each.
 - [ ] On a site with more than 500 accounts, confirm the picker shows the "only the first 500 accounts
       are listed" warning and that the accounts it does list are usable.
+
+## T14 admin-all-organizations-picker
+
+- [ ] Sign in as `admin@gones.test` and open `/tournaments/new`. The organization picker offers every
+      active organization on the site — including ones you do not belong to — sorted by name, not the
+      empty list an administrator's own memberships would produce.
+- [ ] Pick an organization you are not a member of, fill the form, preview and publish. The event is
+      created and you land on its public detail page under that organization's name.
+- [ ] In `/admin/organizations`, remove the last member of an organization so it carries the Draft
+      badge. Reload `/tournaments/new`: that organization is no longer offered in the picker. Staff it
+      again and it comes back.
+- [ ] Delete an organization from `/admin/organizations`, then reload `/tournaments/new`: the deleted
+      organization is not offered. Restore it and it is offered again.
+- [ ] Sign in as `organizer@gones.test` and open `/tournaments/new`. The picker still shows only the
+      organizations that account belongs to — `Gones Lyon` and nothing else.
+- [ ] Sign in as `test@gones.test` (plain user) and open `/tournaments/new`. The picker still shows the
+      public catalogue and the page still offers "submit for approval", not direct publishing.
+- [ ] As an administrator, keep `/tournaments/new` open, have the API go down (or block
+      `/api/admin/organizations` in the browser dev tools) and reload. The picker falls back to your
+      own memberships rather than going empty; when nothing at all can be loaded the page shows the
+      reference-load error with a working Retry button.
+- [ ] Walk `/tournaments/new` as an administrator with the keyboard only: Tab reaches the organization
+      picker, arrow keys move through the options and the focus ring stays visible.
