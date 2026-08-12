@@ -1043,3 +1043,32 @@ and a date that is not the day the tests were written.
 - [ ] Page back a month: the whole grid is dimmed. Page forward two months: nothing is dimmed.
 - [ ] Zoom the browser to 200% and check the past cells are still readable, not washed out.
 - [ ] Leave the calendar open past local midnight, then reload: yesterday is now dimmed too.
+
+## T3 list-card-click-hover-time
+
+Automated tests cover the pure date helper, the template bindings, the hover CSS rules and a browser
+run that clicks the card and the ICS button. What no automated test settles is how the lift *feels*,
+whether a real download lands on disk, and whether the card still reads as a link to a real screen
+reader and a real pointing device.
+
+- [ ] Open `/calendar?view=list`: no "View Page" button remains on any card; only "Add to calendar".
+- [ ] Hover a card: it lifts slightly, the border warms up and the shadow deepens — smooth, not jumpy.
+- [ ] Move the pointer between two neighbouring cards quickly: no flicker, no layout shift pushing the
+      list around.
+- [ ] Click anywhere on the card background (status, date, venue, summary, empty space): the event page
+      opens.
+- [ ] Click the event title itself: the same event page opens, once — not a double navigation.
+- [ ] Click "Add to calendar": the `.ics` file downloads and you stay on the list.
+- [ ] Tab to a card: the focus ring is visible and the card shows the same lift as on hover.
+- [ ] With the card focused, press Enter: the event page opens. Go back, press Space: same page, and
+      the list does not scroll underneath.
+- [ ] Tab to "Add to calendar" and press Enter: the file downloads and you stay on the list.
+- [ ] With a screen reader (Orca/NVDA/VoiceOver), move through the list: each card is announced as a
+      link named after the event, and the title link and "Add to calendar" are still reachable.
+- [ ] Read a card's date line: it shows the venue-local day and time with no `(CEST, Europe/Paris)`
+      suffix; the venue line underneath still names the city and country.
+- [ ] For an event in a different timezone from yours, the smaller "Viewer time" line is still there
+      and still correct.
+- [ ] On a phone-width window, the card is still fully tappable and the "Add to calendar" button is
+      still easy to hit without triggering navigation.
+- [ ] Long-press / drag to select text inside a card, release: no navigation happens on the release.

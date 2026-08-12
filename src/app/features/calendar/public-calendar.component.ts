@@ -23,6 +23,7 @@ import {
   shiftMonth,
   sortTournamentsForList,
   statusPresentation,
+  tournamentCardDatePresentation,
   tournamentDatePresentation,
   tournamentsByDate,
   MAX_DAY_CELL_EVENTS
@@ -130,9 +131,9 @@ const SEARCH_DEBOUNCE_MS = 300;
       }
 
       <ng-template #emptyState><section class="panel calendar-state" data-cy="calendar-empty"><h2 data-cy="calendar-empty-title">{{ i18n.t('calendar.emptyTitle') }}</h2><p data-cy="calendar-empty-body">{{ i18n.t('calendar.emptyBody') }}</p></section></ng-template>
-      <ng-template #tournamentCard let-item><article class="panel public-tournament-card" [attr.data-cy]="'tournament-' + item.slug">
-        <div data-cy="calendar-card-body"><span class="calendar-status" [class]="'calendar-status calendar-status--' + status(item).className" data-cy="calendar-card-status">{{ status(item).label }}</span><h3 data-cy="calendar-card-title"><a [routerLink]="['/calendar/tournaments', item.slug]" data-cy="calendar-card-link">{{ item.title }}</a></h3><p data-cy="calendar-card-date">{{ date(item).primary }}</p>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="calendar-card-viewer-date">{{ i18n.t('calendar.viewerTime') }}: {{ secondary }}</p> }<p data-cy="calendar-card-venue">{{ venue(item) }}</p>@if (item.summary) { <p class="muted" data-cy="calendar-card-summary">{{ item.summary }}</p> }</div>
-        <div class="calendar-event__actions" data-cy="calendar-card-actions"><a mat-stroked-button [routerLink]="['/calendar/tournaments', item.slug]" data-cy="calendar-card-view">{{ i18n.t('calendar.viewPage') }}</a><a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="calendar-card-ics">{{ i18n.t('calendar.addToCalendar') }}</a></div>
+      <ng-template #tournamentCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.title" [attr.data-cy]="'tournament-' + item.slug" (click)="openTournament(item)" (keydown.enter)="openTournament(item)" (keydown.space)="openTournament(item, $event)">
+        <div data-cy="calendar-card-body"><span class="calendar-status" [class]="'calendar-status calendar-status--' + status(item).className" data-cy="calendar-card-status">{{ status(item).label }}</span><h3 data-cy="calendar-card-title"><a [routerLink]="['/calendar/tournaments', item.slug]" data-cy="calendar-card-link" (click)="$event.stopPropagation()">{{ item.title }}</a></h3><p data-cy="calendar-card-date">{{ cardDate(item) }}</p>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="calendar-card-viewer-date">{{ i18n.t('calendar.viewerTime') }}: {{ secondary }}</p> }<p data-cy="calendar-card-venue">{{ venue(item) }}</p>@if (item.summary) { <p class="muted" data-cy="calendar-card-summary">{{ item.summary }}</p> }</div>
+        <div class="calendar-event__actions" data-cy="calendar-card-actions"><a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="calendar-card-ics" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('calendar.addToCalendar') }}</a></div>
       </article></ng-template>
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="calendar-back-bottom" />
@@ -211,6 +212,8 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   reload(): void { void this.load(); }
   status(item: PublicTournamentView) { return statusPresentation(item.status); }
   date(item: PublicTournamentView) { return tournamentDatePresentation(item, this.i18n.locale()); }
+  cardDate(item: PublicTournamentView): string { return tournamentCardDatePresentation(item, this.i18n.locale()); }
+  openTournament(item: PublicTournamentView, event?: Event): void { event?.preventDefault(); void this.router.navigate(['/calendar/tournaments', item.slug]); }
   venue(item: PublicTournamentView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
   formatGroupDate(group: VenueDateGroup): string { return this.i18n.formatDate(group.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
   isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }

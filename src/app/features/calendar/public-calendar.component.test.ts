@@ -770,6 +770,110 @@ describe('PublicCalendarComponent day-cell events', () => {
   });
 });
 
+describe('PublicCalendarComponent list card', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+  const cardTag = source.slice(source.indexOf('<article class="panel public-tournament-card"'), source.indexOf('>', source.indexOf('<article class="panel public-tournament-card"')));
+  const cardActions = source.slice(source.indexOf('data-cy="calendar-card-actions"'), source.indexOf('</article></ng-template>'));
+
+  it('clicking the card navigates to the event page', async () => {
+    const { component, navigate } = setup({ params: { view: 'list' } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    navigate.mockClear();
+
+    component.openTournament(tournament);
+
+    expect(navigate).toHaveBeenCalledWith(['/calendar/tournaments', 'lyon-legacy']);
+  });
+
+  // Space would scroll the page before it ever reached the card, so the handler takes the event.
+  it('space on a focused card navigates without scrolling the page', async () => {
+    const { component, navigate } = setup({ params: { view: 'list' } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    navigate.mockClear();
+    const event = { preventDefault: vi.fn() } as unknown as Event;
+
+    component.openTournament(tournament, event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/calendar/tournaments', 'lyon-legacy']);
+  });
+
+  it('the card is the click target, and reads as a link to assistive tech', () => {
+    expect(cardTag).toContain('(click)="openTournament(item)"');
+    expect(cardTag).toContain('(keydown.enter)="openTournament(item)"');
+    expect(cardTag).toContain('(keydown.space)="openTournament(item, $event)"');
+    expect(cardTag).toContain('role="link"');
+    expect(cardTag).toContain('tabindex="0"');
+    expect(cardTag).toContain('[attr.aria-label]="item.title"');
+  });
+
+  // The card handler sits on the ancestor: without stopPropagation, downloading the ICS or
+  // following the title link would also fire the card's navigation.
+  it('clicking add to calendar does not navigate', () => {
+    const icsMarker = cardActions.indexOf('data-cy="calendar-card-ics"');
+    const icsAnchor = cardActions.slice(cardActions.lastIndexOf('<a', icsMarker), cardActions.indexOf('</a>', icsMarker));
+
+    expect(icsAnchor).toContain('(click)="$event.stopPropagation()"');
+    expect(icsAnchor).toContain('[href]="service.icsUrl(item.slug)"');
+  });
+
+  // Enter on the anchor bubbles as a keydown *before* the click it synthesises, so the click guard
+  // alone would still let the card navigate the reader away from their download.
+  it('keyboard activation of add to calendar does not navigate either', () => {
+    const icsMarker = cardActions.indexOf('data-cy="calendar-card-ics"');
+    const icsAnchor = cardActions.slice(cardActions.lastIndexOf('<a', icsMarker), cardActions.indexOf('</a>', icsMarker));
+
+    expect(icsAnchor).toContain('(keydown.enter)="$event.stopPropagation()"');
+    expect(icsAnchor).toContain('(keydown.space)="$event.stopPropagation()"');
+  });
+
+  it('the title link stays and stops the card handler firing twice', () => {
+    const titleAnchor = source.slice(source.indexOf('data-cy="calendar-card-title"'), source.indexOf('data-cy="calendar-card-date"'));
+
+    expect(titleAnchor).toContain('data-cy="calendar-card-link"');
+    expect(titleAnchor).toContain('(click)="$event.stopPropagation()"');
+  });
+
+  it('the view page button is gone', () => {
+    expect(source).not.toContain('data-cy="calendar-card-view"');
+    expect(cardActions).toContain('data-cy="calendar-card-ics"');
+  });
+
+  it('the card date line drops the zone and the viewer-time line stays', () => {
+    const cardBody = source.slice(source.indexOf('data-cy="calendar-card-body"'), source.indexOf('data-cy="calendar-card-venue"'));
+
+    expect(cardBody).toContain('data-cy="calendar-card-date">{{ cardDate(item) }}');
+    expect(cardBody).not.toContain('date(item).primary');
+    expect(cardBody).toContain('data-cy="calendar-card-viewer-date"');
+  });
+
+  it('the card date carries no zone short name and no IANA id', async () => {
+    const { component } = setup({ params: { view: 'list' } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.cardDate(tournament)).not.toContain('Europe/Paris');
+    expect(component.cardDate(tournament)).not.toContain('(');
+  });
+
+  it('the card lifts on hover and on keyboard focus', () => {
+    const baseRule = stylesheet.match(/\.public-tournament-card \{[^}]*\}/)?.[0] ?? '';
+    expect(baseRule).toContain('cursor: pointer');
+    expect(baseRule).toContain('transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease');
+
+    const hoverRule = stylesheet.match(/\.public-tournament-card:hover, \.public-tournament-card:focus-visible \{[^}]*\}/)?.[0] ?? '';
+    expect(hoverRule).toContain('transform: translateY(-2px)');
+    expect(hoverRule).toContain('box-shadow: 0 12px 28px');
+    expect(hoverRule).toContain('border-color: var(--hot-blood)');
+  });
+});
+
 describe('PublicCalendarComponent past day cells', () => {
   const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');

@@ -12,6 +12,7 @@ import {
   readCalendarQuery,
   sortTournamentsForList,
   statusPresentation,
+  tournamentCardDatePresentation,
   tournamentDatePresentation,
   tournamentsByDate
 } from './public-calendar';
@@ -74,6 +75,24 @@ describe('public Calendar helpers', () => {
     expect(different.secondary).toContain('Aug 2');
     expect(different.secondary).toContain('Asia/Tokyo');
     expect(same.secondary).toBeUndefined();
+  });
+
+  // The card sits under a venue line that already names the city and country, so repeating the
+  // zone there is noise. The detail page keeps the zone: it is the page a reader plans from.
+  it('the card date omits the timezone suffix', () => {
+    const card = tournamentCardDatePresentation({ ...tournament, venueStartTime: '19:30:00' }, 'en-US');
+
+    expect(card).toContain('7:30');
+    expect(card).not.toContain('(');
+    expect(card).not.toContain('Europe/Paris');
+  });
+
+  it('the card date keeps the venue-local day and month', () => {
+    const card = tournamentCardDatePresentation({ ...tournament, venueStartTime: '19:30:00' }, 'en-US');
+
+    expect(card).toContain('Aug');
+    expect(card).toContain('1');
+    expect(card).toContain('2026');
   });
 
   it('reads the reduced query', () => {

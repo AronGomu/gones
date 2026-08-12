@@ -127,6 +127,37 @@ describe('public Calendar V1', () => {
     cy.document().then(document => expect(document.documentElement.scrollWidth).to.be.at.most(375));
   });
 
+  // The card handler sits on an ancestor of the ICS anchor, so "the button still downloads without
+  // navigating" is a claim only a real browser can settle: in jsdom nothing bubbles through Angular's
+  // template bindings at all.
+  it('the list card navigates on click while Add to calendar stays on the list', () => {
+    cy.intercept('GET', '**/api/tournaments/lyon-legacy', { ...tournament, bodyHtml: '<p>Detail</p>' }).as('detail');
+    cy.intercept('GET', '**/api/tournaments/lyon-legacy.ics', {
+      statusCode: 200,
+      headers: { 'content-type': 'text/calendar' },
+      body: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n'
+    }).as('ics');
+
+    visit('/calendar?month=2026-08&view=list');
+    cy.wait('@allTournaments');
+    cy.get('[data-cy="calendar-card-view"]').should('not.exist');
+    cy.get('[data-cy="calendar-card-date"]').should('not.contain.text', 'Europe/Paris').and('not.contain.text', '(');
+
+    cy.get('[data-cy="calendar-card-ics"]').click();
+    cy.wait('@ics');
+    cy.location('pathname').should('eq', '/calendar');
+    cy.get('[data-cy="calendar-list"]').should('be.visible');
+
+    // Enter on the button reaches the card as a keydown before the click it synthesises.
+    cy.get('[data-cy="calendar-card-ics"]').focus().trigger('keydown', { key: 'Enter' });
+    cy.location('pathname').should('eq', '/calendar');
+
+    cy.get('[data-cy="calendar-card-venue"]').click();
+    cy.location('pathname').should('eq', '/calendar/tournaments/lyon-legacy');
+    cy.wait('@detail');
+    cy.get('[data-cy="public-tournament-detail"]').should('be.visible');
+  });
+
   it('shows an empty state below the grid when nothing matches the catalog', () => {
     cy.intercept('GET', '**/api/tournaments/all*', { items: [], generatedAt: '2026-08-08T10:00:00Z', count: 0, truncated: false }).as('empty');
     visit('/calendar?month=2026-08');

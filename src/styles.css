@@ -1149,7 +1149,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .calendar-pagination { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; margin: 1rem 0 .25rem; }
 .venue-date-group + .venue-date-group { margin-top: 1rem; }
 .venue-date-group > h2 { margin-top: .5rem; }
-.public-tournament-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1rem; }
+.public-tournament-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1rem; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.public-tournament-card:hover, .public-tournament-card:focus-visible { transform: translateY(-2px); border-color: var(--hot-blood); box-shadow: 0 12px 28px rgb(0 0 0 / .35); }
 .public-tournament-card h3 { margin: .35rem 0; }
 .public-tournament-card p { margin: .25rem 0; }
 .viewer-date { color: var(--dim-ash) !important; font-size: .9rem; }

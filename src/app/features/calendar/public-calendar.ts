@@ -143,6 +143,11 @@ export function tournamentDatePresentation(
   return { primary, secondary: `${viewerParts.label} (${viewerParts.zone}, ${viewerTimeZone})` };
 }
 
+/** The list card drops the zone: the venue line right under it already says where the event is. */
+export function tournamentCardDatePresentation(item: Omit<PublicTournamentView, 'id'>, locale: string): string {
+  return `${formatWallDate(item.venueStartDate, locale)}, ${formatWallTime(item.venueStartTime, locale)}`;
+}
+
 export function statusPresentation(status: string): { label: string; className: string } {
   const normalized = status.trim().toLowerCase();
   if (normalized === 'cancelled') return { label: 'Cancelled', className: 'cancelled' };

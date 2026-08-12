@@ -6,6 +6,7 @@
 **/obj/
 /cypress/screenshots
 /cypress/videos
+/cypress/downloads
 .env
 .agentsystem/
 # Generated quality-gate reports (supply-chain audit, etc). CI retains them as artifacts.

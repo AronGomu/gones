@@ -47,15 +47,15 @@
 
 ## Impl steps
 
-- [ ] 1. Add `tournamentCardDatePresentation` to `src/app/features/calendar/public-calendar.ts`.
-- [ ] 2. Add the two pure tests to `src/app/features/calendar/public-calendar.test.ts`; run `npx vitest run src/app/features/calendar/public-calendar.test.ts`.
-- [ ] 3. In the component class add `openTournament(item: PublicTournamentView, event?: Event): void { event?.preventDefault(); void this.router.navigate(['/calendar/tournaments', item.slug]); }` and `cardDate(item: PublicTournamentView): string { return tournamentCardDatePresentation(item, this.i18n.locale()); }`.
-- [ ] 4. In the `#tournamentCard` template add the click/keydown/role/tabindex/aria-label attributes to the `<article>`; swap `{{ date(item).primary }}` for `{{ cardDate(item) }}` on `[data-cy=calendar-card-date]`.
-- [ ] 5. Delete the `calendar-card-view` anchor; add `(click)="$event.stopPropagation()"` to `calendar-card-ics` and `calendar-card-link`.
-- [ ] 6. Add the hover CSS to `src/styles.css` beside the existing `.public-tournament-card` rules (around line 1150).
-- [ ] 7. Add the three component tests to `src/app/features/calendar/public-calendar.component.test.ts`.
-- [ ] 8. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`.
-- [ ] 9. Update `cypress/e2e/public-calendar.cy.js` if it asserts `calendar-card-view`; replace with a card-click assertion.
+- [x] 1. Add `tournamentCardDatePresentation` to `src/app/features/calendar/public-calendar.ts`. — `public-calendar.ts:143`, exported, reuses `formatWallDate` / `formatWallTime`.
+- [x] 2. Add the two pure tests to `src/app/features/calendar/public-calendar.test.ts`; run `npx vitest run src/app/features/calendar/public-calendar.test.ts`. — red first (`TypeError: tournamentCardDatePresentation is not a function`, 2 failed), then `Test Files 1 passed (1) / Tests 39 passed (39)`.
+- [x] 3. In the component class add `openTournament(item: PublicTournamentView, event?: Event): void { event?.preventDefault(); void this.router.navigate(['/calendar/tournaments', item.slug]); }` and `cardDate(item: PublicTournamentView): string { return tournamentCardDatePresentation(item, this.i18n.locale()); }`.
+- [x] 4. In the `#tournamentCard` template add the click/keydown/role/tabindex/aria-label attributes to the `<article>`; swap `{{ date(item).primary }}` for `{{ cardDate(item) }}` on `[data-cy=calendar-card-date]`. — `public-calendar.component.ts:133-134`; asserted by `the card is the click target, and reads as a link to assistive tech` and `the card date line drops the zone and the viewer-time line stays`.
+- [x] 5. Delete the `calendar-card-view` anchor; add `(click)="$event.stopPropagation()"` to `calendar-card-ics` and `calendar-card-link`. — `grep -c 'calendar-card-view' src/` → 0; asserted by `the view page button is gone`, `clicking add to calendar does not navigate`, `the title link stays and stops the card handler firing twice`.
+- [x] 6. Add the hover CSS to `src/styles.css` beside the existing `.public-tournament-card` rules (around line 1150). — `styles.css:1152-1153`, `border-color: var(--hot-blood)` reuses the token `.home-destination:hover` already uses; asserted by `the card lifts on hover and on keyboard focus`.
+- [x] 7. Add the three component tests to `src/app/features/calendar/public-calendar.component.test.ts`. — 9 tests added under `describe('PublicCalendarComponent list card')`, red first (`Tests 9 failed | 59 passed`).
+- [x] 8. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`. — `Test Files 16 passed (16) / Tests 188 passed (188)`; `All files pass linting.`; `tsc --noEmit` clean on both projects.
+- [x] 9. Update `cypress/e2e/public-calendar.cy.js` if it asserts `calendar-card-view`; replace with a card-click assertion. — the spec never asserted it; added `the list card navigates on click while Add to calendar stays on the list`, which clicks the ICS anchor (stays on `/calendar`) and then the card body (lands on `/calendar/tournaments/lyon-legacy`).
 
 ## Outputs
 
@@ -64,9 +64,14 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar` passes
-- [ ] `npm run lint && npm run typecheck` pass
-- [ ] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes
-- [ ] manual check: click card body navigates; click "Add to calendar" downloads and stays; Tab + Enter on a card navigates
-- [ ] app functional — pagination, grouping and the empty state unchanged
-- [ ] commit msg draft: `feat(calendar): make list cards clickable and drop the zone suffix`
+- [x] `npx vitest run src/app/features/calendar` passes — `Test Files 16 passed (16) / Tests 188 passed (188)`; whole suite `npm run test` → `Test Files 105 passed (105) / Tests 959 passed (959)`.
+- [x] `npm run lint && npm run typecheck` pass — `All files pass linting.` and `tsc --noEmit` clean on `tsconfig.app.json` + `tsconfig.spec.json`.
+- [x] `npx cypress run --spec cypress/e2e/public-calendar.cy.js` passes — `9 passing (5s)`, including `the list card navigates on click while Add to calendar stays on the list`. Run needs the `LD_LIBRARY_PATH` `scripts/full-stack-ci.mjs` computes (lines 28-36) on this NixOS host.
+- [x] browser proof of the nested-interactive risk — in the same spec: click `[data-cy=calendar-card-ics]` → ICS request served, `location.pathname` stays `/calendar`; then click `[data-cy=calendar-card-venue]` (card body) → `/calendar/tournaments/lyon-legacy` and the detail panel renders. Negative control: with the ICS keydown guard removed the spec fails (`Expected to find element: [data-cy="calendar-card-venue"], but never found it`), so the assertion constrains the implementation.
+- [x] axe gate on the new click target — list view scanned with the accessibility spec's `checkA11y` helper at WCAG 2 A/AA: `1 passing`, no `nested-interactive` and no other violation on `role="link"` card. (The month-view `color-contrast` failures in `cypress/e2e/accessibility.cy.js` reproduce unchanged on `git stash`ed base `00783cb` — inherited from T2, not this slice.)
+- [x] app functional — pagination, grouping and the empty state unchanged: `pages the list at twenty tournaments and drops the page on search`, `shows an empty state below the grid when nothing matches the catalog` and the grouping assertions all pass in the same cypress run; `groupTournamentsByVenueDate` / `paginateTournaments` untouched.
+- [x] commit msg draft: `feat(calendar): make list cards clickable and drop the zone suffix`
+
+## Deviation from the ticket (in-scope correctness fix)
+
+- [x] `calendar-card-ics` also stops `keydown.enter` / `keydown.space`, not only `click`. The ticket asks for the click guard alone; with only that guard, Enter on "Add to calendar" bubbles to the card's `(keydown.enter)` **before** the anchor's synthetic click, so a keyboard reader was navigated off the list while the download started. Proven by the negative control above.
