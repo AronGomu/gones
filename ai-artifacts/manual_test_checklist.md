@@ -1022,3 +1022,24 @@ test covers is a real browser session restored from the refresh cookie on a real
       sent to `/` with `?denied=/admin`.
 - [ ] With an unverified e-mail, open `/tournaments/new`: you are sent to `/verify-email?email=<your address>`.
 - [ ] Sign out from a page behind a guard: you are moved off it and cannot reach it again with the back button.
+
+## T2 calendar-past-day-styling
+
+Automated tests cover the pure `isPastCalendarDay` helper, the template bindings and the two CSS
+rules, and a browser run confirmed the computed opacity on the day the change was written. What no
+automated test covers is how the dimming actually reads to a human eye, across themes, zoom levels
+and a date that is not the day the tests were written.
+
+- [ ] Open `/calendar` in the month view on today's real date: every cell before today looks clearly
+      dimmer than today's cell, and today's cell is at full strength.
+- [ ] Today's cell is not dimmed and its day number is still the bright, heavy one.
+- [ ] Tomorrow and the rest of the month are not dimmed.
+- [ ] Cells from the previous/next month that are already greyed out are still readable when they are
+      also past — the two treatments stack without turning the number invisible.
+- [ ] A tournament chip sitting on a past day is still readable and still clickable, and its link opens
+      the right tournament page.
+- [ ] A past day carrying more than three tournaments still shows the "+N more" marker, and the marker
+      is still legible through the dimming.
+- [ ] Page back a month: the whole grid is dimmed. Page forward two months: nothing is dimmed.
+- [ ] Zoom the browser to 200% and check the past cells are still readable, not washed out.
+- [ ] Leave the calendar open past local midnight, then reload: yesterday is now dimmed too.

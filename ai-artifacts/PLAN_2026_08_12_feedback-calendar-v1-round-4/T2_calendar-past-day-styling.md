@@ -29,9 +29,9 @@
 
 ## TDD
 
-1. **Red** — add helper tests to `src/app/features/calendar/public-calendar.test.ts`.
-2. **Green** — implement `isPastCalendarDay` and wire the class.
-3. **Refactor** — none.
+- [x] 1. **Red** — add helper tests to `src/app/features/calendar/public-calendar.test.ts`. → verify: the new tests fail before the helper exists. Evidence: `npx vitest run …public-calendar.test.ts …component.test.ts` → `Tests 7 failed | 89 passed (96)`, `TypeError: isPastCalendarDay is not a function`.
+- [x] 2. **Green** — implement `isPastCalendarDay` and wire the class. → verify: same suites pass. Evidence: `npx vitest run src/app/features/calendar` → `Test Files 16 passed (16) / Tests 177 passed (177)`.
+- [x] 3. **Refactor** — none. → verify: no extra refactor in the diff beyond extracting `localDateValue` out of `buildMonthDays`, which step 4 requires.
 
 ## Test plan
 
@@ -45,14 +45,14 @@
 
 ## Impl steps
 
-- [ ] 1. Add `export function isPastCalendarDay(date: string, today: string): boolean { return date < today; }` to `src/app/features/calendar/public-calendar.ts` with a one-line doc comment saying both inputs are `YYYY-MM-DD` and today is deliberately excluded.
-- [ ] 2. Add the four helper tests to `src/app/features/calendar/public-calendar.test.ts`; run `npx vitest run src/app/features/calendar/public-calendar.test.ts` and see them fail then pass.
-- [ ] 3. In `public-calendar.component.ts`, import `isPastCalendarDay` and add `readonly today = signal(localDateValue(new Date()));` plus `isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }`.
-- [ ] 4. Add module-level `function localDateValue(date: Date): string` next to `buildMonthDays` returning `${year}-${MM}-${DD}` from local getters (reuse the exact formatting already inside `buildMonthDays`).
-- [ ] 5. In the month-grid template, add `[class.public-month-day--past]="isPast(day.date)"` and replace the static `data-cy` with `[attr.data-cy]="isPast(day.date) ? 'calendar-month-day-past' : 'calendar-month-day'"`.
-- [ ] 6. Add the CSS rules to `src/styles.css` immediately after the `.public-month-day--muted` rule.
-- [ ] 7. Add the component test to `src/app/features/calendar/public-calendar.component.test.ts` using the file's existing render helper and `vi.setSystemTime`.
-- [ ] 8. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`.
+- [x] 1. Add `export function isPastCalendarDay(date: string, today: string): boolean { return date < today; }` to `src/app/features/calendar/public-calendar.ts` with a one-line doc comment saying both inputs are `YYYY-MM-DD` and today is deliberately excluded. → verify: exported at `public-calendar.ts:92-95` with the doc comment; the four helper tests pass.
+- [x] 2. Add the four helper tests to `src/app/features/calendar/public-calendar.test.ts`; run `npx vitest run src/app/features/calendar/public-calendar.test.ts` and see them fail then pass. → verify: red run `TypeError: isPastCalendarDay is not a function` (4 helper failures), green run `Tests 177 passed`.
+- [x] 3. In `public-calendar.component.ts`, import `isPastCalendarDay` and add `readonly today = signal(localDateValue(new Date()));` plus `isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }`. → verify: both present in the diff (`public-calendar.component.ts:154`, `:216`); `npm run typecheck` clean.
+- [x] 4. Add module-level `function localDateValue(date: Date): string` next to `buildMonthDays` returning `${year}-${MM}-${DD}` from local getters (reuse the exact formatting already inside `buildMonthDays`). → verify: `buildMonthDays` now calls `localDateValue(date)`; existing test `in-month flags survive the change` still passes, so the date values are unchanged.
+- [x] 5. In the month-grid template, add `[class.public-month-day--past]="isPast(day.date)"` and replace the static `data-cy` with `[attr.data-cy]="isPast(day.date) ? 'calendar-month-day-past' : 'calendar-month-day'"`. → verify: test `the day cell binds the past class and the past marker` passes; `data-cy-coverage.test.ts` still green (the `[attr.data-cy]` form is accepted).
+- [x] 6. Add the CSS rules to `src/styles.css` immediately after the `.public-month-day--muted` rule. → verify: `styles.css:1141-1142`; test `the past cell is dimmed with a muted day number` passes; browser-computed `opacity` of a past cell is `0.5`.
+- [x] 7. Add the component test to `src/app/features/calendar/public-calendar.component.test.ts` using the file's existing render helper and `vi.setSystemTime`. → verify: `past day cells carry the past marker, and today does not` passes. NOTE: this suite has no TestBed/DOM render helper (only `setup()` + source-text assertions), so the DOM read was done in a throwaway browser run instead — see the Validation block.
+- [x] 8. Run `npx vitest run src/app/features/calendar`, `npm run lint`, `npm run typecheck`. → verify: `16 files / 177 tests passed`, `All files pass linting`, `tsc --noEmit` silent.
 
 ## Outputs
 
@@ -61,8 +61,8 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app/features/calendar` passes
-- [ ] `npm run lint && npm run typecheck` pass
-- [ ] manual check: open `/calendar`, confirm days before today are dimmed and today is not
-- [ ] app functional — month navigation, day events and the "+N more" marker unchanged
-- [ ] commit msg draft: `feat(calendar): dim past days in the month grid`
+- [x] `npx vitest run src/app/features/calendar` passes → `Test Files 16 passed (16) / Tests 177 passed (177)`. Full suite too: `npm run test` → `Test Files 105 passed (105) / Tests 947 passed (947)`.
+- [x] `npm run lint && npm run typecheck` pass → `All files pass linting`; `tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json` exited silent.
+- [x] manual check: open `/calendar`, confirm days before today are dimmed and today is not → done in a real browser (Electron 138, dev server :4200) with a throwaway spec, since the vitest suite has no DOM. On the real system date 2026-08-12: the `2026-08-11` cell has `data-cy="calendar-month-day-past"`, class `public-month-day--past` and computed `opacity: 0.5`; the `2026-08-12` cell has `data-cy="calendar-month-day"`, no past class and computed `opacity: 1`; `2026-08-13` is not past. Navigating to September shows zero past cells, navigating back restores them. Spec deleted after the run — human-facing steps are in `ai-artifacts/manual_test_checklist.md`.
+- [x] app functional — month navigation, day events and the "+N more" marker unchanged → `npx cypress run --spec cypress/e2e/public-calendar.cy.js` against :4200 → `8 passing`, including the `+1` more-marker assertion and the month prev/next assertions.
+- [x] commit msg draft: `feat(calendar): dim past days in the month grid`

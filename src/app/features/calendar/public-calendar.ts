@@ -89,6 +89,11 @@ export function paginateTournaments(items: PublicTournamentView[], page: number,
   return items.slice((safePage - 1) * pageSize, safePage * pageSize);
 }
 
+/** Both `YYYY-MM-DD`; today is deliberately excluded, so only strictly earlier days read as past. */
+export function isPastCalendarDay(date: string, today: string): boolean {
+  return date < today;
+}
+
 export const MAX_DAY_CELL_EVENTS = 3;
 
 /** Tournaments keyed by their venue start date, each list sorted by start time then title. */

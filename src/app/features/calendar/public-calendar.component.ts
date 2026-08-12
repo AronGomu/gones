@@ -17,6 +17,7 @@ import {
   calendarPageCount,
   clampCalendarPage,
   groupTournamentsByVenueDate,
+  isPastCalendarDay,
   paginateTournaments,
   readCalendarQuery,
   shiftMonth,
@@ -91,7 +92,7 @@ const SEARCH_DEBOUNCE_MS = 300;
             @for (week of monthWeeks(); track week[0].date) {
               <div class="public-month-row" role="row" data-cy="calendar-month-row">
                 @for (day of week; track day.date) {
-                  <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth" data-cy="calendar-month-day">
+                  <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth" [class.public-month-day--past]="isPast(day.date)" [attr.data-cy]="isPast(day.date) ? 'calendar-month-day-past' : 'calendar-month-day'">
                     <time [attr.datetime]="day.date" data-cy="calendar-month-day-date">{{ day.day }}</time>
                     @for (event of visibleDayEvents(day.date); track event.id) {
                       <a class="public-month-event" [routerLink]="['/calendar/tournaments', event.slug]" [attr.data-cy]="'calendar-month-day-event-' + event.slug" [attr.title]="event.title">
@@ -150,6 +151,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
 
   readonly skeletons = Array.from({ length: 6 });
   readonly weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  readonly today = signal(localDateValue(new Date()));
   readonly query = signal<CalendarQuery>(readCalendarQuery(this.route.snapshot.queryParamMap, this.preferredView()));
   readonly searchDraft = signal<string>(this.query().q);
   readonly allItems = signal<PublicTournamentView[]>([]);
@@ -211,6 +213,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   date(item: PublicTournamentView) { return tournamentDatePresentation(item, this.i18n.locale()); }
   venue(item: PublicTournamentView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
   formatGroupDate(group: VenueDateGroup): string { return this.i18n.formatDate(group.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
+  isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }
   dayEvents(date: string): PublicTournamentView[] { return this.eventsByDate().get(date) ?? []; }
   visibleDayEvents(date: string): PublicTournamentView[] { return this.dayEvents(date).slice(0, MAX_DAY_CELL_EVENTS); }
   hiddenDayEventCount(date: string): number { return Math.max(0, this.dayEvents(date).length - MAX_DAY_CELL_EVENTS); }
@@ -253,7 +256,11 @@ function buildMonthDays(month: string): MonthDay[] {
   return Array.from({ length: 42 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
-    const dateValue = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return { date: dateValue, day: date.getDate(), inMonth: date.getMonth() === monthNumber - 1 };
+    return { date: localDateValue(date), day: date.getDate(), inMonth: date.getMonth() === monthNumber - 1 };
   });
+}
+
+/** The grid's cell keys are local wall dates, so "today" has to be read the same way. */
+function localDateValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

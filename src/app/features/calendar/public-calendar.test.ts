@@ -7,6 +7,7 @@ import {
   calendarPageCount,
   clampCalendarPage,
   groupTournamentsByVenueDate,
+  isPastCalendarDay,
   paginateTournaments,
   readCalendarQuery,
   sortTournamentsForList,
@@ -251,5 +252,23 @@ describe('tournamentsByDate', () => {
     const map = tournamentsByDate([{ ...tournament, id: 'a', venueStartDate: '2026-03-01' }]);
 
     expect(map.has('2026-03-02')).toBe(false);
+  });
+});
+
+describe('isPastCalendarDay', () => {
+  it('marks yesterday as past', () => {
+    expect(isPastCalendarDay('2026-08-11', '2026-08-12')).toBe(true);
+  });
+
+  it('does not mark today as past', () => {
+    expect(isPastCalendarDay('2026-08-12', '2026-08-12')).toBe(false);
+  });
+
+  it('does not mark tomorrow as past', () => {
+    expect(isPastCalendarDay('2026-08-13', '2026-08-12')).toBe(false);
+  });
+
+  it('compares across month and year boundaries', () => {
+    expect(isPastCalendarDay('2025-12-31', '2026-01-01')).toBe(true);
   });
 });

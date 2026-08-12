@@ -533,7 +533,7 @@ describe('PublicCalendarComponent calendar day cells', () => {
   });
 
   it('the day cell still renders its date', () => {
-    const cellStart = source.indexOf('data-cy="calendar-month-day"');
+    const cellStart = source.indexOf('class="public-month-day"');
     expect(cellStart).toBeGreaterThan(-1);
     const cellEnd = source.indexOf('</article>', cellStart);
     const cell = source.slice(cellStart, cellEnd);
@@ -742,7 +742,7 @@ describe('PublicCalendarComponent day-cell events', () => {
   const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
 
   it('day cells render their events', () => {
-    const cellStart = source.indexOf('data-cy="calendar-month-day"');
+    const cellStart = source.indexOf('class="public-month-day"');
     expect(cellStart).toBeGreaterThan(-1);
     const cellEnd = source.indexOf('</article>', cellStart);
     const cell = source.slice(cellStart, cellEnd);
@@ -767,5 +767,49 @@ describe('PublicCalendarComponent day-cell events', () => {
 
     expect(listBlock).toContain('data-cy="calendar-list"');
     expect(listBlock).toContain('data-cy="calendar-pagination"');
+  });
+});
+
+describe('PublicCalendarComponent past day cells', () => {
+  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  // There is no TestBed in this suite, so "the cell carries the past marker" is asserted the way
+  // every other template claim here is: the component answers `isPast` per day, and the template
+  // is read to prove that answer is what feeds the class and the data-cy value.
+  it('past day cells carry the past marker, and today does not', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 7, 12, 9, 0, 0));
+      const { component } = setup({ params: { month: '2026-08' } });
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      const past = component.monthDays().filter(day => component.isPast(day.date));
+
+      expect(past.length).toBeGreaterThan(0);
+      expect(past.map(day => day.date)).not.toContain('2026-08-12');
+      expect(past.every(day => day.date < '2026-08-12')).toBe(true);
+      expect(component.isPast('2026-08-11')).toBe(true);
+      expect(component.isPast('2026-08-12')).toBe(false);
+      expect(component.isPast('2026-08-13')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('the day cell binds the past class and the past marker', () => {
+    const cellStart = source.indexOf('class="public-month-day"');
+    expect(cellStart).toBeGreaterThan(-1);
+    const cell = source.slice(cellStart, source.indexOf('>', cellStart));
+
+    expect(cell).toContain('[class.public-month-day--past]="isPast(day.date)"');
+    expect(cell).toContain(`[attr.data-cy]="isPast(day.date) ? 'calendar-month-day-past' : 'calendar-month-day'"`);
+  });
+
+  it('the past cell is dimmed with a muted day number', () => {
+    expect(stylesheet).toContain('.public-month-day--past { opacity: .5; }');
+    expect(stylesheet).toContain('.public-month-day--past > time { color: var(--steel); font-weight: 700; }');
   });
 });

@@ -1138,6 +1138,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .public-month-day { min-height: 8.5rem; display: grid; align-content: start; gap: .35rem; padding: .55rem; border-top: 1px solid var(--soot); border-left: 1px solid var(--soot); background: var(--iron); overflow: hidden; }
 .public-month-day > time { font-weight: 900; }
 .public-month-day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
+.public-month-day--past { opacity: .5; }
+.public-month-day--past > time { color: var(--steel); font-weight: 700; }
 .public-month-event { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem; align-items: baseline; padding: .18rem .3rem; border-left: 3px solid var(--hot-blood); background: color-mix(in oklch, var(--blood) 18%, transparent); color: var(--ash); font-size: .78rem; line-height: 1.25; text-decoration: none; }
 .public-month-event:hover, .public-month-event:focus-visible { background: color-mix(in oklch, var(--blood) 32%, transparent); outline: 2px solid var(--hot-blood); outline-offset: 1px; }
 .public-month-event__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -38,7 +38,7 @@ describe('public Calendar V1', () => {
     cy.wait('@allTournaments');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="calendar-view"]').should('have.attr', 'aria-pressed', 'true');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy="calendar-month-day"]').within(() => {
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="calendar-month-day"]').within(() => {
       cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]')
         .should('contain.text', '23:30')
         .and('contain.text', 'Lyon Legacy')
@@ -105,7 +105,7 @@ describe('public Calendar V1', () => {
 
     visit('/calendar?month=2026-08&view=calendar');
     cy.wait('@sameDay');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy="calendar-month-day"]').within(() => {
+    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="calendar-month-day"]').within(() => {
       cy.get('a.public-month-event').should('have.length', 3);
       cy.get('[data-cy="calendar-month-day-more"]').should('contain.text', '+1');
     });
