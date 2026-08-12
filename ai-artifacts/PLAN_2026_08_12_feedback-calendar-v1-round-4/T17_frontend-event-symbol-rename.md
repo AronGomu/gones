@@ -180,3 +180,10 @@
 - **Spec wiring moved with the specs**: `scripts/full-stack-ci.mjs`, `ops/acceptance-matrix.json`
   targets, `src/app/backend/server-authority-boundary.test.ts`'s server-read allowlist and two
   cross-reference comments.
+
+## Publish evidence
+
+- [x] committed as `a702221` — `refactor(calendar): rename frontend calendar symbols to Event`
+- [x] pushed: `507b9b2..a702221  HEAD -> feat/feedback-calendar-v1-round-4`
+- [x] `ai-artifacts/manual_test_checklist.md` gained a `## T17 frontend-event-symbol-rename`
+      section with ten human-only steps; no other ticket's section was touched.
