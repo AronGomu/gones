@@ -52,13 +52,14 @@
 
 ## Impl steps
 
-- [ ] 1. Confirm the physical table and column names from the model snapshot.
-- [ ] 2. Create `backend/tests/Gones.IntegrationTests/OrganizationMembershipHealTests.cs` with the seven assertions; run `dotnet test --filter OrganizationMembershipHeal` — red.
-- [ ] 3. Generate the empty migration with `dotnet ef migrations add HealOrganizationMembershipInvariants …`.
-- [ ] 4. Replace the scaffolded body with the four SQL statements and a summary comment explaining the one-shot rule and why `Down` is empty.
-- [ ] 5. Run `dotnet test backend/tests/Gones.IntegrationTests` — green.
-- [ ] 6. Run `node scripts/smoke-migration.mjs` against the local stack.
-- [ ] 7. Add the operations note to `docs/OPERATIONS.md`.
+- [x] 1. Confirm the physical table and column names from the model snapshot. *(criterion: every column named in the SQL appears in `GonesDbContextModelSnapshot.cs` with that exact `HasColumnName`)*
+- [x] 2. Create `backend/tests/Gones.IntegrationTests/OrganizationMembershipHealTests.cs` with the seven assertions; run `dotnet test --filter OrganizationMembershipHeal` — red. *(criterion: test run fails before the migration exists)*
+- [x] 3. Generate the empty migration with `dotnet ef migrations add HealOrganizationMembershipInvariants …`. *(criterion: migration + designer file exist under `Persistence/Migrations/`, model snapshot unchanged)*
+- [x] 4. Replace the scaffolded body with the four SQL statements and a summary comment explaining the one-shot rule and why `Down` is empty. *(criterion: `Up` contains the four statements in order, `Down` is comment-only)*
+- [x] 5. Run `dotnet test backend/tests/Gones.IntegrationTests` — green. *(targeted classes green; full sweep blocked by the host Testcontainers port defect, see the Validation block)* *(criterion: `--filter OrganizationMembershipHeal` all pass; host Testcontainers port defect noted for the full class sweep)*
+- [x] 6. Run `node scripts/smoke-migration.mjs` against the local stack. *(criterion: exit 0)*
+- [x] 7. Add the operations note to `docs/OPERATIONS.md`. *(criterion: "Membership heal migration" heading exists and states one-shot + restore path)*
+- [x] 8. Register the new migration in the `expectedMigrations` allowlist of `scripts/smoke-full-stack.mjs` (required by `docs/OPERATIONS.md` §8.5, else `npm run e2e:ci` fails). *(criterion: the migration id is present in the list)*
 
 ## Outputs
 
@@ -67,8 +68,16 @@
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln` passes
-- [ ] `node scripts/smoke-migration.mjs` passes
-- [ ] manual check: seed a member-less org locally, run `npm run dev`, confirm it is soft-deleted and listed under "include deleted" on `/admin/organizations`
-- [ ] app functional — restoring a healed organization works
-- [ ] commit msg draft: `fix(orgs): heal legacy membership violations once at deploy`
+- [x] `dotnet build backend/Gones.sln` passes — `Build succeeded. 0 Warning(s) 0 Error(s)`
+- [x] targeted `dotnet test backend/tests/Gones.IntegrationTests --filter OrganizationMembershipHeal` passes — `Passed! - Failed: 0, Passed: 8, Skipped: 0, Total: 8, Duration: 36 s` (red before the migration: `Failed: 3, Passed: 5`)
+- [x] targeted `dotnet test backend/tests/Gones.IntegrationTests --filter PersistenceKernelTests` passes (migrate-to-0 exercises the no-op `Down`) — `Passed! - Failed: 0, Passed: 9, Total: 9`
+- [ ] `dotnet test backend/Gones.sln` passes — **left unchecked: host defect.** Run result: UnitTests `Failed: 0, Passed: 198`, ArchitectureTests `Failed: 0, Passed: 17`, IntegrationTests `Failed: 3, Passed: 386, Total: 389`. All three failures are the Testcontainers port defect, zero assertion failures: `TournamentProposalTests.Global_admins_are_always_offered`, `LocalIdentityApiTests.Email_change_confirmation_rechecks_normalized_uniqueness_before_commit`, `LocalIdentityApiTests.Registration_atomically_creates_24_hour_verification_and_outbox` — each `Docker.DotNet.DockerApiException : … error while calling RootlessKit PortManager.AddPort(): listen tcp4 0.0.0.0:356x0: bind: address already in use`. Clean-tree control on this host: 6 failed / 366 passed.
+- [x] `node scripts/smoke-migration.mjs` passes — `C38 migration smoke passed over 2 browser origins: … rerun idempotent, changed bundle rejected.` exit 0
+- [x] live proof on the seeded dev database: legacy violations constructed, before rows shown, migration applied, after rows shown — 2 orgs archived (`T12 Heal Empty Club` + the pre-existing member-less `T11 Repair Lone Club 1786545150456`), 1 Organizer demoted with a rotated stamp, both Admins and the membership-holding Organizer untouched, the `User` holding a membership deliberately not promoted; 2 `organization.healed.archived` + 1 `organization.healed.demoted` audit rows with NULL actor
+- [x] idempotency proof: the heal SQL re-executed against the healed database changes zero rows and writes zero audit rows — `INSERT 0 0 / UPDATE 0 / INSERT 0 0 / UPDATE 0`; and `docker compose run --rm migrator database update` a second time exits 0 with the audit counts unchanged (2/1) and one history row
+- [x] `npm run test` passes — `Test Files 109 passed (109) / Tests 1000 passed (1000)`
+- [x] `npm run lint` passes — `All files pass linting.`
+- [x] `npm run typecheck` passes — exit 0
+- [x] manual check: seed a member-less org locally, run `npm run dev`, confirm it is soft-deleted and listed under "include deleted" on `/admin/organizations` — checked against the running dev stack (the parent owns the `npm run dev` server, so the assertion was made through the API the page calls): `GET /api/admin/organizations?includeDeleted=true` returns `T12 Heal Empty Club` with `deletedAt: 2026-08-12T15:49:31.38901Z`, `memberCount: 0`, `isDraft: true`
+- [x] app functional — restoring a healed organization works — `POST /api/admin/organizations/12000000-…0000a1/restore -> 204`, `deleted_at` back to NULL
+- [x] commit msg draft: `fix(orgs): heal legacy membership violations once at deploy` — committed as `0321700`, pushed to `feat/feedback-calendar-v1-round-4`

@@ -1309,3 +1309,34 @@ confirmation dialog opens after the server confirms the registration.
       terminals, one `POST /api/admin/users/<id>/disable`, one
       `DELETE /api/organizations/<org>/members/<id>`): both answers are ordinary ones — a success or a
       409/404 problem document. Neither is a 500 and the API log records no `deadlock detected`.
+
+## T12 membership-heal-migration
+
+- [ ] Before running the migration job on a real database, take the backup from `docs/OPERATIONS.md`
+      §7 and note where it is. The heal cannot be undone by a down-migration; that backup is the only
+      way back from a wrong run.
+- [ ] Before the job, list what it is about to change and keep the list:
+      `select id, name from organizations o where o.deleted_at is null and o.id not in (select organization_id from organization_members);`
+      and
+      `select id, email from asp_net_users where global_role = 'Organizer' and id not in (select user_id from organization_members);`
+      Nothing outside those two lists may move.
+- [ ] Run the migration job. Afterwards, compare
+      `select action, count(*) from audit_records where action like 'organization.healed.%' group by action;`
+      against the two lists: one `organization.healed.archived` row per organization, one
+      `organization.healed.demoted` row per account, no more and no fewer.
+- [ ] Re-run the migration job. It exits 0, the audit counts above are unchanged and nothing else
+      moved: the heal runs once, not on every deploy.
+- [ ] As an administrator, open `/admin/organizations` with "include deleted" on: every archived
+      organization from the list is there, shown as a Draft with 0 members. Restore one of them — it
+      comes back live and can be worked on again.
+- [ ] Check the archived list for organizations that still had published events, and restore those:
+      archiving hides an organization, and a legacy organization with no members but live events is
+      the one case an operator has to look at by hand.
+- [ ] Sign in as one of the demoted accounts: it is a plain user, its old session no longer works,
+      and the organizer entry points are gone. Add it to any organization and it is an organizer
+      again on the next sign-in — the heal only removed a role that no membership backed.
+- [ ] Confirm no administrator was touched: every account that was an `Admin` before the job still
+      reaches the admin screens, whether or not it belongs to an organization.
+- [ ] Confirm nothing was invented: no account gained a role and no organization gained a member.
+      An account that holds a membership but is still a plain user stays a plain user until the next
+      membership change is made through the app.
