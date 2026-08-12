@@ -114,6 +114,6 @@
 - [x] out-of-scope names untouched — `tournament_formats` still 4 rows under its own name; `league_archive_aggregates` and `live_aggregates` unchanged; `notification_outbox.tournament_id` and `ix_notification_outbox_tournament_id` deliberately untouched; `/api/tournaments` still answers `HTTP 200`
 - [x] export/import bundle wire shape unchanged — `MigrationPlan.ScheduledTournaments`, `MigrationReport.PlannedCounts.ScheduledTournaments`, `ScheduledTournamentsVerified` and the `scheduledTournamentsCreated` / `plannedScheduledTournaments` JSON keys all kept; `MigrationImportServiceTests` 7/7 and the migration smoke pass
 - [x] app functional — `GET /api/tournaments?pageSize=50` returns `HTTP 200` with 8 published events read out of the renamed `events` table; `/health/ready` `HTTP 200`; the untouched dev frontend on :4200 serves `HTTP 200`
-- [ ] `## T15 backend-event-entity-rename` section appended to `ai-artifacts/manual_test_checklist.md`
-- [ ] commit msg draft: `refactor(calendar): rename the scheduled tournament entity to Event`
-- [ ] `git push origin HEAD`
+- [x] `## T15 backend-event-entity-rename` section appended to `ai-artifacts/manual_test_checklist.md` — 14 human-only steps including the operator's pre/post row-count check; no other ticket's section touched
+- [x] commit msg draft: `refactor(calendar): rename the scheduled tournament entity to Event` — committed as `c763f8d`
+- [x] `git push origin HEAD` — `ce06927..c763f8d  HEAD -> feat/feedback-calendar-v1-round-4`
