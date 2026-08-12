@@ -23,7 +23,7 @@ function mockSession() {
   cy.intercept('GET', '**/api/users/me', profile);
 }
 
-function visit(path = `/organizer/tournaments/${eventId}/participants`, language = 'en') {
+function visit(path = `/organizer/events/${eventId}/participants`, language = 'en') {
   cy.visit(path, { onBeforeLoad(win) {
     win.localStorage.setItem('gones.settings.language', language);
     win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
@@ -140,7 +140,7 @@ describe('Organizer participant management', () => {
   it('denies cross-org URLs, retries errors, supports keyboard dialog focus, French, mobile cards', () => {
     cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 });
     cy.intercept('GET', `**/api/events/${otherEventId}/registrations?*`, { statusCode: 404, headers: { 'content-type': 'application/problem+json' }, body: { code: 'not_found' } }).as('denied');
-    visit(`/organizer/tournaments/${otherEventId}/participants`);
+    visit(`/organizer/events/${otherEventId}/participants`);
     cy.get('[data-cy="participant-error"]').should('be.visible').and('not.contain.text', 'alice@example.test');
 
     cy.viewport(375, 812);

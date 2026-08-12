@@ -76,11 +76,11 @@ function mockAdminOrganizations() {
   }).as('adminOrganizations');
 }
 
-function visit(path = '/tournaments/new') {
+function visit(path = '/events/new', language = 'en') {
   cy.visit(path, {
     onBeforeLoad(win) {
-      win.localStorage.setItem('gones.settings.language', 'en');
-      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+      win.localStorage.setItem('gones.settings.language', language);
+      win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
     }
   });
 }
@@ -119,7 +119,7 @@ describe('Organizer Event create, preview, publish', () => {
     mockReferences();
     mockPublicOrganizations();
     visit();
-    cy.location('pathname').should('eq', '/tournaments/new');
+    cy.location('pathname').should('eq', '/events/new');
     cy.wait(['@publicOrganizations', '@formats']);
     cy.get('[data-cy="event-preview-submit"]').should('not.exist');
     cy.get('[data-cy="event-approval-notice"]').should('be.visible');
@@ -161,7 +161,7 @@ describe('Organizer Event create, preview, publish', () => {
     mockReferences();
     cy.viewport(375, 812);
     visit('/organizer/tournaments/new');
-    cy.location('pathname').should('eq', '/tournaments/new');
+    cy.location('pathname').should('eq', '/events/new');
     cy.wait(['@myOrganizations', '@formats']);
     cy.get('[data-cy="event-title"]').should('have.focus');
     cy.get('[data-cy="event-organization"] option').should('have.length', 1).and('contain.text', 'Owned Club');
@@ -262,7 +262,7 @@ describe('Organizer Event create, preview, publish', () => {
       expect(keys[0]).to.be.a('string').and.not.be.empty;
       expect(keys[1]).to.eq(keys[0]);
     });
-    cy.location('pathname').should('eq', `/calendar/tournaments/${render.slug}`);
+    cy.location('pathname').should('eq', `/events/${render.slug}`);
     cy.wait('@detail');
   });
 
@@ -290,5 +290,24 @@ describe('Organizer Event create, preview, publish', () => {
     cy.get('[data-cy="event-review-calendar"]').should('have.attr', 'href', '/calendar');
     cy.get('[data-cy="event-back-edit"]').click();
     cy.get('[data-cy="event-title"]').should('have.value', 'Lyon Legacy Open');
+  });
+
+  // Feedback item 5: the create page used to breadcrumb "Not Found" because no branch matched it.
+  it('serves /events/new with a Create Event breadcrumb in both languages and redirects the retired create path', () => {
+    mockSession();
+    mockReferences();
+    visit();
+    cy.location('pathname').should('eq', '/events/new');
+    cy.wait(['@myOrganizations', '@formats']);
+    cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Create Event');
+    cy.get('[data-cy="app-breadcrumb-link-1"]').should('have.text', 'Calendar').and('have.attr', 'href', '/calendar');
+
+    visit('/events/new', 'fr');
+    cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Créer un événement');
+
+    visit('/tournaments/new');
+    cy.location('pathname').should('eq', '/events/new');
+    cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Create Event');
+    cy.get('[data-cy="event-title"]').should('be.visible');
   });
 });

@@ -42,14 +42,14 @@ describe('Organizer Event management', () => {
       expect(req.headers['idempotency-key']).to.be.a('string').and.not.be.empty;
       req.reply({ delay: 250, body: { id: eventId, status: 'Cancelled', isDeleted: false, version: 4, eTag: '"4"' } });
     }).as('cancel');
-    visit('/organizer/tournaments');
+    visit('/organizer/events');
     cy.wait('@list');
     cy.get(`[data-cy="event-row-${eventId}"]`).within(() => {
       cy.get('[data-cy="event-edit"]').should('be.visible');
       cy.get('[data-cy="event-cancel"]').click();
     });
     cy.get('mat-dialog-container').should('contain.text', 'participant').invoke('text').should('match', /reminder|rappel/i);
-    cy.get('mat-dialog-container button').contains(/cancel tournament|annuler le tournoi/i).click();
+    cy.get('mat-dialog-container button').contains(/cancel event|annuler l’événement/i).click();
     cy.get(`[data-cy="event-row-${eventId}"] [data-cy="event-cancel"]`).should('be.disabled');
     cy.wait('@cancel');
     cy.get('[data-cy="event-management-status"]').should('be.visible');
@@ -74,7 +74,7 @@ describe('Organizer Event management', () => {
       req.reply({ statusCode: 412, headers: { 'content-type': 'application/problem+json' }, body: { code: 'stale_etag', title: 'Precondition Failed' } });
     }).as('stale');
 
-    visit(`/organizer/tournaments/${eventId}/edit`);
+    visit(`/organizer/events/${eventId}/edit`);
     cy.wait(['@management', '@formats']);
     cy.get('[data-cy="event-title"]').should('have.value', event.title);
     cy.get('[data-cy="event-street"]').clear().type('2 New Street');
@@ -96,7 +96,7 @@ describe('Organizer Event management', () => {
     cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 20, totalCount: 1 }).as('list');
     cy.intercept('DELETE', `**/api/events/${eventId}`, { statusCode: 409, headers: { 'content-type': 'application/problem+json' }, body: { code: 'lifecycle_conflict', title: 'Conflict' } }).as('deleteRejected');
     cy.viewport(375, 812);
-    visit('/organizer/tournaments', 'fr');
+    visit('/organizer/events', 'fr');
     cy.wait('@list');
     cy.get('[data-cy="event-delete"]').click();
     cy.get('mat-dialog-container').invoke('text').should('match', /participant/i).and('match', /rappel/i);
@@ -112,10 +112,33 @@ describe('Organizer Event management', () => {
       expect(req.headers['if-match']).to.eq('"6"');
       req.reply({ id: eventId, status: 'Published', isDeleted: false, version: 7, eTag: '"7"' });
     }).as('restore');
-    visit('/admin/tournaments/deleted');
+    visit('/admin/events/deleted');
     cy.wait('@deleted');
     cy.get('[data-cy="event-restore"]').click();
     cy.wait('@restore');
     cy.get('[data-cy="deleted-events-status"]').should('be.visible');
+  });
+
+  it('redirects the retired organizer and admin paths onto the canonical Event paths', () => {
+    mockSession();
+    mockFormats();
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 20, totalCount: 1 }).as('list');
+    visit('/organizer/tournaments');
+    cy.location('pathname').should('eq', '/organizer/events');
+    cy.wait('@list');
+    cy.get(`[data-cy="event-row-${eventId}"]`).should('be.visible');
+    cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'My Events');
+
+    visit(`/organizer/tournaments/${eventId}/edit`);
+    cy.location('pathname').should('eq', `/organizer/events/${eventId}/edit`);
+    cy.wait(['@list', '@formats']);
+    cy.get('[data-cy="event-title"]').should('have.value', event.title);
+
+    mockSession('Admin');
+    cy.intercept('GET', '**/api/admin/events/deleted?*', { items: [], page: 1, pageSize: 20, totalCount: 0 }).as('deletedEmpty');
+    visit('/admin/tournaments/deleted');
+    cy.location('pathname').should('eq', '/admin/events/deleted');
+    cy.wait('@deletedEmpty');
+    cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Deleted Events');
   });
 });

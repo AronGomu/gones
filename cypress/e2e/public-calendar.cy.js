@@ -60,7 +60,7 @@ describe('public Calendar V1', () => {
       cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]')
         .should('contain.text', '23:30')
         .and('contain.text', 'Lyon Legacy')
-        .and('have.attr', 'href', '/calendar/tournaments/lyon-legacy');
+        .and('have.attr', 'href', '/events/lyon-legacy');
     });
     cy.get('[data-cy="calendar-search"]').clear().type('does-not-match');
     cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('not.exist');
@@ -191,8 +191,10 @@ describe('public Calendar V1', () => {
       ...event,
       bodyHtml: '<p>Register at <a href="https://tickets.example.test">tickets</a>.</p>'
     }).as('detail');
-    visit('/events/lyon-legacy');
-    cy.location('pathname').should('eq', '/calendar/tournaments/lyon-legacy');
+    // Cold deep link on a retired bookmark: the address bar has to end up canonical, and the page
+    // behind it has to be the real detail render rather than the redirect placeholder.
+    visit('/calendar/tournaments/lyon-legacy');
+    cy.location('pathname').should('eq', '/events/lyon-legacy');
     cy.wait('@detail');
     cy.get('[data-cy="public-event-detail"]').should('contain.text', 'Europe/Paris').and('contain.text', 'Cancelled');
     cy.get('gones-server-sanitized-html a').should('have.attr', 'target', '_blank').and('have.attr', 'rel', 'noopener noreferrer');
@@ -254,7 +256,7 @@ describe('public Calendar V1', () => {
     cy.location('pathname').should('eq', '/calendar');
 
     cy.get('[data-cy="calendar-card-venue"]').click();
-    cy.location('pathname').should('eq', '/calendar/tournaments/lyon-legacy');
+    cy.location('pathname').should('eq', '/events/lyon-legacy');
     cy.wait('@detail');
     cy.get('[data-cy="public-event-detail"]').should('be.visible');
   });

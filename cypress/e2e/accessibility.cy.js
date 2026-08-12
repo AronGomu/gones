@@ -94,7 +94,7 @@ describe('accessibility', () => {
   });
 
   it('public event detail has no WCAG A/AA violations', () => {
-    visit('/calendar/tournaments/lyon-legacy');
+    visit('/events/lyon-legacy');
     cy.wait('@event');
     cy.contains('Lyon Legacy').should('be.visible');
     checkA11y('event detail');
@@ -160,7 +160,7 @@ describe('accessibility', () => {
   });
 
   it('has no horizontal overflow at 375px on the public surfaces', () => {
-    for (const path of ['/', '/calendar', '/calendar/tournaments/lyon-legacy', '/settings']) {
+    for (const path of ['/', '/calendar', '/events/lyon-legacy', '/settings']) {
       visit(path, [375, 812]);
       cy.get('gones-root').should('exist');
       cy.document().then((document) => {

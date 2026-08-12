@@ -35,20 +35,23 @@ export async function buildBreadcrumbs(
   if (!segments.length) return [{ label: menu }];
   if (segments[0] === 'about') return [{ label: menu, link: ['/'] }, { label: t('crumb.about'), lang: 'fr' }];
   if (segments[0] === 'calendar') {
+    // Legacy `/calendar/tournaments/:slug` links redirect to `/events/:slug`; this crumb is only
+    // ever seen for the instant before the redirect resolves.
     if (segments[1] === 'tournaments' && segments[2]) return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar'), link: ['/calendar'] }, { label: t('crumb.tournament') }];
     return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar') }];
   }
-  // Legacy `/events/:slug` links redirect into the Calendar V1 detail; this breadcrumb is only
-  // ever seen for the instant before the redirect resolves.
   if (segments[0] === 'events') {
-    return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar'), link: ['/calendar'] }, { label: t('crumb.event') }];
+    const label = segments[1] === 'new' ? t('crumb.createEvent') : t('crumb.event');
+    return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar'), link: ['/calendar'] }, { label }];
   }
   if (segments[0] === 'settings') {
     if (segments[1] === 'account') return [{ label: menu, link: ['/'] }, { label: t('crumb.settings'), link: ['/settings'] }, { label: t('crumb.account') }];
     return [{ label: menu, link: ['/'] }, { label: t('crumb.settings') }];
   }
   if (segments[0] === 'registrations') return [{ label: menu, link: ['/'] }, { label: t('registration.myRegistrations') }];
-  if (segments[0] === 'tournament-requests') return [{ label: menu, link: ['/'] }, { label: t('crumb.tournamentRequest') }];
+  if (segments[0] === 'event-requests') return [{ label: menu, link: ['/'] }, { label: t('crumb.eventRequest') }];
+  if (segments[0] === 'organizer' && segments[1] === 'events') return [{ label: menu, link: ['/'] }, { label: t('crumb.organizerEvents') }];
+  if (segments[0] === 'admin' && segments[1] === 'events' && segments[2] === 'deleted') return [{ label: menu, link: ['/'] }, { label: t('crumb.deletedEvents') }];
   if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: t('auth.account') }];
   if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: t('crumb.player') }];
   if (segments[0] === 'live-tournaments') {

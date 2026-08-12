@@ -53,7 +53,7 @@ describe('abuse surface', () => {
   it('never executes or renders hostile HTML delivered by the API', () => {
     cy.intercept('GET', '**/api/events/lyon-legacy', event).as('event');
     cy.intercept('GET', '**/api/events/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
-    visit('/calendar/tournaments/lyon-legacy');
+    visit('/events/lyon-legacy');
     cy.wait('@event');
 
     cy.contains('Lyon Legacy').should('be.visible');
@@ -72,7 +72,7 @@ describe('abuse surface', () => {
   it('marks the external organization link noopener noreferrer', () => {
     cy.intercept('GET', '**/api/events/lyon-legacy', event).as('event');
     cy.intercept('GET', '**/api/events/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
-    visit('/calendar/tournaments/lyon-legacy');
+    visit('/events/lyon-legacy');
     cy.wait('@event');
 
     cy.get('a[target="_blank"]').each(($link) => {

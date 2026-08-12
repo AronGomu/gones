@@ -66,9 +66,9 @@ describe('server data authority', () => {
     });
   });
 
-  it('redirects the legacy Event detail path into the server Calendar', () => {
-    cy.visit('/events/ghost-event', { failOnStatusCode: false });
-    cy.location('pathname').should('eq', '/calendar/tournaments/ghost-event');
+  it('redirects the legacy Tournament detail path to the canonical Event page', () => {
+    cy.visit('/calendar/tournaments/ghost-event', { failOnStatusCode: false });
+    cy.location('pathname').should('eq', '/events/ghost-event');
   });
 
   it('hides every browser-authority Settings section', () => {

@@ -1529,3 +1529,37 @@ actually reads on screen, and the one flow that needs a real signed-in account.
       renders from cache and the offline banner appears.
 - [ ] Open DevTools → Network on `/calendar` and on an event detail page. Every calendar request goes
       to `/api/events/*`; there is no request to `/api/tournaments/*` and no 404 in the log.
+
+## T18 event-routes-and-breadcrumbs
+
+Run these against the dev app on http://127.0.0.1:4200 with the Compose API on
+http://127.0.0.1:5080. They cover what no automated gate sees: the address bar after a real
+browser redirect, the breadcrumb text a person reads, and a bookmark that predates the rename.
+
+- [ ] Bookmark check: paste an old detail URL such as `/calendar/tournaments/lyon-legacy` straight
+      into a fresh tab (cold load, no in-app navigation). The page that opens is the event detail,
+      and the address bar reads `/events/lyon-legacy` — not the old path.
+- [ ] Press the browser Back button right after that redirect. You land outside the app (new tab) or
+      on the previous page, never in a redirect loop bouncing between the two URLs.
+- [ ] Open `/tournaments/new` and then `/organizer/tournaments/new` while signed in and verified.
+      Both land on `/events/new`, the create form renders, and the last breadcrumb reads
+      "Create Event" — not "Not Found".
+- [ ] Switch the language to French and reload `/events/new`. The last breadcrumb reads
+      "Créer un événement" and every other label is French too.
+- [ ] Sign in as `organizer@gones.test` and open the old `/organizer/tournaments` bookmark. It lands
+      on `/organizer/events`, the breadcrumb reads "My Events" / "Mes événements", and the row
+      actions (Edit, Participants, Public view) all open the `/organizer/events/...` and `/events/...`
+      paths.
+- [ ] From that list, open Participants. The heading reads `Participants — <event title>` and the
+      remove/block dialogs name the event and the organization — no literal `{tournament}` or
+      `{event}` placeholder anywhere.
+- [ ] Sign in as `admin@gones.test` and open `/admin/tournaments/deleted`. It lands on
+      `/admin/events/deleted` with the breadcrumb "Deleted Events" / "Événements supprimés".
+- [ ] Walk the calendar screens in both languages looking for raw message keys: `/calendar`, an event
+      detail page, `/events/new`, `/organizer/events`, `/registrations`. Nothing shows text like
+      `eventManage.title` or an untranslated English string in the French UI.
+- [ ] Open the approval mail link for a pending proposal (or `/tournament-requests/<token>` with a
+      real token). It lands on `/event-requests/<token>` with the token intact and the review panel
+      renders.
+- [ ] Publish an event through `/events/new`. After publishing, the browser ends up on
+      `/events/<slug>` and that page shows the event you just created.

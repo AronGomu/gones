@@ -37,11 +37,11 @@ const MaximumPublicOrganizationPages = 20;
   template: `
     <section class="organizer-tournament-create stack" [attr.data-cy]="editMode ? 'organizer-event-edit' : 'organizer-event-create'" aria-labelledby="organizer-event-title">
       <header class="page-heading" data-cy="event-create-header">
-        <div data-cy="event-create-heading-group"><h1 id="organizer-event-title" data-cy="event-create-title">{{ editMode ? i18n.t('tournamentManage.editTitle') : editing() ? i18n.t('tournamentCreate.title') : i18n.t('tournamentCreate.previewTitle') }}</h1></div>
-        @if (editMode) { <a mat-stroked-button routerLink="/organizer/tournaments" data-cy="event-create-back-to-list">{{ i18n.t('tournamentManage.backToList') }}</a> }
+        <div data-cy="event-create-heading-group"><h1 id="organizer-event-title" data-cy="event-create-title">{{ editMode ? i18n.t('eventManage.editTitle') : editing() ? i18n.t('eventCreate.title') : i18n.t('eventCreate.previewTitle') }}</h1></div>
+        @if (editMode) { <a mat-stroked-button routerLink="/organizer/events" data-cy="event-create-back-to-list">{{ i18n.t('eventManage.backToList') }}</a> }
       </header>
 
-      @if (loadingReferences()) { <p role="status" data-cy="event-loading-references">{{ i18n.t('tournamentCreate.loadingReferences') }}</p> }
+      @if (loadingReferences()) { <p role="status" data-cy="event-loading-references">{{ i18n.t('eventCreate.loadingReferences') }}</p> }
       @if (referenceError()) {
         <div class="error stack" role="alert" data-cy="event-reference-error"><span data-cy="event-reference-error-message">{{ referenceError() }}</span><button mat-stroked-button type="button" data-cy="event-reference-retry" (click)="loadReferences()">{{ i18n.t('common.retry') }}</button></div>
       }
@@ -54,39 +54,39 @@ const MaximumPublicOrganizationPages = 20;
         </section>
       } @else if (editing()) {
         <form class="panel tournament-create-form" data-cy="event-create-form" [formGroup]="form" (ngSubmit)="editMode ? saveEdit() : requestPreview()" novalidate [attr.aria-busy]="formPending()">
-          <p class="muted tournament-create-help" data-cy="event-create-zone-note">{{ i18n.t('tournamentCreate.zoneHelp') }}</p>
+          <p class="muted tournament-create-help" data-cy="event-create-zone-note">{{ i18n.t('eventCreate.zoneHelp') }}</p>
           <fieldset class="tournament-form-lock" data-cy="event-fieldset" [disabled]="formPending()">
           <div class="tournament-create-grid" data-cy="event-create-grid">
             <div class="tournament-create-field tournament-create-wide" data-cy="event-field-title">
-              <label for="event-title-input" data-cy="event-label-title">{{ i18n.t('tournamentCreate.name') }}</label>
+              <label for="event-title-input" data-cy="event-label-title">{{ i18n.t('eventCreate.name') }}</label>
               <input #titleInput id="event-title-input" data-cy="event-title" formControlName="title" autocomplete="off" [attr.aria-invalid]="fieldError('title') ? 'true' : null" [attr.aria-describedby]="fieldError('title') ? 'event-title-error' : null" />
               @if (fieldError('title'); as message) { <p id="event-title-error" class="field-error" data-cy="event-title-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-organization">
-              <label for="event-organization" data-cy="event-label-organization">{{ i18n.t('tournamentCreate.organization') }}</label>
+              <label for="event-organization" data-cy="event-label-organization">{{ i18n.t('eventCreate.organization') }}</label>
               <select id="event-organization" data-cy="event-organization" formControlName="organizationId" [attr.aria-invalid]="fieldError('organizationId') ? 'true' : null" [attr.aria-describedby]="fieldError('organizationId') ? 'event-organization-error' : null">
                 @for (organization of organizations(); track organization.id) { <option [value]="organization.id" [attr.data-cy]="'event-organization-option-' + organization.id">{{ organization.name }}</option> }
               </select>
               @if (fieldError('organizationId'); as message) { <p id="event-organization-error" class="field-error" data-cy="event-organization-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field tournament-create-double" data-cy="event-field-summary">
-              <label for="event-summary" data-cy="event-label-summary">{{ i18n.t('tournamentCreate.summary') }}</label>
+              <label for="event-summary" data-cy="event-label-summary">{{ i18n.t('eventCreate.summary') }}</label>
               <input id="event-summary" data-cy="event-summary" formControlName="summary" maxlength="50" [attr.aria-invalid]="fieldError('summary') ? 'true' : null" [attr.aria-describedby]="fieldError('summary') ? 'event-summary-error' : null" />
               @if (fieldError('summary'); as message) { <p id="event-summary-error" class="field-error" data-cy="event-summary-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field tournament-create-wide" data-cy="event-field-body">
-              <label for="event-body" data-cy="event-label-body">{{ i18n.t('tournamentCreate.body') }}</label>
+              <label for="event-body" data-cy="event-label-body">{{ i18n.t('eventCreate.body') }}</label>
               <textarea id="event-body" data-cy="event-body" formControlName="bodyHtml" rows="7" [attr.aria-invalid]="fieldError('bodyHtml') ? 'true' : null" [attr.aria-describedby]="fieldError('bodyHtml') ? 'event-body-error event-body-help' : 'event-body-help'"></textarea>
-              <p id="event-body-help" class="muted" data-cy="event-body-help">{{ i18n.t('tournamentCreate.bodyHelp') }}</p>
+              <p id="event-body-help" class="muted" data-cy="event-body-help">{{ i18n.t('eventCreate.bodyHelp') }}</p>
               @if (fieldError('bodyHtml'); as message) { <p id="event-body-error" class="field-error" data-cy="event-body-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field tournament-create-double" data-cy="event-field-street">
-              <label for="event-street" data-cy="event-label-street">{{ i18n.t('tournamentCreate.street') }}</label>
+              <label for="event-street" data-cy="event-label-street">{{ i18n.t('eventCreate.street') }}</label>
               <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="street-address" [attr.aria-invalid]="fieldError('streetAddress') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : null" />
               @if (fieldError('streetAddress'); as message) { <p id="event-street-error" class="field-error" data-cy="event-street-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-postal-code">
-              <label for="event-postal-code" data-cy="event-label-postal-code">{{ i18n.t('tournamentCreate.postalCode') }}</label>
+              <label for="event-postal-code" data-cy="event-label-postal-code">{{ i18n.t('eventCreate.postalCode') }}</label>
               <input id="event-postal-code" data-cy="event-postal-code" formControlName="postalCode" autocomplete="postal-code" />
             </div>
             <div class="tournament-create-field" data-cy="event-field-city">
@@ -95,24 +95,24 @@ const MaximumPublicOrganizationPages = 20;
               @if (fieldError('city'); as message) { <p id="event-city-error" class="field-error" data-cy="event-city-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-country">
-              <label for="event-country" data-cy="event-label-country">{{ i18n.t('tournamentCreate.country') }}</label>
+              <label for="event-country" data-cy="event-label-country">{{ i18n.t('eventCreate.country') }}</label>
               <input id="event-country" data-cy="event-country" formControlName="country" autocomplete="country-name" [attr.aria-invalid]="fieldError('country') ? 'true' : null" [attr.aria-describedby]="fieldError('country') ? 'event-country-error' : null" />
               @if (fieldError('country'); as message) { <p id="event-country-error" class="field-error" data-cy="event-country-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-start">
-              <label for="event-start" data-cy="event-label-start">{{ i18n.t('tournamentCreate.start') }}</label>
+              <label for="event-start" data-cy="event-label-start">{{ i18n.t('eventCreate.start') }}</label>
               <input id="event-start" data-cy="event-start" type="datetime-local" formControlName="startsAtLocal" [attr.aria-invalid]="fieldError('startsAtLocal') ? 'true' : null" [attr.aria-describedby]="fieldError('startsAtLocal') ? 'event-start-error' : null" />
               @if (fieldError('startsAtLocal'); as message) { <p id="event-start-error" class="field-error" data-cy="event-start-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-end">
-              <label for="event-end" data-cy="event-label-end">{{ i18n.t('tournamentCreate.end') }}</label>
+              <label for="event-end" data-cy="event-label-end">{{ i18n.t('eventCreate.end') }}</label>
               <input id="event-end" data-cy="event-end" type="datetime-local" formControlName="endsAtLocal" [attr.aria-invalid]="fieldError('endsAtLocal') ? 'true' : null" [attr.aria-describedby]="fieldError('endsAtLocal') ? 'event-end-error' : null" />
               @if (fieldError('endsAtLocal'); as message) { <p id="event-end-error" class="field-error" data-cy="event-end-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-zone">
-              <label for="event-zone" data-cy="event-label-zone">{{ i18n.t('tournamentCreate.zone') }}</label>
+              <label for="event-zone" data-cy="event-label-zone">{{ i18n.t('eventCreate.zone') }}</label>
               <input id="event-zone" data-cy="event-zone" formControlName="timeZoneId" autocomplete="off" [attr.aria-invalid]="fieldError('timeZoneId') ? 'true' : null" [attr.aria-describedby]="fieldError('timeZoneId') ? 'event-zone-error event-zone-help' : 'event-zone-help'" />
-              <p id="event-zone-help" class="muted" data-cy="event-zone-help">{{ i18n.t('tournamentCreate.zoneSuggestion') }}</p>
+              <p id="event-zone-help" class="muted" data-cy="event-zone-help">{{ i18n.t('eventCreate.zoneSuggestion') }}</p>
               @if (fieldError('timeZoneId'); as message) { <p id="event-zone-error" class="field-error" data-cy="event-zone-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-capacity">
@@ -121,61 +121,61 @@ const MaximumPublicOrganizationPages = 20;
               @if (fieldError('capacity'); as message) { <p id="event-capacity-error" class="field-error" data-cy="event-capacity-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field tournament-create-double" data-cy="event-field-formats">
-              <label for="event-formats" data-cy="event-label-formats">{{ i18n.t('tournamentCreate.formats') }}</label>
+              <label for="event-formats" data-cy="event-label-formats">{{ i18n.t('eventCreate.formats') }}</label>
               <select id="event-formats" data-cy="event-formats" formControlName="formatIds" multiple [attr.aria-invalid]="fieldError('formatIds') ? 'true' : null" [attr.aria-describedby]="fieldError('formatIds') ? 'event-formats-error event-formats-help' : 'event-formats-help'">
                 @for (format of formats(); track format.id) { <option [value]="format.id" [attr.data-cy]="'event-format-option-' + format.id">{{ format.name }}</option> }
               </select>
-              <p id="event-formats-help" class="muted" data-cy="event-formats-help">{{ i18n.t('tournamentCreate.formatsHelp') }}</p>
+              <p id="event-formats-help" class="muted" data-cy="event-formats-help">{{ i18n.t('eventCreate.formatsHelp') }}</p>
               @if (fieldError('formatIds'); as message) { <p id="event-formats-error" class="field-error" data-cy="event-formats-error">{{ message }}</p> }
             </div>
           </div>
           </fieldset>
           @if (staleEvent(); as latest) {
             <div class="warning stack" role="alert" data-cy="event-stale">
-              <strong data-cy="event-stale-title">{{ i18n.t('tournamentManage.staleTitle') }}</strong>
-              <p data-cy="event-stale-body">{{ i18n.t('tournamentManage.staleBody', { title: latest.title }) }}</p>
+              <strong data-cy="event-stale-title">{{ i18n.t('eventManage.staleTitle') }}</strong>
+              <p data-cy="event-stale-body">{{ i18n.t('eventManage.staleBody', { title: latest.title }) }}</p>
               @if (staleChanges().length) { <ul data-cy="event-stale-changes">@for (change of staleChanges(); track change) { <li [attr.data-cy]="'event-stale-change-' + $index">{{ change }}</li> }</ul> }
-              <p data-cy="event-stale-preserved">{{ i18n.t('tournamentManage.draftPreserved') }}</p>
-              <button mat-stroked-button type="button" data-cy="event-reload-latest" (click)="reloadLatest()">{{ i18n.t('tournamentManage.reloadLatest') }}</button>
+              <p data-cy="event-stale-preserved">{{ i18n.t('eventManage.draftPreserved') }}</p>
+              <button mat-stroked-button type="button" data-cy="event-reload-latest" (click)="reloadLatest()">{{ i18n.t('eventManage.reloadLatest') }}</button>
             </div>
           }
           @if (success()) { <p role="status" class="success" data-cy="event-edit-success">{{ success() }}</p> }
           @if (submitError(); as error) {
             <div class="error tournament-create-recovery" role="alert" data-cy="event-submit-error">
               <span data-cy="event-submit-error-message">{{ error.message }}</span>
-              @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="reload-organizations" (click)="loadReferences()">{{ i18n.t('tournamentCreate.reloadOrganizations') }}</button> }
-              @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/organizer/tournaments/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-submit-error-login">{{ i18n.t('tournamentCreate.signInAgain') }}</a> }
+              @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="reload-organizations" (click)="loadReferences()">{{ i18n.t('eventCreate.reloadOrganizations') }}</button> }
+              @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/events/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-submit-error-login">{{ i18n.t('eventCreate.signInAgain') }}</a> }
               @if (error.action === 'retry') { <button mat-stroked-button type="submit" data-cy="event-submit-error-retry">{{ i18n.t('common.retry') }}</button> }
             </div>
           }
           <div class="actions" data-cy="event-create-actions">
             @if (canPublishDirectly()) {
-              <button #saveButton mat-flat-button class="home-primary-action" type="submit" [attr.data-cy]="editMode ? 'event-save' : 'event-preview-submit'" [disabled]="formPending() || loadingReferences() || !organizations().length">{{ editMode ? (saving() ? i18n.t('tournamentManage.saving') : i18n.t('common.save')) : (previewing() ? i18n.t('tournamentCreate.previewing') : i18n.t('tournamentCreate.preview')) }}</button>
+              <button #saveButton mat-flat-button class="home-primary-action" type="submit" [attr.data-cy]="editMode ? 'event-save' : 'event-preview-submit'" [disabled]="formPending() || loadingReferences() || !organizations().length">{{ editMode ? (saving() ? i18n.t('eventManage.saving') : i18n.t('common.save')) : (previewing() ? i18n.t('eventCreate.previewing') : i18n.t('eventCreate.preview')) }}</button>
             } @else {
-              <p class="warning" role="status" data-cy="event-approval-notice">{{ i18n.t('tournamentCreate.approvalNotice') }}</p>
-              <button mat-flat-button class="home-primary-action" type="button" data-cy="event-submit-for-approval" [disabled]="proposalPending() || loadingReferences() || !organizationSelected()" (click)="submitForApproval()">{{ i18n.t('tournamentCreate.submitForApproval') }}</button>
+              <p class="warning" role="status" data-cy="event-approval-notice">{{ i18n.t('eventCreate.approvalNotice') }}</p>
+              <button mat-flat-button class="home-primary-action" type="button" data-cy="event-submit-for-approval" [disabled]="proposalPending() || loadingReferences() || !organizationSelected()" (click)="submitForApproval()">{{ i18n.t('eventCreate.submitForApproval') }}</button>
               @if (proposalError()) { <p class="error" role="alert" data-cy="event-proposal-error">{{ proposalError() }}</p> }
             }
           </div>
         </form>
         @if (editMode && currentRender(); as rendered) {
-          <section class="stack" aria-labelledby="current-event-title" data-cy="event-current-details"><h2 id="current-event-title" data-cy="event-current-details-title">{{ i18n.t('tournamentManage.currentPublicDetails') }}</h2><gones-event-detail-view [event]="rendered" data-cy="event-current-detail-view" /></section>
+          <section class="stack" aria-labelledby="current-event-title" data-cy="event-current-details"><h2 id="current-event-title" data-cy="event-current-details-title">{{ i18n.t('eventManage.currentPublicDetails') }}</h2><gones-event-detail-view [event]="rendered" data-cy="event-current-detail-view" /></section>
         }
       } @else if (preview(); as currentPreview) {
-        <p class="warning" role="status" data-cy="event-preview-notice">{{ i18n.t('tournamentCreate.previewNotice') }}</p>
+        <p class="warning" role="status" data-cy="event-preview-notice">{{ i18n.t('eventCreate.previewNotice') }}</p>
         <gones-event-detail-view [event]="currentPreview" data-cy="event-preview-detail-view" />
         @if (publishError(); as error) {
           <div class="error tournament-create-recovery" role="alert" data-cy="event-publish-error">
             <span data-cy="event-publish-error-message">{{ error.message }}</span>
-            @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/organizer/tournaments/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-publish-error-login">{{ i18n.t('tournamentCreate.signInAgain') }}</a> }
-            @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="event-publish-error-reload" (click)="reloadOrganizationAccess()">{{ i18n.t('tournamentCreate.reloadOrganizations') }}</button> }
-            @if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/calendar" data-cy="event-review-calendar">{{ i18n.t('tournamentCreate.reviewCalendar') }}</a> }
-            @if (error.action === 'refresh-preview') { <button mat-stroked-button type="button" data-cy="event-refresh-preview" (click)="refreshPreview()">{{ i18n.t('tournamentCreate.refreshPreview') }}</button> }
+            @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/events/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-publish-error-login">{{ i18n.t('eventCreate.signInAgain') }}</a> }
+            @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="event-publish-error-reload" (click)="reloadOrganizationAccess()">{{ i18n.t('eventCreate.reloadOrganizations') }}</button> }
+            @if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/calendar" data-cy="event-review-calendar">{{ i18n.t('eventCreate.reviewCalendar') }}</a> }
+            @if (error.action === 'refresh-preview') { <button mat-stroked-button type="button" data-cy="event-refresh-preview" (click)="refreshPreview()">{{ i18n.t('eventCreate.refreshPreview') }}</button> }
           </div>
         }
         <div class="actions tournament-preview-actions" data-cy="event-preview-actions">
-          <button mat-stroked-button type="button" data-cy="event-back-edit" [disabled]="publishing()" (click)="backToEdit()">{{ i18n.t('tournamentCreate.backEdit') }}</button>
-          <button mat-flat-button class="home-primary-action" type="button" data-cy="event-publish" [disabled]="publishing()" (click)="publish()">{{ publishing() ? i18n.t('tournamentCreate.publishing') : i18n.t('tournamentCreate.publish') }}</button>
+          <button mat-stroked-button type="button" data-cy="event-back-edit" [disabled]="publishing()" (click)="backToEdit()">{{ i18n.t('eventCreate.backEdit') }}</button>
+          <button mat-flat-button class="home-primary-action" type="button" data-cy="event-publish" [disabled]="publishing()" (click)="publish()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
         </div>
       }
     </section>
@@ -283,14 +283,14 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         if (!organizations.some(item => item.id === this.form.controls.organizationId.value)) {
           this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
         }
-        if (!organizations.length) this.referenceError.set(this.i18n.t('tournamentCreate.noOrganizations'));
+        if (!organizations.length) this.referenceError.set(this.i18n.t('eventCreate.noOrganizations'));
       }
       this.syncSelectedOrganization();
     } catch {
       this.organizations.set([]);
       this.formats.set([]);
       this.syncSelectedOrganization();
-      this.referenceError.set(this.editMode ? this.i18n.t('tournamentManage.loadFailed') : this.i18n.t('tournamentCreate.referencesFailed'));
+      this.referenceError.set(this.editMode ? this.i18n.t('eventManage.loadFailed') : this.i18n.t('eventCreate.referencesFailed'));
     } finally {
       this.loadingReferences.set(false);
     }
@@ -456,7 +456,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         previewTicket: this.state.preview.previewTicket,
         payload: eventPayload(this.form.getRawValue())
       }));
-      await this.router.navigate(['/calendar/tournaments', response.slug]);
+      await this.router.navigate(['/events', response.slug]);
     } catch (error) {
       this.publishError.set(this.recovery(error, 'publish'));
     } finally {
@@ -472,13 +472,13 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const base = this.baseEvent();
     if (!this.eventId || !base || this.form.invalid || this.saving()) return;
     const draft = this.form.getRawValue();
-    const major = majorEventChanges(base, draft, field => this.i18n.t(`tournamentManage.major.${field}`));
+    const major = majorEventChanges(base, draft, field => this.i18n.t(`eventManage.major.${field}`));
     if (major.length) {
       const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
         data: {
-          title: this.i18n.t('tournamentManage.majorTitle'),
-          message: this.i18n.t('tournamentManage.majorBody') + '\n\n' + major.map(change => `• ${change}`).join('\n'),
-          confirmLabel: this.i18n.t('tournamentManage.saveChanges')
+          title: this.i18n.t('eventManage.majorTitle'),
+          message: this.i18n.t('eventManage.majorBody') + '\n\n' + major.map(change => `• ${change}`).join('\n'),
+          confirmLabel: this.i18n.t('eventManage.saveChanges')
         }
       }).afterClosed());
       if (!confirmed) return;
@@ -494,7 +494,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.applyCanonical(response);
       this.staleEvent.set(null);
       this.staleChanges.set([]);
-      this.success.set(this.i18n.t('tournamentManage.saved'));
+      this.success.set(this.i18n.t('eventManage.saved'));
       queueMicrotask(() => this.saveButton?.nativeElement.focus());
     } catch (error) {
       this.applyFieldErrors(error);
@@ -515,7 +515,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.staleEvent.set(null);
     this.staleChanges.set([]);
     this.submitError.set(null);
-    this.success.set(this.i18n.t('tournamentManage.reloaded'));
+    this.success.set(this.i18n.t('eventManage.reloaded'));
     queueMicrotask(() => this.streetInput?.nativeElement.focus());
   }
 
@@ -524,9 +524,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     if (serverError) return serverError;
     const control = this.form.controls[name];
     if (!control.touched || !control.errors) return '';
-    if (control.errors['required']) return this.i18n.t('tournamentCreate.required');
-    if (control.errors['maxlength']) return this.i18n.t('tournamentCreate.summaryTooLong');
-    return this.i18n.t('tournamentCreate.invalid');
+    if (control.errors['required']) return this.i18n.t('eventCreate.required');
+    if (control.errors['maxlength']) return this.i18n.t('eventCreate.summaryTooLong');
+    return this.i18n.t('eventCreate.invalid');
   }
 
   private async findEvent(id: string): Promise<EventManagementResponse> {
@@ -550,20 +550,20 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     try {
       const latest = await this.findEvent(base.id);
       this.staleEvent.set(latest);
-      this.staleChanges.set(changedEventFields(base, latest, field => this.i18n.t('tournamentManage.serverChanged', { field: this.i18n.t(`tournamentManage.field.${field}`) })));
+      this.staleChanges.set(changedEventFields(base, latest, field => this.i18n.t('eventManage.serverChanged', { field: this.i18n.t(`eventManage.field.${field}`) })));
     } catch {
-      this.submitError.set({ message: this.i18n.t('tournamentManage.latestLoadFailed'), action: 'retry' });
+      this.submitError.set({ message: this.i18n.t('eventManage.latestLoadFailed'), action: 'retry' });
     }
   }
 
   private managementError(error: unknown): string {
     if (error instanceof ApiProblemError) {
-      if (error.status === 401) return this.i18n.t('tournamentCreate.unauthorized');
-      if (error.status === 403 || error.status === 404) return this.i18n.t('tournamentManage.forbidden');
-      if (error.status === 409) return this.i18n.t('tournamentManage.cutoffRejected');
-      if (error.problem.errors) return this.i18n.t('tournamentCreate.validationFailed');
+      if (error.status === 401) return this.i18n.t('eventCreate.unauthorized');
+      if (error.status === 403 || error.status === 404) return this.i18n.t('eventManage.forbidden');
+      if (error.status === 409) return this.i18n.t('eventManage.cutoffRejected');
+      if (error.problem.errors) return this.i18n.t('eventCreate.validationFailed');
     }
-    return this.i18n.t('tournamentManage.actionFailed');
+    return this.i18n.t('eventManage.actionFailed');
   }
 
   private applyFieldErrors(error: unknown): void {
@@ -583,12 +583,12 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   private recovery(error: unknown, phase: 'preview' | 'publish'): RecoveryError {
     if (error instanceof ApiProblemError) {
-      if (error.status === 401) return { message: this.i18n.t('tournamentCreate.unauthorized'), action: 'login' };
-      if (error.status === 403 || error.status === 404) return { message: this.i18n.t('tournamentCreate.forbidden'), action: 'reload' };
-      if (error.status === 409) return { message: this.i18n.t('tournamentCreate.conflict'), action: 'review-calendar' };
-      if (error.problem.code === 'invalid_preview_ticket') return { message: this.i18n.t('tournamentCreate.expiredPreview'), action: 'refresh-preview' };
-      if (error.problem.errors) return { message: this.i18n.t('tournamentCreate.validationFailed'), action: 'retry' };
+      if (error.status === 401) return { message: this.i18n.t('eventCreate.unauthorized'), action: 'login' };
+      if (error.status === 403 || error.status === 404) return { message: this.i18n.t('eventCreate.forbidden'), action: 'reload' };
+      if (error.status === 409) return { message: this.i18n.t('eventCreate.conflict'), action: 'review-calendar' };
+      if (error.problem.code === 'invalid_preview_ticket') return { message: this.i18n.t('eventCreate.expiredPreview'), action: 'refresh-preview' };
+      if (error.problem.errors) return { message: this.i18n.t('eventCreate.validationFailed'), action: 'retry' };
     }
-    return { message: phase === 'publish' ? this.i18n.t('tournamentCreate.publishNetwork') : this.i18n.t('tournamentCreate.previewNetwork'), action: 'retry' };
+    return { message: phase === 'publish' ? this.i18n.t('eventCreate.publishNetwork') : this.i18n.t('eventCreate.previewNetwork'), action: 'retry' };
   }
 }

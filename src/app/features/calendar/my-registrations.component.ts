@@ -40,7 +40,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 
     <ng-template #attemptCard let-attempt>
       <article class="panel registration-card" data-cy="registration-attempt">
-        <div data-cy="registration-attempt-header"><p class="kicker" data-cy="registration-attempt-org">{{ attempt.organizationName }}</p><h3 data-cy="registration-attempt-title"><a [routerLink]="['/calendar/tournaments', attempt.eventSlug]" data-cy="registration-attempt-link">{{ attempt.eventTitle }}</a></h3></div>
+        <div data-cy="registration-attempt-header"><p class="kicker" data-cy="registration-attempt-org">{{ attempt.organizationName }}</p><h3 data-cy="registration-attempt-title"><a [routerLink]="['/events', attempt.eventSlug]" data-cy="registration-attempt-link">{{ attempt.eventTitle }}</a></h3></div>
         <dl data-cy="registration-attempt-details"><div data-cy="registration-attempt-venue-row"><dt data-cy="registration-attempt-venue-time-label">{{ i18n.t('calendar.venueTime') }}</dt><dd data-cy="registration-attempt-venue-time">{{ venueTime(attempt) }}</dd></div><div data-cy="registration-attempt-status-row"><dt data-cy="registration-attempt-status-label">{{ i18n.t('registration.status') }}</dt><dd data-cy="registration-attempt-status">{{ statusLabel(attempt.status) }}</dd></div></dl>
       </article>
     </ng-template>
@@ -90,7 +90,7 @@ export class MyRegistrationsComponent implements OnInit {
     switch (status) {
       case 'Confirmed': return this.i18n.t('registration.statusConfirmed');
       case 'CancelledByUser': return this.i18n.t('registration.statusCancelledByUser');
-      case 'CancelledByTournament': return this.i18n.t('registration.statusCancelledByTournament');
+      case 'CancelledByTournament': return this.i18n.t('registration.statusCancelledByEvent');
       case 'RemovedByOrganizer': return this.i18n.t('registration.statusRemovedByOrganizer');
       default: return status;
     }

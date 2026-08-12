@@ -1573,7 +1573,7 @@
         {
           "gate": "cypress",
           "target": "cypress/e2e/event-proposal.cy.js",
-          "detail": "the anonymous /tournament-requests/:token page: review, validate, refuse-with-reason and an expired-token panel, all intercept-based and signed out"
+          "detail": "the anonymous /event-requests/:token page: review, validate, refuse-with-reason and an expired-token panel, all intercept-based and signed out"
         }
       ]
     },

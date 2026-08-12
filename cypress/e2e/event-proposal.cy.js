@@ -48,7 +48,7 @@ describe('event request review page (signed out, intercept-based)', () => {
     cy.intercept('GET', '**/api/event-proposals/by-token/*', review).as('byToken');
     cy.intercept('POST', '**/api/event-proposals/by-token/*/approve', { proposalId: 'proposal-1', status: 'Approved', slug: 'x' }).as('approve');
 
-    visitAnonymous('/tournament-requests/faketoken');
+    visitAnonymous('/event-requests/faketoken');
     cy.wait('@byToken');
 
     cy.get('[data-cy="event-request-title"]').should('contain.text', 'Modern Cup');
@@ -58,14 +58,14 @@ describe('event request review page (signed out, intercept-based)', () => {
     cy.get('[data-cy="event-request-validate"]').click();
     cy.wait('@approve');
     cy.get('[data-cy="event-request-approved"]').should('be.visible');
-    cy.get('[data-cy="event-request-approved-link"]').should('have.attr', 'href').and('include', '/calendar/tournaments/x');
+    cy.get('[data-cy="event-request-approved-link"]').should('have.attr', 'href').and('include', '/events/x');
   });
 
   it('refuses with a reason and shows the confirmation', () => {
     cy.intercept('GET', '**/api/event-proposals/by-token/*', review).as('byToken');
     cy.intercept('POST', '**/api/event-proposals/by-token/*/reject', { statusCode: 204, body: '' }).as('reject');
 
-    visitAnonymous('/tournament-requests/faketoken');
+    visitAnonymous('/event-requests/faketoken');
     cy.wait('@byToken');
 
     cy.get('[data-cy="event-request-refuse"]').click();
@@ -81,7 +81,7 @@ describe('event request review page (signed out, intercept-based)', () => {
   it('shows the expired panel for an unknown or expired token', () => {
     cy.intercept('GET', '**/api/event-proposals/by-token/*', { statusCode: 404, body: { title: 'Not Found', status: 404 } }).as('byToken');
 
-    visitAnonymous('/tournament-requests/faketoken');
+    visitAnonymous('/event-requests/faketoken');
     cy.wait('@byToken');
 
     cy.get('[data-cy="event-request-expired"]').should('be.visible');

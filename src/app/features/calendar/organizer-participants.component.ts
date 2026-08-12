@@ -62,7 +62,7 @@ export class ParticipantBlockDialogComponent {
   imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule],
   template: `
     <section class="participant-management-page stack" data-cy="organizer-participants" aria-labelledby="participant-management-title">
-      <a mat-stroked-button class="back-button" routerLink="/organizer/tournaments" data-cy="participant-back">{{ i18n.t('participants.back') }}</a>
+      <a mat-stroked-button class="back-button" routerLink="/organizer/events" data-cy="participant-back">{{ i18n.t('participants.back') }}</a>
       @if (loading()) {
         <p role="status" aria-busy="true" data-cy="participant-loading">{{ i18n.t('participants.loading') }}</p>
       } @else if (error()) {
@@ -72,7 +72,7 @@ export class ParticipantBlockDialogComponent {
         </div>
       } @else if (event(); as managedEvent) {
         <header class="page-heading" data-cy="participant-heading">
-          <div data-cy="participant-heading-text"><p class="kicker" data-cy="participant-kicker">{{ i18n.t('participants.kicker') }}</p><h1 id="participant-management-title" data-cy="participant-title">{{ i18n.t('participants.title', { tournament: managedEvent.title }) }}</h1></div>
+          <div data-cy="participant-heading-text"><p class="kicker" data-cy="participant-kicker">{{ i18n.t('participants.kicker') }}</p><h1 id="participant-management-title" data-cy="participant-title">{{ i18n.t('participants.title', { event: managedEvent.title }) }}</h1></div>
           <button mat-flat-button type="button" data-cy="participant-export" [disabled]="!!pending()" (click)="exportCsv()">{{ pending() === 'export' ? i18n.t('participants.exporting') : i18n.t('participants.export') }}</button>
         </header>
         <p class="muted" data-cy="participant-scope-help">{{ i18n.t('participants.scopeHelp', { organization: managedEvent.organizationName }) }}</p>
@@ -261,7 +261,7 @@ export class OrganizerParticipantsComponent {
     if (!event || this.pending()) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: {
       title: this.i18n.t('participants.removeTitle', { username: participant.username }),
-      message: this.i18n.t('participants.removeScope', { tournament: event.title, organization: event.organizationName }),
+      message: this.i18n.t('participants.removeScope', { event: event.title, organization: event.organizationName }),
       confirmLabel: this.i18n.t('participants.removeConfirm'), destructive: true
     } }).afterClosed());
     if (!confirmed) return;
@@ -276,7 +276,7 @@ export class OrganizerParticipantsComponent {
     if (!event || this.pending()) return;
     const result = await firstValueFrom(this.dialog.open(ParticipantBlockDialogComponent, { data: {
       title: this.i18n.t(removeFirst ? 'participants.removeBlockTitle' : 'participants.blockTitle', { username: participant.username }),
-      scope: this.i18n.t(removeFirst ? 'participants.removeBlockScope' : 'participants.blockScope', { tournament: event.title, organization: event.organizationName }),
+      scope: this.i18n.t(removeFirst ? 'participants.removeBlockScope' : 'participants.blockScope', { event: event.title, organization: event.organizationName }),
       reasonLabel: this.i18n.t('participants.blockReason'), expiryLabel: this.i18n.t('participants.blockExpiry'),
       expiryHelp: this.i18n.t('participants.blockNoExpiry'), confirmLabel: this.i18n.t('participants.blockConfirm')
     } }).afterClosed());

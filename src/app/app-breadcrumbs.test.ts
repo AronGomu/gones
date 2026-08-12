@@ -13,13 +13,14 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { Subject } from 'rxjs';
-import { buildBreadcrumbs } from './app-breadcrumbs';
+import { buildBreadcrumbs, Translator } from './app-breadcrumbs';
 import { AppComponent } from './app.component';
 import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
 import { LeagueArchiveRepository } from './data/league-archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { I18nService } from './i18n/i18n.service';
+import { translate } from './i18n/messages';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
 
 describe('buildBreadcrumbs', () => {
@@ -51,6 +52,45 @@ describe('buildBreadcrumbs', () => {
   it('no longer reads the retired /leagues segment as the archive', async () => {
     const crumbs = await buildBreadcrumbs('/leagues/abc');
     expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Introuvable']);
+  });
+});
+
+/**
+ * Feedback item 5: `/tournaments/new` rendered a "Not Found" breadcrumb because every Event page
+ * fell through to the final `nav.notFound` return. The canonical `/events/*` paths get their own
+ * branches here, asserted in both catalogs so a key that only moved in `en` fails.
+ */
+describe('event breadcrumbs', () => {
+  const en: Translator = (key, params) => translate('en', key, params);
+  const labels = async (path: string, t?: Translator) => (await buildBreadcrumbs(path, t)).map((item) => item.label);
+
+  it('labels the create page "Create Event" in both catalogs', async () => {
+    expect(await labels('/events/new', en)).toEqual(['Menu', 'Calendar', 'Create Event']);
+    expect(await labels('/events/new')).toEqual(['Menu', 'Calendrier', 'Créer un événement']);
+  });
+
+  it('links the Calendar crumb back to /calendar from an Event page', async () => {
+    const crumbs = await buildBreadcrumbs('/events/gones-night', en);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Calendar', 'Event']);
+    expect(crumbs[1].link).toEqual(['/calendar']);
+    expect(crumbs[2].link).toBeUndefined();
+  });
+
+  it('labels every organizer Event page instead of falling through to Not Found', async () => {
+    for (const path of ['/organizer/events', '/organizer/events/abc/edit', '/organizer/events/abc/participants']) {
+      expect(await labels(path, en), path).toEqual(['Menu', 'My Events']);
+      expect(await labels(path), path).toEqual(['Menu', 'Mes événements']);
+    }
+  });
+
+  it('labels the admin deleted-events page', async () => {
+    expect(await labels('/admin/events/deleted', en)).toEqual(['Menu', 'Deleted Events']);
+    expect(await labels('/admin/events/deleted')).toEqual(['Menu', 'Événements supprimés']);
+  });
+
+  it('labels the renamed event-requests review page', async () => {
+    expect(await labels('/event-requests/token', en)).toEqual(['Menu', 'Event request']);
+    expect(await labels('/event-requests/token')).toEqual(['Menu', 'Demande d’événement']);
   });
 });
 

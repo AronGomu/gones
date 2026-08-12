@@ -14,13 +14,19 @@ const authRoutes: Routes = [
   { path: 'settings/account', canActivate: [userGuard], loadComponent: () => import('./features/settings/account-settings.component').then((m) => m.AccountSettingsComponent) }
 ];
 
+const eventId = (params: Record<string, unknown>) => encodeURIComponent(String(params['id'] ?? ''));
+
 const registrationAndOrganizerRoutes: Routes = [
   { path: 'registrations', canActivate: [userGuard], loadComponent: () => import('./features/calendar/my-registrations.component').then((m) => m.MyRegistrationsComponent) },
-  { path: 'organizer/tournaments', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-event-list.component').then((m) => m.OrganizerEventListComponent) },
-  { path: 'tournaments/new', canActivate: [userGuard, verifiedEmailGuard], loadComponent: () => import('./features/calendar/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
-  { path: 'organizer/tournaments/new', pathMatch: 'full', redirectTo: 'tournaments/new' },
-  { path: 'organizer/tournaments/:id/edit', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
-  { path: 'organizer/tournaments/:id/participants', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-participants.component').then((m) => m.OrganizerParticipantsComponent) }
+  { path: 'events/new', canActivate: [userGuard, verifiedEmailGuard], loadComponent: () => import('./features/calendar/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
+  { path: 'organizer/events', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-event-list.component').then((m) => m.OrganizerEventListComponent) },
+  { path: 'organizer/events/:id/edit', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
+  { path: 'organizer/events/:id/participants', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-participants.component').then((m) => m.OrganizerParticipantsComponent) },
+  { path: 'tournaments/new', pathMatch: 'full', redirectTo: 'events/new' },
+  { path: 'organizer/tournaments/new', pathMatch: 'full', redirectTo: 'events/new' },
+  { path: 'organizer/tournaments', pathMatch: 'full', redirectTo: 'organizer/events' },
+  { path: 'organizer/tournaments/:id/edit', pathMatch: 'full', redirectTo: ({ params }) => `/organizer/events/${eventId(params)}/edit` },
+  { path: 'organizer/tournaments/:id/participants', pathMatch: 'full', redirectTo: ({ params }) => `/organizer/events/${eventId(params)}/participants` }
 ];
 
 const adminRoutes: Routes = [
@@ -33,18 +39,19 @@ const adminRoutes: Routes = [
   { path: 'admin/audit', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-audit.component').then((m) => m.AdminAuditComponent) },
   { path: 'admin/notifications/history', canActivate: [adminGuard], data: { mode: 'history' }, loadComponent: () => import('./features/admin/admin-notification-delivery.component').then((m) => m.AdminNotificationDeliveryComponent) },
   { path: 'admin/notifications/dead-letters', canActivate: [adminGuard], data: { mode: 'dead-letters' }, loadComponent: () => import('./features/admin/admin-notification-delivery.component').then((m) => m.AdminNotificationDeliveryComponent) },
-  { path: 'admin/tournaments/deleted', canActivate: [adminGuard], loadComponent: () => import('./features/calendar/admin-deleted-events.component').then((m) => m.AdminDeletedEventsComponent) }
+  { path: 'admin/events/deleted', canActivate: [adminGuard], loadComponent: () => import('./features/calendar/admin-deleted-events.component').then((m) => m.AdminDeletedEventsComponent) },
+  { path: 'admin/tournaments/deleted', pathMatch: 'full', redirectTo: 'admin/events/deleted' }
 ];
 
 /**
- * Calendar V1. The browser-store Calendar/Event pages went with the legacy authority (ADR 0020);
- * the old Event detail path still redirects so existing links keep resolving.
+ * Calendar V1. `/calendar` browses, `/events/:slug` is the canonical Event page (ADR 0035); the
+ * retired `/calendar/tournaments/:slug` path stays as a permanent redirect so bookmarks survive.
  */
 export function calendarRoutes(): Routes {
   return [
     { path: 'calendar', loadComponent: () => import('./features/calendar/public-calendar.component').then((m) => m.PublicCalendarComponent) },
-    { path: 'calendar/tournaments/:slug', loadComponent: () => import('./features/calendar/public-event-detail.component').then((m) => m.PublicEventDetailComponent) },
-    { path: 'events/:slug', redirectTo: ({ params }) => `/calendar/tournaments/${encodeURIComponent(String(params['slug'] ?? ''))}` }
+    { path: 'events/:slug', loadComponent: () => import('./features/calendar/public-event-detail.component').then((m) => m.PublicEventDetailComponent) },
+    { path: 'calendar/tournaments/:slug', pathMatch: 'full', redirectTo: ({ params }) => `/events/${encodeURIComponent(String(params['slug'] ?? ''))}` }
   ];
 }
 
@@ -78,8 +85,11 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
   return [
     { path: '', canActivate: [firstVisitHomeGuard], loadComponent: () => import('./features/menu/home-menu.component').then((m) => m.HomeMenuComponent) },
     { path: 'about', canActivate: [markVisitedGuard], loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
+    // Spread before the calendar routes: `events/new` has to match ahead of `events/:slug`.
+    ...(authV1 ? registrationAndOrganizerRoutes : []),
     ...calendarRoutes(),
-    { path: 'tournament-requests/:token', loadComponent: () => import('./features/calendar/event-request.component').then((m) => m.EventRequestComponent) },
+    { path: 'event-requests/:token', loadComponent: () => import('./features/calendar/event-request.component').then((m) => m.EventRequestComponent) },
+    { path: 'tournament-requests/:token', pathMatch: 'full', redirectTo: ({ params }) => `/event-requests/${encodeURIComponent(String(params['token'] ?? ''))}` },
     { path: 'leagues-archive', loadComponent: () => import('./features/leagues-archive/league-archive-list.component').then((m) => m.LeagueArchiveListComponent) },
     { path: 'live-tournaments', loadComponent: () => import('./features/live-tournaments/live-tournament-list.component').then((m) => m.LiveTournamentListComponent) },
     { path: 'live-tournaments/new', loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },
@@ -92,7 +102,6 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
     { path: 'players/:playerName', loadComponent: () => import('./features/players/player-detail.component').then((m) => m.PlayerDetailComponent) },
     { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
     ...(authV1 ? authRoutes : []),
-    ...(authV1 ? registrationAndOrganizerRoutes : []),
     ...(adminV1 ? adminRoutes : []),
     { path: 'app-error', loadComponent: () => import('./shared/route-error-boundary').then((m) => m.RouteErrorComponent) },
     { path: '**', loadComponent: () => import('./shared/not-found.component').then((m) => m.NotFoundComponent) }

@@ -4,7 +4,7 @@ import { safeReturnUrl } from './return-url';
 describe('safeReturnUrl', () => {
   it('keeps same-origin in-app paths', () => {
     expect(safeReturnUrl('/calendar', '/profile')).toBe('/calendar');
-    expect(safeReturnUrl('/organizer/tournaments/new', '/profile')).toBe('/organizer/tournaments/new');
+    expect(safeReturnUrl('/events/new', '/profile')).toBe('/events/new');
     expect(safeReturnUrl('/calendar?city=Lyon#results', '/profile')).toBe('/calendar?city=Lyon#results');
   });
 

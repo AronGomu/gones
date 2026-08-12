@@ -113,7 +113,7 @@ export class PublicEventDetailComponent implements OnInit {
 
   ngOnInit(): void { void this.load(); }
 
-  currentPath(): string { return `/calendar/tournaments/${encodeURIComponent(this.route.snapshot.paramMap.get('slug') ?? '')}`; }
+  currentPath(): string { return `/events/${encodeURIComponent(this.route.snapshot.paramMap.get('slug') ?? '')}`; }
 
   async load(): Promise<void> {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';

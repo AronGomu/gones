@@ -20,7 +20,7 @@ import { I18nService } from '../../i18n/i18n.service';
           <a mat-stroked-button routerLink="/admin/audit" data-cy="admin-nav-audit">{{ i18n.t('admin.audit') }}</a>
           <a mat-stroked-button routerLink="/admin/notifications/history" data-cy="admin-nav-notification-history">{{ i18n.t('admin.notificationHistory') }}</a>
           <a mat-stroked-button routerLink="/admin/notifications/dead-letters" data-cy="admin-nav-notification-dead-letters">{{ i18n.t('admin.notificationDeadLetters') }}</a>
-          <a mat-stroked-button routerLink="/admin/tournaments/deleted" data-cy="admin-nav-deleted-tournaments">{{ i18n.t('tournamentManage.deletedTitle') }}</a>
+          <a mat-stroked-button routerLink="/admin/events/deleted" data-cy="admin-nav-deleted-tournaments">{{ i18n.t('eventManage.deletedTitle') }}</a>
           <a mat-stroked-button routerLink="/organizations" data-cy="admin-nav-public-orgs">{{ i18n.t('org.publicList') }}</a>
         </nav>
       }

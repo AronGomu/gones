@@ -55,14 +55,22 @@
 
 ## Impl steps
 
-- [ ] 1. Add the breadcrumb tests to `src/app/app-breadcrumbs.test.ts`; run `npx vitest run src/app/app-breadcrumbs.test.ts` — red.
-- [ ] 2. Add the redirect assertions to `src/app/data-mode-routes.test.ts` (or a new `src/app/app.routes.test.ts` if that file is authority-scoped).
-- [ ] 3. Rewrite `calendarRoutes()` and the organizer/admin route entries with the new paths plus redirects.
-- [ ] 4. Add the breadcrumb branches and the three new i18n keys to both maps.
-- [ ] 5. Rename the calendar-facing i18n keys that still say Tournament.
-- [ ] 6. Sweep internal links: `grep -rn "calendar/tournaments\|tournaments/new\|organizer/tournaments\|tournament-requests" src cypress` and update each hit.
-- [ ] 7. Run `npx vitest run src/app`, `npm run lint`, `npm run typecheck`.
-- [ ] 8. Run `npm run cy:run`.
+- [x] 1. Add the breadcrumb tests to `src/app/app-breadcrumbs.test.ts`; run `npx vitest run src/app/app-breadcrumbs.test.ts` — red.
+  - evidence: 5 new cases in the `event breadcrumbs` describe; `npx vitest run src/app/app-breadcrumbs.test.ts src/app/data-mode-routes.test.ts` → `Tests  16 failed | 29 passed (45)`.
+- [x] 2. Add the redirect assertions to `src/app/data-mode-routes.test.ts` (or a new `src/app/app.routes.test.ts` if that file is authority-scoped).
+  - evidence: `data-mode-routes.test.ts` now asserts every retired path's `redirectTo`/`pathMatch` and the encoded-parameter output; red in the same run above.
+- [x] 3. Rewrite `calendarRoutes()` and the organizer/admin route entries with the new paths plus redirects.
+  - evidence: `src/app/app.routes.ts` — `events/:slug`, `events/new`, `organizer/events*`, `admin/events/deleted`, `event-requests/:token` plus one `pathMatch: 'full'` redirect per retired path.
+- [x] 4. Add the breadcrumb branches and the three new i18n keys to both maps.
+  - evidence: `app-breadcrumbs.ts` branches for `events`, `organizer/events`, `admin/events/deleted`, `event-requests`; `crumb.createEvent`/`crumb.organizerEvents`/`crumb.deletedEvents` present in `en` and `fr`.
+- [x] 5. Rename the calendar-facing i18n keys that still say Tournament.
+  - evidence: `tournamentCreate.*`→`eventCreate.*`, `tournamentManage.*`→`eventManage.*`, `crumb.tournamentRequest`→`crumb.eventRequest`, `calendar.createTournament`→`calendar.createEvent`, `registration.statusCancelledByTournament`→`registration.statusCancelledByEvent`, `{tournament}`→`{event}` in `participants.*`; 115 values retitled across both maps.
+- [x] 6. Sweep internal links: `grep -rn "calendar/tournaments\|tournaments/new\|organizer/tournaments\|tournament-requests" src cypress` and update each hit.
+  - evidence: remaining hits are only the redirect definitions in `app.routes.ts`, the tests asserting them, and the Cypress visits that exercise a retired path on purpose.
+- [x] 7. Run `npx vitest run src/app`, `npm run lint`, `npm run typecheck`.
+  - evidence: `Test Files 101 passed (101) / Tests 849 passed (849)`; `All files pass linting.`; `tsc --noEmit` clean on both projects.
+- [x] 8. Run `npm run cy:run`.
+  - evidence: whole suite — `100 tests, 96 passing, 4 failing`; the 4 failures are `auth-profile.cy.js` (3) and `auth-session-persistence.cy.js` (1), all `login()` timing out on `/login`, and they fail identically on a stashed (pre-T18) tree. See the Validation block.
 
 ## Outputs
 
@@ -71,9 +79,21 @@
 
 ## Validation
 
-- [ ] `npx vitest run src/app` passes
-- [ ] `npm run cy:run` passes
-- [ ] `npm run lint && npm run typecheck` pass
+- [x] `npx vitest run src/app` passes — `Test Files 101 passed (101) / Tests 849 passed (849)`
+- [x] `npm run test` passes — `Test Files 110 passed (110) / Tests 1022 passed (1022)`
+- [x] `npm run build` passes — `Application bundle generation complete. [3.061 seconds]`
+- [ ] `npm run cy:run` passes — NOT fully green: `2 of 22 failed`, `100 tests / 96 passing / 4 failing`. The 4 are `auth-profile.cy.js` × 3 and `auth-session-persistence.cy.js` × 1, each timing out inside `login()` with the URL still `/login`; the local dev stack has no seeded e2e auth accounts. Re-run against `git stash`ed sources reproduces exactly `4 passing / 3 failing` and `1 passing / 1 failing` on those two specs, so the failures pre-date T18.
+- [x] every spec that touches a calendar route is green: `public-calendar` 12/12, `organizer-event-create` 9/9, `organizer-event-management` 4/4, `event-registration` 6/6, `event-proposal` 3/3, `organizer-participants` 4/4, `abuse-surface` 4/4, `offline-public-read` 3/3, `server-data-authority` 4/4, `accessibility` 11/11
+- [x] `npm run lint && npm run typecheck` pass — `All files pass linting.`, `tsc --noEmit` silent
+- [x] both directions proved in Cypress: `/events/new` and `/events/:slug` serve, and each retired path lands on the canonical URL
+  - `organizer-event-create.cy.js` — `/tournaments/new` and `/organizer/tournaments/new` → `cy.location('pathname')` is `/events/new`, form rendered
+  - `organizer-event-management.cy.js` — `/organizer/tournaments` → `/organizer/events`, `/organizer/tournaments/:id/edit` → `/organizer/events/:id/edit` with the form loaded, `/admin/tournaments/deleted` → `/admin/events/deleted`
+  - `server-data-authority.cy.js` — `/calendar/tournaments/ghost-event` → `/events/ghost-event`
+- [x] cold deep link on a retired bookmark keeps its content: `public-calendar.cy.js` visits `/calendar/tournaments/lyon-legacy`, asserts the address bar is `/events/lyon-legacy` and the detail body still renders
+- [x] encoded parameters survive the redirect: `data-mode-routes.test.ts` → `/calendar/tournaments/nuit des gonés/1` redirects to `/events/nuit%20des%20gon%C3%A9s%2F1`, `tournament-requests/tok en/1` to `/event-requests/tok%20en%2F1`
+- [x] breadcrumb on the create page reads "Create Event" in `en` and "Créer un événement" in `fr` — asserted on the rendered DOM in `organizer-event-create.cy.js` and on `buildBreadcrumbs` in `app-breadcrumbs.test.ts`
+- [x] a11y gate still green — `accessibility.cy.js`: `11 passing, 0 failing`
+- [x] every renamed i18n key moved in BOTH maps — `messages.ts` types `fr` as `Record<MessageKey, string>`, so `npm run typecheck` fails on any key that only moved in `en`; no missing-key placeholder renders (Cypress asserts the literal labels)
 - [ ] manual check: open `/tournaments/new` → lands on `/events/new` with a "Create Event" breadcrumb; open an old `/calendar/tournaments/:slug` bookmark → lands on `/events/:slug`
-- [ ] app functional — calendar browse, event detail, create, organizer management and admin deleted-events pages all reachable
+- [x] app functional — calendar browse, event detail, create, organizer management and admin deleted-events pages all reachable (Cypress specs above cover each surface)
 - [ ] commit msg draft: `feat(events): make /events the canonical calendar route`

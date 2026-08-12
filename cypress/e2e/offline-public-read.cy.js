@@ -79,7 +79,7 @@ describe('offline public reads and rejected writes', () => {
       req.reply({ statusCode: 201, body: { attemptId: 'attempt', eventId: event.id, userId: 'user', status: 'Confirmed', registeredAt: '2035-01-01T00:00:00Z' } });
     }).as('register');
 
-    visit('/calendar/tournaments/lyon-legacy');
+    visit('/events/lyon-legacy');
     cy.wait('@detail');
     cy.get('[data-cy="registration-register"]').should('be.enabled');
 

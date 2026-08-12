@@ -17,16 +17,16 @@ import { canCancelEvent, canEditEvent } from './event-management';
   template: `
     <section class="tournament-management-page stack" data-cy="organizer-events" aria-labelledby="organizer-events-title">
       <header class="page-heading" data-cy="organizer-events-heading">
-        <div data-cy="organizer-events-heading-text"><p class="kicker" data-cy="organizer-events-kicker">{{ i18n.t('tournamentCreate.kicker') }}</p><h1 id="organizer-events-title" data-cy="organizer-events-title">{{ i18n.t('tournamentManage.title') }}</h1></div>
-        <a mat-flat-button class="home-primary-action" routerLink="/organizer/tournaments/new" data-cy="organizer-events-create">{{ i18n.t('tournamentManage.create') }}</a>
+        <div data-cy="organizer-events-heading-text"><p class="kicker" data-cy="organizer-events-kicker">{{ i18n.t('eventCreate.kicker') }}</p><h1 id="organizer-events-title" data-cy="organizer-events-title">{{ i18n.t('eventManage.title') }}</h1></div>
+        <a mat-flat-button class="home-primary-action" routerLink="/events/new" data-cy="organizer-events-create">{{ i18n.t('eventManage.create') }}</a>
       </header>
-      <p class="muted" data-cy="organizer-events-scope-help">{{ i18n.t('tournamentManage.scopeHelp') }}</p>
+      <p class="muted" data-cy="organizer-events-scope-help">{{ i18n.t('eventManage.scopeHelp') }}</p>
 
       @if (loading()) { <p role="status" data-cy="event-management-loading">{{ i18n.t('common.loading') }}</p> }
       @else if (error()) {
         <div class="error stack" role="alert" data-cy="event-management-error"><span data-cy="event-management-error-text">{{ error() }}</span><button mat-stroked-button type="button" data-cy="event-management-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></div>
       } @else if (!items().length) {
-        <div class="panel stack tournament-management-empty" data-cy="event-management-empty"><h2 data-cy="event-management-empty-title">{{ i18n.t('tournamentManage.emptyTitle') }}</h2><p data-cy="event-management-empty-body">{{ i18n.t('tournamentManage.emptyBody') }}</p></div>
+        <div class="panel stack tournament-management-empty" data-cy="event-management-empty"><h2 data-cy="event-management-empty-title">{{ i18n.t('eventManage.emptyTitle') }}</h2><p data-cy="event-management-empty-body">{{ i18n.t('eventManage.emptyBody') }}</p></div>
       } @else {
         <div class="tournament-management-list" role="list" data-cy="event-management-list">
           @for (event of items(); track event.id) {
@@ -36,10 +36,10 @@ import { canCancelEvent, canEditEvent } from './event-management';
                   <div [attr.data-cy]="'event-row-summary-' + event.id"><p class="kicker" [attr.data-cy]="'event-row-organization-' + event.id">{{ event.organizationName }}</p><h2 [attr.data-cy]="'event-row-title-' + event.id">{{ event.title }}</h2><p class="muted" [attr.data-cy]="'event-row-when-' + event.id">{{ event.venueStartDate }} · {{ event.venueStartTime.slice(0, 5) }} · {{ event.city }}</p></div>
                   <span [attr.data-cy]="'event-row-status-' + event.id" [class]="'calendar-status calendar-status--' + event.status.toLowerCase()">{{ event.status }}</span>
                   <div class="admin-actions tournament-management-actions" [attr.data-cy]="'event-row-actions-' + event.id">
-                    <a mat-stroked-button [attr.data-cy]="'event-row-public-view-' + event.id" [routerLink]="['/calendar/tournaments', event.slug]">{{ i18n.t('tournamentManage.publicView') }}</a>
-                    <a mat-stroked-button data-cy="event-participants" [routerLink]="['/organizer/tournaments', event.id, 'participants']">{{ i18n.t('registration.participants') }}</a>
-                    @if (canEdit(event)) { <a mat-stroked-button data-cy="event-edit" [routerLink]="['/organizer/tournaments', event.id, 'edit']">{{ i18n.t('common.edit') }}</a> }
-                    @if (canCancel(event)) { <button mat-stroked-button type="button" data-cy="event-cancel" [disabled]="!!pendingId()" (click)="cancel(event)">{{ pendingId() === event.id ? i18n.t('tournamentManage.cancelling') : i18n.t('tournamentManage.cancel') }}</button> }
+                    <a mat-stroked-button [attr.data-cy]="'event-row-public-view-' + event.id" [routerLink]="['/events', event.slug]">{{ i18n.t('eventManage.publicView') }}</a>
+                    <a mat-stroked-button data-cy="event-participants" [routerLink]="['/organizer/events', event.id, 'participants']">{{ i18n.t('registration.participants') }}</a>
+                    @if (canEdit(event)) { <a mat-stroked-button data-cy="event-edit" [routerLink]="['/organizer/events', event.id, 'edit']">{{ i18n.t('common.edit') }}</a> }
+                    @if (canCancel(event)) { <button mat-stroked-button type="button" data-cy="event-cancel" [disabled]="!!pendingId()" (click)="cancel(event)">{{ pendingId() === event.id ? i18n.t('eventManage.cancelling') : i18n.t('eventManage.cancel') }}</button> }
                     @if (canEdit(event)) { <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="event-delete" [disabled]="!!pendingId()" (click)="delete(event)">{{ pendingId() === event.id ? i18n.t('common.deleting') : i18n.t('common.delete') }}</button> }
                   </div>
                 </div>
@@ -90,7 +90,7 @@ export class OrganizerEventListComponent {
       this.totalCount.set(response.totalCount);
     } catch {
       this.items.set([]);
-      this.error.set(this.i18n.t('tournamentManage.loadFailed'));
+      this.error.set(this.i18n.t('eventManage.loadFailed'));
     } finally {
       this.loading.set(false);
     }
@@ -100,30 +100,30 @@ export class OrganizerEventListComponent {
 
   async cancel(event: EventManagementResponse): Promise<void> {
     const confirmed = await this.confirm(
-      'tournamentManage.cancelTitle',
-      'tournamentManage.cancelBody',
-      'tournamentManage.cancelConfirm',
+      'eventManage.cancelTitle',
+      'eventManage.cancelBody',
+      'eventManage.cancelConfirm',
       true
     );
     if (!confirmed) return;
     await this.mutate(event, 'cancel', () => firstValueFrom(this.client.cancelEvent(event.id, event.eTag, this.mutationKey('cancel', event.id))), response => {
       this.replaceMutation(event.id, response);
-      this.status.set(this.i18n.t('tournamentManage.cancelled'));
+      this.status.set(this.i18n.t('eventManage.cancelled'));
     });
   }
 
   async delete(event: EventManagementResponse): Promise<void> {
     const confirmed = await this.confirm(
-      'tournamentManage.deleteTitle',
-      'tournamentManage.deleteBody',
-      'tournamentManage.deleteConfirm',
+      'eventManage.deleteTitle',
+      'eventManage.deleteBody',
+      'eventManage.deleteConfirm',
       true
     );
     if (!confirmed) return;
     await this.mutate(event, 'delete', () => firstValueFrom(this.client.deleteEvent(event.id, event.eTag, this.mutationKey('delete', event.id), null)), () => {
       this.items.update(items => items.filter(item => item.id !== event.id));
       this.totalCount.update(count => Math.max(0, count - 1));
-      this.status.set(this.i18n.t('tournamentManage.deleted'));
+      this.status.set(this.i18n.t('eventManage.deleted'));
     });
   }
 
@@ -149,10 +149,10 @@ export class OrganizerEventListComponent {
     } catch (error) {
       if (error instanceof ApiProblemError) this.mutationKeys.delete(`${action}:${event.id}`);
       this.error.set(error instanceof ApiProblemError && error.status === 412
-        ? this.i18n.t('tournamentManage.staleList')
+        ? this.i18n.t('eventManage.staleList')
         : error instanceof ApiProblemError && (error.status === 403 || error.status === 404 || error.status === 409)
-          ? this.i18n.t('tournamentManage.serverRejected')
-          : this.i18n.t('tournamentManage.actionFailed'));
+          ? this.i18n.t('eventManage.serverRejected')
+          : this.i18n.t('eventManage.actionFailed'));
       if (error instanceof ApiProblemError && error.status === 412) await this.load();
     } finally {
       this.pendingId.set('');

@@ -49,15 +49,15 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dd data-cy="event-request-fact-formats">{{ review.formatNames.join(', ') }}</dd>
               <dt data-cy="event-request-fact-venue-label">{{ i18n.t('common.location') }}</dt>
               <dd data-cy="event-request-fact-venue">{{ venueLine(review) }}</dd>
-              <dt data-cy="event-request-fact-starts-label">{{ i18n.t('tournamentCreate.start') }}</dt>
+              <dt data-cy="event-request-fact-starts-label">{{ i18n.t('eventCreate.start') }}</dt>
               <dd data-cy="event-request-fact-starts">{{ review.event.startsAtLocal }}</dd>
-              <dt data-cy="event-request-fact-ends-label">{{ i18n.t('tournamentCreate.end') }}</dt>
+              <dt data-cy="event-request-fact-ends-label">{{ i18n.t('eventCreate.end') }}</dt>
               <dd data-cy="event-request-fact-ends">{{ review.event.endsAtLocal || '—' }}</dd>
-              <dt data-cy="event-request-fact-timezone-label">{{ i18n.t('tournamentCreate.zone') }}</dt>
+              <dt data-cy="event-request-fact-timezone-label">{{ i18n.t('eventCreate.zone') }}</dt>
               <dd data-cy="event-request-fact-timezone">{{ review.event.timeZoneId }}</dd>
               <dt data-cy="event-request-fact-capacity-label">{{ i18n.t('calendar.capacity') }}</dt>
               <dd data-cy="event-request-fact-capacity">{{ review.event.capacity ?? '—' }}</dd>
-              <dt data-cy="event-request-fact-summary-label">{{ i18n.t('tournamentCreate.summary') }}</dt>
+              <dt data-cy="event-request-fact-summary-label">{{ i18n.t('eventCreate.summary') }}</dt>
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
             </dl>
             <pre class="tournament-request-body" data-cy="event-request-body">{{ review.event.bodyHtml || '' }}</pre>
@@ -81,7 +81,7 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
             <h1 data-cy="event-request-approved-title">{{ i18n.t('proposal.approvedTitle') }}</h1>
             <p data-cy="event-request-approved-body">{{ i18n.t('proposal.approvedBody') }}</p>
             @if (slug()) {
-              <a mat-flat-button class="home-primary-action" [routerLink]="['/calendar/tournaments', slug()]" data-cy="event-request-approved-link">{{ i18n.t('calendar.title') }}</a>
+              <a mat-flat-button class="home-primary-action" [routerLink]="['/events', slug()]" data-cy="event-request-approved-link">{{ i18n.t('calendar.title') }}</a>
             }
           </section>
         }

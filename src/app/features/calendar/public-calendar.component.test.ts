@@ -862,7 +862,7 @@ describe('PublicCalendarComponent list card', () => {
 
     component.openEvent(event);
 
-    expect(navigate).toHaveBeenCalledWith(['/calendar/tournaments', 'lyon-legacy']);
+    expect(navigate).toHaveBeenCalledWith(['/events', 'lyon-legacy']);
   });
 
   // Space would scroll the page before it ever reached the card, so the handler takes the event.
@@ -877,7 +877,7 @@ describe('PublicCalendarComponent list card', () => {
     component.openEvent(event, keyEvent);
 
     expect(keyEvent.preventDefault).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/calendar/tournaments', 'lyon-legacy']);
+    expect(navigate).toHaveBeenCalledWith(['/events', 'lyon-legacy']);
   });
 
   it('the card is the click target, and reads as a link to assistive tech', () => {
