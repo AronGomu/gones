@@ -1,6 +1,6 @@
-import { TournamentPayloadRequest, TournamentPreviewResponse } from '../../api/generated/gones-api';
+import { EventPayloadRequest, EventPreviewResponse } from '../../api/generated/gones-api';
 
-export interface TournamentDraftValue {
+export interface EventDraftValue {
   organizationId: string;
   title: string;
   summary: string;
@@ -20,7 +20,7 @@ export function browserTimeZoneSuggestion(resolve = () => Intl.DateTimeFormat().
   try { return resolve() || ''; } catch { return ''; }
 }
 
-export function tournamentPayload(value: TournamentDraftValue): TournamentPayloadRequest {
+export function eventPayload(value: EventDraftValue): EventPayloadRequest {
   return {
     organizationId: value.organizationId,
     title: value.title.trim(),
@@ -39,10 +39,10 @@ export function tournamentPayload(value: TournamentDraftValue): TournamentPayloa
 }
 
 export class PreviewPublicationState {
-  preview?: TournamentPreviewResponse;
+  preview?: EventPreviewResponse;
   private publishKey?: string;
 
-  accept(preview: TournamentPreviewResponse): void {
+  accept(preview: EventPreviewResponse): void {
     this.preview = preview;
     this.publishKey = undefined;
   }

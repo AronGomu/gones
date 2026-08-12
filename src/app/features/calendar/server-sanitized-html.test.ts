@@ -6,7 +6,7 @@ function parse(html: string): Document {
   return new DOMParser().parseFromString(withSafeExternalLinks(html), 'text/html');
 }
 
-describe('server sanitized tournament body', () => {
+describe('server sanitized event body', () => {
   it('adds safe attributes to external links without acting as server sanitizer', () => {
     const document = parse('<p><a href="https://example.test/info">Info</a> <a href="/calendar">Calendar</a></p>');
     const links = document.querySelectorAll('a');

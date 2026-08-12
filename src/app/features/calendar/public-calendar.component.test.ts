@@ -13,21 +13,21 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { PublicCalendarComponent } from './public-calendar.component';
-import { AllTournamentsCacheService, AllTournamentsResult } from './all-tournaments-cache.service';
-import { PublicTournamentService } from './public-tournament.service';
+import { AllEventsCacheService, AllEventsResult } from './all-events-cache.service';
+import { PublicEventService } from './public-event.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { AuthService } from '../../auth/auth.service';
-import { PublicTournamentView, shiftMonth } from './public-calendar';
+import { PublicEventView, shiftMonth } from './public-calendar';
 import { UserProfileResponse } from '../../api/generated/gones-api';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const tournament: PublicTournamentView = {
+const event: PublicEventView = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
   slug: 'lyon-legacy',
-  summary: 'Legacy tournament',
+  summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2026-08-01',
@@ -51,8 +51,8 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-const tournamentB: PublicTournamentView = {
-  ...tournament,
+const eventB: PublicEventView = {
+  ...event,
   id: '55555555-5555-5555-5555-555555555555',
   slug: 'paris-modern',
   title: 'Paris Modern'
@@ -73,18 +73,18 @@ function stubScrolling(scrollY: number) {
   return scrollTo;
 }
 
-function makeItems(count: number): PublicTournamentView[] {
+function makeItems(count: number): PublicEventView[] {
   return Array.from({ length: count }, (_, index) => ({
-    ...tournament,
+    ...event,
     id: `item-${String(index).padStart(3, '0')}`,
     slug: `item-${String(index).padStart(3, '0')}`,
-    title: `Tournament ${String(index).padStart(3, '0')}`
+    title: `Event ${String(index).padStart(3, '0')}`
   }));
 }
 
-function setup(options: { params?: Record<string, string>; result?: Partial<AllTournamentsResult>; profile?: UserProfileResponse | null; authEnabled?: boolean; itemCount?: number } = {}) {
-  const result: AllTournamentsResult = {
-    items: options.itemCount !== undefined ? makeItems(options.itemCount) : [tournament],
+function setup(options: { params?: Record<string, string>; result?: Partial<AllEventsResult>; profile?: UserProfileResponse | null; authEnabled?: boolean; itemCount?: number } = {}) {
+  const result: AllEventsResult = {
+    items: options.itemCount !== undefined ? makeItems(options.itemCount) : [event],
     fetchedAt: '2026-08-08T10:00:00.000Z',
     fromCache: false,
     stale: false,
@@ -92,7 +92,7 @@ function setup(options: { params?: Record<string, string>; result?: Partial<AllT
     ...options.result
   };
   const load = vi.fn(async () => result);
-  const catalog = { load } as unknown as AllTournamentsCacheService;
+  const catalog = { load } as unknown as AllEventsCacheService;
   const initialParams = paramMap({ month: '2026-08', view: 'calendar', ...options.params });
 
   // The router stub feeds the query params it is handed straight back into `queryParamMap`, the way
@@ -114,8 +114,8 @@ function setup(options: { params?: Record<string, string>; result?: Partial<AllT
   const auth = { enabled: options.authEnabled ?? true, profile: signal<UserProfileResponse | null>(options.profile ?? null) } as unknown as AuthService;
 
   const injector = Injector.create({ providers: [
-    { provide: AllTournamentsCacheService, useValue: catalog },
-    { provide: PublicTournamentService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics') } },
+    { provide: AllEventsCacheService, useValue: catalog },
+    { provide: PublicEventService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics') } },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
     { provide: AuthService, useValue: auth },
@@ -320,17 +320,17 @@ describe('PublicCalendarComponent', () => {
 
   it('hides the create button when anonymous', () => {
     const { component } = setup({ profile: null });
-    expect(component.canCreateTournament()).toBe(false);
+    expect(component.canCreateEvent()).toBe(false);
   });
 
   it('hides the create button when unverified', () => {
     const { component } = setup({ profile: { ...verifiedUserProfile, emailVerified: false } });
-    expect(component.canCreateTournament()).toBe(false);
+    expect(component.canCreateEvent()).toBe(false);
   });
 
   it('shows the create button when signed in with a verified email', () => {
     const { component } = setup({ profile: verifiedUserProfile });
-    expect(component.canCreateTournament()).toBe(true);
+    expect(component.canCreateEvent()).toBe(true);
   });
 });
 
@@ -457,8 +457,8 @@ describe('PublicCalendarComponent search row layout', () => {
     expect(header).not.toContain('calendar-view-tabs');
   });
 
-  it('filtering removes non-matching tournaments from both views', async () => {
-    const { component } = setup({ result: { items: [tournament, tournamentB] } });
+  it('filtering removes non-matching events from both views', async () => {
+    const { component } = setup({ result: { items: [event, eventB] } });
     component.ngOnInit();
     await Promise.resolve();
     await Promise.resolve();
@@ -466,20 +466,20 @@ describe('PublicCalendarComponent search row layout', () => {
     // The slug is the field the clone actually varies; searching it (rather than the title, whose
     // words `Lyon` and `Legacy` also appear in the shared venue/format fields the clone keeps) is
     // what proves the filter narrows to exactly one item instead of fuzzy-matching both.
-    component.setSearchDraft(tournament.slug);
+    component.setSearchDraft(event.slug);
 
     expect(component.items()).toHaveLength(1);
-    expect(component.items()[0].id).toBe(tournament.id);
-    expect(component.groups().flatMap(group => group.items).map(item => item.id)).toEqual([tournament.id]);
+    expect(component.items()[0].id).toBe(event.id);
+    expect(component.groups().flatMap(group => group.items).map(item => item.id)).toEqual([event.id]);
   });
 
-  it('an empty query keeps every tournament', async () => {
-    const { component } = setup({ result: { items: [tournament, tournamentB] } });
+  it('an empty query keeps every event', async () => {
+    const { component } = setup({ result: { items: [event, eventB] } });
     component.ngOnInit();
     await Promise.resolve();
     await Promise.resolve();
 
-    component.setSearchDraft(tournament.slug);
+    component.setSearchDraft(event.slug);
     component.setSearchDraft('');
 
     expect(component.items()).toHaveLength(2);
@@ -496,12 +496,12 @@ describe('PublicCalendarComponent toolbar row', () => {
     const tabsOpen = source.lastIndexOf('<div', tabsStart);
     const tabsEnd = source.indexOf('</div>', tabsStart);
     const tabs = source.slice(tabsOpen, tabsEnd);
-    expect(tabs).toContain('data-cy="calendar-create-tournament"');
+    expect(tabs).toContain('data-cy="calendar-create-event"');
   });
 
   it('the create button is not in the page header any more', () => {
     expect(source).not.toContain('data-cy="calendar-header-actions"');
-    const createIndex = source.indexOf('data-cy="calendar-create-tournament"');
+    const createIndex = source.indexOf('data-cy="calendar-create-event"');
     const tabsIndex = source.indexOf('data-cy="calendar-view-tabs"');
     expect(createIndex).toBeGreaterThan(-1);
     expect(tabsIndex).toBeGreaterThan(-1);
@@ -509,7 +509,7 @@ describe('PublicCalendarComponent toolbar row', () => {
   });
 
   it('the create button wears the success green', () => {
-    const buttonStart = source.indexOf('data-cy="calendar-create-tournament"');
+    const buttonStart = source.indexOf('data-cy="calendar-create-event"');
     const tagStart = source.lastIndexOf('<a', buttonStart);
     const tagEnd = source.indexOf('>', buttonStart);
     const tag = source.slice(tagStart, tagEnd);
@@ -617,7 +617,7 @@ describe('PublicCalendarComponent calendar day cells', () => {
     expect(cell).toContain('data-cy="calendar-month-day-date"');
   });
 
-  it('the month model carries no tournaments', () => {
+  it('the month model carries no events', () => {
     const declStart = source.indexOf('interface MonthDay');
     const declEnd = source.indexOf('}', declStart);
     const decl = source.slice(declStart, declEnd);
@@ -662,9 +662,9 @@ describe('PublicCalendarComponent calendar day cells', () => {
     expect(component.items()).toHaveLength(0);
   });
 
-  it('the list view still groups tournaments', async () => {
-    const tournamentOnAnotherDate: PublicTournamentView = { ...tournamentB, venueStartDate: '2026-08-15' };
-    const { component } = setup({ result: { items: [tournament, tournamentOnAnotherDate] } });
+  it('the list view still groups events', async () => {
+    const eventOnAnotherDate: PublicEventView = { ...eventB, venueStartDate: '2026-08-15' };
+    const { component } = setup({ result: { items: [event, eventOnAnotherDate] } });
     component.ngOnInit();
     await Promise.resolve();
     await Promise.resolve();
@@ -697,7 +697,7 @@ function templateBlock(source: string, opening: string): string {
 }
 
 describe('PublicCalendarComponent list pagination', () => {
-  it('the list renders only one page of tournaments', async () => {
+  it('the list renders only one page of events', async () => {
     const { component } = setup({ params: { view: 'list' }, itemCount: 45 });
     component.ngOnInit();
     await Promise.resolve();
@@ -860,7 +860,7 @@ describe('PublicCalendarComponent list card', () => {
     await Promise.resolve();
     navigate.mockClear();
 
-    component.openTournament(tournament);
+    component.openEvent(event);
 
     expect(navigate).toHaveBeenCalledWith(['/calendar/tournaments', 'lyon-legacy']);
   });
@@ -872,18 +872,18 @@ describe('PublicCalendarComponent list card', () => {
     await Promise.resolve();
     await Promise.resolve();
     navigate.mockClear();
-    const event = { preventDefault: vi.fn() } as unknown as Event;
+    const keyEvent = { preventDefault: vi.fn() } as unknown as Event;
 
-    component.openTournament(tournament, event);
+    component.openEvent(event, keyEvent);
 
-    expect(event.preventDefault).toHaveBeenCalled();
+    expect(keyEvent.preventDefault).toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(['/calendar/tournaments', 'lyon-legacy']);
   });
 
   it('the card is the click target, and reads as a link to assistive tech', () => {
-    expect(cardTag).toContain('(click)="openTournament(item)"');
-    expect(cardTag).toContain('(keydown.enter)="openTournament(item)"');
-    expect(cardTag).toContain('(keydown.space)="openTournament(item, $event)"');
+    expect(cardTag).toContain('(click)="openEvent(item)"');
+    expect(cardTag).toContain('(keydown.enter)="openEvent(item)"');
+    expect(cardTag).toContain('(keydown.space)="openEvent(item, $event)"');
     expect(cardTag).toContain('role="link"');
     expect(cardTag).toContain('tabindex="0"');
     expect(cardTag).toContain('[attr.aria-label]="item.title"');
@@ -935,8 +935,8 @@ describe('PublicCalendarComponent list card', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(component.cardDate(tournament)).not.toContain('Europe/Paris');
-    expect(component.cardDate(tournament)).not.toContain('(');
+    expect(component.cardDate(event)).not.toContain('Europe/Paris');
+    expect(component.cardDate(event)).not.toContain('(');
   });
 
   it('the card lifts on hover and on keyboard focus', () => {
@@ -1016,9 +1016,9 @@ describe('PublicCalendarComponent search match highlighting', () => {
     await Promise.resolve();
 
     component.setSearchDraft('lyon');
-    const parts = component.highlightParts(tournament.title);
+    const parts = component.highlightParts(event.title);
 
-    expect(parts.map(part => part.text).join('')).toBe(tournament.title);
+    expect(parts.map(part => part.text).join('')).toBe(event.title);
     expect(parts.filter(part => part.highlighted)).toEqual([{ text: 'Lyon', highlighted: true }]);
 
     const titleStart = source.indexOf('data-cy="calendar-card-title"');
@@ -1035,7 +1035,7 @@ describe('PublicCalendarComponent search match highlighting', () => {
     await Promise.resolve();
 
     component.setSearchDraft('lyon');
-    expect(component.highlightParts(tournament.title).some(part => part.highlighted)).toBe(true);
+    expect(component.highlightParts(event.title).some(part => part.highlighted)).toBe(true);
 
     const titleStart = source.indexOf('data-cy="calendar-month-day-event-title"');
     const title = source.slice(titleStart, source.indexOf('</span>', source.indexOf('</span>', titleStart) + 1));

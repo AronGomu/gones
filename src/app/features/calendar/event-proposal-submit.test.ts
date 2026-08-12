@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { describe, expect, it, vi } from 'vitest';
 
-// Same rationale as organizer-tournament-create.component.test.ts: no TestBed / zone.js in this
+// Same rationale as organizer-event-create.component.test.ts: no TestBed / zone.js in this
 // repo, so `effect()` is stubbed to a no-op and the component is built with a bare Injector.
 // These tests assert on component state and spy calls, never on rendered DOM.
 vi.mock('@angular/core', async (importOriginal) => {
@@ -14,9 +14,9 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { OrganizerTournamentCreateComponent } from './organizer-tournament-create.component';
-import { tournamentPayload } from './organizer-tournament-create';
-import { TournamentProposalService } from './tournament-proposal.service';
+import { OrganizerEventCreateComponent } from './organizer-event-create.component';
+import { eventPayload } from './organizer-event-create';
+import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
@@ -47,19 +47,19 @@ function setup(dialogAfterClosed: unknown) {
     { provide: Router, useValue: {} },
     { provide: MatDialog, useValue: dialogStub },
     { provide: AuthService, useValue: auth },
-    { provide: TournamentProposalService, useValue: proposalsStub },
+    { provide: EventProposalService, useValue: proposalsStub },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
-  const component = runInInjectionContext(injector, () => new OrganizerTournamentCreateComponent());
+  const component = runInInjectionContext(injector, () => new OrganizerEventCreateComponent());
   return { component, dialogStub, proposalsStub };
 }
 
-function fillValidForm(component: OrganizerTournamentCreateComponent): void {
+function fillValidForm(component: OrganizerEventCreateComponent): void {
   component.form.setValue({
     organizationId: 'org1',
-    title: 'My Tournament',
+    title: 'My Event',
     summary: '',
     bodyHtml: '',
     streetAddress: '1 rue Test',
@@ -74,7 +74,7 @@ function fillValidForm(component: OrganizerTournamentCreateComponent): void {
   });
 }
 
-describe('OrganizerTournamentCreateComponent.submitForApproval', () => {
+describe('OrganizerEventCreateComponent.submitForApproval', () => {
   it('an invalid form opens no dialog', async () => {
     const { component, dialogStub } = setup(undefined);
     await component.submitForApproval();
@@ -113,7 +113,7 @@ describe('OrganizerTournamentCreateComponent.submitForApproval', () => {
     fillValidForm(component);
     await component.submitForApproval();
     expect(proposalsStub.submit).toHaveBeenCalledTimes(1);
-    expect(proposalsStub.submit).toHaveBeenCalledWith(tournamentPayload(component.form.getRawValue()), ['id1']);
+    expect(proposalsStub.submit).toHaveBeenCalledWith(eventPayload(component.form.getRawValue()), ['id1']);
   });
 
   it('success shows the confirmation panel', async () => {

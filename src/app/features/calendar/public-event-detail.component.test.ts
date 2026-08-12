@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Same rationale as public-calendar.component.test.ts: no TestBed / zone.js in this repo, so
 // `effect()` is stubbed to a no-op and the component is built with a bare Injector. Rendered
-// output is asserted in cypress/e2e/tournament-registration.cy.js.
+// output is asserted in cypress/e2e/event-registration.cy.js.
 vi.mock('@angular/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@angular/core')>();
   return { ...actual, effect: () => ({ destroy: () => {} }) };
@@ -15,7 +15,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { of } from 'rxjs';
-import { PublicTournamentDetailResponse, UserProfileResponse } from '../../api/generated/gones-api';
+import { PublicEventDetailResponse, UserProfileResponse } from '../../api/generated/gones-api';
 import { ApiProblemError } from '../../api/api-boundary';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
@@ -23,18 +23,18 @@ import { translate } from '../../i18n/messages';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { OnlineStatusService } from '../../shared/online-status.service';
-import { PublicTournamentDetailComponent } from './public-tournament-detail.component';
-import { PublicTournamentService } from './public-tournament.service';
+import { PublicEventDetailComponent } from './public-event-detail.component';
+import { PublicEventService } from './public-event.service';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
-import { TournamentRegistrationService } from './tournament-registration.service';
+import { EventRegistrationService } from './event-registration.service';
 
-const tournament = {
+const event = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
   slug: 'lyon-legacy',
   organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones' },
   formats: []
-} as unknown as PublicTournamentDetailResponse;
+} as unknown as PublicEventDetailResponse;
 
 function build(options: { register?: () => Promise<unknown>; confirmUnregister?: boolean } = {}) {
   const open = vi.fn((_dialog: unknown, _config?: unknown) => ({ afterClosed: () => of(options.confirmUnregister ?? true) }));
@@ -45,8 +45,8 @@ function build(options: { register?: () => Promise<unknown>; confirmUnregister?:
     participants: vi.fn(async () => ({ items: [] }))
   };
   const injector = Injector.create({ providers: [
-    { provide: PublicTournamentService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics'), detail: vi.fn(async () => ({ data: tournament, stale: false, cachedAt: undefined })) } },
-    { provide: TournamentRegistrationService, useValue: registrations },
+    { provide: PublicEventService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics'), detail: vi.fn(async () => ({ data: event, stale: false, cachedAt: undefined })) } },
+    { provide: EventRegistrationService, useValue: registrations },
     { provide: ActivatedRoute, useValue: { snapshot: { paramMap: new Map([['slug', 'lyon-legacy']]) } } },
     { provide: MatDialog, useValue: { open } },
     { provide: AuthService, useValue: { enabled: true, profile: signal<UserProfileResponse | null>({ id: 'user' } as UserProfileResponse) } },
@@ -54,16 +54,16 @@ function build(options: { register?: () => Promise<unknown>; confirmUnregister?:
     DeckArchetypeSettingsService,
     I18nService
   ] });
-  const component = runInInjectionContext(injector, () => new PublicTournamentDetailComponent());
-  component.tournament.set(tournament);
+  const component = runInInjectionContext(injector, () => new PublicEventDetailComponent());
+  component.event.set(event);
   return { component, open, registrations };
 }
 
-const source = readFileSync(join(__dirname, 'public-tournament-detail.component.ts'), 'utf8');
+const source = readFileSync(join(__dirname, 'public-event-detail.component.ts'), 'utf8');
 const actionsStart = source.indexOf('data-cy="registration-actions"');
 const actions = source.slice(actionsStart, source.indexOf('</div>', actionsStart));
 
-describe('PublicTournamentDetailComponent registration actions', () => {
+describe('PublicEventDetailComponent registration actions', () => {
   it('ics and register share one action row', () => {
     expect(actionsStart).toBeGreaterThan(-1);
     expect(actions).toContain('data-cy="registration-ics"');
@@ -91,7 +91,7 @@ describe('PublicTournamentDetailComponent registration actions', () => {
 
   it('failed registration does not open the success dialog', async () => {
     const { component, open } = build({
-      register: async () => { throw new ApiProblemError(409, { code: 'tournament_full', title: 'full', status: 409 }); }
+      register: async () => { throw new ApiProblemError(409, { code: 'event_full', title: 'full', status: 409 }); }
     });
     await component.register();
     expect(open).not.toHaveBeenCalled();

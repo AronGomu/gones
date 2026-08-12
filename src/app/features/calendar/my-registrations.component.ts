@@ -2,10 +2,10 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
-import { TournamentRegistrationHistoryResponse } from '../../api/generated/gones-api';
+import { EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { partitionRegistrationAttempts, registrationVenueTime } from './my-registrations';
-import { TournamentRegistrationService } from './tournament-registration.service';
+import { EventRegistrationService } from './event-registration.service';
 import { LatestRequest } from '../../shared/async-guards';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
@@ -40,7 +40,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 
     <ng-template #attemptCard let-attempt>
       <article class="panel registration-card" data-cy="registration-attempt">
-        <div data-cy="registration-attempt-header"><p class="kicker" data-cy="registration-attempt-org">{{ attempt.organizationName }}</p><h3 data-cy="registration-attempt-title"><a [routerLink]="['/calendar/tournaments', attempt.tournamentSlug]" data-cy="registration-attempt-link">{{ attempt.tournamentTitle }}</a></h3></div>
+        <div data-cy="registration-attempt-header"><p class="kicker" data-cy="registration-attempt-org">{{ attempt.organizationName }}</p><h3 data-cy="registration-attempt-title"><a [routerLink]="['/calendar/tournaments', attempt.eventSlug]" data-cy="registration-attempt-link">{{ attempt.eventTitle }}</a></h3></div>
         <dl data-cy="registration-attempt-details"><div data-cy="registration-attempt-venue-row"><dt data-cy="registration-attempt-venue-time-label">{{ i18n.t('calendar.venueTime') }}</dt><dd data-cy="registration-attempt-venue-time">{{ venueTime(attempt) }}</dd></div><div data-cy="registration-attempt-status-row"><dt data-cy="registration-attempt-status-label">{{ i18n.t('registration.status') }}</dt><dd data-cy="registration-attempt-status">{{ statusLabel(attempt.status) }}</dd></div></dl>
       </article>
     </ng-template>
@@ -48,8 +48,8 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 })
 export class MyRegistrationsComponent implements OnInit {
   readonly i18n = inject(I18nService);
-  private readonly registrations = inject(TournamentRegistrationService);
-  readonly items = signal<TournamentRegistrationHistoryResponse[]>([]);
+  private readonly registrations = inject(EventRegistrationService);
+  readonly items = signal<EventRegistrationHistoryResponse[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly page = signal(1);
@@ -82,7 +82,7 @@ export class MyRegistrationsComponent implements OnInit {
     void this.load();
   }
 
-  venueTime(attempt: TournamentRegistrationHistoryResponse): string {
+  venueTime(attempt: EventRegistrationHistoryResponse): string {
     return registrationVenueTime(attempt, this.i18n.language());
   }
 

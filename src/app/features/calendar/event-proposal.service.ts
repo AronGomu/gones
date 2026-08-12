@@ -3,10 +3,10 @@ import { firstValueFrom } from 'rxjs';
 import {
   Client,
   ProposalApproverResponse,
-  TournamentPayloadRequest,
-  TournamentProposalDecisionResponse,
-  TournamentProposalResponse,
-  TournamentProposalReviewResponse
+  EventPayloadRequest,
+  EventProposalDecisionResponse,
+  EventProposalResponse,
+  EventProposalReviewResponse
 } from '../../api/generated/gones-api';
 
 export function sortApprovers(approvers: ProposalApproverResponse[]): ProposalApproverResponse[] {
@@ -17,11 +17,11 @@ export function sortApprovers(approvers: ProposalApproverResponse[]): ProposalAp
 }
 
 @Injectable({ providedIn: 'root' })
-export class TournamentProposalService {
+export class EventProposalService {
   private readonly client = inject(Client);
 
   /**
-   * T26: scoped to the organization the tournament would be published under. The candidates are
+   * T26: scoped to the organization the event would be published under. The candidates are
    * that organization's own Organizers plus the global Admins that back every organization — a
    * global Organizer with no standing over it is not offered, and would be refused on submit.
    */
@@ -29,15 +29,15 @@ export class TournamentProposalService {
     return firstValueFrom(this.client.approvers(organizationId));
   }
 
-  submit(tournament: TournamentPayloadRequest, recipientUserIds: string[]): Promise<TournamentProposalResponse> {
-    return firstValueFrom(this.client.tournamentProposals({ tournament, recipientUserIds }));
+  submit(event: EventPayloadRequest, recipientUserIds: string[]): Promise<EventProposalResponse> {
+    return firstValueFrom(this.client.eventProposals({ event, recipientUserIds }));
   }
 
-  reviewByToken(token: string): Promise<TournamentProposalReviewResponse> {
+  reviewByToken(token: string): Promise<EventProposalReviewResponse> {
     return firstValueFrom(this.client.byToken(token));
   }
 
-  approveByToken(token: string): Promise<TournamentProposalDecisionResponse> {
+  approveByToken(token: string): Promise<EventProposalDecisionResponse> {
     return firstValueFrom(this.client.approve(token));
   }
 

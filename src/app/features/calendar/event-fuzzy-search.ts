@@ -1,5 +1,5 @@
 import Fuse from 'fuse.js';
-import { PublicTournamentView } from './public-calendar';
+import { PublicEventView } from './public-calendar';
 
 export function splitSearchTerms(query: string): string[] {
   const terms: string[] = [];
@@ -24,7 +24,7 @@ export function splitSearchTerms(query: string): string[] {
   return terms;
 }
 
-export function searchableText(item: PublicTournamentView): string {
+export function searchableText(item: PublicEventView): string {
   return [
     item.title,
     item.slug,
@@ -49,18 +49,18 @@ export function normalizeSearchValue(value: string): string {
 }
 
 interface SearchableEntry {
-  item: PublicTournamentView;
+  item: PublicEventView;
   text: string;
 }
 
-export function filterTournaments(items: PublicTournamentView[], query: string): PublicTournamentView[] {
+export function filterEvents(items: PublicEventView[], query: string): PublicEventView[] {
   const terms = splitSearchTerms(query);
   if (terms.length === 0) return items;
 
   const entries: SearchableEntry[] = items.map(item => ({ item, text: normalizeSearchValue(searchableText(item)) }));
   const fuse = new Fuse(entries, { keys: ['text'], threshold: 0.35, ignoreLocation: true, minMatchCharLength: 2 });
 
-  let matched: Set<PublicTournamentView> | undefined;
+  let matched: Set<PublicEventView> | undefined;
   for (const term of terms) {
     const normalizedTerm = normalizeSearchValue(term);
     const termMatches = new Set(fuse.search(normalizedTerm).map(result => result.item.item));

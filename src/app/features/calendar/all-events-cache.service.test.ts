@@ -4,8 +4,8 @@ import { Injector } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 import { API_BASE_URL } from '../../api/generated/gones-api';
-import { PublicTournamentView } from './public-calendar';
-import { ALL_TOURNAMENTS_CACHE_KEY, AllTournamentsCacheService } from './all-tournaments-cache.service';
+import { PublicEventView } from './public-calendar';
+import { ALL_EVENTS_CACHE_KEY, AllEventsCacheService } from './all-events-cache.service';
 
 function makeStorage(): Storage {
   const store = new Map<string, string>();
@@ -19,19 +19,19 @@ function makeStorage(): Storage {
   } as Storage;
 }
 
-const items: PublicTournamentView[] = [];
+const items: PublicEventView[] = [];
 const body = { items, generatedAt: '2026-08-08T00:00:00Z', count: 0, truncated: false };
 
-function buildService(get: ReturnType<typeof vi.fn>): AllTournamentsCacheService {
+function buildService(get: ReturnType<typeof vi.fn>): AllEventsCacheService {
   const injector = Injector.create({ providers: [
-    AllTournamentsCacheService,
+    AllEventsCacheService,
     { provide: HttpClient, useValue: { get } },
     { provide: API_BASE_URL, useValue: 'https://api.example' }
   ] });
-  return injector.get(AllTournamentsCacheService);
+  return injector.get(AllEventsCacheService);
 }
 
-describe('AllTournamentsCacheService', () => {
+describe('AllEventsCacheService', () => {
   beforeEach(() => {
     (globalThis as { localStorage?: Storage }).localStorage = makeStorage();
   });
@@ -46,10 +46,13 @@ describe('AllTournamentsCacheService', () => {
     expect(second.fromCache).toBe(true);
 
     expect(get).toHaveBeenCalledTimes(1);
+    // T17: the catalog reads the Event surface. The old `/api/tournaments/all` path is gone and
+    // 404s, so a regression here is a blank calendar rather than a slow one.
+    expect(get.mock.calls[0][0]).toBe('https://api.example/api/events/all');
   });
 
   it('load skips the request within 24h', async () => {
-    globalThis.localStorage!.setItem(ALL_TOURNAMENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), truncated: false
     }));
     const get = vi.fn();
@@ -61,7 +64,7 @@ describe('AllTournamentsCacheService', () => {
   });
 
   it('load refetches after 24h', async () => {
-    globalThis.localStorage!.setItem(ALL_TOURNAMENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), truncated: false
     }));
     const get = vi.fn().mockReturnValueOnce(of(new HttpResponse({ body, status: 200, headers: new HttpHeaders({ ETag: '"v2"' }) })));
@@ -73,7 +76,7 @@ describe('AllTournamentsCacheService', () => {
   });
 
   it('force always refetches', async () => {
-    globalThis.localStorage!.setItem(ALL_TOURNAMENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date().toISOString(), truncated: false
     }));
     const get = vi.fn().mockReturnValueOnce(of(new HttpResponse({ body, status: 200, headers: new HttpHeaders({ ETag: '"v2"' }) })));
@@ -85,7 +88,7 @@ describe('AllTournamentsCacheService', () => {
   });
 
   it('a failed refetch falls back to the cache', async () => {
-    globalThis.localStorage!.setItem(ALL_TOURNAMENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), truncated: false
     }));
     const get = vi.fn().mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Offline' })));

@@ -20,7 +20,7 @@ export function blockPayload(userId: string, reason: string, expiresLocal: strin
 }
 
 export function participantErrorKey(status?: number, code?: string): MessageKey {
-  if (status === 409 && code === 'tournament_full') return 'participants.capacityRace';
+  if (status === 409 && code === 'event_full') return 'participants.capacityRace';
   if (status === 403 || status === 404) return 'participants.accessDenied';
   return 'participants.actionFailed';
 }

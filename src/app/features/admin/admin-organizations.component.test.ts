@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-// Same rationale as tournament-request.component.test.ts: no TestBed / zone.js in this repo, so
+// Same rationale as event-request.component.test.ts: no TestBed / zone.js in this repo, so
 // `effect()` is stubbed to a no-op and the component is built with a bare Injector. These tests
 // assert on component state, spy calls and the template source string, never on rendered DOM.
 vi.mock('@angular/core', async (importOriginal) => {

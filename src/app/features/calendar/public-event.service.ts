@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { API_BASE_URL, PublicTournamentDetailResponse } from '../../api/generated/gones-api';
+import { API_BASE_URL, PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { joinApiUrl } from '../../api/api-boundary';
 
 export interface CachedApiResult<T> {
@@ -20,16 +20,16 @@ interface CacheEntry<T> {
 const CACHE_PREFIX = 'gones.calendar-v1.cache.';
 
 @Injectable({ providedIn: 'root' })
-export class PublicTournamentService {
+export class PublicEventService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
 
-  detail(slug: string): Promise<CachedApiResult<PublicTournamentDetailResponse>> {
-    return this.getCached<PublicTournamentDetailResponse>(`/api/tournaments/${encodeURIComponent(slug)}`);
+  detail(slug: string): Promise<CachedApiResult<PublicEventDetailResponse>> {
+    return this.getCached<PublicEventDetailResponse>(`/api/events/${encodeURIComponent(slug)}`);
   }
 
   icsUrl(slug: string): string {
-    return joinApiUrl(this.baseUrl, `/api/tournaments/${encodeURIComponent(slug)}.ics`);
+    return joinApiUrl(this.baseUrl, `/api/events/${encodeURIComponent(slug)}.ics`);
   }
 
   private async getCached<T>(path: string, params = new HttpParams()): Promise<CachedApiResult<T>> {

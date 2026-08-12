@@ -16,10 +16,10 @@ const authRoutes: Routes = [
 
 const registrationAndOrganizerRoutes: Routes = [
   { path: 'registrations', canActivate: [userGuard], loadComponent: () => import('./features/calendar/my-registrations.component').then((m) => m.MyRegistrationsComponent) },
-  { path: 'organizer/tournaments', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-list.component').then((m) => m.OrganizerTournamentListComponent) },
-  { path: 'tournaments/new', canActivate: [userGuard, verifiedEmailGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) },
+  { path: 'organizer/tournaments', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-event-list.component').then((m) => m.OrganizerEventListComponent) },
+  { path: 'tournaments/new', canActivate: [userGuard, verifiedEmailGuard], loadComponent: () => import('./features/calendar/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
   { path: 'organizer/tournaments/new', pathMatch: 'full', redirectTo: 'tournaments/new' },
-  { path: 'organizer/tournaments/:id/edit', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-tournament-create.component').then((m) => m.OrganizerTournamentCreateComponent) },
+  { path: 'organizer/tournaments/:id/edit', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
   { path: 'organizer/tournaments/:id/participants', canActivate: [organizerGuard], loadComponent: () => import('./features/calendar/organizer-participants.component').then((m) => m.OrganizerParticipantsComponent) }
 ];
 
@@ -33,7 +33,7 @@ const adminRoutes: Routes = [
   { path: 'admin/audit', canActivate: [adminGuard], loadComponent: () => import('./features/admin/admin-audit.component').then((m) => m.AdminAuditComponent) },
   { path: 'admin/notifications/history', canActivate: [adminGuard], data: { mode: 'history' }, loadComponent: () => import('./features/admin/admin-notification-delivery.component').then((m) => m.AdminNotificationDeliveryComponent) },
   { path: 'admin/notifications/dead-letters', canActivate: [adminGuard], data: { mode: 'dead-letters' }, loadComponent: () => import('./features/admin/admin-notification-delivery.component').then((m) => m.AdminNotificationDeliveryComponent) },
-  { path: 'admin/tournaments/deleted', canActivate: [adminGuard], loadComponent: () => import('./features/calendar/admin-deleted-tournaments.component').then((m) => m.AdminDeletedTournamentsComponent) }
+  { path: 'admin/tournaments/deleted', canActivate: [adminGuard], loadComponent: () => import('./features/calendar/admin-deleted-events.component').then((m) => m.AdminDeletedEventsComponent) }
 ];
 
 /**
@@ -43,7 +43,7 @@ const adminRoutes: Routes = [
 export function calendarRoutes(): Routes {
   return [
     { path: 'calendar', loadComponent: () => import('./features/calendar/public-calendar.component').then((m) => m.PublicCalendarComponent) },
-    { path: 'calendar/tournaments/:slug', loadComponent: () => import('./features/calendar/public-tournament-detail.component').then((m) => m.PublicTournamentDetailComponent) },
+    { path: 'calendar/tournaments/:slug', loadComponent: () => import('./features/calendar/public-event-detail.component').then((m) => m.PublicEventDetailComponent) },
     { path: 'events/:slug', redirectTo: ({ params }) => `/calendar/tournaments/${encodeURIComponent(String(params['slug'] ?? ''))}` }
   ];
 }
@@ -79,7 +79,7 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
     { path: '', canActivate: [firstVisitHomeGuard], loadComponent: () => import('./features/menu/home-menu.component').then((m) => m.HomeMenuComponent) },
     { path: 'about', canActivate: [markVisitedGuard], loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
     ...calendarRoutes(),
-    { path: 'tournament-requests/:token', loadComponent: () => import('./features/calendar/tournament-request.component').then((m) => m.TournamentRequestComponent) },
+    { path: 'tournament-requests/:token', loadComponent: () => import('./features/calendar/event-request.component').then((m) => m.EventRequestComponent) },
     { path: 'leagues-archive', loadComponent: () => import('./features/leagues-archive/league-archive-list.component').then((m) => m.LeagueArchiveListComponent) },
     { path: 'live-tournaments', loadComponent: () => import('./features/live-tournaments/live-tournament-list.component').then((m) => m.LiveTournamentListComponent) },
     { path: 'live-tournaments/new', loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },

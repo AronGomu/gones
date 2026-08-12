@@ -5,9 +5,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import {
-  PublicTournamentDetailResponse,
-  PublicTournamentParticipantResponse,
-  TournamentRegistrationCapabilityResponse
+  PublicEventDetailResponse,
+  PublicEventParticipantResponse,
+  EventRegistrationCapabilityResponse
 } from '../../api/generated/gones-api';
 import { ApiProblemError } from '../../api/api-boundary';
 import { AuthService } from '../../auth/auth.service';
@@ -16,27 +16,27 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { OfflineBannerComponent } from '../../shared/offline-banner.component';
 import { OnlineStatusService } from '../../shared/online-status.service';
-import { PublicTournamentService } from './public-tournament.service';
+import { PublicEventService } from './public-event.service';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 import {
   RegistrationOfflineError,
-  TournamentRegistrationService,
+  EventRegistrationService,
   registrationErrorKey
-} from './tournament-registration.service';
-import { TournamentDetailViewComponent } from './tournament-detail-view.component';
+} from './event-registration.service';
+import { EventDetailViewComponent } from './event-detail-view.component';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent, TournamentDetailViewComponent],
+  imports: [RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent, EventDetailViewComponent],
   template: `
-    <gones-back-button data-cy="public-tournament-detail-back-top" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="top" />
-    <gones-offline-banner data-cy="public-tournament-detail-offline-banner" [stale]="stale()" [cachedAt]="cachedAt()" />
+    <gones-back-button data-cy="public-event-detail-back-top" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="top" />
+    <gones-offline-banner data-cy="public-event-detail-offline-banner" [stale]="stale()" [cachedAt]="cachedAt()" />
     @if (loading()) { <section class="panel event-section calendar-detail-skeleton" aria-busy="true" data-cy="calendar-loading"><div data-cy="calendar-loading-line-1"></div><div data-cy="calendar-loading-line-2"></div><div data-cy="calendar-loading-line-3"></div></section> }
     @else if (error()) { <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h1 data-cy="calendar-error-title">{{ i18n.t('calendar.detailLoadFailed') }}</h1><button mat-stroked-button type="button" data-cy="calendar-error-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></section> }
     @else if (notFound()) { <section class="panel calendar-state" data-cy="calendar-not-found"><h1 data-cy="calendar-not-found-title">{{ i18n.t('event.notFoundTitle') }}</h1><p data-cy="calendar-not-found-body">{{ i18n.t('event.notFoundBody') }}</p></section> }
-    @else if (tournament(); as item) {
-      <div class="stack" data-cy="public-tournament-detail">
-        <gones-tournament-detail-view data-cy="public-tournament-detail-view" [tournament]="item" [icsUrl]="service.icsUrl(item.slug)" [showIcsAction]="false" />
+    @else if (event(); as item) {
+      <div class="stack" data-cy="public-event-detail">
+        <gones-event-detail-view data-cy="public-event-detail-view" [event]="item" [icsUrl]="service.icsUrl(item.slug)" [showIcsAction]="false" />
 
         @if (auth.enabled) {
         <section class="panel event-section registration-action" data-cy="registration-section" aria-labelledby="registration-action-title">
@@ -83,20 +83,20 @@ import { TournamentDetailViewComponent } from './tournament-detail-view.componen
         </section>
       </div>
     }
-    <gones-back-button data-cy="public-tournament-detail-back-bottom" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="bottom" />
+    <gones-back-button data-cy="public-event-detail-back-bottom" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="bottom" />
   `
 })
-export class PublicTournamentDetailComponent implements OnInit {
+export class PublicEventDetailComponent implements OnInit {
   readonly i18n = inject(I18nService);
-  readonly service = inject(PublicTournamentService);
+  readonly service = inject(PublicEventService);
   readonly auth = inject(AuthService);
-  private readonly registrations = inject(TournamentRegistrationService);
+  private readonly registrations = inject(EventRegistrationService);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
   @ViewChild('registrationStatus') private registrationStatus?: ElementRef<HTMLElement>;
-  readonly tournament = signal<PublicTournamentDetailResponse | null>(null);
-  readonly participants = signal<PublicTournamentParticipantResponse[]>([]);
-  readonly capability = signal<TournamentRegistrationCapabilityResponse | null>(null);
+  readonly event = signal<PublicEventDetailResponse | null>(null);
+  readonly participants = signal<PublicEventParticipantResponse[]>([]);
+  readonly capability = signal<EventRegistrationCapabilityResponse | null>(null);
   readonly loading = signal(true);
   readonly participantsLoading = signal(false);
   readonly capabilityLoading = signal(false);
@@ -122,12 +122,12 @@ export class PublicTournamentDetailComponent implements OnInit {
     this.notFound.set(false);
     try {
       const result = await this.service.detail(slug);
-      this.tournament.set(result.data);
+      this.event.set(result.data);
       this.stale.set(result.stale);
       this.cachedAt.set(result.cachedAt);
       await Promise.all([this.loadParticipants(), this.auth.profile() ? this.loadCapability() : Promise.resolve()]);
     } catch (error) {
-      this.tournament.set(null);
+      this.event.set(null);
       this.stale.set(false);
       this.cachedAt.set(undefined);
       if (error instanceof ApiProblemError && error.status === 404) this.notFound.set(true);
@@ -151,12 +151,12 @@ export class PublicTournamentDetailComponent implements OnInit {
   }
 
   async loadCapability(): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || !this.auth.profile()) return;
+    const event = this.event();
+    if (!event || !this.auth.profile()) return;
     this.capabilityLoading.set(true);
     this.capabilityError.set(false);
     try {
-      this.capability.set(await this.registrations.capability(tournament.id));
+      this.capability.set(await this.registrations.capability(event.id));
     } catch {
       this.capability.set(null);
       this.capabilityError.set(true);
@@ -166,26 +166,26 @@ export class PublicTournamentDetailComponent implements OnInit {
   }
 
   async register(): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || this.mutationPending()) return;
-    const registered = await this.mutate(() => this.registrations.register(tournament.id), 'registration.registered');
-    if (registered) await firstValueFrom(this.dialog.open(RegistrationSuccessDialogComponent, { data: { title: tournament.title } }).afterClosed());
+    const event = this.event();
+    if (!event || this.mutationPending()) return;
+    const registered = await this.mutate(() => this.registrations.register(event.id), 'registration.registered');
+    if (registered) await firstValueFrom(this.dialog.open(RegistrationSuccessDialogComponent, { data: { title: event.title } }).afterClosed());
   }
 
   async confirmUnregister(): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || this.mutationPending() || this.confirmationPending()) return;
+    const event = this.event();
+    if (!event || this.mutationPending() || this.confirmationPending()) return;
     this.confirmationPending.set(true);
     try {
       const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
         data: {
           title: this.i18n.t('registration.unregisterTitle'),
-          message: this.i18n.t('registration.unregisterConfirm', { title: tournament.title }),
+          message: this.i18n.t('registration.unregisterConfirm', { title: event.title }),
           confirmLabel: this.i18n.t('registration.unregister'),
           destructive: true
         }
       }).afterClosed());
-      if (confirmed) await this.mutate(() => this.registrations.unregister(tournament.id), 'registration.unregistered');
+      if (confirmed) await this.mutate(() => this.registrations.unregister(event.id), 'registration.unregistered');
     } finally {
       this.confirmationPending.set(false);
     }
@@ -197,7 +197,7 @@ export class PublicTournamentDetailComponent implements OnInit {
     return this.i18n.t(registrationErrorKey(reason));
   }
 
-  optionalParticipantFields(participant: PublicTournamentParticipantResponse): string {
+  optionalParticipantFields(participant: PublicEventParticipantResponse): string {
     return [participant.firstName, participant.lastName, participant.location, participant.birthYear, participant.preferredLanguage]
       .filter(value => value !== undefined && value !== null && value !== '')
       .join(' · ');
@@ -210,7 +210,7 @@ export class PublicTournamentDetailComponent implements OnInit {
     this.mutationStatus.set('');
     try {
       await action();
-      const [detailRefresh] = await Promise.allSettled([this.refreshTournament(), this.loadParticipants(), this.loadCapability()]);
+      const [detailRefresh] = await Promise.allSettled([this.refreshEvent(), this.loadParticipants(), this.loadCapability()]);
       this.mutationStatus.set(this.i18n.t(detailRefresh.status === 'fulfilled' ? successKey : 'registration.savedRefreshFailed'));
       return true;
     } catch (error) {
@@ -226,9 +226,9 @@ export class PublicTournamentDetailComponent implements OnInit {
     }
   }
 
-  private async refreshTournament(): Promise<void> {
+  private async refreshEvent(): Promise<void> {
     const result = await this.service.detail(this.route.snapshot.paramMap.get('slug') ?? '');
-    this.tournament.set(result.data);
+    this.event.set(result.data);
     this.stale.set(result.stale);
     this.cachedAt.set(result.cachedAt);
   }

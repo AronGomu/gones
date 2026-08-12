@@ -1,5 +1,5 @@
-const tournament = {
-  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy tournament',
+const event = {
+  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris', venueStartDate: '2035-03-04', venueStartTime: '10:00:00', venueEndDate: '2035-03-04', venueEndTime: '18:00:00',
   startsAtUtc: '2035-03-04T09:00:00Z', endsAtUtc: '2035-03-04T17:00:00Z', capacity: 2, status: 'Published', bodyHtml: undefined,
@@ -10,8 +10,8 @@ const profile = { id: 'user', email: 'user@example.test', emailVerified: true, g
 const participants = { items: [{ userId: 'other', username: 'PublicUser', firstName: 'Visible', lastName: undefined, location: undefined, birthYear: undefined, preferredLanguage: undefined }] };
 
 function common() {
-  cy.intercept('GET', '**/api/tournaments/lyon-legacy', tournament).as('detail');
-  cy.intercept('GET', '**/api/tournaments/lyon-legacy/participants', participants).as('participants');
+  cy.intercept('GET', '**/api/events/lyon-legacy', event).as('detail');
+  cy.intercept('GET', '**/api/events/lyon-legacy/participants', participants).as('participants');
 }
 
 function authenticated(overrides = {}) {
@@ -57,18 +57,18 @@ describe('public participant registration', () => {
     visit('/calendar/tournaments/lyon-legacy');
     cy.get('[data-cy="registration-login"]').should('be.visible');
     cy.get('[data-cy="public-participant"]').should('contain.text', 'PublicUser').and('contain.text', 'Visible').and('not.contain.text', 'user@example.test');
-    cy.get('[data-cy="public-tournament-detail"]').should('not.contain.text', '@example.test');
+    cy.get('[data-cy="public-event-detail"]').should('not.contain.text', '@example.test');
   });
 
   it('shows server-derived unverified, blocked, full, and started reasons', () => {
     authenticated({ emailVerified: false });
-    cy.intercept('GET', '**/api/tournaments/*/registration-capability', { canRegister: false, canUnregister: false, reason: 'email_verification_required', activeParticipantCount: 1, capacity: 2 });
+    cy.intercept('GET', '**/api/events/*/registration-capability', { canRegister: false, canUnregister: false, reason: 'email_verification_required', activeParticipantCount: 1, capacity: 2 });
     visit('/calendar/tournaments/lyon-legacy');
     cy.get('[data-cy="unverified-banner"]').should('be.visible');
     cy.get('[data-cy="registration-reason"]').should('contain.text', 'Vérifiez votre e-mail');
 
-    for (const [reason, copy] of [['registration_blocked', 'bloqué'], ['tournament_full', 'complet'], ['registration_closed', 'commencé']]) {
-      cy.intercept('GET', '**/api/tournaments/*/registration-capability', { canRegister: false, canUnregister: false, reason, activeParticipantCount: 2, capacity: 2 });
+    for (const [reason, copy] of [['registration_blocked', 'bloqué'], ['event_full', 'complet'], ['registration_closed', 'commencé']]) {
+      cy.intercept('GET', '**/api/events/*/registration-capability', { canRegister: false, canUnregister: false, reason, activeParticipantCount: 2, capacity: 2 });
       visit('/calendar/tournaments/lyon-legacy');
       cy.get('[data-cy="registration-reason"]').should('contain.text', copy);
     }
@@ -79,22 +79,22 @@ describe('public participant registration', () => {
     let state = 'available';
     const keys = [];
     let registerCalls = 0;
-    cy.intercept('GET', '**/api/tournaments/*/registration-capability', req => req.reply({
+    cy.intercept('GET', '**/api/events/*/registration-capability', req => req.reply({
       canRegister: state === 'available', canUnregister: state === 'registered', reason: state, activeParticipantCount: state === 'registered' ? 1 : 0, capacity: 2
     }));
-    cy.intercept('POST', '**/api/tournaments/*/registrations', req => {
+    cy.intercept('POST', '**/api/events/*/registrations', req => {
       registerCalls += 1;
       keys.push(req.headers['idempotency-key']);
       state = 'registered';
-      req.reply({ statusCode: 201, delay: 150, body: { attemptId: `attempt-${registerCalls}`, tournamentId: tournament.id, userId: 'user', status: 'Confirmed', registeredAt: '2030-01-01T00:00:00Z' } });
+      req.reply({ statusCode: 201, delay: 150, body: { attemptId: `attempt-${registerCalls}`, eventId: event.id, userId: 'user', status: 'Confirmed', registeredAt: '2030-01-01T00:00:00Z' } });
     }).as('register');
-    cy.intercept('DELETE', '**/api/tournaments/*/registrations', req => {
+    cy.intercept('DELETE', '**/api/events/*/registrations', req => {
       state = 'available';
-      req.reply({ attemptId: 'attempt', tournamentId: tournament.id, userId: 'user', status: 'CancelledByUser', registeredAt: '2030-01-01T00:00:00Z', statusChangedAt: '2030-01-02T00:00:00Z' });
+      req.reply({ attemptId: 'attempt', eventId: event.id, userId: 'user', status: 'CancelledByUser', registeredAt: '2030-01-01T00:00:00Z', statusChangedAt: '2030-01-02T00:00:00Z' });
     }).as('unregister');
 
     visit('/calendar/tournaments/lyon-legacy');
-    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/tournaments/lyon-legacy.ics');
+    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/events/lyon-legacy.ics');
     cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-register"]').should('exist');
     cy.get('[data-cy="my-registrations-link"]').should('not.exist');
 
@@ -131,8 +131,8 @@ describe('public participant registration', () => {
   it('confirms only what the server accepted and routes to My Registrations', () => {
     authenticated();
     cy.intercept('GET', '**/api/users/me/registrations?*', { items: [], page: 1, pageSize: 100, totalCount: 0 });
-    cy.intercept('GET', '**/api/tournaments/*/registration-capability', { canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 });
-    cy.intercept('POST', '**/api/tournaments/*/registrations', { statusCode: 500, body: { title: 'boom', status: 500 } }).as('failed');
+    cy.intercept('GET', '**/api/events/*/registration-capability', { canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 });
+    cy.intercept('POST', '**/api/events/*/registrations', { statusCode: 500, body: { title: 'boom', status: 500 } }).as('failed');
 
     visit('/calendar/tournaments/lyon-legacy');
     cy.get('[data-cy="registration-register"]').click();
@@ -140,7 +140,7 @@ describe('public participant registration', () => {
     cy.get('[data-cy="registration-status"]').should('contain.text', 'échoué');
     cy.get('mat-dialog-container').should('not.exist');
 
-    cy.intercept('POST', '**/api/tournaments/*/registrations', { statusCode: 201, body: { attemptId: 'attempt', tournamentId: tournament.id, userId: 'user', status: 'Confirmed', registeredAt: '2030-01-01T00:00:00Z' } }).as('register');
+    cy.intercept('POST', '**/api/events/*/registrations', { statusCode: 201, body: { attemptId: 'attempt', eventId: event.id, userId: 'user', status: 'Confirmed', registeredAt: '2030-01-01T00:00:00Z' } }).as('register');
     cy.get('[data-cy="registration-register"]').click();
     cy.wait('@register');
     cy.get('[data-cy="registration-success-my-registrations"]').click();
@@ -151,8 +151,8 @@ describe('public participant registration', () => {
   it('rejects offline writes without request or optimistic capacity change at 375px', () => {
     cy.viewport(375, 812);
     authenticated();
-    cy.intercept('GET', '**/api/tournaments/*/registration-capability', { canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 });
-    cy.intercept('POST', '**/api/tournaments/*/registrations').as('register');
+    cy.intercept('GET', '**/api/events/*/registration-capability', { canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 });
+    cy.intercept('POST', '**/api/events/*/registrations').as('register');
     visit('/calendar/tournaments/lyon-legacy');
     cy.get('[data-cy="registration-register"]').should('be.enabled');
     cy.window().then(win => cy.stub(win.navigator, 'onLine').value(false));
@@ -174,8 +174,8 @@ describe('My Registrations', () => {
       calls += 1;
       if (calls === 1) { req.reply({ statusCode: 503 }); return; }
       req.reply({ items: [
-        { attemptId: 'active', tournamentId: tournament.id, tournamentSlug: tournament.slug, tournamentTitle: tournament.title, organizationName: 'Gones', startsAtUtc: tournament.startsAtUtc, timeZoneId: tournament.timeZoneId, status: 'Confirmed', isCurrent: true, registeredByUserId: 'user', registeredAt: '2030-01-01T00:00:00Z' },
-        { attemptId: 'old', tournamentId: tournament.id, tournamentSlug: tournament.slug, tournamentTitle: tournament.title, organizationName: 'Gones', startsAtUtc: tournament.startsAtUtc, timeZoneId: tournament.timeZoneId, status: 'CancelledByUser', isCurrent: false, registeredByUserId: 'user', registeredAt: '2029-01-01T00:00:00Z', statusChangedAt: '2029-01-02T00:00:00Z' }
+        { attemptId: 'active', eventId: event.id, eventSlug: event.slug, eventTitle: event.title, organizationName: 'Gones', startsAtUtc: event.startsAtUtc, timeZoneId: event.timeZoneId, status: 'Confirmed', isCurrent: true, registeredByUserId: 'user', registeredAt: '2030-01-01T00:00:00Z' },
+        { attemptId: 'old', eventId: event.id, eventSlug: event.slug, eventTitle: event.title, organizationName: 'Gones', startsAtUtc: event.startsAtUtc, timeZoneId: event.timeZoneId, status: 'CancelledByUser', isCurrent: false, registeredByUserId: 'user', registeredAt: '2029-01-01T00:00:00Z', statusChangedAt: '2029-01-02T00:00:00Z' }
       ], page: 1, pageSize: 100, totalCount: 2 });
     }).as('registrations');
     visit('/');

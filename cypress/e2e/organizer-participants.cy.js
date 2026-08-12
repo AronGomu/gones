@@ -1,5 +1,5 @@
-const tournamentId = '11111111-1111-1111-1111-111111111111';
-const otherTournamentId = '99999999-9999-9999-9999-999999999999';
+const eventId = '11111111-1111-1111-1111-111111111111';
+const otherEventId = '99999999-9999-9999-9999-999999999999';
 const orgId = '22222222-2222-2222-2222-222222222222';
 const userId = '33333333-3333-3333-3333-333333333333';
 const registrationId = '44444444-4444-4444-4444-444444444444';
@@ -8,8 +8,8 @@ const profile = {
   username: 'organizer-user', firstName: 'Organizer', lastName: 'User', preferredLanguage: 'en', isFirstNamePublic: false,
   isLastNamePublic: false, isLocationPublic: false, isBirthYearPublic: false, isPreferredLanguagePublic: false
 };
-const tournament = {
-  id: tournamentId, organizationId: orgId, organizationName: 'Owned Club', title: 'Lyon Legacy Open', slug: 'lyon-legacy-open',
+const event = {
+  id: eventId, organizationId: orgId, organizationName: 'Owned Club', title: 'Lyon Legacy Open', slug: 'lyon-legacy-open',
   venueStartDate: '2030-08-01', venueStartTime: '10:00:00', startsAtUtc: '2030-08-01T08:00:00Z', city: 'Lyon',
   status: 'Published', version: 3, eTag: '"3"'
 };
@@ -23,7 +23,7 @@ function mockSession() {
   cy.intercept('GET', '**/api/users/me', profile);
 }
 
-function visit(path = `/organizer/tournaments/${tournamentId}/participants`, language = 'en') {
+function visit(path = `/organizer/tournaments/${eventId}/participants`, language = 'en') {
   cy.visit(path, { onBeforeLoad(win) {
     win.localStorage.setItem('gones.settings.language', language);
     win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
@@ -31,8 +31,8 @@ function visit(path = `/organizer/tournaments/${tournamentId}/participants`, lan
 }
 
 function mockPage(items = [participant]) {
-  cy.intercept('GET', '**/api/organizer/tournaments?*', { items: [tournament], page: 1, pageSize: 100, totalCount: 1 }).as('tournament');
-  cy.intercept('GET', `**/api/tournaments/${tournamentId}/registrations?*`, { items, page: 1, pageSize: 20, totalCount: items.length }).as('participants');
+  cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('event');
+  cy.intercept('GET', `**/api/events/${eventId}/registrations?*`, { items, page: 1, pageSize: 20, totalCount: items.length }).as('participants');
   cy.intercept('GET', `**/api/organizations/${orgId}/blocked-users?*`, { items: [], page: 1, pageSize: 20, totalCount: 0 }).as('blocks');
   cy.intercept('GET', `**/api/organizations/${orgId}/notification-settings`, { organizationId: orgId, notifyOnRegistration: true, notifyOnUnregistration: false, updatedAt: '2030-01-01T00:00:00Z' }).as('prefs');
 }
@@ -48,11 +48,11 @@ describe('Organizer participant management', () => {
       req.reply({ userId: 'new-user-id', username: 'new-user', firstName: 'New', lastName: 'User', email: 'new@example.test' });
     }).as('lookup');
     let addCalls = 0;
-    cy.intercept('POST', `**/api/tournaments/${tournamentId}/registrations/by-organizer`, req => {
+    cy.intercept('POST', `**/api/events/${eventId}/registrations/by-organizer`, req => {
       addCalls += 1;
       expect(req.body).to.deep.equal({ userId: 'new-user-id' });
       expect(req.body).not.to.have.keys('email', 'firstName', 'lastName', 'username');
-      req.reply({ delay: 200, statusCode: 409, headers: { 'content-type': 'application/problem+json' }, body: { code: 'tournament_full', title: 'Conflict' } });
+      req.reply({ delay: 200, statusCode: 409, headers: { 'content-type': 'application/problem+json' }, body: { code: 'event_full', title: 'Conflict' } });
     }).as('add');
 
     visit();
@@ -71,9 +71,9 @@ describe('Organizer participant management', () => {
     mockPage();
     let removeCalls = 0;
     let blockCalls = 0;
-    cy.intercept('DELETE', `**/api/tournaments/${tournamentId}/registrations/${registrationId}`, req => {
+    cy.intercept('DELETE', `**/api/events/${eventId}/registrations/${registrationId}`, req => {
       removeCalls += 1;
-      req.reply({ attemptId: registrationId, tournamentId, userId, status: 'RemovedByOrganizer', registeredAt: participant.registeredAt, statusChangedAt: '2030-01-03T00:00:00Z' });
+      req.reply({ attemptId: registrationId, eventId, userId, status: 'RemovedByOrganizer', registeredAt: participant.registeredAt, statusChangedAt: '2030-01-03T00:00:00Z' });
     }).as('remove');
     cy.intercept('POST', `**/api/organizations/${orgId}/blocked-users`, req => {
       blockCalls += 1;
@@ -114,7 +114,7 @@ describe('Organizer participant management', () => {
 
   it('downloads authenticated CSV only after response and saves org notice preferences', () => {
     mockPage();
-    cy.intercept('GET', `**/api/tournaments/${tournamentId}/registrations/export`, req => {
+    cy.intercept('GET', `**/api/events/${eventId}/registrations/export`, req => {
       expect(req.headers.authorization).to.eq('Bearer memory-token');
       req.reply({ delay: 250, statusCode: 200, headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="lyon-legacy-open-participants.csv"', 'access-control-expose-headers': 'Content-Disposition' }, body: 'Username,Email\r\nalice-user,alice@example.test\r\n' });
     }).as('csv');
@@ -138,15 +138,15 @@ describe('Organizer participant management', () => {
   });
 
   it('denies cross-org URLs, retries errors, supports keyboard dialog focus, French, mobile cards', () => {
-    cy.intercept('GET', '**/api/organizer/tournaments?*', { items: [tournament], page: 1, pageSize: 100, totalCount: 1 });
-    cy.intercept('GET', `**/api/tournaments/${otherTournamentId}/registrations?*`, { statusCode: 404, headers: { 'content-type': 'application/problem+json' }, body: { code: 'not_found' } }).as('denied');
-    visit(`/organizer/tournaments/${otherTournamentId}/participants`);
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 });
+    cy.intercept('GET', `**/api/events/${otherEventId}/registrations?*`, { statusCode: 404, headers: { 'content-type': 'application/problem+json' }, body: { code: 'not_found' } }).as('denied');
+    visit(`/organizer/tournaments/${otherEventId}/participants`);
     cy.get('[data-cy="participant-error"]').should('be.visible').and('not.contain.text', 'alice@example.test');
 
     cy.viewport(375, 812);
     mockPage();
     let participantCalls = 0;
-    cy.intercept('GET', `**/api/tournaments/${tournamentId}/registrations?*`, req => {
+    cy.intercept('GET', `**/api/events/${eventId}/registrations?*`, req => {
       participantCalls += 1;
       if (participantCalls === 1) req.reply({ statusCode: 503 });
       else req.reply({ items: [participant], page: 1, pageSize: 20, totalCount: 1 });

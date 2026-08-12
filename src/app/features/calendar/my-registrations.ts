@@ -1,23 +1,23 @@
-import { TournamentRegistrationHistoryResponse } from '../../api/generated/gones-api';
+import { EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
 
 export interface RegistrationAttemptGroups {
-  upcoming: TournamentRegistrationHistoryResponse[];
-  history: TournamentRegistrationHistoryResponse[];
+  upcoming: EventRegistrationHistoryResponse[];
+  history: EventRegistrationHistoryResponse[];
 }
 
 export function partitionRegistrationAttempts(
-  attempts: TournamentRegistrationHistoryResponse[],
+  attempts: EventRegistrationHistoryResponse[],
   now = new Date()
 ): RegistrationAttemptGroups {
-  const upcoming: TournamentRegistrationHistoryResponse[] = [];
-  const history: TournamentRegistrationHistoryResponse[] = [];
+  const upcoming: EventRegistrationHistoryResponse[] = [];
+  const history: EventRegistrationHistoryResponse[] = [];
   for (const attempt of attempts) {
     (attempt.isCurrent && new Date(String(attempt.startsAtUtc)).getTime() > now.getTime() ? upcoming : history).push(attempt);
   }
   return { upcoming, history };
 }
 
-export function registrationVenueTime(attempt: TournamentRegistrationHistoryResponse, language: 'en' | 'fr'): string {
+export function registrationVenueTime(attempt: EventRegistrationHistoryResponse, language: 'en' | 'fr'): string {
   const locale = language === 'fr' ? 'fr-FR' : 'en-US';
   const formatted = new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',

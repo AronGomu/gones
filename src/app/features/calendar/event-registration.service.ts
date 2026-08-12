@@ -6,10 +6,10 @@ import { MessageKey } from '../../i18n/messages';
 import { OnlineStatusService } from '../../shared/online-status.service';
 import {
   Client,
-  PublicTournamentParticipantListResponse,
-  TournamentRegistrationCapabilityResponse,
-  TournamentRegistrationListResponse,
-  TournamentRegistrationMutationResponse
+  PublicEventParticipantListResponse,
+  EventRegistrationCapabilityResponse,
+  EventRegistrationListResponse,
+  EventRegistrationMutationResponse
 } from '../../api/generated/gones-api';
 
 export const REGISTRATION_ONLINE = new InjectionToken<() => boolean>('REGISTRATION_ONLINE', {
@@ -28,17 +28,17 @@ export function registrationErrorKey(code?: string): MessageKey {
   switch (code) {
     case 'email_verification_required': return 'registration.emailVerificationRequired';
     case 'registration_blocked': return 'registration.blocked';
-    case 'tournament_full': return 'registration.full';
+    case 'event_full': return 'registration.full';
     case 'registration_closed':
     case 'unregistration_closed': return 'registration.started';
-    case 'tournament_not_open': return 'registration.notOpen';
+    case 'event_not_open': return 'registration.notOpen';
     case 'registration_already_active': return 'registration.alreadyActive';
     default: return 'registration.failed';
   }
 }
 
 @Injectable({ providedIn: 'root' })
-export class TournamentRegistrationService {
+export class EventRegistrationService {
   private readonly client = inject(Client);
   private readonly isOnline = inject(REGISTRATION_ONLINE);
   /** Idempotency keys are session-scoped: a new user must never replay the previous one. */
@@ -48,33 +48,33 @@ export class TournamentRegistrationService {
     inject(SessionScopeService).register(() => this.retryKeys.clear());
   }
 
-  participants(slug: string): Promise<PublicTournamentParticipantListResponse> {
+  participants(slug: string): Promise<PublicEventParticipantListResponse> {
     return firstValueFrom(this.client.participants(slug));
   }
 
-  capability(tournamentId: string): Promise<TournamentRegistrationCapabilityResponse> {
-    return firstValueFrom(this.client.getTournamentRegistrationCapability(tournamentId));
+  capability(eventId: string): Promise<EventRegistrationCapabilityResponse> {
+    return firstValueFrom(this.client.getEventRegistrationCapability(eventId));
   }
 
-  list(page = 1, pageSize = 100): Promise<TournamentRegistrationListResponse> {
-    return firstValueFrom(this.client.listMyTournamentRegistrations(page, pageSize));
+  list(page = 1, pageSize = 100): Promise<EventRegistrationListResponse> {
+    return firstValueFrom(this.client.listMyEventRegistrations(page, pageSize));
   }
 
-  register(tournamentId: string): Promise<TournamentRegistrationMutationResponse> {
-    return this.mutate('register', tournamentId, key => this.client.registerForTournament(tournamentId, key));
+  register(eventId: string): Promise<EventRegistrationMutationResponse> {
+    return this.mutate('register', eventId, key => this.client.registerForEvent(eventId, key));
   }
 
-  unregister(tournamentId: string): Promise<TournamentRegistrationMutationResponse> {
-    return this.mutate('unregister', tournamentId, key => this.client.unregisterFromTournament(tournamentId, key));
+  unregister(eventId: string): Promise<EventRegistrationMutationResponse> {
+    return this.mutate('unregister', eventId, key => this.client.unregisterFromEvent(eventId, key));
   }
 
   private async mutate(
     command: 'register' | 'unregister',
-    tournamentId: string,
-    dispatch: (key: string) => ReturnType<Client['registerForTournament']>
-  ): Promise<TournamentRegistrationMutationResponse> {
+    eventId: string,
+    dispatch: (key: string) => ReturnType<Client['registerForEvent']>
+  ): Promise<EventRegistrationMutationResponse> {
     if (!this.isOnline()) throw new RegistrationOfflineError();
-    const operation = `${command}:${tournamentId}`;
+    const operation = `${command}:${eventId}`;
     const key = this.retryKeys.get(operation) ?? globalThis.crypto.randomUUID();
     this.retryKeys.set(operation, key);
     try {

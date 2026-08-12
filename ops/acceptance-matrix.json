@@ -97,7 +97,7 @@
         },
         {
           "gate": "cypress",
-          "target": "cypress/e2e/organizer-tournament-create.cy.js",
+          "target": "cypress/e2e/organizer-event-create.cy.js",
           "detail": "browser create flow"
         },
         {
@@ -149,7 +149,7 @@
         },
         {
           "gate": "cypress",
-          "target": "cypress/e2e/tournament-registration.cy.js",
+          "target": "cypress/e2e/event-registration.cy.js",
           "detail": "browser registration flow"
         },
         {
@@ -1312,12 +1312,12 @@
         },
         {
           "gate": "vitest",
-          "target": "src/app/features/calendar/organizer-tournament-create.test.ts",
+          "target": "src/app/features/calendar/organizer-event-create.test.ts",
           "detail": "form model and validation"
         },
         {
           "gate": "cypress",
-          "target": "cypress/e2e/organizer-tournament-create.cy.js",
+          "target": "cypress/e2e/organizer-event-create.cy.js",
           "detail": "browser create flow"
         },
         {
@@ -1411,7 +1411,7 @@
         },
         {
           "gate": "cypress",
-          "target": "cypress/e2e/organizer-tournament-management.cy.js",
+          "target": "cypress/e2e/organizer-event-management.cy.js",
           "detail": "management screens"
         },
         {
@@ -1489,7 +1489,7 @@
         },
         {
           "gate": "vitest",
-          "target": "src/app/features/calendar/all-tournaments-cache.service.test.ts",
+          "target": "src/app/features/calendar/all-events-cache.service.test.ts",
           "detail": "the catalog is fetched once and served from cache"
         },
         {
@@ -1520,7 +1520,7 @@
         },
         {
           "gate": "vitest",
-          "target": "src/app/features/calendar/public-tournament.service.test.ts",
+          "target": "src/app/features/calendar/public-event.service.test.ts",
           "detail": "full-tournament presentation"
         }
       ]
@@ -1572,7 +1572,7 @@
         },
         {
           "gate": "cypress",
-          "target": "cypress/e2e/tournament-proposal.cy.js",
+          "target": "cypress/e2e/event-proposal.cy.js",
           "detail": "the anonymous /tournament-requests/:token page: review, validate, refuse-with-reason and an expired-token panel, all intercept-based and signed out"
         }
       ]
@@ -1593,7 +1593,7 @@
         },
         {
           "gate": "vitest",
-          "target": "src/app/features/calendar/tournament-registration.service.test.ts",
+          "target": "src/app/features/calendar/event-registration.service.test.ts",
           "detail": "client capability model"
         }
       ]
@@ -1614,7 +1614,7 @@
         },
         {
           "gate": "cypress",
-          "target": "cypress/e2e/tournament-registration.cy.js",
+          "target": "cypress/e2e/event-registration.cy.js",
           "detail": "browser register and unregister"
         },
         {
@@ -1640,7 +1640,7 @@
         },
         {
           "gate": "vitest",
-          "target": "src/app/features/calendar/tournament-registration.service.test.ts",
+          "target": "src/app/features/calendar/event-registration.service.test.ts",
           "detail": "client error mapping"
         },
         {
@@ -2135,7 +2135,7 @@
       "evidence": [
         {
           "gate": "vitest",
-          "target": "src/app/features/calendar/public-tournament.service.test.ts",
+          "target": "src/app/features/calendar/public-event.service.test.ts",
           "detail": "detail page model"
         },
         {
@@ -2182,12 +2182,12 @@
       "evidence": [
         {
           "gate": "vitest",
-          "target": "src/app/features/calendar/tournament-management.test.ts",
+          "target": "src/app/features/calendar/event-management.test.ts",
           "detail": "management list model"
         },
         {
           "gate": "cypress",
-          "target": "cypress/e2e/organizer-tournament-management.cy.js",
+          "target": "cypress/e2e/organizer-event-management.cy.js",
           "detail": "browser management screens"
         }
       ]

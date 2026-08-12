@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { PreviewPublicationState, browserTimeZoneSuggestion, tournamentPayload } from './organizer-tournament-create';
+import { PreviewPublicationState, browserTimeZoneSuggestion, eventPayload } from './organizer-event-create';
 
 const preview = { previewTicket: 'ticket', expiresAt: '2027-01-01T00:00:00Z', render: {} } as never;
 
-describe('Organizer Tournament create state', () => {
+describe('Organizer Event create state', () => {
   it('uses browser zone only as editable initial suggestion', () => {
     expect(browserTimeZoneSuggestion(() => 'Europe/Paris')).toBe('Europe/Paris');
     expect(browserTimeZoneSuggestion(() => '')).toBe('');
@@ -11,7 +11,7 @@ describe('Organizer Tournament create state', () => {
   });
 
   it('builds payload from explicit form zone without inferring a replacement', () => {
-    expect(tournamentPayload({
+    expect(eventPayload({
       organizationId: 'org', title: ' Cup ', summary: ' ', bodyHtml: ' <p>Body</p> ', streetAddress: ' 1 Street ',
       postalCode: '', city: ' Lyon ', country: ' France ', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: '', capacity: null, formatIds: ['legacy']

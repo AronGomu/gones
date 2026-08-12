@@ -17,7 +17,7 @@ describe('Organizer participant management contracts', () => {
   });
 
   it('maps capacity races separately from generic failures', () => {
-    expect(participantErrorKey(409, 'tournament_full')).toBe('participants.capacityRace');
+    expect(participantErrorKey(409, 'event_full')).toBe('participants.capacityRace');
     expect(participantErrorKey(404, 'not_found')).toBe('participants.accessDenied');
     expect(participantErrorKey(503, undefined)).toBe('participants.actionFailed');
   });

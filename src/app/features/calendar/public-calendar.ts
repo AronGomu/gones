@@ -1,5 +1,5 @@
 import { ParamMap } from '@angular/router';
-import { PublicTournamentSummaryResponse } from '../../api/generated/gones-api';
+import { PublicEventSummaryResponse } from '../../api/generated/gones-api';
 
 export type CalendarView = 'calendar' | 'list';
 
@@ -13,12 +13,12 @@ export interface CalendarQuery {
 
 export const PAGE_SIZE = 20;
 
-export interface PublicTournamentView {
+export interface PublicEventView {
   id: string;
   title: string;
   slug: string;
   summary: string | undefined;
-  venue: PublicTournamentSummaryResponse['venue'];
+  venue: PublicEventSummaryResponse['venue'];
   timeZoneId: string;
   venueStartDate: string;
   venueStartTime: string;
@@ -28,16 +28,16 @@ export interface PublicTournamentView {
   endsAtUtc: unknown;
   capacity: number | undefined;
   status: string;
-  organization: PublicTournamentSummaryResponse['organization'];
-  formats: PublicTournamentSummaryResponse['formats'];
+  organization: PublicEventSummaryResponse['organization'];
+  formats: PublicEventSummaryResponse['formats'];
 }
 
 export interface VenueDateGroup {
   date: string;
-  items: PublicTournamentView[];
+  items: PublicEventView[];
 }
 
-export interface TournamentDatePresentation {
+export interface EventDatePresentation {
   primary: string;
   secondary?: string;
 }
@@ -68,7 +68,7 @@ function readPage(value: string | null): number {
 }
 
 /** Stable flat order for paging: venue date, then venue start time, then title, then id. */
-export function sortTournamentsForList(items: PublicTournamentView[]): PublicTournamentView[] {
+export function sortEventsForList(items: PublicEventView[]): PublicEventView[] {
   return [...items].sort((left, right) =>
     left.venueStartDate.localeCompare(right.venueStartDate)
     || left.venueStartTime.localeCompare(right.venueStartTime)
@@ -84,7 +84,7 @@ export function clampCalendarPage(page: number, total: number, pageSize = PAGE_S
   return Math.min(Math.max(1, Math.trunc(page) || 1), calendarPageCount(total, pageSize));
 }
 
-export function paginateTournaments(items: PublicTournamentView[], page: number, pageSize = PAGE_SIZE): PublicTournamentView[] {
+export function paginateEvents(items: PublicEventView[], page: number, pageSize = PAGE_SIZE): PublicEventView[] {
   const safePage = clampCalendarPage(page, items.length, pageSize);
   return items.slice((safePage - 1) * pageSize, safePage * pageSize);
 }
@@ -105,9 +105,9 @@ export function venueMapsUrl(venue: { streetAddress?: string; postalCode?: strin
 
 export const MAX_DAY_CELL_EVENTS = 3;
 
-/** Tournaments keyed by their venue start date, each list sorted by start time then title. */
-export function tournamentsByDate(items: PublicTournamentView[]): Map<string, PublicTournamentView[]> {
-  const grouped = new Map<string, PublicTournamentView[]>();
+/** Events keyed by their venue start date, each list sorted by start time then title. */
+export function eventsByDate(items: PublicEventView[]): Map<string, PublicEventView[]> {
+  const grouped = new Map<string, PublicEventView[]>();
   for (const item of items) {
     const current = grouped.get(item.venueStartDate) ?? [];
     current.push(item);
@@ -119,8 +119,8 @@ export function tournamentsByDate(items: PublicTournamentView[]): Map<string, Pu
   return grouped;
 }
 
-export function groupTournamentsByVenueDate(items: PublicTournamentView[]): VenueDateGroup[] {
-  const grouped = new Map<string, PublicTournamentView[]>();
+export function groupEventsByVenueDate(items: PublicEventView[]): VenueDateGroup[] {
+  const grouped = new Map<string, PublicEventView[]>();
   for (const item of items) {
     const current = grouped.get(item.venueStartDate) ?? [];
     current.push(item);
@@ -134,26 +134,26 @@ export function groupTournamentsByVenueDate(items: PublicTournamentView[]): Venu
     }));
 }
 
-export function tournamentDatePresentation(
-  tournament: Omit<PublicTournamentView, 'id'>,
+export function eventDatePresentation(
+  event: Omit<PublicEventView, 'id'>,
   locale: string,
   viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-): TournamentDatePresentation {
-  const instant = new Date(String(tournament.startsAtUtc));
-  const venueDate = formatWallDate(tournament.venueStartDate, locale);
-  const venueTime = formatWallTime(tournament.venueStartTime, locale);
-  const venueShortZone = zoneName(instant, locale, tournament.timeZoneId);
-  const primary = `${venueDate}, ${venueTime} (${venueShortZone}, ${tournament.timeZoneId})`;
-  if (!viewerTimeZone || viewerTimeZone === tournament.timeZoneId || Number.isNaN(instant.getTime())) return { primary };
+): EventDatePresentation {
+  const instant = new Date(String(event.startsAtUtc));
+  const venueDate = formatWallDate(event.venueStartDate, locale);
+  const venueTime = formatWallTime(event.venueStartTime, locale);
+  const venueShortZone = zoneName(instant, locale, event.timeZoneId);
+  const primary = `${venueDate}, ${venueTime} (${venueShortZone}, ${event.timeZoneId})`;
+  if (!viewerTimeZone || viewerTimeZone === event.timeZoneId || Number.isNaN(instant.getTime())) return { primary };
 
   const viewerParts = dateTimeParts(instant, locale, viewerTimeZone);
-  const venueWall = `${tournament.venueStartDate}T${tournament.venueStartTime.slice(0, 5)}`;
+  const venueWall = `${event.venueStartDate}T${event.venueStartTime.slice(0, 5)}`;
   if (viewerParts.wall === venueWall) return { primary };
   return { primary, secondary: `${viewerParts.label} (${viewerParts.zone}, ${viewerTimeZone})` };
 }
 
 /** The list card drops the zone: the venue line right under it already says where the event is. */
-export function tournamentCardDatePresentation(item: Omit<PublicTournamentView, 'id'>, locale: string): string {
+export function eventCardDatePresentation(item: Omit<PublicEventView, 'id'>, locale: string): string {
   return `${formatWallDate(item.venueStartDate, locale)}, ${formatWallTime(item.venueStartTime, locale)}`;
 }
 

@@ -11,7 +11,7 @@ vi.mock('@angular/core', async (importOriginal) => {
 import { Injector, runInInjectionContext } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { ApproverSelectionDialogComponent, ApproverSelectionDialogData } from './approver-selection-dialog.component';
-import { sortApprovers } from './tournament-proposal.service';
+import { sortApprovers } from './event-proposal.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { ProposalApproverResponse } from '../../api/generated/gones-api';

@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { describe, expect, it, vi } from 'vitest';
 
-// Same rationale as organizer-tournament-create.component.test.ts: no TestBed / zone.js in this
+// Same rationale as organizer-event-create.component.test.ts: no TestBed / zone.js in this
 // repo, so `effect()` is stubbed to a no-op and the component is built with a bare Injector.
 // These tests assert on component state and spy calls, never on rendered DOM.
 vi.mock('@angular/core', async (importOriginal) => {
@@ -12,12 +12,12 @@ vi.mock('@angular/core', async (importOriginal) => {
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
 import { ApiProblemError } from '../../api/api-boundary';
-import { TournamentRequestComponent } from './tournament-request.component';
-import { TournamentProposalService } from './tournament-proposal.service';
+import { EventRequestComponent } from './event-request.component';
+import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
-import { TournamentProposalReviewResponse, UserProfileResponse } from '../../api/generated/gones-api';
+import { EventProposalReviewResponse, UserProfileResponse } from '../../api/generated/gones-api';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -28,9 +28,9 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-const baseReview: TournamentProposalReviewResponse = {
+const baseReview: EventProposalReviewResponse = {
   id: 'p1',
-  tournament: {
+  event: {
     organizationId: 'org1',
     title: 'Modern Cup',
     summary: 'A fun cup',
@@ -51,7 +51,7 @@ const baseReview: TournamentProposalReviewResponse = {
   expiresAt: '2027-08-08T00:00:00Z',
   organizationName: 'Gones',
   formatNames: ['Legacy', 'Modern']
-} as unknown as TournamentProposalReviewResponse;
+} as unknown as EventProposalReviewResponse;
 
 function setup(reviewResult: unknown = baseReview) {
   const profile = null as unknown as UserProfileResponse | null;
@@ -60,7 +60,7 @@ function setup(reviewResult: unknown = baseReview) {
 
   const reviewByToken = vi.fn(async () => {
     if (reviewResult instanceof Error) throw reviewResult;
-    return reviewResult as TournamentProposalReviewResponse;
+    return reviewResult as EventProposalReviewResponse;
   });
   const approveByToken = vi.fn(async () => ({ proposalId: 'p1', status: 'Approved', slug: 'x' }));
   const rejectByToken = vi.fn(async () => undefined);
@@ -70,12 +70,12 @@ function setup(reviewResult: unknown = baseReview) {
   const injector = Injector.create({ providers: [
     { provide: ActivatedRoute, useValue: route },
     { provide: AuthService, useValue: auth },
-    { provide: TournamentProposalService, useValue: proposalsStub },
+    { provide: EventProposalService, useValue: proposalsStub },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
-  const component = runInInjectionContext(injector, () => new TournamentRequestComponent());
+  const component = runInInjectionContext(injector, () => new EventRequestComponent());
   return { component, proposalsStub };
 }
 
@@ -84,12 +84,12 @@ async function flush() {
   await Promise.resolve();
 }
 
-describe('TournamentRequestComponent', () => {
+describe('EventRequestComponent', () => {
   it('renders the proposal', async () => {
     const { component } = setup();
     await flush();
     expect(component.state()).toBe('review');
-    expect(component.proposal()?.tournament.title).toBe('Modern Cup');
+    expect(component.proposal()?.event.title).toBe('Modern Cup');
     expect(component.proposal()?.organizationName).toBe('Gones');
     expect(component.proposal()?.formatNames).toEqual(['Legacy', 'Modern']);
   });
@@ -114,7 +114,7 @@ describe('TournamentRequestComponent', () => {
     expect(component.state()).toBe('handled');
   });
 
-  it('validate publishes and links to the tournament', async () => {
+  it('validate publishes and links to the event', async () => {
     const { component, proposalsStub } = setup();
     await flush();
     await component.approve();

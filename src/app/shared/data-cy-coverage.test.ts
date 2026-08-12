@@ -93,10 +93,10 @@ export function findMissingDataCy(source: string): string[] {
  * by reading source text. So: the binding form is the marker. Reach for it only when the repeat is
  * intentional, and leave a reason at the call site.
  *
- * T27 removed the one use that was not intentional: `organizer-tournament-create.component.ts` wore
+ * T27 removed the one use that was not intentional: `organizer-event-create.component.ts` wore
  * the hatch on a second `reload-organizations` button whose click handler was a *different* method,
  * so the marker was silencing an ambiguity rather than recording a deliberate repeat. That button is
- * now `tournament-publish-error-reload`. Two elements that do different things never share a name.
+ * now `event-publish-error-reload`. Two elements that do different things never share a name.
  */
 export function findDuplicateDataCy(source: string): string[] {
   const seen = new Map<string, number>();

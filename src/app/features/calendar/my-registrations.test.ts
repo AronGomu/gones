@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { Instant, TournamentRegistrationHistoryResponse } from '../../api/generated/gones-api';
+import { Instant, EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
 import { translate } from '../../i18n/messages';
 import { partitionRegistrationAttempts, registrationVenueTime } from './my-registrations';
 
-const current: TournamentRegistrationHistoryResponse = {
-  attemptId: 'current', tournamentId: 'tournament', tournamentSlug: 'future', tournamentTitle: 'Future', organizationName: 'Gones',
+const current: EventRegistrationHistoryResponse = {
+  attemptId: 'current', eventId: 'event', eventSlug: 'future', eventTitle: 'Future', organizationName: 'Gones',
   startsAtUtc: '2035-03-04T09:00:00Z' as unknown as Instant, timeZoneId: 'Europe/Paris', status: 'Confirmed', isCurrent: true,
   registeredByUserId: 'user', registeredAt: '2030-01-01T00:00:00Z' as unknown as Instant, statusChangedByUserId: undefined, statusChangedAt: undefined
 };

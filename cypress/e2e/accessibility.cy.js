@@ -9,11 +9,11 @@
  */
 
 const orgId = '22222222-2222-2222-2222-222222222222';
-const tournament = {
+const event = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
   slug: 'lyon-legacy',
-  summary: 'Legacy tournament',
+  summary: 'Legacy event',
   bodyHtml: '<p>Welcome to the <strong>event</strong>.</p>',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris',
@@ -69,9 +69,9 @@ function checkA11y(label, context = undefined) {
 
 describe('accessibility', () => {
   beforeEach(() => {
-    cy.intercept('GET', '**/api/tournaments/all*', { items: [tournament], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false }).as('tournaments');
-    cy.intercept('GET', '**/api/tournaments/lyon-legacy', tournament).as('tournament');
-    cy.intercept('GET', '**/api/tournaments/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
+    cy.intercept('GET', '**/api/events/all*', { items: [event], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false }).as('events');
+    cy.intercept('GET', '**/api/events/lyon-legacy', event).as('event');
+    cy.intercept('GET', '**/api/events/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
     cy.intercept('GET', '**/api/formats*', []);
     cy.intercept('GET', '**/api/organizations*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
   });
@@ -84,7 +84,7 @@ describe('accessibility', () => {
 
   it('public calendar list and calendar views have no WCAG A/AA violations', () => {
     visit('/calendar');
-    cy.wait('@tournaments');
+    cy.wait('@events');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     checkA11y('calendar (month view)');
 
@@ -93,11 +93,11 @@ describe('accessibility', () => {
     checkA11y('calendar (list view)');
   });
 
-  it('public tournament detail has no WCAG A/AA violations', () => {
+  it('public event detail has no WCAG A/AA violations', () => {
     visit('/calendar/tournaments/lyon-legacy');
-    cy.wait('@tournament');
+    cy.wait('@event');
     cy.contains('Lyon Legacy').should('be.visible');
-    checkA11y('tournament detail');
+    checkA11y('event detail');
   });
 
   it('settings form has no WCAG A/AA violations', () => {
@@ -114,7 +114,7 @@ describe('accessibility', () => {
 
   it('every calendar filter control has a programmatic name', () => {
     visit('/calendar');
-    cy.wait('@tournaments');
+    cy.wait('@events');
     cy.get('[data-cy="calendar-search-row"]').find('input, select, textarea').each(($control) => {
       const element = $control[0];
       const id = element.getAttribute('id');
@@ -129,7 +129,7 @@ describe('accessibility', () => {
 
   it('keyboard alone reaches and operates the calendar view toggle', () => {
     visit('/calendar');
-    cy.wait('@tournaments');
+    cy.wait('@events');
 
     cy.get('[data-cy="list-view"]').focus();
     cy.focused().should('have.attr', 'data-cy', 'list-view');
@@ -140,7 +140,7 @@ describe('accessibility', () => {
 
   it('no element is reachable by keyboard while hidden from assistive technology', () => {
     visit('/calendar');
-    cy.wait('@tournaments');
+    cy.wait('@events');
     cy.get('body').find('[aria-hidden="true"]').each(($hidden) => {
       const focusable = Cypress.$($hidden).find('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
       expect(focusable.length, `aria-hidden subtree ${$hidden[0].outerHTML.slice(0, 120)} must not contain focusable elements`).to.equal(0);
@@ -148,14 +148,14 @@ describe('accessibility', () => {
   });
 
   it('async regions announce their state to assistive technology', () => {
-    cy.intercept('GET', '**/api/tournaments/all*', (request) => {
-      request.reply({ delay: 400, body: { items: [tournament], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false } });
-    }).as('slowTournaments');
+    cy.intercept('GET', '**/api/events/all*', (request) => {
+      request.reply({ delay: 400, body: { items: [event], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false } });
+    }).as('slowEvents');
     visit('/calendar');
     cy.get('[data-cy="calendar-loading"]')
       .should('have.attr', 'aria-busy', 'true')
       .and('have.attr', 'aria-live');
-    cy.wait('@slowTournaments');
+    cy.wait('@slowEvents');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
   });
 
@@ -172,7 +172,7 @@ describe('accessibility', () => {
 
   it('public surfaces pass axe at 375px too', () => {
     visit('/calendar', [375, 812]);
-    cy.wait('@tournaments');
+    cy.wait('@events');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     checkA11y('calendar @375px');
   });

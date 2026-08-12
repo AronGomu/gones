@@ -16,11 +16,11 @@ const hostileBody = [
   '<a href="javascript:window.__pwned = true">bad link</a>'
 ].join('');
 
-const tournament = {
+const event = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
   slug: 'lyon-legacy',
-  summary: 'Legacy tournament',
+  summary: 'Legacy event',
   bodyHtml: hostileBody,
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris',
@@ -51,10 +51,10 @@ describe('abuse surface', () => {
   });
 
   it('never executes or renders hostile HTML delivered by the API', () => {
-    cy.intercept('GET', '**/api/tournaments/lyon-legacy', tournament).as('tournament');
-    cy.intercept('GET', '**/api/tournaments/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
+    cy.intercept('GET', '**/api/events/lyon-legacy', event).as('event');
+    cy.intercept('GET', '**/api/events/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
     visit('/calendar/tournaments/lyon-legacy');
-    cy.wait('@tournament');
+    cy.wait('@event');
 
     cy.contains('Lyon Legacy').should('be.visible');
     cy.contains('Legit copy').should('be.visible');
@@ -70,10 +70,10 @@ describe('abuse surface', () => {
   });
 
   it('marks the external organization link noopener noreferrer', () => {
-    cy.intercept('GET', '**/api/tournaments/lyon-legacy', tournament).as('tournament');
-    cy.intercept('GET', '**/api/tournaments/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
+    cy.intercept('GET', '**/api/events/lyon-legacy', event).as('event');
+    cy.intercept('GET', '**/api/events/lyon-legacy/participants*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
     visit('/calendar/tournaments/lyon-legacy');
-    cy.wait('@tournament');
+    cy.wait('@event');
 
     cy.get('a[target="_blank"]').each(($link) => {
       const rel = ($link.attr('rel') ?? '').toLowerCase();
@@ -83,14 +83,14 @@ describe('abuse surface', () => {
   });
 
   it('never loads a remote image or remote script on a public page', () => {
-    // The Calendar no longer pages through `GET /api/tournaments?…`; it reads the whole catalog once
-    // from `GET /api/tournaments/all` and caches it (`AllTournamentsCacheService`). The wait is
+    // The Calendar no longer pages through `GET /api/events?…`; it reads the whole catalog once
+    // from `GET /api/events/all` and caches it (`AllEventsCacheService`). The wait is
     // retargeted at the request the page actually issues, and the response carries the catalog shape
-    // (`PublicTournamentCatalogResponse`) so the page renders instead of erroring — the claim below
+    // (`PublicEventCatalogResponse`) so the page renders instead of erroring — the claim below
     // only means something on a Calendar that actually rendered.
-    cy.intercept('GET', '**/api/tournaments/all*', { items: [tournament], generatedAt: '2026-07-01T00:00:00Z', count: 1, truncated: false }).as('tournaments');
+    cy.intercept('GET', '**/api/events/all*', { items: [event], generatedAt: '2026-07-01T00:00:00Z', count: 1, truncated: false }).as('events');
     visit('/calendar');
-    cy.wait('@tournaments');
+    cy.wait('@events');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="calendar-error"]').should('not.exist');
 

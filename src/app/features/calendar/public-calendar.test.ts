@@ -2,36 +2,36 @@ import { ParamMap } from '@angular/router';
 import { describe, expect, it } from 'vitest';
 import {
   PAGE_SIZE,
-  PublicTournamentView,
+  PublicEventView,
   buildCalendarQueryParams,
   calendarPageCount,
   clampCalendarPage,
-  groupTournamentsByVenueDate,
+  groupEventsByVenueDate,
   isPastCalendarDay,
-  paginateTournaments,
+  paginateEvents,
   readCalendarQuery,
-  sortTournamentsForList,
+  sortEventsForList,
   statusPresentation,
-  tournamentCardDatePresentation,
-  tournamentDatePresentation,
-  tournamentsByDate,
+  eventCardDatePresentation,
+  eventDatePresentation,
+  eventsByDate,
   venueMapsUrl
 } from './public-calendar';
 
-function make(count: number): PublicTournamentView[] {
+function make(count: number): PublicEventView[] {
   return Array.from({ length: count }, (_, index) => ({
-    ...tournament,
+    ...event,
     id: `item-${String(index).padStart(3, '0')}`,
     venueStartDate: '2026-08-01',
-    title: `Tournament ${String(index).padStart(3, '0')}`
+    title: `Event ${String(index).padStart(3, '0')}`
   }));
 }
 
-const tournament: PublicTournamentView = {
+const event: PublicEventView = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
   slug: 'lyon-legacy',
-  summary: 'Legacy tournament',
+  summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2026-08-01',
@@ -56,10 +56,10 @@ function params(values: Record<string, string>): ParamMap {
 }
 
 describe('public Calendar helpers', () => {
-  it('groups tournaments by venue-local date, not viewer-local date', () => {
-    const groups = groupTournamentsByVenueDate([
-      tournament,
-      { ...tournament, id: 'other', slug: 'other', venueStartDate: '2026-08-02', startsAtUtc: '2026-08-02T00:30:00Z' }
+  it('groups events by venue-local date, not viewer-local date', () => {
+    const groups = groupEventsByVenueDate([
+      event,
+      { ...event, id: 'other', slug: 'other', venueStartDate: '2026-08-02', startsAtUtc: '2026-08-02T00:30:00Z' }
     ]);
 
     expect(groups.map(group => [group.date, group.items.map(item => item.slug)])).toEqual([
@@ -69,8 +69,8 @@ describe('public Calendar helpers', () => {
   });
 
   it('shows viewer-local secondary date only when wall date or time differs', () => {
-    const different = tournamentDatePresentation(tournament, 'en-US', 'Asia/Tokyo');
-    const same = tournamentDatePresentation(tournament, 'en-US', 'Europe/Paris');
+    const different = eventDatePresentation(event, 'en-US', 'Asia/Tokyo');
+    const same = eventDatePresentation(event, 'en-US', 'Europe/Paris');
 
     expect(different.primary).toContain('Europe/Paris');
     expect(different.secondary).toContain('Aug 2');
@@ -81,7 +81,7 @@ describe('public Calendar helpers', () => {
   // The card sits under a venue line that already names the city and country, so repeating the
   // zone there is noise. The detail page keeps the zone: it is the page a reader plans from.
   it('the card date omits the timezone suffix', () => {
-    const card = tournamentCardDatePresentation({ ...tournament, venueStartTime: '19:30:00' }, 'en-US');
+    const card = eventCardDatePresentation({ ...event, venueStartTime: '19:30:00' }, 'en-US');
 
     expect(card).toContain('7:30');
     expect(card).not.toContain('(');
@@ -89,7 +89,7 @@ describe('public Calendar helpers', () => {
   });
 
   it('the card date keeps the venue-local day and month', () => {
-    const card = tournamentCardDatePresentation({ ...tournament, venueStartTime: '19:30:00' }, 'en-US');
+    const card = eventCardDatePresentation({ ...event, venueStartTime: '19:30:00' }, 'en-US');
 
     expect(card).toContain('Aug');
     expect(card).toContain('1');
@@ -191,19 +191,19 @@ describe('calendar list pagination', () => {
   });
 
   it('the first page holds the first twenty', () => {
-    const page = paginateTournaments(make(45), 1);
+    const page = paginateEvents(make(45), 1);
     expect(page).toHaveLength(20);
     expect(page[0].id).toBe('item-000');
   });
 
   it('the last page holds the remainder', () => {
-    const page = paginateTournaments(make(45), 3);
+    const page = paginateEvents(make(45), 3);
     expect(page).toHaveLength(5);
     expect(page[0].id).toBe('item-040');
   });
 
   it('an out-of-range page returns the last one', () => {
-    expect(paginateTournaments(make(45), 9)).toEqual(paginateTournaments(make(45), 3));
+    expect(paginateEvents(make(45), 9)).toEqual(paginateEvents(make(45), 3));
   });
 
   it('PAGE_SIZE is twenty', () => {
@@ -211,46 +211,46 @@ describe('calendar list pagination', () => {
   });
 
   it('sorting is stable across equal dates and times', () => {
-    const itemB: PublicTournamentView = { ...tournament, id: 'b', title: 'B' };
-    const itemA: PublicTournamentView = { ...tournament, id: 'a', title: 'A' };
-    const sorted = sortTournamentsForList([itemB, itemA]);
+    const itemB: PublicEventView = { ...event, id: 'b', title: 'B' };
+    const itemA: PublicEventView = { ...event, id: 'a', title: 'A' };
+    const sorted = sortEventsForList([itemB, itemA]);
     expect(sorted.map(item => item.title)).toEqual(['A', 'B']);
   });
 
   it('the venue date is compared before anything else', () => {
-    const later: PublicTournamentView = { ...tournament, id: 'a', title: 'A', venueStartDate: '2026-08-02' };
-    const earlier: PublicTournamentView = { ...tournament, id: 'b', title: 'B', venueStartDate: '2026-08-01' };
-    expect(sortTournamentsForList([later, earlier]).map(item => item.id)).toEqual(['b', 'a']);
+    const later: PublicEventView = { ...event, id: 'a', title: 'A', venueStartDate: '2026-08-02' };
+    const earlier: PublicEventView = { ...event, id: 'b', title: 'B', venueStartDate: '2026-08-01' };
+    expect(sortEventsForList([later, earlier]).map(item => item.id)).toEqual(['b', 'a']);
   });
 
   // Each comparator below the first is only reached when every comparator above it ties, so each one
   // needs a pair that ties on all of them. Without such a pair, deleting the comparator changes
   // nothing observable and the order silently becomes whatever the input order happened to be.
   it('an equal date falls through to the venue start time', () => {
-    const late: PublicTournamentView = { ...tournament, id: 'a', title: 'Same', venueStartTime: '18:00:00' };
-    const early: PublicTournamentView = { ...tournament, id: 'b', title: 'Same', venueStartTime: '09:00:00' };
-    expect(sortTournamentsForList([late, early]).map(item => item.id)).toEqual(['b', 'a']);
+    const late: PublicEventView = { ...event, id: 'a', title: 'Same', venueStartTime: '18:00:00' };
+    const early: PublicEventView = { ...event, id: 'b', title: 'Same', venueStartTime: '09:00:00' };
+    expect(sortEventsForList([late, early]).map(item => item.id)).toEqual(['b', 'a']);
   });
 
   it('an equal date and time falls through to the title', () => {
-    const second: PublicTournamentView = { ...tournament, id: 'a', title: 'Zulu' };
-    const first: PublicTournamentView = { ...tournament, id: 'b', title: 'Alpha' };
-    expect(sortTournamentsForList([second, first]).map(item => item.id)).toEqual(['b', 'a']);
+    const second: PublicEventView = { ...event, id: 'a', title: 'Zulu' };
+    const first: PublicEventView = { ...event, id: 'b', title: 'Alpha' };
+    expect(sortEventsForList([second, first]).map(item => item.id)).toEqual(['b', 'a']);
   });
 
   it('an equal date, time and title falls through to the id', () => {
-    const second: PublicTournamentView = { ...tournament, id: 'b', title: 'Same' };
-    const first: PublicTournamentView = { ...tournament, id: 'a', title: 'Same' };
-    expect(sortTournamentsForList([second, first]).map(item => item.id)).toEqual(['a', 'b']);
+    const second: PublicEventView = { ...event, id: 'b', title: 'Same' };
+    const first: PublicEventView = { ...event, id: 'a', title: 'Same' };
+    expect(sortEventsForList([second, first]).map(item => item.id)).toEqual(['a', 'b']);
   });
 });
 
-describe('tournamentsByDate', () => {
+describe('eventsByDate', () => {
   it('keys on the venue start date', () => {
-    const map = tournamentsByDate([
-      { ...tournament, id: 'a', venueStartDate: '2026-03-01' },
-      { ...tournament, id: 'b', venueStartDate: '2026-03-01' },
-      { ...tournament, id: 'c', venueStartDate: '2026-03-04' }
+    const map = eventsByDate([
+      { ...event, id: 'a', venueStartDate: '2026-03-01' },
+      { ...event, id: 'b', venueStartDate: '2026-03-01' },
+      { ...event, id: 'c', venueStartDate: '2026-03-04' }
     ]);
 
     expect(map.size).toBe(2);
@@ -259,17 +259,17 @@ describe('tournamentsByDate', () => {
   });
 
   it('sorts a day by start time then title', () => {
-    const map = tournamentsByDate([
-      { ...tournament, id: 'b', venueStartDate: '2026-03-01', venueStartTime: '14:00:00', title: 'B' },
-      { ...tournament, id: 'z', venueStartDate: '2026-03-01', venueStartTime: '09:30:00', title: 'Z' },
-      { ...tournament, id: 'a', venueStartDate: '2026-03-01', venueStartTime: '09:30:00', title: 'A' }
+    const map = eventsByDate([
+      { ...event, id: 'b', venueStartDate: '2026-03-01', venueStartTime: '14:00:00', title: 'B' },
+      { ...event, id: 'z', venueStartDate: '2026-03-01', venueStartTime: '09:30:00', title: 'Z' },
+      { ...event, id: 'a', venueStartDate: '2026-03-01', venueStartTime: '09:30:00', title: 'A' }
     ]);
 
     expect(map.get('2026-03-01')?.map(item => item.title)).toEqual(['A', 'Z', 'B']);
   });
 
   it('returns no entry for a day with nothing', () => {
-    const map = tournamentsByDate([{ ...tournament, id: 'a', venueStartDate: '2026-03-01' }]);
+    const map = eventsByDate([{ ...event, id: 'a', venueStartDate: '2026-03-01' }]);
 
     expect(map.has('2026-03-02')).toBe(false);
   });

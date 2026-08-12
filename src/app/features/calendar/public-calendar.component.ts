@@ -11,26 +11,26 @@ import { OfflineBannerComponent } from '../../shared/offline-banner.component';
 import {
   CalendarQuery,
   CalendarView,
-  PublicTournamentView,
+  PublicEventView,
   VenueDateGroup,
   buildCalendarQueryParams,
   calendarPageCount,
   clampCalendarPage,
-  groupTournamentsByVenueDate,
+  groupEventsByVenueDate,
   isPastCalendarDay,
-  paginateTournaments,
+  paginateEvents,
   readCalendarQuery,
   shiftMonth,
-  sortTournamentsForList,
+  sortEventsForList,
   statusPresentation,
-  tournamentCardDatePresentation,
-  tournamentDatePresentation,
-  tournamentsByDate,
+  eventCardDatePresentation,
+  eventDatePresentation,
+  eventsByDate,
   MAX_DAY_CELL_EVENTS
 } from './public-calendar';
-import { AllTournamentsCacheService } from './all-tournaments-cache.service';
-import { PublicTournamentService } from './public-tournament.service';
-import { filterTournaments } from './tournament-fuzzy-search';
+import { AllEventsCacheService } from './all-events-cache.service';
+import { PublicEventService } from './public-event.service';
+import { filterEvents } from './event-fuzzy-search';
 import { HighlightPart, highlightSearchText } from '../../shared/search-highlight';
 
 interface MonthDay {
@@ -71,8 +71,8 @@ const SEARCH_DEBOUNCE_MS = 300;
       <div class="calendar-view-tabs" role="group" [attr.aria-label]="i18n.t('calendar.viewAria')" data-cy="calendar-view-tabs">
         <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'calendar'" data-cy="calendar-view" (click)="setView('calendar')">{{ i18n.t('calendar.tabCalendar') }}</button>
         <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'list'" data-cy="list-view" (click)="setView('list')">{{ i18n.t('calendar.listView') }}</button>
-        @if (canCreateTournament()) {
-          <a mat-flat-button class="create-action-button calendar-create-tournament" routerLink="/tournaments/new" data-cy="calendar-create-tournament">{{ i18n.t('calendar.createTournament') }}</a>
+        @if (canCreateEvent()) {
+          <a mat-flat-button class="create-action-button calendar-create-tournament" routerLink="/tournaments/new" data-cy="calendar-create-event">{{ i18n.t('calendar.createTournament') }}</a>
         }
       </div>
 
@@ -116,7 +116,7 @@ const SEARCH_DEBOUNCE_MS = 300;
             <section class="public-calendar-list" data-cy="calendar-list">
               @for (group of groups(); track group.date) {
                 <section class="venue-date-group" [attr.data-venue-date]="group.date" [attr.data-cy]="'calendar-venue-date-' + group.date"><h2 data-cy="calendar-venue-date-label">{{ formatGroupDate(group) }}</h2>
-                  @for (item of group.items; track item.id) { <ng-container *ngTemplateOutlet="tournamentCard; context: { $implicit: item }" /> }
+                  @for (item of group.items; track item.id) { <ng-container *ngTemplateOutlet="eventCard; context: { $implicit: item }" /> }
                 </section>
               }
             </section>
@@ -132,7 +132,7 @@ const SEARCH_DEBOUNCE_MS = 300;
       }
 
       <ng-template #emptyState><section class="panel calendar-state" data-cy="calendar-empty"><h2 data-cy="calendar-empty-title">{{ i18n.t('calendar.emptyTitle') }}</h2><p data-cy="calendar-empty-body">{{ i18n.t('calendar.emptyBody') }}</p></section></ng-template>
-      <ng-template #tournamentCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.title" [attr.data-cy]="'tournament-' + item.slug" (click)="openTournament(item)" (keydown.enter)="openTournament(item)" (keydown.space)="openTournament(item, $event)">
+      <ng-template #eventCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.title" [attr.data-cy]="'event-' + item.slug" (click)="openEvent(item)" (keydown.enter)="openEvent(item)" (keydown.space)="openEvent(item, $event)">
         <div data-cy="calendar-card-body"><span class="calendar-status" [class]="'calendar-status calendar-status--' + status(item).className" data-cy="calendar-card-status">{{ status(item).label }}</span><h3 data-cy="calendar-card-title"><a [routerLink]="['/calendar/tournaments', item.slug]" data-cy="calendar-card-link" (click)="$event.stopPropagation()">@for (part of highlightParts(item.title); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-title-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></h3><p data-cy="calendar-card-date">@for (part of highlightParts(cardDate(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-date-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="calendar-card-viewer-date">{{ i18n.t('calendar.viewerTime') }}: {{ secondary }}</p> }<p data-cy="calendar-card-venue">@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p>@if (item.summary) { <p class="muted" data-cy="calendar-card-summary">@for (part of highlightParts(item.summary); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-summary-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }</div>
         <div class="calendar-event__actions" data-cy="calendar-card-actions"><a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="calendar-card-ics" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('calendar.addToCalendar') }}</a></div>
       </article></ng-template>
@@ -142,9 +142,9 @@ const SEARCH_DEBOUNCE_MS = 300;
 })
 export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly i18n = inject(I18nService);
-  readonly service = inject(PublicTournamentService);
+  readonly service = inject(PublicEventService);
   readonly auth = inject(AuthService);
-  private readonly catalog = inject(AllTournamentsCacheService);
+  private readonly catalog = inject(AllEventsCacheService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private subscription?: Subscription;
@@ -157,7 +157,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly today = signal(localDateValue(new Date()));
   readonly query = signal<CalendarQuery>(readCalendarQuery(this.route.snapshot.queryParamMap, this.preferredView()));
   readonly searchDraft = signal<string>(this.query().q);
-  readonly allItems = signal<PublicTournamentView[]>([]);
+  readonly allItems = signal<PublicEventView[]>([]);
   readonly syncedAt = signal<string | undefined>(undefined);
   // Pins the grid height for the duration of a month change so the document cannot shrink under the
   // scroll position that is about to be restored.
@@ -166,18 +166,20 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly loading = signal(true);
   readonly stale = signal(false);
   readonly error = signal(false);
-  readonly items = computed(() => filterTournaments(this.allItems(), this.searchDraft()));
-  readonly sortedItems = computed(() => sortTournamentsForList(this.items()));
+  readonly items = computed(() => filterEvents(this.allItems(), this.searchDraft()));
+  readonly sortedItems = computed(() => sortEventsForList(this.items()));
   readonly pageCount = computed(() => calendarPageCount(this.sortedItems().length));
   readonly currentPage = computed(() => clampCalendarPage(this.query().page, this.sortedItems().length));
-  readonly pagedItems = computed(() => paginateTournaments(this.sortedItems(), this.query().page));
-  readonly groups = computed(() => groupTournamentsByVenueDate(this.pagedItems()));
+  readonly pagedItems = computed(() => paginateEvents(this.sortedItems(), this.query().page));
+  readonly groups = computed(() => groupEventsByVenueDate(this.pagedItems()));
   readonly monthLabel = computed(() => this.i18n.formatDate(`${this.query().month}-01`, { month: 'long', year: 'numeric' }));
   readonly monthDays = computed(() => buildMonthDays(this.query().month));
   // ARIA requires grid > row > gridcell; the rows use `display: contents` so the CSS grid is unchanged.
   readonly monthWeeks = computed(() => chunkIntoWeeks(this.monthDays()));
-  readonly eventsByDate = computed(() => tournamentsByDate(this.items()));
-  readonly canCreateTournament = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);
+  // Named apart from the `eventsByDate` helper it wraps: the two would otherwise differ only by a
+  // `this.`, which is a trap for the next reader rather than a nicety.
+  readonly dayEventIndex = computed(() => eventsByDate(this.items()));
+  readonly canCreateEvent = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);
 
   ngOnInit(): void {
     this.subscription = this.route.queryParamMap.subscribe(params => {
@@ -231,16 +233,16 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
     void this.navigate({ ...this.query(), page: next });
   }
   reload(): void { void this.load(); }
-  status(item: PublicTournamentView) { return statusPresentation(item.status); }
-  date(item: PublicTournamentView) { return tournamentDatePresentation(item, this.i18n.locale()); }
-  cardDate(item: PublicTournamentView): string { return tournamentCardDatePresentation(item, this.i18n.locale()); }
-  openTournament(item: PublicTournamentView, event?: Event): void { event?.preventDefault(); void this.router.navigate(['/calendar/tournaments', item.slug]); }
-  venue(item: PublicTournamentView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
+  status(item: PublicEventView) { return statusPresentation(item.status); }
+  date(item: PublicEventView) { return eventDatePresentation(item, this.i18n.locale()); }
+  cardDate(item: PublicEventView): string { return eventCardDatePresentation(item, this.i18n.locale()); }
+  openEvent(item: PublicEventView, event?: Event): void { event?.preventDefault(); void this.router.navigate(['/calendar/tournaments', item.slug]); }
+  venue(item: PublicEventView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
   formatGroupDate(group: VenueDateGroup): string { return this.i18n.formatDate(group.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
   isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }
   highlightParts(text: string): HighlightPart[] { return highlightSearchText(text, this.searchDraft()); }
-  dayEvents(date: string): PublicTournamentView[] { return this.eventsByDate().get(date) ?? []; }
-  visibleDayEvents(date: string): PublicTournamentView[] { return this.dayEvents(date).slice(0, MAX_DAY_CELL_EVENTS); }
+  dayEvents(date: string): PublicEventView[] { return this.dayEventIndex().get(date) ?? []; }
+  visibleDayEvents(date: string): PublicEventView[] { return this.dayEvents(date).slice(0, MAX_DAY_CELL_EVENTS); }
   hiddenDayEventCount(date: string): number { return Math.max(0, this.dayEvents(date).length - MAX_DAY_CELL_EVENTS); }
 
   private async load(options: { force?: boolean } = {}): Promise<void> {

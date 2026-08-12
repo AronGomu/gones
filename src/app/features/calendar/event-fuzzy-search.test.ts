@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { PublicTournamentView } from './public-calendar';
-import { filterTournaments, searchableText, splitSearchTerms } from './tournament-fuzzy-search';
+import { PublicEventView } from './public-calendar';
+import { filterEvents, searchableText, splitSearchTerms } from './event-fuzzy-search';
 
-function makeItem(overrides: Partial<PublicTournamentView>): PublicTournamentView {
+function makeItem(overrides: Partial<PublicEventView>): PublicEventView {
   return {
     id: overrides.id ?? 'id-1',
     title: 'Legacy Open',
@@ -21,14 +21,14 @@ function makeItem(overrides: Partial<PublicTournamentView>): PublicTournamentVie
     organization: { id: 'org-1', name: 'Gones Events', description: undefined, website: undefined, contactEmail: undefined },
     formats: [{ id: 'format-1', name: 'Legacy', slug: 'legacy', sortOrder: 0 }],
     ...overrides
-  } as PublicTournamentView;
+  } as PublicEventView;
 }
 
-function org(name: string): PublicTournamentView['organization'] {
+function org(name: string): PublicEventView['organization'] {
   return { id: name, name, description: undefined, website: undefined, contactEmail: undefined };
 }
 
-function formats(...names: string[]): PublicTournamentView['formats'] {
+function formats(...names: string[]): PublicEventView['formats'] {
   return names.map((name, index) => ({ id: name, name, slug: name.toLowerCase(), sortOrder: index }));
 }
 
@@ -59,7 +59,7 @@ const otherOrgModern = makeItem({
   formats: formats('Modern')
 });
 
-const items: PublicTournamentView[] = [lyonLegacy, rhoneModern, cancelledLegacy, otherOrgModern];
+const items: PublicEventView[] = [lyonLegacy, rhoneModern, cancelledLegacy, otherOrgModern];
 
 describe('splitSearchTerms', () => {
   it('splits on comma, semicolon and whitespace', () => {
@@ -79,44 +79,44 @@ describe('splitSearchTerms', () => {
   });
 });
 
-describe('filterTournaments', () => {
+describe('filterEvents', () => {
   it('empty query returns every item', () => {
-    expect(filterTournaments(items, '   ')).toBe(items);
+    expect(filterEvents(items, '   ')).toBe(items);
   });
 
   it('matches on city', () => {
-    expect(filterTournaments(items, 'lyon')).toEqual([lyonLegacy]);
+    expect(filterEvents(items, 'lyon')).toEqual([lyonLegacy]);
   });
 
   it('matches on organization name', () => {
-    const result = filterTournaments(items, 'gones');
+    const result = filterEvents(items, 'gones');
     expect(result.map(item => item.id).sort()).toEqual(['lyon-legacy', 'rhone-modern']);
   });
 
   it('matches on format name', () => {
-    const result = filterTournaments(items, 'legacy');
+    const result = filterEvents(items, 'legacy');
     expect(result.map(item => item.id).sort()).toEqual(['cancelled-legacy', 'lyon-legacy']);
   });
 
   it('matches on status', () => {
-    expect(filterTournaments(items, 'cancelled')).toEqual([cancelledLegacy]);
+    expect(filterEvents(items, 'cancelled')).toEqual([cancelledLegacy]);
   });
 
   it('matches on venue date', () => {
-    const result = filterTournaments(items, '2026-09-12');
+    const result = filterEvents(items, '2026-09-12');
     expect(result).toHaveLength(4);
   });
 
   it('ignores accents and case', () => {
-    expect(filterTournaments(items, 'RHONE')).toEqual([rhoneModern]);
+    expect(filterEvents(items, 'RHONE')).toEqual([rhoneModern]);
   });
 
   it('ANDs multiple terms', () => {
-    expect(filterTournaments(items, 'lyon legacy')).toEqual([lyonLegacy]);
+    expect(filterEvents(items, 'lyon legacy')).toEqual([lyonLegacy]);
   });
 
   it('never matches the long description', () => {
-    expect(filterTournaments(items, 'zzzq')).toEqual([]);
+    expect(filterEvents(items, 'zzzq')).toEqual([]);
   });
 });
 

@@ -11,14 +11,14 @@ vi.mock('@angular/core', async (importOriginal) => {
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PublicTournamentDetailResponse } from '../../api/generated/gones-api';
+import { PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
-import { TournamentDetailViewComponent } from './tournament-detail-view.component';
+import { EventDetailViewComponent } from './event-detail-view.component';
 
 // The required input is swapped for a plain signal; rendered text and geometry are asserted in
 // cypress/e2e/public-calendar.cy.js, which reads the real browser DOM.
-const tournament = {
+const event = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Gones Night',
   slug: 'gones-night',
@@ -36,36 +36,36 @@ const tournament = {
   status: 'Published',
   organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: 'https://example.test', contactEmail: undefined },
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Modern', slug: 'modern', sortOrder: 1 }]
-} as unknown as PublicTournamentDetailResponse;
+} as unknown as PublicEventDetailResponse;
 
-function build(overrides: Partial<PublicTournamentDetailResponse> = {}): TournamentDetailViewComponent {
+function build(overrides: Partial<PublicEventDetailResponse> = {}): EventDetailViewComponent {
   const injector = Injector.create({ providers: [DeckArchetypeSettingsService, I18nService] });
-  const component = runInInjectionContext(injector, () => new TournamentDetailViewComponent());
-  Object.defineProperty(component, 'tournament', { value: signal({ ...tournament, ...overrides }) });
+  const component = runInInjectionContext(injector, () => new EventDetailViewComponent());
+  Object.defineProperty(component, 'event', { value: signal({ ...event, ...overrides }) });
   return component;
 }
 
-const source = readFileSync(join(__dirname, 'tournament-detail-view.component.ts'), 'utf8');
+const source = readFileSync(join(__dirname, 'event-detail-view.component.ts'), 'utf8');
 const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
-const title = source.slice(source.indexOf('<h1 id="tournament-title"'), source.indexOf('</h1>'));
-const whenWhere = source.slice(source.indexOf('data-cy="tournament-detail-when-where"'), source.indexOf('</p>', source.indexOf('data-cy="tournament-detail-when-where"')));
+const title = source.slice(source.indexOf('<h1 id="event-title"'), source.indexOf('</h1>'));
+const whenWhere = source.slice(source.indexOf('data-cy="event-detail-when-where"'), source.indexOf('</p>', source.indexOf('data-cy="event-detail-when-where"')));
 
-describe('TournamentDetailViewComponent hero', () => {
+describe('EventDetailViewComponent hero', () => {
   it('title row shows format, title and capacity', () => {
     expect(build().titleFormat()).toBe('Modern');
-    expect(title).toContain('data-cy="tournament-detail-title-format"');
+    expect(title).toContain('data-cy="event-detail-title-format"');
     expect(title).toContain('[{{ format }}]');
-    expect(title).toContain('data-cy="tournament-detail-title-text"');
-    expect(title).toContain('{{ tournament().title }}');
-    expect(title).toContain('data-cy="tournament-detail-title-capacity"');
+    expect(title).toContain('data-cy="event-detail-title-text"');
+    expect(title).toContain('{{ event().title }}');
+    expect(title).toContain('data-cy="event-detail-title-capacity"');
     expect(title).toContain('({{ capacity }})');
     expect(title.indexOf('title-format')).toBeLessThan(title.indexOf('title-text'));
     expect(title.indexOf('title-text')).toBeLessThan(title.indexOf('title-capacity'));
   });
 
   it('title row omits capacity when absent', () => {
-    expect(build({ capacity: undefined }).tournament().capacity).toBeFalsy();
-    expect(title).toContain('@if (tournament().capacity; as capacity)');
+    expect(build({ capacity: undefined }).event().capacity).toBeFalsy();
+    expect(title).toContain('@if (event().capacity; as capacity)');
   });
 
   it('title row omits the bracket when there is no format', () => {
@@ -77,7 +77,7 @@ describe('TournamentDetailViewComponent hero', () => {
     const formats = [
       { id: 'f1', name: 'Modern', slug: 'modern', sortOrder: 1 },
       { id: 'f2', name: 'Legacy', slug: 'legacy', sortOrder: 2 }
-    ] as PublicTournamentDetailResponse['formats'];
+    ] as PublicEventDetailResponse['formats'];
     expect(build({ formats }).titleFormat()).toBe('Modern / Legacy');
   });
 
@@ -85,18 +85,18 @@ describe('TournamentDetailViewComponent hero', () => {
     const component = build();
     expect(component.date().primary).toContain('2026');
     expect(component.venue()).toBe('1 Rue Test, 69001, Lyon, France');
-    expect(whenWhere).toContain('data-cy="tournament-detail-when"');
+    expect(whenWhere).toContain('data-cy="event-detail-when"');
     expect(whenWhere).toContain('{{ date().primary }}');
-    expect(whenWhere).toContain('data-cy="tournament-detail-when-where-separator"');
-    expect(whenWhere).toContain('data-cy="tournament-detail-where"');
+    expect(whenWhere).toContain('data-cy="event-detail-when-where-separator"');
+    expect(whenWhere).toContain('data-cy="event-detail-where"');
     expect(whenWhere).toContain('{{ venue() }}');
     expect(stylesheet).toContain('.event-when-where {');
   });
 
   it('location renders as a maps link', () => {
-    const component = build({ venue: { city: 'Lyon' } } as Partial<PublicTournamentDetailResponse>);
+    const component = build({ venue: { city: 'Lyon' } } as Partial<PublicEventDetailResponse>);
     expect(component.mapsUrl()).toBe('https://www.google.com/maps/search/?api=1&query=Lyon');
-    const link = whenWhere.slice(whenWhere.indexOf('data-cy="tournament-detail-where-link"'));
+    const link = whenWhere.slice(whenWhere.indexOf('data-cy="event-detail-where-link"'));
     expect(link).toContain('[href]="url"');
     expect(link).toContain('target="_blank"');
     expect(link).toContain('rel="noopener noreferrer"');
@@ -107,14 +107,14 @@ describe('TournamentDetailViewComponent hero', () => {
   });
 
   it('location stays plain text without an address', () => {
-    const component = build({ venue: {} } as Partial<PublicTournamentDetailResponse>);
+    const component = build({ venue: {} } as Partial<PublicEventDetailResponse>);
     expect(component.mapsUrl()).toBeNull();
     expect(whenWhere).toContain('@if (mapsUrl(); as url)');
-    expect(whenWhere).toContain('@else { <span data-cy="tournament-detail-where">{{ venue() }}</span> }');
+    expect(whenWhere).toContain('@else { <span data-cy="event-detail-where">{{ venue() }}</span> }');
   });
 
   it('organization fact block is gone', () => {
-    expect(source).not.toContain('tournament-detail-fact-organization');
+    expect(source).not.toContain('event-detail-fact-organization');
     expect(source).not.toContain('class="event-facts"');
   });
 
@@ -122,15 +122,15 @@ describe('TournamentDetailViewComponent hero', () => {
     const actionsStart = source.indexOf('class="info-actions info-actions--end"');
     expect(actionsStart).toBeGreaterThan(-1);
     const actions = source.slice(actionsStart, source.indexOf('</div>', actionsStart));
-    expect(actions).toContain('data-cy="tournament-detail-organization-website"');
-    expect(actions.indexOf('data-cy="tournament-ics"')).toBeLessThan(actions.indexOf('data-cy="tournament-detail-organization-website"'));
-    expect(actionsStart).toBeGreaterThan(source.indexOf('data-cy="tournament-detail-when-where"'));
+    expect(actions).toContain('data-cy="event-detail-organization-website"');
+    expect(actions.indexOf('data-cy="event-ics"')).toBeLessThan(actions.indexOf('data-cy="event-detail-organization-website"'));
+    expect(actionsStart).toBeGreaterThan(source.indexOf('data-cy="event-detail-when-where"'));
     expect(stylesheet).toContain('.info-actions--end { justify-content: flex-end; }');
   });
 
   it('the ics anchor is on by default and opt-out for hosts that render their own', () => {
     expect(build().showIcsAction()).toBe(true);
     expect(source).toContain('@if (showIcsAction() && icsUrl(); as url)');
-    expect(source).toContain('@if ((showIcsAction() && icsUrl()) || tournament().organization.website)');
+    expect(source).toContain('@if ((showIcsAction() && icsUrl()) || event().organization.website)');
   });
 });

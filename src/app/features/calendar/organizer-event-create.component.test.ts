@@ -13,8 +13,8 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
-import { OrganizerTournamentCreateComponent } from './organizer-tournament-create.component';
-import { TournamentProposalService } from './tournament-proposal.service';
+import { OrganizerEventCreateComponent } from './organizer-event-create.component';
+import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
@@ -29,7 +29,7 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setup(globalRole: string, client: Partial<Client> = {}): OrganizerTournamentCreateComponent {
+function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEventCreateComponent {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
   const route = { snapshot: { paramMap: paramMap() } } as unknown as ActivatedRoute;
@@ -40,15 +40,15 @@ function setup(globalRole: string, client: Partial<Client> = {}): OrganizerTourn
     { provide: Router, useValue: {} },
     { provide: MatDialog, useValue: {} },
     { provide: AuthService, useValue: auth },
-    { provide: TournamentProposalService, useValue: {} },
+    { provide: EventProposalService, useValue: {} },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
-  return runInInjectionContext(injector, () => new OrganizerTournamentCreateComponent());
+  return runInInjectionContext(injector, () => new OrganizerEventCreateComponent());
 }
 
-describe('OrganizerTournamentCreateComponent role gating', () => {
+describe('OrganizerEventCreateComponent role gating', () => {
   it('disables submit for a plain user', () => {
     const component = setup('User');
     expect(component.canPublishDirectly()).toBe(false);
@@ -70,7 +70,7 @@ describe('OrganizerTournamentCreateComponent role gating', () => {
 // button that did nothing. The proposal path reads the anonymous public list instead; the
 // direct-publish path must keep reading the caller's own memberships, or an organizer would be
 // offered organizations the server will refuse to publish into.
-describe('OrganizerTournamentCreateComponent organization picker', () => {
+describe('OrganizerEventCreateComponent organization picker', () => {
   function publicPage(items: { id: string; name: string }[], totalCount = items.length) {
     return of({ items, page: 1, pageSize: 100, totalCount } as unknown as OrganizationListResponse);
   }
@@ -160,7 +160,7 @@ describe('OrganizerTournamentCreateComponent organization picker', () => {
 // offer them: the server already treats an admin as a member of every organization, so the picker
 // reads the admin catalogue instead. What the picker still has to leave out is what the server
 // would refuse anyway — soft-deleted organizations, and Draft ones, which publish nothing (T11).
-describe('OrganizerTournamentCreateComponent admin organization picker', () => {
+describe('OrganizerEventCreateComponent admin organization picker', () => {
   function adminOrganization(id: string, name: string, extra: Record<string, unknown> = {}): AdminOrganizationResponse {
     return { id, name, memberCount: 1, isDraft: false, ...extra } as unknown as AdminOrganizationResponse;
   }

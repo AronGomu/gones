@@ -74,7 +74,7 @@ try {
     if (calendarBrowser.status !== 0) process.exitCode = calendarBrowser.status ?? 1;
   }
   if (!process.exitCode) {
-    const registrationBrowser = runCypress('cypress/e2e/tournament-registration.cy.js');
+    const registrationBrowser = runCypress('cypress/e2e/event-registration.cy.js');
     if (registrationBrowser.status !== 0) process.exitCode = registrationBrowser.status ?? 1;
   }
   if (!process.exitCode) {
@@ -126,12 +126,12 @@ try {
     if (notificationBrowser.status !== 0) process.exitCode = notificationBrowser.status ?? 1;
   }
   if (!process.exitCode) {
-    const organizerTournamentBrowser = runCypress('cypress/e2e/organizer-tournament-create.cy.js');
-    if (organizerTournamentBrowser.status !== 0) process.exitCode = organizerTournamentBrowser.status ?? 1;
+    const organizerEventBrowser = runCypress('cypress/e2e/organizer-event-create.cy.js');
+    if (organizerEventBrowser.status !== 0) process.exitCode = organizerEventBrowser.status ?? 1;
   }
   if (!process.exitCode) {
-    const organizerTournamentManagementBrowser = runCypress('cypress/e2e/organizer-tournament-management.cy.js');
-    if (organizerTournamentManagementBrowser.status !== 0) process.exitCode = organizerTournamentManagementBrowser.status ?? 1;
+    const organizerEventManagementBrowser = runCypress('cypress/e2e/organizer-event-management.cy.js');
+    if (organizerEventManagementBrowser.status !== 0) process.exitCode = organizerEventManagementBrowser.status ?? 1;
   }
   if (!process.exitCode) {
     const organizerParticipantsBrowser = runCypress('cypress/e2e/organizer-participants.cy.js');
@@ -142,8 +142,8 @@ try {
     if (abuseSurface.status !== 0) process.exitCode = abuseSurface.status ?? 1;
   }
   if (!process.exitCode) {
-    const tournamentProposalBrowser = runCypress('cypress/e2e/tournament-proposal.cy.js');
-    if (tournamentProposalBrowser.status !== 0) process.exitCode = tournamentProposalBrowser.status ?? 1;
+    const eventProposalBrowser = runCypress('cypress/e2e/event-proposal.cy.js');
+    if (eventProposalBrowser.status !== 0) process.exitCode = eventProposalBrowser.status ?? 1;
   }
   if (!process.exitCode) {
     const accessibility = runCypress('cypress/e2e/accessibility.cy.js');

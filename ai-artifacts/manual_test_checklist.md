@@ -1496,3 +1496,36 @@ than through the web app.
       `tournament_lifecycle_events.actor_user_id`). T16 deliberately left these alone — the ticket
       does not ask for them and a frontend test pins them. If the product wants them renamed, that is
       a separate, explicitly approved wire change.
+
+## T17 frontend-event-symbol-rename
+
+Run these against the dev app on http://127.0.0.1:4200 with the Compose API on
+http://127.0.0.1:5080. They cover the parts of the rename no automated gate can see: what a person
+actually reads on screen, and the one flow that needs a real signed-in account.
+
+- [ ] Open `/calendar`. Events render in both the month and the list view, the month arrows still
+      work, and nothing on the page shows a raw message key such as `tournamentManage.title` or a
+      literal `{tournament}` placeholder.
+- [ ] Switch the language to French on `/calendar` and re-read the same screens plus an event detail
+      page. Every label is still translated — no English fallback and no key text leaking through.
+- [ ] Click an event card. The detail page opens at `/calendar/tournaments/<slug>` (that path is
+      deliberately unchanged until T18), the hero, venue link and description all render, and the
+      card styling still looks right — the CSS class names were intentionally left as
+      `.public-tournament-card` / `.public-tournament-detail`.
+- [ ] Press `Add to calendar` on the detail page and open the downloaded `.ics` in a calendar app.
+      The date, time and venue match what the page shows.
+- [ ] Sign in as `test@gones.test`, register for an upcoming event, and confirm the success dialog
+      appears, the participant count goes up, and `/registrations` lists the attempt with the right
+      event title and venue time. Then unregister and confirm the list updates.
+- [ ] Sign in as `organizer@gones.test`. Visit `/organizer/tournaments`, edit an event, and save a
+      major change. The confirmation dialog lists the changed fields in readable prose, and the
+      "Cancel Tournament" / "Annuler le tournoi" button still reads that way (labels move in T18).
+- [ ] Visit `/organizer/tournaments/<id>/participants`. The heading reads `Participants — <event
+      title>` with the real title interpolated, and the remove/block dialogs name the event and the
+      organization rather than showing `{tournament}`.
+- [ ] Sign in as `admin@gones.test` and open `/admin/tournaments/deleted`. Deleted events are listed
+      and `Restore` works.
+- [ ] With the service worker installed, load `/calendar`, go offline and reload. The calendar still
+      renders from cache and the offline banner appears.
+- [ ] Open DevTools → Network on `/calendar` and on an event detail page. Every calendar request goes
+      to `/api/events/*`; there is no request to `/api/tournaments/*` and no 404 in the log.

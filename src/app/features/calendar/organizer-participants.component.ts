@@ -11,8 +11,8 @@ import {
   OrganizationBlockedUserResponse,
   OrganizationNotificationSettingsResponse,
   OrganizationUserLookupResponse,
-  PrivateTournamentParticipantResponse,
-  TournamentManagementResponse
+  PrivateEventParticipantResponse,
+  EventManagementResponse
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -70,12 +70,12 @@ export class ParticipantBlockDialogComponent {
           <span data-cy="participant-error-text">{{ error() }}</span>
           <button mat-stroked-button type="button" data-cy="participant-error-retry" (click)="load()">{{ i18n.t('participants.retry') }}</button>
         </div>
-      } @else if (tournament(); as managedTournament) {
+      } @else if (event(); as managedEvent) {
         <header class="page-heading" data-cy="participant-heading">
-          <div data-cy="participant-heading-text"><p class="kicker" data-cy="participant-kicker">{{ i18n.t('participants.kicker') }}</p><h1 id="participant-management-title" data-cy="participant-title">{{ i18n.t('participants.title', { tournament: managedTournament.title }) }}</h1></div>
+          <div data-cy="participant-heading-text"><p class="kicker" data-cy="participant-kicker">{{ i18n.t('participants.kicker') }}</p><h1 id="participant-management-title" data-cy="participant-title">{{ i18n.t('participants.title', { tournament: managedEvent.title }) }}</h1></div>
           <button mat-flat-button type="button" data-cy="participant-export" [disabled]="!!pending()" (click)="exportCsv()">{{ pending() === 'export' ? i18n.t('participants.exporting') : i18n.t('participants.export') }}</button>
         </header>
-        <p class="muted" data-cy="participant-scope-help">{{ i18n.t('participants.scopeHelp', { organization: managedTournament.organizationName }) }}</p>
+        <p class="muted" data-cy="participant-scope-help">{{ i18n.t('participants.scopeHelp', { organization: managedEvent.organizationName }) }}</p>
 
         <mat-card class="panel" data-cy="participant-add-card"><mat-card-content class="stack" data-cy="participant-add-card-content">
           <h2 data-cy="participant-add-title">{{ i18n.t('participants.addTitle') }}</h2>
@@ -158,8 +158,8 @@ export class OrganizerParticipantsComponent {
   private readonly router = inject(Router);
   @ViewChild('statusMessage') private statusMessage?: ElementRef<HTMLElement>;
 
-  readonly tournament = signal<TournamentManagementResponse | null>(null);
-  readonly participants = signal<PrivateTournamentParticipantResponse[]>([]);
+  readonly event = signal<EventManagementResponse | null>(null);
+  readonly participants = signal<PrivateEventParticipantResponse[]>([]);
   readonly blockedUsers = signal<OrganizationBlockedUserResponse[]>([]);
   readonly notificationSettings = signal<OrganizationNotificationSettingsResponse | null>(null);
   readonly selectedUser = signal<OrganizationUserLookupResponse | null>(null);
@@ -174,11 +174,11 @@ export class OrganizerParticipantsComponent {
   readonly pageSize = 20;
   lookupKind: ParticipantLookupKind = 'username';
   lookupValue = '';
-  private tournamentId = '';
+  private eventId = '';
 
   constructor() {
     this.route.paramMap.subscribe(params => {
-      this.tournamentId = params.get('id') ?? '';
+      this.eventId = params.get('id') ?? '';
       this.participantPage.set(this.pageFromRoute());
       void this.load();
     });
@@ -196,13 +196,13 @@ export class OrganizerParticipantsComponent {
     this.error.set('');
     this.actionError.set('');
     try {
-      const tournament = await this.findManagedTournament();
-      if (!tournament) { this.error.set(this.i18n.t('participants.accessDenied')); return; }
-      this.tournament.set(tournament);
+      const event = await this.findManagedEvent();
+      if (!event) { this.error.set(this.i18n.t('participants.accessDenied')); return; }
+      this.event.set(event);
       await Promise.all([this.loadParticipants(), this.loadBlocks()]);
       await this.loadNotifications();
     } catch (error) {
-      this.tournament.set(null);
+      this.event.set(null);
       this.error.set(this.errorMessage(error, 'participants.loadFailed'));
     } finally {
       this.loading.set(false);
@@ -210,17 +210,17 @@ export class OrganizerParticipantsComponent {
   }
 
   async loadParticipants(): Promise<void> {
-    if (!this.tournamentId) return;
-    const response = await firstValueFrom(this.client.listPrivateTournamentParticipants(this.tournamentId, this.participantPage(), this.pageSize));
+    if (!this.eventId) return;
+    const response = await firstValueFrom(this.client.listPrivateEventParticipants(this.eventId, this.participantPage(), this.pageSize));
     this.participants.set(response.items);
     this.participantTotal.set(response.totalCount);
   }
 
   async loadBlocks(): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament) return;
+    const event = this.event();
+    if (!event) return;
     try {
-      const response = await firstValueFrom(this.client.listOrganizationBlockedUsers(tournament.organizationId, 1, 100));
+      const response = await firstValueFrom(this.client.listOrganizationBlockedUsers(event.organizationId, 1, 100));
       this.blockedUsers.set(response.items);
     } catch (error) {
       this.actionError.set(this.errorMessage(error));
@@ -228,8 +228,8 @@ export class OrganizerParticipantsComponent {
   }
 
   async lookupUser(): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || this.pending()) return;
+    const event = this.event();
+    if (!event || this.pending()) return;
     this.lookupError.set('');
     this.selectedUser.set(null);
     let query: ReturnType<typeof lookupQuery>;
@@ -237,7 +237,7 @@ export class OrganizerParticipantsComponent {
     catch { this.lookupError.set(this.i18n.t('participants.lookupRequired')); return; }
     this.pending.set('lookup');
     try {
-      this.selectedUser.set(await firstValueFrom(this.client.lookupOrganizationUser(tournament.organizationId, query.username, query.email)));
+      this.selectedUser.set(await firstValueFrom(this.client.lookupOrganizationUser(event.organizationId, query.username, query.email)));
     } catch {
       this.lookupError.set(this.i18n.t('participants.lookupFailed'));
     } finally {
@@ -248,7 +248,7 @@ export class OrganizerParticipantsComponent {
   async addParticipant(user: OrganizationUserLookupResponse): Promise<void> {
     if (this.pending()) return;
     await this.runMutation('add', async () => {
-      await firstValueFrom(this.client.registerTournamentParticipantByOrganizer(this.tournamentId, { userId: user.userId }));
+      await firstValueFrom(this.client.registerEventParticipantByOrganizer(this.eventId, { userId: user.userId }));
       await this.loadParticipants();
       this.selectedUser.set(null);
       this.lookupValue = '';
@@ -256,12 +256,12 @@ export class OrganizerParticipantsComponent {
     });
   }
 
-  async remove(participant: PrivateTournamentParticipantResponse): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || this.pending()) return;
+  async remove(participant: PrivateEventParticipantResponse): Promise<void> {
+    const event = this.event();
+    if (!event || this.pending()) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: {
       title: this.i18n.t('participants.removeTitle', { username: participant.username }),
-      message: this.i18n.t('participants.removeScope', { tournament: tournament.title, organization: tournament.organizationName }),
+      message: this.i18n.t('participants.removeScope', { tournament: event.title, organization: event.organizationName }),
       confirmLabel: this.i18n.t('participants.removeConfirm'), destructive: true
     } }).afterClosed());
     if (!confirmed) return;
@@ -271,12 +271,12 @@ export class OrganizerParticipantsComponent {
     });
   }
 
-  async block(participant: PrivateTournamentParticipantResponse, removeFirst: boolean): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || this.pending()) return;
+  async block(participant: PrivateEventParticipantResponse, removeFirst: boolean): Promise<void> {
+    const event = this.event();
+    if (!event || this.pending()) return;
     const result = await firstValueFrom(this.dialog.open(ParticipantBlockDialogComponent, { data: {
       title: this.i18n.t(removeFirst ? 'participants.removeBlockTitle' : 'participants.blockTitle', { username: participant.username }),
-      scope: this.i18n.t(removeFirst ? 'participants.removeBlockScope' : 'participants.blockScope', { tournament: tournament.title, organization: tournament.organizationName }),
+      scope: this.i18n.t(removeFirst ? 'participants.removeBlockScope' : 'participants.blockScope', { tournament: event.title, organization: event.organizationName }),
       reasonLabel: this.i18n.t('participants.blockReason'), expiryLabel: this.i18n.t('participants.blockExpiry'),
       expiryHelp: this.i18n.t('participants.blockNoExpiry'), confirmLabel: this.i18n.t('participants.blockConfirm')
     } }).afterClosed());
@@ -286,9 +286,9 @@ export class OrganizerParticipantsComponent {
     let removed = false;
     try {
       if (removeFirst) { await this.removeCommand(participant); removed = true; }
-      await firstValueFrom(this.client.blockOrganizationUser(tournament.organizationId, blockPayload(participant.userId, result.reason, result.expiresLocal)));
+      await firstValueFrom(this.client.blockOrganizationUser(event.organizationId, blockPayload(participant.userId, result.reason, result.expiresLocal)));
       await this.loadBlocks();
-      this.announce(this.i18n.t(removeFirst ? 'participants.removedBlocked' : 'participants.blocked', { username: participant.username, organization: tournament.organizationName }));
+      this.announce(this.i18n.t(removeFirst ? 'participants.removedBlocked' : 'participants.blocked', { username: participant.username, organization: event.organizationName }));
     } catch (error) {
       this.actionError.set(removed
         ? this.i18n.t('participants.partialRemoveBlock', { username: participant.username })
@@ -299,16 +299,16 @@ export class OrganizerParticipantsComponent {
   }
 
   async unblock(blocked: OrganizationBlockedUserResponse): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || this.pending()) return;
+    const event = this.event();
+    if (!event || this.pending()) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: {
       title: this.i18n.t('participants.unblockTitle', { username: blocked.username }),
-      message: this.i18n.t('participants.unblockScope', { organization: tournament.organizationName }),
+      message: this.i18n.t('participants.unblockScope', { organization: event.organizationName }),
       confirmLabel: this.i18n.t('participants.unblockConfirm')
     } }).afterClosed());
     if (!confirmed) return;
     await this.runMutation('unblock', async () => {
-      await firstValueFrom(this.client.unblockOrganizationUser(tournament.organizationId, blocked.userId));
+      await firstValueFrom(this.client.unblockOrganizationUser(event.organizationId, blocked.userId));
       await this.loadBlocks();
       this.announce(this.i18n.t('participants.unblocked', { username: blocked.username }));
     });
@@ -317,7 +317,7 @@ export class OrganizerParticipantsComponent {
   async exportCsv(): Promise<void> {
     if (this.pending()) return;
     await this.runMutation('export', async () => {
-      const response = await firstValueFrom(this.client.exportTournamentParticipants(this.tournamentId));
+      const response = await firstValueFrom(this.client.exportEventParticipants(this.eventId));
       const filename = response.fileName || 'participants.csv';
       const contentType = response.data.type || String(response.headers?.['content-type'] ?? 'text/csv');
       const url = URL.createObjectURL(response.data);
@@ -331,12 +331,12 @@ export class OrganizerParticipantsComponent {
   }
 
   async saveNotifications(settings: OrganizationNotificationSettingsResponse): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament || this.pending()) return;
+    const event = this.event();
+    if (!event || this.pending()) return;
     this.pending.set('notifications');
     this.clearMessages();
     try {
-      this.notificationSettings.set(await firstValueFrom(this.client.notificationSettingsPUT(tournament.organizationId, {
+      this.notificationSettings.set(await firstValueFrom(this.client.notificationSettingsPUT(event.organizationId, {
         notifyOnRegistration: settings.notifyOnRegistration,
         notifyOnUnregistration: settings.notifyOnUnregistration
       })));
@@ -351,25 +351,25 @@ export class OrganizerParticipantsComponent {
 
   goPage(page: number): void { void this.router.navigate([], { relativeTo: this.route, queryParams: { page }, queryParamsHandling: 'merge' }); }
 
-  private async findManagedTournament(): Promise<TournamentManagementResponse | undefined> {
+  private async findManagedEvent(): Promise<EventManagementResponse | undefined> {
     const pageSize = 100;
     for (let page = 1; ; page += 1) {
-      const response = await firstValueFrom(this.client.listOrganizerTournaments(page, pageSize));
-      const tournament = response.items.find(item => item.id === this.tournamentId);
-      if (tournament) return tournament;
+      const response = await firstValueFrom(this.client.listOrganizerEvents(page, pageSize));
+      const event = response.items.find(item => item.id === this.eventId);
+      if (event) return event;
       if (page * pageSize >= response.totalCount) return undefined;
     }
   }
 
   private async loadNotifications(): Promise<void> {
-    const tournament = this.tournament();
-    if (!tournament) return;
-    try { this.notificationSettings.set(await firstValueFrom(this.client.notificationSettingsGET(tournament.organizationId))); }
+    const event = this.event();
+    if (!event) return;
+    try { this.notificationSettings.set(await firstValueFrom(this.client.notificationSettingsGET(event.organizationId))); }
     catch { this.notificationSettings.set(null); }
   }
 
-  private async removeCommand(participant: PrivateTournamentParticipantResponse): Promise<void> {
-    await firstValueFrom(this.client.removeTournamentParticipantByOrganizer(this.tournamentId, participant.attemptId));
+  private async removeCommand(participant: PrivateEventParticipantResponse): Promise<void> {
+    await firstValueFrom(this.client.removeEventParticipantByOrganizer(this.eventId, participant.attemptId));
     await this.loadParticipants();
   }
 
@@ -380,7 +380,7 @@ export class OrganizerParticipantsComponent {
     try { await action(); }
     catch (error) {
       this.actionError.set(this.errorMessage(error));
-      if (key !== 'export' && this.tournament()) await Promise.allSettled([this.loadParticipants(), this.loadBlocks()]);
+      if (key !== 'export' && this.event()) await Promise.allSettled([this.loadParticipants(), this.loadBlocks()]);
     } finally { this.pending.set(''); }
   }
 

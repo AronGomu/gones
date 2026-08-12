@@ -1,15 +1,15 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { API_BASE_URL, PublicTournamentCatalogResponse } from '../../api/generated/gones-api';
+import { API_BASE_URL, PublicEventCatalogResponse } from '../../api/generated/gones-api';
 import { joinApiUrl } from '../../api/api-boundary';
-import { PublicTournamentView } from './public-calendar';
+import { PublicEventView } from './public-calendar';
 
-export const ALL_TOURNAMENTS_CACHE_KEY = 'gones.calendar-v1.all-tournaments';
-export const ALL_TOURNAMENTS_TTL_MS = 24 * 60 * 60 * 1000;
+export const ALL_EVENTS_CACHE_KEY = 'gones.calendar-v1.all-tournaments';
+export const ALL_EVENTS_TTL_MS = 24 * 60 * 60 * 1000;
 
-export interface AllTournamentsResult {
-  items: PublicTournamentView[];
+export interface AllEventsResult {
+  items: PublicEventView[];
   fetchedAt: string;
   fromCache: boolean;
   stale: boolean;
@@ -17,37 +17,37 @@ export interface AllTournamentsResult {
 }
 
 interface StoredEntry {
-  items: PublicTournamentView[];
+  items: PublicEventView[];
   etag?: string;
   fetchedAt: string;
   truncated: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
-export class AllTournamentsCacheService {
+export class AllEventsCacheService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
 
   readonly cachedAt = signal<string | undefined>(undefined);
   readonly truncated = signal(false);
 
-  async load(options: { force?: boolean } = {}): Promise<AllTournamentsResult> {
+  async load(options: { force?: boolean } = {}): Promise<AllEventsResult> {
     const cached = this.readCache();
-    if (!options.force && cached && Date.now() - Date.parse(cached.fetchedAt) < ALL_TOURNAMENTS_TTL_MS) {
+    if (!options.force && cached && Date.now() - Date.parse(cached.fetchedAt) < ALL_EVENTS_TTL_MS) {
       this.cachedAt.set(cached.fetchedAt);
       this.truncated.set(cached.truncated);
       return { items: cached.items, fetchedAt: cached.fetchedAt, fromCache: true, stale: false, truncated: cached.truncated };
     }
 
-    const url = joinApiUrl(this.baseUrl, '/api/tournaments/all');
+    const url = joinApiUrl(this.baseUrl, '/api/events/all');
     const headers = cached?.etag ? new HttpHeaders({ 'If-None-Match': cached.etag }) : undefined;
     try {
       const response = await firstValueFrom(
-        this.http.get<PublicTournamentCatalogResponse>(url, { headers, observe: 'response' })
+        this.http.get<PublicEventCatalogResponse>(url, { headers, observe: 'response' })
       );
       const fetchedAt = new Date().toISOString();
       const body = response.body;
-      const items = (body?.items ?? []) as unknown as PublicTournamentView[];
+      const items = (body?.items ?? []) as unknown as PublicEventView[];
       const truncated = body?.truncated ?? false;
       const entry: StoredEntry = { items, etag: response.headers.get('ETag') ?? undefined, fetchedAt, truncated };
       this.writeCache(entry);
@@ -73,7 +73,7 @@ export class AllTournamentsCacheService {
 
   private readCache(): StoredEntry | undefined {
     try {
-      const raw = globalThis.localStorage?.getItem(ALL_TOURNAMENTS_CACHE_KEY);
+      const raw = globalThis.localStorage?.getItem(ALL_EVENTS_CACHE_KEY);
       return raw ? JSON.parse(raw) as StoredEntry : undefined;
     } catch {
       return undefined;
@@ -82,7 +82,7 @@ export class AllTournamentsCacheService {
 
   private writeCache(entry: StoredEntry): void {
     try {
-      globalThis.localStorage?.setItem(ALL_TOURNAMENTS_CACHE_KEY, JSON.stringify(entry));
+      globalThis.localStorage?.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify(entry));
     } catch {
       // Cache failure must not hide fresh public data.
     }
