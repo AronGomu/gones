@@ -133,7 +133,7 @@
 - [x] `npm run test`, `npm run lint`, `npm run typecheck` pass
       *evidence:* `Test Files 109 passed (109) / Tests 1000 passed (1000)`; `All files pass linting.`; `tsc --noEmit` clean on both projects.
 - [x] `npm run api:check` reports the generated client is up to date — exit 0, no output (no OpenAPI drift: the new 409 reuses the already-declared `Status409Conflict` on `POST /api/tournaments`).
-- [ ] commit msg draft: `feat(orgs): derive the Organizer role from membership and gate draft orgs`
+- [x] commit msg draft: `feat(orgs): derive the Organizer role from membership and gate draft orgs` — shipped as `bde7b3a` with exactly that subject (parent bookkeeping; the box was left unflipped by the worker).
 
 ## Repair
 
