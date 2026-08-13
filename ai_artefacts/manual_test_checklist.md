@@ -49,3 +49,10 @@
 - [ ] Cancel resumed confirmation; confirm no registration occurs and `register` disappears from URL.
 - [ ] Change capacity or eligibility before returning; confirm server reason appears, Register stays hidden, no registration occurs, and `register` disappears from URL.
 - [ ] Sign in with eligible, registered, and ineligible accounts; confirm only eligible visible cards show Register and no page loads more than 20 capability checks.
+
+## T7 about-english-translation
+
+- [ ] Switch to English on `/about`; confirm full page content, labels, and accessible names are English.
+- [ ] Switch to French on `/about`; confirm full page returns to original French meaning.
+- [ ] Switch EN/FR while staying on `/about`; confirm page `lang` follows locale and names, links, images remain unchanged.
+- [ ] Open About from home in EN/FR; confirm card label/description are localized and links/images still work.

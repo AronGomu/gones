@@ -2,6 +2,7 @@ import '@angular/compiler';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { catalogs } from '../../i18n/messages';
 
 // No TestBed / zone.js in this repo (see AGENT.md environment facts) — assert on the template
 // source string instead of a rendered DOM. Precedent: server-authority-boundary.test.ts.
@@ -43,6 +44,13 @@ describe('HomeMenuComponent template', () => {
       if (identifier === 'menu-settings-link') continue;
       expect(identifiers.indexOf(identifier)).toBeLessThan(settingsIndex);
     }
+  });
+
+  it('localizes the About card without forcing French', () => {
+    expect(source).not.toMatch(/routerLink="\/about"[^>]*\slang="fr"/);
+    expect(catalogs.en['home.about']).toBe('About');
+    expect(catalogs.en['home.aboutDesc']).toBe('Discover the Lyon association, its Legacy tournaments, its team, and the major Fire & Ice events.');
+    expect(catalogs.fr['home.about']).toBe('À propos');
   });
 
   it('about is the second-to-last card', () => {
