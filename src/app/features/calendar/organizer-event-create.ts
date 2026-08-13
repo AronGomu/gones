@@ -13,7 +13,9 @@ export interface EventDraftValue {
   startsAtLocal: string;
   endsAtLocal: string;
   capacity: number | null;
-  formatIds: string[];
+  formatId: string;
+  liveTournamentUrl: string;
+  archiveTournamentUrl: string;
 }
 
 export function browserTimeZoneSuggestion(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone): string {
@@ -34,7 +36,9 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
     startsAtLocal: value.startsAtLocal,
     endsAtLocal: value.endsAtLocal || undefined,
     capacity: value.capacity ?? undefined,
-    formatIds: [...value.formatIds]
+    formatIds: [value.formatId],
+    liveTournamentUrl: optional(value.liveTournamentUrl),
+    archiveTournamentUrl: optional(value.archiveTournamentUrl)
   };
 }
 

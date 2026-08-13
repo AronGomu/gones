@@ -212,6 +212,11 @@ internal sealed class EventPublicationService(
                     }
                 }
 
+                var lockedFormat = await database.TournamentFormats
+                    .FromSqlInterpolated($"SELECT * FROM tournament_formats WHERE id = {normalized.Formats.Single().Id} AND deleted_at IS NULL FOR KEY SHARE")
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(cancellationToken)
+                    ?? throw Validation("formatIds", "The selected format is no longer active.");
                 await database.Database.ExecuteSqlInterpolatedAsync(
                     $"SELECT pg_advisory_xact_lock(hashtext({normalized.BaseSlug}))",
                     cancellationToken);
@@ -221,7 +226,7 @@ internal sealed class EventPublicationService(
                     request.OrganizationId,
                     actingUserId,
                     ToDraft(request, slug),
-                    normalized.Formats,
+                    [lockedFormat],
                     now);
                 database.Events.Add(tournament);
                 var response = new EventPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
@@ -240,7 +245,7 @@ internal sealed class EventPublicationService(
                     Action = "tournament.published",
                     EntityType = "scheduled_tournament",
                     EntityId = tournament.Id.ToString("D"),
-                    RedactedDiff = "{\"fields\":[\"organizationId\",\"title\",\"schedule\",\"venue\",\"capacity\",\"formats\"]}",
+                    RedactedDiff = "{\"fields\":[\"organizationId\",\"title\",\"schedule\",\"venue\",\"capacity\",\"formats\",\"liveTournamentUrl\",\"archiveTournamentUrl\"]}",
                     OccurredAt = now
                 });
                 database.IdempotencyRecords.Add(new IdempotencyRecord
@@ -298,10 +303,10 @@ internal sealed class EventPublicationService(
             ? (await access.RequireMemberAsync(request.OrganizationId, userId, isAdmin, cancellationToken)).Organization
             : (await access.LoadAsync(request.OrganizationId, userId, isAdmin, includeDeletedForAdmin: false, cancellationToken)).Organization;
         if (organization.DeletedAt is not null) throw new ResourceNotFoundException();
-        var formatIds = request.FormatIds?.Distinct().Order().ToArray() ?? [];
-        if (formatIds.Length == 0 || formatIds.Length != request.FormatIds!.Count)
+        var formatIds = request.FormatIds?.Distinct().ToArray() ?? [];
+        if (request.FormatIds is null || request.FormatIds.Count != 1 || formatIds.Length != 1)
         {
-            throw Validation("formatIds", "At least one unique format is required.");
+            throw Validation("formatIds", "Exactly one format is required.");
         }
 
         var formats = await database.TournamentFormats.AsNoTracking()
@@ -312,7 +317,7 @@ internal sealed class EventPublicationService(
 
         try
         {
-            var baseSlug = EventSlugGenerator.FromTitle(request.Title);
+            var baseSlug = EventSlugGenerator.FromTitleAndFormat(request.Title, formats.Single().Slug);
             var tournament = Event.Create(
                 request.OrganizationId,
                 userId,
@@ -321,9 +326,12 @@ internal sealed class EventPublicationService(
                 clock.GetCurrentInstant());
             var render = new EventPreviewRenderResponse(
                 tournament.Title,
+                EventDisplayTitle.From(tournament.Title, formats.Single().Name),
                 tournament.Slug,
                 tournament.Summary,
                 tournament.BodyHtml,
+                tournament.LiveTournamentUrl,
+                tournament.ArchiveTournamentUrl,
                 new PublicEventVenueResponse(tournament.StreetAddress, tournament.PostalCode, tournament.City, tournament.Country),
                 tournament.TimeZoneId,
                 LocalDatePattern.Iso.Format(tournament.VenueStartDate),
@@ -342,6 +350,8 @@ internal sealed class EventPublicationService(
                 tournament.Slug,
                 tournament.Summary,
                 tournament.BodyHtml,
+                tournament.LiveTournamentUrl,
+                tournament.ArchiveTournamentUrl,
                 tournament.StreetAddress,
                 tournament.PostalCode,
                 tournament.City,
@@ -376,7 +386,9 @@ internal sealed class EventPublicationService(
         request.TimeZoneId,
         ParseLocal(request.StartsAtLocal, "startsAtLocal"),
         string.IsNullOrWhiteSpace(request.EndsAtLocal) ? null : ParseLocal(request.EndsAtLocal, "endsAtLocal"),
-        request.Capacity);
+        request.Capacity,
+        request.LiveTournamentUrl,
+        request.ArchiveTournamentUrl);
 
     private static LocalDateTime ParseLocal(string value, string field)
     {
@@ -430,6 +442,8 @@ internal sealed class EventPublicationService(
         string Slug,
         string? Summary,
         string? BodyHtml,
+        string? LiveTournamentUrl,
+        string? ArchiveTournamentUrl,
         string StreetAddress,
         string? PostalCode,
         string City,
@@ -445,6 +459,15 @@ internal sealed class EventPublicationService(
 
 internal static class EventSlugGenerator
 {
+    public static string FromTitleAndFormat(string title, string formatSlug)
+    {
+        var titleSlug = FromTitle(title);
+        var normalizedFormatSlug = TournamentFormat.ValidateSlug(formatSlug);
+        var maximumTitleLength = Event.MaximumSlugLength - normalizedFormatSlug.Length - 1;
+        var titlePrefix = titleSlug[..Math.Min(titleSlug.Length, maximumTitleLength)].TrimEnd('-');
+        return TournamentSlug.Normalize($"{titlePrefix}-{normalizedFormatSlug}");
+    }
+
     public static string FromTitle(string title)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -486,7 +509,9 @@ internal sealed record EventPayloadRequest(
     [property: Required] string StartsAtLocal,
     string? EndsAtLocal,
     int? Capacity,
-    [property: Required, MinLength(1)] IReadOnlyList<Guid> FormatIds);
+    IReadOnlyList<Guid> FormatIds,
+    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? LiveTournamentUrl = null,
+    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? ArchiveTournamentUrl = null);
 
 internal sealed record PublishEventRequest(
     [property: Required] string PreviewTicket,
@@ -499,9 +524,12 @@ internal sealed record EventPreviewResponse(
 
 internal sealed record EventPreviewRenderResponse(
     string Title,
+    string DisplayTitle,
     string Slug,
     string? Summary,
     string? BodyHtml,
+    string? LiveTournamentUrl,
+    string? ArchiveTournamentUrl,
     PublicEventVenueResponse Venue,
     string TimeZoneId,
     string VenueStartDate,

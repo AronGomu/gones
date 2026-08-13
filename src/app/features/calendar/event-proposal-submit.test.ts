@@ -70,7 +70,9 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     startsAtLocal: '2027-08-01T10:00',
     endsAtLocal: '',
     capacity: null,
-    formatIds: ['fmt1']
+    formatId: 'fmt1',
+    liveTournamentUrl: '',
+    archiveTournamentUrl: ''
   });
 }
 

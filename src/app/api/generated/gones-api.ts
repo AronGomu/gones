@@ -10069,9 +10069,12 @@ export interface EventManagementResponse {
     organizationId: string;
     organizationName: string;
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     bodyHtml: string | undefined;
+    liveTournamentUrl: string | undefined;
+    archiveTournamentUrl: string | undefined;
     streetAddress: string;
     postalCode: string | undefined;
     city: string;
@@ -10118,15 +10121,20 @@ export interface EventPayloadRequest {
     endsAtLocal: string | undefined;
     capacity: number | undefined;
     formatIds: string[];
+    liveTournamentUrl?: string | undefined;
+    archiveTournamentUrl?: string | undefined;
 
     [key: string]: any;
 }
 
 export interface EventPreviewRenderResponse {
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     bodyHtml: string | undefined;
+    liveTournamentUrl: string | undefined;
+    archiveTournamentUrl: string | undefined;
     venue: PublicEventVenueResponse;
     timeZoneId: string;
     venueStartDate: string;
@@ -10794,9 +10802,12 @@ export interface PublicEventCatalogResponse {
 export interface PublicEventDetailResponse {
     id: string;
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     bodyHtml: string | undefined;
+    liveTournamentUrl: string | undefined;
+    archiveTournamentUrl: string | undefined;
     venue: PublicEventVenueResponse;
     timeZoneId: string;
     venueStartDate: string;
@@ -10853,6 +10864,7 @@ export interface PublicEventParticipantResponse {
 export interface PublicEventSummaryResponse {
     id: string;
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     venue: PublicEventVenueResponse;
@@ -11159,6 +11171,8 @@ export interface UpdateEventDetailsRequest {
     endsAtLocal: string | undefined;
     capacity: number | undefined;
     formatIds: string[];
+    liveTournamentUrl?: string | undefined;
+    archiveTournamentUrl?: string | undefined;
 
     [key: string]: any;
 }

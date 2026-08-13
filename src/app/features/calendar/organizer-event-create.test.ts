@@ -14,11 +14,11 @@ describe('Organizer Event create state', () => {
     expect(eventPayload({
       organizationId: 'org', title: ' Cup ', summary: ' ', bodyHtml: ' <p>Body</p> ', streetAddress: ' 1 Street ',
       postalCode: '', city: ' Lyon ', country: ' France ', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
-      endsAtLocal: '', capacity: null, formatIds: ['legacy']
+      endsAtLocal: '', capacity: null, formatId: 'legacy', liveTournamentUrl: ' /live/123 ', archiveTournamentUrl: ' '
     })).toEqual({
       organizationId: 'org', title: 'Cup', summary: undefined, bodyHtml: '<p>Body</p>', streetAddress: '1 Street',
       postalCode: undefined, city: 'Lyon', country: 'France', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
-      endsAtLocal: undefined, capacity: undefined, formatIds: ['legacy']
+      endsAtLocal: undefined, capacity: undefined, formatIds: ['legacy'], liveTournamentUrl: '/live/123', archiveTournamentUrl: undefined
     });
   });
 

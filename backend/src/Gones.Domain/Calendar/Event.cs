@@ -90,7 +90,9 @@ public sealed record ScheduledTournamentDraft(
     string TimeZoneId,
     LocalDateTime StartsAtLocal,
     LocalDateTime? EndsAtLocal,
-    int? Capacity);
+    int? Capacity,
+    string? LiveTournamentUrl = null,
+    string? ArchiveTournamentUrl = null);
 
 public sealed class Event : VersionedEntity
 {
@@ -105,6 +107,7 @@ public sealed class Event : VersionedEntity
     public const int MaximumTimeZoneLength = 100;
     public const int MaximumDeletedReasonLength = 300;
     public const int MaximumSearchTextLength = 600;
+    public const int MaximumTournamentUrlLength = 2048;
 
     private Event() { }
 
@@ -113,6 +116,8 @@ public sealed class Event : VersionedEntity
     public string Slug { get; private set; } = string.Empty;
     public string? Summary { get; private set; }
     public string? BodyHtml { get; private set; }
+    public string? LiveTournamentUrl { get; private set; }
+    public string? ArchiveTournamentUrl { get; private set; }
     public string StreetAddress { get; private set; } = string.Empty;
     public string? PostalCode { get; private set; }
     public string City { get; private set; } = string.Empty;
@@ -146,7 +151,7 @@ public sealed class Event : VersionedEntity
     {
         if (organizationId == Guid.Empty) throw new ArgumentException("Organization ID cannot be empty.", nameof(organizationId));
         if (createdByUserId == Guid.Empty) throw new ArgumentException("Creator user ID cannot be empty.", nameof(createdByUserId));
-        TournamentFormatSelection.RequireLegacyForV1(selectedFormats);
+        TournamentFormatSelection.RequireExactlyOneActive(selectedFormats);
         var tournament = new Event
         {
             OrganizationId = organizationId,
@@ -175,7 +180,9 @@ public sealed class Event : VersionedEntity
         var minor = Title != normalized.Title
             || Slug != normalized.Slug
             || Summary != normalized.Summary
-            || BodyHtml != normalized.BodyHtml;
+            || BodyHtml != normalized.BodyHtml
+            || LiveTournamentUrl != normalized.LiveTournamentUrl
+            || ArchiveTournamentUrl != normalized.ArchiveTournamentUrl;
         return minor ? TournamentChangeSeverity.Minor : TournamentChangeSeverity.None;
     }
 
@@ -241,6 +248,8 @@ public sealed class Event : VersionedEntity
         Slug = normalized.Slug;
         Summary = normalized.Summary;
         BodyHtml = normalized.BodyHtml;
+        LiveTournamentUrl = normalized.LiveTournamentUrl;
+        ArchiveTournamentUrl = normalized.ArchiveTournamentUrl;
         StreetAddress = normalized.StreetAddress;
         PostalCode = normalized.PostalCode;
         City = normalized.City;
@@ -274,11 +283,13 @@ public sealed class Event : VersionedEntity
     private static NormalizedDraft NormalizeDraft(ScheduledTournamentDraft draft, IReadOnlyCollection<TournamentFormat> selectedFormats)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        TournamentFormatSelection.RequireLegacyForV1(selectedFormats);
+        TournamentFormatSelection.RequireExactlyOneActive(selectedFormats);
         var title = ValidateRequired(draft.Title, nameof(draft.Title), MaximumTitleLength);
         var slug = TournamentSlug.Normalize(draft.Slug);
         var summary = ValidateOptional(draft.Summary, nameof(draft.Summary), MaximumSummaryLength);
         var bodyHtml = TournamentContentSanitizer.Sanitize(draft.BodyHtml);
+        var liveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.LiveTournamentUrl);
+        var archiveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.ArchiveTournamentUrl);
         var streetAddress = ValidateRequired(draft.StreetAddress, nameof(draft.StreetAddress), MaximumAddressLength);
         var postalCode = ValidateOptional(draft.PostalCode, nameof(draft.PostalCode), MaximumPostalCodeLength);
         var city = ValidateRequired(draft.City, nameof(draft.City), MaximumCityLength);
@@ -290,7 +301,7 @@ public sealed class Event : VersionedEntity
         var endsAtUtc = ResolveEnd(zone, endLocal);
         if (endsAtUtc < startsAtUtc) throw new ArgumentException("Tournament end cannot be before start.", nameof(draft));
         if (draft.Capacity is <= 0) throw new ArgumentOutOfRangeException(nameof(draft), "Capacity must be positive when present.");
-        return new NormalizedDraft(title, slug, summary, bodyHtml, streetAddress, postalCode, city, country, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, draft.Capacity);
+        return new NormalizedDraft(title, slug, summary, bodyHtml, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, draft.Capacity);
     }
 
     private static Instant ResolveRequiredStart(DateTimeZone zone, LocalDateTime local)
@@ -340,6 +351,8 @@ public sealed class Event : VersionedEntity
         string Slug,
         string? Summary,
         string? BodyHtml,
+        string? LiveTournamentUrl,
+        string? ArchiveTournamentUrl,
         string StreetAddress,
         string? PostalCode,
         string City,
@@ -382,13 +395,51 @@ public static class TournamentSlug
             throw new ArgumentException($"Slug cannot exceed {Event.MaximumSlugLength} characters.", nameof(slug));
         }
 
-        if (normalized.Any(ch => !(char.IsAsciiLetterOrDigit(ch) || ch is '-')))
+        if (normalized.Any(ch => !(char.IsAsciiLetterOrDigit(ch) || ch is '-' or '_')))
         {
-            throw new ArgumentException("Slug may contain only lowercase letters, digits, and hyphens.", nameof(slug));
+            throw new ArgumentException("Slug may contain only lowercase letters, digits, hyphens, and underscores.", nameof(slug));
         }
 
         return normalized;
     }
+}
+
+public static class EventTournamentUrl
+{
+    public static string? NormalizeOptional(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var trimmed = value.Trim();
+        if (trimmed.Length > Event.MaximumTournamentUrlLength)
+        {
+            throw new ArgumentException($"Tournament URL cannot exceed {Event.MaximumTournamentUrlLength} characters.", nameof(value));
+        }
+
+        if (trimmed.Any(char.IsControl) || trimmed.Contains('\\'))
+        {
+            throw new ArgumentException("Tournament URL cannot contain control characters or backslashes.", nameof(value));
+        }
+
+        if (trimmed.StartsWith("//", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Protocol-relative Tournament URLs are not allowed.", nameof(value));
+        }
+
+        if (trimmed.StartsWith("/", StringComparison.Ordinal)) return trimmed;
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+            || string.IsNullOrWhiteSpace(uri.Host))
+        {
+            throw new ArgumentException("Tournament URL must be app-relative or use HTTP(S).", nameof(value));
+        }
+
+        return trimmed;
+    }
+}
+
+public static class EventDisplayTitle
+{
+    public static string From(string title, string formatName) => $"{formatName} — {title}";
 }
 
 public static class TournamentContentSanitizer

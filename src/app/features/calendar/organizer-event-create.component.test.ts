@@ -63,6 +63,14 @@ describe('OrganizerEventCreateComponent role gating', () => {
     const component = setup('Admin');
     expect(component.canPublishDirectly()).toBe(true);
   });
+
+  it('uses one required format control plus optional tournament links', () => {
+    const component = setup('Organizer');
+    expect(component.form.controls.formatId.value).toBe('');
+    expect(component.form.controls.formatId.valid).toBe(false);
+    expect(component.form.controls.liveTournamentUrl.value).toBe('');
+    expect(component.form.controls.archiveTournamentUrl.value).toBe('');
+  });
 });
 
 // T26. The picker used to read `GET /api/users/me/organizations` for everyone, so the account the

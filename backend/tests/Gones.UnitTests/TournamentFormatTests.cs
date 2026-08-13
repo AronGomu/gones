@@ -47,15 +47,17 @@ public sealed class TournamentFormatTests
     }
 
     [Fact]
-    public void V1_selection_requires_active_legacy()
+    public void Selection_requires_exactly_one_active_format_without_legacy_requirement()
     {
         var legacy = TournamentFormat.CreateLegacy(Now);
         var modern = TournamentFormat.Create("Modern", "modern", 1, Now);
-        TournamentFormatSelection.RequireLegacyForV1([legacy, modern]);
 
-        Assert.Throws<ArgumentException>(() => TournamentFormatSelection.RequireLegacyForV1([modern]));
+        TournamentFormatSelection.RequireExactlyOneActive([modern]);
+        Assert.Throws<ArgumentException>(() => TournamentFormatSelection.RequireExactlyOneActive([]));
+        Assert.Throws<ArgumentException>(() => TournamentFormatSelection.RequireExactlyOneActive([legacy, modern]));
+
         modern.SoftDelete(Now);
-        Assert.Throws<ArgumentException>(() => TournamentFormatSelection.RequireLegacyForV1([legacy, modern]));
+        Assert.Throws<ArgumentException>(() => TournamentFormatSelection.RequireExactlyOneActive([modern]));
     }
 
     [Fact]

@@ -35,7 +35,7 @@ _Formerly_: Result Tournament
 _Avoid_: Scheduled Tournament
 
 **Event**:
-The Calendar V1 record an organizer publishes and a User registers for: title, venue, venue-local dates, formats, capacity. It is served under `/api/events`, browsed at `/calendar`, read at `/events/:slug` and persisted in `events` (ADR 0035). An Event is tied to a single tournament conceptually, and that tournament has no row of its own.
+The Calendar V1 record an organizer publishes and a User registers for: base title, venue, venue-local dates, exactly one active Tournament Format, capacity, and optional Live/Archive Tournament links. It is served under `/api/events`, browsed at `/calendar`, read at `/events/:slug` and persisted in `events` (ADRs 0035–0036). An Event is tied to one single-format tournament conceptually, and that tournament has no row of its own. Public responses derive the display title from format plus base title.
 _Formerly_: Scheduled Tournament, Calendar Tournament, `/api/tournaments`
 _Avoid_: Tournament on its own, Archive Tournament, Live Tournament
 
@@ -289,6 +289,8 @@ _Avoid_: Migration, deployment
 - League dates are descriptive and do not filter which Tournaments count
 - A **SpiceRack Import** is one possible kind of **Tournament Import**
 - An **Event** belongs to exactly one **Organization**
+- An **Event** has exactly one active **Tournament Format**
+- An **Event** may link to one **Live Tournament** and one **Archive Tournament**; links are navigation only, not data authority
 - An **Organization** may have zero or more members; with zero it is a **Draft Organization**
 - A **Draft Organization** may hold existing **Events** but may not publish a new one
 - A **User** holding at least one **Organization** membership is an **Organizer User**; losing the last one returns them to **User**, and an **Admin User** is never changed by membership

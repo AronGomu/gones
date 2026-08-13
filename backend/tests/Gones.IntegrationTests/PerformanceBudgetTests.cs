@@ -192,7 +192,7 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
                     StartsAtLocal: startsAt,
                     EndsAtLocal: startsAt.Date.At(new LocalTime(18, 0)),
                     Capacity: 64),
-                index % 2 == 0 ? [legacy] : [legacy, pioneer],
+                index % 2 == 0 ? [legacy] : [pioneer],
                 Now));
         }
         await database.SaveChangesAsync();

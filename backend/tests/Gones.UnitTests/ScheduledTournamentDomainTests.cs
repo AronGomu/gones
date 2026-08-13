@@ -11,14 +11,61 @@ public sealed class ScheduledTournamentDomainTests
     private static readonly Guid UserId = Guid.NewGuid();
 
     [Fact]
-    public void Create_requires_title_address_start_zone_and_legacy_format()
+    public void Create_requires_title_address_start_zone_and_exactly_one_active_format()
     {
         Assert.Throws<ArgumentException>(() => Create(Draft() with { Title = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { StreetAddress = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { City = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { Country = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { TimeZoneId = "Europe/Nope" }));
-        Assert.Throws<ArgumentException>(() => Event.Create(OrganizationId, UserId, Draft(), [TournamentFormat.Create("Modern", "modern", 1, Now)], Now));
+        Assert.Throws<ArgumentException>(() => Event.Create(OrganizationId, UserId, Draft(), [], Now));
+
+        var legacy = TournamentFormat.CreateLegacy(Now);
+        var modern = TournamentFormat.Create("Modern", "modern", 1, Now);
+        Assert.Throws<ArgumentException>(() => Event.Create(OrganizationId, UserId, Draft(), [legacy, modern], Now));
+
+        var tournament = Event.Create(OrganizationId, UserId, Draft(), [modern], Now);
+        Assert.Equal(modern.Id, tournament.Formats.Single().TournamentFormatId);
+
+        modern.SoftDelete(Now);
+        Assert.Throws<ArgumentException>(() => Event.Create(OrganizationId, UserId, Draft(), [modern], Now));
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData(" /live/123 ", "/live/123")]
+    [InlineData("http://example.test/tournament", "http://example.test/tournament")]
+    [InlineData("https://example.test/tournament", "https://example.test/tournament")]
+    public void Tournament_urls_normalize_supported_values(string? value, string? expected)
+    {
+        Assert.Equal(expected, EventTournamentUrl.NormalizeOptional(value));
+    }
+
+    [Theory]
+    [InlineData("//example.test/tournament")]
+    [InlineData("/live\\123")]
+    [InlineData("/live\u0001")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("ftp://example.test/tournament")]
+    [InlineData("relative/path")]
+    public void Tournament_urls_reject_unsafe_or_unsupported_values(string value)
+    {
+        Assert.Throws<ArgumentException>(() => EventTournamentUrl.NormalizeOptional(value));
+    }
+
+    [Fact]
+    public void Tournament_urls_round_trip_on_event()
+    {
+        var tournament = Create(Draft() with
+        {
+            LiveTournamentUrl = " /live/current ",
+            ArchiveTournamentUrl = "https://example.test/archive/42"
+        });
+
+        Assert.Equal("/live/current", tournament.LiveTournamentUrl);
+        Assert.Equal("https://example.test/archive/42", tournament.ArchiveTournamentUrl);
     }
 
     [Fact]

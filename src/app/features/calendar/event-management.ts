@@ -7,7 +7,7 @@ import {
 import { EventDraftValue } from './organizer-event-create';
 
 export type MajorEventField = 'start' | 'end' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'capacity' | 'formats';
-export type ChangedEventField = 'title' | 'summary' | 'description' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'status';
+export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'status';
 
 const defaultMajorLabels: Record<MajorEventField, string> = {
   start: 'start date/time',
@@ -35,7 +35,9 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     startsAtLocal: localDateTime(event.venueStartDate, event.venueStartTime),
     endsAtLocal: localDateTime(event.venueEndDate, event.venueEndTime),
     capacity: event.capacity ?? null,
-    formatIds: [...event.formatIds]
+    formatId: event.formatIds[0] ?? '',
+    liveTournamentUrl: event.liveTournamentUrl ?? '',
+    archiveTournamentUrl: event.archiveTournamentUrl ?? ''
   };
 }
 
@@ -52,7 +54,9 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
     startsAtLocal: value.startsAtLocal,
     endsAtLocal: value.endsAtLocal || undefined,
     capacity: value.capacity ?? undefined,
-    formatIds: [...value.formatIds]
+    formatIds: [value.formatId],
+    liveTournamentUrl: optional(value.liveTournamentUrl),
+    archiveTournamentUrl: optional(value.archiveTournamentUrl)
   };
 }
 
@@ -64,7 +68,7 @@ export function majorEventChanges(
   const originalDraft = managementToDraft(original);
   const fields: Array<[MajorEventField, keyof EventDraftValue]> = [
     ['start', 'startsAtLocal'], ['end', 'endsAtLocal'], ['timeZone', 'timeZoneId'], ['streetAddress', 'streetAddress'],
-    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['capacity', 'capacity'], ['formats', 'formatIds']
+    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['capacity', 'capacity'], ['formats', 'formatId']
   ];
   return fields.filter(([, key]) => !same(originalDraft[key], draft[key])).map(([field]) => label(field));
 }
@@ -75,7 +79,8 @@ export function changedEventFields(
   label: (field: ChangedEventField) => string = field => field
 ): string[] {
   const fields: Array<[ChangedEventField, keyof EventManagementResponse]> = [
-    ['title', 'title'], ['summary', 'summary'], ['description', 'bodyHtml'], ['streetAddress', 'streetAddress'],
+    ['title', 'title'], ['summary', 'summary'], ['description', 'bodyHtml'], ['liveTournamentUrl', 'liveTournamentUrl'],
+    ['archiveTournamentUrl', 'archiveTournamentUrl'], ['streetAddress', 'streetAddress'],
     ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['timeZone', 'timeZoneId'],
     ['start', 'startsAtUtc'], ['end', 'endsAtUtc'], ['capacity', 'capacity'], ['formats', 'formatIds'], ['status', 'status']
   ];
@@ -97,9 +102,12 @@ export function managementToDetail(
   const byId = new Map(formats.map(format => [format.id, format]));
   return {
     title: event.title,
+    displayTitle: event.displayTitle,
     slug: event.slug,
     summary: event.summary,
     bodyHtml: event.bodyHtml,
+    liveTournamentUrl: event.liveTournamentUrl,
+    archiveTournamentUrl: event.archiveTournamentUrl,
     venue: {
       streetAddress: event.streetAddress,
       postalCode: event.postalCode,

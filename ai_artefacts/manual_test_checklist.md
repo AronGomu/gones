@@ -14,3 +14,12 @@
 - [ ] Enable reduced motion; confirm card hover causes no lift or transition motion.
 - [ ] Check sign-in plus register OAuth buttons with both langs; confirm icon plus label remain centered, vertically aligned, single row.
 - [ ] Check touch/coarse-pointer viewport; confirm hover lift does not become sticky.
+
+## T3 single-format-event-contract
+
+- [ ] Create Event with one active non-Legacy format; confirm preview/public title uses `Format — base title` and slug ends with format slug.
+- [ ] Confirm zero or multiple format selection cannot be submitted and API returns `errors.formatIds`.
+- [ ] Create/edit Event with blank, app-relative, HTTP, and HTTPS Live/Archive Tournament links; confirm trimming, blank-to-empty behavior, and round-trip.
+- [ ] Try protocol-relative, backslash, control-character, and non-HTTP(S) links; confirm server refuses them.
+- [ ] Try deleting format referenced by nondeleted Event; confirm conflict and Event remains editable.
+- [ ] Open Calendar list and Event detail; confirm summary stays link-free and detail carries optional links.

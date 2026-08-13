@@ -39,7 +39,7 @@
 | transport | Email provider adapter: Brevo, or local file sink | `backend/src/Gones.Infrastructure/Notifications/BrevoEmailTransport.cs` |
 | worker | Background service: heartbeat, scheduling, notifications, cleanup | `backend/src/Gones.Worker/Worker.cs` |
 | reconciler | Replans event reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/EventScheduler.cs` |
-| event | The Calendar V1 record people register for, formerly Scheduled Tournament (ADR 0035) | `backend/src/Gones.Domain/Calendar/Event.cs` |
+| event | Calendar record for one single-format tournament concept; may link to Live/Archive Tournaments (ADRs 0035–0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
 | scheduled tournament | **Retired term** for an event (ADR 0035). Left only in identifiers the rename kept on purpose | `docs/adr/0035-calendar-event-vocabulary.md` |
 | membership | The (organization, user) roster row that derives the global `Organizer` role (ADR 0034) | `backend/src/Gones.Api/Organizations/OrganizationMembershipRoleService.cs` |
 | draft organization | An organization with zero members: derived `isDraft`, cannot publish an event | `backend/src/Gones.Api/Organizations/OrganizationEndpoints.cs` |

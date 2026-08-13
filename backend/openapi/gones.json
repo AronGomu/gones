@@ -8396,9 +8396,12 @@
           "organizationId",
           "organizationName",
           "title",
+          "displayTitle",
           "slug",
           "summary",
           "bodyHtml",
+          "liveTournamentUrl",
+          "archiveTournamentUrl",
           "streetAddress",
           "postalCode",
           "city",
@@ -8434,6 +8437,9 @@
           "title": {
             "type": "string"
           },
+          "displayTitle": {
+            "type": "string"
+          },
           "slug": {
             "type": "string"
           },
@@ -8444,6 +8450,18 @@
             ]
           },
           "bodyHtml": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "liveTournamentUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "archiveTournamentUrl": {
             "type": [
               "null",
               "string"
@@ -8648,21 +8666,37 @@
             "format": "int32"
           },
           "formatIds": {
-            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "liveTournamentUrl": {
+            "maxLength": 2048,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "archiveTournamentUrl": {
+            "maxLength": 2048,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
       "EventPreviewRenderResponse": {
         "required": [
           "title",
+          "displayTitle",
           "slug",
           "summary",
           "bodyHtml",
+          "liveTournamentUrl",
+          "archiveTournamentUrl",
           "venue",
           "timeZoneId",
           "venueStartDate",
@@ -8681,6 +8715,9 @@
           "title": {
             "type": "string"
           },
+          "displayTitle": {
+            "type": "string"
+          },
           "slug": {
             "type": "string"
           },
@@ -8691,6 +8728,18 @@
             ]
           },
           "bodyHtml": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "liveTournamentUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "archiveTournamentUrl": {
             "type": [
               "null",
               "string"
@@ -11036,9 +11085,12 @@
         "required": [
           "id",
           "title",
+          "displayTitle",
           "slug",
           "summary",
           "bodyHtml",
+          "liveTournamentUrl",
+          "archiveTournamentUrl",
           "venue",
           "timeZoneId",
           "venueStartDate",
@@ -11061,6 +11113,9 @@
           "title": {
             "type": "string"
           },
+          "displayTitle": {
+            "type": "string"
+          },
           "slug": {
             "type": "string"
           },
@@ -11071,6 +11126,18 @@
             ]
           },
           "bodyHtml": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "liveTournamentUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "archiveTournamentUrl": {
             "type": [
               "null",
               "string"
@@ -11273,6 +11340,7 @@
         "required": [
           "id",
           "title",
+          "displayTitle",
           "slug",
           "summary",
           "venue",
@@ -11295,6 +11363,9 @@
             "format": "uuid"
           },
           "title": {
+            "type": "string"
+          },
+          "displayTitle": {
             "type": "string"
           },
           "slug": {
@@ -12401,12 +12472,25 @@
             "format": "int32"
           },
           "formatIds": {
-            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "liveTournamentUrl": {
+            "maxLength": 2048,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "archiveTournamentUrl": {
+            "maxLength": 2048,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

@@ -18,6 +18,8 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Property(tournament => tournament.Slug).HasMaxLength(Event.MaximumSlugLength);
         builder.Property(tournament => tournament.Summary).HasMaxLength(Event.MaximumSummaryLength);
         builder.Property(tournament => tournament.BodyHtml).HasMaxLength(Event.MaximumBodyHtmlLength);
+        builder.Property(tournament => tournament.LiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
+        builder.Property(tournament => tournament.ArchiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
         builder.Property(tournament => tournament.StreetAddress).HasMaxLength(Event.MaximumAddressLength);
         builder.Property(tournament => tournament.PostalCode).HasMaxLength(Event.MaximumPostalCodeLength);
         builder.Property(tournament => tournament.City).HasMaxLength(Event.MaximumCityLength);
@@ -88,6 +90,7 @@ internal sealed class EventFormatConfiguration : IEntityTypeConfiguration<EventF
     {
         builder.ToTable("event_formats");
         builder.HasKey(format => new { format.EventId, format.TournamentFormatId });
+        builder.HasIndex(format => format.EventId).IsUnique();
         builder.HasIndex(format => format.TournamentFormatId);
         builder.HasOne<TournamentFormat>().WithMany().HasForeignKey(format => format.TournamentFormatId).OnDelete(DeleteBehavior.Restrict);
     }

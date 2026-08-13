@@ -3,8 +3,10 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
+using Gones.Domain.Organizations;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -200,6 +202,34 @@ public sealed class AdminBootstrapAndCatalogTests : IAsyncLifetime
 
         using var duplicate = await SendAuthorizedAsync(HttpMethod.Post, "/api/admin/formats", token, new { name = "Modern 2", slug = "modern", sortOrder = 11 });
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+
+        await using (var eventDatabase = CreateContext())
+        {
+            var admin = await eventDatabase.Users.SingleAsync(item => item.NormalizedEmail == adminEmail.ToUpperInvariant());
+            var format = await eventDatabase.TournamentFormats.SingleAsync(item => item.Id == id);
+            var organization = Organization.Create($"Format Club {Guid.NewGuid():N}", null, null, null, SystemClock.Instance.GetCurrentInstant());
+            eventDatabase.Organizations.Add(organization);
+            await eventDatabase.SaveChangesAsync();
+            eventDatabase.Events.Add(Event.Create(
+                organization.Id,
+                admin.Id,
+                new ScheduledTournamentDraft(
+                    "Modern Cup", "modern-cup", null, null, "12 Street", null, "Paris", "France", "Europe/Paris",
+                    new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), 32),
+                [format],
+                SystemClock.Instance.GetCurrentInstant()));
+            await eventDatabase.SaveChangesAsync();
+        }
+
+        using var referencedDelete = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/formats/{id:D}", token);
+        Assert.Equal(HttpStatusCode.Conflict, referencedDelete.StatusCode);
+
+        await using (var eventDatabase = CreateContext())
+        {
+            var tournament = await eventDatabase.Events.SingleAsync(item => item.Title == "Modern Cup");
+            tournament.SoftDelete(tournament.CreatedByUserId, null, SystemClock.Instance.GetCurrentInstant());
+            await eventDatabase.SaveChangesAsync();
+        }
 
         using var del = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/admin/formats/{id:D}", token);
         Assert.Equal(HttpStatusCode.NoContent, del.StatusCode);

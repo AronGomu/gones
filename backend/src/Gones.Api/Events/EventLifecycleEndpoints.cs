@@ -452,13 +452,15 @@ internal sealed class EventLifecycleService(
         IReadOnlyList<Guid>? requestedIds,
         CancellationToken cancellationToken)
     {
-        var ids = requestedIds?.Distinct().Order().ToArray() ?? [];
-        if (ids.Length == 0 || ids.Length != requestedIds!.Count)
+        var ids = requestedIds?.Distinct().ToArray() ?? [];
+        if (requestedIds is null || requestedIds.Count != 1 || ids.Length != 1)
         {
-            throw Validation("formatIds", "At least one unique format is required.");
+            throw Validation("formatIds", "Exactly one format is required.");
         }
-        var formats = await database.TournamentFormats.Where(item => ids.Contains(item.Id) && item.DeletedAt == null).ToListAsync(cancellationToken);
-        if (formats.Count != ids.Length) throw Validation("formatIds", "One or more formats are invalid.");
+        var formats = await database.TournamentFormats
+            .FromSqlInterpolated($"SELECT * FROM tournament_formats WHERE id = {ids[0]} AND deleted_at IS NULL FOR KEY SHARE")
+            .ToListAsync(cancellationToken);
+        if (formats.Count != 1) throw Validation("formatIds", "The selected format is no longer active.");
         return formats;
     }
 
@@ -479,7 +481,14 @@ internal sealed class EventLifecycleService(
         var organizationNames = await database.Organizations.AsNoTracking()
             .Where(item => organizationIds.Contains(item.Id))
             .ToDictionaryAsync(item => item.Id, item => item.Name, cancellationToken);
-        var items = tournaments.Select(item => ToResponse(item, organizationNames[item.OrganizationId])).ToArray();
+        var formatIds = tournaments.SelectMany(item => item.Formats).Select(item => item.TournamentFormatId).Distinct().ToArray();
+        var formatNames = await database.TournamentFormats.AsNoTracking()
+            .Where(item => formatIds.Contains(item.Id))
+            .ToDictionaryAsync(item => item.Id, item => item.Name, cancellationToken);
+        var items = tournaments.Select(item => ToResponse(
+            item,
+            organizationNames[item.OrganizationId],
+            formatNames[item.Formats.Single().TournamentFormatId])).ToArray();
         return new EventManagementListResponse(items, page, pageSize, total);
     }
 
@@ -489,7 +498,12 @@ internal sealed class EventLifecycleService(
             .Where(item => item.Id == tournament.OrganizationId)
             .Select(item => item.Name)
             .SingleAsync(cancellationToken);
-        return ToResponse(tournament, organizationName);
+        var formatId = tournament.Formats.Single().TournamentFormatId;
+        var formatName = await database.TournamentFormats.AsNoTracking()
+            .Where(item => item.Id == formatId)
+            .Select(item => item.Name)
+            .SingleAsync(cancellationToken);
+        return ToResponse(tournament, organizationName, formatName);
     }
 
     private async Task SaveAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken cancellationToken)
@@ -525,14 +539,17 @@ internal sealed class EventLifecycleService(
         return new EventMutationResponse(tournament.Id, tournament.Status.ToString(), tournament.IsDeleted, currentVersion, StrongETag.Encode(currentVersion));
     }
 
-    private static EventManagementResponse ToResponse(Event item, string organizationName) => new(
+    private static EventManagementResponse ToResponse(Event item, string organizationName, string formatName) => new(
         item.Id,
         item.OrganizationId,
         organizationName,
         item.Title,
+        EventDisplayTitle.From(item.Title, formatName),
         item.Slug,
         item.Summary,
         item.BodyHtml,
+        item.LiveTournamentUrl,
+        item.ArchiveTournamentUrl,
         item.StreetAddress,
         item.PostalCode,
         item.City,
@@ -564,7 +581,9 @@ internal sealed class EventLifecycleService(
         request.TimeZoneId,
         ParseLocal(request.StartsAtLocal, "startsAtLocal"),
         string.IsNullOrWhiteSpace(request.EndsAtLocal) ? null : ParseLocal(request.EndsAtLocal, "endsAtLocal"),
-        request.Capacity);
+        request.Capacity,
+        request.LiveTournamentUrl,
+        request.ArchiveTournamentUrl);
 
     private static LocalDateTime ParseLocal(string value, string field)
     {
@@ -615,7 +634,9 @@ internal sealed record UpdateEventDetailsRequest(
     [property: Required] string StartsAtLocal,
     string? EndsAtLocal,
     int? Capacity,
-    [property: Required, MinLength(1)] IReadOnlyList<Guid> FormatIds)
+    IReadOnlyList<Guid> FormatIds,
+    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? LiveTournamentUrl = null,
+    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? ArchiveTournamentUrl = null)
 {
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalFields { get; init; }
@@ -639,9 +660,12 @@ internal sealed record EventManagementResponse(
     Guid OrganizationId,
     string OrganizationName,
     string Title,
+    string DisplayTitle,
     string Slug,
     string? Summary,
     string? BodyHtml,
+    string? LiveTournamentUrl,
+    string? ArchiveTournamentUrl,
     string StreetAddress,
     string? PostalCode,
     string City,
@@ -672,6 +696,8 @@ internal sealed record EventAuditSnapshot(
     string Title,
     string? Summary,
     string? BodyHtml,
+    string? LiveTournamentUrl,
+    string? ArchiveTournamentUrl,
     string StreetAddress,
     string? PostalCode,
     string City,
@@ -686,6 +712,8 @@ internal sealed record EventAuditSnapshot(
         tournament.Title,
         tournament.Summary,
         tournament.BodyHtml,
+        tournament.LiveTournamentUrl,
+        tournament.ArchiveTournamentUrl,
         tournament.StreetAddress,
         tournament.PostalCode,
         tournament.City,
@@ -705,6 +733,8 @@ internal sealed record EventAuditSnapshot(
         if (Title != other.Title) fields.Add("title");
         if (Summary != other.Summary) fields.Add("summary");
         if (BodyHtml != other.BodyHtml) fields.Add("bodyChanged");
+        if (LiveTournamentUrl != other.LiveTournamentUrl) fields.Add("liveTournamentUrl");
+        if (ArchiveTournamentUrl != other.ArchiveTournamentUrl) fields.Add("archiveTournamentUrl");
         if (StreetAddress != other.StreetAddress) fields.Add("streetAddress");
         if (PostalCode != other.PostalCode) fields.Add("postalCode");
         if (City != other.City) fields.Add("city");
@@ -740,6 +770,8 @@ internal sealed record EventAuditSnapshot(
             {
                 "title" => Title,
                 "summary" => Summary,
+                "liveTournamentUrl" => LiveTournamentUrl,
+                "archiveTournamentUrl" => ArchiveTournamentUrl,
                 "streetAddress" => StreetAddress,
                 "postalCode" => PostalCode,
                 "city" => City,
