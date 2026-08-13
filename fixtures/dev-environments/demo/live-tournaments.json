@@ -1,7 +1,7 @@
 [
   {
     "key": "demo-live-in-progress",
-    "organizerEmail": "organizer@gones.test",
+    "organizerEmail": "organizer-gones-one-registration@gones.test",
     "name": "Gones League 7 - Day 2",
     "leagueKey": "demo-league-7",
     "tournamentDate": {
@@ -73,7 +73,7 @@
   },
   {
     "key": "demo-live-standings",
-    "organizerEmail": "organizer2@gones.test",
+    "organizerEmail": "organizer-aura-live-standings@gones.test",
     "name": "Lyon Legacy Weekly",
     "leagueKey": null,
     "tournamentDate": {

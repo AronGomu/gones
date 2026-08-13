@@ -28,7 +28,45 @@ interface DevEnvironmentAccount {
 
 interface DevEnvironmentTournament {
   key: string;
+  organizationKey: string;
+  organizerEmail: string;
+  title: string;
+  summary: string;
+  bodyHtml: string;
+  streetAddress: string;
+  postalCode: string;
+  city: string;
+  country: string;
+  timeZoneId: string;
   startsAtLocalOffsetDays: number;
+  startsAtLocalTime: string;
+  endsAtLocalOffsetDays: number;
+  endsAtLocalTime: string;
+  capacity: number | null;
+  formatKeys: string[];
+  [key: string]: unknown;
+}
+
+interface DevEnvironmentFormat {
+  key: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+}
+
+interface DevEnvironmentRegistration {
+  tournamentKey: string;
+  userEmail: string;
+}
+
+interface DevEnvironmentOrganization {
+  key: string;
+  ownerEmail: string;
+  [key: string]: unknown;
+}
+
+interface DevEnvironmentLiveTournament {
+  organizerEmail: string;
   [key: string]: unknown;
 }
 
@@ -49,10 +87,29 @@ interface DevEnvironment {
   description: string;
   resetDatabase: boolean;
   accounts: DevEnvironmentAccount[];
+  organizations: DevEnvironmentOrganization[];
+  formats: DevEnvironmentFormat[];
   tournaments: DevEnvironmentTournament[];
+  registrations: DevEnvironmentRegistration[];
+  liveTournaments: DevEnvironmentLiveTournament[];
   leagues: DevEnvironmentLeague[];
   [key: string]: unknown;
 }
+
+const demoSplitSources: Record<string, string[]> = {
+  'aura-winter-open': ['legacy', 'modern'],
+  'pauper-night': ['legacy', 'pauper'],
+  'aura-spring-classic': ['legacy', 'modern'],
+  'commander-social': ['legacy', 'commander'],
+  'aura-summer-open': ['legacy', 'modern', 'pauper', 'commander']
+};
+
+const slugify = (value: string): string => value
+  .normalize('NFKD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '');
 
 const names = listEnvironmentNames() as string[];
 const dataFiles = DATA_FILES as string[];
@@ -134,10 +191,123 @@ describe('shipped development environments', () => {
   it('the demo calendar spans past, today and future', () => {
     const offsets = read('demo').tournaments.map((tournament) => tournament.startsAtLocalOffsetDays);
 
-    expect(offsets).toHaveLength(9);
+    expect(offsets).toHaveLength(16);
     expect(offsets.filter((offset) => offset < 0).length).toBeGreaterThanOrEqual(1);
     expect(offsets.filter((offset) => offset === 0)).toHaveLength(1);
     expect(offsets.filter((offset) => offset > 0).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('ships exact single-format split Events and server-derived slugs', () => {
+    const demo = read('demo');
+    const expectedSplitKeys = Object.entries(demoSplitSources).flatMap(([source, formats]) =>
+      formats.map((format) => `${source}-${format}`)
+    );
+    const splitEvents = demo.tournaments.filter((event) =>
+      Object.keys(demoSplitSources).some((source) => event.key.startsWith(`${source}-`))
+    );
+    const formatsByKey = new Map(demo.formats.map((format) => [format.key, format]));
+    const derivedSlugs = demo.tournaments.map((event) => {
+      const format = formatsByKey.get(event.formatKeys[0]);
+      return `${slugify(event.title)}-${format?.slug}`;
+    });
+    const expectedSlugs = [
+      'gones-league-7-day-1-legacy',
+      'gones-league-7-day-2-legacy',
+      'aura-winter-open-legacy',
+      'aura-winter-open-modern',
+      'gones-pauper-night-legacy',
+      'gones-pauper-night-pauper',
+      'gones-league-8-day-1-legacy',
+      'aura-spring-classic-legacy',
+      'aura-spring-classic-modern',
+      'gones-commander-social-legacy',
+      'gones-commander-social-commander',
+      'ligue-aura-9-day-1-legacy',
+      'aura-summer-open-legacy',
+      'aura-summer-open-modern',
+      'aura-summer-open-pauper',
+      'aura-summer-open-commander'
+    ];
+
+    expect(demo.tournaments).toHaveLength(16);
+    expect(demo.tournaments.every((event) => event.formatKeys.length === 1)).toBe(true);
+    expect(splitEvents.map((event) => event.key).sort()).toEqual(expectedSplitKeys.sort());
+    expect(derivedSlugs.sort()).toEqual(expectedSlugs.sort());
+  });
+
+  it('preserves split metadata and describes only each child format', () => {
+    const demo = read('demo');
+    const formatsByKey = new Map(demo.formats.map((format) => [format.key, format]));
+    const metadata = (event: DevEnvironmentTournament) => ({
+      organizationKey: event.organizationKey,
+      organizerEmail: event.organizerEmail,
+      streetAddress: event.streetAddress,
+      postalCode: event.postalCode,
+      city: event.city,
+      country: event.country,
+      timeZoneId: event.timeZoneId,
+      startsAtLocalOffsetDays: event.startsAtLocalOffsetDays,
+      startsAtLocalTime: event.startsAtLocalTime,
+      endsAtLocalOffsetDays: event.endsAtLocalOffsetDays,
+      endsAtLocalTime: event.endsAtLocalTime,
+      capacity: event.capacity
+    });
+
+    for (const [source, formatKeys] of Object.entries(demoSplitSources)) {
+      const children = formatKeys.map((format) => demo.tournaments.find((event) => event.key === `${source}-${format}`));
+      expect(children.every(Boolean), source).toBe(true);
+      expect(children.map((event) => metadata(event!))).toEqual(children.map(() => metadata(children[0]!)));
+
+      for (const child of children) {
+        const text = `${child!.summary} ${child!.bodyHtml}`.toLowerCase();
+        const ownFormat = formatsByKey.get(child!.formatKeys[0])!.name.toLowerCase();
+        expect(text, child!.key).toContain(ownFormat);
+        for (const siblingKey of formatKeys.filter((key) => key !== child!.formatKeys[0])) {
+          expect(text, child!.key).not.toContain(formatsByKey.get(siblingKey)!.name.toLowerCase());
+        }
+      }
+    }
+  });
+
+  it('ships purpose accounts, ownership, Live organizers and registration counts', () => {
+    const demo = read('demo');
+    const expectedEmails = [
+      'admin-empty@gones.test',
+      'organizer-gones-one-registration@gones.test',
+      'organizer-aura-live-standings@gones.test',
+      'user-four-registrations@gones.test',
+      'user-two-registrations@gones.test',
+      'user-empty@gones.test',
+      'user-unverified@gones.test'
+    ];
+    const counts = new Map(expectedEmails.map((email) => [email, demo.registrations.filter((registration) => registration.userEmail === email).length]));
+
+    expect(demo.accounts.map((account) => account.email)).toEqual(expectedEmails);
+    expect(demo.accounts.map((account) => account.username)).toEqual(expectedEmails.map((email) => email.split('@')[0]));
+    expect(demo.accounts.map((account) => account.role)).toEqual(['Admin', 'Organizer', 'Organizer', 'User', 'User', 'User', 'User']);
+    expect(demo.accounts.filter((account) => account.emailConfirmed === false).map((account) => account.email)).toEqual(['user-unverified@gones.test']);
+    expect(demo.organizations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'gones-lyon', ownerEmail: 'organizer-gones-one-registration@gones.test' }),
+      expect.objectContaining({ key: 'aura-league', ownerEmail: 'organizer-aura-live-standings@gones.test' })
+    ]));
+    expect(demo.liveTournaments.map((live) => live.organizerEmail)).toEqual([
+      'organizer-gones-one-registration@gones.test',
+      'organizer-aura-live-standings@gones.test'
+    ]);
+    expect(Object.fromEntries(counts)).toEqual({
+      'admin-empty@gones.test': 0,
+      'organizer-gones-one-registration@gones.test': 1,
+      'organizer-aura-live-standings@gones.test': 0,
+      'user-four-registrations@gones.test': 4,
+      'user-two-registrations@gones.test': 2,
+      'user-empty@gones.test': 0,
+      'user-unverified@gones.test': 0
+    });
+    expect(demo.registrations).toContainEqual({
+      tournamentKey: 'aura-spring-classic-legacy',
+      userEmail: 'organizer-gones-one-registration@gones.test'
+    });
+    expect(demo.registrations.every((registration) => !Object.keys(demoSplitSources).includes(registration.tournamentKey))).toBe(true);
   });
 });
 
@@ -211,6 +381,50 @@ describe('environment validation', () => {
     }) as string[];
 
     expect(problems).toContain('x: resetDatabase=false but the environment carries data');
+  });
+
+  it.each([{ formatKeys: [] }, { formatKeys: ['legacy', 'modern'] }])('rejects Events with $formatKeys formats', ({ formatKeys }) => {
+    const fixture = validEnvironment();
+    fixture['accounts'] = [{ email: 'o@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }];
+    fixture['organizations'] = [{ key: 'org', ownerEmail: 'o@gones.test' }];
+    fixture['formats'] = [
+      { key: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 10 },
+      { key: 'modern', name: 'Modern', slug: 'modern', sortOrder: 20 }
+    ];
+    fixture['tournaments'] = [{ key: 'open', organizationKey: 'org', organizerEmail: 'o@gones.test', title: 'Open', formatKeys }];
+
+    expect(validateEnvironment(fixture)).toContain(`demo: tournament open must reference exactly one format`);
+  });
+
+  it('rejects malformed or duplicate split keys', () => {
+    const fixture = validEnvironment();
+    fixture['accounts'] = [{ email: 'o@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }];
+    fixture['organizations'] = [{ key: 'org', ownerEmail: 'o@gones.test' }];
+    fixture['formats'] = [
+      { key: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 10 },
+      { key: 'modern', name: 'Modern', slug: 'modern', sortOrder: 20 }
+    ];
+    fixture['tournaments'] = [
+      { key: 'open-legacy', organizationKey: 'org', organizerEmail: 'o@gones.test', title: 'Open', formatKeys: ['legacy'] },
+      { key: 'wrong-modern', organizationKey: 'org', organizerEmail: 'o@gones.test', title: 'Open', formatKeys: ['modern'] },
+      { key: 'open-legacy', organizationKey: 'org', organizerEmail: 'o@gones.test', title: 'Open', formatKeys: ['legacy'] }
+    ];
+
+    const problems = validateEnvironment(fixture) as string[];
+    expect(problems).toContain('demo: split tournament wrong-modern must use key "open-modern"');
+    expect(problems).toContain('demo: tournament key "open-legacy" is declared twice');
+  });
+
+  it('reports renamed account references left dangling', () => {
+    const fixture = validEnvironment();
+    fixture['organizations'] = [{ key: 'org', ownerEmail: 'old@gones.test' }];
+    fixture['liveTournaments'] = [{ key: 'live', organizerEmail: 'old@gones.test', leagueKey: null, roundCount: 1, scoredRounds: 0, players: [{ name: 'A' }, { name: 'B' }] }];
+    fixture['registrations'] = [{ tournamentKey: 'missing', userEmail: 'old@gones.test' }];
+
+    const problems = validateEnvironment(fixture) as string[];
+    expect(problems).toContain('demo: organization org owner old@gones.test is not a seeded account');
+    expect(problems).toContain('demo: running tournament live organizer old@gones.test is not an Organizer');
+    expect(problems).toContain('demo: registration missing/old@gones.test is not seedable');
   });
 
   it('a dangling cross-reference is reported', () => {
@@ -297,9 +511,28 @@ describe('seeder safety boundaries', () => {
     expect(reset.indexOf('requireLocalDocker();')).toBeLessThan(reset.indexOf("run('docker', ['compose'"));
   });
 
+  it('relaxes auth and write rate limits only for local environment seeding', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/seed-dev-environment.mjs'), 'utf8');
+    const compose = readFileSync(join(process.cwd(), 'compose.yaml'), 'utf8');
+    const seedEnvironment = source.slice(source.indexOf('function seedComposeEnv()'), source.indexOf('function run('));
+
+    expect(seedEnvironment).toContain("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: process.env.GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT || '1000'");
+    expect(seedEnvironment).toContain("GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT || '1000'");
+    expect(compose).toContain('GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: ${GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT:-}');
+  });
+
   it('resolves mixed-case fixture email references to the same token key', () => {
     const tokens = new Map([[normalizeFixtureEmail('Organizer@Gones.Test'), 'token']]);
     expect(tokens.get(normalizeFixtureEmail('organizer@gones.test'))).toBe('token');
+  });
+
+  it('keeps Event slug server-owned and validates the published slug', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/seed-dev-environment.mjs'), 'utf8');
+    const seedEvents = source.slice(source.indexOf('async function seedEvents'), source.indexOf('async function seedRegistrations'));
+
+    expect(seedEvents).not.toContain('slug:');
+    expect(seedEvents).toContain('expectedEventSlug(entry.title, formatSlugs.get(entry.formatKeys[0]))');
+    expect(seedEvents).toContain('published slug');
   });
 });
 

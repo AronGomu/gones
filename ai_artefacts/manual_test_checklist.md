@@ -23,3 +23,12 @@
 - [ ] Try protocol-relative, backslash, control-character, and non-HTTP(S) links; confirm server refuses them.
 - [ ] Try deleting format referenced by nondeleted Event; confirm conflict and Event remains editable.
 - [ ] Open Calendar list and Event detail; confirm summary stays link-free and detail carries optional links.
+
+## T4 demo-events-and-accounts
+
+- [ ] Load `demo`; confirm Calendar shows 16 Events with one format each and split Events keep shared date, venue, capacity, organization, and base title.
+- [ ] Open split Event details; confirm summary and body mention only selected format and slug ends with that format slug.
+- [ ] Sign in with each of seven purpose accounts using `Gones-dev-pass-123!`; confirm role, verification state, and organization ownership match account name.
+- [ ] Confirm registration counts: user-four 4, user-two 2, Gones Organizer 1, every other demo account 0.
+- [ ] Sign in as Gones Organizer; confirm registration for `aura-spring-classic-legacy` is visible.
+- [ ] Open Live and League screens; confirm renamed organizer/owner refs resolve and seeded data loads.

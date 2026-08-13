@@ -8,7 +8,7 @@ public static class AccountClosureIdentity
 
     public static string OpaqueUsername(Guid userId)
     {
-        // Username max 30; keep deterministic unique opaque handle.
+        // Keep a deterministic unique opaque handle within the username limit.
         var hex = userId.ToString("N");
         return $"c-{hex[..12]}";
     }

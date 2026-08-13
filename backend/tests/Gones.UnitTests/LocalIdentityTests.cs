@@ -18,12 +18,18 @@ public sealed class LocalIdentityTests
 
     [Theory]
     [InlineData("ab")]
-    [InlineData("abcdefghijklmnopqrstuvwxyzabcde")]
+    [InlineData("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklm")]
     [InlineData(" alice")]
     [InlineData("alice ")]
     public void Username_rejects_invalid_display_values(string value)
     {
         Assert.Throws<ArgumentException>(() => Username.Validate(value));
+    }
+
+    [Fact]
+    public void Username_accepts_33_characters()
+    {
+        Username.Validate(new string('a', 33));
     }
 
     [Fact]

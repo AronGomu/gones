@@ -7,7 +7,7 @@ namespace Gones.Domain.Identity;
 public static class Username
 {
     public const int MinimumLength = 3;
-    public const int MaximumLength = 30;
+    public const int MaximumLength = 64;
 
     public static void Validate(string value)
     {

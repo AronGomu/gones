@@ -134,6 +134,18 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Registration_accepts_33_character_username_and_rejects_65()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        using var accepted = await RegisterAsync($"username-accepted-{suffix}@example.test", new string('a', 33), "valid-password-value");
+        using var rejected = await RegisterAsync($"username-rejected-{suffix}@example.test", new string('b', 65), "valid-password-value");
+
+        Assert.Equal(HttpStatusCode.Created, accepted.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal("validation_failed", await ProblemCodeAsync(rejected));
+    }
+
+    [Fact]
     public async Task Normalized_username_and_email_collisions_are_rejected()
     {
         var suffix = Guid.NewGuid().ToString("N");

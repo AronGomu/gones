@@ -1,14 +1,9 @@
 [
-  { "tournamentKey": "aura-spring-classic", "userEmail": "test@gones.test" },
-  { "tournamentKey": "aura-spring-classic", "userEmail": "player1@gones.test" },
-  { "tournamentKey": "aura-spring-classic", "userEmail": "player2@gones.test" },
-  { "tournamentKey": "commander-social", "userEmail": "test@gones.test" },
-  { "tournamentKey": "commander-social", "userEmail": "player1@gones.test" },
-  { "tournamentKey": "commander-social", "userEmail": "player2@gones.test" },
-  { "tournamentKey": "aura-league-9-day-1", "userEmail": "test@gones.test" },
-  { "tournamentKey": "aura-league-9-day-1", "userEmail": "player1@gones.test" },
-  { "tournamentKey": "aura-league-9-day-1", "userEmail": "player2@gones.test" },
-  { "tournamentKey": "aura-summer-open", "userEmail": "test@gones.test" },
-  { "tournamentKey": "aura-summer-open", "userEmail": "player1@gones.test" },
-  { "tournamentKey": "aura-summer-open", "userEmail": "player2@gones.test" }
+  { "tournamentKey": "aura-spring-classic-legacy", "userEmail": "organizer-gones-one-registration@gones.test" },
+  { "tournamentKey": "aura-spring-classic-legacy", "userEmail": "user-four-registrations@gones.test" },
+  { "tournamentKey": "commander-social-legacy", "userEmail": "user-four-registrations@gones.test" },
+  { "tournamentKey": "aura-league-9-day-1", "userEmail": "user-four-registrations@gones.test" },
+  { "tournamentKey": "aura-summer-open-legacy", "userEmail": "user-four-registrations@gones.test" },
+  { "tournamentKey": "aura-spring-classic-legacy", "userEmail": "user-two-registrations@gones.test" },
+  { "tournamentKey": "commander-social-legacy", "userEmail": "user-two-registrations@gones.test" }
 ]

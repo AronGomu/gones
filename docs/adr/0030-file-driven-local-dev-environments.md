@@ -58,7 +58,7 @@ Three environments ship:
 | --- | --- |
 | `empty` | nothing. `resetDatabase: false`. What plain `npm run dev` has always given. |
 | `minimal` | one verified account per role, no content. |
-| `demo` | seven accounts (including one deliberately unverified), two organizations, four formats, nine calendar tournaments spread across past / today / future, twelve registrations, two League Archives, two running tournaments. |
+| `demo` | seven purpose-named accounts (including one deliberately unverified), two organizations, four formats, sixteen single-format calendar Events spread across past / today / future, seven registrations, two League Archives, two running tournaments. |
 
 Adding a fourth is copying a directory and editing JSON. No code change.
 
@@ -104,8 +104,9 @@ history would be a lie.
 `scripts/dev-environments.mjs` exports `validateEnvironment(environment): string[]`, and
 `ops/dev-environments.test.ts` runs it over every shipped environment inside `npm run test`. It checks
 shape, role vocabulary, password policy (`meetsPasswordPolicy` from `scripts/dev-accounts.mjs`),
-unique keys and every cross-reference: a tournament's organization and formats, a registration's
-tournament and user, a running tournament's league and organizer.
+unique keys and every cross-reference: an Event's organization and exact-one format, a registration's
+Event and user, a running tournament's league and organizer. Split Event keys must use
+`{source-key}-{format-slug}`.
 
 A broken fixture therefore fails in CI, not thirty seconds into a Docker reset.
 
