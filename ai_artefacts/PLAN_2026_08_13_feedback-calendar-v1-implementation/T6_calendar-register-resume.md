@@ -82,4 +82,4 @@
 - [x] `npx cypress run --spec cypress/e2e/event-registration.cy.js` → exit 0.
 - [ ] manual check: anonymous Register through acct creation/verification/login; no surprise mutation.
 - [x] app functional — card opens on body; ICS/Register do not navigate.
-- [ ] commit msg draft: `feat(calendar): resume confirmed registration from list`
+- [x] commit msg draft: `feat(calendar): resume confirmed registration from list`
