@@ -35,8 +35,8 @@
 
 ## T5 event-detail-layout
 
-- [x] At desktop width, confirm detail heading shows backend `Format — Title`, localized player count, no status, and right-aligned Live Tournament, Archive Tournament, Organization Website actions.
-- [x] At phone width, confirm detail info actions and Participants header actions wrap without horizontal overflow.
-- [x] Confirm app-relative Tournament links stay in same tab; absolute HTTP(S) links open a new tab with `noopener noreferrer`.
-- [x] Confirm Add to Calendar plus Sign in/Register/Cancel registration appear beside Participants; Register remains green and Cancel remains danger ghost.
-- [x] Confirm Register, Cancel registration, Add to Calendar, capability/reason/offline states, and registration success dialog still work.
+- [ ] At desktop width, confirm detail heading shows backend `Format — Title`, localized player count, no status, and right-aligned Live Tournament, Archive Tournament, Organization Website actions.
+- [ ] At phone width, confirm detail info actions and Participants header actions wrap without horizontal overflow.
+- [ ] Confirm app-relative Tournament links stay in same tab; absolute HTTP(S) links open a new tab with `noopener noreferrer`.
+- [ ] Confirm Add to Calendar plus Sign in/Register/Cancel registration appear beside Participants; Register remains green and Cancel remains danger ghost.
+- [ ] Confirm Register, Cancel registration, Add to Calendar, capability/reason/offline states, and registration success dialog still work.

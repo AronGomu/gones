@@ -74,6 +74,6 @@
 - [x] `npx vitest run src/app/features/calendar/event-detail-view.component.test.ts src/app/features/calendar/public-event-detail.component.test.ts` → exit 0.
 - [x] `npm run typecheck && npm run build` → exit 0.
 - [x] `npx cypress run --spec cypress/e2e/event-registration.cy.js,cypress/e2e/public-calendar.cy.js` → exit 0.
-- [x] manual check: detail action rows at desktop + phone width; internal/external links behave.
+- [ ] manual check deferred to `ai_artefacts/manual_test_checklist.md`: detail action rows at desktop + phone width; internal/external links behave.
 - [x] app functional — Register/Cancel/ICS still execute.
 - [x] commit msg draft: `feat(events): consolidate detail actions around participants`
