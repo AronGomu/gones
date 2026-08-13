@@ -38,38 +38,39 @@ import { EventDetailViewComponent } from './event-detail-view.component';
       <div class="stack" data-cy="public-event-detail">
         <gones-event-detail-view data-cy="public-event-detail-view" [event]="item" [icsUrl]="service.icsUrl(item.slug)" [showIcsAction]="false" />
 
-        @if (auth.enabled) {
-        <section class="panel event-section registration-action" data-cy="registration-section" aria-labelledby="registration-action-title">
-          <h2 id="registration-action-title" data-cy="registration-title">{{ i18n.t('registration.title') }}</h2>
-          @if (!auth.profile()) {
-            <p data-cy="registration-login-prompt">{{ i18n.t('registration.loginPrompt') }}</p>
-            <a mat-flat-button class="home-primary-action" routerLink="/login" [queryParams]="{ returnUrl: currentPath() }" data-cy="registration-login">{{ i18n.t('auth.signIn') }}</a>
-          } @else if (capabilityLoading()) {
-            <p aria-busy="true" data-cy="registration-capability-loading">{{ i18n.t('common.loading') }}</p>
-          } @else if (capability(); as state) {
-            <p data-cy="registration-capacity-status">{{ i18n.t('registration.capacityStatus', { count: state.activeParticipantCount, capacity: state.capacity ?? i18n.t('registration.unlimited') }) }}</p>
-            @if (state.canUnregister) {
-              <button mat-stroked-button class="danger-ghost-action" type="button" [disabled]="mutationPending() || confirmationPending() || !online()" (click)="confirmUnregister()" data-cy="registration-unregister">{{ mutationPending() || confirmationPending() ? i18n.t('registration.pending') : i18n.t('registration.unregister') }}</button>
-            } @else if (!state.canRegister) {
-              <p class="warning" data-cy="registration-reason">{{ reasonMessage(state.reason) }}</p>
-            }
-          } @else if (capabilityError()) {
-            <p class="error" role="alert" data-cy="registration-capability-error">{{ i18n.t('registration.capabilityLoadFailed') }}</p>
-            <button mat-stroked-button type="button" data-cy="registration-capability-retry" (click)="loadCapability()">{{ i18n.t('common.retry') }}</button>
-          }
-          <div class="registration-actions" data-cy="registration-actions">
-            <a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="registration-ics">{{ i18n.t('calendar.addToCalendar') }}</a>
-            @if (capability()?.canRegister) {
-              <button mat-flat-button class="registration-register-button" type="button" [disabled]="mutationPending() || !online()" (click)="register()" data-cy="registration-register">{{ mutationPending() ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button>
-            }
-          </div>
-          @if (!online()) { <p class="warning" data-cy="registration-offline">{{ i18n.t('registration.offline') }}</p> }
-          <p #registrationStatus class="registration-live-status" tabindex="-1" role="status" aria-live="polite" data-cy="registration-status">{{ mutationStatus() }}</p>
-        </section>
-        }
-
         <section class="panel event-section public-participants" data-cy="public-participants-section" aria-labelledby="participants-title">
-          <h2 id="participants-title" data-cy="public-participants-title">{{ i18n.t('registration.participants') }}</h2>
+          <div class="public-participants__header">
+            <h2 id="participants-title" data-cy="public-participants-title">{{ i18n.t('registration.participants') }}</h2>
+            <div class="public-participants__header-actions">
+              <a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="registration-ics">{{ i18n.t('calendar.addToCalendar') }}</a>
+              @if (auth.enabled && !auth.profile()) {
+                <a mat-flat-button class="home-primary-action" routerLink="/login" [queryParams]="{ returnUrl: currentPath() }" data-cy="registration-login">{{ i18n.t('auth.signIn') }}</a>
+              }
+              @if (auth.enabled && capability()?.canRegister) {
+                <button mat-flat-button class="registration-register-button" type="button" [disabled]="mutationPending() || !online()" (click)="register()" data-cy="registration-register">{{ mutationPending() ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button>
+              }
+              @if (auth.enabled && capability()?.canUnregister) {
+                <button mat-stroked-button class="danger-ghost-action" type="button" [disabled]="mutationPending() || confirmationPending() || !online()" (click)="confirmUnregister()" data-cy="registration-unregister">{{ mutationPending() || confirmationPending() ? i18n.t('registration.pending') : i18n.t('registration.unregister') }}</button>
+              }
+            </div>
+          </div>
+          @if (auth.enabled) {
+            @if (!auth.profile()) {
+              <p data-cy="registration-login-prompt">{{ i18n.t('registration.loginPrompt') }}</p>
+            } @else if (capabilityLoading()) {
+              <p aria-busy="true" data-cy="registration-capability-loading">{{ i18n.t('common.loading') }}</p>
+            } @else if (capability(); as state) {
+              <p data-cy="registration-capacity-status">{{ i18n.t('registration.capacityStatus', { count: state.activeParticipantCount, capacity: state.capacity ?? i18n.t('registration.unlimited') }) }}</p>
+              @if (!state.canRegister && !state.canUnregister) {
+                <p class="warning" data-cy="registration-reason">{{ reasonMessage(state.reason) }}</p>
+              }
+            } @else if (capabilityError()) {
+              <p class="error" role="alert" data-cy="registration-capability-error">{{ i18n.t('registration.capabilityLoadFailed') }}</p>
+              <button mat-stroked-button type="button" data-cy="registration-capability-retry" (click)="loadCapability()">{{ i18n.t('common.retry') }}</button>
+            }
+            @if (!online()) { <p class="warning" data-cy="registration-offline">{{ i18n.t('registration.offline') }}</p> }
+            <p #registrationStatus class="registration-live-status" tabindex="-1" role="status" aria-live="polite" data-cy="registration-status">{{ mutationStatus() }}</p>
+          }
           @if (participantsLoading()) { <p aria-busy="true" data-cy="public-participants-loading">{{ i18n.t('common.loading') }}</p> }
           @else if (participantsError()) { <div role="alert" data-cy="public-participants-error"><p data-cy="public-participants-error-text">{{ i18n.t('registration.participantsLoadFailed') }}</p><button mat-stroked-button type="button" data-cy="public-participants-retry" (click)="loadParticipants()">{{ i18n.t('common.retry') }}</button></div> }
           @else if (!participants().length) { <p data-cy="public-participants-empty">{{ i18n.t('registration.noParticipants') }}</p> }

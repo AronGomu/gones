@@ -553,7 +553,11 @@ const en = {
   'calendar.venueTime': 'Venue date and time',
   'calendar.detailLoadFailed': 'Could not load this event.',
   'calendar.capacity': 'Capacity',
-  'calendar.organizationWebsite': 'Organization website',
+  'calendar.playerCount': '{count} player',
+  'calendar.playerCountPlural': '{count} players',
+  'calendar.liveTournament': 'Live Tournament',
+  'calendar.archiveTournament': 'Archive Tournament',
+  'calendar.organizationWebsite': 'Organization Website',
   'calendar.openInMaps': 'Open {address} in Google Maps',
 
   // Event registration
@@ -1626,7 +1630,11 @@ const fr: Record<MessageKey, string> = {
   'calendar.venueTime': 'Date et heure du lieu',
   'calendar.detailLoadFailed': 'Impossible de charger cet événement.',
   'calendar.capacity': 'Capacité',
-  'calendar.organizationWebsite': 'Site de l’organisation',
+  'calendar.playerCount': '{count} joueur',
+  'calendar.playerCountPlural': '{count} joueurs',
+  'calendar.liveTournament': 'Tournoi en direct',
+  'calendar.archiveTournament': 'Tournoi archivé',
+  'calendar.organizationWebsite': 'Site Web de l’organisation',
   'calendar.openInMaps': 'Ouvrir {address} dans Google Maps',
 
   // Inscription aux tournois

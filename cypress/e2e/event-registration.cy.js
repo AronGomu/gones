@@ -1,5 +1,5 @@
 const event = {
-  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy event',
+  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', displayTitle: 'Legacy — Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris', venueStartDate: '2035-03-04', venueStartTime: '10:00:00', venueEndDate: '2035-03-04', venueEndTime: '18:00:00',
   startsAtUtc: '2035-03-04T09:00:00Z', endsAtUtc: '2035-03-04T17:00:00Z', capacity: 2, status: 'Published', bodyHtml: undefined,
@@ -94,8 +94,8 @@ describe('public participant registration', () => {
     }).as('unregister');
 
     visit('/events/lyon-legacy');
-    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/events/lyon-legacy.ics');
-    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-register"]').should('exist');
+    cy.get('[data-cy="public-participants-section"] .public-participants__header-actions').find('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/events/lyon-legacy.ics');
+    cy.get('[data-cy="public-participants-section"] .public-participants__header-actions').find('[data-cy="registration-register"]').should('exist');
     cy.get('[data-cy="my-registrations-link"]').should('not.exist');
 
     cy.get('[data-cy="registration-register"]').dblclick();

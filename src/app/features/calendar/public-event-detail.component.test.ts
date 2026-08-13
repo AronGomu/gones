@@ -60,26 +60,45 @@ function build(options: { register?: () => Promise<unknown>; confirmUnregister?:
 }
 
 const source = readFileSync(join(__dirname, 'public-event-detail.component.ts'), 'utf8');
-const actionsStart = source.indexOf('data-cy="registration-actions"');
-const actions = source.slice(actionsStart, source.indexOf('</div>', actionsStart));
+const headerStart = source.indexOf('class="public-participants__header"');
+const header = source.slice(headerStart, source.indexOf('</div>', source.indexOf('class="public-participants__header-actions"')) + 6);
 
 describe('PublicEventDetailComponent registration actions', () => {
-  it('ics and register share one action row', () => {
-    expect(actionsStart).toBeGreaterThan(-1);
-    expect(actions).toContain('data-cy="registration-ics"');
-    expect(actions).toContain('[href]="service.icsUrl(item.slug)"');
-    expect(actions).toContain('download');
-    expect(actions).toContain('data-cy="registration-register"');
-    expect(actions).toContain('class="registration-register-button"');
-    expect(actions.indexOf('data-cy="registration-ics"')).toBeLessThan(actions.indexOf('data-cy="registration-register"'));
+  it('removes the standalone registration section', () => {
+    expect(source).not.toContain('data-cy="registration-section"');
+    expect(source).not.toContain('class="registration-action"');
+  });
+
+  it('participants header owns ICS then auth, register and unregister actions', () => {
+    expect(headerStart).toBeGreaterThan(-1);
+    expect(header).toContain('data-cy="public-participants-title"');
+    expect(header).toContain('class="public-participants__header-actions"');
+    expect(header).toContain('data-cy="registration-ics"');
+    expect(header).toContain('[href]="service.icsUrl(item.slug)"');
+    expect(header).toContain('download');
+    expect(header).toContain('data-cy="registration-login"');
+    expect(header).toContain('data-cy="registration-register"');
+    expect(header).toContain('class="registration-register-button"');
+    expect(header).toContain('data-cy="registration-unregister"');
+    expect(header).toContain('class="danger-ghost-action"');
+    expect(header.indexOf('data-cy="registration-ics"')).toBeLessThan(header.indexOf('data-cy="registration-login"'));
+    expect(header.indexOf('data-cy="registration-login"')).toBeLessThan(header.indexOf('data-cy="registration-register"'));
+    expect(header.indexOf('data-cy="registration-register"')).toBeLessThan(header.indexOf('data-cy="registration-unregister"'));
     expect(source).toContain('[showIcsAction]="false"');
     const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
-    expect(stylesheet).toContain('.registration-actions {');
+    expect(stylesheet).toContain('.public-participants__header {');
+    expect(stylesheet).toContain('justify-content: space-between;');
+    expect(stylesheet).toContain('.public-participants__header-actions {');
     expect(stylesheet).toContain('.registration-register-button:not(:disabled) {');
   });
 
-  it('my registrations button is gone from the registration section', () => {
-    expect(source).not.toContain('my-registrations-link');
+  it('keeps capability, offline, reason and mutation status inside Participants', () => {
+    const participants = source.slice(source.indexOf('data-cy="public-participants-section"'));
+    expect(participants).toContain('data-cy="registration-capability-loading"');
+    expect(participants).toContain('data-cy="registration-capability-error"');
+    expect(participants).toContain('data-cy="registration-reason"');
+    expect(participants).toContain('data-cy="registration-offline"');
+    expect(participants).toContain('data-cy="registration-status"');
   });
 
   it('successful registration opens the success dialog', async () => {
