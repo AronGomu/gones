@@ -38,6 +38,21 @@ export function joinApiUrl(baseUrl: string, path: string): string {
   return `${normalizeApiBaseUrl(baseUrl)}/${path.replace(/^\/+/, '')}`;
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost']);
+
+/** Keep local HTTP API calls same-site so browsers can store and replay the Lax refresh cookie. */
+export function alignLoopbackApiUrl(requestUrl: string, pageHostname?: string): string {
+  if (!pageHostname || !LOOPBACK_HOSTS.has(pageHostname)) return requestUrl;
+  try {
+    const url = new URL(requestUrl);
+    if (!LOOPBACK_HOSTS.has(url.hostname) || url.hostname === pageHostname) return requestUrl;
+    url.hostname = pageHostname;
+    return url.toString();
+  } catch {
+    return requestUrl;
+  }
+}
+
 export function buildApiHeaders(accessToken?: string, etag?: string, idempotencyKey?: string): HttpHeaders {
   let headers = new HttpHeaders();
   if (accessToken) headers = headers.set('Authorization', `Bearer ${accessToken}`);
@@ -49,12 +64,18 @@ export function buildApiHeaders(accessToken?: string, etag?: string, idempotency
 export const apiBoundaryInterceptor: HttpInterceptorFn = (request, next) =>
   applyApiBoundary(request, next, inject(ApiAccessTokenStore).token);
 
-export function applyApiBoundary(request: HttpRequest<unknown>, next: HttpHandlerFn, token?: string) {
+export function applyApiBoundary(
+  request: HttpRequest<unknown>,
+  next: HttpHandlerFn,
+  token?: string,
+  pageHostname = globalThis.location?.hostname
+) {
   const boundaryHeaders = buildApiHeaders(token, request.context.get(API_ETAG), request.context.get(API_IDEMPOTENCY_KEY));
   let headers = request.headers;
   for (const name of boundaryHeaders.keys()) headers = headers.set(name, boundaryHeaders.get(name)!);
 
-  return next(request.clone({ headers, withCredentials: true })).pipe(
+  const url = alignLoopbackApiUrl(request.url, pageHostname);
+  return next(request.clone({ url, headers, withCredentials: true })).pipe(
     catchError((error: unknown) => {
       if (error instanceof HttpErrorResponse) {
         if (error.error instanceof Blob) {

@@ -15,17 +15,18 @@ function seedStorage(win) {
 // request out of its own cache: the document never travels through the Cypress proxy, so Cypress
 // cannot install its hook and `onBeforeLoad` is never called — no error, no seed. Re-apply from the
 // loaded window and visit once more when the hook was skipped.
-function visit(path) {
-  cy.visit(path, { onBeforeLoad: seedStorage });
+function visit(path, origin = '') {
+  const url = `${origin}${path}`;
+  cy.visit(url, { onBeforeLoad: seedStorage });
   cy.window({ log: false }).then(win => {
     if (win.localStorage.getItem(SEED_MARKER) === 'true') return;
     seedStorage(win);
-    cy.visit(path);
+    cy.visit(url);
   });
 }
 
-function login() {
-  visit('/login');
+function login(origin = '') {
+  visit('/login', origin);
   cy.get('[data-cy="auth-email"]').type(email);
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
@@ -43,6 +44,20 @@ function login() {
 // must see at least one.
 const SIGN_IN_LINK = 'a[href="/login"], a[href^="/login?"]';
 
+function alternateLoopbackOrigin() {
+  const origin = new URL(Cypress.config('baseUrl')).origin;
+  const url = new URL(origin);
+  url.hostname = url.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+  return url.origin;
+}
+
+function assertNoAuthSecretsInStorage() {
+  cy.window().then((win) => {
+    const storage = `${JSON.stringify(win.localStorage)} ${JSON.stringify(win.sessionStorage)}`.toLowerCase();
+    expect(storage).not.to.match(/access.?token|refresh.?token|gones_refresh/);
+  });
+}
+
 describe('session persistence across a reload', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
@@ -59,10 +74,30 @@ describe('session persistence across a reload', () => {
 
     cy.get('[data-cy="profile-link"]').should('be.visible').and('contain.text', 'cypress-user');
     cy.get(SIGN_IN_LINK).should('not.exist');
-    cy.window().then((win) => {
-      const storage = `${JSON.stringify(win.localStorage)} ${JSON.stringify(win.sessionStorage)}`;
-      expect(storage.toLowerCase()).not.to.contain('accesstoken');
+    assertNoAuthSecretsInStorage();
+  });
+
+  it('keeps the user signed in after Ctrl-F5-equivalent forced reload', () => {
+    login(alternateLoopbackOrigin());
+    cy.get('[data-cy="profile-link"]').should('be.visible').and('contain.text', 'cypress-user');
+    cy.getCookie('gones_refresh').should((cookie) => {
+      expect(cookie).not.to.be.null;
+      expect(cookie).to.include({
+        httpOnly: true,
+        path: '/api/auth',
+        sameSite: 'lax',
+        secure: false
+      });
+      expect(cookie.expiry).to.be.greaterThan(Math.floor(Date.now() / 1000));
     });
+
+    cy.intercept('POST', '**/api/auth/refresh').as('forcedBootstrapRefresh');
+    cy.reload(true);
+    cy.wait('@forcedBootstrapRefresh').its('response.statusCode').should('eq', 200);
+
+    cy.get('[data-cy="profile-link"]').should('be.visible').and('contain.text', 'cypress-user');
+    cy.get(SIGN_IN_LINK).should('not.exist');
+    assertNoAuthSecretsInStorage();
   });
 
   it('leaves anonymous browsing untouched when there is no session cookie', () => {
