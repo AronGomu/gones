@@ -109,10 +109,16 @@ describe('auth-entry login OAuth layout', () => {
 
   it('the social button spaces and centres its parts', () => {
     const buttonBlock = stylesheet.match(/\.oauth-button\s*\{[^}]*\}/)?.[0] ?? '';
+    const materialLabelBlock = stylesheet.match(/\.oauth-button \.mdc-button__label\s*\{[^}]*\}/)?.[0] ?? '';
     const logoBlock = stylesheet.match(/\.oauth-button__logo\s*\{[^}]*\}/)?.[0] ?? '';
     expect(buttonBlock).toContain('gap: .75rem');
     expect(buttonBlock).toContain('min-height: 3rem');
-    expect(logoBlock).toContain('align-self: center');
+    expect(materialLabelBlock).toContain('display: inline-flex');
+    expect(materialLabelBlock).toContain('align-items: center');
+    expect(materialLabelBlock).toContain('justify-content: center');
+    expect(materialLabelBlock).toContain('gap: .75rem');
+    expect(materialLabelBlock).toContain('white-space: nowrap');
+    expect(logoBlock).toContain('vertical-align: middle');
   });
 
   it('the auth page renders one guarded return button', () => {
