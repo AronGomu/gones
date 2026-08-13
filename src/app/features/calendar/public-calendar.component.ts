@@ -1,9 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Subscription, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -11,7 +12,10 @@ import { OfflineBannerComponent } from '../../shared/offline-banner.component';
 import {
   CalendarQuery,
   CalendarView,
+  PAGE_SIZE,
   PublicEventView,
+  addCalendarRegisterIntent,
+  calendarRegisterIntent,
   VenueDateGroup,
   buildCalendarQueryParams,
   calendarPageCount,
@@ -20,10 +24,9 @@ import {
   isPastCalendarDay,
   paginateEvents,
   readCalendarQuery,
+  removeCalendarRegisterIntent,
   shiftMonth,
   sortEventsForList,
-  statusPresentation,
-  eventCardDatePresentation,
   eventDatePresentation,
   eventsByDate,
   MAX_DAY_CELL_EVENTS
@@ -32,6 +35,11 @@ import { AllEventsCacheService } from './all-events-cache.service';
 import { PublicEventService } from './public-event.service';
 import { filterEvents } from './event-fuzzy-search';
 import { HighlightPart, highlightSearchText } from '../../shared/search-highlight';
+import { EventRegistrationCapabilityResponse } from '../../api/generated/gones-api';
+import { MessageKey } from '../../i18n/messages';
+import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { EventRegistrationService, registrationErrorKey } from './event-registration.service';
+import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 
 interface MonthDay {
   date: string;
@@ -77,6 +85,7 @@ const SEARCH_DEBOUNCE_MS = 300;
       </div>
 
       <gones-offline-banner [stale]="stale()" [cachedAt]="syncedAt()" data-cy="calendar-offline-banner" />
+      @if (registrationMessageKey(); as messageKey) { <p class="registration-live-status" role="status" aria-live="polite" data-cy="calendar-registration-message">{{ i18n.t(messageKey) }}</p> }
       @if (error()) {
         <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h2 data-cy="calendar-error-title">{{ i18n.t('calendar.loadFailed') }}</h2><button mat-stroked-button type="button" data-cy="calendar-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></section>
       } @else if (loading()) {
@@ -132,9 +141,9 @@ const SEARCH_DEBOUNCE_MS = 300;
       }
 
       <ng-template #emptyState><section class="panel calendar-state" data-cy="calendar-empty"><h2 data-cy="calendar-empty-title">{{ i18n.t('calendar.emptyTitle') }}</h2><p data-cy="calendar-empty-body">{{ i18n.t('calendar.emptyBody') }}</p></section></ng-template>
-      <ng-template #eventCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.title" [attr.data-cy]="'event-' + item.slug" (click)="openEvent(item)" (keydown.enter)="openEvent(item)" (keydown.space)="openEvent(item, $event)">
-        <div data-cy="calendar-card-body"><span class="calendar-status" [class]="'calendar-status calendar-status--' + status(item).className" data-cy="calendar-card-status">{{ status(item).label }}</span><h3 data-cy="calendar-card-title"><a [routerLink]="['/events', item.slug]" data-cy="calendar-card-link" (click)="$event.stopPropagation()">@for (part of highlightParts(item.title); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-title-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></h3><p data-cy="calendar-card-date">@for (part of highlightParts(cardDate(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-date-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="calendar-card-viewer-date">{{ i18n.t('calendar.viewerTime') }}: {{ secondary }}</p> }<p data-cy="calendar-card-venue">@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p>@if (item.summary) { <p class="muted" data-cy="calendar-card-summary">@for (part of highlightParts(item.summary); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-summary-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }</div>
-        <div class="calendar-event__actions" data-cy="calendar-card-actions"><a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="calendar-card-ics" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('calendar.addToCalendar') }}</a></div>
+      <ng-template #eventCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.displayTitle" [attr.data-cy]="'event-' + item.slug" (click)="openEvent(item)" (keydown.enter)="openEvent(item)" (keydown.space)="openEvent(item, $event)">
+        <div data-cy="calendar-card-body"><div class="calendar-card-heading" data-cy="calendar-card-heading"><h3 data-cy="calendar-card-title"><a [routerLink]="['/events', item.slug]" data-cy="calendar-card-link" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">@for (part of highlightParts(item.displayTitle); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-title-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></h3><time [attr.datetime]="item.startsAtUtc" data-cy="calendar-card-start-time">{{ item.venueStartTime.slice(0, 5) }}</time></div>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="calendar-card-viewer-date">{{ i18n.t('calendar.viewerTime') }}: {{ secondary }}</p> }<p data-cy="calendar-card-venue">@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p>@if (item.summary) { <p class="muted" data-cy="calendar-card-summary">@for (part of highlightParts(item.summary); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'calendar-card-summary-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }</div>
+        <div class="calendar-event__actions" data-cy="calendar-card-actions"><a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="calendar-card-ics" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('calendar.addToCalendar') }}</a>@if (showCardRegister(item)) { <button mat-flat-button type="button" class="registration-register-button" data-cy="calendar-card-register" [disabled]="pendingEventId() === item.id" (click)="registerFromCard(item, $event)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ pendingEventId() === item.id ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button> }</div>
       </article></ng-template>
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="calendar-back-bottom" />
@@ -145,11 +154,15 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly service = inject(PublicEventService);
   readonly auth = inject(AuthService);
   private readonly catalog = inject(AllEventsCacheService);
+  private readonly registrations = inject(EventRegistrationService);
+  private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly initialRegisterSlug = calendarRegisterIntent(this.router.url);
   private subscription?: Subscription;
   private searchDebounce?: ReturnType<typeof setTimeout>;
   private loadId = 0;
+  private capabilityGeneration = 0;
   @ViewChild('monthGrid') private monthGrid?: ElementRef<HTMLElement>;
 
   readonly skeletons = Array.from({ length: 6 });
@@ -180,6 +193,15 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   // `this.`, which is a trap for the next reader rather than a nicety.
   readonly dayEventIndex = computed(() => eventsByDate(this.items()));
   readonly canCreateEvent = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);
+  readonly registrationCapabilities = signal<Record<string, EventRegistrationCapabilityResponse>>({});
+  readonly pendingEventId = signal<string | null>(null);
+  readonly registrationMessageKey = signal<MessageKey | null>(null);
+  private readonly capabilityWatcher = effect(() => {
+    const profile = this.auth.profile();
+    const view = this.query().view;
+    const visible = this.pagedItems();
+    queueMicrotask(() => { void this.refreshVisibleCapabilities(view === 'list' ? visible : [], profile); });
+  });
 
   ngOnInit(): void {
     this.subscription = this.route.queryParamMap.subscribe(params => {
@@ -191,11 +213,13 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
       this.query.set(query);
       this.searchDraft.set(query.q);
     });
-    void this.load();
+    void this.initialize();
   }
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
+    this.capabilityWatcher.destroy();
+    this.capabilityGeneration++;
     if (this.searchDebounce) clearTimeout(this.searchDebounce);
   }
 
@@ -233,10 +257,50 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
     void this.navigate({ ...this.query(), page: next });
   }
   reload(): void { void this.load(); }
-  status(item: PublicEventView) { return statusPresentation(item.status); }
   date(item: PublicEventView) { return eventDatePresentation(item, this.i18n.locale()); }
-  cardDate(item: PublicEventView): string { return eventCardDatePresentation(item, this.i18n.locale()); }
   openEvent(item: PublicEventView, event?: Event): void { event?.preventDefault(); void this.router.navigate(['/events', item.slug]); }
+  showCardRegister(item: PublicEventView): boolean {
+    return this.auth.profile() === null || this.registrationCapabilities()[item.id]?.canRegister === true;
+  }
+  async registerFromCard(item: PublicEventView, event: Event): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    this.registrationMessageKey.set(null);
+    await this.auth.whenSessionReady();
+    if (this.auth.profile() === null) {
+      const returnUrl = addCalendarRegisterIntent(this.router.url, item.slug);
+      await this.router.navigate(['/login'], { queryParams: { returnUrl } });
+      return;
+    }
+    await this.confirmAndRegister(item, false);
+  }
+  async refreshVisibleCapabilities(
+    visible = this.pagedItems(),
+    profile = this.auth.profile()
+  ): Promise<void> {
+    const generation = ++this.capabilityGeneration;
+    if (profile === null || this.query().view !== 'list') {
+      this.registrationCapabilities.set({});
+      return;
+    }
+    const next: Record<string, EventRegistrationCapabilityResponse> = {};
+    await Promise.all(visible.slice(0, PAGE_SIZE).map(async item => {
+      try { next[item.id] = await this.registrations.capability(item.id); }
+      catch { /* Failed capability intentionally hides signed-in CTA. */ }
+    }));
+    if (generation === this.capabilityGeneration) this.registrationCapabilities.set(next);
+  }
+  async resumeRegistrationIntent(): Promise<void> {
+    if (!this.initialRegisterSlug) return;
+    const item = this.allItems().find(candidate => candidate.slug === this.initialRegisterSlug);
+    if (!item) {
+      this.registrationMessageKey.set('registration.unavailable');
+      await this.stripRegisterIntent();
+      return;
+    }
+    if (this.auth.profile() === null) return;
+    await this.confirmAndRegister(item, true);
+  }
   venue(item: PublicEventView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
   formatGroupDate(group: VenueDateGroup): string { return this.i18n.formatDate(group.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
   isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }
@@ -244,6 +308,54 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   dayEvents(date: string): PublicEventView[] { return this.dayEventIndex().get(date) ?? []; }
   visibleDayEvents(date: string): PublicEventView[] { return this.dayEvents(date).slice(0, MAX_DAY_CELL_EVENTS); }
   hiddenDayEventCount(date: string): number { return Math.max(0, this.dayEvents(date).length - MAX_DAY_CELL_EVENTS); }
+
+  private async initialize(): Promise<void> {
+    await this.load();
+    await this.auth.whenSessionReady();
+    await this.resumeRegistrationIntent();
+  }
+
+  private async confirmAndRegister(item: PublicEventView, resumed: boolean): Promise<void> {
+    if (this.pendingEventId() !== null) return;
+    this.pendingEventId.set(item.id);
+    let intentStripped = false;
+    try {
+      const capability = await this.registrations.capability(item.id);
+      this.registrationCapabilities.update(current => ({ ...current, [item.id]: capability }));
+      if (!capability.canRegister) {
+        this.registrationMessageKey.set(registrationErrorKey(capability.reason));
+        return;
+      }
+      const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+        data: {
+          title: this.i18n.t('registration.registerTitle'),
+          message: this.i18n.t('registration.registerConfirm', { title: item.displayTitle }),
+          confirmLabel: this.i18n.t('registration.register')
+        }
+      }).afterClosed());
+      if (!confirmed) return;
+      await this.registrations.register(item.id);
+      this.registrationMessageKey.set('registration.registered');
+      this.registrationCapabilities.update(current => ({
+        ...current,
+        [item.id]: { ...capability, canRegister: false, canUnregister: true, reason: 'registration_already_active' }
+      }));
+      if (resumed) {
+        await this.stripRegisterIntent();
+        intentStripped = true;
+      }
+      await firstValueFrom(this.dialog.open(RegistrationSuccessDialogComponent, { data: { title: item.title } }).afterClosed());
+    } catch {
+      this.registrationMessageKey.set('registration.failed');
+    } finally {
+      this.pendingEventId.set(null);
+      if (resumed && !intentStripped) await this.stripRegisterIntent();
+    }
+  }
+
+  private async stripRegisterIntent(): Promise<void> {
+    await this.router.navigateByUrl(removeCalendarRegisterIntent(this.router.url), { replaceUrl: true });
+  }
 
   private async load(options: { force?: boolean } = {}): Promise<void> {
     const id = ++this.loadId;

@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   PAGE_SIZE,
   PublicEventView,
+  addCalendarRegisterIntent,
   buildCalendarQueryParams,
+  calendarRegisterIntent,
+  removeCalendarRegisterIntent,
   calendarPageCount,
   clampCalendarPage,
   groupEventsByVenueDate,
@@ -11,8 +14,6 @@ import {
   paginateEvents,
   readCalendarQuery,
   sortEventsForList,
-  statusPresentation,
-  eventCardDatePresentation,
   eventDatePresentation,
   eventsByDate,
   venueMapsUrl
@@ -30,6 +31,7 @@ function make(count: number): PublicEventView[] {
 const event: PublicEventView = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
+  displayTitle: 'Legacy — Lyon Legacy',
   slug: 'lyon-legacy',
   summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
@@ -76,24 +78,6 @@ describe('public Calendar helpers', () => {
     expect(different.secondary).toContain('Aug 2');
     expect(different.secondary).toContain('Asia/Tokyo');
     expect(same.secondary).toBeUndefined();
-  });
-
-  // The card sits under a venue line that already names the city and country, so repeating the
-  // zone there is noise. The detail page keeps the zone: it is the page a reader plans from.
-  it('the card date omits the timezone suffix', () => {
-    const card = eventCardDatePresentation({ ...event, venueStartTime: '19:30:00' }, 'en-US');
-
-    expect(card).toContain('7:30');
-    expect(card).not.toContain('(');
-    expect(card).not.toContain('Europe/Paris');
-  });
-
-  it('the card date keeps the venue-local day and month', () => {
-    const card = eventCardDatePresentation({ ...event, venueStartTime: '19:30:00' }, 'en-US');
-
-    expect(card).toContain('Aug');
-    expect(card).toContain('1');
-    expect(card).toContain('2026');
   });
 
   it('reads the reduced query', () => {
@@ -151,9 +135,27 @@ describe('public Calendar helpers', () => {
       .toBe('4');
   });
 
-  it('renders explicit cancelled badge and completed text', () => {
-    expect(statusPresentation('Cancelled')).toEqual({ label: 'Cancelled', className: 'cancelled' });
-    expect(statusPresentation('Completed')).toEqual({ label: 'Completed', className: 'completed' });
+});
+
+describe('calendar registration intent', () => {
+  it('adds an encoded slug while preserving safe Calendar query and hash', () => {
+    expect(addCalendarRegisterIntent('/calendar?month=2026-08&view=list#events', 'lyon legacy'))
+      .toBe('/calendar?month=2026-08&view=list&register=lyon+legacy#events');
+  });
+
+  it('parses a register slug only from a safe Calendar URL', () => {
+    expect(calendarRegisterIntent('/calendar?view=list&register=lyon-legacy')).toBe('lyon-legacy');
+    expect(calendarRegisterIntent('/events/x?register=lyon-legacy')).toBeNull();
+    expect(calendarRegisterIntent('https://evil.test/calendar?register=lyon-legacy')).toBeNull();
+  });
+
+  it('removes only the transient register parameter', () => {
+    expect(removeCalendarRegisterIntent('/calendar?month=2026-08&register=lyon-legacy&q=legacy#events'))
+      .toBe('/calendar?month=2026-08&q=legacy#events');
+  });
+
+  it('falls back to Calendar for unsafe input before adding intent', () => {
+    expect(addCalendarRegisterIntent('//evil.test/steal', 'lyon-legacy')).toBe('/calendar?register=lyon-legacy');
   });
 });
 

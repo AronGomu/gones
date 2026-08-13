@@ -563,6 +563,9 @@ const en = {
   // Event registration
   'registration.title': 'Registration',
   'registration.register': 'Register',
+  'registration.registerTitle': 'Register for this event?',
+  'registration.registerConfirm': 'Register for {title}? Registration happens only after confirmation.',
+  'registration.unavailable': 'This event is no longer available.',
   'registration.unregister': 'Cancel registration',
   'registration.pending': 'Saving…',
   'registration.loginPrompt': 'Sign in to register for this event.',
@@ -1640,6 +1643,9 @@ const fr: Record<MessageKey, string> = {
   // Inscription aux tournois
   'registration.title': 'Inscription',
   'registration.register': 'S’inscrire',
+  'registration.registerTitle': 'S’inscrire à cet événement ?',
+  'registration.registerConfirm': 'S’inscrire à {title} ? L’inscription n’a lieu qu’après confirmation.',
+  'registration.unavailable': 'Cet événement n’est plus disponible.',
   'registration.unregister': 'Annuler l’inscription',
   'registration.pending': 'Enregistrement…',
   'registration.loginPrompt': 'Connectez-vous pour vous inscrire à cet événement.',

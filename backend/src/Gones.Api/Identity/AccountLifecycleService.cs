@@ -40,6 +40,7 @@ internal sealed class AccountLifecycleService(
         string username,
         string locale,
         string? targetEmail,
+        string? returnUrl,
         CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();
@@ -75,7 +76,10 @@ internal sealed class AccountLifecycleService(
             AccountActionPurpose.ChangeEmail => "/verify-email-change",
             _ => throw new ArgumentOutOfRangeException(nameof(purpose))
         };
-        var actionUrl = new UriBuilder(new Uri(options.PublicOrigin, path)) { Query = $"token={Uri.EscapeDataString(plaintext)}" }.Uri;
+        var query = new Dictionary<string, string?> { ["token"] = plaintext };
+        var safeReturnUrl = SafeLocalPath(returnUrl);
+        if (safeReturnUrl is not null) query["returnUrl"] = safeReturnUrl;
+        var actionUrl = new Uri(options.PublicOrigin, QueryHelpers.AddQueryString(path, query));
         NotificationTemplateModel model = purpose == AccountActionPurpose.ResetPassword
             ? new ResetPasswordTemplateModel(username, actionUrl)
             : new VerifyEmailTemplateModel(username, actionUrl);
@@ -108,6 +112,18 @@ internal sealed class AccountLifecycleService(
 
     public static string Hash(string plaintext) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(plaintext)));
+
+    private static string? SafeLocalPath(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 2048) return null;
+        var value = candidate.Trim();
+        if (!value.StartsWith('/') || value.StartsWith("//", StringComparison.Ordinal) || value.Contains('\\')) return null;
+        foreach (var character in candidate)
+        {
+            if (character <= '\u001f' || character == '\u007f') return null;
+        }
+        return value;
+    }
 
     private static string RequiredSecurityStamp(ApplicationUser user) =>
         string.IsNullOrWhiteSpace(user.SecurityStamp)

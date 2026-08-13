@@ -39,9 +39,9 @@ import { EventDetailViewComponent } from './event-detail-view.component';
         <gones-event-detail-view data-cy="public-event-detail-view" [event]="item" [icsUrl]="service.icsUrl(item.slug)" [showIcsAction]="false" />
 
         <section class="panel event-section public-participants" data-cy="public-participants-section" aria-labelledby="participants-title">
-          <div class="public-participants__header">
+          <div class="public-participants__header" data-cy="public-participants-header">
             <h2 id="participants-title" data-cy="public-participants-title">{{ i18n.t('registration.participants') }}</h2>
-            <div class="public-participants__header-actions">
+            <div class="public-participants__header-actions" data-cy="public-participants-header-actions">
               <a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="registration-ics">{{ i18n.t('calendar.addToCalendar') }}</a>
               @if (auth.enabled && !auth.profile()) {
                 <a mat-flat-button class="home-primary-action" routerLink="/login" [queryParams]="{ returnUrl: currentPath() }" data-cy="registration-login">{{ i18n.t('auth.signIn') }}</a>

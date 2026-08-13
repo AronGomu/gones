@@ -562,6 +562,41 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Registration_and_resend_verification_preserve_safe_return_url_in_outbox_action()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"verify-return-{suffix}@example.test";
+        const string returnUrl = "/calendar?month=2035-03&view=list&register=lyon-legacy";
+        using var registration = await RegisterAsync(email, $"Return{suffix[..8]}", "valid-password-value", returnUrl);
+        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+
+        var registrationAction = await LatestActionUrlAsync(email);
+        Assert.Equal(returnUrl, System.Web.HttpUtility.ParseQueryString(registrationAction.Query)["returnUrl"]);
+        Assert.Contains("returnUrl=%2Fcalendar%3Fmonth%3D2035-03%26view%3Dlist%26register%3Dlyon-legacy", registrationAction.OriginalString, StringComparison.OrdinalIgnoreCase);
+
+        using var resend = await Client.PostAsJsonAsync("/api/auth/resend-verification", new { email, returnUrl });
+        Assert.Equal(HttpStatusCode.Accepted, resend.StatusCode);
+        var resendAction = await LatestActionUrlAsync(email);
+        Assert.Equal(returnUrl, System.Web.HttpUtility.ParseQueryString(resendAction.Query)["returnUrl"]);
+    }
+
+    [Theory]
+    [InlineData("https://evil.test/calendar?register=lyon-legacy")]
+    [InlineData("/calendar\nSet-Cookie: stolen=true")]
+    public async Task Unsafe_return_url_is_absent_from_verification_email(string returnUrl)
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"verify-unsafe-{suffix}@example.test";
+        using var registration = await RegisterAsync(email, $"Unsafe{suffix[..8]}", "valid-password-value", returnUrl);
+        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+
+        var action = await LatestActionUrlAsync(email);
+        Assert.Null(System.Web.HttpUtility.ParseQueryString(action.Query)["returnUrl"]);
+        Assert.DoesNotContain("evil.test", action.OriginalString, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Set-Cookie", action.OriginalString, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task Verification_rejects_expired_and_superseded_tokens_then_accepts_latest_once()
     {
         var suffix = Guid.NewGuid().ToString("N");
@@ -780,7 +815,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         Assert.Contains(indexDefinitions, value => value.Contains("UNIQUE", StringComparison.Ordinal) && value.Contains("normalized_username", StringComparison.Ordinal));
     }
 
-    private async Task<string> LatestActionTokenAsync(string recipient)
+    private async Task<Uri> LatestActionUrlAsync(string recipient)
     {
         await using var database = CreateContext();
         var modelJson = await database.NotificationOutboxRecords
@@ -789,19 +824,25 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
             .Select(item => item.TemplateModelJson)
             .FirstAsync();
         using var model = JsonDocument.Parse(modelJson ?? throw new InvalidOperationException("Action notification was scrubbed."));
-        var actionUrl = new Uri(model.RootElement.GetProperty("actionUrl").GetString()!);
+        return new Uri(model.RootElement.GetProperty("actionUrl").GetString()!);
+    }
+
+    private async Task<string> LatestActionTokenAsync(string recipient)
+    {
+        var actionUrl = await LatestActionUrlAsync(recipient);
         return System.Web.HttpUtility.ParseQueryString(actionUrl.Query)["token"]!;
     }
 
     private HttpClient Client => client ?? throw new InvalidOperationException("Test client is not initialized.");
 
-    private Task<HttpResponseMessage> RegisterAsync(string email, string username, string password) => Client.PostAsJsonAsync("/api/auth/register", new
+    private Task<HttpResponseMessage> RegisterAsync(string email, string username, string password, string? returnUrl = null) => Client.PostAsJsonAsync("/api/auth/register", new
     {
         email,
         username,
         password,
         firstName = "Alice",
-        lastName = "Martin"
+        lastName = "Martin",
+        returnUrl
     });
 
     private async Task<string> LoginAsync(string email, string password) =>

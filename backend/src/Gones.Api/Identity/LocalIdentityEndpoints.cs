@@ -109,7 +109,7 @@ internal static class LocalIdentityEndpoints
             }
 
             database.UserProfiles.Add(profile);
-            await lifecycle.IssueAsync(user, AccountActionPurpose.VerifyEmail, profile.Username, profile.PreferredLanguage, null, cancellationToken);
+            await lifecycle.IssueAsync(user, AccountActionPurpose.VerifyEmail, profile.Username, profile.PreferredLanguage, null, request.ReturnUrl, cancellationToken);
             database.AuditRecords.Add(NewAudit(user.Id, "auth.register.succeeded", "user", user.Id.ToString("D"),
                 "{\"fields\":[\"username\",\"email\",\"firstName\",\"lastName\",\"verificationGeneration\"]}", clock));
             await database.SaveChangesAsync(cancellationToken);
@@ -554,7 +554,8 @@ internal sealed record RegisterRequest(
     [property: Required] string Username,
     [property: Required, StringLength(128)] string Password,
     [property: Required, StringLength(100)] string FirstName,
-    [property: Required, StringLength(100)] string LastName) : IAuthRateLimitRequest
+    [property: Required, StringLength(100)] string LastName,
+    [property: StringLength(2048)] string? ReturnUrl) : IAuthRateLimitRequest
 {
     public string RateLimitAccount => Email;
 }

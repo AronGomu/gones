@@ -8307,7 +8307,8 @@
       },
       "EmailAccountRequest": {
         "required": [
-          "email"
+          "email",
+          "returnUrl"
         ],
         "type": "object",
         "properties": {
@@ -8315,6 +8316,14 @@
             "maxLength": 254,
             "minLength": 0,
             "type": "string"
+          },
+          "returnUrl": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "rateLimitAccount": {
             "type": [
@@ -12004,7 +12013,8 @@
           "username",
           "password",
           "firstName",
-          "lastName"
+          "lastName",
+          "returnUrl"
         ],
         "type": "object",
         "properties": {
@@ -12030,6 +12040,14 @@
             "maxLength": 100,
             "minLength": 0,
             "type": "string"
+          },
+          "returnUrl": {
+            "maxLength": 2048,
+            "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "rateLimitAccount": {
             "type": [

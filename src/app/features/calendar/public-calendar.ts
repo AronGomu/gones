@@ -1,5 +1,6 @@
 import { ParamMap } from '@angular/router';
 import { PublicEventSummaryResponse } from '../../api/generated/gones-api';
+import { safeReturnUrl } from '../../auth/return-url';
 
 export type CalendarView = 'calendar' | 'list';
 
@@ -16,6 +17,7 @@ export const PAGE_SIZE = 20;
 export interface PublicEventView {
   id: string;
   title: string;
+  displayTitle: string;
   slug: string;
   summary: string | undefined;
   venue: PublicEventSummaryResponse['venue'];
@@ -60,6 +62,48 @@ export function buildCalendarQueryParams(query: CalendarQuery): Record<string, s
   result['view'] = query.view;
   if (query.page > 1) result['page'] = String(query.page);
   return result;
+}
+
+export function calendarRegisterIntent(candidate: string | null | undefined): string | null {
+  const url = calendarUrl(candidate);
+  if (!url) return null;
+  const slug = url.searchParams.get('register')?.trim() ?? '';
+  return slug.length > 0 && slug.length <= 200 && !hasControlCharacter(slug) ? slug : null;
+}
+
+export function addCalendarRegisterIntent(candidate: string | null | undefined, slug: string): string {
+  const url = calendarUrl(candidate) ?? new URL('/calendar', CALENDAR_ORIGIN);
+  const cleanSlug = slug.trim().slice(0, 200);
+  if (cleanSlug && !hasControlCharacter(cleanSlug)) url.searchParams.set('register', cleanSlug);
+  else url.searchParams.delete('register');
+  return localUrl(url);
+}
+
+export function removeCalendarRegisterIntent(candidate: string | null | undefined): string {
+  const url = calendarUrl(candidate) ?? new URL('/calendar', CALENDAR_ORIGIN);
+  url.searchParams.delete('register');
+  return localUrl(url);
+}
+
+const CALENDAR_ORIGIN = 'https://calendar.internal';
+
+function calendarUrl(candidate: string | null | undefined): URL | null {
+  const safe = safeReturnUrl(candidate, '');
+  if (!safe) return null;
+  const url = new URL(safe, CALENDAR_ORIGIN);
+  return url.pathname === '/calendar' ? url : null;
+}
+
+function localUrl(url: URL): string {
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
 }
 
 function readPage(value: string | null): number {
@@ -150,19 +194,6 @@ export function eventDatePresentation(
   const venueWall = `${event.venueStartDate}T${event.venueStartTime.slice(0, 5)}`;
   if (viewerParts.wall === venueWall) return { primary };
   return { primary, secondary: `${viewerParts.label} (${viewerParts.zone}, ${viewerTimeZone})` };
-}
-
-/** The list card drops the zone: the venue line right under it already says where the event is. */
-export function eventCardDatePresentation(item: Omit<PublicEventView, 'id'>, locale: string): string {
-  return `${formatWallDate(item.venueStartDate, locale)}, ${formatWallTime(item.venueStartTime, locale)}`;
-}
-
-export function statusPresentation(status: string): { label: string; className: string } {
-  const normalized = status.trim().toLowerCase();
-  if (normalized === 'cancelled') return { label: 'Cancelled', className: 'cancelled' };
-  if (normalized === 'completed') return { label: 'Completed', className: 'completed' };
-  if (normalized === 'ongoing') return { label: 'Ongoing', className: 'ongoing' };
-  return { label: status || 'Published', className: normalized || 'published' };
 }
 
 export function shiftMonth(month: string, amount: number): string {

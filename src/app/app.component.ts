@@ -184,7 +184,7 @@ export class AppComponent {
     if (!email || this.resendPending()) return;
     this.resendPending.set(true);
     try {
-      await this.auth.resendVerification({ email });
+      await this.auth.resendVerification({ email, returnUrl: undefined });
       this.resendStatus.set(this.i18n.t('auth.resendStatus'));
     } catch {
       this.resendStatus.set(this.i18n.t('auth.genericError'));

@@ -10042,6 +10042,7 @@ export interface EditResultTournamentRequest {
 
 export interface EmailAccountRequest {
     email: string;
+    returnUrl: string | undefined;
     rateLimitAccount?: string | undefined;
 
     [key: string]: any;
@@ -11032,6 +11033,7 @@ export interface RegisterRequest {
     password: string;
     firstName: string;
     lastName: string;
+    returnUrl: string | undefined;
     rateLimitAccount?: string | undefined;
 
     [key: string]: any;
