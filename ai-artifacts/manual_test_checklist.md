@@ -2,15 +2,15 @@
 
 ## T22 registrations-page-polish
 
-- [ ] Signed in, open the home menu (`/`): a "Mes inscriptions" card appears between the Calendar card and the Settings card, with the description "Consultez les tournois auxquels vous êtes inscrit et annulez une inscription."
-- [ ] Click that card: it navigates to `/registrations`.
-- [ ] On `/registrations`, a "Retour au menu" button sits above the page title and a second one below the last section; both go back to the home menu.
-- [ ] On `/registrations`, there is no "Compte" kicker above the "Mes inscriptions" title.
-- [ ] Each registration card still shows its organization name ("Gones") above the tournament title — that kicker must survive.
-- [ ] Sign out, open `/`: the "Mes inscriptions" card is gone.
-- [ ] Signed out, navigate straight to `/registrations`: you are bounced to `/login`.
-- [ ] Switch the app language to English in Settings and reload `/registrations`: the card description and the return buttons read in English, with no missing-key placeholders.
-- [ ] At 375px width, `/registrations` has no horizontal scrollbar and both return buttons stay reachable.
+- [x] Signed in, open the home menu (`/`): a "Mes inscriptions" card appears between the Calendar card and the Settings card, with the description "Consultez les tournois auxquels vous êtes inscrit et annulez une inscription."
+- [x] Click that card: it navigates to `/registrations`.
+- [x] On `/registrations`, a "Retour au menu" button sits above the page title and a second one below the last section; both go back to the home menu.
+- [x] On `/registrations`, there is no "Compte" kicker above the "Mes inscriptions" title.
+- [x] Each registration card still shows its organization name ("Gones") above the tournament title — that kicker must survive.
+- [x] Sign out, open `/`: the "Mes inscriptions" card is gone.
+- [x] Signed out, navigate straight to `/registrations`: you are bounced to `/login`.
+- [x] Switch the app language to English in Settings and reload `/registrations`: the card description and the return buttons read in English, with no missing-key placeholders.
+- [x] At 375px width, `/registrations` has no horizontal scrollbar and both return buttons stay reachable.
 
 ## T23 backend-archive-rename
 
@@ -201,8 +201,8 @@ before. It only made six existing assertions in `src/app/data-mode-routes.test.t
 does not throw on vitest 4.1.10). No manual check applies.
 
 - [ ] Nothing to click. If you want to sanity-check by hand anyway: temporarily remove `canActivate:
-    [userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
-    data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.
+[userGuard]` from the `settings/account` route in `src/app/app.routes.ts` and run `npm run test --
+data-mode-routes` — it must now fail on "guards the account route". Revert the change afterwards.
 
 ## T5 login-oauth-and-links-row
 
@@ -672,7 +672,7 @@ roles actually see in the browser, and that plain `npm run dev` still feels exac
       is seeded, and the app behaves exactly as it did before this change (the two ADR 0029 accounts,
       empty screens).
 - [ ] `npm run dev -- --env=minimal --no-docker` is refused with `--env needs the Docker stack; drop
-      --no-docker.` and starts nothing.
+  --no-docker.` and starts nothing.
 - [ ] `npm run dev -- --env=typo` stops with `Unknown environment "typo". Available: empty, minimal`
       and leaves the database untouched — a typo must not cost you your data.
 - [ ] Edit `fixtures/dev-environments/minimal/accounts.json` (change a first name), re-run
@@ -921,7 +921,7 @@ real account — needs a human:
 Automated coverage proves the conflict rule and the scoping property:
 `src/app/shared/deck-archetype-settings.service.test.ts` (the server catalog replaces the local one —
 `Server A`/`Server B` in, `Local Only` out, presets kept, `gones.settings` rewritten; the language
-survives the adoption; an *empty* server catalog still erases the local additions),
+survives the adoption; an _empty_ server catalog still erases the local additions),
 `src/app/auth/session-catalog-sync.service.test.ts` (the fetched names reach
 `adoptServerCatalog`; a failing `GET /api/deck-archetypes` calls it never and resolves without
 throwing, so an offline sign-in changes nothing), `src/app/auth/auth.service.test.ts` (`adopt()` runs
@@ -1029,7 +1029,7 @@ A past day is a **darker cell with a muted day number**, not a faded cell: the f
 `opacity: .5` on the whole cell, which dragged the event chips and the day numbers down to 2.1:1 and
 failed the axe gate. The event chips on a past day now render at full strength. Automated tests cover
 the pure `isPastCalendarDay` helper, the template bindings, the CSS rules and the axe contrast gate.
-What no automated test covers is whether the recessed cell still *reads* as past to a human eye,
+What no automated test covers is whether the recessed cell still _reads_ as past to a human eye,
 across zoom levels and on a date that is not the day the change was written.
 
 - [ ] Open `/calendar` in the month view on today's real date: every cell before today has a visibly
@@ -1037,7 +1037,7 @@ across zoom levels and on a date that is not the day the change was written.
 - [ ] Today's cell is not darkened and its day number is still the bright, heavy one.
 - [ ] Tomorrow and the rest of the month are not darkened.
 - [ ] Cells from the previous month that are already greyed out go one step darker again when they are
-      past — they still read as a different shade from the greyed-out *next*-month cells at the bottom
+      past — they still read as a different shade from the greyed-out _next_-month cells at the bottom
       of the grid, and their numbers stay perfectly readable.
 - [ ] A tournament chip sitting on a past day is at full strength — same red left bar, same crisp
       title and time as a chip on a future day — and it is still clickable and opens the right
@@ -1053,7 +1053,7 @@ across zoom levels and on a date that is not the day the change was written.
 ## T3 list-card-click-hover-time
 
 Automated tests cover the pure date helper, the template bindings, the hover CSS rules and a browser
-run that clicks the card and the ICS button. What no automated test settles is how the lift *feels*,
+run that clicks the card and the ICS button. What no automated test settles is how the lift _feels_,
 whether a real download lands on disk, and whether the card still reads as a link to a real screen
 reader and a real pointing device.
 
@@ -1109,7 +1109,7 @@ whether the player statistics page still looks exactly as it did before the CSS 
 
 Automated coverage measures `window.scrollY` in a real browser before and after clicking Previous and
 Next, in a content-heavy month and in an empty one, and pins `scroll: 'manual'` on the navigation.
-What no automated test settles is how the change *feels*: whether the grid twitches, flickers or
+What no automated test settles is how the change _feels_: whether the grid twitches, flickers or
 reflows while the new month renders, and whether the anchor still behaves on a touch device, at other
 zoom levels and after many rapid clicks.
 
@@ -1142,7 +1142,7 @@ titles, many formats, a long address, French copy, and in the organizer preview.
 
 - [ ] Open an event page (`/events/…`): the title reads `[Format] Title (capacity)` on
       one line, and the date and the location sit on the single line under it, separated by `-`.
-- [ ] Open an event with several formats: the bracket lists them joined by ` / ` and the row still
+- [ ] Open an event with several formats: the bracket lists them joined by `/` and the row still
       wraps gracefully instead of pushing the page wider.
 - [ ] Open an event with no capacity, and one with no format: no empty `()`, no empty `[]`, no stray
       spacing left behind.
@@ -1263,7 +1263,7 @@ confirmation dialog opens after the server confirms the registration.
       organizer — the organizer entry points appear and that organization is offered when publishing
       an event.
 - [ ] Do the same, but keep an already-signed-in `test@gones.test` browser tab open in a second
-      profile *before* the admin adds them. The moment the admin adds them, the open tab's next
+      profile _before_ the admin adds them. The moment the admin adds them, the open tab's next
       action fails and the app sends them back to sign in: the change is enforced on the very next
       request, not at the next token refresh.
 - [ ] With `test@gones.test` now an organizer of exactly one organization, have the admin remove
@@ -1291,7 +1291,7 @@ confirmation dialog opens after the server confirms the registration.
       "add member" step needed.
 - [ ] Do that same creation while the future owner has a signed-in tab open in a second profile:
       their next action in that tab fails and sends them back to sign in.
-- [ ] As admin, transfer an organization's ownership to someone who is *not* a member of it yet.
+- [ ] As admin, transfer an organization's ownership to someone who is _not_ a member of it yet.
       Sign in as the new owner: they are an organizer. The previous owner is still a member and still
       an organizer; remove them from the organization and they drop back to a plain user.
 - [ ] Transfer an organization to `admin@gones.test`: the admin screens still work and the account is
@@ -1473,7 +1473,7 @@ behaves exactly as it did before the rename.
       "Scheduled Tournaments" and the imported events land in the calendar.
 - [ ] Run the full-stack smoke against the deployed stack (`npm run smoke`). It now expects
       `20260812164333_RenameCalendarTournamentToEvent` as the last applied migration; a `PostgreSQL
-      migrations differ` failure naming it means the environment is still on the pre-rename schema.
+  migrations differ` failure naming it means the environment is still on the pre-rename schema.
 
 ## T16 backend-event-api-rename
 
@@ -1555,7 +1555,7 @@ actually reads on screen, and the one flow that needs a real signed-in account.
       major change. The confirmation dialog lists the changed fields in readable prose, and the
       cancel confirmation reads "Cancel Event" / "Annuler l'événement" — T18 retitled those labels.
 - [ ] Visit `/organizer/events/<id>/participants`. The heading reads `Participants — <event
-      title>` with the real title interpolated, and the remove/block dialogs name the event and the
+  title>` with the real title interpolated, and the remove/block dialogs name the event and the
       organization rather than showing `{tournament}`.
 - [ ] Sign in as `admin@gones.test` and open `/admin/events/deleted`. Deleted events are listed
       and `Restore` works.
