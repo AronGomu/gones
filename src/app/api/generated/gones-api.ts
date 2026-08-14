@@ -30,6 +30,15 @@ export interface IClient {
     /**
      * @param page (optional)
      * @param pageSize (optional)
+     * @param search (optional)
+     * @param sort (optional)
+     * @param direction (optional)
+     * @return OK
+     */
+    getGlobalPlayerStatistics(page: number | undefined, pageSize: number | undefined, search: string | undefined, sort: string | undefined, direction: string | undefined): Observable<GlobalPlayerStatisticsResponse>;
+    /**
+     * @param page (optional)
+     * @param pageSize (optional)
      * @param status (optional)
      * @param search (optional)
      * @return OK
@@ -835,6 +844,91 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicDeckArchetypeResponse[];
             return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @param search (optional)
+     * @param sort (optional)
+     * @param direction (optional)
+     * @return OK
+     */
+    getGlobalPlayerStatistics(page: number | undefined, pageSize: number | undefined, search: string | undefined, sort: string | undefined, direction: string | undefined): Observable<GlobalPlayerStatisticsResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/global-player-statistics?";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        if (search === null)
+            throw new globalThis.Error("The parameter 'search' cannot be null.");
+        else if (search !== undefined)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (sort === null)
+            throw new globalThis.Error("The parameter 'sort' cannot be null.");
+        else if (sort !== undefined)
+            url_ += "sort=" + encodeURIComponent("" + sort) + "&";
+        if (direction === null)
+            throw new globalThis.Error("The parameter 'direction' cannot be null.");
+        else if (direction !== undefined)
+            url_ += "direction=" + encodeURIComponent("" + direction) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetGlobalPlayerStatistics(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetGlobalPlayerStatistics(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<GlobalPlayerStatisticsResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<GlobalPlayerStatisticsResponse>;
+        }));
+    }
+
+    protected processGetGlobalPlayerStatistics(response: HttpResponseBase): Observable<GlobalPlayerStatisticsResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as GlobalPlayerStatisticsResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -10387,6 +10481,36 @@ export interface FullRestoreResponse {
 
 export interface GenericAccountActionResponse {
     message: string;
+
+    [key: string]: any;
+}
+
+export interface GlobalPlayerStatisticsResponse {
+    items: GlobalPlayerStatisticsRow[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    sort: string | undefined;
+    direction: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface GlobalPlayerStatisticsRow {
+    position: number;
+    playerName: string;
+    playedMatchCount: number;
+    matchWins: number;
+    matchLosses: number;
+    matchDraws: number;
+    matchWinrate: number | undefined;
+    playedGameCount: number;
+    gameWins: number;
+    gameLosses: number;
+    gameWinrate: number | undefined;
+    nemesis: OpponentRecord | undefined;
+    rival: OpponentRecord | undefined;
+    mostPlayedArchetype: PlayerArchetypeUsage | undefined;
 
     [key: string]: any;
 }

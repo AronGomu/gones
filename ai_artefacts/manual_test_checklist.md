@@ -106,3 +106,12 @@
 - [ ] Force server 412 plus local stale version; confirm draft stays intact, Reload Latest cancellation keeps it, confirmation discards it after authoritative reload, and no auto-merge/retry occurs.
 - [ ] Confirm League selector includes active same-authority Leagues only; local↔server targets never render.
 - [ ] Compare Round plus Player Archetype chevrons visually; confirm both use same 24px inline inset with no negative offset.
+
+## T14 global-stats-api
+
+- [ ] `curl 'http://127.0.0.1:5080/api/leagues-archive/global-player-statistics?page=1&pageSize=100'` against a running server with completed Leagues returns HTTP 200 with all 14 columns (`position`, `playerName`, `playedMatchCount`, `matchWins`, `matchLosses`, `matchDraws`, `matchWinrate`, `playedGameCount`, `gameWins`, `gameLosses`, `gameWinrate`, `nemesis`, `rival`, `mostPlayedArchetype`) plus pagination envelope (`page`, `pageSize`, `totalCount`, `sort`, `direction`).
+- [ ] Confirm route `/api/leagues-archive/global-player-statistics` does not conflict with `/{id}`; `curl '/api/leagues-archive/some-league-id'` still returns the League detail.
+- [ ] Repeat identical request with `If-None-Match` set to the first response ETag; confirm 304 Not Modified.
+- [ ] Active-only and soft-deleted Leagues do not contribute players to global stats.
+- [ ] Players whose only appearances are Bye entries are absent from results.
+- [ ] `pageSize=20` returns HTTP 400; `sort=unknownColumn` returns HTTP 400; search longer than 200 chars returns HTTP 400.

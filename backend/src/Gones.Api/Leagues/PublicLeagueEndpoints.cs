@@ -19,8 +19,22 @@ internal static class PublicLeagueEndpoints
     private const string AppVersion = "0.1.0";
     private const string PublicCacheControl = "public, max-age=60";
 
+    private static readonly int[] GlobalStatsAllowedPageSizes = [10, 25, 50, 100];
+    private const int GlobalStatsDefaultPageSize = 100;
+    private static readonly HashSet<string> GlobalStatsSortAllowlist = new(StringComparer.Ordinal)
+    {
+        "playedMatchCount", "matchWins", "matchLosses", "matchDraws", "matchWinrate",
+        "playedGameCount", "gameWins", "gameLosses", "gameWinrate"
+    };
+
     public static void MapPublicLeagueEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/leagues-archive/global-player-statistics", GetGlobalPlayerStatisticsAsync)
+            .AllowAnonymous()
+            .WithName("GetGlobalPlayerStatistics")
+            .Produces<GlobalPlayerStatisticsResponse>()
+            .Produces(StatusCodes.Status304NotModified)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
         app.MapGet("/api/leagues-archive", ListAsync)
             .AllowAnonymous()
             .Produces<PublicLeagueListResponse>()
@@ -58,6 +72,136 @@ internal static class PublicLeagueEndpoints
             .Produces<LeagueExportResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status404NotFound);
+    }
+
+    private static async Task<IResult> GetGlobalPlayerStatisticsAsync(
+        int? page,
+        int? pageSize,
+        string? search,
+        string? sort,
+        string? direction,
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var pageNumber = page ?? 1;
+        var size = pageSize ?? GlobalStatsDefaultPageSize;
+        if (pageNumber < 1) throw Validation("page", "Page must be at least 1.");
+        if (!GlobalStatsAllowedPageSizes.Contains(size)) throw Validation("pageSize", "Page size must be 10, 25, 50, or 100.");
+        if (search?.Length > MaximumSearchLength) throw Validation("search", $"Search must be at most {MaximumSearchLength} characters.");
+        if (sort is not null && !GlobalStatsSortAllowlist.Contains(sort)) throw Validation("sort", "Sort column is not valid.");
+        if (direction is not null && direction is not ("asc" or "desc")) throw Validation("direction", "Direction must be asc or desc.");
+
+        var aggregates = await database.LeagueArchiveAggregates.AsNoTracking()
+            .Where(a => a.DeletedAt == null && a.Status == "completed")
+            .ToListAsync(cancellationToken);
+
+        var data = new GonesData(LeagueNormalizer.GonesDataVersion,
+            aggregates.Select(a => a.ReadDocument()).ToList(), []);
+        var allRows = LeagueRules.CalculateGlobalPlayerStatistics(data);
+
+        IReadOnlyList<GlobalPlayerStatistics> filtered;
+        if (string.IsNullOrWhiteSpace(search))
+        {
+            filtered = allRows;
+        }
+        else
+        {
+            var term = search.Trim().ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US"));
+            filtered = allRows
+                .Where(r => r.PlayerName.ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US")).Contains(term, StringComparison.Ordinal))
+                .ToArray();
+        }
+
+        var isDescending = !string.Equals(direction, "asc", StringComparison.Ordinal);
+        var sorted = ApplyGlobalSort(filtered, sort, isDescending);
+        var total = sorted.Count;
+
+        var items = sorted
+            .Skip((pageNumber - 1) * size)
+            .Take(size)
+            .Select((row, index) => new GlobalPlayerStatisticsRow(
+                (pageNumber - 1) * size + index + 1,
+                row.PlayerName,
+                row.PlayedMatchCount,
+                row.MatchWins,
+                row.MatchLosses,
+                row.MatchDraws,
+                row.MatchWinrate,
+                row.PlayedGameCount,
+                row.GameWins,
+                row.GameLosses,
+                row.GameWinrate,
+                row.Nemesis,
+                row.Rival,
+                row.MostPlayedArchetype))
+            .ToList();
+
+        var aggregateKey = string.Join('|', aggregates
+            .OrderBy(a => a.DocumentId, StringComparer.Ordinal)
+            .Select(a => $"{a.DocumentId}:{a.Version}"));
+        var normalizedQuery = $"sort={sort}&dir={direction}&search={search?.Trim() ?? string.Empty}&page={pageNumber}&size={size}";
+        var etag = HashETag($"{aggregateKey}:{normalizedQuery}");
+        SetPublicCache(response, etag);
+        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        return Results.Ok(new GlobalPlayerStatisticsResponse(items, pageNumber, size, total, sort, direction));
+    }
+
+    private static IReadOnlyList<GlobalPlayerStatistics> ApplyGlobalSort(
+        IReadOnlyList<GlobalPlayerStatistics> rows,
+        string? sort,
+        bool descending)
+    {
+        if (sort is null)
+            return rows
+                .OrderByDescending(r => r.MatchWins)
+                .ThenByDescending(r => r.GameWins)
+                .ThenByDescending(r => r.MatchDraws)
+                .ThenBy(r => r.PlayerName, StringComparer.Ordinal)
+                .ToArray();
+        return sort switch
+        {
+            "playedMatchCount" => descending
+                ? rows.OrderByDescending(r => r.PlayedMatchCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
+                : rows.OrderBy(r => r.PlayedMatchCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
+            "matchWins" => descending
+                ? rows.OrderByDescending(r => r.MatchWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
+                : rows.OrderBy(r => r.MatchWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
+            "matchLosses" => descending
+                ? rows.OrderByDescending(r => r.MatchLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
+                : rows.OrderBy(r => r.MatchLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
+            "matchDraws" => descending
+                ? rows.OrderByDescending(r => r.MatchDraws).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
+                : rows.OrderBy(r => r.MatchDraws).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
+            "matchWinrate" => GlobalNullLastSort(rows, r => r.MatchWinrate, descending),
+            "playedGameCount" => descending
+                ? rows.OrderByDescending(r => r.PlayedGameCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
+                : rows.OrderBy(r => r.PlayedGameCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
+            "gameWins" => descending
+                ? rows.OrderByDescending(r => r.GameWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
+                : rows.OrderBy(r => r.GameWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
+            "gameLosses" => descending
+                ? rows.OrderByDescending(r => r.GameLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
+                : rows.OrderBy(r => r.GameLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
+            "gameWinrate" => GlobalNullLastSort(rows, r => r.GameWinrate, descending),
+            _ => throw new InvalidOperationException($"Unknown sort: {sort}")
+        };
+    }
+
+    private static GlobalPlayerStatistics[] GlobalNullLastSort(
+        IReadOnlyList<GlobalPlayerStatistics> rows,
+        Func<GlobalPlayerStatistics, double?> selector,
+        bool descending)
+    {
+        var withValue = rows.Where(r => selector(r).HasValue);
+        var withoutValue = rows.Where(r => !selector(r).HasValue)
+            .OrderBy(r => r.PlayerName, StringComparer.Ordinal);
+        var ordered = descending
+            ? withValue.OrderByDescending(r => selector(r)!.Value).ThenBy(r => r.PlayerName, StringComparer.Ordinal)
+            : withValue.OrderBy(r => selector(r)!.Value).ThenBy(r => r.PlayerName, StringComparer.Ordinal);
+        return ordered.Concat(withoutValue).ToArray();
     }
 
     private static async Task<IResult> ListAsync(
@@ -283,6 +427,30 @@ internal sealed record PublicLeagueDetailResponse(
     IReadOnlyList<TournamentDocument> Tournaments,
     long DocumentVersion,
     Instant UpdatedAt);
+
+internal sealed record GlobalPlayerStatisticsResponse(
+    IReadOnlyList<GlobalPlayerStatisticsRow> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    string? Sort,
+    string? Direction);
+
+internal sealed record GlobalPlayerStatisticsRow(
+    int Position,
+    string PlayerName,
+    int PlayedMatchCount,
+    int MatchWins,
+    int MatchLosses,
+    int MatchDraws,
+    double? MatchWinrate,
+    int PlayedGameCount,
+    int GameWins,
+    int GameLosses,
+    double? GameWinrate,
+    OpponentRecord? Nemesis,
+    OpponentRecord? Rival,
+    PlayerArchetypeUsage? MostPlayedArchetype);
 
 internal sealed record LeagueExportResponse(
     string Kind,
