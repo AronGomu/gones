@@ -6,7 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { installFakeWebLocks } from '../auth/fake-web-locks';
 import { UserProfileResponse } from '../api/generated/gones-api';
 import { SessionScopeService } from '../auth/session-scope.service';
-import { LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort } from '../backend/application-backend';
+import { ArchiveTournamentEditBatchCommand, LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort } from '../backend/application-backend';
 import { LocalLeagueArchiveBackend } from '../backend/local-league-archive-backend.service';
 import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from '../backend/server-read-cache.service';
 import { GlobalRole } from './league-archive-command-ux';
@@ -53,7 +53,11 @@ function fakeBackend(list: PersistedLeague[], byId: Record<string, PersistedLeag
     updateArchivePlayerArchetype: vi.fn(async () => league('archetype')),
     renameLeagueArchivePlayerName: vi.fn(async () => league('player-renamed')),
     restoreLeagueArchive: vi.fn(async () => league('restored')),
-    restoreFullLeagueArchiveData: vi.fn(async () => [league('restored')])
+    restoreFullLeagueArchiveData: vi.fn(async () => [league('restored')]),
+    applyArchiveTournamentEditBatch: vi.fn(async (sourceLeagueId: string, _tournamentId: string, _sourceExpectedVersion: number, _command: ArchiveTournamentEditBatchCommand, target?: { leagueId: string; expectedVersion: number }) => ({
+      sourceLeague: league(sourceLeagueId),
+      destinationLeague: target ? league(target.leagueId) : null
+    }))
   } satisfies LeagueArchiveBackendPort & Record<string, unknown>;
 }
 
@@ -412,6 +416,52 @@ describe('LeagueArchiveRepository Power User gate', () => {
   });
 });
 
+describe('LeagueArchiveRepository staged tournament edits', () => {
+  const command: ArchiveTournamentEditBatchCommand = {
+    editTournament: { name: 'Edited', tournamentDate: '2026-08-15' },
+    addRounds: [], deleteRoundIds: [], replaceRounds: [], updateArchetypes: []
+  };
+
+  it('requires Power before checking authority or calling a port', async () => {
+    const { repository, server, local } = setup({ power: false });
+
+    await expect(repository.saveTournamentEdits(league(LOCAL_ID), 't1', league(SERVER_ID), command)).rejects.toThrowError('powerUserRequired');
+
+    expect(untouched(server)).toEqual([]);
+    expect(untouched(local)).toEqual([]);
+  });
+
+  it('rejects cross-authority edits before either port is called', async () => {
+    const { repository, server, local } = setup();
+
+    await expect(repository.saveTournamentEdits(league(LOCAL_ID), 't1', league(SERVER_ID), command)).rejects.toThrowError('crossAuthorityMoveNotSupported');
+
+    expect(untouched(server)).toEqual([]);
+    expect(untouched(local)).toEqual([]);
+  });
+
+  it('routes one local batch with exact source and target versions', async () => {
+    const { repository, server, local } = setup();
+    const source = league(LOCAL_ID);
+    const target = league('local-2');
+
+    await repository.saveTournamentEdits(source, 't1', target, command);
+
+    expect(local.applyArchiveTournamentEditBatch).toHaveBeenCalledWith(LOCAL_ID, 't1', 4, command, { leagueId: 'local-2', expectedVersion: 4 });
+    expect(untouched(server)).toEqual([]);
+  });
+
+  it('routes a same-League server edit without target arguments', async () => {
+    const { repository, server, local } = setup();
+    const source = league(SERVER_ID);
+
+    await repository.saveTournamentEdits(source, 't1', null, command);
+
+    expect(server.applyArchiveTournamentEditBatch).toHaveBeenCalledWith(SERVER_ID, 't1', 4, command, undefined);
+    expect(untouched(local)).toEqual([]);
+  });
+});
+
 describe('LeagueArchiveRepository tournament moves', () => {
   it('a cross-store move is refused, local to server', async () => {
     const { repository, server, local } = setup();
@@ -436,7 +486,9 @@ describe('LeagueArchiveRepository tournament moves', () => {
 
     await repository.moveTournament('t1', LOCAL_ID, 'local-2');
 
-    expect(local.moveArchiveTournament).toHaveBeenCalledWith(LOCAL_ID, 't1', 4, 'local-2', 4);
+    expect(local.applyArchiveTournamentEditBatch).toHaveBeenCalledWith(LOCAL_ID, 't1', 4, {
+      addRounds: [], deleteRoundIds: [], replaceRounds: [], updateArchetypes: []
+    }, { leagueId: 'local-2', expectedVersion: 4 });
     expect(untouched(server)).toEqual([]);
     expect(repository.detailStale()).toBe(false);
   });

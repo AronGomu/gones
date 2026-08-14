@@ -96,10 +96,10 @@ Accepted deliberately:
 - **The list is heterogeneous.** Two leagues in one grid can have different write rules. The
   `Local only` badge is not decoration — it is the user-facing form of the routing rule.
 - **A cross-store move is refused, not emulated.** The user must export and re-import.
-- **`moveArchiveTournament` is not atomic locally.** The `indexed-db.ts` wrapper runs one request per
-  transaction, so the two writes a move needs cannot share one. Both versions are guarded before
-  either write, so a stale move is refused cleanly; but a crash between the two writes can leave the
-  tournament in both leagues. Accepted for a browser-local store with a single writer.
+- **Archive Tournament edit batches and moves are atomic locally.** `requestResult()` and
+  `runTransaction()` keep source/target reads, version checks, transforms, and puts in one IndexedDB
+  `readwrite` transaction. A stale version, validation failure, request error, or action error aborts
+  the transaction, leaving both rows unchanged. The server equivalent uses one DB transaction.
 - **This is not what ADR 0021 does.** Live stays exclusive-by-role. Two capabilities, two shapes, and
   the difference is the export requirement. Do not "harmonise" one into the other without a new ADR.
 

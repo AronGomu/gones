@@ -35,6 +35,47 @@ public static class LeagueCommands
         });
     }
 
+    public static LeagueDocument ApplyTournamentEditBatch(LeagueDocument league, string tournamentId, ArchiveTournamentEditBatch command)
+    {
+        RequireActive(league);
+        var tournament = RequireTournament(league, tournamentId);
+        var existingRoundIds = tournament.Rounds.Select(item => item.Id).ToHashSet(StringComparer.Ordinal);
+        var addRoundIds = UniqueIntentIds(command.AddRounds.Select(item => item.RoundId), "addRounds");
+        var deleteRoundIds = UniqueIntentIds(command.DeleteRoundIds, "deleteRoundIds");
+        var replaceRoundIds = UniqueIntentIds(command.ReplaceRounds.Select(item => item.RoundId), "replaceRounds");
+        foreach (var roundId in addRoundIds)
+        {
+            if (!Guid.TryParseExact(roundId, "D", out _)) throw new ArgumentException("Added Round ID must be a UUID in D format.", "addRounds");
+            if (existingRoundIds.Contains(roundId)) throw new InvalidOperationException("Round ID already exists.");
+        }
+        foreach (var roundId in deleteRoundIds)
+            if (!existingRoundIds.Contains(roundId)) throw new KeyNotFoundException("Round not found.");
+        foreach (var roundId in replaceRoundIds)
+        {
+            if (!existingRoundIds.Contains(roundId)) throw new KeyNotFoundException("Round not found.");
+            if (deleteRoundIds.Contains(roundId)) throw new ArgumentException("Round cannot be deleted and replaced in one batch.", "replaceRounds");
+        }
+        var archetypeNames = command.UpdateArchetypes.Select(item => LeagueNormalizer.TrimPlayerName(item.PlayerName)).ToArray();
+        if (archetypeNames.Any(string.IsNullOrEmpty) || archetypeNames.Distinct(StringComparer.Ordinal).Count() != archetypeNames.Length)
+            throw new ArgumentException("Archetype updates require unique Player Names.", "updateArchetypes");
+
+        var updated = league;
+        if (command.EditTournament is not null)
+            updated = EditTournament(updated, tournamentId, command.EditTournament.Name, command.EditTournament.TournamentDate);
+        foreach (var roundId in command.DeleteRoundIds)
+            updated = DeleteRound(updated, tournamentId, roundId);
+        foreach (var intent in command.AddRounds)
+        {
+            updated = AddRound(updated, tournamentId, intent.RoundId);
+            updated = ReplaceRound(updated, tournamentId, intent.RoundId, intent.Entries, false);
+        }
+        foreach (var intent in command.ReplaceRounds)
+            updated = ReplaceRound(updated, tournamentId, intent.RoundId, intent.Entries, false);
+        foreach (var intent in command.UpdateArchetypes)
+            updated = UpdateArchetype(updated, tournamentId, intent.PlayerName, intent.Archetype);
+        return updated;
+    }
+
     public static LeagueDocument DeleteTournament(LeagueDocument league, string tournamentId)
     {
         RequireActive(league);
@@ -224,6 +265,14 @@ public static class LeagueCommands
         if (LeagueNormalizer.IsUnassignedLeagueName(name)) throw new ArgumentException("Reserved placeholder League name cannot be used.", field);
     }
 
+    private static HashSet<string> UniqueIntentIds(IEnumerable<string> ids, string field)
+    {
+        var values = ids.ToArray();
+        var unique = values.ToHashSet(StringComparer.Ordinal);
+        if (unique.Count != values.Length) throw new ArgumentException("Intent IDs must be unique.", field);
+        return unique;
+    }
+
     private static void RequireNewId(IEnumerable<string> existing, string? id, string field)
     {
         if (string.IsNullOrWhiteSpace(id) || id.Length > LeagueArchiveAggregate.MaximumDocumentIdLength) throw new ArgumentException("ID is invalid.", field);
@@ -302,3 +351,14 @@ public static class LeagueCommands
         _ => throw new ArgumentException("Round Entry kind is invalid.", nameof(entry))
     };
 }
+
+public sealed record EditArchiveTournamentIntent(string Name, string TournamentDate);
+public sealed record AddArchiveRoundIntent(string RoundId, IReadOnlyList<RoundEntry> Entries);
+public sealed record ReplaceArchiveRoundIntent(string RoundId, IReadOnlyList<RoundEntry> Entries);
+public sealed record UpdateArchiveArchetypeIntent(string PlayerName, string Archetype);
+public sealed record ArchiveTournamentEditBatch(
+    EditArchiveTournamentIntent? EditTournament,
+    IReadOnlyList<AddArchiveRoundIntent> AddRounds,
+    IReadOnlyList<string> DeleteRoundIds,
+    IReadOnlyList<ReplaceArchiveRoundIntent> ReplaceRounds,
+    IReadOnlyList<UpdateArchiveArchetypeIntent> UpdateArchetypes);

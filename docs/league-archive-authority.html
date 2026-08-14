@@ -123,6 +123,10 @@ are two:</p>
   <div>both rejected               → rethrow</div>
   <div>getLeague(id) / every write → port(id) = isLocalLeagueId(id) ? local : server</div>
   <div>createLeague(name)          → createLeagueTarget(role) — the one call with no id to route on</div>
+  <div>saveTournamentEdits()       → one routed batch → one DB / IndexedDB readwrite transaction</div>
+  <div>same League                 → source +1, destination null</div>
+  <div>same-authority move         → lock/read both by id → validate both versions → put both → commit</div>
+  <div>stale / invalid / put fail  → abort → neither League changes</div>
 </div>
 
 <h2>Parity is a compiler check, not a promise</h2>
@@ -203,10 +207,9 @@ decoration — it is the user-facing form of this rule.</p>
       is deliberate, explicit and user-driven.</li>
   <li><strong>Clearing site data destroys local leagues.</strong> There is no server copy. The list page
       says so; export is the backup.</li>
-  <li><strong>A local move is not atomic.</strong> The IndexedDB wrapper runs one request per
-      transaction, so a move's two writes cannot share one. Both versions are guarded before either
-      write, so a stale move is refused cleanly — but a crash between the two writes can leave the
-      tournament in both leagues. Acceptable for a single-writer browser store.</li>
+  <li><strong>Local edit batches and moves are atomic.</strong> Source and target reads, version
+      checks, transforms, and puts share one IndexedDB <code>readwrite</code> transaction. Request,
+      validation, stale-version, or action failure aborts without changing either row.</li>
 </ul>
 
 <footer>

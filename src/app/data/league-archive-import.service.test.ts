@@ -48,6 +48,7 @@ function fakeBackend(namespace: 'server' | 'local') {
     editArchiveTournament: vi.fn(async () => league('tournament-edited')),
     deleteArchiveTournament: vi.fn(async () => league('tournament-deleted')),
     moveArchiveTournament: vi.fn(async () => ({ fromLeague: league('from'), toLeague: league('to') })),
+    applyArchiveTournamentEditBatch: vi.fn(async () => ({ sourceLeague: league('source'), destinationLeague: null })),
     addArchiveRound: vi.fn(async () => league('round-added')),
     deleteArchiveRound: vi.fn(async () => league('round-deleted')),
     importArchiveRound: vi.fn(async () => league('round-imported')),

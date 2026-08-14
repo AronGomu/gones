@@ -30,6 +30,7 @@ internal static class LeagueCommandEndpoints
         organizer.MapPatch("/{id}/tournaments-archive/{tournamentId}", EditTournamentAsync).WithName("EditArchiveTournament").Produces<LeagueCommandResponse>();
         organizer.MapDelete("/{id}/tournaments-archive/{tournamentId}", DeleteTournamentAsync).WithName("DeleteArchiveTournament").Produces<LeagueCommandResponse>();
         organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/move", MoveTournamentAsync).WithName("MoveArchiveTournament").Produces<MoveTournamentResponse>();
+        organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/edit-batch", EditTournamentBatchAsync).WithName("ApplyArchiveTournamentEditBatch").Produces<ArchiveTournamentEditBatchResponse>();
         organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/rounds", AddRoundAsync).WithName("AddArchiveRound").Produces<LeagueCommandResponse>();
         organizer.MapDelete("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}", DeleteRoundAsync).WithName("DeleteArchiveRound").Produces<LeagueCommandResponse>();
         organizer.MapPost("/{id}/tournaments-archive/{tournamentId}/rounds/{roundId}/import", ImportRoundAsync).WithName("ImportArchiveRound").Produces<LeagueCommandResponse>();
@@ -98,6 +99,34 @@ internal static class LeagueCommandEndpoints
         var result = await service.MoveTournamentAsync(id, request.TargetLeagueId, tournamentId, OrganizationPrincipal.UserId(principal), RequiredVersion(ifMatch), RequiredVersion(targetIfMatch), cancellationToken);
         response.Headers.ETag = result.Source.ETag;
         response.Headers.Append("Target-ETag", result.Target.ETag);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> EditTournamentBatchAsync(
+        string id,
+        string tournamentId,
+        ArchiveTournamentEditBatchRequest request,
+        [FromHeader(Name = "If-Match")] string? ifMatch,
+        [FromHeader(Name = "Target-If-Match")] string? targetIfMatch,
+        HttpResponse response,
+        ClaimsPrincipal principal,
+        LeagueCommandService service,
+        CancellationToken cancellationToken)
+    {
+        var hasTarget = !string.IsNullOrWhiteSpace(request.TargetLeagueId);
+        var hasTargetVersion = !string.IsNullOrWhiteSpace(targetIfMatch);
+        if ((request.TargetLeagueId is not null && !hasTarget) || hasTarget != hasTargetVersion || (hasTarget && request.TargetLeagueId == id))
+            throw Validation("targetLeagueId", "targetLeagueId and Target-If-Match are required together only for a move to a different League.");
+        var result = await service.ApplyTournamentEditBatchAsync(
+            id,
+            tournamentId,
+            OrganizationPrincipal.UserId(principal),
+            RequiredVersion(ifMatch),
+            request,
+            hasTarget ? RequiredVersion(targetIfMatch) : null,
+            cancellationToken);
+        response.Headers.ETag = result.SourceLeague.ETag;
+        if (result.DestinationLeague is not null) response.Headers.Append("Target-ETag", result.DestinationLeague.ETag);
         return Results.Ok(result);
     }
 
@@ -185,6 +214,9 @@ internal static class LeagueCommandEndpoints
             throw new ApiValidationException(new Dictionary<string, string[]> { ["Idempotency-Key"] = ["Idempotency-Key header is required and cannot exceed 200 characters."] });
         return key;
     }
+
+    private static ApiValidationException Validation(string field, string message) =>
+        new(new Dictionary<string, string[]> { [field] = [message] });
 
     private static string NewId() => Guid.NewGuid().ToString("D");
 }
@@ -312,6 +344,68 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
         await SaveAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new MoveTournamentResponse(Response(source), Response(target));
+    }
+
+    public async Task<ArchiveTournamentEditBatchResponse> ApplyTournamentEditBatchAsync(
+        string sourceId,
+        string tournamentId,
+        Guid actorId,
+        long sourceVersion,
+        ArchiveTournamentEditBatchRequest request,
+        long? targetVersion,
+        CancellationToken cancellationToken)
+    {
+        var command = ValidateEditBatch(request, targetVersion is not null);
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        var ids = new[] { sourceId, request.TargetLeagueId }.Where(id => !string.IsNullOrWhiteSpace(id)).Cast<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        var aggregates = new List<LeagueArchiveAggregate>(ids.Length);
+        foreach (var id in ids)
+        {
+            var aggregate = await database.LeagueArchiveAggregates
+                .FromSqlInterpolated($"SELECT * FROM league_archive_aggregates WHERE document_id = {id} AND deleted_at IS NULL FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new ResourceNotFoundException();
+            aggregates.Add(aggregate);
+        }
+        var source = aggregates.Single(item => item.DocumentId == sourceId);
+        var target = request.TargetLeagueId is null ? null : aggregates.Single(item => item.DocumentId == request.TargetLeagueId);
+        RequireVersion(source, sourceVersion);
+        if (target is not null) RequireVersion(target, targetVersion!.Value);
+
+        try
+        {
+            var changedSource = LeagueCommands.ApplyTournamentEditBatch(source.ReadDocument(), tournamentId, command);
+            var now = clock.GetCurrentInstant();
+            if (target is null)
+            {
+                source.Apply(changedSource, now);
+            }
+            else
+            {
+                var moved = LeagueCommands.MoveTournament(changedSource, target.ReadDocument(), tournamentId);
+                source.Apply(moved.Source, now);
+                target.Apply(moved.Target, now);
+            }
+        }
+        catch (ArgumentException exception)
+        {
+            throw Validation(exception.ParamName ?? "command", exception.Message);
+        }
+        catch (KeyNotFoundException)
+        {
+            throw new ResourceNotFoundException();
+        }
+        catch (InvalidOperationException)
+        {
+            throw new ResourceConflictException();
+        }
+
+        var intents = EditBatchIntentNames(request);
+        AddAudit(actorId, "league.tournament.edit_batch.applied", source.DocumentId, intents);
+        if (target is not null) AddAudit(actorId, "league.tournament.edit_batch.applied", target.DocumentId, intents);
+        await SaveAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new ArchiveTournamentEditBatchResponse(Response(source), target is null ? null : Response(target));
     }
 
     public Task<LeagueCommandResponse> RestoreLeagueAsync(Guid actorId, string key, LeagueRestoreRequest request, CancellationToken cancellationToken)
@@ -457,6 +551,31 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
         return $"{restored} {suffix}";
     }
 
+    private static ArchiveTournamentEditBatch ValidateEditBatch(ArchiveTournamentEditBatchRequest request, bool moving)
+    {
+        if (request.AddRounds is null || request.DeleteRoundIds is null || request.ReplaceRounds is null || request.UpdateArchetypes is null)
+            throw Validation("command", "All intent arrays are required.");
+        if (request.AddRounds.Any(intent => intent is null || intent.Entries is null)
+            || request.ReplaceRounds.Any(intent => intent is null || intent.Entries is null)
+            || request.UpdateArchetypes.Any(intent => intent is null))
+            throw Validation("command", "Intent rows and Round entries arrays are required.");
+        if (!moving && request.EditTournament is null && request.AddRounds.Count == 0 && request.DeleteRoundIds.Count == 0 && request.ReplaceRounds.Count == 0 && request.UpdateArchetypes.Count == 0)
+            throw Validation("command", "Edit batch cannot be empty.");
+        return new ArchiveTournamentEditBatch(request.EditTournament, request.AddRounds, request.DeleteRoundIds, request.ReplaceRounds, request.UpdateArchetypes);
+    }
+
+    private static IReadOnlyList<string> EditBatchIntentNames(ArchiveTournamentEditBatchRequest request)
+    {
+        var names = new List<string>();
+        if (request.EditTournament is not null) names.Add("editTournament");
+        if (request.DeleteRoundIds.Count > 0) names.Add("deleteRounds");
+        if (request.AddRounds.Count > 0) names.Add("addRounds");
+        if (request.ReplaceRounds.Count > 0) names.Add("replaceRounds");
+        if (request.UpdateArchetypes.Count > 0) names.Add("updateArchetypes");
+        if (request.TargetLeagueId is not null) names.Add("moveTournament");
+        return names;
+    }
+
     private static IReadOnlyList<StoredLeagueResponse> StoreResponse<T>(T response) => response switch
     {
         LeagueCommandResponse league => [Store(league)],
@@ -495,6 +614,13 @@ internal sealed record ChangeLeagueStatusRequest(string Status);
 internal sealed record CreateResultTournamentRequest(string Name, string TournamentDate);
 internal sealed record EditResultTournamentRequest(string Name, string TournamentDate);
 internal sealed record MoveResultTournamentRequest(string TargetLeagueId);
+internal sealed record ArchiveTournamentEditBatchRequest(
+    string? TargetLeagueId,
+    EditArchiveTournamentIntent? EditTournament,
+    IReadOnlyList<AddArchiveRoundIntent> AddRounds,
+    IReadOnlyList<string> DeleteRoundIds,
+    IReadOnlyList<ReplaceArchiveRoundIntent> ReplaceRounds,
+    IReadOnlyList<UpdateArchiveArchetypeIntent> UpdateArchetypes);
 internal sealed record ImportRoundRequest(string Text);
 internal sealed record ReplaceRoundRequest(IReadOnlyList<RoundEntry> Entries);
 internal sealed record UpdatePlayerArchetypeRequest(string Archetype);
@@ -504,4 +630,5 @@ internal sealed record FullDataRestoreRequest(string Kind, int GonesDataVersion,
 internal sealed record LeagueCommandResponse(string Id, string Name, string Status, IReadOnlyList<TournamentDocument> Tournaments, long DocumentVersion, Instant UpdatedAt, string ETag);
 internal sealed record LeagueDeleteResponse(string Id, bool Deleted, long DocumentVersion, string ETag);
 internal sealed record MoveTournamentResponse(LeagueCommandResponse Source, LeagueCommandResponse Target);
+internal sealed record ArchiveTournamentEditBatchResponse(LeagueCommandResponse SourceLeague, LeagueCommandResponse? DestinationLeague);
 internal sealed record FullRestoreResponse(IReadOnlyList<LeagueCommandResponse> Leagues);

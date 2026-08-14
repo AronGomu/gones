@@ -2440,6 +2440,68 @@
         }
       }
     },
+    "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/edit-batch": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "ApplyArchiveTournamentEditBatch",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Target-If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveTournamentEditBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveTournamentEditBatchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/rounds": {
       "post": {
         "tags": [
@@ -7134,6 +7196,24 @@
           }
         }
       },
+      "AddArchiveRoundIntent": {
+        "required": [
+          "roundId",
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "roundId": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundEntry"
+            }
+          }
+        }
+      },
       "AddLivePlayerRequest": {
         "required": [
           "name",
@@ -7925,6 +8005,81 @@
           }
         }
       },
+      "ArchiveTournamentEditBatchRequest": {
+        "required": [
+          "targetLeagueId",
+          "editTournament",
+          "addRounds",
+          "deleteRoundIds",
+          "replaceRounds",
+          "updateArchetypes"
+        ],
+        "type": "object",
+        "properties": {
+          "targetLeagueId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "editTournament": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EditArchiveTournamentIntent"
+              }
+            ]
+          },
+          "addRounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddArchiveRoundIntent"
+            }
+          },
+          "deleteRoundIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "replaceRounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReplaceArchiveRoundIntent"
+            }
+          },
+          "updateArchetypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpdateArchiveArchetypeIntent"
+            }
+          }
+        }
+      },
+      "ArchiveTournamentEditBatchResponse": {
+        "required": [
+          "sourceLeague",
+          "destinationLeague"
+        ],
+        "type": "object",
+        "properties": {
+          "sourceLeague": {
+            "$ref": "#/components/schemas/LeagueCommandResponse"
+          },
+          "destinationLeague": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LeagueCommandResponse"
+              }
+            ]
+          }
+        }
+      },
       "BlockOrganizationUserRequest": {
         "required": [
           "userId",
@@ -8236,6 +8391,21 @@
             "items": {
               "$ref": "#/components/schemas/OwnershipTransferBody"
             }
+          }
+        }
+      },
+      "EditArchiveTournamentIntent": {
+        "required": [
+          "name",
+          "tournamentDate"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "tournamentDate": {
+            "type": "string"
           }
         }
       },
@@ -10227,6 +10397,35 @@
           }
         }
       },
+      "OpponentRecord": {
+        "required": [
+          "name",
+          "wins",
+          "losses"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "wins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "losses": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "OrganizationBlockedUserListResponse": {
         "required": [
           "items",
@@ -10565,6 +10764,26 @@
           }
         }
       },
+      "PlayerArchetypeUsage": {
+        "required": [
+          "name",
+          "matchCount"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "matchCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "PlayerMatch": {
         "required": [
           "kind",
@@ -10811,12 +11030,16 @@
           "playedMatchCount",
           "byeCount",
           "matchWins",
+          "matchLosses",
+          "matchDraws",
+          "playedGameCount",
           "gameWins",
           "gameLosses",
           "matchWinrate",
           "gameWinrate",
           "nemesis",
           "rival",
+          "mostPlayedArchetype",
           "matches"
         ],
         "type": "object",
@@ -10841,6 +11064,30 @@
             "format": "int32"
           },
           "matchWins": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchLosses": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "matchDraws": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "playedGameCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
               "integer",
@@ -10883,15 +11130,33 @@
             "format": "double"
           },
           "nemesis": {
-            "type": [
-              "null",
-              "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OpponentRecord"
+              }
             ]
           },
           "rival": {
-            "type": [
-              "null",
-              "string"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OpponentRecord"
+              }
+            ]
+          },
+          "mostPlayedArchetype": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PlayerArchetypeUsage"
+              }
             ]
           },
           "matches": {
@@ -12083,6 +12348,24 @@
           }
         }
       },
+      "ReplaceArchiveRoundIntent": {
+        "required": [
+          "roundId",
+          "entries"
+        ],
+        "type": "object",
+        "properties": {
+          "roundId": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundEntry"
+            }
+          }
+        }
+      },
       "ReplaceRoundRequest": {
         "required": [
           "entries"
@@ -12410,6 +12693,21 @@
           "newOwnerUserId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "UpdateArchiveArchetypeIntent": {
+        "required": [
+          "playerName",
+          "archetype"
+        ],
+        "type": "object",
+        "properties": {
+          "playerName": {
+            "type": "string"
+          },
+          "archetype": {
+            "type": "string"
           }
         }
       },

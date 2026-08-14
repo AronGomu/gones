@@ -149,6 +149,103 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Tournament_edit_batch_applies_all_intents_with_one_bump_and_rejects_User()
+    {
+        using var added = await SendJsonAsync(HttpMethod.Post, "/api/leagues-archive/command-league/tournaments-archive/tournament-1/rounds", new { }, "Organizer", ifMatch: StrongETag.Encode(1));
+        var replaceRoundId = (await Body(added)).GetProperty("tournaments")[0].GetProperty("rounds")[1].GetProperty("id").GetString()!;
+        var newRoundId = Guid.NewGuid().ToString("D");
+        var command = new
+        {
+            editTournament = new { name = " Batched Result ", tournamentDate = "2030-02-02" },
+            addRounds = new[] { new { roundId = newRoundId, entries = new object[] { new { kind = "bye", id = "new-entry", table = "3", playerName = "Carol", deckArchetype = "Earth" } } } },
+            deleteRoundIds = new[] { "round-1" },
+            replaceRounds = new[] { new { roundId = replaceRoundId, entries = new object[] { new { kind = "bye", id = "replacement-entry", table = "2", playerName = "Bob", deckArchetype = "Control" } } } },
+            updateArchetypes = new[] { new { playerName = "Bob", archetype = "Midrange" } }
+        };
+
+        using var user = await SendJsonAsync(HttpMethod.Post, "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch", command, "User", ifMatch: added.Headers.ETag!.Tag);
+        Assert.Equal(HttpStatusCode.Forbidden, user.StatusCode);
+
+        using var response = await SendJsonAsync(HttpMethod.Post, "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch", command, "Organizer", ifMatch: added.Headers.ETag!.Tag);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await Body(response);
+        var source = body.GetProperty("sourceLeague");
+        Assert.Equal(3, source.GetProperty("documentVersion").GetInt64());
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("destinationLeague").ValueKind);
+        var tournament = source.GetProperty("tournaments")[0];
+        Assert.Equal("Batched Result", tournament.GetProperty("name").GetString());
+        Assert.Equal("2030-02-02", tournament.GetProperty("tournamentDate").GetString());
+        Assert.Equal(new[] { replaceRoundId, newRoundId }, tournament.GetProperty("rounds").EnumerateArray().Select(item => item.GetProperty("id").GetString()).ToArray());
+        Assert.Contains(tournament.GetProperty("playerArchetypes").EnumerateArray(), item => item.GetProperty("playerName").GetString() == "Bob" && item.GetProperty("archetype").GetString() == "Midrange");
+        Assert.Equal(response.Headers.ETag!.Tag, source.GetProperty("eTag").GetString());
+    }
+
+    [Fact]
+    public async Task Tournament_edit_batch_move_is_atomic_and_stale_or_invalid_input_rolls_back()
+    {
+        var route = "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch";
+        var move = new
+        {
+            targetLeagueId = "target-league",
+            editTournament = new { name = "Moved Result", tournamentDate = "2030-02-03" },
+            addRounds = Array.Empty<object>(),
+            deleteRoundIds = Array.Empty<string>(),
+            replaceRounds = Array.Empty<object>(),
+            updateArchetypes = Array.Empty<object>()
+        };
+
+        using var stale = await SendJsonAsync(HttpMethod.Post, route, move, "Organizer", ifMatch: StrongETag.Encode(1), targetIfMatch: StrongETag.Encode(99));
+        await AssertProblem(stale, HttpStatusCode.PreconditionFailed, "stale_version");
+        await AssertLeagueVersionsAndTournamentCounts(1, 1, 1, 0);
+
+        var invalid = new
+        {
+            editTournament = (object?)null,
+            addRounds = Array.Empty<object>(),
+            deleteRoundIds = new[] { "round-1" },
+            replaceRounds = new[] { new { roundId = "round-1", entries = Array.Empty<object>() } },
+            updateArchetypes = Array.Empty<object>()
+        };
+        using var rejected = await SendJsonAsync(HttpMethod.Post, route, invalid, "Organizer", ifMatch: StrongETag.Encode(1));
+        await AssertProblem(rejected, HttpStatusCode.BadRequest, "validation_failed");
+        await AssertLeagueVersionsAndTournamentCounts(1, 1, 1, 0);
+
+        using var missingTargetHeader = await SendJsonAsync(HttpMethod.Post, route, move, "Organizer", ifMatch: StrongETag.Encode(1));
+        await AssertProblem(missingTargetHeader, HttpStatusCode.BadRequest, "validation_failed");
+        var empty = new
+        {
+            editTournament = (object?)null,
+            addRounds = Array.Empty<object>(),
+            deleteRoundIds = Array.Empty<string>(),
+            replaceRounds = Array.Empty<object>(),
+            updateArchetypes = Array.Empty<object>()
+        };
+        using var headerWithoutTarget = await SendJsonAsync(HttpMethod.Post, route, empty, "Organizer", ifMatch: StrongETag.Encode(1), targetIfMatch: StrongETag.Encode(1));
+        await AssertProblem(headerWithoutTarget, HttpStatusCode.BadRequest, "validation_failed");
+        using var blankTarget = await SendJsonAsync(HttpMethod.Post, route, new { targetLeagueId = " ", empty.editTournament, empty.addRounds, empty.deleteRoundIds, empty.replaceRounds, empty.updateArchetypes }, "Organizer", ifMatch: StrongETag.Encode(1));
+        await AssertProblem(blankTarget, HttpStatusCode.BadRequest, "validation_failed");
+        using var missingEntries = await SendJsonAsync(HttpMethod.Post, route, new
+        {
+            editTournament = (object?)null,
+            addRounds = new[] { new { roundId = Guid.NewGuid().ToString("D"), entries = (object?)null } },
+            deleteRoundIds = Array.Empty<string>(),
+            replaceRounds = Array.Empty<object>(),
+            updateArchetypes = Array.Empty<object>()
+        }, "Organizer", ifMatch: StrongETag.Encode(1));
+        await AssertProblem(missingEntries, HttpStatusCode.BadRequest, "validation_failed");
+        await AssertLeagueVersionsAndTournamentCounts(1, 1, 1, 0);
+
+        using var moved = await SendJsonAsync(HttpMethod.Post, route, move, "Admin", ifMatch: StrongETag.Encode(1), targetIfMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        var body = await Body(moved);
+        Assert.Equal(2, body.GetProperty("sourceLeague").GetProperty("documentVersion").GetInt64());
+        Assert.Equal(2, body.GetProperty("destinationLeague").GetProperty("documentVersion").GetInt64());
+        Assert.Empty(body.GetProperty("sourceLeague").GetProperty("tournaments").EnumerateArray());
+        Assert.Equal("target-league", body.GetProperty("destinationLeague").GetProperty("tournaments")[0].GetProperty("leagueId").GetString());
+        Assert.Equal(moved.Headers.GetValues("Target-ETag").Single(), body.GetProperty("destinationLeague").GetProperty("eTag").GetString());
+    }
+
+    [Fact]
     public async Task Round_add_import_replace_delete_commands_match_current_source_semantics()
     {
         using var added = await SendJsonAsync(HttpMethod.Post, "/api/leagues-archive/command-league/tournaments-archive/tournament-1/rounds", new { }, "Organizer", ifMatch: StrongETag.Encode(1));
@@ -249,6 +346,17 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
     {
         Assert.Equal(status, response.StatusCode);
         Assert.Equal(code, (await Body(response)).GetProperty("code").GetString());
+    }
+
+    private async Task AssertLeagueVersionsAndTournamentCounts(long sourceVersion, long targetVersion, int sourceTournaments, int targetTournaments)
+    {
+        await using var database = CreateContext();
+        var source = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "command-league");
+        var target = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "target-league");
+        Assert.Equal(sourceVersion, source.Version);
+        Assert.Equal(targetVersion, target.Version);
+        Assert.Equal(sourceTournaments, source.ReadDocument().Tournaments.Count);
+        Assert.Equal(targetTournaments, target.ReadDocument().Tournaments.Count);
     }
 
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>().ConfigureGones(postgres.GetConnectionString()).Options);

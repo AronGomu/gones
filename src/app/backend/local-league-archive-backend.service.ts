@@ -19,8 +19,8 @@ import {
 } from '../domain/models';
 import { renamePlayerInLeague } from '../domain/rename-player';
 import { importRoundEntries } from '../domain/round-import';
-import { get, getAll, openDatabase, put, remove } from './indexed-db';
-import type { FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
+import { get, getAll, openDatabase, put, remove, requestResult, runTransaction } from './indexed-db';
+import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Browser-local League authority (ADR 0028) — the League half of the browser-local store, next to
@@ -104,39 +104,67 @@ export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
     return this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: league.tournaments.filter((tournament) => tournament.id !== tournamentId) }));
   }
 
-  /**
-   * The one command that spans two documents, so the one that cannot use `mutate`. Both versions are
-   * guarded before either write, so a stale move is refused with both leagues untouched. The two
-   * writes still cannot share a transaction — `indexed-db.ts` runs one request per transaction — so a
-   * crash between them can leave the tournament in both leagues; ADR 0028 accepts that for a
-   * browser-local store with a single writer.
-   */
   async moveArchiveTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult> {
-    // A tournament never crosses the boundary between the two authorities (ADR 0028): export and
-    // re-import is the only bridge, and it is user-driven.
-    if (!isLocalLeagueId(targetLeagueId)) throw new Error('crossAuthorityMoveNotSupported');
+    const result = await this.applyArchiveTournamentEditBatch(id, tournamentId, expectedVersion, emptyEditBatch(), {
+      leagueId: targetLeagueId,
+      expectedVersion: targetExpectedVersion
+    });
+    return { fromLeague: result.sourceLeague, toLeague: result.destinationLeague! };
+  }
+
+  async applyArchiveTournamentEditBatch(
+    sourceLeagueId: string,
+    tournamentId: string,
+    sourceExpectedVersion: number,
+    command: ArchiveTournamentEditBatchCommand,
+    target?: { leagueId: string; expectedVersion: number }
+  ): Promise<ArchiveTournamentEditBatchResult> {
+    if (!isLocalLeagueId(sourceLeagueId) || (target && !isLocalLeagueId(target.leagueId))) throw new Error('crossAuthorityMoveNotSupported');
+    if (target?.leagueId === sourceLeagueId) throw new Error('targetLeagueMustDiffer');
     const database = await this.open();
-    const from = await this.require(database, id);
-    const to = await this.require(database, targetLeagueId);
-    if (from.documentVersion !== expectedVersion || to.documentVersion !== targetExpectedVersion) throw new LeagueConcurrencyError();
-    const moved = from.tournaments.find((tournament) => tournament.id === tournamentId);
-    if (!moved) throw new Error('tournamentNotFound');
-    const movedAt = new Date().toISOString();
-    const fromLeague: PersistedLeague = {
-      ...normalizeLeague({ ...from, tournaments: from.tournaments.filter((tournament) => tournament.id !== tournamentId) }),
-      id: from.id,
-      documentVersion: from.documentVersion + 1,
-      updatedAt: movedAt
-    };
-    const toLeague: PersistedLeague = {
-      ...normalizeLeague({ ...to, tournaments: [...to.tournaments, createTournament({ ...moved, leagueId: targetLeagueId })] }),
-      id: to.id,
-      documentVersion: to.documentVersion + 1,
-      updatedAt: movedAt
-    };
-    await put(database, LOCAL_LEAGUE_STORE, fromLeague);
-    await put(database, LOCAL_LEAGUE_STORE, toLeague);
-    return { fromLeague, toLeague };
+    return runTransaction(database, [LOCAL_LEAGUE_STORE], 'readwrite', async transaction => {
+      const store = transaction.objectStore(LOCAL_LEAGUE_STORE);
+      const sourceRow = await requestResult<Partial<PersistedLeague> | undefined>(store.get(sourceLeagueId));
+      if (!sourceRow) throw new Error('leagueNotFound');
+      const source = this.persist(sourceRow);
+      const targetRow = target
+        ? await requestResult<Partial<PersistedLeague> | undefined>(store.get(target.leagueId))
+        : undefined;
+      if (target && !targetRow) throw new Error('leagueNotFound');
+      const destination = targetRow ? this.persist(targetRow) : null;
+      if (source.documentVersion !== sourceExpectedVersion || (target && destination?.documentVersion !== target.expectedVersion)) {
+        throw new LeagueConcurrencyError();
+      }
+
+      const edited = applyLocalEditBatch(source, tournamentId, command, Boolean(target));
+      const timestamp = new Date().toISOString();
+      let sourceDocument: LeagueDocument = edited;
+      let destinationDocument: LeagueDocument | null = destination;
+      if (destination) {
+        if (destination.status !== 'active') throw new Error('completedLeagueCannotBeEdited');
+        const moved = edited.tournaments.find(item => item.id === tournamentId);
+        if (!moved) throw new Error('tournamentNotFound');
+        if (destination.tournaments.some(item => item.id === tournamentId)) throw new Error('tournamentAlreadyExists');
+        sourceDocument = { ...edited, tournaments: edited.tournaments.filter(item => item.id !== tournamentId) };
+        destinationDocument = { ...destination, tournaments: [...destination.tournaments, createTournament({ ...moved, leagueId: destination.id })] };
+      }
+
+      const sourceLeague: PersistedLeague = {
+        ...normalizeLeague(sourceDocument),
+        id: source.id,
+        documentVersion: source.documentVersion + 1,
+        updatedAt: timestamp
+      };
+      const destinationLeague: PersistedLeague | null = destination && destinationDocument ? {
+        ...normalizeLeague(destinationDocument),
+        id: destination.id,
+        documentVersion: destination.documentVersion + 1,
+        updatedAt: timestamp
+      } : null;
+      await requestResult(store.put(sourceLeague));
+      if (destinationLeague) await requestResult(store.put(destinationLeague));
+      return { sourceLeague, destinationLeague };
+    });
   }
 
   addArchiveRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {
@@ -281,6 +309,74 @@ export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
     }
     return this.database;
   }
+}
+
+function emptyEditBatch(): ArchiveTournamentEditBatchCommand {
+  return { addRounds: [], deleteRoundIds: [], replaceRounds: [], updateArchetypes: [] };
+}
+
+function applyLocalEditBatch(
+  league: PersistedLeague,
+  tournamentId: string,
+  command: ArchiveTournamentEditBatchCommand,
+  moving: boolean
+): LeagueDocument {
+  if (league.status !== 'active') throw new Error('completedLeagueCannotBeEdited');
+  if (!command || !Array.isArray(command.addRounds) || !Array.isArray(command.deleteRoundIds)
+      || !Array.isArray(command.replaceRounds) || !Array.isArray(command.updateArchetypes)) {
+    throw new Error('invalidArchiveTournamentEditBatch');
+  }
+  if (!moving && !command.editTournament && command.addRounds.length === 0 && command.deleteRoundIds.length === 0
+      && command.replaceRounds.length === 0 && command.updateArchetypes.length === 0) {
+    throw new Error('emptyArchiveTournamentEditBatch');
+  }
+  if (command.editTournament && !command.editTournament.name.trim()) throw new Error('tournamentNameRequired');
+
+  const tournament = league.tournaments.find(item => item.id === tournamentId);
+  if (!tournament) throw new Error('tournamentNotFound');
+  const existingRoundIds = new Set(tournament.rounds.map(round => round.id));
+  const addIds = uniqueIntentIds(command.addRounds.map(intent => intent.roundId), 'duplicateAddRound');
+  const deleteIds = uniqueIntentIds(command.deleteRoundIds, 'duplicateDeleteRound');
+  const replaceIds = uniqueIntentIds(command.replaceRounds.map(intent => intent.roundId), 'duplicateReplaceRound');
+  for (const roundId of addIds) {
+    if (!isStableRoundId(roundId)) throw new Error('invalidRoundId');
+    if (existingRoundIds.has(roundId)) throw new Error('roundAlreadyExists');
+  }
+  for (const roundId of deleteIds) if (!existingRoundIds.has(roundId)) throw new Error('roundNotFound');
+  for (const roundId of replaceIds) {
+    if (!existingRoundIds.has(roundId)) throw new Error('roundNotFound');
+    if (deleteIds.has(roundId)) throw new Error('conflictingRoundIntents');
+  }
+  const archetypeNames = command.updateArchetypes.map(intent => trimPlayerName(intent.playerName));
+  if (archetypeNames.some(name => !name) || new Set(archetypeNames).size !== archetypeNames.length) throw new Error('duplicateArchetypeIntent');
+
+  let updated: TournamentDocument = command.editTournament
+    ? createTournament({ ...tournament, name: command.editTournament.name, tournamentDate: command.editTournament.tournamentDate })
+    : tournament;
+  updated = {
+    ...updated,
+    rounds: [
+      ...updated.rounds.filter(round => !deleteIds.has(round.id)).map(round => {
+        const replacement = command.replaceRounds.find(intent => intent.roundId === round.id);
+        return replacement ? createRound({ id: round.id, entries: replacement.entries }) : round;
+      }),
+      ...command.addRounds.map(intent => createRound({ id: intent.roundId, entries: intent.entries }))
+    ]
+  };
+  for (const intent of command.updateArchetypes) {
+    updated = { ...updated, playerArchetypes: upsertArchetype(updated.playerArchetypes, intent.playerName, intent.archetype) };
+  }
+  return { ...league, tournaments: league.tournaments.map(item => item.id === tournamentId ? updated : item) };
+}
+
+function uniqueIntentIds(ids: string[], error: string): Set<string> {
+  const result = new Set(ids);
+  if (result.size !== ids.length) throw new Error(error);
+  return result;
+}
+
+function isStableRoundId(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
 /** Player names match after `trimPlayerName`; the archetype itself goes through the domain normaliser. */

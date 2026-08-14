@@ -4,7 +4,7 @@ import { ApiProblemError } from '../api/api-boundary';
 import { Client, LeagueCommandResponse, LiveCommandResponse, LiveTournamentDocumentResponse, PublicLeagueDetailResponse, PublicLiveTournamentDetailResponse, LiveTournamentDocument as ApiLiveTournamentDocument } from '../api/generated/gones-api';
 import { LiveTournamentDocument, normalizeLiveTournament } from '../domain/live-tournament';
 import { LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
-import type { BackendMode, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
+import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, BackendMode, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Server-authority adapter. It carries intent commands only: no whole-document League or Live save
@@ -67,6 +67,26 @@ export class AspNetApiBackend implements LeagueArchiveBackendPort, LiveBackendPo
   async moveArchiveTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult> {
     const response = await firstValueFrom(this.client.moveArchiveTournament(id, tournamentId, encodeLeagueETag(expectedVersion), encodeLeagueETag(targetExpectedVersion), { targetLeagueId }));
     return { fromLeague: this.toPersisted(response.source), toLeague: this.toPersisted(response.target) };
+  }
+
+  async applyArchiveTournamentEditBatch(
+    sourceLeagueId: string,
+    tournamentId: string,
+    sourceExpectedVersion: number,
+    command: ArchiveTournamentEditBatchCommand,
+    target?: { leagueId: string; expectedVersion: number }
+  ): Promise<ArchiveTournamentEditBatchResult> {
+    const response = await firstValueFrom(this.client.applyArchiveTournamentEditBatch(
+      sourceLeagueId,
+      tournamentId,
+      encodeLeagueETag(sourceExpectedVersion),
+      target ? encodeLeagueETag(target.expectedVersion) : undefined,
+      { ...command, targetLeagueId: target?.leagueId } as never
+    ));
+    return {
+      sourceLeague: this.toPersisted(response.sourceLeague),
+      destinationLeague: response.destinationLeague ? this.toPersisted(response.destinationLeague) : null
+    };
   }
 
   addArchiveRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague> {

@@ -23,6 +23,29 @@ export interface MoveResultTournamentResult {
   toLeague: PersistedLeague;
 }
 
+export interface AddArchiveRoundIntent {
+  roundId: string;
+  entries: RoundEntry[];
+}
+
+export interface ReplaceArchiveRoundIntent {
+  roundId: string;
+  entries: RoundEntry[];
+}
+
+export interface ArchiveTournamentEditBatchCommand {
+  editTournament?: { name: string; tournamentDate: string };
+  addRounds: AddArchiveRoundIntent[];
+  deleteRoundIds: string[];
+  replaceRounds: ReplaceArchiveRoundIntent[];
+  updateArchetypes: { playerName: string; archetype: string }[];
+}
+
+export interface ArchiveTournamentEditBatchResult {
+  sourceLeague: PersistedLeague;
+  destinationLeague: PersistedLeague | null;
+}
+
 export interface LeagueArchiveBackendPort {
   listLeagueArchives(): Promise<PersistedLeague[]>;
   getLeagueArchive(id: string): Promise<PersistedLeague | null>;
@@ -34,6 +57,7 @@ export interface LeagueArchiveBackendPort {
   editArchiveTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague>;
   deleteArchiveTournament(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
   moveArchiveTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult>;
+  applyArchiveTournamentEditBatch(sourceLeagueId: string, tournamentId: string, sourceExpectedVersion: number, command: ArchiveTournamentEditBatchCommand, target?: { leagueId: string; expectedVersion: number }): Promise<ArchiveTournamentEditBatchResult>;
   addArchiveRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
   deleteArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number): Promise<PersistedLeague>;
   importArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, text: string): Promise<PersistedLeague>;
