@@ -22,6 +22,7 @@ import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
 import { ApiProblemError } from './api/api-boundary';
 import { BreadcrumbItem, buildBreadcrumbs } from './app-breadcrumbs';
+import { canUsePowerMutation, PowerUserSettingsService } from './shared/power-user-settings.service';
 
 interface HeaderTournament {
   league: PersistedLeague;
@@ -43,8 +44,10 @@ interface HeaderTournament {
           </div>
         } @else if (showHeaderImport()) {
           <div class="header-actions" data-cy="app-leagues-header-actions">
-            <button mat-stroked-button class="secondary-action toolbar-import" type="button" data-cy="app-leagues-import-button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
-            <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
+            @if (power.enabled()) {
+              <button mat-stroked-button class="secondary-action toolbar-import" type="button" data-cy="app-leagues-import-button" [disabled]="importing()" (click)="openImportPicker()">{{ importing() ? i18n.t('common.importing') : i18n.t('common.import') }}</button>
+              <input #headerImportInput class="toolbar-import-input" data-cy="header-import-input" type="file" accept=".json,application/json" tabindex="-1" aria-hidden="true" [disabled]="importing()" (change)="importLeague($event)">
+            }
             <button mat-stroked-button class="secondary-action" type="button" data-cy="app-full-data-export-button" (click)="downloadFullExport()">{{ i18n.t('header.fullDataExport') }}</button>
           </div>
         } @else if (headerTournament(); as item) {
@@ -120,6 +123,7 @@ export class AppComponent {
   private readonly repo = inject(LeagueArchiveRepository);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly settings = inject(DeckArchetypeSettingsService);
+  readonly power = inject(PowerUserSettingsService);
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
   readonly isResultPage = computed(() => this.pathOnly(this.currentUrl()).split('/').includes('result'));
@@ -130,10 +134,13 @@ export class AppComponent {
   readonly settingsMessage = signal('');
   readonly resendPending = signal(false);
   readonly resendStatus = signal('');
-  // No role gate on `/leagues-archive` import: every visitor can write *some* store, and the
+  // No role gate on `/leagues-archive` import: every Power User can write some store, and the
   // repository routes the restore to the one `createLeagueTarget(role)` names (ADR 0028).
-  /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
-  readonly canManageHeaderLeague = computed(() => canManageLeague(this.headerLeague()?.id ?? this.headerTournament()?.league.id, this.auth.profile()?.globalRole));
+  /** Power mode never replaces per-league role/origin authority. */
+  readonly canManageHeaderLeague = computed(() => canUsePowerMutation(
+    this.power.enabled(),
+    canManageLeague(this.headerLeague()?.id ?? this.headerTournament()?.league.id, this.auth.profile()?.globalRole)
+  ));
   readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues-archive');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
@@ -242,6 +249,7 @@ export class AppComponent {
   }
 
   openImportPicker(): void {
+    if (!this.power.enabled()) return;
     if (!this.importing()) this.headerImportInput?.nativeElement.click();
   }
 
@@ -335,6 +343,7 @@ export class AppComponent {
   isPlaceholderLeague(league: PersistedLeague): boolean { return isAnyPlaceholderLeagueId(league.id); }
 
   async deleteLeague(league: PersistedLeague): Promise<void> {
+    if (!this.power.enabled()) return;
     if (this.isPlaceholderLeague(league)) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('dialog.deleteLeagueTitle'), message: this.i18n.t('dialog.deleteLeagueMessage', { name: league.name }), confirmLabel: this.i18n.t('dialog.deleteLeagueTitle'), destructive: true } }).afterClosed());
     if (!confirmed) return;
@@ -350,6 +359,7 @@ export class AppComponent {
   }
 
   async deleteTournament({ league, tournament }: HeaderTournament): Promise<void> {
+    if (!this.power.enabled()) return;
     if (this.deletingTournament()) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('dialog.deleteTournamentTitle'), message: this.i18n.t('dialog.deleteTournamentMessage', { name: tournament.name }), confirmLabel: this.i18n.t('dialog.deleteTournamentTitle'), destructive: true } }).afterClosed());
     if (!confirmed) return;
@@ -369,6 +379,7 @@ export class AppComponent {
   }
 
   async importLeague(event: Event): Promise<void> {
+    if (!this.power.enabled()) return;
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file || this.importing()) return;

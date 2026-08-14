@@ -4,6 +4,7 @@ const LOCAL_LEAGUE_STORE = 'leagues';
 function seedSettings(win) {
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.power-user', 'true');
 }
 
 function visitSettings() {

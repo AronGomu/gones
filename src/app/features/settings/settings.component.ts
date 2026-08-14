@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -27,6 +28,7 @@ import { archetypeKey, DeckArchetypeSettingsService, normalizeArchetypeName, par
 import { saveJsonFile } from '../../shared/save-json-file';
 import { localPlayerNames, LocalPlayerSummary } from './local-player-names';
 import { settingsCapabilities } from './settings-capabilities';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 interface OwnedOrganizationSettings {
   organization: MyOrganizationResponse;
@@ -35,7 +37,7 @@ interface OwnedOrganizationSettings {
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="settings-back-button-top" />
     <section class="info-page settings-page" [attr.aria-label]="i18n.t('settings.pageAria')" data-cy="settings-page">
@@ -55,6 +57,18 @@ interface OwnedOrganizationSettings {
             </mat-form-field>
           </div>
           <p class="settings-saved" role="status" data-cy="settings-language-status">{{ i18n.t('settings.currentLanguage', { label: languageLabel() }) }}</p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="panel settings-panel" data-cy="settings-power-user-card">
+        <mat-card-content data-cy="settings-power-user-card-content">
+          <div class="settings-row" data-cy="settings-power-user-row">
+            <div data-cy="settings-power-user-copy">
+              <h2 data-cy="settings-power-user-title">{{ i18n.t('settings.powerUser') }}</h2>
+              <p class="muted" data-cy="settings-power-user-help">{{ i18n.t('settings.powerUserHelp') }}</p>
+            </div>
+            <mat-checkbox data-cy="settings-power-user-checkbox" [ngModel]="power.enabled()" (ngModelChange)="power.setEnabled($event)">{{ i18n.t('settings.powerUserEnable') }}</mat-checkbox>
+          </div>
         </mat-card-content>
       </mat-card>
 
@@ -271,7 +285,7 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
-      @if (capabilities().organizerMaintenance) {
+      @if (power.enabled() && capabilities().organizerMaintenance) {
         <mat-card class="panel settings-panel settings-archetype-panel-card" data-cy="settings-players-card">
           <mat-card-content data-cy="settings-players-card-content">
             <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-players-panel" [expanded]="false">
@@ -344,7 +358,7 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
-      @if (capabilities().localMaintenance) {
+      @if (power.enabled() && capabilities().localMaintenance) {
         <mat-card class="panel settings-panel settings-archetype-panel-card" data-cy="settings-local-players-card">
           <mat-card-content data-cy="settings-local-players-card-content">
             <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-local-players-panel" [expanded]="false">
@@ -444,6 +458,7 @@ export class SettingsComponent {
   private readonly deckArchetypes = inject(DeckArchetypeSettingsService);
   readonly leagueRepo = inject(LeagueArchiveRepository);
   readonly auth = inject(AuthService);
+  readonly power = inject(PowerUserSettingsService);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly localBackend = inject(LocalLeagueArchiveBackend);
   private readonly client = inject(Client);
@@ -902,6 +917,7 @@ export class SettingsComponent {
 
   /** Server rename: exact case-sensitive source, preview affected count before commit. */
   async saveServerPlayerEdit(player: PlayerNameSummary): Promise<void> {
+    if (!this.power.enabled()) return;
     if (this.playerSaving()) return;
     const next = trimPlayerName(this.playerEditValue(player.name));
     if (!next) {
@@ -960,6 +976,7 @@ export class SettingsComponent {
    * league, carrying each returned `documentVersion` forward. Nothing leaves the browser.
    */
   async saveLocalPlayerEdit(player: LocalPlayerSummary): Promise<void> {
+    if (!this.power.enabled()) return;
     if (this.playerSaving()) return;
     const next = trimPlayerName(this.playerEditValue(player.name));
     if (!next) {

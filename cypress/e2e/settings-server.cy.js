@@ -100,6 +100,7 @@ function mockPlayerMaintenance() {
 function seedSettings(win, language) {
   win.localStorage.setItem("gones.settings.language", language);
   win.localStorage.setItem("gones.settings", JSON.stringify({ language, deckArchetypes: [] }));
+  win.localStorage.setItem("gones.settings.power-user", "true");
 }
 
 function visitSettings(language = "en") {

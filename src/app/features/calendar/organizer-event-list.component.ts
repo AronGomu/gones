@@ -10,6 +10,7 @@ import { I18nService } from '../../i18n/i18n.service';
 import { MessageKey } from '../../i18n/messages';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { canCancelEvent, canEditEvent } from './event-management';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
@@ -18,7 +19,7 @@ import { canCancelEvent, canEditEvent } from './event-management';
     <section class="tournament-management-page stack" data-cy="organizer-events" aria-labelledby="organizer-events-title">
       <header class="page-heading" data-cy="organizer-events-heading">
         <div data-cy="organizer-events-heading-text"><p class="kicker" data-cy="organizer-events-kicker">{{ i18n.t('eventCreate.kicker') }}</p><h1 id="organizer-events-title" data-cy="organizer-events-title">{{ i18n.t('eventManage.title') }}</h1></div>
-        <a mat-flat-button class="home-primary-action" routerLink="/events/new" data-cy="organizer-events-create">{{ i18n.t('eventManage.create') }}</a>
+        @if (power.enabled()) { <a mat-flat-button class="home-primary-action" routerLink="/events/new" data-cy="organizer-events-create">{{ i18n.t('eventManage.create') }}</a> }
       </header>
       <p class="muted" data-cy="organizer-events-scope-help">{{ i18n.t('eventManage.scopeHelp') }}</p>
 
@@ -59,6 +60,7 @@ export class OrganizerEventListComponent {
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  readonly power = inject(PowerUserSettingsService);
   readonly items = signal<EventManagementResponse[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
@@ -78,8 +80,8 @@ export class OrganizerEventListComponent {
     });
   }
 
-  canEdit(event: EventManagementResponse): boolean { return canEditEvent(event); }
-  canCancel(event: EventManagementResponse): boolean { return canCancelEvent(event); }
+  canEdit(event: EventManagementResponse): boolean { return this.power.enabled() && canEditEvent(event); }
+  canCancel(event: EventManagementResponse): boolean { return this.power.enabled() && canCancelEvent(event); }
 
   async load(): Promise<void> {
     this.loading.set(true);
@@ -99,6 +101,7 @@ export class OrganizerEventListComponent {
   goPage(page: number): void { void this.router.navigate([], { relativeTo: this.route, queryParams: { page } }); }
 
   async cancel(event: EventManagementResponse): Promise<void> {
+    if (!this.power.enabled()) return;
     const confirmed = await this.confirm(
       'eventManage.cancelTitle',
       'eventManage.cancelBody',
@@ -113,6 +116,7 @@ export class OrganizerEventListComponent {
   }
 
   async delete(event: EventManagementResponse): Promise<void> {
+    if (!this.power.enabled()) return;
     const confirmed = await this.confirm(
       'eventManage.deleteTitle',
       'eventManage.deleteBody',

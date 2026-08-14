@@ -153,7 +153,9 @@ describe('canonical browser store containment', () => {
       // Language + local Deck Archetype preference.
       'src/app/shared/deck-archetype-settings.service.ts',
       // First-visit flag — routes the very first load to /about, never a data source.
-      'src/app/shared/first-visit.service.ts'
+      'src/app/shared/first-visit.service.ts',
+      // Boolean UI capability preference only; never auth, authority, or domain data.
+      'src/app/shared/power-user-settings.service.ts'
     ]);
   });
 });

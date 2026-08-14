@@ -127,6 +127,7 @@ function visit(path) {
   cy.visit(path, { onBeforeLoad(win) {
     win.localStorage.setItem('gones.settings.language', 'en');
     win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+    win.localStorage.setItem('gones.settings.power-user', 'true');
   } });
 }
 

@@ -19,6 +19,7 @@
 | local Live store | Offline IndexedDB Live authority for anonymous and `User`, never synced (ADR 0021) | `src/app/backend/local-live-backend.service.ts` |
 | calendar | Public Event calendar feature and its detail page | `src/app/features/calendar/public-calendar.component.ts` |
 | guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
+| power user | Browser-only opt-in for advanced Event and League mutation UI; never grants server authority | `src/app/shared/power-user-settings.service.ts` |
 | session | Access-token scope and cache purge on sign-out | `src/app/auth/session-scope.service.ts` |
 | i18n | French/English message catalogue and language signal | `src/app/i18n/i18n.service.ts` |
 | ics | Calendar export to an .ics subscription file | `src/app/domain/calendar-ics.ts` |

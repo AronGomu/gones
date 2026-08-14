@@ -40,6 +40,8 @@ import { MessageKey } from '../../i18n/messages';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { EventRegistrationService, registrationErrorKey } from './event-registration.service';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
+import { canManageLeagues } from '../../data/league-archive-command-ux';
+import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 interface MonthDay {
   date: string;
@@ -158,6 +160,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly power = inject(PowerUserSettingsService);
   private readonly initialRegisterSlug = calendarRegisterIntent(this.router.url);
   private subscription?: Subscription;
   private searchDebounce?: ReturnType<typeof setTimeout>;
@@ -192,7 +195,10 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   // Named apart from the `eventsByDate` helper it wraps: the two would otherwise differ only by a
   // `this.`, which is a trap for the next reader rather than a nicety.
   readonly dayEventIndex = computed(() => eventsByDate(this.items()));
-  readonly canCreateEvent = computed(() => this.auth.enabled && this.auth.profile()?.emailVerified === true);
+  readonly canCreateEvent = computed(() => canUsePowerMutation(
+    this.power.enabled(),
+    canManageLeagues(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
+  ));
   readonly registrationCapabilities = signal<Record<string, EventRegistrationCapabilityResponse>>({});
   readonly pendingEventId = signal<string | null>(null);
   readonly registrationMessageKey = signal<MessageKey | null>(null);

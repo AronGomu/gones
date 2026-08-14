@@ -14,6 +14,8 @@ import { ApproverSelectionDialogComponent } from './approver-selection-dialog.co
 import { PreviewPublicationState, browserTimeZoneSuggestion, eventPayload } from './organizer-event-create';
 import { EventProposalService, sortApprovers } from './event-proposal.service';
 import { changedEventFields, majorEventChanges, managementToDetail, managementToDraft, eventUpdatePayload } from './event-management';
+import { canManageLeagues } from '../../data/league-archive-command-ux';
+import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'refresh-preview' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
@@ -198,6 +200,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly auth = inject(AuthService);
+  private readonly power = inject(PowerUserSettingsService);
   private readonly proposals = inject(EventProposalService);
   private readonly state = new PreviewPublicationState();
   private readonly eventId = this.route.snapshot.paramMap.get('id');
@@ -224,10 +227,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly currentRender = signal<EventPreviewRenderResponse | null>(null);
   readonly success = signal('');
   readonly formPending = computed(() => this.previewing() || this.saving());
-  readonly canPublishDirectly = computed(() => {
-    const role = this.auth.profile()?.globalRole;
-    return role === 'Organizer' || role === 'Admin';
-  });
+  readonly canMutateEvent = computed(() => canUsePowerMutation(
+    this.power.enabled(),
+    canManageLeagues(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
+  ));
+  readonly canPublishDirectly = this.canMutateEvent;
   private readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');
   readonly proposalPending = signal(false);
   readonly proposalSentCount = signal<number | null>(null);
@@ -459,6 +463,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async publish(): Promise<void> {
+    if (!this.canMutateEvent()) return;
     if (!this.state.preview || this.publishing()) return;
     this.publishing.set(true);
     this.publishError.set(null);
@@ -477,6 +482,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async saveEdit(): Promise<void> {
+    if (!this.canMutateEvent()) return;
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
     this.submitError.set(null);

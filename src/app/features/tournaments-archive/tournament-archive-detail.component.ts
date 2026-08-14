@@ -25,6 +25,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.component';
 import { I18nService } from '../../i18n/i18n.service';
+import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
@@ -190,8 +191,9 @@ export class TournamentArchiveDetailComponent {
   readonly error = signal('');
   readonly stale = signal(false);
   readonly importErrors = signal<string[]>([]);
-  /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
-  readonly canManage = computed(() => canManageLeague(this.league()?.id, this.auth.profile()?.globalRole));
+  private readonly power = inject(PowerUserSettingsService);
+  /** Power mode never replaces per-league role/origin authority. */
+  readonly canManage = computed(() => canUsePowerMutation(this.power.enabled(), canManageLeague(this.league()?.id, this.auth.profile()?.globalRole)));
   readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);
@@ -289,6 +291,7 @@ export class TournamentArchiveDetailComponent {
     await this.runCommand(async league => this.repo.addResultEntry(league, this.tournamentId(), round.id, createByeRoundEntry({ table: String(round.entries.length + 1) })));
   }
   async replaceRound(round: RoundDocument, text: string): Promise<void> {
+    if (!this.canManage()) return;
     const imported = importRoundEntries(text);
     const tournament = this.tournament();
     if (tournament) {
@@ -304,6 +307,7 @@ export class TournamentArchiveDetailComponent {
   playerArchetypeRows(tournament: TournamentDocument) { return tournamentPlayerArchetypeRows(tournament); }
   archetypeFor(tournament: TournamentDocument, playerName: string): string { return archetypeForPlayer(tournament, playerName); }
   syncPlayerArchetypesFromRoundEntries(): void {
+    if (!this.canManage()) return;
     const tournament = this.tournament();
     if (!tournament) return;
     const rows = tournamentPlayerArchetypeRows(tournament);
@@ -371,16 +375,18 @@ export class TournamentArchiveDetailComponent {
     this.updateTournament((tournament) => ({ ...tournament, rounds: tournament.rounds.map((round) => round.id === roundId ? updater(round) : round) }));
   }
   async deleteEntry(round: RoundDocument, entryId: string): Promise<void> {
+    if (!this.canManage()) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('tournament.deleteMatchTitle'), message: this.i18n.t('tournament.deleteMatchMessage'), confirmLabel: this.i18n.t('tournament.deleteMatchConfirm'), destructive: true } }).afterClosed());
     if (confirmed) await this.runCommand(async league => this.repo.deleteResultEntry(league, this.tournamentId(), round.id, entryId));
   }
   async deleteRound(round: RoundDocument): Promise<void> {
+    if (!this.canManage()) return;
     const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('tournament.deleteRoundTitle'), message: this.i18n.t('tournament.deleteRoundMessage'), confirmLabel: this.i18n.t('tournament.deleteRoundConfirm'), destructive: true } }).afterClosed());
     if (confirmed) await this.runCommand(async league => this.repo.deleteResultRound(league, this.tournamentId(), round.id));
   }
 
   async saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): Promise<void> {
-    if (!this.titleOnlyEditing() || this.saving()) return;
+    if (!this.canManage() || !this.titleOnlyEditing() || this.saving()) return;
     const tournament = this.tournament();
     if (tournament) tournament.name = String(tournament.name ?? '').trim() || getDefaultTournamentName();
     await this.save({ restoreFocus });

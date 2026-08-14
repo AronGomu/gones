@@ -6,6 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { getDefaultTournamentName, isUnassignedLeagueName, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
 import { createLeagueTarget } from './league-archive-command-ux';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from './league-archive-origin';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
  * The dual-source League Archive (ADR 0028). Two stores, one list: `listLeagues()` merges them and
@@ -22,6 +23,7 @@ export class LeagueArchiveRepository {
   private readonly local = inject(LocalLeagueArchiveBackend);
   private readonly auth = inject(AuthService);
   private readonly cache = inject(ServerReadCacheService);
+  private readonly power = inject(PowerUserSettingsService);
 
   /** The last `listLeagues()` could not read the server — anonymous, offline, 401, 403 or cached. */
   readonly serverUnavailable = signal(false);
@@ -182,6 +184,7 @@ export class LeagueArchiveRepository {
   }
 
   private async freshMutation<T>(action: () => Promise<T>): Promise<T> {
+    this.power.requireEnabled();
     const result = await action();
     this.detailStale.set(false);
     return result;
