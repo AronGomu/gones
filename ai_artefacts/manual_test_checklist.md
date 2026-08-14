@@ -79,3 +79,12 @@
 
 - [ ] Open existing Player Statistics page; confirm Nemesis and Rival still display Player Names and their filters still work.
 - [ ] Spot-check existing League and Tournament results; confirm rankings and result calculations remain unchanged.
+
+## T11 player-page-controls-pagination
+
+- [ ] Open Player Statistics with 120+ Matches; confirm online-only is checked, first page shows 50 Matches, and page controls show 1/3.
+- [ ] Include a browser-local League; uncheck online-only and confirm metrics plus Match history update immediately, then recheck and confirm local data disappears.
+- [ ] Select page sizes 10, 20, 50, and 100; confirm exact slices, bounds disable Previous/Next, and refresh preserves selected size.
+- [ ] Change search, clear search, sort order, source toggle, page size, and loaded League data; confirm each returns to page 1.
+- [ ] Confirm seven count cards plus five metric cards appear in specified order, percentages use two decimals, missing values show localized N/A, and archetype displays Name (N matches).
+- [ ] Activate Match cards and filter tokens on later pages by pointer and keyboard; confirm Tournament navigation and filtering still work.
