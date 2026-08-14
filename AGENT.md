@@ -11,6 +11,9 @@ Angular single-page PWA with three surfaces: the public **Event** calendar peopl
 exports Gones source-data backups and edits League source data. Backed by an ASP.NET API and
 PostgreSQL.
 
+Release state: Gones is unreleased and has no production environment. Local data may be reset or
+reshaped without production migration guarantees until this statement is explicitly replaced.
+
 The calendar record is an **Event**, never a "scheduled tournament" — that term is retired (ADR
 0035). A tournament in this repository is either an archive result (ADR 0022) or a Live Tournament
 (ADR 0021).
