@@ -166,6 +166,24 @@ decoration — it is the user-facing form of this rule.</p>
   new ADR, not a refactor.
 </div>
 
+<h2>Explicit staged Tournament edits</h2>
+
+<p>Archive Tournament detail is read-only by default. An authorized Power User enters one explicit
+edit session; name, date, same-authority League target, rounds, entries/imports, and archetypes mutate
+one browser-memory draft. No adapter call occurs before confirmed <strong>Save Changes</strong>.</p>
+
+<div class="flow">
+  <div>Edit → clone authoritative League into one draft</div>
+  <div>Cancel dirty draft → confirmation → discard without repository call</div>
+  <div>Save empty diff → exit edit mode without repository call</div>
+  <div>Save dirty diff → one summary dialog → one saveTournamentEdits() batch</div>
+  <div>validation / network / 412 → preserve draft; never auto-merge or retry</div>
+  <div>Reload Latest cancel → keep draft; confirm → reload authoritative versions, discard, exit</div>
+</div>
+
+<p>The League selector contains active destinations from the source League's authority only. Whole
+Tournament and League deletion remain separate header actions with separate confirmations.</p>
+
 <h2>What "the database always prevails" means here</h2>
 
 <p>It is a command discipline, not a background reconciler:</p>

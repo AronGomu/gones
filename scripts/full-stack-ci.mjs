@@ -70,6 +70,10 @@ try {
     if (powerUserGating.status !== 0) process.exitCode = powerUserGating.status ?? 1;
   }
   if (!process.exitCode) {
+    const archiveStagedEdit = runCypress('cypress/e2e/archive-staged-edit.cy.js');
+    if (archiveStagedEdit.status !== 0) process.exitCode = archiveStagedEdit.status ?? 1;
+  }
+  if (!process.exitCode) {
     const serverAuthority = runCypress('cypress/e2e/server-data-authority.cy.js');
     if (serverAuthority.status !== 0) process.exitCode = serverAuthority.status ?? 1;
   }

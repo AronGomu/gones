@@ -51,6 +51,25 @@ function mockLeagueServer() {
     league.tournaments.push({ id: `tournament-${next++}`, leagueId: league.id, name: req.body.name, tournamentDate: req.body.tournamentDate, rounds: [], playerArchetypes: [] });
     req.reply(bump(league));
   }).as('createTournament');
+  cy.intercept('POST', /\/api\/leagues-archive\/[^/]+\/tournaments-archive\/[^/]+\/edit-batch$/, req => {
+    const segments = new URL(req.url).pathname.split('/');
+    const league = find(segments[3]);
+    expect(req.headers['if-match']).to.eq(etag(league.documentVersion));
+    const tournament = league.tournaments.find(item => item.id === segments[5]);
+    if (req.body.editTournament) Object.assign(tournament, req.body.editTournament);
+    const deleteIds = new Set(req.body.deleteRoundIds);
+    const replacements = new Map(req.body.replaceRounds.map(intent => [intent.roundId, intent.entries]));
+    tournament.rounds = tournament.rounds
+      .filter(round => !deleteIds.has(round.id))
+      .map(round => replacements.has(round.id) ? { ...round, entries: replacements.get(round.id) } : round)
+      .concat(req.body.addRounds.map(intent => ({ id: intent.roundId, entries: intent.entries })));
+    for (const intent of req.body.updateArchetypes) {
+      const existing = tournament.playerArchetypes.find(row => row.playerName === intent.playerName);
+      if (existing) existing.archetype = intent.archetype;
+      else tournament.playerArchetypes.push({ playerName: intent.playerName, archetype: intent.archetype });
+    }
+    req.reply({ sourceLeague: bump(league), destinationLeague: null });
+  }).as('editBatch');
   cy.intercept('PATCH', /\/api\/leagues-archive\/[^/]+\/tournaments-archive\/[^/]+$/, req => {
     const segments = new URL(req.url).pathname.split('/');
     const league = find(segments[3]);
@@ -152,18 +171,16 @@ describe('League server command flows', () => {
     cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
     cy.wait('@createTournament');
     cy.location('pathname').should('match', /^\/leagues-archive\/[^/]+\/tournaments-archive\/[^/]+$/);
-    cy.get('h1 button.editable-title').click();
-    cy.get('[data-cy="tournament-archive-detail-name-input"]').clear().type('Server Result{enter}');
-    cy.wait('@editTournament');
+    cy.get('[data-cy="tournament-archive-detail-edit"]').click();
+    cy.get('[data-cy="tournament-archive-detail-name-input"]').clear().type('Server Result');
     cy.contains('button', 'Add Round').click();
-    cy.wait('@addRound');
     cy.contains('mat-expansion-panel', 'Round 1').find('mat-expansion-panel-header').click();
     cy.get('[data-cy="tournament-archive-detail-round-import-input"]').type('1,Alice,Won 2-0,Bob,Control,Tempo', { parseSpecialCharSequences: false });
     cy.contains('button', 'Import Round Data').click();
-    cy.wait('@importRound');
     cy.get('input[aria-label="Round 1, entry 1: player 1"]').clear().type('Alicia');
     cy.document().trigger('keydown', { key: 's', code: 'KeyS', ctrlKey: true, force: true });
-    cy.wait('@editEntry');
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.wait('@editBatch');
     cy.get('[data-cy="ranking-table"]').should('contain', 'Alicia').and('contain', 'Bob');
 
     cy.get('[data-cy="tournament-result-link"]').click();

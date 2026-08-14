@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed by implementation plan `ai_artefacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`. Accept when T8–T13 ship.
+Accepted. Implemented by T8–T13 in `ai_artefacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`.
 
 ## Context
 
@@ -34,6 +34,9 @@ Power preference cannot grant server privilege. ADR 0021/0028 authority boundari
 - Same-authority move only; no sync/cross-authority move.
 - Stale/validation failure writes nothing. 412 preserves draft; discard needs confirmation; no auto-merge.
 - Round/entry deletion summarized once in final save dialog.
+- Empty Save exits edit mode without a repository call. Cancel Edit discards only after confirmation when dirty.
+- Validation, network, and 412 failures retain the single in-memory draft. Reload Latest never merges or retries: cancellation keeps the draft; confirmation reloads authoritative versions, discards it, and exits.
+- A successful same-League batch adopts `sourceLeague`. A move adopts `destinationLeague`, refreshes source readers, and navigates to the destination route.
 
 ## Consequences
 

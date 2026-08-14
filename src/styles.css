@@ -419,12 +419,19 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .settings-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
 .settings-collapsible-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded,
 .settings-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded,
-.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
-.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded,
 .live-player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
 .live-player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded {
   padding-inline: .65rem;
   margin-inline: -.5rem;
+  border-radius: .35rem;
+  background: transparent !important;
+  cursor: pointer;
+  transition: background .18s ease, box-shadow .18s ease, color .18s ease;
+}
+.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
+.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded {
+  padding-inline: 24px;
+  margin-inline: 0;
   border-radius: .35rem;
   background: transparent !important;
   cursor: pointer;
@@ -755,6 +762,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .rounds-section-panel .round-panel.mat-expanded > .mat-expansion-panel-content-wrapper { grid-template-rows: 1fr !important; }
 .tournament-rounds-section { margin-top: 2rem; }
 .tournament-player-archetypes-section { margin-top: 2rem; }
+.tournament-archive-detail-action-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.tournament-archive-detail-edit-actions { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; margin-left: auto; }
 .mat-mdc-menu-panel { min-width: 12rem !important; padding: .35rem; border: 1px solid var(--soot); background: var(--raised-iron) !important; }
 .mat-mdc-menu-panel .mat-mdc-menu-content { padding: 0 !important; }
 .destructive-menu-item { width: 100%; border: 1px solid var(--hot-blood) !important; border-radius: .15rem; background: transparent !important; color: var(--hot-blood) !important; font-weight: 900; }
