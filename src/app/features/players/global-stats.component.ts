@@ -280,6 +280,8 @@ export class GlobalStatsComponent {
   }
 
   formatArchetype(value: PlayerArchetypeUsage | null | undefined): string {
-    return value === null || value === undefined ? '—' : `${value.name} (${value.matchCount} matches)`;
+    return value === null || value === undefined
+      ? '—'
+      : this.i18n.t('player.archetypeMatches', { name: value.name, count: value.matchCount });
   }
 }

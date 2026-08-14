@@ -199,9 +199,20 @@ describe('GlobalStatsComponent — format helpers', () => {
     expect(comp.formatArchetype(undefined)).toBe('—');
   });
 
-  it('formatArchetype returns "Name (N matches)" for a record', () => {
-    const comp = buildComponent();
-    expect(comp.formatArchetype({ name: 'Delver', matchCount: 7 })).toBe('Delver (7 matches)');
+  it('formatArchetype returns localized "Name (N matches)" for a record', () => {
+    const writeLang = (language: 'en' | 'fr') => {
+      localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
+      localStorage.setItem('gones.settings.language', language);
+    };
+
+    writeLang('en');
+    expect(buildComponent().formatArchetype({ name: 'Delver', matchCount: 7 })).toBe('Delver (7 matches)');
+
+    writeLang('fr');
+    expect(buildComponent().formatArchetype({ name: 'Delver', matchCount: 7 })).toBe('Delver (7 matchs)');
+
+    expect(catalogs.en['player.archetypeMatches']).toBe('{name} ({count} matches)');
+    expect(catalogs.fr['player.archetypeMatches']).toBe('{name} ({count} matchs)');
   });
 });
 
