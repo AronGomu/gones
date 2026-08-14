@@ -74,3 +74,8 @@
 - [ ] Enable Power User mode as anonymous visitor; confirm local create, player, round, finalize-download, and delete journeys still work.
 - [ ] Enable Power User mode as Organizer plus Admin; confirm server Live create, settings, players, rounds, checkpoint, finalize/archive, and delete journeys still work under existing role rules.
 - [ ] Toggle Power User mode without reloading auth/profile; confirm anonymous/User stay browser-local plus Organizer/Admin stay server-backed.
+
+## T10 player-stats-domain-parity
+
+- [ ] Open existing Player Statistics page; confirm Nemesis and Rival still display Player Names and their filters still work.
+- [ ] Spot-check existing League and Tournament results; confirm rankings and result calculations remain unchanged.

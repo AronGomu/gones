@@ -39,7 +39,7 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
           <mat-card class="player-stat-card" data-cy="player-stat-card-nemesis">
             <mat-card-content class="player-stat-card__name" data-cy="player-stat-content-nemesis">
               @if (stats().nemesis; as nemesis) {
-                <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" [attr.title]="nemesis" [attr.aria-label]="nemesis" (click)="filterByExact(nemesis)">{{ nemesis }}</button>
+                <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" [attr.title]="nemesis.name" [attr.aria-label]="nemesis.name" (click)="filterByExact(nemesis.name)">{{ nemesis.name }}</button>
               } @else {
                 <span [attr.data-cy]="'stat-nemesis'">{{ i18n.t('common.na') }}</span>
               }
@@ -51,7 +51,7 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
           <mat-card class="player-stat-card" data-cy="player-stat-card-rival">
             <mat-card-content class="player-stat-card__name" data-cy="player-stat-content-rival">
               @if (stats().rival; as rival) {
-                <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival === stats().nemesis" [class.stat-filter-button--rival]="rival !== stats().nemesis" data-cy="stat-rival" [attr.title]="rival" [attr.aria-label]="rival" (click)="filterByExact(rival)">{{ rival }}</button>
+                <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival.name === stats().nemesis?.name" [class.stat-filter-button--rival]="rival.name !== stats().nemesis?.name" data-cy="stat-rival" [attr.title]="rival.name" [attr.aria-label]="rival.name" (click)="filterByExact(rival.name)">{{ rival.name }}</button>
               } @else {
                 <span [attr.data-cy]="'stat-rival'">{{ i18n.t('common.na') }}</span>
               }
@@ -370,9 +370,9 @@ export class PlayerDetailComponent {
 
   opponentTone(name: string): 'nemesis' | 'rival' | null {
     const nemesis = this.stats().nemesis;
-    if (nemesis && nemesis === name) return 'nemesis';
+    if (nemesis?.name === name) return 'nemesis';
     const rival = this.stats().rival;
-    if (rival && rival === name) return 'rival';
+    if (rival?.name === name) return 'rival';
     return null;
   }
 

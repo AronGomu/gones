@@ -17,7 +17,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NodaTime;
-using Testcontainers.PostgreSql;
 using Xunit.Abstractions;
 
 namespace Gones.IntegrationTests;
@@ -30,7 +29,7 @@ namespace Gones.IntegrationTests;
 /// </summary>
 public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Now);
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;

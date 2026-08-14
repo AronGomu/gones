@@ -62,9 +62,9 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
           </div>
         } @else {
           <dl class="live-tournament-meta-fields" data-cy="live-runner-meta-read-only">
-            <div><dt>{{ i18n.t('live.date') }}</dt><dd>{{ i18n.formatDate(live.tournamentDate, { dateStyle: 'medium' }) }}</dd></div>
-            <div><dt>{{ i18n.t('live.swissRoundCount') }}</dt><dd>{{ displayRoundCount(live) }}</dd></div>
-            @if (!localMode) { <div><dt>{{ i18n.t('live.leagueFinalize') }}</dt><dd>{{ selectedLeagueName(live) }}</dd></div> }
+            <div data-cy="live-runner-meta-date-read-only"><dt data-cy="live-runner-meta-date-label-read-only">{{ i18n.t('live.date') }}</dt><dd data-cy="live-runner-meta-date-value-read-only">{{ i18n.formatDate(live.tournamentDate, { dateStyle: 'medium' }) }}</dd></div>
+            <div data-cy="live-runner-meta-round-count-read-only"><dt data-cy="live-runner-meta-round-count-label-read-only">{{ i18n.t('live.swissRoundCount') }}</dt><dd data-cy="live-runner-meta-round-count-value-read-only">{{ displayRoundCount(live) }}</dd></div>
+            @if (!localMode) { <div data-cy="live-runner-meta-league-read-only"><dt data-cy="live-runner-meta-league-label-read-only">{{ i18n.t('live.leagueFinalize') }}</dt><dd data-cy="live-runner-meta-league-value-read-only">{{ selectedLeagueName(live) }}</dd></div> }
           </dl>
         }
       </section>

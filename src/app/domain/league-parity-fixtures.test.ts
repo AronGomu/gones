@@ -14,7 +14,7 @@ import {
   normalizeLeagueNameKey,
   PLACEHOLDER_LEAGUE_ID
 } from './models';
-import { calculatePlayerStatistics } from './player-stats';
+import { calculateGlobalPlayerStatistics, calculatePlayerStatistics } from './player-stats';
 import { calculateLeagueResult, calculateTournamentResult } from './results';
 import { importRoundEntries } from './round-import';
 import { renamePlayerInLeague } from './rename-player';
@@ -100,22 +100,29 @@ function fixtureDocument() {
   });
 
   const statsLeague = createLeague({
-    id: 'stats-league', name: 'Stats', status: 'active', tournaments: [createTournament({
+    id: 'stats-league', name: 'Stats', status: 'completed', tournaments: [createTournament({
       id: 'stats-tournament', leagueId: 'stats-league', name: 'Stats Event', tournamentDate: '2026-01-01',
+      playerArchetypes: [
+        { playerName: 'Alice', archetype: 'Alpha' },
+        { playerName: 'Roster Only', archetype: 'Air' }
+      ],
       rounds: [
         { id: 'sr1', entries: [
-          { kind: 'match', id: 'sm1', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 0, player2Score: 2, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Ice' },
-          { kind: 'match', id: 'sm2', table: '2', player1Name: 'Alice', player2Name: 'Carol', player1Score: 1, player2Score: 2, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Earth' }
+          { kind: 'match', id: 'sm1', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 0, player2Score: 2, player1DeckArchetype: 'Zoo', player2DeckArchetype: 'Ice' },
+          { kind: 'match', id: 'sm2', table: '2', player1Name: 'Alice', player2Name: 'Carol', player1Score: 1, player2Score: 2, player1DeckArchetype: '', player2DeckArchetype: 'Earth' },
+          { kind: 'match', id: 'sm3', table: '3', player1Name: 'Alice', player2Name: 'alice', player1Score: 1, player2Score: 1, player1DeckArchetype: 'Beta', player2DeckArchetype: 'beta' }
         ] },
         { id: 'sr2', entries: [
-          { kind: 'match', id: 'sm3', table: '1', player1Name: 'Bob', player2Name: 'Alice', player1Score: 0, player2Score: 2, player1DeckArchetype: 'Ice', player2DeckArchetype: 'Fire' },
-          { kind: 'bye', id: 'sb1', table: '2', playerName: 'Alice', deckArchetype: 'Fire' }
+          { kind: 'match', id: 'sm4', table: '1', player1Name: 'Bob', player2Name: 'Alice', player1Score: 0, player2Score: 2, player1DeckArchetype: 'Ice', player2DeckArchetype: 'Gamma' },
+          { kind: 'match', id: 'sm5', table: '2', player1Name: 'Carol', player2Name: 'Alice', player1Score: 0, player2Score: 2, player1DeckArchetype: 'Earth', player2DeckArchetype: 'Delta' },
+          { kind: 'bye', id: 'sb1', table: '3', playerName: 'Alice', deckArchetype: 'Ignored' },
+          { kind: 'bye', id: 'sb2', table: '4', playerName: 'Bye Only', deckArchetype: 'Earth' }
         ] }
       ]
     })]
   });
   const otherStatsLeague = createLeague({
-    id: 'other-league', name: 'Other', status: 'completed', tournaments: [createTournament({
+    id: 'other-league', name: 'Other', status: 'active', tournaments: [createTournament({
       id: 'other-tournament', leagueId: 'other-league', name: 'Other Event', tournamentDate: '2025-01-01',
       rounds: [{ id: 'or1', entries: [{ kind: 'match', id: 'om1', table: '1', player1Name: 'Alice', player2Name: 'Zed', player1Score: 0, player2Score: 2, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
     })]
@@ -164,6 +171,7 @@ function fixtureDocument() {
       { input: { data: statsData, playerName: 'Alice', filters: { leagueId: 'stats-league', opponentName: ' BO ' } }, expected: calculatePlayerStatistics(statsData, 'Alice', { leagueId: 'stats-league', opponentName: ' BO ' }) },
       { input: { data: statsData, playerName: 'Nobody', filters: { tournamentId: 'missing' } }, expected: calculatePlayerStatistics(statsData, 'Nobody', { tournamentId: 'missing' }) }
     ],
+    globalPlayerStatistics: [{ input: statsData, expected: calculateGlobalPlayerStatistics(statsData) }],
     renames: [{ input: { league: renameLeague, fromName: ' alice ', toName: 'Bob' }, expected: renamePlayerInLeague(renameLeague, ' alice ', 'Bob') }],
     placeholders: [{
       input: { id: PLACEHOLDER_LEAGUE_ID, name: 'Tournois non assignés', status: 'finished' },
@@ -212,6 +220,7 @@ function manifest(parityJson: string, document: ReturnType<typeof fixtureDocumen
       tournamentResults: document.tournamentResults.length,
       leagueResults: document.leagueResults.length,
       playerStatistics: document.playerStatistics.length,
+      globalPlayerStatistics: document.globalPlayerStatistics.length,
       renames: document.renames.length,
       placeholders: document.placeholders.length
     }

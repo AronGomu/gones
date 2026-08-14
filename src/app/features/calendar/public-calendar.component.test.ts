@@ -21,6 +21,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AuthService } from '../../auth/auth.service';
 import { PublicEventView, shiftMonth } from './public-calendar';
 import { UserProfileResponse } from '../../api/generated/gones-api';
@@ -143,6 +144,7 @@ function setup(options: {
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
     { provide: AuthService, useValue: auth },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
@@ -352,8 +354,8 @@ describe('PublicCalendarComponent', () => {
     expect(component.canCreateEvent()).toBe(false);
   });
 
-  it('shows the create button when signed in with a verified email', () => {
-    const { component } = setup({ profile: verifiedUserProfile });
+  it('shows the create button for a verified organizer', () => {
+    const { component } = setup({ profile: { ...verifiedUserProfile, globalRole: 'Organizer' } });
     expect(component.canCreateEvent()).toBe(true);
   });
 });

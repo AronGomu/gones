@@ -15,7 +15,6 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
@@ -26,7 +25,7 @@ namespace Gones.IntegrationTests;
 public sealed class PerformanceBudgetTests : IAsyncLifetime
 {
     private const int SeededTournaments = 120;
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private readonly CommandCountingInterceptor commands = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;

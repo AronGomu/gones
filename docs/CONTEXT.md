@@ -111,9 +111,21 @@ _Avoid_: Played matches
 The share of played non-bye Matches won by a Player Name, with draws counted as non-wins.
 _Avoid_: Winrate when game winrate is meant
 
+**Played Game Count**:
+The sum of game wins and game losses in played non-bye Matches. Individual game draws are not recorded.
+_Avoid_: Match count
+
 **Game Winrate**:
 The share of counted games won by a Player Name in played non-bye Matches.
 _Avoid_: Winrate when match winrate is meant
+
+**Most Played Archetype**:
+The Deck Archetype used by a selected Player Name in the most Matches, with alphabetical Player Archetype name order breaking ties.
+_Avoid_: Favorite deck
+
+**Global Player Statistics**:
+Derived Player Statistics rows from valid Matches in Completed Leagues. Position is assigned by the API or UI later.
+_Avoid_: Stored global ranking
 
 **Nemesis**:
 The opposing Player Name with the most Match wins against a selected Player Name.
@@ -427,19 +439,26 @@ _Avoid_: Migration, deployment
 - **Played Match Count** excludes Byes
 - **Match Assignment Count** includes Byes
 - **Player Statistics** show Played Match Count and Bye Count as primary counts
+- **Player Statistics** record Match wins, losses, and draws separately
+- **Played Game Count** equals game wins plus game losses
 - **Match Assignment Count** is helper language, not a primary statistic
 - **Player Statistics** include both **Match Winrate** and **Game Winrate**
 - Draws count as non-wins in **Match Winrate**
-- Individual drawn games are ignored in **Game Winrate**
+- Individual drawn games are ignored in **Played Game Count** and **Game Winrate**
 - **Match Winrate** and **Game Winrate** are N/A when they have no denominator
 - **Match Winrate** and **Game Winrate** display as percentages with 2 decimal places when defined
 - **Player Statistics** use raw percentages without tiebreaker floors
-- **Nemesis** excludes Byes
-- **Nemesis** ties are broken by the selected Player Name's worst Match Winrate against the tied opponents, then opposing Player Name
-- **Rival** excludes Byes
-- **Rival** ties are broken by most recent Match, then opposing Player Name
-- Most recent Match is determined by Tournament date, then Round order, then Match order
-- Dated Tournaments are more recent than undated Tournaments for recency comparisons
+- **Nemesis** excludes Byes and is the opponent with the most wins against the selected Player Name
+- **Nemesis** and **Rival** records expose wins and losses from the selected Player Name's perspective
+- **Nemesis** ties are broken by opposing Player Name in alphabetical ascending order
+- **Rival** excludes Byes and is the opponent with the most played Matches against the selected Player Name
+- **Rival** ties are broken by opposing Player Name in alphabetical ascending order
+- **Most Played Archetype** counts the selected side's Match Deck Archetype once per Match, falls back to that Tournament's roster when blank, and omits the Match when both are blank
+- **Most Played Archetype** ties are broken by Deck Archetype name in alphabetical ascending order
+- These alphabetical tie rules are the user-confirmed future-recommendation override and supersede the previous worst-rate and recency recommendations
+- **Global Player Statistics** include valid Match participants from Completed Leagues only
+- Byes and roster-only Player Names do not create **Global Player Statistics** rows or affect Global performance
+- Active League Matches do not contribute to **Global Player Statistics**
 - A **Tournament Result** is recalculated from the Tournament's Rounds after relevant data changes
 - A **League Result** is recalculated from Tournament Results after relevant data changes
 - An **Incomplete Tournament** may still produce a **Provisional Result**
@@ -631,16 +650,13 @@ _Avoid_: Migration, deployment
 > **Domain expert:** "No - **Player Statistics** use raw percentages."
 >
 > **Dev:** "If two opponents beat Alice the same number of times, who is Alice's **Nemesis**?"
-> **Domain expert:** "The opponent Alice has the worse **Match Winrate** against; if still tied, use Player Name order."
+> **Domain expert:** "Use the opposing Player Name that sorts first alphabetically."
 >
 > **Dev:** "If Alice played Bob and Claire the same number of times, who is Alice's **Rival**?"
-> **Domain expert:** "The opponent from the most recent Match; if still tied, use Player Name order."
->
-> **Dev:** "How does Gones decide which tied Rival is more recent?"
-> **Domain expert:** "Use Tournament date first, then **Round** order, then Match order."
+> **Domain expert:** "Use the opposing Player Name that sorts first alphabetically."
 >
 > **Dev:** "Can a Tournament have no date?"
-> **Domain expert:** "Yes - **Tournament Date** is optional, but dated Tournaments sort as more recent than undated ones."
+> **Domain expert:** "Yes - **Tournament Date** is optional."
 >
 > **Dev:** "Does a League end date exclude later Tournaments?"
 > **Domain expert:** "No - League dates are descriptive. A **Tournament** counts when it belongs to the **League**."

@@ -8,13 +8,12 @@ using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class TournamentSchedulerTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Instant.FromUtc(2030, 1, 1, 0, 0));
     private SeedRows seed = null!;
 

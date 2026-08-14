@@ -8,7 +8,6 @@ using Gones.Infrastructure.MigrationImport;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
@@ -18,7 +17,7 @@ namespace Gones.IntegrationTests;
 /// </summary>
 public sealed class MigrationImportServiceTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private static readonly Instant Now = Instant.FromUtc(2026, 8, 1, 12, 0);
     private const string SourceInstanceId = "11111111-1111-4111-8111-111111111111";
 

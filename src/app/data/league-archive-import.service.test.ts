@@ -14,6 +14,7 @@ import { GlobalRole } from './league-archive-command-ux';
 import { isLocalLeagueId, LOCAL_LEAGUE_ID_PREFIX } from './league-archive-origin';
 import { LeagueArchiveImportService } from './league-archive-import.service';
 import { LeagueArchiveRepository } from './league-archive-repository.service';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
  * ADR 0028 — an imported bundle carries no authority of its own: it lands in whichever store the
@@ -88,6 +89,7 @@ function setup(role?: GlobalRole) {
     { provide: LocalLeagueArchiveBackend, useValue: local },
     { provide: AuthService, useValue: auth },
     { provide: SERVER_READ_CACHE_STORE_PORT, useValue: cacheStore },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     SessionScopeService,
     ServerReadCacheService
   ] });

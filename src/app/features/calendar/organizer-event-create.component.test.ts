@@ -18,6 +18,7 @@ import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, UserProfileResponse } from '../../api/generated/gones-api';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
@@ -41,6 +42,7 @@ function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEvent
     { provide: MatDialog, useValue: {} },
     { provide: AuthService, useValue: auth },
     { provide: EventProposalService, useValue: {} },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });

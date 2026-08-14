@@ -66,6 +66,10 @@ try {
     if (firstVisit.status !== 0) process.exitCode = firstVisit.status ?? 1;
   }
   if (!process.exitCode) {
+    const powerUserGating = runCypress('cypress/e2e/power-user-gating.cy.js');
+    if (powerUserGating.status !== 0) process.exitCode = powerUserGating.status ?? 1;
+  }
+  if (!process.exitCode) {
     const serverAuthority = runCypress('cypress/e2e/server-data-authority.cy.js');
     if (serverAuthority.status !== 0) process.exitCode = serverAuthority.status ?? 1;
   }

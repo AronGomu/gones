@@ -11,72 +11,216 @@ export interface PlayerMatch {
   opponentScore: number;
 }
 
+export interface OpponentRecord {
+  name: string;
+  wins: number;
+  losses: number;
+}
+
+export interface PlayerArchetypeUsage {
+  name: string;
+  matchCount: number;
+}
+
 export interface PlayerStatistics {
   playerName: string;
   playedMatchCount: number;
   byeCount: number;
   matchWins: number;
+  matchLosses: number;
+  matchDraws: number;
+  playedGameCount: number;
   gameWins: number;
   gameLosses: number;
   matchWinrate: number | null;
   gameWinrate: number | null;
-  nemesis: string | null;
-  rival: string | null;
+  nemesis: OpponentRecord | null;
+  rival: OpponentRecord | null;
+  mostPlayedArchetype: PlayerArchetypeUsage | null;
   matches: PlayerMatch[];
 }
 
-export function calculatePlayerStatistics(data: GonesData, playerName: string, filters: { leagueId?: string; tournamentId?: string; opponentName?: string } = {}): PlayerStatistics {
-  const selectedName = String(playerName ?? '');
-  const stats: PlayerStatistics = { playerName: selectedName, playedMatchCount: 0, byeCount: 0, matchWins: 0, gameWins: 0, gameLosses: 0, matchWinrate: null, gameWinrate: null, nemesis: null, rival: null, matches: [] };
-  const lossesByOpponent = new Map<string, number>();
-  const matchesByOpponent = new Map<string, number>();
+export interface GlobalPlayerStatistics {
+  playerName: string;
+  playedMatchCount: number;
+  matchWins: number;
+  matchLosses: number;
+  matchDraws: number;
+  matchWinrate: number | null;
+  playedGameCount: number;
+  gameWins: number;
+  gameLosses: number;
+  gameWinrate: number | null;
+  nemesis: OpponentRecord | null;
+  rival: OpponentRecord | null;
+  mostPlayedArchetype: PlayerArchetypeUsage | null;
+}
 
+interface OpponentAccumulator extends OpponentRecord {
+  matchCount: number;
+}
+
+interface StatisticsAccumulator {
+  stats: PlayerStatistics;
+  opponents: Map<string, OpponentAccumulator>;
+  archetypes: Map<string, number>;
+}
+
+export function calculatePlayerStatistics(data: GonesData, playerName: string, filters: { leagueId?: string; tournamentId?: string; opponentName?: string } = {}): PlayerStatistics {
+  const accumulator = createStatisticsAccumulator(trimPlayerName(playerName));
+  for (const league of data.leagues ?? []) collectLeagueStatistics(accumulator, league, filters);
+  return finalizeStatistics(accumulator);
+}
+
+export function calculateGlobalPlayerStatistics(data: GonesData): GlobalPlayerStatistics[] {
+  const accumulators = new Map<string, StatisticsAccumulator>();
   for (const league of data.leagues ?? []) {
-    if (filters.leagueId && league.id !== filters.leagueId) continue;
+    if (league.status !== 'completed') continue;
     for (const tournament of league.tournaments ?? []) {
-      if (filters.tournamentId && tournament.id !== filters.tournamentId) continue;
       for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
         for (const entry of round.entries ?? []) {
-          if (!validateRoundEntry(entry).valid) continue;
-          if (entry.kind === 'bye' && entry.playerName === selectedName) {
-            stats.byeCount += 1;
-            stats.matches.push({ kind: 'bye', league, tournament, roundIndex, opponentName: 'Bye', ownScore: 2, opponentScore: 0 });
-            continue;
-          }
-          if (entry.kind !== 'match') continue;
-          collectMatchStats(stats, entry, selectedName, { league, tournament, roundIndex }, filters, lossesByOpponent, matchesByOpponent);
+          if (entry.kind !== 'match' || !validateRoundEntry(entry).valid) continue;
+          collectMatchStats(ensureAccumulator(entry.player1Name), entry, 'player1', { league, tournament, roundIndex });
+          collectMatchStats(ensureAccumulator(entry.player2Name), entry, 'player2', { league, tournament, roundIndex });
         }
       }
     }
   }
 
-  stats.matchWinrate = stats.playedMatchCount ? stats.matchWins / stats.playedMatchCount : null;
-  stats.gameWinrate = stats.gameWins + stats.gameLosses ? stats.gameWins / (stats.gameWins + stats.gameLosses) : null;
-  stats.nemesis = topName(lossesByOpponent, 'name');
-  stats.rival = topName(matchesByOpponent, 'last');
-  return stats;
+  return [...accumulators.values()]
+    .map(finalizeStatistics)
+    .filter((stats) => stats.playedMatchCount > 0)
+    .map((stats): GlobalPlayerStatistics => ({
+      playerName: stats.playerName,
+      playedMatchCount: stats.playedMatchCount,
+      matchWins: stats.matchWins,
+      matchLosses: stats.matchLosses,
+      matchDraws: stats.matchDraws,
+      matchWinrate: stats.matchWinrate,
+      playedGameCount: stats.playedGameCount,
+      gameWins: stats.gameWins,
+      gameLosses: stats.gameLosses,
+      gameWinrate: stats.gameWinrate,
+      nemesis: stats.nemesis,
+      rival: stats.rival,
+      mostPlayedArchetype: stats.mostPlayedArchetype,
+    }))
+    .sort((left, right) => compareOrdinal(left.playerName, right.playerName));
+
+  function ensureAccumulator(playerName: string): StatisticsAccumulator {
+    const name = trimPlayerName(playerName);
+    let accumulator = accumulators.get(name);
+    if (!accumulator) {
+      accumulator = createStatisticsAccumulator(name);
+      accumulators.set(name, accumulator);
+    }
+    return accumulator;
+  }
 }
 
-function collectMatchStats(stats: PlayerStatistics, entry: MatchRoundEntry, selectedName: string, context: { league: LeagueDocument; tournament: TournamentDocument; roundIndex: number }, filters: { opponentName?: string }, lossesByOpponent: Map<string, number>, matchesByOpponent: Map<string, number>): void {
-  const side = entry.player1Name === selectedName ? 'player1' : entry.player2Name === selectedName ? 'player2' : null;
-  if (!side) return;
-  const opponentName = side === 'player1' ? entry.player2Name : entry.player1Name;
-  if (filters.opponentName && !includesNormalized(opponentName, filters.opponentName)) return;
+function createStatisticsAccumulator(playerName: string): StatisticsAccumulator {
+  return {
+    stats: {
+      playerName,
+      playedMatchCount: 0,
+      byeCount: 0,
+      matchWins: 0,
+      matchLosses: 0,
+      matchDraws: 0,
+      playedGameCount: 0,
+      gameWins: 0,
+      gameLosses: 0,
+      matchWinrate: null,
+      gameWinrate: null,
+      nemesis: null,
+      rival: null,
+      mostPlayedArchetype: null,
+      matches: [],
+    },
+    opponents: new Map(),
+    archetypes: new Map(),
+  };
+}
+
+function collectLeagueStatistics(accumulator: StatisticsAccumulator, league: LeagueDocument, filters: { leagueId?: string; tournamentId?: string; opponentName?: string }): void {
+  if (filters.leagueId && league.id !== filters.leagueId) return;
+  for (const tournament of league.tournaments ?? []) {
+    if (filters.tournamentId && tournament.id !== filters.tournamentId) continue;
+    for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
+      for (const entry of round.entries ?? []) {
+        if (!validateRoundEntry(entry).valid) continue;
+        if (entry.kind === 'bye' && trimPlayerName(entry.playerName) === accumulator.stats.playerName) {
+          accumulator.stats.byeCount += 1;
+          accumulator.stats.matches.push({ kind: 'bye', league, tournament, roundIndex, opponentName: 'Bye', ownScore: 2, opponentScore: 0 });
+          continue;
+        }
+        if (entry.kind !== 'match') continue;
+        const side = trimPlayerName(entry.player1Name) === accumulator.stats.playerName ? 'player1' : trimPlayerName(entry.player2Name) === accumulator.stats.playerName ? 'player2' : null;
+        if (!side) continue;
+        const opponentName = trimPlayerName(side === 'player1' ? entry.player2Name : entry.player1Name);
+        if (filters.opponentName && !includesNormalized(opponentName, filters.opponentName)) continue;
+        collectMatchStats(accumulator, entry, side, { league, tournament, roundIndex });
+      }
+    }
+  }
+}
+
+function collectMatchStats(accumulator: StatisticsAccumulator, entry: MatchRoundEntry, side: 'player1' | 'player2', context: { league: LeagueDocument; tournament: TournamentDocument; roundIndex: number }): void {
+  const stats = accumulator.stats;
+  const opponentName = trimPlayerName(side === 'player1' ? entry.player2Name : entry.player1Name);
   const ownScore = side === 'player1' ? entry.player1Score : entry.player2Score;
   const opponentScore = side === 'player1' ? entry.player2Score : entry.player1Score;
+  const opponent = accumulator.opponents.get(opponentName) ?? { name: opponentName, wins: 0, losses: 0, matchCount: 0 };
   stats.playedMatchCount += 1;
   stats.gameWins += ownScore;
   stats.gameLosses += opponentScore;
-  if (ownScore > opponentScore) stats.matchWins += 1;
-  if (ownScore < opponentScore) lossesByOpponent.set(opponentName, (lossesByOpponent.get(opponentName) ?? 0) + 1);
-  matchesByOpponent.set(opponentName, (matchesByOpponent.get(opponentName) ?? 0) + 1);
+  if (ownScore > opponentScore) {
+    stats.matchWins += 1;
+    opponent.wins += 1;
+  } else if (ownScore < opponentScore) {
+    stats.matchLosses += 1;
+    opponent.losses += 1;
+  } else {
+    stats.matchDraws += 1;
+  }
+  opponent.matchCount += 1;
+  accumulator.opponents.set(opponentName, opponent);
+  const archetype = selectedArchetype(entry, side, context.tournament, stats.playerName);
+  if (archetype) accumulator.archetypes.set(archetype, (accumulator.archetypes.get(archetype) ?? 0) + 1);
   stats.matches.push({ kind: 'match', ...context, opponentName, ownScore, opponentScore });
 }
 
-function topName(map: Map<string, number>, tieBreak: 'name' | 'last'): string | null {
-  const entries = [...map.entries()];
-  if (!entries.length) return null;
-  return entries.sort((a, b) => b[1] - a[1] || (tieBreak === 'name' ? a[0].localeCompare(b[0]) : 0)).at(0)?.[0] ?? null;
+function finalizeStatistics(accumulator: StatisticsAccumulator): PlayerStatistics {
+  const stats = accumulator.stats;
+  stats.playedGameCount = stats.gameWins + stats.gameLosses;
+  stats.matchWinrate = stats.playedMatchCount ? stats.matchWins / stats.playedMatchCount : null;
+  stats.gameWinrate = stats.playedGameCount ? stats.gameWins / stats.playedGameCount : null;
+  stats.nemesis = topOpponent(accumulator.opponents, (record) => record.losses, true);
+  stats.rival = topOpponent(accumulator.opponents, (record) => record.matchCount);
+  stats.mostPlayedArchetype = topArchetype(accumulator.archetypes);
+  return stats;
+}
+
+function topOpponent(map: Map<string, OpponentAccumulator>, value: (record: OpponentAccumulator) => number, requirePositive = false): OpponentRecord | null {
+  const records = [...map.values()].filter((record) => !requirePositive || value(record) > 0);
+  if (!records.length) return null;
+  const top = records.sort((left, right) => value(right) - value(left) || compareOrdinal(left.name, right.name))[0];
+  return { name: top.name, wins: top.wins, losses: top.losses };
+}
+
+function topArchetype(map: Map<string, number>): PlayerArchetypeUsage | null {
+  const top = [...map.entries()].sort((left, right) => right[1] - left[1] || compareOrdinal(left[0], right[0]))[0];
+  return top ? { name: top[0], matchCount: top[1] } : null;
+}
+
+function selectedArchetype(entry: MatchRoundEntry, side: 'player1' | 'player2', tournament: TournamentDocument, playerName: string): string {
+  const matchArchetype = (side === 'player1' ? entry.player1DeckArchetype : entry.player2DeckArchetype).trim();
+  if (matchArchetype) return matchArchetype;
+  return tournament.playerArchetypes.find((row) => trimPlayerName(row.playerName) === playerName)?.archetype.trim() ?? '';
+}
+
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function includesNormalized(value: string, search: string): boolean {

@@ -14,14 +14,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class LocalIdentityApiTests : IAsyncLifetime
 {
     private const string SigningKey = "c08-local-integration-signing-key-with-more-than-32-characters";
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
 

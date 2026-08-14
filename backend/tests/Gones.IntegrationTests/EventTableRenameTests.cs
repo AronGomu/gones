@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using NodaTime;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
@@ -45,7 +44,7 @@ public sealed class EventTableRenameTests : IAsyncLifetime
         "consumed_tournament_preview_tickets"
     ];
 
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
 
     public Task InitializeAsync() => postgres.StartAsync();
 

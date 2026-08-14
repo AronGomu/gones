@@ -22,6 +22,7 @@ import { LiveTournamentRepository } from './data/live-tournament-repository.serv
 import { I18nService } from './i18n/i18n.service';
 import { translate } from './i18n/messages';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from './shared/power-user-settings.service';
 
 describe('buildBreadcrumbs', () => {
   it('builds the account page breadcrumb with Settings linked back to /settings', async () => {
@@ -119,6 +120,7 @@ describe('header import visibility', () => {
       { provide: LeagueArchiveRepository, useValue: { getLeague: vi.fn(async () => null) } },
       { provide: LiveTournamentRepository, useValue: { get: vi.fn(async () => null) } },
       { provide: MatDialog, useValue: { open: vi.fn() } },
+      { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
       DeckArchetypeSettingsService,
       I18nService
     ] });

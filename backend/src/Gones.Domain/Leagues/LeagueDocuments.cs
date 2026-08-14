@@ -108,15 +108,38 @@ public sealed record PlayerMatch(
     int OwnScore,
     int OpponentScore);
 
+public sealed record OpponentRecord(string Name, int Wins, int Losses);
+
+public sealed record PlayerArchetypeUsage(string Name, int MatchCount);
+
 public sealed record PlayerStatistics(
     string PlayerName,
     int PlayedMatchCount,
     int ByeCount,
     int MatchWins,
+    int MatchLosses,
+    int MatchDraws,
+    int PlayedGameCount,
     int GameWins,
     int GameLosses,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? MatchWinrate,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? GameWinrate,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Nemesis,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? Rival,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] OpponentRecord? Nemesis,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] OpponentRecord? Rival,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] PlayerArchetypeUsage? MostPlayedArchetype,
     IReadOnlyList<PlayerMatch> Matches);
+
+public sealed record GlobalPlayerStatistics(
+    string PlayerName,
+    int PlayedMatchCount,
+    int MatchWins,
+    int MatchLosses,
+    int MatchDraws,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? MatchWinrate,
+    int PlayedGameCount,
+    int GameWins,
+    int GameLosses,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? GameWinrate,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] OpponentRecord? Nemesis,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] OpponentRecord? Rival,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] PlayerArchetypeUsage? MostPlayedArchetype);
