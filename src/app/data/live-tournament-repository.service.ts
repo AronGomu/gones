@@ -2,6 +2,7 @@ import { Inject, inject, Injectable, signal } from '@angular/core';
 import { LIVE_BACKEND, LIVE_BACKEND_MODE, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand } from '../backend/application-backend';
 import { ServerReadCacheService } from '../backend/server-read-cache.service';
 import { LiveTournamentDocument } from '../domain/live-tournament';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
  * Facade over the Live Tournament backend port. Every mutation is an explicit server intent command
@@ -12,6 +13,7 @@ import { LiveTournamentDocument } from '../domain/live-tournament';
 export class LiveTournamentRepository {
   private readonly mode = inject(LIVE_BACKEND_MODE);
   private readonly cache = inject(ServerReadCacheService);
+  private readonly power = inject(PowerUserSettingsService);
 
   /** Last server list/detail answer came from this user's offline cache. Local mode never sets these. */
   readonly listStale = signal(false);
@@ -105,6 +107,7 @@ export class LiveTournamentRepository {
   }
 
   private async freshMutation<T>(action: () => Promise<T>): Promise<T> {
+    this.power.requireEnabled();
     const result = await action();
     this.detailStale.set(false);
     return result;

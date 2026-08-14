@@ -57,9 +57,15 @@ describe('calendar routes', () => {
 
 describe('route exposure per capability flag', () => {
   it('always serves the public browsing, League archive, Live and Settings surface', () => {
-    for (const path of ['', 'about', 'calendar', 'events/:slug', 'leagues-archive', 'live-tournaments', 'settings']) {
+    for (const path of ['', 'about', 'calendar', 'events/:slug', 'leagues-archive', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
       expect(paths(noCapabilities)).toContain(path);
     }
+  });
+
+  it('guards only the Live create route with the Power User gate', () => {
+    expect(routeFor('live-tournaments/new')?.canActivate).toEqual([powerUserGuard]);
+    expect(routeFor('live-tournaments')?.canActivate).toBeUndefined();
+    expect(routeFor('live-tournaments/:liveTournamentId')?.canActivate).toBeUndefined();
   });
 
   it('exposes the auth, registration, organizer and admin surface when the flags are on', () => {

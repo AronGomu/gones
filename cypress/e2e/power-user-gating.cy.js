@@ -21,6 +21,12 @@ const publicEvent = {
   playerCount: 0
 };
 const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00Z' };
+const serverLive = {
+  id: 'live-power', name: 'Server Power Cup', leagueId: '', tournamentDate: '2026-08-13', type: 'swiss',
+  roundCount: 3, customRoundCount: false, paidTrackingEnabled: true, pairingSeed: 1, firstRoundPlayerOrder: [],
+  stage: 'registration', currentRoundNumber: 0, players: [{ id: 'player-1', name: 'Alice', paid: false, dropped: false, initialWins: 0, initialDraws: 0, initialLosses: 0, archetype: '' }],
+  rounds: [], checkpoints: [], documentVersion: 1, createdAt: '2026-08-13T10:00:00Z', updatedAt: '2026-08-13T10:00:00Z'
+};
 
 function seed(win, enabled) {
   win.localStorage.setItem('gones.settings.language', 'en');
@@ -45,7 +51,7 @@ function stubPublicEvents(items = []) {
   cy.intercept('GET', '**/api/events/all*', { items, page: 1, pageSize: 100, totalCount: items.length }).as('publicEvents');
 }
 
-describe('Power User Event and League gates', () => {
+describe('Power User Event, League and Live gates', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
   it('persists signed-out opt-in, keeps Archive reads/exports visible, and gates local mutations', () => {
@@ -111,5 +117,74 @@ describe('Power User Event and League gates', () => {
     cy.wait('@publicEvents');
     cy.get('[data-cy="calendar-card-register"]').should('be.visible');
     cy.get('[data-cy="calendar-create-event"]').should('not.exist');
+  });
+
+  it('keeps an anonymous local Live detail readable while mutations are off', () => {
+    signedOut();
+    visit('/live-tournaments', true);
+    cy.get('[data-cy="create-running-tournament-card"]').click();
+    cy.location('pathname').should('match', /^\/live-tournaments\/.+$/);
+    cy.get('[data-cy="live-tournament-name-input"]').clear().type('Local Power Cup').blur();
+    cy.contains('h1', 'Local Power Cup').should('be.visible');
+    cy.wait(600);
+
+    cy.window().then((win) => win.localStorage.setItem(POWER_KEY, 'false'));
+    cy.reload();
+    cy.contains('h1', 'Local Power Cup').should('be.visible');
+    cy.get('[data-cy="live-read-only"]').should('be.visible');
+    cy.get('[data-cy="live-tournament-advanced-settings-button"]').should('not.exist');
+    cy.get('[data-cy="live-runner-meta-fields"]').should('not.exist');
+    cy.get('[data-cy="live-add-player-card"]').should('not.exist');
+    cy.get('[data-cy="live-start-tournament-button"]').should('not.exist');
+
+    cy.visit('/live-tournaments/new');
+    cy.location('pathname').should('eq', '/live-tournaments');
+    cy.contains('[data-cy="running-tournament-card"]', 'Local Power Cup').should('exist');
+    cy.get('[data-cy="create-running-tournament-card"]').should('not.exist');
+
+    cy.window().then((win) => win.localStorage.setItem(POWER_KEY, 'true'));
+    cy.reload();
+    cy.get('[data-cy="create-running-tournament-card"]').should('exist');
+  });
+
+  it('keeps Organizer server Live reads available without allowing a mutation', () => {
+    organizer();
+    const mutationCalls = [];
+    cy.intercept('GET', /\/api\/leagues-archive\?.*/, { items: [], page: 1, pageSize: 100, totalCount: 0 });
+    cy.intercept('GET', /\/api\/live-tournaments\?.*/, {
+      items: [{ id: serverLive.id, name: serverLive.name, tournamentDate: serverLive.tournamentDate, stage: serverLive.stage, updatedAt: serverLive.updatedAt, documentVersion: serverLive.documentVersion }],
+      page: 1, pageSize: 100, totalCount: 1
+    });
+    cy.intercept('GET', '**/api/live-tournaments/live-power/document', { document: serverLive, documentVersion: 1, serverUpdatedAt: serverLive.updatedAt });
+    for (const method of ['POST', 'PATCH', 'DELETE']) {
+      cy.intercept(method, /\/api\/live-tournaments(?:\/|$)/, (req) => {
+        mutationCalls.push(`${req.method} ${req.url}`);
+        req.reply({ statusCode: 500, body: { code: 'must_not_happen', message: 'Power gate failed.' } });
+      });
+    }
+
+    visit('/live-tournaments/live-power', false);
+    cy.contains('h1', 'Server Power Cup').should('be.visible');
+    cy.get('[data-cy="live-read-only"]').should('be.visible');
+    cy.get('[data-cy="live-player-name-read-only"]').should('contain', 'Alice');
+    cy.get('[data-cy="live-player-paid-read-only"]').should('be.visible');
+    cy.get('[data-cy="live-tournament-advanced-settings-button"]').should('not.exist');
+    cy.get('[data-cy="live-add-player-card"]').should('not.exist');
+    cy.get('[data-cy="live-player-name-input"]').should('not.exist');
+    cy.get('[data-cy="live-player-paid-checkbox"]').should('not.exist');
+    cy.get('[data-cy="live-player-remove-button"]').should('not.exist');
+
+    cy.visit('/live-tournaments/new');
+    cy.location('pathname').should('eq', '/live-tournaments');
+    cy.get('[data-cy="live-list-heading"]').should('be.visible');
+    cy.get('[data-cy="create-running-tournament-card"]').should('not.exist');
+    cy.then(() => expect(mutationCalls, 'Live mutation requests').to.deep.equal([]));
+
+    cy.window().then((win) => win.localStorage.setItem(POWER_KEY, 'true'));
+    cy.reload();
+    cy.get('[data-cy="create-running-tournament-card"]').should('exist');
+    cy.visit('/live-tournaments/live-power');
+    cy.get('[data-cy="live-tournament-advanced-settings-button"]').should('exist');
+    cy.get('[data-cy="live-add-player-card"]').should('exist');
   });
 });

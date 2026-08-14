@@ -14,6 +14,7 @@ import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { I18nService } from '../../i18n/i18n.service';
+import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
@@ -77,6 +78,7 @@ import { I18nService } from '../../i18n/i18n.service';
 export class LiveTournamentListComponent {
   readonly i18n = inject(I18nService);
   private readonly auth = inject(AuthService);
+  private readonly power = inject(PowerUserSettingsService);
   readonly loading = signal(true);
   readonly creating = signal(false);
   readonly error = signal('');
@@ -85,8 +87,9 @@ export class LiveTournamentListComponent {
   readonly runningTournaments = computed(() => this.tournaments().filter((tournament) => tournament.stage !== 'completed'));
   /** Resolved once, with the port itself (ADR 0021): a role change mid-session needs a reload. */
   readonly localMode = inject(LIVE_BACKEND_MODE) === 'browser-local';
-  /** In the browser-local store the visitor owns everything they can see, so they always manage it. */
-  readonly canManage = computed(() => this.localMode || canManageLive(this.auth.profile()?.globalRole));
+  /** In the browser-local store the visitor owns everything they can see, so they have Live authority. */
+  readonly existingAuthorityAllowed = computed(() => this.localMode || canManageLive(this.auth.profile()?.globalRole));
+  readonly canManage = computed(() => canUsePowerMutation(this.power.enabled(), this.existingAuthorityAllowed()));
 
   constructor(readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly router: Router) { void this.load(); }
 
@@ -108,7 +111,7 @@ export class LiveTournamentListComponent {
   }
 
   async createTournament(): Promise<void> {
-    if (this.creating()) return;
+    if (!this.canManage() || this.creating()) return;
     this.creating.set(true);
     try {
       const tournament = await this.liveRepo.create();

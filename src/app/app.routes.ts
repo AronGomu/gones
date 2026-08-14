@@ -93,7 +93,7 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
     { path: 'tournament-requests/:token', pathMatch: 'full', redirectTo: ({ params }) => `/event-requests/${encodeURIComponent(String(params['token'] ?? ''))}` },
     { path: 'leagues-archive', loadComponent: () => import('./features/leagues-archive/league-archive-list.component').then((m) => m.LeagueArchiveListComponent) },
     { path: 'live-tournaments', loadComponent: () => import('./features/live-tournaments/live-tournament-list.component').then((m) => m.LiveTournamentListComponent) },
-    { path: 'live-tournaments/new', loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },
+    { path: 'live-tournaments/new', canActivate: [powerUserGuard], loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },
     { path: 'live-tournaments/:liveTournamentId', loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },
     { path: 'leagues-archive/:leagueId', loadComponent: () => import('./features/leagues-archive/league-archive-detail.component').then((m) => m.LeagueArchiveDetailComponent) },
     { path: 'leagues-archive/:leagueId/tournaments-archive/:tournamentId', loadComponent: () => import('./features/tournaments-archive/tournament-archive-detail.component').then((m) => m.TournamentArchiveDetailComponent) },

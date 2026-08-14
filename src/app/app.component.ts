@@ -38,7 +38,7 @@ interface HeaderTournament {
       <mat-toolbar class="app-toolbar" data-cy="app-toolbar">
         <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')" data-cy="app-brand-link"><img src="assets/gones_logo.png" alt="Gones" data-cy="app-brand-logo"></a>
         <span class="spacer" data-cy="app-header-spacer"></span>
-        @if (showLiveTournamentActions()) {
+        @if (showLiveTournamentActions() && power.enabled()) {
           <div class="header-actions live-tournament-header-actions" data-cy="app-live-tournament-header-actions">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="live-tournament-advanced-settings-button" (click)="openLiveTournamentAdvancedSettings()">{{ i18n.t('header.advancedSettings') }}</button>
           </div>
@@ -178,6 +178,7 @@ export class AppComponent {
   }
 
   openLiveTournamentAdvancedSettings(): void {
+    if (!this.power.enabled()) return;
     window.dispatchEvent(new CustomEvent('gones-open-live-tournament-advanced-settings'));
   }
 
