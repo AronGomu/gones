@@ -10,13 +10,12 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class PublicEventApiTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
     private SeedRows seed = null!;
@@ -51,6 +50,9 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         Assert.Equal(1, filteredBody.GetProperty("totalCount").GetInt32());
         var item = filteredBody.GetProperty("items")[0];
         Assert.Equal("search-cup", item.GetProperty("slug").GetString());
+        Assert.Equal("Pioneer — Search Cup", item.GetProperty("displayTitle").GetString());
+        Assert.False(item.TryGetProperty("liveTournamentUrl", out _));
+        Assert.False(item.TryGetProperty("archiveTournamentUrl", out _));
         Assert.Equal("Europe/Paris", item.GetProperty("timeZoneId").GetString());
         Assert.Equal("2035-03-04", item.GetProperty("venueStartDate").GetString());
         Assert.Equal("10:00:00", item.GetProperty("venueStartTime").GetString());
@@ -90,6 +92,9 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         var etag = detail.Headers.ETag!.ToString();
         var detailBody = await detail.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("<p>Public <strong>body</strong></p>", detailBody.GetProperty("bodyHtml").GetString());
+        Assert.Equal("Pioneer — Search Cup", detailBody.GetProperty("displayTitle").GetString());
+        Assert.Equal("/live/search-cup", detailBody.GetProperty("liveTournamentUrl").GetString());
+        Assert.Equal("https://example.test/archive/search-cup", detailBody.GetProperty("archiveTournamentUrl").GetString());
         Assert.False(detailBody.TryGetProperty("createdByUserId", out _));
         Assert.False(detailBody.TryGetProperty("deletedReason", out _));
 
@@ -192,8 +197,12 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         database.Events.Add(Event.Create(
             alpha.Id,
             user.Id,
-            Draft("Search Cup", "search-cup", new LocalDateTime(2035, 3, 4, 10, 0), "Paris", "Search", "<p>Public <strong>body</strong></p>"),
-            [legacy, pioneer],
+            Draft("Search Cup", "search-cup", new LocalDateTime(2035, 3, 4, 10, 0), "Paris", "Search", "<p>Public <strong>body</strong></p>") with
+            {
+                LiveTournamentUrl = "/live/search-cup",
+                ArchiveTournamentUrl = "https://example.test/archive/search-cup"
+            },
+            [pioneer],
             Now));
         var cancelled = Event.Create(
             alpha.Id,

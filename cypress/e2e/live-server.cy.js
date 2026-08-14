@@ -247,6 +247,7 @@ function mockLiveServer() {
 function seedSettings(win) {
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.power-user', 'true');
 }
 
 function visit(path, { clearLocalStore = false } = {}) {

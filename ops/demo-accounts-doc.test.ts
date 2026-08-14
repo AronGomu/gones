@@ -31,8 +31,23 @@ interface DemoOrganization {
   ownerEmail: string;
 }
 
+interface DemoRegistration {
+  tournamentKey: string;
+  userEmail: string;
+}
+
+const expectedRoster = [
+  'admin-empty@gones.test',
+  'organizer-gones-one-registration@gones.test',
+  'organizer-aura-live-standings@gones.test',
+  'user-four-registrations@gones.test',
+  'user-two-registrations@gones.test',
+  'user-empty@gones.test',
+  'user-unverified@gones.test'
+];
 const accounts = readJson<DemoAccount[]>('fixtures/dev-environments/demo/accounts.json');
 const organizations = readJson<DemoOrganization[]>('fixtures/dev-environments/demo/organizations.json');
+const registrations = readJson<DemoRegistration[]>('fixtures/dev-environments/demo/registrations.json');
 const doc = read('DEMO_ACCOUNTS.md');
 const rowFor = (email: string): string =>
   doc.split('\n').find((line) => line.startsWith(`| ${email} |`)) ?? `no row for ${email}`;
@@ -45,23 +60,41 @@ describe('DEMO_ACCOUNTS.md', () => {
     ).toBe(renderDemoAccountsDoc(accounts, organizations, DEV_PASSWORD));
   });
 
-  it('lists every demo account exactly once', () => {
+  it('lists the exact purpose roster once with literal usernames', () => {
+    expect(accounts.map((account) => account.email)).toEqual(expectedRoster);
+    expect(accounts.map((account) => account.username)).toEqual(expectedRoster.map((email) => email.split('@')[0]));
     for (const account of accounts) {
       expect(doc.split(`| ${account.email} |`).length - 1, `rows for ${account.email}`).toBe(1);
     }
     expect(doc.split('\n').filter((line) => line.startsWith('| ') && line.includes('@gones.test'))).toHaveLength(accounts.length);
   });
 
-  it('lists the organizations an organizer owns', () => {
-    expect(rowFor('organizer@gones.test')).toContain('Gones Lyon');
-    expect(rowFor('organizer2@gones.test')).toContain('Ligue AURA');
+  it('lists the organizations each purpose organizer owns', () => {
+    expect(rowFor('organizer-gones-one-registration@gones.test')).toContain('Gones Lyon');
+    expect(rowFor('organizer-aura-live-standings@gones.test')).toContain('Ligue AURA');
   });
 
-  it('flags the unverified account', () => {
-    const row = rowFor('unverified@gones.test');
+  it('flags only the purpose unverified account', () => {
+    const row = rowFor('user-unverified@gones.test');
 
+    expect(accounts.filter((account) => account.emailConfirmed === false).map((account) => account.email)).toEqual(['user-unverified@gones.test']);
     expect(row).toContain('| no |');
     expect(row).toContain('cannot write until the email is verified');
+  });
+
+  it('matches registration-purpose account counts', () => {
+    const count = (email: string): number => registrations.filter((registration) => registration.userEmail === email).length;
+
+    expect(count('organizer-gones-one-registration@gones.test')).toBe(1);
+    expect(count('organizer-aura-live-standings@gones.test')).toBe(0);
+    expect(count('user-four-registrations@gones.test')).toBe(4);
+    expect(count('user-two-registrations@gones.test')).toBe(2);
+    expect(count('user-empty@gones.test')).toBe(0);
+    expect(count('user-unverified@gones.test')).toBe(0);
+    expect(registrations).toContainEqual({
+      tournamentKey: 'aura-spring-classic-legacy',
+      userEmail: 'organizer-gones-one-registration@gones.test'
+    });
   });
 
   it('documents the shared password', () => {

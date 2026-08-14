@@ -108,7 +108,7 @@ internal static class AccountLifecycleEndpoints
             if (!changePending)
             {
                 var profile = await database.UserProfiles.SingleAsync(item => item.UserId == user.Id, cancellationToken);
-                await lifecycle.IssueAsync(user, AccountActionPurpose.VerifyEmail, profile.Username, profile.PreferredLanguage, null, cancellationToken);
+                await lifecycle.IssueAsync(user, AccountActionPurpose.VerifyEmail, profile.Username, profile.PreferredLanguage, null, request.ReturnUrl, cancellationToken);
                 database.AuditRecords.Add(NewAudit(user.Id, "auth.email.verification_resent", ["verificationGeneration"], clock));
                 await database.SaveChangesAsync(cancellationToken);
             }
@@ -131,7 +131,7 @@ internal static class AccountLifecycleEndpoints
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
             await lifecycle.LockUserAsync(user.Id, cancellationToken);
             var profile = await database.UserProfiles.SingleAsync(item => item.UserId == user.Id, cancellationToken);
-            await lifecycle.IssueAsync(user, AccountActionPurpose.ResetPassword, profile.Username, profile.PreferredLanguage, null, cancellationToken);
+            await lifecycle.IssueAsync(user, AccountActionPurpose.ResetPassword, profile.Username, profile.PreferredLanguage, null, null, cancellationToken);
             database.AuditRecords.Add(NewAudit(user.Id, "auth.password.reset_requested", ["resetGeneration"], clock));
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -192,7 +192,7 @@ internal static class AccountLifecycleEndpoints
         user.EmailConfirmed = false;
         EnsureSucceeded(await userManager.UpdateAsync(user));
         var profile = await database.UserProfiles.SingleAsync(item => item.UserId == user.Id, cancellationToken);
-        await lifecycle.IssueAsync(user, AccountActionPurpose.ChangeEmail, profile.Username, profile.PreferredLanguage, request.NewEmail, cancellationToken);
+        await lifecycle.IssueAsync(user, AccountActionPurpose.ChangeEmail, profile.Username, profile.PreferredLanguage, request.NewEmail, null, cancellationToken);
         database.AuditRecords.Add(NewAudit(user.Id, "auth.email.change_requested", ["emailVerified"], clock));
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -287,7 +287,8 @@ internal static class AccountLifecycleEndpoints
 internal sealed record TokenRequest([property: Required, StringLength(256)] string Token);
 
 internal sealed record EmailAccountRequest(
-    [property: Required, EmailAddress, StringLength(254)] string Email) : IAuthRateLimitRequest
+    [property: Required, EmailAddress, StringLength(254)] string Email,
+    [property: StringLength(2048)] string? ReturnUrl) : IAuthRateLimitRequest
 {
     public string RateLimitAccount => Email;
 }

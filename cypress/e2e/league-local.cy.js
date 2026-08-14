@@ -11,6 +11,7 @@ const LOCAL_LEAGUE_DB_NAME = 'gones-leagues';
 function seedSettings(win) {
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.power-user', 'true');
 }
 
 function visit(path, { clearLocalStore = false } = {}) {
@@ -144,6 +145,7 @@ describe('League Archive browser-local flows', () => {
     cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
     cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
 
+    cy.get('[data-cy="tournament-archive-detail-edit"]').click();
     cy.get('[data-cy="tournament-archive-detail-add-round"]').click();
     cy.contains('mat-expansion-panel', 'Round 1').find('mat-expansion-panel-header').click();
     cy.get('[data-cy="tournament-archive-detail-add-match"]').click();
@@ -154,6 +156,8 @@ describe('League Archive browser-local flows', () => {
     cy.get('[data-cy="tournament-archive-detail-match-player2-input"]').clear().type('Bob');
     cy.get('[data-cy="tournament-archive-detail-match-player2-score-input"]').clear().type('0');
     cy.document().trigger('keydown', { key: 's', code: 'KeyS', ctrlKey: true, force: true });
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.get('[data-cy="tournament-archive-detail-edit"]').should('exist');
     cy.get('[data-cy="ranking-table"]').should('contain', 'Alice').and('contain', 'Bob');
 
     // Everything above is in IndexedDB, not in a signal: a full reload brings it all back.
@@ -208,14 +212,14 @@ describe('League Archive browser-local flows', () => {
     cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
     cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
 
+    cy.get('[data-cy="tournament-archive-detail-edit"]').click();
     cy.get('[data-cy="tournament-archive-detail-league-select"]').click();
-    cy.contains('mat-option', 'Server League').click({ force: true });
+    cy.contains('mat-option', 'Server League').should('not.exist');
+    cy.get('body').type('{esc}');
 
-    cy.get('[data-cy="tournament-archive-detail-error"]').should('contain', 'cannot be moved between');
-    // Neither store changed: the tournament is still in the browser league it was created in.
+    // No cross-authority target can be staged; the tournament stays in its browser League.
     cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
-    cy.reload();
-    cy.get('[data-cy="tournament-archive-detail-error"]').should('not.exist');
+    cy.get('[data-cy="tournament-archive-detail-cancel-edit"]').click();
   });
 
   it('exports both browser leagues and imports them back into an emptied browser', () => {

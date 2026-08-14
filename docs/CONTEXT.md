@@ -35,7 +35,7 @@ _Formerly_: Result Tournament
 _Avoid_: Scheduled Tournament
 
 **Event**:
-The Calendar V1 record an organizer publishes and a User registers for: title, venue, venue-local dates, formats, capacity. It is served under `/api/events`, browsed at `/calendar`, read at `/events/:slug` and persisted in `events` (ADR 0035). An Event is tied to a single tournament conceptually, and that tournament has no row of its own.
+The Calendar V1 record an organizer publishes and a User registers for: base title, venue, venue-local dates, exactly one active Tournament Format, capacity, and optional Live/Archive Tournament links. It is served under `/api/events`, browsed at `/calendar`, read at `/events/:slug` and persisted in `events` (ADRs 0035–0036). An Event is tied to one single-format tournament conceptually, and that tournament has no row of its own. Public responses derive the display title from format plus base title.
 _Formerly_: Scheduled Tournament, Calendar Tournament, `/api/tournaments`
 _Avoid_: Tournament on its own, Archive Tournament, Live Tournament
 
@@ -111,9 +111,21 @@ _Avoid_: Played matches
 The share of played non-bye Matches won by a Player Name, with draws counted as non-wins.
 _Avoid_: Winrate when game winrate is meant
 
+**Played Game Count**:
+The sum of game wins and game losses in played non-bye Matches. Individual game draws are not recorded.
+_Avoid_: Match count
+
 **Game Winrate**:
 The share of counted games won by a Player Name in played non-bye Matches.
 _Avoid_: Winrate when match winrate is meant
+
+**Most Played Archetype**:
+The Deck Archetype used by a selected Player Name in the most Matches, with alphabetical Player Archetype name order breaking ties.
+_Avoid_: Favorite deck
+
+**Global Player Statistics**:
+Derived Player Statistics rows from valid Matches in Completed Leagues. Position is assigned by the API or UI later.
+_Avoid_: Stored global ranking
 
 **Nemesis**:
 The opposing Player Name with the most Match wins against a selected Player Name.
@@ -289,6 +301,8 @@ _Avoid_: Migration, deployment
 - League dates are descriptive and do not filter which Tournaments count
 - A **SpiceRack Import** is one possible kind of **Tournament Import**
 - An **Event** belongs to exactly one **Organization**
+- An **Event** has exactly one active **Tournament Format**
+- An **Event** may link to one **Live Tournament** and one **Archive Tournament**; links are navigation only, not data authority
 - An **Organization** may have zero or more members; with zero it is a **Draft Organization**
 - A **Draft Organization** may hold existing **Events** but may not publish a new one
 - A **User** holding at least one **Organization** membership is an **Organizer User**; losing the last one returns them to **User**, and an **Admin User** is never changed by membership
@@ -425,19 +439,38 @@ _Avoid_: Migration, deployment
 - **Played Match Count** excludes Byes
 - **Match Assignment Count** includes Byes
 - **Player Statistics** show Played Match Count and Bye Count as primary counts
+- **Player Statistics** record Match wins, losses, and draws separately
+- **Played Game Count** equals game wins plus game losses
 - **Match Assignment Count** is helper language, not a primary statistic
 - **Player Statistics** include both **Match Winrate** and **Game Winrate**
 - Draws count as non-wins in **Match Winrate**
-- Individual drawn games are ignored in **Game Winrate**
+- Individual drawn games are ignored in **Played Game Count** and **Game Winrate**
 - **Match Winrate** and **Game Winrate** are N/A when they have no denominator
 - **Match Winrate** and **Game Winrate** display as percentages with 2 decimal places when defined
 - **Player Statistics** use raw percentages without tiebreaker floors
-- **Nemesis** excludes Byes
-- **Nemesis** ties are broken by the selected Player Name's worst Match Winrate against the tied opponents, then opposing Player Name
-- **Rival** excludes Byes
-- **Rival** ties are broken by most recent Match, then opposing Player Name
-- Most recent Match is determined by Tournament date, then Round order, then Match order
-- Dated Tournaments are more recent than undated Tournaments for recency comparisons
+- **Nemesis** excludes Byes and is the opponent with the most wins against the selected Player Name
+- **Nemesis** and **Rival** records expose wins and losses from the selected Player Name's perspective
+- **Nemesis** ties are broken by opposing Player Name in alphabetical ascending order
+- **Rival** excludes Byes and is the opponent with the most played Matches against the selected Player Name
+- **Rival** ties are broken by opposing Player Name in alphabetical ascending order
+- **Most Played Archetype** counts the selected side's Match Deck Archetype once per Match, falls back to that Tournament's roster when blank, and omits the Match when both are blank
+- **Most Played Archetype** ties are broken by Deck Archetype name in alphabetical ascending order
+- These alphabetical tie rules are the user-confirmed future-recommendation override and supersede the previous worst-rate and recency recommendations
+- **Global Player Statistics** include valid Match participants from Completed Leagues only
+- Byes and roster-only Player Names do not create **Global Player Statistics** rows or affect Global performance
+- Active League Matches do not contribute to **Global Player Statistics**
+- Browser-local League Archive records never contribute to **Global Player Statistics**; the source is always the server
+- **Global Player Statistics** expose 14 columns in fixed order: Position, Player, Matches, MW, ML, MD, M%, Games, GW, GL, G%, Nemesis, Rival, Archetype
+- Position in **Global Player Statistics** is dynamic: it reflects the current sort and search result, not a stored rank
+- **Global Player Statistics** identity is case-sensitive exact Player Name; `Alice` and `alice` are different rows
+- **Global Player Statistics** have no Elo rating in this release
+- **Global Player Statistics** are browsable at `/global-stats`; the page supports search, sort by numeric column, and pagination (10/25/50/100 per page, default 100)
+- **Global Player Statistics** sort: numeric column click sets descending; second click toggles ascending; ties broken by Player Name ascending
+- Percentages in **Global Player Statistics** display as whole-number percentages; null values display as `—`
+- Nemesis and Rival cells in **Global Player Statistics** display as `Name (W-L)`; Archetype displays as `Name (N matches)`
+- **Power User** mode is a browser-local opt-in that reveals advanced mutation controls; it never grants server authority and never hides home cards or browse destinations including **Global Player Statistics**
+- Gones is unreleased with no production environment; local data may be reset or reshaped without production migration guarantees until the release-state note in `AGENT.md` is explicitly replaced
+- An **Event** has exactly one active Tournament Format; the optional `liveTournamentUrl` and `archiveTournamentUrl` are navigation strings, not data authority links
 - A **Tournament Result** is recalculated from the Tournament's Rounds after relevant data changes
 - A **League Result** is recalculated from Tournament Results after relevant data changes
 - An **Incomplete Tournament** may still produce a **Provisional Result**
@@ -475,6 +508,9 @@ _Avoid_: Migration, deployment
 - MVP includes a **Player Statistics** page
 - **Player Statistics** page can be opened from **Ranking Table** rows
 - **Player Statistics** page identifies the selected player by encoded Player Name, not a player ID
+- **Player Statistics** page defaults to server-origin League Archive data and can include browser-local Leagues with a persisted display toggle
+- **Player Statistics** page shows seven count metrics followed by Match Winrate, Game Winrate, Nemesis, Rival, and Most Played Archetype
+- **Player Statistics** Match history is filtered and sorted before client-side paging; page size persists, page index resets after data or view changes
 - **Player Statistics** filters are represented in the page URL
 - League and Tournament pages identify source entities by internal IDs in the URL
 - **Opponents' Match Win Percentage** is treated as 0 for ranking tiebreakers when there are no opponents
@@ -629,16 +665,13 @@ _Avoid_: Migration, deployment
 > **Domain expert:** "No - **Player Statistics** use raw percentages."
 >
 > **Dev:** "If two opponents beat Alice the same number of times, who is Alice's **Nemesis**?"
-> **Domain expert:** "The opponent Alice has the worse **Match Winrate** against; if still tied, use Player Name order."
+> **Domain expert:** "Use the opposing Player Name that sorts first alphabetically."
 >
 > **Dev:** "If Alice played Bob and Claire the same number of times, who is Alice's **Rival**?"
-> **Domain expert:** "The opponent from the most recent Match; if still tied, use Player Name order."
->
-> **Dev:** "How does Gones decide which tied Rival is more recent?"
-> **Domain expert:** "Use Tournament date first, then **Round** order, then Match order."
+> **Domain expert:** "Use the opposing Player Name that sorts first alphabetically."
 >
 > **Dev:** "Can a Tournament have no date?"
-> **Domain expert:** "Yes - **Tournament Date** is optional, but dated Tournaments sort as more recent than undated ones."
+> **Domain expert:** "Yes - **Tournament Date** is optional."
 >
 > **Dev:** "Does a League end date exclude later Tournaments?"
 > **Domain expert:** "No - League dates are descriptive. A **Tournament** counts when it belongs to the **League**."

@@ -34,9 +34,9 @@ describe('home menu grid rule', () => {
     expect(homeDestinationsBlock).toContain('repeat(2, minmax(0, 1fr))');
   });
 
-  it('signed out renders an odd number of cards', () => {
+  it('signed out renders 6 cards (even — every row fills completely)', () => {
     const withoutAuthOnlyCard = homeMenuComponent.replace(/@if \(auth\.profile\(\)\) \{[\s\S]*?\n\s*\}\n/, '');
     const matches = withoutAuthOnlyCard.match(/class="home-destination(?!s)/g) ?? [];
-    expect(matches.length).toBe(5);
+    expect(matches.length).toBe(6);
   });
 });

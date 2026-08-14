@@ -33,6 +33,7 @@ import { verifyExportChecksum } from './domain/export-schemas';
 import { createTournament, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { I18nService } from './i18n/i18n.service';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from './shared/power-user-settings.service';
 
 const SERVER_ID = '7f3a1d2c-0b44-4f9e-9a1e-2c8f0d6b5a11';
 const LOCAL_ID = 'local-4d6f1f0e-2a11-4a1a-8f0c-8a7a2f6d9e33';
@@ -53,6 +54,7 @@ function setup(leagues: PersistedLeague[], { serverUnavailable = false, signedIn
     { provide: Router, useValue: router },
     { provide: AuthService, useValue: auth },
     { provide: MatDialog, useValue: { open: vi.fn() } },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     LastVisitedUrlService,
     DeckArchetypeSettingsService,
     I18nService
@@ -174,13 +176,11 @@ describe('AppComponent header import affordance', () => {
   // `app.component.auth-entry.test.ts` does.
   const source = readFileSync(join(__dirname, 'app.component.ts'), 'utf8');
 
-  it('the import button is always offered', () => {
+  it('Power-gates import while always offering full export', () => {
     const start = source.indexOf('data-cy="app-leagues-header-actions"');
     expect(start).toBeGreaterThan(-1);
-    const block = source.slice(start, source.indexOf('data-cy="app-full-data-export-button"'));
-    expect(block).toContain('data-cy="app-leagues-import-button"');
-    expect(block).toContain('data-cy="header-import-input"');
-    expect(block).not.toMatch(/@if \(/);
+    const block = source.slice(start, source.indexOf('</div>', start));
+    expect(block).toMatch(/@if \(power\.enabled\(\)\) \{[\s\S]*data-cy="app-leagues-import-button"[\s\S]*data-cy="header-import-input"[\s\S]*\}[\s\S]*data-cy="app-full-data-export-button"/);
     expect(source).not.toContain('canManageLeagueData');
   });
 });

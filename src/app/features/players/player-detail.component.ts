@@ -1,63 +1,46 @@
-import { Component, computed, signal, inject } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatSelectModule } from '@angular/material/select';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { I18nService } from '../../i18n/i18n.service';
 import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchText, searchWords } from '../../shared/search-highlight';
+import { isLocalLeagueId } from '../../data/league-archive-origin';
+import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, writeMatchPageSize, writeOnlineOnly } from './player-stats-preferences';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, BackButtonComponent],
+  imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatCheckboxModule, MatSelectModule, BackButtonComponent],
   template: `
-    <gones-back-button data-cy="player-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+    <div class="player-top-controls" data-cy="player-top-controls">
+      <gones-back-button data-cy="player-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+      <mat-checkbox data-cy="player-online-only-toggle" [checked]="onlineOnly()" (change)="setOnlineOnly($event.checked)">{{ i18n.t('player.onlineOnly') }}</mat-checkbox>
+    </div>
     <section class="page-heading" data-cy="player-heading"><div data-cy="player-heading-text"><p class="kicker" data-cy="player-kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
     <div class="stat-grid" data-cy="player-stat-grid">
-      <div class="stat-grid__row stat-grid__row--numbers" data-cy="player-stat-row-numbers">
-        <div class="player-stat-cell" data-cy="player-stat-cell-played-matches">
-          <p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p>
-          <mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="stat-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card>
-        </div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate">
-          <p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p>
-          <mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="stat-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card>
-        </div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-game-winrate">
-          <p class="player-stat-label" data-cy="player-stat-label-game-winrate">{{ i18n.t('player.gameWinRate') }}</p>
-          <mat-card class="player-stat-card" data-cy="player-stat-card-game-winrate"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="stat-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card>
-        </div>
+      <div class="stat-grid__row stat-grid__row--counts" data-cy="player-stat-row-counts">
+        <div class="player-stat-cell" data-cy="player-stat-cell-played-matches"><p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="player-stat-value-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-wins"><p class="player-stat-label" data-cy="player-stat-label-match-wins">{{ i18n.t('player.matchWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-match-wins">{{ stats().matchWins }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-losses"><p class="player-stat-label" data-cy="player-stat-label-match-losses">{{ i18n.t('player.matchLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-match-losses">{{ stats().matchLosses }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-draws"><p class="player-stat-label" data-cy="player-stat-label-match-draws">{{ i18n.t('player.matchDraws') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draws"><mat-card-content class="stat-number" data-cy="player-stat-value-match-draws">{{ stats().matchDraws }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-played-games"><p class="player-stat-label" data-cy="player-stat-label-played-games">{{ i18n.t('player.playedGames') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-games"><mat-card-content class="stat-number" data-cy="player-stat-value-played-games">{{ stats().playedGameCount }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-wins"><p class="player-stat-label" data-cy="player-stat-label-game-wins">{{ i18n.t('player.gameWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-game-wins">{{ stats().gameWins }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-losses"><p class="player-stat-label" data-cy="player-stat-label-game-losses">{{ i18n.t('player.gameLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-game-losses">{{ stats().gameLosses }}</mat-card-content></mat-card></div>
       </div>
-      <div class="stat-grid__row stat-grid__row--names" data-cy="player-stat-row-names">
-        <div class="player-stat-cell" data-cy="player-stat-cell-nemesis">
-          <p class="player-stat-label" data-cy="player-stat-label-nemesis">{{ i18n.t('player.nemesis') }}</p>
-          <mat-card class="player-stat-card" data-cy="player-stat-card-nemesis">
-            <mat-card-content class="player-stat-card__name" data-cy="player-stat-content-nemesis">
-              @if (stats().nemesis; as nemesis) {
-                <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="stat-nemesis" [attr.title]="nemesis" [attr.aria-label]="nemesis" (click)="filterByExact(nemesis)">{{ nemesis }}</button>
-              } @else {
-                <span [attr.data-cy]="'stat-nemesis'">{{ i18n.t('common.na') }}</span>
-              }
-            </mat-card-content>
-          </mat-card>
-        </div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-rival">
-          <p class="player-stat-label" data-cy="player-stat-label-rival">{{ i18n.t('player.rival') }}</p>
-          <mat-card class="player-stat-card" data-cy="player-stat-card-rival">
-            <mat-card-content class="player-stat-card__name" data-cy="player-stat-content-rival">
-              @if (stats().rival; as rival) {
-                <button type="button" class="stat-filter-button" [class.stat-filter-button--nemesis]="rival === stats().nemesis" [class.stat-filter-button--rival]="rival !== stats().nemesis" data-cy="stat-rival" [attr.title]="rival" [attr.aria-label]="rival" (click)="filterByExact(rival)">{{ rival }}</button>
-              } @else {
-                <span [attr.data-cy]="'stat-rival'">{{ i18n.t('common.na') }}</span>
-              }
-            </mat-card-content>
-          </mat-card>
-        </div>
+      <div class="stat-grid__row stat-grid__row--metrics" data-cy="player-stat-row-metrics">
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate"><p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="player-stat-value-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-winrate"><p class="player-stat-label" data-cy="player-stat-label-game-winrate">{{ i18n.t('player.gameWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-winrate"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="player-stat-value-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-nemesis"><p class="player-stat-label" data-cy="player-stat-label-nemesis">{{ i18n.t('player.nemesis') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-nemesis"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-nemesis">@if (stats().nemesis; as nemesis) { <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="player-stat-filter-nemesis" (click)="filterByExact(nemesis.name)">{{ nemesis.name }}</button> } @else { <span data-cy="player-stat-na-nemesis">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-rival"><p class="player-stat-label" data-cy="player-stat-label-rival">{{ i18n.t('player.rival') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rival"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-rival">@if (stats().rival; as rival) { <button type="button" class="stat-filter-button stat-filter-button--rival" data-cy="player-stat-filter-rival" (click)="filterByExact(rival.name)">{{ rival.name }}</button> } @else { <span data-cy="player-stat-na-rival">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-most-played-archetype"><p class="player-stat-label" data-cy="player-stat-label-most-played-archetype">{{ i18n.t('player.mostPlayedArchetype') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-most-played-archetype"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-most-played-archetype">@if (stats().mostPlayedArchetype; as archetype) { <span data-cy="player-stat-archetype">{{ i18n.t('player.archetypeMatches', { name: archetype.name, count: archetype.matchCount }) }}</span> } @else { <span data-cy="player-stat-na-archetype">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
       </div>
     </div>
     <section class="stack" data-cy="player-matches-section">
@@ -65,7 +48,7 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
         <h2 data-cy="player-matches-title">{{ i18n.t('player.matches') }}</h2>
         <div class="match-filter-controls" data-cy="match-filter-controls">
           <mat-form-field appearance="outline" class="match-filter" subscriptSizing="dynamic" data-cy="match-filter-field">
-            <input matInput data-cy="match-filter-input" [placeholder]="i18n.t('player.filterPlaceholder')" [value]="matchSearch()" (input)="matchSearch.set($any($event.target).value)" [attr.aria-label]="i18n.t('player.filterAria')">
+            <input matInput data-cy="match-filter-input" [placeholder]="i18n.t('player.filterPlaceholder')" [value]="matchSearch()" (input)="setMatchSearch($any($event.target).value)" [attr.aria-label]="i18n.t('player.filterAria')">
           </mat-form-field>
           @if (matchSearch()) {
             <button type="button" class="match-filter-clear" data-cy="match-filter-clear" (click)="clearMatchSearch()" [attr.aria-label]="i18n.t('player.clearFilterAria')">{{ i18n.t('common.clear') }}</button>
@@ -76,9 +59,15 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
           <span data-cy="match-order-toggle-label">{{ newestFirst() ? i18n.t('player.newestFirst') : i18n.t('player.oldestFirst') }}</span>
         </button>
         <span class="match-count" data-cy="match-count" aria-live="polite">{{ i18n.plural(filteredMatches().length, 'player.matchCountOne', 'player.matchCountMany') }}</span>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="player-page-size" data-cy="player-page-size-field">
+          <mat-label data-cy="player-page-size-label">{{ i18n.t('player.matchesPerPage') }}</mat-label>
+          <mat-select data-cy="player-page-size-select" [value]="matchPageSize()" (selectionChange)="setMatchPageSize($event.value)">
+            @for (size of matchPageSizes; track size) { <mat-option [value]="size" [attr.data-cy]="'player-page-size-option-' + size">{{ size }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
       </div>
       @if (!filteredMatches().length) { <p class="muted" data-cy="no-matches">{{ i18n.t('player.noMatches') }}</p> }
-      @for (match of filteredMatches(); track match.tournament.id + match.roundIndex + match.opponentName; let matchIndex = $index) {
+      @for (match of pagedMatches(); track match.tournament.id + match.roundIndex + match.opponentName; let matchIndex = $index) {
         <mat-card
           class="match-card"
           data-cy="match-card"
@@ -123,6 +112,13 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
           </mat-card-content>
         </mat-card>
       }
+      @if (filteredMatches().length) {
+        <nav class="player-pagination" data-cy="player-pagination" [attr.aria-label]="i18n.t('player.paginationAria')">
+          <button type="button" data-cy="player-page-previous" (click)="previousPage()" [disabled]="matchPage() === 1">{{ i18n.t('common.previous') }}</button>
+          <span data-cy="player-page-status" aria-live="polite">{{ i18n.t('player.pageStatus', { page: matchPage(), total: totalPages() }) }}</span>
+          <button type="button" data-cy="player-page-next" (click)="nextPage()" [disabled]="matchPage() === totalPages()">{{ i18n.t('common.next') }}</button>
+        </nav>
+      }
     </section>
     <footer class="live-tournament-footer player-detail-footer" data-cy="player-footer">
       <gones-back-button data-cy="player-back-footer" [label]="i18n.t('nav.backToPrevious')" position="top" />
@@ -130,6 +126,7 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
     </footer>
   `,
   styles: [`
+    .player-top-controls { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
     .stat-grid {
       display: grid;
       gap: 1rem;
@@ -145,11 +142,11 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
       min-width: 0;
       align-items: stretch;
     }
-    .stat-grid__row--numbers {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+    .stat-grid__row--counts {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
     }
-    .stat-grid__row--names {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .stat-grid__row--metrics {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
     .player-stat-cell {
       display: grid;
@@ -226,19 +223,16 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
       overflow-wrap: anywhere;
       word-break: break-word;
     }
-    @media (max-width: 900px) {
-      .stat-grid__row--numbers {
+    @media (max-width: 1100px) {
+      .stat-grid__row--counts,
+      .stat-grid__row--metrics {
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
-      }
-      .stat-grid__row--names {
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
       }
     }
     @media (max-width: 640px) {
-      .stat-grid__row--numbers,
-      .stat-grid__row--names {
-        grid-template-columns: 1fr;
-      }
+      .player-top-controls { align-items: flex-start; flex-direction: column; }
+      .stat-grid__row--counts,
+      .stat-grid__row--metrics { grid-template-columns: 1fr; }
     }
     .stat-filter-button:hover, .stat-filter-button:focus-visible { text-decoration: underline; text-underline-offset: .16em; outline: none; }
     .stat-filter-button--nemesis { color: oklch(78% 0.14 25); }
@@ -255,6 +249,10 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
     .order-toggle:hover, .order-toggle:focus-visible { border-color: var(--steel); color: var(--ash); outline: none; }
     .order-toggle__icon { font-size: 1.05rem; line-height: 1; }
     .match-count { align-self: center; color: var(--dim-ash); font-size: .9rem; font-weight: 800; white-space: nowrap; }
+    .player-page-size { width: 9rem; }
+    .player-pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: .5rem; }
+    .player-pagination button { border: 1px solid var(--soot); background: var(--black-metal); color: var(--ash); cursor: pointer; min-height: 2.5rem; padding: .45rem .75rem; }
+    .player-pagination button:disabled { cursor: default; opacity: .45; }
     .match-card { position: relative; overflow: hidden; border: 1px solid var(--soot); background: linear-gradient(135deg, color-mix(in oklch, var(--raised-iron) 70%, var(--iron)), var(--iron)); box-shadow: 0 14px 28px oklch(4% 0.012 29 / 0.34); cursor: pointer; transition: border-color .28s ease, box-shadow .28s ease, transform .28s ease; }
     .match-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: .35rem; background: var(--steel); opacity: .95; transition: background .28s ease, box-shadow .28s ease; z-index: 1; }
     .match-card::after { content: ''; position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity .35s ease, transform .45s cubic-bezier(.2,.8,.2,1); transform: scale(1.02); z-index: 0; }
@@ -301,12 +299,16 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
   `]
 })
 export class PlayerDetailComponent {
-  readonly i18n = inject(I18nService);
   readonly playerName = signal('');
   readonly leagues = signal<PersistedLeague[]>([]);
+  readonly onlineOnly = signal(readOnlineOnly());
+  readonly selectedLeagues = computed(() => this.onlineOnly() ? this.leagues().filter((league) => !isLocalLeagueId(league.id)) : this.leagues());
   readonly matchSearch = signal('');
   readonly newestFirst = signal(true);
-  readonly data = computed<GonesData>(() => ({ version: GONES_DATA_VERSION, leagues: this.leagues(), calendarEvents: [] }));
+  readonly matchPageSizes = MATCH_PAGE_SIZES;
+  readonly matchPageSize = signal<MatchPageSize>(readMatchPageSize());
+  private readonly requestedMatchPage = signal(1);
+  readonly data = computed<GonesData>(() => ({ version: GONES_DATA_VERSION, leagues: this.selectedLeagues(), calendarEvents: [] }));
   readonly stats = computed(() => calculatePlayerStatistics(this.data(), this.playerName()));
   readonly orderedMatches = computed(() => orderMatches(this.stats().matches, this.newestFirst()));
   readonly filteredMatches = computed(() => {
@@ -314,17 +316,24 @@ export class PlayerDetailComponent {
     if (!search) return this.orderedMatches();
     return this.orderedMatches().filter((match) => matchHistoryContains(this.matchSearchText(match), search));
   });
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filteredMatches().length / this.matchPageSize())));
+  readonly matchPage = computed(() => Math.min(this.requestedMatchPage(), this.totalPages()));
+  readonly pagedMatches = computed(() => paginateMatches(this.filteredMatches(), this.matchPage(), this.matchPageSize()));
 
   constructor(
     private readonly repo: LeagueArchiveRepository,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
+    readonly i18n: I18nService,
   ) {
     this.playerName.set(this.route.snapshot.paramMap.get('playerName') ?? '');
-    void this.repo.listLeagues().then((leagues) => this.leagues.set(leagues));
+    void this.repo.listLeagues().then((leagues) => {
+      this.leagues.set(leagues);
+      this.resetMatchPage();
+    });
   }
 
-  pct(value: number | null): string { return value == null ? this.i18n.t('common.na') : `${Math.round(value * 100)}%`; }
+  pct(value: number | null): string { return value == null ? this.i18n.t('common.na') : `${(value * 100).toFixed(2)}%`; }
 
   winrateStatClass(value: number | null): string {
     if (value == null) return 'stat-number';
@@ -370,19 +379,43 @@ export class PlayerDetailComponent {
 
   opponentTone(name: string): 'nemesis' | 'rival' | null {
     const nemesis = this.stats().nemesis;
-    if (nemesis && nemesis === name) return 'nemesis';
+    if (nemesis?.name === name) return 'nemesis';
     const rival = this.stats().rival;
-    if (rival && rival === name) return 'rival';
+    if (rival?.name === name) return 'rival';
     return null;
   }
 
-  filterByExact(text: string, event?: Event): void {
-    event?.stopPropagation();
-    this.matchSearch.set(escapeSearchTerm(text));
+  setOnlineOnly(value: boolean): void {
+    this.onlineOnly.set(value);
+    writeOnlineOnly(value);
+    this.resetMatchPage();
   }
 
-  clearMatchSearch(): void { this.matchSearch.set(''); }
-  invertMatchOrder(): void { this.newestFirst.update((value) => !value); }
+  setMatchPageSize(value: MatchPageSize): void {
+    if (!MATCH_PAGE_SIZES.includes(value)) return;
+    this.matchPageSize.set(value);
+    writeMatchPageSize(value);
+    this.resetMatchPage();
+  }
+
+  setMatchSearch(value: string): void {
+    this.matchSearch.set(value);
+    this.resetMatchPage();
+  }
+
+  previousPage(): void { this.requestedMatchPage.update((page) => Math.max(1, page - 1)); }
+  nextPage(): void { this.requestedMatchPage.update((page) => Math.min(this.totalPages(), page + 1)); }
+
+  filterByExact(text: string, event?: Event): void {
+    event?.stopPropagation();
+    this.setMatchSearch(escapeSearchTerm(text));
+  }
+
+  clearMatchSearch(): void { this.setMatchSearch(''); }
+  invertMatchOrder(): void {
+    this.newestFirst.update((value) => !value);
+    this.resetMatchPage();
+  }
   highlightParts(text: string): HighlightPart[] { return highlightSearchText(text, this.matchSearch()); }
   scrollToTop(): void { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
@@ -392,6 +425,8 @@ export class PlayerDetailComponent {
       { queryParams: { round: match.roundIndex + 1 } },
     );
   }
+
+  private resetMatchPage(): void { this.requestedMatchPage.set(1); }
 
   private matchSearchText(match: PlayerMatch): string {
     return [
@@ -403,6 +438,13 @@ export class PlayerDetailComponent {
       this.matchScoreLabel(match),
     ].join(' ');
   }
+}
+
+export function paginateMatches<T>(matches: readonly T[], page: number, pageSize: number): T[] {
+  const totalPages = Math.max(1, Math.ceil(matches.length / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * pageSize;
+  return matches.slice(start, start + pageSize);
 }
 
 function orderMatches(matches: PlayerMatch[], newestFirst: boolean): PlayerMatch[] {

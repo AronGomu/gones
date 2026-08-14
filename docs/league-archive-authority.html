@@ -123,6 +123,10 @@ are two:</p>
   <div>both rejected               → rethrow</div>
   <div>getLeague(id) / every write → port(id) = isLocalLeagueId(id) ? local : server</div>
   <div>createLeague(name)          → createLeagueTarget(role) — the one call with no id to route on</div>
+  <div>saveTournamentEdits()       → one routed batch → one DB / IndexedDB readwrite transaction</div>
+  <div>same League                 → source +1, destination null</div>
+  <div>same-authority move         → lock/read both by id → validate both versions → put both → commit</div>
+  <div>stale / invalid / put fail  → abort → neither League changes</div>
 </div>
 
 <h2>Parity is a compiler check, not a promise</h2>
@@ -161,6 +165,24 @@ decoration — it is the user-facing form of this rule.</p>
   export had to include browser-held data, Live export did not. Making one look like the other needs a
   new ADR, not a refactor.
 </div>
+
+<h2>Explicit staged Tournament edits</h2>
+
+<p>Archive Tournament detail is read-only by default. An authorized Power User enters one explicit
+edit session; name, date, same-authority League target, rounds, entries/imports, and archetypes mutate
+one browser-memory draft. No adapter call occurs before confirmed <strong>Save Changes</strong>.</p>
+
+<div class="flow">
+  <div>Edit → clone authoritative League into one draft</div>
+  <div>Cancel dirty draft → confirmation → discard without repository call</div>
+  <div>Save empty diff → exit edit mode without repository call</div>
+  <div>Save dirty diff → one summary dialog → one saveTournamentEdits() batch</div>
+  <div>validation / network / 412 → preserve draft; never auto-merge or retry</div>
+  <div>Reload Latest cancel → keep draft; confirm → reload authoritative versions, discard, exit</div>
+</div>
+
+<p>The League selector contains active destinations from the source League's authority only. Whole
+Tournament and League deletion remain separate header actions with separate confirmations.</p>
 
 <h2>What "the database always prevails" means here</h2>
 
@@ -203,10 +225,9 @@ decoration — it is the user-facing form of this rule.</p>
       is deliberate, explicit and user-driven.</li>
   <li><strong>Clearing site data destroys local leagues.</strong> There is no server copy. The list page
       says so; export is the backup.</li>
-  <li><strong>A local move is not atomic.</strong> The IndexedDB wrapper runs one request per
-      transaction, so a move's two writes cannot share one. Both versions are guarded before either
-      write, so a stale move is refused cleanly — but a crash between the two writes can leave the
-      tournament in both leagues. Acceptable for a single-writer browser store.</li>
+  <li><strong>Local edit batches and moves are atomic.</strong> Source and target reads, version
+      checks, transforms, and puts share one IndexedDB <code>readwrite</code> transaction. Request,
+      validation, stale-version, or action failure aborts without changing either row.</li>
 </ul>
 
 <footer>

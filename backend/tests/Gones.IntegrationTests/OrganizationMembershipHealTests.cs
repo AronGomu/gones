@@ -9,7 +9,6 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Storage;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
@@ -29,7 +28,7 @@ public sealed class OrganizationMembershipHealTests : IAsyncLifetime
 
     private static readonly Instant Now = Instant.FromUtc(2026, 8, 12, 9, 0);
 
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
 
     private Guid emptyOrganizationId;
     private Guid staffedOrganizationId;

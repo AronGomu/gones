@@ -36,7 +36,8 @@ const LIVE_SCORES = [[2, 0], [2, 1], [1, 1]];
 function seedComposeEnv() {
   return {
     ...devComposeEnv(),
-    GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: process.env.GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT || '1000'
+    GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: process.env.GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT || '1000',
+    GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT || '1000'
   };
 }
 
@@ -218,8 +219,18 @@ async function seedOrganizations(environment, tokens) {
   return ids;
 }
 
+/** Matches the server's ASCII slug contract for demo Event titles. */
+function expectedEventSlug(title, formatSlug) {
+  const titleSlug = title.normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `${titleSlug}-${formatSlug}`;
+}
+
 /** Preview then publish, exactly as the organizer UI does: publishing consumes the preview ticket. */
-async function seedTournaments(environment, tokens, organizationIds, formatIds) {
+async function seedEvents(environment, tokens, organizationIds, formatIds, formatSlugs) {
   const ids = new Map();
   if (!environment.tournaments.length) return ids;
 
@@ -252,19 +263,24 @@ async function seedTournaments(environment, tokens, organizationIds, formatIds) 
       idempotencyKey: `${environment.name}-tournament-${entry.key}`
     }), 'tournaments', entry.key);
     const { id, slug } = await published.json();
+    const expectedSlug = expectedEventSlug(entry.title, formatSlugs.get(entry.formatKeys[0]));
+    if (slug !== expectedSlug) {
+      console.error(`Seeding Events failed for ${entry.key}: published slug "${slug}" did not match "${expectedSlug}".`);
+      process.exit(1);
+    }
     ids.set(entry.key, { id, slug });
   }
   return ids;
 }
 
-async function seedRegistrations(environment, tokens, tournamentIds) {
+async function seedRegistrations(environment, tokens, eventIds) {
   if (!environment.registrations.length) return;
 
   for (const { tournamentKey, userEmail } of environment.registrations) {
-    const tournament = tournamentIds.get(tournamentKey);
+    const event = eventIds.get(tournamentKey);
     // 409 covers both re-runs of this script against a stack that already carries the dataset and a
     // tournament whose start time passed while the seed was running.
-    await requireResponse(await api('POST', `/api/events/${tournament.id}/registrations`, {
+    await requireResponse(await api('POST', `/api/events/${event.id}/registrations`, {
       token: tokens.get(normalizeFixtureEmail(userEmail)),
       idempotencyKey: `${environment.name}-registration-${tournamentKey}-${userEmail}`
     }), 'registrations', `${tournamentKey}/${userEmail}`, [409]);
@@ -390,9 +406,10 @@ await seedAccounts(environment);
 const carriesContent = DATA_FILES.filter((key) => key !== 'accounts').some((key) => environment[key].length > 0);
 const tokens = carriesContent ? await loginAll(environment) : new Map();
 const formatIds = await seedFormats(environment, tokens);
+const formatSlugs = new Map(environment.formats.map((format) => [format.key, format.slug]));
 const organizationIds = await seedOrganizations(environment, tokens);
-const tournamentIds = await seedTournaments(environment, tokens, organizationIds, formatIds);
-await seedRegistrations(environment, tokens, tournamentIds);
+const eventIds = await seedEvents(environment, tokens, organizationIds, formatIds, formatSlugs);
+await seedRegistrations(environment, tokens, eventIds);
 const leagueIds = await seedLeagues(environment, tokens);
 await seedLiveTournaments(environment, tokens, leagueIds);
 
@@ -407,7 +424,7 @@ const seeded = [
   [environment.accounts.length, 'accounts'],
   [organizationIds.size, 'organizations'],
   [formatIds.size, 'formats'],
-  [tournamentIds.size, 'tournaments'],
+  [eventIds.size, 'Events'],
   [environment.registrations.length, 'registrations'],
   [leagueIds.size, 'league archives'],
   [environment.liveTournaments.length, 'running tournaments']

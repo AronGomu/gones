@@ -101,25 +101,17 @@ public sealed class TournamentFormat : VersionedEntity
 
 public static class TournamentFormatSelection
 {
-    /// <summary>
-    /// V1 Scheduled Tournament creation requires the active Legacy format among selected formats.
-    /// </summary>
-    public static void RequireLegacyForV1(IReadOnlyCollection<TournamentFormat> selectedFormats)
+    public static void RequireExactlyOneActive(IReadOnlyCollection<TournamentFormat> selectedFormats)
     {
         ArgumentNullException.ThrowIfNull(selectedFormats);
-        if (selectedFormats.Count == 0)
+        if (selectedFormats.Count != 1)
         {
-            throw new ArgumentException("At least one format is required.", nameof(selectedFormats));
+            throw new ArgumentException("Exactly one format is required.", nameof(selectedFormats));
         }
 
         if (selectedFormats.Any(format => !format.IsActive))
         {
             throw new ArgumentException("Deleted formats cannot be selected.", nameof(selectedFormats));
-        }
-
-        if (!selectedFormats.Any(format => string.Equals(format.Slug, TournamentFormat.LegacySlug, StringComparison.Ordinal)))
-        {
-            throw new ArgumentException("V1 tournaments require the Legacy format.", nameof(selectedFormats));
         }
     }
 }

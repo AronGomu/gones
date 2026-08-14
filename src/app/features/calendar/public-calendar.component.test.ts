@@ -11,12 +11,17 @@ vi.mock('@angular/core', async (importOriginal) => {
 
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
 import { PublicCalendarComponent } from './public-calendar.component';
 import { AllEventsCacheService, AllEventsResult } from './all-events-cache.service';
 import { PublicEventService } from './public-event.service';
+import { EventRegistrationService } from './event-registration.service';
+import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AuthService } from '../../auth/auth.service';
 import { PublicEventView, shiftMonth } from './public-calendar';
 import { UserProfileResponse } from '../../api/generated/gones-api';
@@ -26,6 +31,7 @@ import { join } from 'node:path';
 const event: PublicEventView = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
+  displayTitle: 'Legacy — Lyon Legacy',
   slug: 'lyon-legacy',
   summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
@@ -82,7 +88,16 @@ function makeItems(count: number): PublicEventView[] {
   }));
 }
 
-function setup(options: { params?: Record<string, string>; result?: Partial<AllEventsResult>; profile?: UserProfileResponse | null; authEnabled?: boolean; itemCount?: number } = {}) {
+function setup(options: {
+  params?: Record<string, string>;
+  result?: Partial<AllEventsResult>;
+  profile?: UserProfileResponse | null;
+  authEnabled?: boolean;
+  itemCount?: number;
+  capability?: ReturnType<typeof vi.fn>;
+  register?: ReturnType<typeof vi.fn>;
+  open?: ReturnType<typeof vi.fn>;
+} = {}) {
   const result: AllEventsResult = {
     items: options.itemCount !== undefined ? makeItems(options.itemCount) : [event],
     fetchedAt: '2026-08-08T10:00:00.000Z',
@@ -105,26 +120,37 @@ function setup(options: { params?: Record<string, string>; result?: Partial<AllE
     params$.next(paramMap(extras?.queryParams ?? {}));
     return true;
   });
-  const router = { navigate } as unknown as Router;
+  const navigateByUrl = vi.fn(async () => true);
+  const router = { navigate, navigateByUrl, url: `/calendar?${new URLSearchParams({ month: '2026-08', view: 'calendar', ...options.params }).toString()}` } as unknown as Router;
   const route = {
     snapshot: { queryParamMap: initialParams },
     queryParamMap: params$.asObservable()
   } as unknown as ActivatedRoute;
 
-  const auth = { enabled: options.authEnabled ?? true, profile: signal<UserProfileResponse | null>(options.profile ?? null) } as unknown as AuthService;
+  const auth = {
+    enabled: options.authEnabled ?? true,
+    profile: signal<UserProfileResponse | null>(options.profile ?? null),
+    whenSessionReady: vi.fn(async () => undefined)
+  } as unknown as AuthService;
+  const capability = options.capability ?? vi.fn(async () => ({ canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 32 }));
+  const register = options.register ?? vi.fn(async () => ({ status: 'Confirmed' }));
+  const open = options.open ?? vi.fn(() => ({ afterClosed: () => of(true) }));
 
   const injector = Injector.create({ providers: [
     { provide: AllEventsCacheService, useValue: catalog },
     { provide: PublicEventService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics') } },
+    { provide: EventRegistrationService, useValue: { capability, register } },
+    { provide: MatDialog, useValue: { open } },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
     { provide: AuthService, useValue: auth },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
   const component = runInInjectionContext(injector, () => new PublicCalendarComponent());
-  return { component, load, navigate, lastQueryParams: () => navigate.mock.calls[navigate.mock.calls.length - 1]?.[1]?.queryParams };
+  return { component, load, navigate, navigateByUrl, capability, register, open, lastQueryParams: () => navigate.mock.calls[navigate.mock.calls.length - 1]?.[1]?.queryParams };
 }
 
 const verifiedUserProfile = {
@@ -328,8 +354,8 @@ describe('PublicCalendarComponent', () => {
     expect(component.canCreateEvent()).toBe(false);
   });
 
-  it('shows the create button when signed in with a verified email', () => {
-    const { component } = setup({ profile: verifiedUserProfile });
+  it('shows the create button for a verified organizer', () => {
+    const { component } = setup({ profile: { ...verifiedUserProfile, globalRole: 'Organizer' } });
     expect(component.canCreateEvent()).toBe(true);
   });
 });
@@ -886,7 +912,7 @@ describe('PublicCalendarComponent list card', () => {
     expect(cardTag).toContain('(keydown.space)="openEvent(item, $event)"');
     expect(cardTag).toContain('role="link"');
     expect(cardTag).toContain('tabindex="0"');
-    expect(cardTag).toContain('[attr.aria-label]="item.title"');
+    expect(cardTag).toContain('[attr.aria-label]="item.displayTitle"');
   });
 
   // The card handler sits on the ancestor: without stopPropagation, downloading the ICS or
@@ -909,11 +935,14 @@ describe('PublicCalendarComponent list card', () => {
     expect(icsAnchor).toContain('(keydown.space)="$event.stopPropagation()"');
   });
 
-  it('the title link stays and stops the card handler firing twice', () => {
-    const titleAnchor = source.slice(source.indexOf('data-cy="calendar-card-title"'), source.indexOf('data-cy="calendar-card-date"'));
+  it('the title link stays and stops pointer plus keyboard card navigation', () => {
+    const titleStart = source.indexOf('data-cy="calendar-card-title"');
+    const titleAnchor = source.slice(titleStart, source.indexOf('</h3>', titleStart));
 
     expect(titleAnchor).toContain('data-cy="calendar-card-link"');
     expect(titleAnchor).toContain('(click)="$event.stopPropagation()"');
+    expect(titleAnchor).toContain('(keydown.enter)="$event.stopPropagation()"');
+    expect(titleAnchor).toContain('(keydown.space)="$event.stopPropagation()"');
   });
 
   it('the view page button is gone', () => {
@@ -921,22 +950,133 @@ describe('PublicCalendarComponent list card', () => {
     expect(cardActions).toContain('data-cy="calendar-card-ics"');
   });
 
-  it('the card date line drops the zone and the viewer-time line stays', () => {
+  it('the standalone venue date is gone while differing viewer time stays', () => {
     const cardBody = source.slice(source.indexOf('data-cy="calendar-card-body"'), source.indexOf('data-cy="calendar-card-venue"'));
 
-    expect(cardBody).toContain('data-cy="calendar-card-date">@for (part of highlightParts(cardDate(item));');
+    expect(cardBody).not.toContain('data-cy="calendar-card-date"');
     expect(cardBody).not.toContain('date(item).primary');
     expect(cardBody).toContain('data-cy="calendar-card-viewer-date"');
   });
 
-  it('the card date carries no zone short name and no IANA id', async () => {
-    const { component } = setup({ params: { view: 'list' } });
-    component.ngOnInit();
+  it('removes the status and standalone date lines, then puts backend title and start time on one row', () => {
+    const cardBody = source.slice(source.indexOf('data-cy="calendar-card-body"'), source.indexOf('data-cy="calendar-card-actions"'));
+
+    expect(cardBody).not.toContain('data-cy="calendar-card-status"');
+    expect(cardBody).not.toContain('data-cy="calendar-card-date"');
+    expect(cardBody).toContain('data-cy="calendar-card-heading"');
+    expect(cardBody).toContain('item.displayTitle');
+    expect(cardBody).toContain('data-cy="calendar-card-start-time"');
+  });
+
+  it('puts green Register beside Add to Calendar and guards pointer plus keyboard propagation', () => {
+    expect(cardActions).toContain('data-cy="calendar-card-register"');
+    expect(cardActions).toContain('registration-register-button');
+    const marker = cardActions.indexOf('data-cy="calendar-card-register"');
+    const button = cardActions.slice(cardActions.lastIndexOf('<button', marker), cardActions.indexOf('</button>', marker));
+    expect(button).toContain('(click)="registerFromCard(item, $event)"');
+    expect(button).toContain('(keydown.enter)="$event.stopPropagation()"');
+    expect(button).toContain('(keydown.space)="$event.stopPropagation()"');
+  });
+
+  it('anonymous Register carries safe Calendar intent to login and stops card navigation', async () => {
+    const { component, navigate } = setup({ params: { view: 'list', q: 'legacy' } });
+    const activation = { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event;
+
+    await component.registerFromCard(event, activation);
+
+    expect(activation.preventDefault).toHaveBeenCalled();
+    expect(activation.stopPropagation).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/calendar?month=2026-08&view=list&q=legacy&register=lyon-legacy' } });
+  });
+
+  it('rechecks capability and never mutates before confirmation', async () => {
+    const closed = new Subject<boolean>();
+    const open = vi.fn(() => ({ afterClosed: () => closed.asObservable() }));
+    const { component, capability, register } = setup({ profile: verifiedUserProfile, open });
+    const pending = component.registerFromCard(event, { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event);
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(component.cardDate(event)).not.toContain('Europe/Paris');
-    expect(component.cardDate(event)).not.toContain('(');
+    expect(capability).toHaveBeenCalledWith(event.id);
+    expect(open).toHaveBeenCalledWith(ConfirmDialogComponent, expect.objectContaining({ data: expect.objectContaining({ confirmLabel: component.i18n.t('registration.register') }) }));
+    expect(register).not.toHaveBeenCalled();
+
+    closed.next(false);
+    closed.complete();
+    await pending;
+    expect(register).not.toHaveBeenCalled();
+  });
+
+  it('confirmed card registration mutates once and opens existing success dialog', async () => {
+    const { component, register, open } = setup({ profile: verifiedUserProfile });
+
+    await component.registerFromCard(event, { preventDefault: vi.fn(), stopPropagation: vi.fn() } as unknown as Event);
+
+    expect(register).toHaveBeenCalledTimes(1);
+    expect(register).toHaveBeenCalledWith(event.id);
+    expect(open).toHaveBeenLastCalledWith(RegistrationSuccessDialogComponent, { data: { title: event.title } });
+  });
+
+  it('loads at most twenty visible capabilities and drops stale responses', async () => {
+    const first = new Subject<never>();
+    let generation = 0;
+    const capability = vi.fn(() => generation === 0 ? new Promise(resolve => first.subscribe({ complete: () => resolve({ canRegister: true }) })) : Promise.resolve({ canRegister: false }));
+    const { component } = setup({ params: { view: 'list' }, profile: verifiedUserProfile, itemCount: 21, capability });
+    component.allItems.set(makeItems(21));
+
+    const stale = component.refreshVisibleCapabilities();
+    generation = 1;
+    await component.refreshVisibleCapabilities();
+    first.complete();
+    await stale;
+
+    expect(capability).toHaveBeenCalledTimes(40);
+    expect(Object.values(component.registrationCapabilities()).every(value => value.canRegister === false)).toBe(true);
+  });
+
+  it('resumed eligible intent rechecks, confirms, mutates once, then strips register', async () => {
+    const { component, capability, register, navigateByUrl } = setup({ params: { view: 'list', register: event.slug }, profile: verifiedUserProfile });
+    component.allItems.set([event]);
+
+    await component.resumeRegistrationIntent();
+
+    expect(capability).toHaveBeenCalledWith(event.id);
+    expect(register).toHaveBeenCalledTimes(1);
+    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
+  });
+
+  it('resumed cancellation performs no mutation and strips register', async () => {
+    const open = vi.fn(() => ({ afterClosed: () => of(false) }));
+    const { component, register, navigateByUrl } = setup({ params: { view: 'list', register: event.slug }, profile: verifiedUserProfile, open });
+    component.allItems.set([event]);
+
+    await component.resumeRegistrationIntent();
+
+    expect(register).not.toHaveBeenCalled();
+    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
+  });
+
+  it('resumed ineligible intent shows server reason and strips register', async () => {
+    const capability = vi.fn(async () => ({ canRegister: false, canUnregister: false, reason: 'event_full', activeParticipantCount: 32, capacity: 32 }));
+    const { component, register, navigateByUrl } = setup({ params: { view: 'list', register: event.slug }, profile: verifiedUserProfile, capability });
+    component.allItems.set([event]);
+
+    await component.resumeRegistrationIntent();
+
+    expect(component.registrationMessageKey()).toBe('registration.full');
+    expect(register).not.toHaveBeenCalled();
+    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
+  });
+
+  it('resumed missing intent reports unavailable and strips register via replacement URL', async () => {
+    const { component, register, navigateByUrl } = setup({ params: { view: 'list', register: 'missing-event' }, profile: verifiedUserProfile });
+    component.allItems.set([event]);
+
+    await component.resumeRegistrationIntent();
+
+    expect(component.registrationMessageKey()).toBe('registration.unavailable');
+    expect(register).not.toHaveBeenCalled();
+    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
   });
 
   it('the card lifts on hover and on keyboard focus', () => {
@@ -1016,14 +1156,14 @@ describe('PublicCalendarComponent search match highlighting', () => {
     await Promise.resolve();
 
     component.setSearchDraft('lyon');
-    const parts = component.highlightParts(event.title);
+    const parts = component.highlightParts(event.displayTitle);
 
-    expect(parts.map(part => part.text).join('')).toBe(event.title);
+    expect(parts.map(part => part.text).join('')).toBe(event.displayTitle);
     expect(parts.filter(part => part.highlighted)).toEqual([{ text: 'Lyon', highlighted: true }]);
 
     const titleStart = source.indexOf('data-cy="calendar-card-title"');
     const title = source.slice(titleStart, source.indexOf('</h3>', titleStart));
-    expect(title).toContain('@for (part of highlightParts(item.title); track $index)');
+    expect(title).toContain('@for (part of highlightParts(item.displayTitle); track $index)');
     expect(title).toContain('[class.match-highlight]="part.highlighted"');
     expect(title).toContain(`[attr.data-cy]="'calendar-card-title-part-' + item.slug + '-' + $index"`);
   });
@@ -1044,10 +1184,11 @@ describe('PublicCalendarComponent search match highlighting', () => {
     expect(title).toContain(`[attr.data-cy]="'calendar-month-day-event-title-part-' + event.slug + '-' + $index"`);
   });
 
-  it('the date, venue and summary lines highlight too', () => {
-    for (const field of ['date', 'venue', 'summary']) {
+  it('the remaining venue and summary lines highlight too', () => {
+    for (const field of ['venue', 'summary']) {
       expect(source).toContain(`[attr.data-cy]="'calendar-card-${field}-part-' + item.slug + '-' + $index"`);
     }
+    expect(source).not.toContain("'calendar-card-date-part-'");
   });
 
   // The query is user input: it reaches the DOM as interpolated text nodes only, never as HTML.

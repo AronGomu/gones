@@ -12,14 +12,6 @@ import { AuthService } from '../../auth/auth.service';
   template: `
     <section class="home-landing" [attr.aria-label]="i18n.t('home.aria')" data-cy="menu-section">
       <nav class="home-destinations" [attr.aria-label]="i18n.t('home.navAria')" data-cy="menu-nav">
-        <a class="home-destination home-destination--leagues" [class.home-destination--running-active]="hasActiveRunningTournament()" routerLink="/live-tournaments" data-cy="menu-running-tournaments-card">
-          <strong data-cy="menu-running-tournaments-card-title">{{ i18n.t('home.runningTournaments') }}</strong>
-          <p data-cy="menu-running-tournaments-card-desc">{{ i18n.t('home.runningTournamentsDesc') }}</p>
-        </a>
-        <a class="home-destination home-destination--leagues" routerLink="/leagues-archive" data-cy="menu-leagues-archive-card">
-          <strong data-cy="menu-leagues-archive-card-title">{{ i18n.t('home.leagues') }}</strong>
-          <p data-cy="menu-leagues-archive-card-desc">{{ i18n.t('home.leaguesDesc') }}</p>
-        </a>
         <a class="home-destination home-destination--calendar" routerLink="/calendar" data-cy="menu-calendar-card">
           <strong data-cy="menu-calendar-card-title">{{ i18n.t('home.calendar') }}</strong>
           <p data-cy="menu-calendar-card-desc">{{ i18n.t('home.calendarDesc') }}</p>
@@ -30,7 +22,19 @@ import { AuthService } from '../../auth/auth.service';
             <p data-cy="menu-registrations-card-desc">{{ i18n.t('home.registrationsDesc') }}</p>
           </a>
         }
-        <a class="home-destination home-destination--about" routerLink="/about" data-cy="menu-about-link" lang="fr">
+        <a class="home-destination home-destination--leagues" routerLink="/global-stats" data-cy="menu-global-stats-card">
+          <strong data-cy="menu-global-stats-card-title">{{ i18n.t('home.globalStats') }}</strong>
+          <p data-cy="menu-global-stats-card-desc">{{ i18n.t('home.globalStatsDesc') }}</p>
+        </a>
+        <a class="home-destination home-destination--leagues" routerLink="/leagues-archive" data-cy="menu-leagues-archive-card">
+          <strong data-cy="menu-leagues-archive-card-title">{{ i18n.t('home.leagues') }}</strong>
+          <p data-cy="menu-leagues-archive-card-desc">{{ i18n.t('home.leaguesDesc') }}</p>
+        </a>
+        <a class="home-destination home-destination--leagues" [class.home-destination--running-active]="hasActiveRunningTournament()" routerLink="/live-tournaments" data-cy="menu-running-tournaments-card">
+          <strong data-cy="menu-running-tournaments-card-title">{{ i18n.t('home.runningTournaments') }}</strong>
+          <p data-cy="menu-running-tournaments-card-desc">{{ i18n.t('home.runningTournamentsDesc') }}</p>
+        </a>
+        <a class="home-destination home-destination--about" routerLink="/about" data-cy="menu-about-link">
           <strong data-cy="menu-about-link-title">{{ i18n.t('home.about') }}</strong>
           <p data-cy="menu-about-link-desc">{{ i18n.t('home.aboutDesc') }}</p>
         </a>

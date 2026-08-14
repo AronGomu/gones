@@ -150,10 +150,14 @@ describe('canonical browser store containment', () => {
       'src/app/features/calendar/public-calendar.component.ts',
       // Public read cache (C39) — anonymous GET responses only, never a mutation source.
       'src/app/features/calendar/public-event.service.ts',
+      // Two Player Statistics display preferences only: source visibility + page size.
+      'src/app/features/players/player-stats-preferences.ts',
       // Language + local Deck Archetype preference.
       'src/app/shared/deck-archetype-settings.service.ts',
       // First-visit flag — routes the very first load to /about, never a data source.
-      'src/app/shared/first-visit.service.ts'
+      'src/app/shared/first-visit.service.ts',
+      // Boolean UI capability preference only; never auth, authority, or domain data.
+      'src/app/shared/power-user-settings.service.ts'
     ]);
   });
 });

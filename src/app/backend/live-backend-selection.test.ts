@@ -1,7 +1,9 @@
 import '@angular/compiler';
+import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { describe, expect, it } from 'vitest';
 import { resolveDataAuthority } from '../config/data-authority';
-import { resolveLiveBackendMode } from './application-backend';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
+import { LIVE_BACKEND_MODE, resolveLiveBackendMode } from './application-backend';
 
 /**
  * Role-scoped Live authority (ADR 0021). Leagues stay server-only; only the Live port has two
@@ -28,5 +30,20 @@ describe('live backend selection', () => {
 
   it('still refuses a non-server authority', () => {
     expect(() => resolveLiveBackendMode({ ...serverAuthority, serverAuthority: false }, 'Admin')).toThrowError('serverAuthorityRequired');
+  });
+
+  it('does not reselect the active adapter when Power mode changes', () => {
+    const enabled = signal(false);
+    const injector = Injector.create({ providers: [
+      { provide: PowerUserSettingsService, useValue: { enabled, setEnabled: enabled.set.bind(enabled) } },
+      { provide: LIVE_BACKEND_MODE, useFactory: () => resolveLiveBackendMode(serverAuthority, 'Organizer') }
+    ] });
+
+    runInInjectionContext(injector, () => {
+      const mode = injector.get(LIVE_BACKEND_MODE);
+      injector.get(PowerUserSettingsService).setEnabled(true);
+      expect(injector.get(LIVE_BACKEND_MODE)).toBe(mode);
+      expect(mode).toBe('aspnet-api');
+    });
   });
 });

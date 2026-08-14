@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed by implementation plan `ai_artefacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`. Accept when T8–T13 ship.
+Accepted. Implemented by T8–T13 in `ai_artefacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`. Finalized T15.
 
 ## Context
 
@@ -28,17 +28,22 @@ Power preference cannot grant server privilege. ADR 0021/0028 authority boundari
 - Staged scope: name, date, same-authority League move, rounds, entries/imports, archetypes.
 - Whole Tournament/League deletion remains separate.
 - Save sends fixed explicit intent batch + expected source/target versions. No whole doc req.
-- Server applies batch in one DB tx; local adapter in one IndexedDB tx.
+- Server endpoint is `POST /api/leagues-archive/{id}/tournaments-archive/{tournamentId}/edit-batch`. Source `If-Match` is mandatory. `targetLeagueId` plus `Target-If-Match` are present together only for a move.
+- Server locks source/target rows in deterministic League-id order, validates both versions before transforms, calls aggregate `Apply` once per changed League, then saves/commits once.
+- Local adapter reads, validates, transforms, and puts source/target rows in one IndexedDB `readwrite` transaction. Request/action failure aborts; results become visible only after transaction completion.
 - Same-authority move only; no sync/cross-authority move.
 - Stale/validation failure writes nothing. 412 preserves draft; discard needs confirmation; no auto-merge.
 - Round/entry deletion summarized once in final save dialog.
+- Empty Save exits edit mode without a repository call. Cancel Edit discards only after confirmation when dirty.
+- Validation, network, and 412 failures retain the single in-memory draft. Reload Latest never merges or retries: cancellation keeps the draft; confirmation reloads authoritative versions, discards it, and exits.
+- A successful same-League batch adopts `sourceLeague`. A move adopts `destinationLeague`, refreshes source readers, and navigates to the destination route.
 
 ## Consequences
 
 - Frontend pref can be bypassed by custom HTTP calls; server role policies still protect server data.
 - Signed-out Power User may mutate local stores.
 - Existing local move becomes atomic; ADR 0028 non-atomic consequence must be amended when shipped.
-- One version bump per changed aggregate per Save Changes.
+- Same-League batch returns `{ sourceLeague, destinationLeague: null }` with one version bump. Move returns both authoritative documents/ETags with one bump each.
 - Current immediate Archive content commands remain API-compatible but editor stops using them.
 
 ## References

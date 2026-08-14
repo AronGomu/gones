@@ -8,13 +8,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class NotificationOutboxTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Instant.FromUtc(2026, 7, 31, 12, 0));
 
     public async Task InitializeAsync()

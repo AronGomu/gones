@@ -8,7 +8,7 @@ import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID 
 import { createMatchRoundEntry, createTournament, getDefaultTournamentName, LeagueStatus, MatchRoundEntry, PersistedLeague, PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME, RoundEntry, TournamentDocument } from '../domain/models';
 import { renamePlayerInLeague } from '../domain/rename-player';
 import { importRoundEntries } from '../domain/round-import';
-import type { LeagueArchiveBackendPort } from './application-backend';
+import type { ArchiveTournamentEditBatchCommand, LeagueArchiveBackendPort } from './application-backend';
 import { LOCAL_LEAGUE_DB_NAME, LOCAL_LEAGUE_STORE, LocalLeagueArchiveBackend } from './local-league-archive-backend.service';
 
 /**
@@ -27,6 +27,9 @@ interface FakeDatabaseState {
 }
 
 const databases = new Map<string, FakeDatabaseState>();
+let failPutAt: number | null = null;
+let putCount = 0;
+let readwriteTransactionCount = 0;
 
 function clone<T>(value: T): T {
   return typeof structuredClone === 'function' ? structuredClone(value) : (JSON.parse(JSON.stringify(value)) as T);
@@ -55,6 +58,8 @@ class FakeObjectStore {
 
   put(value: Record<string, unknown>): FakeRequest<string> {
     return this.transaction.enqueue(() => {
+      putCount += 1;
+      if (putCount === failPutAt) throw new DOMException('Injected put failure', 'ConstraintError');
       const key = String(value[this.store.keyPath]);
       this.store.rows.set(key, clone(value));
       return key;
@@ -77,8 +82,16 @@ class FakeTransaction {
   private pending = 0;
   private failed = false;
   private settled = false;
+  private readonly snapshot: Map<string, Map<string, unknown>>;
 
-  constructor(private readonly state: FakeDatabaseState, readonly mode: string) {}
+  constructor(private readonly state: FakeDatabaseState, readonly mode: string) {
+    this.snapshot = new Map([...state.stores].map(([name, store]) => [name, new Map([...store.rows].map(([key, value]) => [key, clone(value)]))]));
+  }
+
+  abort(): void {
+    this.failed = true;
+    queueMicrotask(() => this.settle(true));
+  }
 
   objectStore(name: string): FakeObjectStore {
     const store = this.state.stores.get(name);
@@ -99,16 +112,22 @@ class FakeTransaction {
         request.error = error as DOMException;
         request.onerror?.();
       }
-      if (this.pending === 0) queueMicrotask(() => this.settle());
+      if (this.pending === 0) setTimeout(() => this.settle(), 0);
     });
     return request;
   }
 
-  private settle(): void {
+  private settle(aborted = false): void {
     if (this.settled) return;
     this.settled = true;
-    if (this.failed) this.onerror?.();
-    else this.oncomplete?.();
+    if (this.failed) {
+      for (const [name, rows] of this.snapshot) {
+        const store = this.state.stores.get(name);
+        if (store) store.rows = new Map(rows);
+      }
+      if (aborted) this.onabort?.();
+      else this.onerror?.();
+    } else this.oncomplete?.();
   }
 }
 
@@ -124,6 +143,7 @@ class FakeDatabase {
   }
 
   transaction(_names: string[], mode: string): FakeTransaction {
+    if (mode === 'readwrite') readwriteTransactionCount += 1;
     return new FakeTransaction(this.state, mode);
   }
 
@@ -182,6 +202,9 @@ const withoutIds = (entries: RoundEntry[]) => entries.map((entry) => ({ ...entry
 
 beforeEach(() => {
   databases.clear();
+  failPutAt = null;
+  putCount = 0;
+  readwriteTransactionCount = 0;
   installFakeIndexedDb();
 });
 
@@ -585,6 +608,55 @@ describe('LocalLeagueArchiveBackend', () => {
     expect(updated.tournaments).toEqual(renamePlayerInLeague(before, 'Alice', 'Alicia').tournaments);
   });
 
+  it('applies every staged edit in one local transaction and one version bump', async () => {
+    const { backend, leagueId, tournamentId, roundId, version } = await leagueWithRound();
+    const newRoundId = 'f7b39c15-dbf5-4a70-a17e-a8103ad9de75';
+    const command: ArchiveTournamentEditBatchCommand = {
+      editTournament: { name: 'Renamed', tournamentDate: '2026-09-01' },
+      addRounds: [{ roundId: newRoundId, entries: [match('Erin', 'Frank')] }],
+      deleteRoundIds: [],
+      replaceRounds: [{ roundId, entries: [match('Alice', 'Carol')] }],
+      updateArchetypes: [{ playerName: 'Alice', archetype: 'Storm' }]
+    };
+    const transactionsBefore = readwriteTransactionCount;
+
+    const result = await backend.applyArchiveTournamentEditBatch(leagueId, tournamentId, version, command);
+
+    expect(result.destinationLeague).toBeNull();
+    expect(result.sourceLeague.documentVersion).toBe(version + 1);
+    expect(result.sourceLeague.tournaments[0]).toMatchObject({ name: 'Renamed', tournamentDate: '2026-09-01' });
+    expect(result.sourceLeague.tournaments[0].rounds.map((round) => round.id)).toEqual([roundId, newRoundId]);
+    expect(result.sourceLeague.tournaments[0].playerArchetypes).toContainEqual({ playerName: 'Alice', archetype: 'Storm' });
+    expect(readwriteTransactionCount - transactionsBefore).toBe(1);
+  });
+
+  it('rolls back both local rows when the second batch put fails', async () => {
+    const { backend, leagueId, tournamentId, version, league: sourceBefore } = await leagueWithRound();
+    const targetBefore = await backend.createLeagueArchive('Autumn');
+    putCount = 0;
+    failPutAt = 2;
+
+    await expect(backend.applyArchiveTournamentEditBatch(leagueId, tournamentId, version, {
+      editTournament: { name: 'Must Roll Back', tournamentDate: '2026-10-01' },
+      addRounds: [], deleteRoundIds: [], replaceRounds: [], updateArchetypes: []
+    }, { leagueId: targetBefore.id, expectedVersion: targetBefore.documentVersion })).rejects.toThrow();
+
+    expect(await backend.getLeagueArchive(leagueId)).toEqual(sourceBefore);
+    expect(await backend.getLeagueArchive(targetBefore.id)).toEqual(targetBefore);
+  });
+
+  it('rejects a stale local batch target without changing either row', async () => {
+    const { backend, leagueId, tournamentId, version, league: sourceBefore } = await leagueWithRound();
+    const targetBefore = await backend.createLeagueArchive('Autumn');
+
+    await expect(backend.applyArchiveTournamentEditBatch(leagueId, tournamentId, version, {
+      addRounds: [], deleteRoundIds: [], replaceRounds: [], updateArchetypes: []
+    }, { leagueId: targetBefore.id, expectedVersion: targetBefore.documentVersion + 1 })).rejects.toMatchObject({ status: 412 });
+
+    expect(await backend.getLeagueArchive(leagueId)).toEqual(sourceBefore);
+    expect(await backend.getLeagueArchive(targetBefore.id)).toEqual(targetBefore);
+  });
+
   it('moving a tournament transfers it', async () => {
     const { backend, leagueId, tournamentId, version } = await leagueWithRound();
     const target = await backend.createLeagueArchive('Autumn');
@@ -717,10 +789,10 @@ describe('LocalLeagueArchiveBackend', () => {
       'listLeagueArchives', 'getLeagueArchive', 'createLeagueArchive', 'renameLeagueArchive', 'changeLeagueArchiveStatus', 'deleteLeagueArchive',
       'createArchiveTournament', 'editArchiveTournament', 'deleteArchiveTournament', 'moveArchiveTournament', 'addArchiveRound', 'deleteArchiveRound',
       'importArchiveRound', 'replaceArchiveRound', 'addArchiveEntry', 'editArchiveEntry', 'deleteArchiveEntry', 'updateArchivePlayerArchetype',
-      'renameLeagueArchivePlayerName', 'restoreLeagueArchive', 'restoreFullLeagueArchiveData'
+      'renameLeagueArchivePlayerName', 'restoreLeagueArchive', 'restoreFullLeagueArchiveData', 'applyArchiveTournamentEditBatch'
     ];
 
-    expect(methods).toHaveLength(21);
+    expect(methods).toHaveLength(22);
     for (const method of methods) expect(typeof port[method]).toBe('function');
   });
 

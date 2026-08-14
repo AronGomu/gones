@@ -14,6 +14,8 @@ import { ApproverSelectionDialogComponent } from './approver-selection-dialog.co
 import { PreviewPublicationState, browserTimeZoneSuggestion, eventPayload } from './organizer-event-create';
 import { EventProposalService, sortApprovers } from './event-proposal.service';
 import { changedEventFields, majorEventChanges, managementToDetail, managementToDraft, eventUpdatePayload } from './event-management';
+import { canManageLeagues } from '../../data/league-archive-command-ux';
+import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'refresh-preview' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
@@ -120,13 +122,23 @@ const MaximumPublicOrganizationPages = 20;
               <input id="event-capacity" data-cy="event-capacity" type="number" min="1" step="1" formControlName="capacity" [attr.aria-invalid]="fieldError('capacity') ? 'true' : null" [attr.aria-describedby]="fieldError('capacity') ? 'event-capacity-error' : null" />
               @if (fieldError('capacity'); as message) { <p id="event-capacity-error" class="field-error" data-cy="event-capacity-error">{{ message }}</p> }
             </div>
-            <div class="tournament-create-field tournament-create-double" data-cy="event-field-formats">
-              <label for="event-formats" data-cy="event-label-formats">{{ i18n.t('eventCreate.formats') }}</label>
-              <select id="event-formats" data-cy="event-formats" formControlName="formatIds" multiple [attr.aria-invalid]="fieldError('formatIds') ? 'true' : null" [attr.aria-describedby]="fieldError('formatIds') ? 'event-formats-error event-formats-help' : 'event-formats-help'">
+            <div class="tournament-create-field tournament-create-double" data-cy="event-field-format">
+              <label for="event-format" data-cy="event-label-format">{{ i18n.t('eventCreate.format') }}</label>
+              <select id="event-format" data-cy="event-format" formControlName="formatId" [attr.aria-invalid]="fieldError('formatId') ? 'true' : null" [attr.aria-describedby]="fieldError('formatId') ? 'event-format-error event-format-help' : 'event-format-help'">
                 @for (format of formats(); track format.id) { <option [value]="format.id" [attr.data-cy]="'event-format-option-' + format.id">{{ format.name }}</option> }
               </select>
-              <p id="event-formats-help" class="muted" data-cy="event-formats-help">{{ i18n.t('eventCreate.formatsHelp') }}</p>
-              @if (fieldError('formatIds'); as message) { <p id="event-formats-error" class="field-error" data-cy="event-formats-error">{{ message }}</p> }
+              <p id="event-format-help" class="muted" data-cy="event-format-help">{{ i18n.t('eventCreate.formatHelp') }}</p>
+              @if (fieldError('formatId'); as message) { <p id="event-format-error" class="field-error" data-cy="event-format-error">{{ message }}</p> }
+            </div>
+            <div class="tournament-create-field tournament-create-double" data-cy="event-field-live-tournament-url">
+              <label for="event-live-tournament-url" data-cy="event-label-live-tournament-url">{{ i18n.t('eventCreate.liveTournamentUrl') }}</label>
+              <input id="event-live-tournament-url" data-cy="event-live-tournament-url" type="url" formControlName="liveTournamentUrl" maxlength="2048" [attr.aria-invalid]="fieldError('liveTournamentUrl') ? 'true' : null" [attr.aria-describedby]="fieldError('liveTournamentUrl') ? 'event-live-tournament-url-error' : null" />
+              @if (fieldError('liveTournamentUrl'); as message) { <p id="event-live-tournament-url-error" class="field-error" data-cy="event-live-tournament-url-error">{{ message }}</p> }
+            </div>
+            <div class="tournament-create-field tournament-create-double" data-cy="event-field-archive-tournament-url">
+              <label for="event-archive-tournament-url" data-cy="event-label-archive-tournament-url">{{ i18n.t('eventCreate.archiveTournamentUrl') }}</label>
+              <input id="event-archive-tournament-url" data-cy="event-archive-tournament-url" type="url" formControlName="archiveTournamentUrl" maxlength="2048" [attr.aria-invalid]="fieldError('archiveTournamentUrl') ? 'true' : null" [attr.aria-describedby]="fieldError('archiveTournamentUrl') ? 'event-archive-tournament-url-error' : null" />
+              @if (fieldError('archiveTournamentUrl'); as message) { <p id="event-archive-tournament-url-error" class="field-error" data-cy="event-archive-tournament-url-error">{{ message }}</p> }
             </div>
           </div>
           </fieldset>
@@ -188,6 +200,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly auth = inject(AuthService);
+  private readonly power = inject(PowerUserSettingsService);
   private readonly proposals = inject(EventProposalService);
   private readonly state = new PreviewPublicationState();
   private readonly eventId = this.route.snapshot.paramMap.get('id');
@@ -214,10 +227,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly currentRender = signal<EventPreviewRenderResponse | null>(null);
   readonly success = signal('');
   readonly formPending = computed(() => this.previewing() || this.saving());
-  readonly canPublishDirectly = computed(() => {
-    const role = this.auth.profile()?.globalRole;
-    return role === 'Organizer' || role === 'Admin';
-  });
+  readonly canMutateEvent = computed(() => canUsePowerMutation(
+    this.power.enabled(),
+    canManageLeagues(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
+  ));
+  readonly canPublishDirectly = this.canMutateEvent;
   private readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');
   readonly proposalPending = signal(false);
   readonly proposalSentCount = signal<number | null>(null);
@@ -245,7 +259,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     startsAtLocal: new FormControl('', { nonNullable: true, validators: Validators.required }),
     endsAtLocal: new FormControl('', { nonNullable: true }),
     capacity: new FormControl<number | null>(null, [Validators.min(1), Validators.pattern(/^\d+$/)]),
-    formatIds: new FormControl<string[]>([], { nonNullable: true, validators: Validators.required })
+    formatId: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    liveTournamentUrl: new FormControl('', { nonNullable: true, validators: Validators.maxLength(2048) }),
+    archiveTournamentUrl: new FormControl('', { nonNullable: true, validators: Validators.maxLength(2048) })
   });
 
   ngOnInit(): void {
@@ -447,6 +463,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async publish(): Promise<void> {
+    if (!this.canMutateEvent()) return;
     if (!this.state.preview || this.publishing()) return;
     this.publishing.set(true);
     this.publishError.set(null);
@@ -465,6 +482,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async saveEdit(): Promise<void> {
+    if (!this.canMutateEvent()) return;
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
     this.submitError.set(null);
@@ -525,7 +543,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const control = this.form.controls[name];
     if (!control.touched || !control.errors) return '';
     if (control.errors['required']) return this.i18n.t('eventCreate.required');
-    if (control.errors['maxlength']) return this.i18n.t('eventCreate.summaryTooLong');
+    if (control.errors['maxlength']) {
+      return this.i18n.t(name === 'summary' ? 'eventCreate.summaryTooLong' : 'eventCreate.tournamentUrlTooLong');
+    }
     return this.i18n.t('eventCreate.invalid');
   }
 
@@ -572,7 +592,8 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const names: Record<string, keyof typeof this.form.controls> = {
       organizationid: 'organizationId', title: 'title', summary: 'summary', bodyhtml: 'bodyHtml', streetaddress: 'streetAddress',
       postalcode: 'postalCode', city: 'city', country: 'country', timezoneid: 'timeZoneId', startsatlocal: 'startsAtLocal',
-      endsatlocal: 'endsAtLocal', capacity: 'capacity', formatids: 'formatIds', payload: 'title'
+      endsatlocal: 'endsAtLocal', capacity: 'capacity', formatids: 'formatId', livetournamenturl: 'liveTournamentUrl',
+      archivetournamenturl: 'archiveTournamentUrl', payload: 'title'
     };
     for (const [field, messages] of Object.entries(error.problem.errors)) {
       const name = names[field.replace(/[^a-z]/gi, '').toLowerCase()];

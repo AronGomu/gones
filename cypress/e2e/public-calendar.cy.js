@@ -2,6 +2,7 @@ const orgId = '22222222-2222-2222-2222-222222222222';
 const event = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
+  displayTitle: 'Legacy — Lyon Legacy',
   slug: 'lyon-legacy',
   summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
@@ -14,6 +15,8 @@ const event = {
   endsAtUtc: '2026-08-01T23:30:00Z',
   capacity: 32,
   status: 'Cancelled',
+  liveTournamentUrl: '/live-tournaments/lyon-legacy',
+  archiveTournamentUrl: 'https://archive.example.test/lyon-legacy',
   organization: { id: orgId, name: 'Gones', description: '', website: 'https://example.test', contactEmail: '' },
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]
 };
@@ -219,14 +222,15 @@ describe('public Calendar V1', () => {
     visit('/calendar/tournaments/lyon-legacy');
     cy.location('pathname').should('eq', '/events/lyon-legacy');
     cy.wait('@detail');
-    cy.get('[data-cy="public-event-detail"]').should('contain.text', 'Europe/Paris').and('contain.text', 'Cancelled');
+    cy.get('[data-cy="public-event-detail"]').should('contain.text', 'Europe/Paris').and('not.contain.text', 'Cancelled');
     cy.get('gones-server-sanitized-html a').should('have.attr', 'target', '_blank').and('have.attr', 'rel', 'noopener noreferrer');
-    // The hero no longer owns the ICS action: it sits in the registration action row (T8).
+    // The hero no longer owns the ICS action: it sits in the Participants header (T5).
     cy.get('[data-cy="event-ics"]').should('not.exist');
     cy.get('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/events/lyon-legacy.ics');
 
     // The hero is a layout claim, so read the rendered text and geometry rather than the template.
-    cy.get('[data-cy="event-detail-title"]').should('have.text', '[Legacy] Lyon Legacy (32)');
+    cy.get('[data-cy="event-detail-title"]').should('contain.text', 'Legacy — Lyon Legacy').and('contain.text', '32 players');
+    cy.get('[data-cy="event-detail-status"]').should('not.exist');
     cy.get('[data-cy="event-detail-fact-organization"]').should('not.exist');
     cy.get('[data-cy="event-detail-when-where"]').should('contain.text', 'Europe/Paris').and('contain.text', '1 Rue Test, 69001, Lyon, France');
     cy.get('[data-cy="event-detail-hero"] > :last-child').should('have.attr', 'data-cy', 'event-detail-actions');
@@ -243,6 +247,12 @@ describe('public Calendar V1', () => {
       });
     });
     cy.get('[data-cy="event-detail-actions"]').then(($actions) => {
+      cy.get('[data-cy="event-detail-live-tournament"]')
+        .should('have.attr', 'href', '/live-tournaments/lyon-legacy')
+        .and('not.have.attr', 'target');
+      cy.get('[data-cy="event-detail-archive-tournament"]')
+        .should('have.attr', 'target', '_blank')
+        .and('have.attr', 'rel', 'noopener noreferrer');
       cy.get('[data-cy="event-detail-organization-website"]').then(($website) => {
         expect($website[0].getBoundingClientRect().right, 'website button hugs the right edge')
           .to.be.closeTo($actions[0].getBoundingClientRect().right, 2);

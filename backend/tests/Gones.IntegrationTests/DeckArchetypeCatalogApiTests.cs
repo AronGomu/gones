@@ -8,14 +8,13 @@ using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class DeckArchetypeCatalogApiTests : IAsyncLifetime
 {
     private const string SigningKey = "c36-deck-archetype-integration-signing-key-with-length";
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
 

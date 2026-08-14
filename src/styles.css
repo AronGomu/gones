@@ -98,6 +98,64 @@ h2 { margin: 0; font-size: 1.5rem; }
 .league-actions-trigger:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
 .back-button__icon { display: block; width: 1.1rem; height: 1.1rem; flex: 0 0 1.1rem; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; fill: none; }
 .panel, mat-card.panel { border: 1px solid var(--soot); background: var(--iron); box-shadow: 0 18px 34px oklch(4% 0.012 29 / 0.42); }
+/* shared-card-feedback */
+mat-card,
+.home-destination,
+.league-card,
+.tournament-rect-card,
+.running-tournament-card,
+.public-tournament-card,
+.registration-card,
+.organization-card,
+.live-registration-player-card,
+.live-round-card,
+.match-card,
+.about-event,
+.about-person,
+.about-contributor {
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  /* shared-card-feedback-hover */
+  mat-card:hover,
+  .home-destination:hover,
+  .league-card:hover,
+  .tournament-rect-card:hover,
+  .running-tournament-card:hover,
+  .public-tournament-card:hover,
+  .registration-card:hover,
+  .organization-card:hover,
+  .live-registration-player-card:hover,
+  .live-round-card:hover,
+  .match-card:hover,
+  .about-event:hover,
+  .about-person:hover,
+  .about-contributor:hover {
+    transform: translateY(-3px);
+    border-color: var(--hot-blood);
+    box-shadow: 0 18px 44px oklch(4% 0.012 29 / 0.42);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* shared-card-feedback-reduced-motion */
+  mat-card,
+  .home-destination,
+  .league-card,
+  .tournament-rect-card,
+  .running-tournament-card,
+  .public-tournament-card,
+  .registration-card,
+  .organization-card,
+  .live-registration-player-card,
+  .live-round-card,
+  .match-card,
+  .about-event,
+  .about-person,
+  .about-contributor {
+    transition: none !important;
+    transform: none !important;
+  }
+}
 mat-expansion-panel.mat-expansion-panel { background: color-mix(in oklch, var(--black-metal) 82%, var(--iron)); color: var(--ash); }
 mat-expansion-panel .mat-expansion-panel-content { background: color-mix(in oklch, var(--black-metal) 82%, var(--iron)); }
 mat-expansion-panel .mat-expansion-panel-header { background: color-mix(in oklch, var(--black-metal) 90%, var(--iron)); }
@@ -330,6 +388,8 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .event-page { display: grid; gap: 1rem; }
 .event-hero, .event-section { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 2rem); }
 .event-when-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
+.event-player-count { color: var(--dim-ash); font-size: .4em; font-weight: 700; white-space: nowrap; }
+.event-detail-actions { margin-left: auto; }
 .maps-icon { width: 1em; height: 1em; margin-right: .3rem; vertical-align: -0.125em; }
 .event-tournament-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); grid-auto-rows: 4.75rem; gap: .5rem; }
 .event-description-fallback { margin: 0; color: var(--dim-ash); white-space: pre-wrap; line-height: 1.7; }
@@ -359,12 +419,19 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .settings-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
 .settings-collapsible-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded,
 .settings-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded,
-.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
-.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded,
 .live-player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
 .live-player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded {
   padding-inline: .65rem;
   margin-inline: -.5rem;
+  border-radius: .35rem;
+  background: transparent !important;
+  cursor: pointer;
+  transition: background .18s ease, box-shadow .18s ease, color .18s ease;
+}
+.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header,
+.player-archetype-panel.mat-expansion-panel .mat-expansion-panel-header.mat-expanded {
+  padding-inline: 24px;
+  margin-inline: 0;
   border-radius: .35rem;
   background: transparent !important;
   cursor: pointer;
@@ -695,6 +762,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .rounds-section-panel .round-panel.mat-expanded > .mat-expansion-panel-content-wrapper { grid-template-rows: 1fr !important; }
 .tournament-rounds-section { margin-top: 2rem; }
 .tournament-player-archetypes-section { margin-top: 2rem; }
+.tournament-archive-detail-action-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.tournament-archive-detail-edit-actions { display: flex; align-items: center; justify-content: flex-end; gap: .75rem; margin-left: auto; }
 .mat-mdc-menu-panel { min-width: 12rem !important; padding: .35rem; border: 1px solid var(--soot); background: var(--raised-iron) !important; }
 .mat-mdc-menu-panel .mat-mdc-menu-content { padding: 0 !important; }
 .destructive-menu-item { width: 100%; border: 1px solid var(--hot-blood) !important; border-radius: .15rem; background: transparent !important; color: var(--hot-blood) !important; font-weight: 900; }
@@ -1093,8 +1162,9 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .oauth-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .auth-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
 .oauth-button { display: inline-flex; align-items: center; justify-content: center; gap: .75rem; padding-inline: 1rem; min-height: 3rem; line-height: 1.2; }
+.oauth-button .mdc-button__label { display: inline-flex; align-items: center; justify-content: center; gap: .75rem; white-space: nowrap; }
 .oauth-button__label { display: inline-flex; align-items: center; line-height: 1.2; }
-.oauth-button__logo { width: 20px; height: 20px; flex: 0 0 20px; display: block; align-self: center; object-fit: contain; }
+.oauth-button__logo { width: 20px; height: 20px; flex: 0 0 20px; display: block; align-self: center; vertical-align: middle; object-fit: contain; }
 .auth-card .auth-form + .oauth-grid { margin-top: 1.5rem; }
 .auth-card .oauth-grid + .auth-links { margin-top: 1.5rem; }
 .auth-card .oauth-grid + a { margin-top: 1.5rem; display: inline-block; }
@@ -1168,8 +1238,11 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .venue-date-group > h2 { margin-top: .5rem; }
 .public-tournament-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: 1rem; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
 .public-tournament-card:hover, .public-tournament-card:focus-visible { transform: translateY(-2px); border-color: var(--hot-blood); box-shadow: 0 12px 28px rgb(0 0 0 / .35); }
-.public-tournament-card h3 { margin: .35rem 0; }
+.calendar-card-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: .45rem .75rem; }
+.public-tournament-card h3 { margin: 0; }
+.calendar-card-heading time { color: var(--dim-ash); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .public-tournament-card p { margin: .25rem 0; }
+.public-tournament-card > .calendar-event__actions { justify-content: flex-end; margin-top: 0; }
 .viewer-date { color: var(--dim-ash) !important; font-size: .9rem; }
 .calendar-status--cancelled { color: oklch(85% .12 30); }
 .calendar-status--completed { color: var(--dim-ash); }
@@ -1180,6 +1253,9 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .registration-action { display: grid; justify-items: start; gap: .75rem; }
 .registration-action p { margin: 0; }
 .registration-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.public-participants__header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.public-participants__header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .6rem; }
+.public-participants > p { margin: 0; }
 /* --create-green-hot, not --create-green: the label is 14px, so it needs 4.5:1, and forge on
    --create-green is only 4.04:1 while forge on --create-green-hot is 5.65:1. Hover adds a glow
    instead of shifting the background, which keeps both states above the AA bar. */
@@ -1211,6 +1287,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .public-tournament-card, .registration-card { grid-template-columns: 1fr; }
   .public-tournament-card .calendar-event__actions > *, .registration-action > a, .registration-action > button { width: 100%; }
   .registration-actions, .registration-actions > a, .registration-actions > button { width: 100%; }
+  .event-detail-actions, .event-detail-actions > a, .public-participants__header-actions, .public-participants__header-actions > a, .public-participants__header-actions > button { width: 100%; }
 }
 
 /* Organizer Tournament create + management */

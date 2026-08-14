@@ -1,49 +1,49 @@
 [
   {
-    "email": "admin@gones.test",
-    "username": "gones-admin",
+    "email": "admin-empty@gones.test",
+    "username": "admin-empty",
     "firstName": "Demo",
     "lastName": "Account 01",
     "role": "Admin"
   },
   {
-    "email": "organizer@gones.test",
-    "username": "gones-organizer",
+    "email": "organizer-gones-one-registration@gones.test",
+    "username": "organizer-gones-one-registration",
     "firstName": "Demo",
     "lastName": "Account 02",
     "role": "Organizer"
   },
   {
-    "email": "organizer2@gones.test",
-    "username": "gones-organizer-2",
+    "email": "organizer-aura-live-standings@gones.test",
+    "username": "organizer-aura-live-standings",
     "firstName": "Demo",
     "lastName": "Account 03",
     "role": "Organizer"
   },
   {
-    "email": "test@gones.test",
-    "username": "gones-test",
+    "email": "user-four-registrations@gones.test",
+    "username": "user-four-registrations",
     "firstName": "Demo",
     "lastName": "Account 04",
     "role": "User"
   },
   {
-    "email": "player1@gones.test",
-    "username": "gones-player-1",
+    "email": "user-two-registrations@gones.test",
+    "username": "user-two-registrations",
     "firstName": "Demo",
     "lastName": "Player 01",
     "role": "User"
   },
   {
-    "email": "player2@gones.test",
-    "username": "gones-player-2",
+    "email": "user-empty@gones.test",
+    "username": "user-empty",
     "firstName": "Demo",
     "lastName": "Player 02",
     "role": "User"
   },
   {
-    "email": "unverified@gones.test",
-    "username": "gones-unverified",
+    "email": "user-unverified@gones.test",
+    "username": "user-unverified",
     "firstName": "Demo",
     "lastName": "Account 07",
     "role": "User",

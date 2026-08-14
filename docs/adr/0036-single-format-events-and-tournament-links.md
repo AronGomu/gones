@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed by implementation plan `ai_artefacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`. Accept when T3 ships.
+Accepted. Implemented by T3–T7 in `ai_artefacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`. Finalized T15.
 
 ## Context
 
@@ -23,7 +23,7 @@ Gones is unreleased; no prod env exists. Local DB reset + fixture reshape accept
 - Persist base Event title. Backend derives public `displayTitle = "{Format} — {Title}"`.
 - Backend derives new slug `{title-slug}-{format-slug}` and truncates title prefix so total stays within max length.
 - Format soft-delete conflicts while any active/nondeleted Event references it. Existing Events never become stranded on inactive format.
-- Existing local multi-format demo rows split per format. Registrations stay on first catalog-sorted child only. Shared metadata/capacity cloned; text rewritten format-specifically.
+- Existing local multi-format rows are reset before this constraint applies. T4 reshapes demo fixtures into one Event per format; registration placement and fixture-specific text belong to that follow-up.
 
 ## Consequences
 

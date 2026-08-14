@@ -14,6 +14,7 @@ import { GlobalRole } from './league-archive-command-ux';
 import { isLocalLeagueId, LOCAL_LEAGUE_ID_PREFIX } from './league-archive-origin';
 import { LeagueArchiveImportService } from './league-archive-import.service';
 import { LeagueArchiveRepository } from './league-archive-repository.service';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
  * ADR 0028 — an imported bundle carries no authority of its own: it lands in whichever store the
@@ -47,6 +48,7 @@ function fakeBackend(namespace: 'server' | 'local') {
     editArchiveTournament: vi.fn(async () => league('tournament-edited')),
     deleteArchiveTournament: vi.fn(async () => league('tournament-deleted')),
     moveArchiveTournament: vi.fn(async () => ({ fromLeague: league('from'), toLeague: league('to') })),
+    applyArchiveTournamentEditBatch: vi.fn(async () => ({ sourceLeague: league('source'), destinationLeague: null })),
     addArchiveRound: vi.fn(async () => league('round-added')),
     deleteArchiveRound: vi.fn(async () => league('round-deleted')),
     importArchiveRound: vi.fn(async () => league('round-imported')),
@@ -88,6 +90,7 @@ function setup(role?: GlobalRole) {
     { provide: LocalLeagueArchiveBackend, useValue: local },
     { provide: AuthService, useValue: auth },
     { provide: SERVER_READ_CACHE_STORE_PORT, useValue: cacheStore },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     SessionScopeService,
     ServerReadCacheService
   ] });

@@ -5,13 +5,12 @@ using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class LiveAggregatePersistenceTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
 
     public Task InitializeAsync() => postgres.StartAsync();
     public Task DisposeAsync() => postgres.DisposeAsync().AsTask();

@@ -14,6 +14,7 @@ import { registrationDestination } from './registration-gate';
 import { LastVisitedUrlService, loginDestination } from './last-visited-url.service';
 import { passwordConfirmationErrors } from './password-confirmation';
 import { isValidLoginEmail, isValidLoginPassword, loginFormIsValid } from './login-validation';
+import { safeReturnUrl } from './return-url';
 
 @Component({
   selector: 'gones-field-errors',
@@ -61,7 +62,7 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
               </button>
             </div>
             <nav class="auth-links" data-cy="login-links" [attr.aria-label]="i18n.t('auth.accountLinks')">
-              <a routerLink="/register" data-cy="login-register-link">{{ i18n.t('auth.createAccount') }}</a>
+              <a routerLink="/register" [queryParams]="returnQueryParams()" data-cy="login-register-link">{{ i18n.t('auth.createAccount') }}</a>
               <a routerLink="/forgot-password" data-cy="login-forgot-link">{{ i18n.t('auth.forgotPassword') }}</a>
             </nav>
           } @else if (mode() === 'register') {
@@ -93,7 +94,7 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
                 <img class="oauth-button__logo" src="assets/brand/facebook.svg" [attr.alt]="i18n.t('auth.continueFacebook')" data-cy="register-oauth-facebook-logo">
               </button>
             </div>
-            <a routerLink="/login" data-cy="register-login-link">{{ i18n.t('auth.haveAccount') }}</a>
+            <a routerLink="/login" [queryParams]="returnQueryParams()" data-cy="register-login-link">{{ i18n.t('auth.haveAccount') }}</a>
           } @else if (mode() === 'complete-profile') {
             <p class="muted" data-cy="complete-help">{{ i18n.t('auth.completeProfileHelp') }}</p>
             <form class="auth-form" data-cy="complete-form" (ngSubmit)="submitCompleteProfile()" novalidate><fieldset [disabled]="pending()" data-cy="complete-fieldset">
@@ -109,7 +110,7 @@ export class FieldErrorsComponent { readonly messages = input<string[]>(); }
               <label for="verify-email-address" data-cy="verify-email-address-label">{{ i18n.t('auth.email') }}</label><input id="verify-email-address" data-cy="verify-email-address" type="email" autocomplete="email" required [(ngModel)]="email" name="email">
               <button mat-stroked-button type="submit" data-cy="resend-verification">{{ i18n.t('auth.resendVerification') }}</button>
             </fieldset></form>
-            <a routerLink="/login" data-cy="verify-login-link">{{ i18n.t('auth.backToLogin') }}</a>
+            <a routerLink="/login" [queryParams]="returnQueryParams()" data-cy="verify-login-link">{{ i18n.t('auth.backToLogin') }}</a>
           } @else if (mode() === 'forgot-password') {
             <p class="muted" data-cy="forgot-help">{{ i18n.t('auth.forgotHelp') }}</p>
             <form class="auth-form" data-cy="forgot-form" (ngSubmit)="submitForgotPassword()"><fieldset [disabled]="pending()" data-cy="forgot-fieldset"><label for="forgot-email" data-cy="forgot-email-label">{{ i18n.t('auth.email') }}</label><input id="forgot-email" data-cy="forgot-email" type="email" autocomplete="email" required [(ngModel)]="email" name="email"><button mat-flat-button class="home-primary-action" data-cy="forgot-submit" type="submit">{{ i18n.t('auth.sendReset') }}</button></fieldset></form>
@@ -146,6 +147,8 @@ export class AuthEntryComponent {
   readonly emailInvalid = computed(() => this.email().length > 0 && !isValidLoginEmail(this.email()));
   readonly passwordInvalid = computed(() => this.password().length > 0 && !isValidLoginPassword(this.password()));
   readonly token = this.route.snapshot.queryParamMap.get('token') ?? '';
+  readonly returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), '');
+  readonly returnQueryParams = computed(() => this.returnUrl ? { returnUrl: this.returnUrl } : {});
   private readonly completionTicket = this.route.snapshot.queryParamMap.get('ticket') ?? this.route.snapshot.queryParamMap.get('completionTicket') ?? '';
   readonly returnLink = computed(() => authReturnLink(this.mode()));
   readonly returnLabel = computed(() => this.returnLink()?.[0] === '/' ? this.i18n.t('nav.returnToMenu') : this.i18n.t('auth.backToLogin'));
@@ -168,8 +171,17 @@ export class AuthEntryComponent {
     const mismatch = passwordConfirmationErrors(this.password(), this.confirmPassword, this.i18n.t('auth.passwordMismatch'));
     if (Object.keys(mismatch).length) { this.fieldErrors.set(mismatch); this.error.set(this.i18n.t('auth.passwordMismatch')); return; }
     await this.run(async () => {
-      const profile = await this.auth.register({ email: this.email(), username: this.username, password: this.password(), firstName: this.firstName, lastName: this.lastName });
-      await this.router.navigate([registrationDestination(profile)], { queryParams: { email: profile.email, registered: 'true' } });
+      const profile = await this.auth.register({
+        email: this.email(),
+        username: this.username,
+        password: this.password(),
+        firstName: this.firstName,
+        lastName: this.lastName,
+        returnUrl: this.returnUrl || undefined
+      });
+      await this.router.navigate([registrationDestination(profile)], {
+        queryParams: { email: profile.email, registered: 'true', ...(this.returnUrl ? { returnUrl: this.returnUrl } : {}) }
+      });
     });
   }
 
@@ -195,11 +207,14 @@ export class AuthEntryComponent {
   }
 
   async resendVerification(): Promise<void> {
-    await this.run(async () => { await this.auth.resendVerification({ email: this.email() }); this.status.set(this.i18n.t('auth.resendStatus')); });
+    await this.run(async () => {
+      await this.auth.resendVerification({ email: this.email(), returnUrl: this.returnUrl || undefined });
+      this.status.set(this.i18n.t('auth.resendStatus'));
+    });
   }
 
   async submitForgotPassword(): Promise<void> {
-    await this.run(async () => { await this.auth.forgotPassword({ email: this.email() }); this.status.set(this.i18n.t('auth.forgotStatus')); });
+    await this.run(async () => { await this.auth.forgotPassword({ email: this.email(), returnUrl: undefined }); this.status.set(this.i18n.t('auth.forgotStatus')); });
   }
 
   async submitResetPassword(): Promise<void> {

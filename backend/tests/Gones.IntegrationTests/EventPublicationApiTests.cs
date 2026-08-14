@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
@@ -12,13 +13,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class EventPublicationApiTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Instant.FromUtc(2030, 1, 1, 12, 0));
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
@@ -61,6 +61,34 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
 
         using var allowed = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id));
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+    }
+
+    [Fact]
+    public async Task Preview_requires_exactly_one_format_and_round_trips_tournament_links()
+    {
+        using var zero = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id) with { FormatIds = [] });
+        Assert.Equal(HttpStatusCode.BadRequest, zero.StatusCode);
+        Assert.True((await zero.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors").TryGetProperty("formatIds", out _));
+
+        using var two = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id) with { FormatIds = [seed.Legacy.Id, seed.Modern.Id] });
+        Assert.Equal(HttpStatusCode.BadRequest, two.StatusCode);
+        Assert.True((await two.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors").TryGetProperty("formatIds", out _));
+
+        var payload = Payload(seed.Alpha.Id) with
+        {
+            FormatIds = [seed.Modern.Id],
+            LiveTournamentUrl = " /live/123 ",
+            ArchiveTournamentUrl = "https://example.test/archive/123"
+        };
+        using var preview = await PreviewAsync(seed.Organizer.Id, payload);
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        var render = (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("render");
+        Assert.Equal("Modern — Summer Cup", render.GetProperty("displayTitle").GetString());
+        Assert.Equal("/live/123", render.GetProperty("liveTournamentUrl").GetString());
+        Assert.Equal("https://example.test/archive/123", render.GetProperty("archiveTournamentUrl").GetString());
+
+        using var unsafeUrl = await PreviewAsync(seed.Organizer.Id, payload with { LiveTournamentUrl = "javascript:alert(1)" });
+        Assert.Equal(HttpStatusCode.BadRequest, unsafeUrl.StatusCode);
     }
 
     [Fact]
@@ -112,7 +140,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         Assert.NotNull(published.Headers.ETag);
         var firstBody = await published.Content.ReadFromJsonAsync<JsonElement>();
         var tournamentId = firstBody.GetProperty("id").GetGuid();
-        Assert.Equal("summer-cup", firstBody.GetProperty("slug").GetString());
+        Assert.Equal("summer-cup-legacy", firstBody.GetProperty("slug").GetString());
 
         using var retry = await PublishAsync(seed.Organizer.Id, "publish-once", ticket, payload);
         Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
@@ -179,6 +207,21 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Format_specific_slug_truncates_title_prefix_within_event_bound()
+    {
+        using var preview = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id) with
+        {
+            Title = new string('A', Event.MaximumTitleLength),
+            FormatIds = [seed.LongSlugFormat.Id]
+        });
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        var slug = (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("render").GetProperty("slug").GetString()!;
+
+        Assert.Equal(Event.MaximumSlugLength, slug.Length);
+        Assert.EndsWith($"-{seed.LongSlugFormat.Slug}", slug, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Concurrent_duplicate_titles_receive_unique_deterministic_slugs()
     {
         var payload = Payload(seed.Alpha.Id) with { Title = "Concurrent Cup" };
@@ -196,7 +239,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
             (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString(),
             (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString()
         };
-        Assert.Equal(new[] { "concurrent-cup", "concurrent-cup-2" }, slugs.Order(StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "concurrent-cup-legacy", "concurrent-cup-legacy-2" }, slugs.Order(StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
@@ -244,7 +287,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var id = body.GetProperty("id").GetGuid();
         Assert.NotEqual(attackerId, id);
-        Assert.Equal("mass-assignment-cup", body.GetProperty("slug").GetString());
+        Assert.Equal("mass-assignment-cup-legacy", body.GetProperty("slug").GetString());
         Assert.Equal("Published", body.GetProperty("status").GetString());
 
         await using var database = CreateContext();
@@ -253,7 +296,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         Assert.Null(stored.DeletedAt);
         Assert.Null(stored.DeletedByUserId);
         Assert.Equal(1, stored.Version);
-        Assert.Equal("mass-assignment-cup", stored.Slug);
+        Assert.Equal("mass-assignment-cup-legacy", stored.Slug);
         Assert.DoesNotContain("poison", stored.NormalizedSearchText, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -351,7 +394,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
             new { previewTicket = draftTicket, payload = draftPayload },
             "draft-org-publish");
         Assert.Equal(HttpStatusCode.Created, staffed.StatusCode);
-        Assert.Equal("draft-org-cup", (await staffed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString());
+        Assert.Equal("draft-org-cup-legacy", (await staffed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("slug").GetString());
     }
 
     /// <summary>
@@ -465,16 +508,19 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         var draft = Organization.Create("Draft Club", null, null, null, Now);
         var legacy = await database.TournamentFormats.SingleOrDefaultAsync(format => format.Slug == TournamentFormat.LegacySlug)
             ?? TournamentFormat.CreateLegacy(Now);
+        var modern = TournamentFormat.Create("Modern", "modern", 10, Now);
+        var longSlugFormat = TournamentFormat.Create("Long format", new string('f', TournamentFormat.MaximumSlugLength), 20, Now);
         database.Users.AddRange(organizer, secondOrganizer, outsider, admin);
         database.Organizations.AddRange(alpha, beta, draft);
         if (database.Entry(legacy).State == EntityState.Detached) database.TournamentFormats.Add(legacy);
+        database.TournamentFormats.AddRange(modern, longSlugFormat);
         await database.SaveChangesAsync();
         database.OrganizationMembers.AddRange(
             OrganizationMember.Create(alpha.Id, organizer.Id, OrganizationRoles.Organizer, Now),
             OrganizationMember.Create(alpha.Id, secondOrganizer.Id, OrganizationRoles.Organizer, Now),
             OrganizationMember.Create(beta.Id, outsider.Id, OrganizationRoles.Organizer, Now));
         await database.SaveChangesAsync();
-        return new SeedRows(alpha, beta, draft, organizer, secondOrganizer, outsider, admin, legacy);
+        return new SeedRows(alpha, beta, draft, organizer, secondOrganizer, outsider, admin, legacy, modern, longSlugFormat);
     }
 
     private static ApplicationUser User(string prefix)
@@ -529,7 +575,9 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         ApplicationUser SecondOrganizer,
         ApplicationUser Outsider,
         ApplicationUser Admin,
-        TournamentFormat Legacy);
+        TournamentFormat Legacy,
+        TournamentFormat Modern,
+        TournamentFormat LongSlugFormat);
 
     private sealed record TournamentPayload(
         Guid OrganizationId,
@@ -544,7 +592,9 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         string StartsAtLocal,
         string? EndsAtLocal,
         int? Capacity,
-        IReadOnlyList<Guid> FormatIds);
+        IReadOnlyList<Guid> FormatIds,
+        string? LiveTournamentUrl = null,
+        string? ArchiveTournamentUrl = null);
 
     private sealed class MutableClock(Instant current) : IClock
     {

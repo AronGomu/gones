@@ -22,6 +22,22 @@ import { LiveTournamentRepository } from './data/live-tournament-repository.serv
 import { I18nService } from './i18n/i18n.service';
 import { translate } from './i18n/messages';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from './shared/power-user-settings.service';
+
+describe('global-stats breadcrumb', () => {
+  const en: Translator = (key, params) => translate('en', key, params);
+
+  it('labels /global-stats as Global Rankings in EN', async () => {
+    const crumbs = await buildBreadcrumbs('/global-stats', en);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Global Rankings']);
+    expect(crumbs[1].link).toBeUndefined();
+  });
+
+  it('labels /global-stats as Classement mondial in FR', async () => {
+    const crumbs = await buildBreadcrumbs('/global-stats');
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Classement mondial']);
+  });
+});
 
 describe('buildBreadcrumbs', () => {
   it('builds the account page breadcrumb with Settings linked back to /settings', async () => {
@@ -119,6 +135,7 @@ describe('header import visibility', () => {
       { provide: LeagueArchiveRepository, useValue: { getLeague: vi.fn(async () => null) } },
       { provide: LiveTournamentRepository, useValue: { get: vi.fn(async () => null) } },
       { provide: MatDialog, useValue: { open: vi.fn() } },
+      { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
       DeckArchetypeSettingsService,
       I18nService
     ] });

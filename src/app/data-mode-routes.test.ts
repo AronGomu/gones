@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { buildRoutes, calendarRoutes } from './app.routes';
 import { organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
 import { firstVisitHomeGuard, markVisitedGuard } from './shared/first-visit.guard';
+import { powerUserGuard } from './shared/power-user.guard';
 
 const noCapabilities = { authV1: false, adminV1: false };
 const allCapabilities = { authV1: true, adminV1: true };
@@ -56,9 +57,15 @@ describe('calendar routes', () => {
 
 describe('route exposure per capability flag', () => {
   it('always serves the public browsing, League archive, Live and Settings surface', () => {
-    for (const path of ['', 'about', 'calendar', 'events/:slug', 'leagues-archive', 'live-tournaments', 'settings']) {
+    for (const path of ['', 'about', 'calendar', 'events/:slug', 'global-stats', 'leagues-archive', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
       expect(paths(noCapabilities)).toContain(path);
     }
+  });
+
+  it('guards only the Live create route with the Power User gate', () => {
+    expect(routeFor('live-tournaments/new')?.canActivate).toEqual([powerUserGuard]);
+    expect(routeFor('live-tournaments')?.canActivate).toBeUndefined();
+    expect(routeFor('live-tournaments/:liveTournamentId')?.canActivate).toBeUndefined();
   });
 
   it('exposes the auth, registration, organizer and admin surface when the flags are on', () => {
@@ -130,11 +137,10 @@ describe('route exposure per capability flag', () => {
     expect(paths(allCapabilities)).toContain('events/new');
   });
 
-  it('guards events/new with userGuard and verifiedEmailGuard', () => {
+  it('guards events/new with organizer, verified-email and Power User gates in order', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'events/new');
     expect(route).toBeDefined();
-    expect(route!.canActivate ?? [], 'events/new should be guarded by userGuard').toContain(userGuard);
-    expect(route!.canActivate ?? [], 'events/new should be guarded by verifiedEmailGuard').toContain(verifiedEmailGuard);
+    expect(route!.canActivate).toEqual([organizerGuard, verifiedEmailGuard, powerUserGuard]);
   });
 
   it('matches events/new before the events/:slug detail route', () => {
@@ -165,9 +171,9 @@ describe('route exposure per capability flag', () => {
     expect(route?.pathMatch).toBe('full');
   });
 
-  it('keeps the organizer edit path guarded by organizerGuard', () => {
+  it('keeps organizer edit behind organizer, verified-email and Power User gates in order', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'organizer/events/:id/edit');
-    expect(route?.canActivate ?? [], 'organizer/events/:id/edit should be guarded by organizerGuard').toContain(organizerGuard);
+    expect(route?.canActivate).toEqual([organizerGuard, verifiedEmailGuard, powerUserGuard]);
   });
 
   it('redirects the home route to /about on the first visit', () => {

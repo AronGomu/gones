@@ -27,7 +27,7 @@ function templateBlock(opening: string): string {
 describe('settings page local sections', () => {
   it('renders both local sections behind their flags', () => {
     expect(templateBlock('@if (capabilities().localCatalog) {')).toContain('data-cy="settings-local-archetype-card"');
-    expect(templateBlock('@if (capabilities().localMaintenance) {')).toContain('data-cy="settings-local-players-card"');
+    expect(templateBlock('@if (power.enabled() && capabilities().localMaintenance) {')).toContain('data-cy="settings-local-players-card"');
   });
 
   it('reloads truthful local player state after a partial sequential rename failure', async () => {
@@ -48,6 +48,7 @@ describe('settings page local sections', () => {
     Object.assign(component, {
       localBackend,
       i18n: { t: (key: string) => key },
+      power: { enabled: signal(true) },
       playerSaving: signal(false),
       playerMessage: signal(''),
       playerEdits: signal({ Alice: 'Alicia' }),
@@ -84,6 +85,7 @@ describe('settings page local sections', () => {
     Object.assign(component, {
       localBackend,
       i18n: { t: (key: string) => key },
+      power: { enabled: signal(true) },
       playerSaving: signal(false),
       playerMessage: signal(''),
       playerEdits: signal({ Alice: 'Alicia' }),
@@ -119,7 +121,7 @@ describe('settings page local sections', () => {
   it('never calls the API client from a local path', () => {
     const slices = [
       templateBlock('@if (capabilities().localCatalog) {'),
-      templateBlock('@if (capabilities().localMaintenance) {'),
+      templateBlock('@if (power.enabled() && capabilities().localMaintenance) {'),
       templateBlock('async addLocalArchetype(): Promise<void> {'),
       templateBlock('async saveLocalArchetypeEdit(archetype: string): Promise<void> {'),
       templateBlock('async removeLocalArchetype(archetype: string): Promise<void> {'),

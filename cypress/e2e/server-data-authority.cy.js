@@ -27,6 +27,7 @@ function seedGhostStores(win) {
   }));
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.power-user', 'true');
 }
 
 // Test-isolation cleanup can race the previous page's settings self-heal (French default);

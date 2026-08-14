@@ -33,9 +33,9 @@ HTTP API and validated by `npm run test`.
 
 ## The `demo` environment
 
-`npm run dev -- --env=demo` resets the local database and loads a populated Calendar: seven accounts
-(one per role, plus a deliberately unverified one), two organizations, four formats, nine published
-tournaments spread over past / today / future, and twelve registrations. It is what makes `/calendar`,
+`npm run dev -- --env=demo` resets the local database and loads a populated Calendar: seven
+purpose-named accounts (including one deliberately unverified), two organizations, four formats,
+sixteen single-format published Events spread over past / today / future, and seven registrations. It is what makes `/calendar`,
 `/organizer/tournaments` and the participants screen show content without creating anything by hand.
 
 It also loads the two halves the Calendar does not cover: two **League Archives** (`Gones League 6`,
@@ -63,7 +63,8 @@ organization owner, which is what lets it publish tournaments).
 `p`, `br`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, `a`), `streetAddress`, `postalCode`, `city`,
 `country`, `timeZoneId` (IANA), `startsAtLocalOffsetDays` / `startsAtLocalTime` and
 `endsAtLocalOffsetDays` / `endsAtLocalTime`, `capacity` (positive integer or `null` for unlimited),
-`formatKeys` (must contain `legacy` — V1 refuses a tournament without it).
+`formatKeys` (must contain exactly one format). Split Event keys use
+`{source-key}-{format-slug}` while stored titles keep the shared base title.
 
 Dates are **relative**: the offset is a signed number of days added to today, so a dataset committed
 once still shows past, ongoing and upcoming tournaments a year later. `-90` is ninety days ago, `0`
@@ -115,9 +116,10 @@ each Round), so what lands is a tournament that was actually run.
 ### Editing it
 
 Edit the JSON, then re-run `npm run dev -- --env=demo`. There is nothing to rebuild. The seeder
-relaxes the local API's auth rate limit for the duration of the reset (a seven-account environment
-makes more login and registration calls than the shipped 5-per-15-minutes limit allows); export
-`GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT` yourself to override that.
+relaxes the local API's auth and write rate limits for the duration of the reset (a seven-account
+environment plus Live command replay exceeds shipped limits); export
+`GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT` or `GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT` yourself to override
+those local seed values.
 
 ## Running one
 

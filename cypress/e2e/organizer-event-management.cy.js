@@ -27,6 +27,7 @@ function mockFormats() {
 function seedLanguage(win, language) {
   win.localStorage.setItem('gones.settings.language', language);
   win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.power-user', 'true');
 }
 
 // Breadcrumbs and dialog copy are translated, so the language has to be in localStorage before the

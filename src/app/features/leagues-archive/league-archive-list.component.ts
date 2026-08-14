@@ -18,6 +18,7 @@ import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { TextPromptDialogComponent } from '../../shared/dialogs';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
@@ -49,10 +50,12 @@ import { TextPromptDialogComponent } from '../../shared/dialogs';
             <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-item-view">{{ i18n.t('common.view') }}</span>
           </a>
         }
-        <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="leagues-archive-list-create-card">
-          <h2 data-cy="leagues-archive-list-create-card-title">{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
-          <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-create-card-action">{{ i18n.t('common.create') }}</span>
-        </button>
+        @if (power.enabled()) {
+          <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="leagues-archive-list-create-card">
+            <h2 data-cy="leagues-archive-list-create-card-title">{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
+            <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-create-card-action">{{ i18n.t('common.create') }}</span>
+          </button>
+        }
         @if (hasUnmanageableServerLeagues()) { <p class="muted" data-cy="leagues-archive-list-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       </div>
     }
@@ -66,8 +69,10 @@ export class LeagueArchiveListComponent {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly creating = signal(false);
-  /** A server league the visitor cannot manage is what the read-only notice is about (ADR 0028). */
-  readonly hasUnmanageableServerLeagues = computed(() => this.leagues().some((league) => !isLocalLeagueId(league.id)) && !canManageLeagues(this.auth.profile()?.globalRole));
+  readonly power = inject(PowerUserSettingsService);
+  /** Power mode applies to both stores; role authority still applies to server leagues. */
+  readonly hasUnmanageableServerLeagues = computed(() => !this.power.enabled()
+    || (this.leagues().some((league) => !isLocalLeagueId(league.id)) && !canManageLeagues(this.auth.profile()?.globalRole)));
   searchTerm = '';
   readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {
@@ -106,6 +111,7 @@ export class LeagueArchiveListComponent {
   }
 
   async createLeague(): Promise<void> {
+    if (!this.power.enabled()) return;
     const name = await firstDialogValue(this.dialog.open(TextPromptDialogComponent, { data: { title: this.i18n.t('leagues.createTitle'), label: this.i18n.t('leagues.createLabel'), confirmLabel: this.i18n.t('leagues.createConfirm') } }).afterClosed());
     if (!name || this.creating()) return;
     this.creating.set(true);

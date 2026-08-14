@@ -119,64 +119,161 @@ public static class LeagueRules
     public static PlayerStatistics CalculatePlayerStatistics(GonesData data, string playerName, PlayerStatisticsFilters? filters = null)
     {
         filters ??= new PlayerStatisticsFilters();
-        var selectedName = playerName ?? string.Empty;
-        var playedMatchCount = 0;
-        var byeCount = 0;
-        var matchWins = 0;
-        var gameWins = 0;
-        var gameLosses = 0;
-        var matches = new List<PlayerMatch>();
-        var lossesByOpponent = new Dictionary<string, int>(StringComparer.Ordinal);
-        var matchesByOpponent = new Dictionary<string, int>(StringComparer.Ordinal);
+        var accumulator = new StatisticsAccumulator(LeagueNormalizer.TrimPlayerName(playerName ?? string.Empty));
+        foreach (var league in data.Leagues) CollectLeagueStatistics(accumulator, league, filters);
+        return FinalizeStatistics(accumulator);
+    }
 
+    public static IReadOnlyList<GlobalPlayerStatistics> CalculateGlobalPlayerStatistics(GonesData data)
+    {
+        var accumulators = new Dictionary<string, StatisticsAccumulator>(StringComparer.Ordinal);
         foreach (var league in data.Leagues)
         {
-            if (filters.LeagueId is { Length: > 0 } && league.Id != filters.LeagueId) continue;
+            if (league.Status != "completed") continue;
             foreach (var tournament in league.Tournaments)
             {
-                if (filters.TournamentId is { Length: > 0 } && tournament.Id != filters.TournamentId) continue;
                 for (var roundIndex = 0; roundIndex < tournament.Rounds.Count; roundIndex++)
                 {
                     foreach (var entry in tournament.Rounds[roundIndex].Entries)
                     {
-                        if (!Validate(entry).Valid) continue;
-                        if (entry is ByeRoundEntry bye && bye.PlayerName == selectedName)
-                        {
-                            byeCount++;
-                            matches.Add(new PlayerMatch("bye", league, tournament, roundIndex, "Bye", 2, 0));
-                            continue;
-                        }
-                        if (entry is not MatchRoundEntry match) continue;
-                        var side = match.Player1Name == selectedName ? 1 : match.Player2Name == selectedName ? 2 : 0;
-                        if (side == 0) continue;
-                        var opponentName = side == 1 ? match.Player2Name : match.Player1Name;
-                        if (filters.OpponentName is { Length: > 0 } && !IncludesNormalized(opponentName, filters.OpponentName)) continue;
-                        var ownScore = side == 1 ? match.Player1Score : match.Player2Score;
-                        var opponentScore = side == 1 ? match.Player2Score : match.Player1Score;
-                        playedMatchCount++;
-                        gameWins += ownScore;
-                        gameLosses += opponentScore;
-                        if (ownScore > opponentScore) matchWins++;
-                        if (ownScore < opponentScore) Increment(lossesByOpponent, opponentName);
-                        Increment(matchesByOpponent, opponentName);
-                        matches.Add(new PlayerMatch("match", league, tournament, roundIndex, opponentName, ownScore, opponentScore));
+                        if (entry is not MatchRoundEntry match || !Validate(match).Valid) continue;
+                        CollectMatchStatistics(EnsureAccumulator(match.Player1Name), match, 1, league, tournament, roundIndex);
+                        CollectMatchStatistics(EnsureAccumulator(match.Player2Name), match, 2, league, tournament, roundIndex);
                     }
                 }
             }
         }
 
+        return accumulators.Values
+            .Select(FinalizeStatistics)
+            .Where(stats => stats.PlayedMatchCount > 0)
+            .Select(stats => new GlobalPlayerStatistics(
+                stats.PlayerName,
+                stats.PlayedMatchCount,
+                stats.MatchWins,
+                stats.MatchLosses,
+                stats.MatchDraws,
+                stats.MatchWinrate,
+                stats.PlayedGameCount,
+                stats.GameWins,
+                stats.GameLosses,
+                stats.GameWinrate,
+                stats.Nemesis,
+                stats.Rival,
+                stats.MostPlayedArchetype))
+            .OrderBy(stats => stats.PlayerName, StringComparer.Ordinal)
+            .ToArray();
+
+        StatisticsAccumulator EnsureAccumulator(string playerName)
+        {
+            var name = LeagueNormalizer.TrimPlayerName(playerName);
+            if (accumulators.TryGetValue(name, out var accumulator)) return accumulator;
+            accumulator = new StatisticsAccumulator(name);
+            accumulators.Add(name, accumulator);
+            return accumulator;
+        }
+    }
+
+    private static void CollectLeagueStatistics(StatisticsAccumulator accumulator, LeagueDocument league, PlayerStatisticsFilters filters)
+    {
+        if (filters.LeagueId is { Length: > 0 } && league.Id != filters.LeagueId) return;
+        foreach (var tournament in league.Tournaments)
+        {
+            if (filters.TournamentId is { Length: > 0 } && tournament.Id != filters.TournamentId) continue;
+            for (var roundIndex = 0; roundIndex < tournament.Rounds.Count; roundIndex++)
+            {
+                foreach (var entry in tournament.Rounds[roundIndex].Entries)
+                {
+                    if (!Validate(entry).Valid) continue;
+                    if (entry is ByeRoundEntry bye && LeagueNormalizer.TrimPlayerName(bye.PlayerName) == accumulator.PlayerName)
+                    {
+                        accumulator.ByeCount++;
+                        accumulator.Matches.Add(new PlayerMatch("bye", league, tournament, roundIndex, "Bye", 2, 0));
+                        continue;
+                    }
+                    if (entry is not MatchRoundEntry match) continue;
+                    var side = LeagueNormalizer.TrimPlayerName(match.Player1Name) == accumulator.PlayerName ? 1 : LeagueNormalizer.TrimPlayerName(match.Player2Name) == accumulator.PlayerName ? 2 : 0;
+                    if (side == 0) continue;
+                    var opponentName = LeagueNormalizer.TrimPlayerName(side == 1 ? match.Player2Name : match.Player1Name);
+                    if (filters.OpponentName is { Length: > 0 } && !IncludesNormalized(opponentName, filters.OpponentName)) continue;
+                    CollectMatchStatistics(accumulator, match, side, league, tournament, roundIndex);
+                }
+            }
+        }
+    }
+
+    private static void CollectMatchStatistics(StatisticsAccumulator accumulator, MatchRoundEntry match, int side, LeagueDocument league, TournamentDocument tournament, int roundIndex)
+    {
+        var opponentName = LeagueNormalizer.TrimPlayerName(side == 1 ? match.Player2Name : match.Player1Name);
+        var ownScore = side == 1 ? match.Player1Score : match.Player2Score;
+        var opponentScore = side == 1 ? match.Player2Score : match.Player1Score;
+        if (!accumulator.Opponents.TryGetValue(opponentName, out var opponent))
+        {
+            opponent = new MutableOpponentRecord(opponentName);
+            accumulator.Opponents.Add(opponentName, opponent);
+        }
+        accumulator.PlayedMatchCount++;
+        accumulator.GameWins += ownScore;
+        accumulator.GameLosses += opponentScore;
+        if (ownScore > opponentScore)
+        {
+            accumulator.MatchWins++;
+            opponent.Wins++;
+        }
+        else if (ownScore < opponentScore)
+        {
+            accumulator.MatchLosses++;
+            opponent.Losses++;
+        }
+        else accumulator.MatchDraws++;
+        opponent.MatchCount++;
+        var archetype = SelectedArchetype(match, side, tournament, accumulator.PlayerName);
+        if (archetype.Length > 0) accumulator.Archetypes[archetype] = accumulator.Archetypes.GetValueOrDefault(archetype) + 1;
+        accumulator.Matches.Add(new PlayerMatch("match", league, tournament, roundIndex, opponentName, ownScore, opponentScore));
+    }
+
+    private static PlayerStatistics FinalizeStatistics(StatisticsAccumulator accumulator)
+    {
+        var playedGameCount = accumulator.GameWins + accumulator.GameLosses;
         return new PlayerStatistics(
-            selectedName,
-            playedMatchCount,
-            byeCount,
-            matchWins,
-            gameWins,
-            gameLosses,
-            playedMatchCount > 0 ? (double)matchWins / playedMatchCount : null,
-            gameWins + gameLosses > 0 ? (double)gameWins / (gameWins + gameLosses) : null,
-            TopName(lossesByOpponent, true),
-            TopName(matchesByOpponent, false),
-            matches);
+            accumulator.PlayerName,
+            accumulator.PlayedMatchCount,
+            accumulator.ByeCount,
+            accumulator.MatchWins,
+            accumulator.MatchLosses,
+            accumulator.MatchDraws,
+            playedGameCount,
+            accumulator.GameWins,
+            accumulator.GameLosses,
+            accumulator.PlayedMatchCount > 0 ? (double)accumulator.MatchWins / accumulator.PlayedMatchCount : null,
+            playedGameCount > 0 ? (double)accumulator.GameWins / playedGameCount : null,
+            TopOpponent(accumulator.Opponents, record => record.Losses, true),
+            TopOpponent(accumulator.Opponents, record => record.MatchCount),
+            TopArchetype(accumulator.Archetypes),
+            accumulator.Matches);
+    }
+
+    private static OpponentRecord? TopOpponent(IReadOnlyDictionary<string, MutableOpponentRecord> map, Func<MutableOpponentRecord, int> value, bool requirePositive = false)
+    {
+        var top = map.Values
+            .Where(record => !requirePositive || value(record) > 0)
+            .OrderByDescending(value)
+            .ThenBy(record => record.Name, StringComparer.Ordinal)
+            .FirstOrDefault();
+        return top is null ? null : new OpponentRecord(top.Name, top.Wins, top.Losses);
+    }
+
+    private static PlayerArchetypeUsage? TopArchetype(IReadOnlyDictionary<string, int> map)
+    {
+        var top = map.OrderByDescending(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal).FirstOrDefault();
+        return top.Key is null ? null : new PlayerArchetypeUsage(top.Key, top.Value);
+    }
+
+    private static string SelectedArchetype(MatchRoundEntry match, int side, TournamentDocument tournament, string playerName)
+    {
+        var matchArchetype = (side == 1 ? match.Player1DeckArchetype : match.Player2DeckArchetype).Trim();
+        if (matchArchetype.Length > 0) return matchArchetype;
+        return tournament.PlayerArchetypes.FirstOrDefault(row => LeagueNormalizer.TrimPlayerName(row.PlayerName) == playerName)?.Archetype.Trim() ?? string.Empty;
     }
 
     public static LeagueDocument RenamePlayer(LeagueDocument league, string fromName, string toName)
@@ -433,16 +530,27 @@ public static class LeagueRules
         value.ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US"))
             .Contains(search.Trim().ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US")), StringComparison.Ordinal);
 
-    private static void Increment(IDictionary<string, int> map, string name) => map[name] = (map.TryGetValue(name, out var count) ? count : 0) + 1;
-
-    private static string? TopName(IReadOnlyDictionary<string, int> map, bool tieBreakByName)
+    private sealed class StatisticsAccumulator(string playerName)
     {
-        if (map.Count == 0) return null;
-        var indexed = map.Select((item, index) => (item.Key, item.Value, Index: index));
-        return indexed.OrderByDescending(item => item.Value)
-            .ThenBy(item => tieBreakByName ? item.Key : string.Empty, Comparer<string>.Create(LeagueNormalizer.ComparePlayerNames))
-            .ThenBy(item => item.Index)
-            .First().Key;
+        public string PlayerName { get; } = playerName;
+        public int PlayedMatchCount { get; set; }
+        public int ByeCount { get; set; }
+        public int MatchWins { get; set; }
+        public int MatchLosses { get; set; }
+        public int MatchDraws { get; set; }
+        public int GameWins { get; set; }
+        public int GameLosses { get; set; }
+        public List<PlayerMatch> Matches { get; } = [];
+        public Dictionary<string, MutableOpponentRecord> Opponents { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, int> Archetypes { get; } = new(StringComparer.Ordinal);
+    }
+
+    private sealed class MutableOpponentRecord(string name)
+    {
+        public string Name { get; } = name;
+        public int Wins { get; set; }
+        public int Losses { get; set; }
+        public int MatchCount { get; set; }
     }
 
     private sealed class MutableRankingRecord(string playerName)

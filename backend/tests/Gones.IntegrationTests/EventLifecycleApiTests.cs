@@ -15,13 +15,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class EventLifecycleApiTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Instant.FromUtc(2030, 1, 1, 12, 0));
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
@@ -96,7 +95,16 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     public async Task Update_requires_fresh_if_match_rejects_cross_org_fields_and_records_major_marker_atomically()
     {
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Edit Cup");
-        var details = Details("Renamed Cup");
+        var details = Details("Renamed Cup") with
+        {
+            LiveTournamentUrl = "/live/edit-cup",
+            ArchiveTournamentUrl = "https://example.test/archive/edit-cup"
+        };
+
+        using var zeroFormats = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details with { FormatIds = [] }, ifMatch: StrongETag.Encode(tournament.Version));
+        Assert.Equal(HttpStatusCode.BadRequest, zeroFormats.StatusCode);
+        using var twoFormats = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details with { FormatIds = [seed.Legacy.Id, seed.Modern.Id] }, ifMatch: StrongETag.Encode(tournament.Version));
+        Assert.Equal(HttpStatusCode.BadRequest, twoFormats.StatusCode);
 
         using var missing = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details);
         Assert.Equal(HttpStatusCode.PreconditionFailed, missing.StatusCode);
@@ -112,6 +120,10 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         using var minor = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.OK, minor.StatusCode);
         Assert.Equal(StrongETag.Encode(tournament.Version + 1), minor.Headers.ETag?.Tag);
+        var minorBody = await minor.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Legacy — Renamed Cup", minorBody.GetProperty("displayTitle").GetString());
+        Assert.Equal("/live/edit-cup", minorBody.GetProperty("liveTournamentUrl").GetString());
+        Assert.Equal("https://example.test/archive/edit-cup", minorBody.GetProperty("archiveTournamentUrl").GetString());
 
         var majorDetails = details with { StreetAddress = "99 Major Street", StartsAtLocal = "2035-03-05T10:00:00", EndsAtLocal = "2035-03-05T18:00:00", BodyHtml = "<p>Secret changed body</p>" };
         using var major = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", majorDetails, ifMatch: minor.Headers.ETag?.Tag);
@@ -397,6 +409,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         var alpha = Organization.Create("Alpha Club", null, null, null, Now);
         var beta = Organization.Create("Beta Club", null, null, null, Now);
         var legacy = await database.TournamentFormats.SingleOrDefaultAsync(item => item.Slug == TournamentFormat.LegacySlug) ?? TournamentFormat.CreateLegacy(Now);
+        var modern = TournamentFormat.Create("Modern", "modern", 10, Now);
         database.Users.AddRange(organizer, outsider, admin);
         database.UserProfiles.AddRange(
             Profile(organizer.Id, "Organizer"),
@@ -404,12 +417,13 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
             Profile(admin.Id, "Admin"));
         database.Organizations.AddRange(alpha, beta);
         if (database.Entry(legacy).State == EntityState.Detached) database.TournamentFormats.Add(legacy);
+        database.TournamentFormats.Add(modern);
         await database.SaveChangesAsync();
         database.OrganizationMembers.AddRange(
             OrganizationMember.Create(alpha.Id, organizer.Id, OrganizationRoles.Organizer, Now),
             OrganizationMember.Create(beta.Id, outsider.Id, OrganizationRoles.Organizer, Now));
         await database.SaveChangesAsync();
-        return new SeedRows(alpha, beta, organizer, outsider, admin, legacy);
+        return new SeedRows(alpha, beta, organizer, outsider, admin, legacy, modern);
     }
 
     private static ApplicationUser User(string prefix, string role)
@@ -432,8 +446,8 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     private HttpClient Client => client ?? throw new InvalidOperationException("Client not initialized.");
     private static readonly Instant Now = Instant.FromUtc(2030, 1, 1, 12, 0);
 
-    private sealed record SeedRows(Organization Alpha, Organization Beta, ApplicationUser Organizer, ApplicationUser Outsider, ApplicationUser Admin, TournamentFormat Legacy);
-    private sealed record TournamentDetails(string Title, string? Summary, string? BodyHtml, string StreetAddress, string? PostalCode, string City, string Country, string TimeZoneId, string StartsAtLocal, string? EndsAtLocal, int? Capacity, IReadOnlyList<Guid> FormatIds);
+    private sealed record SeedRows(Organization Alpha, Organization Beta, ApplicationUser Organizer, ApplicationUser Outsider, ApplicationUser Admin, TournamentFormat Legacy, TournamentFormat Modern);
+    private sealed record TournamentDetails(string Title, string? Summary, string? BodyHtml, string StreetAddress, string? PostalCode, string City, string Country, string TimeZoneId, string StartsAtLocal, string? EndsAtLocal, int? Capacity, IReadOnlyList<Guid> FormatIds, string? LiveTournamentUrl = null, string? ArchiveTournamentUrl = null);
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;

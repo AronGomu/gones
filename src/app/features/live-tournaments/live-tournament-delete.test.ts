@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { liveDeleteOutcome } from '../../data/live-command-ux';
 
 const runnerComponent = readFileSync(join(__dirname, 'live-tournament-runner.component.ts'), 'utf8');
+const appComponent = readFileSync(join(__dirname, '../../app.component.ts'), 'utf8');
 
 describe('deleting a running live tournament', () => {
   it('a declined confirmation deletes nothing', () => {
@@ -45,6 +46,39 @@ describe('deleting a running live tournament', () => {
     expect(runnerComponent).toContain('@if (data.canManage) {');
     const guarded = runnerComponent.slice(runnerComponent.indexOf('@if (data.canManage) {'));
     expect(guarded.slice(0, guarded.indexOf('\n    }'))).toContain('data-cy="live-advanced-delete"');
+  });
+
+  it('composes Power mode with existing Live authority', () => {
+    expect(runnerComponent).toContain('canUsePowerMutation(this.power.enabled(), this.existingAuthorityAllowed())');
+    expect(runnerComponent).toContain('readonly readOnly = computed(() => !this.canManage())');
+  });
+
+  it('blocks the advanced settings handler while read-only', () => {
+    const body = runnerComponent.slice(runnerComponent.indexOf('openAdvancedSettings(): void'));
+    const handler = body.slice(0, body.indexOf('\n  }'));
+    expect(handler).toContain('if (this.readOnly()) return;');
+  });
+
+  it('hides each runner mutation family behind a read-only branch', () => {
+    for (const guardedControl of [
+      '@if (!readOnly()) {\n              <div class="live-add-player-row"',
+      '@if (!readOnly()) { <button mat-flat-button class="home-primary-action" type="button" data-cy="live-start-tournament-button"',
+      '@if (editable) { <div class="score-stepper live-round-card__score"',
+      '@if (!readOnly()) { <div class="live-validate-actions"',
+      '@if (!readOnly() && (canEditStanding',
+      '@if (!readOnly()) {\n                      <div class="actions live-next-actions"'
+    ]) {
+      expect(runnerComponent).toContain(guardedControl);
+    }
+    expect(runnerComponent).toContain('data-cy="live-runner-meta-read-only"');
+    expect(runnerComponent).toContain('data-cy="live-player-paid-read-only"');
+  });
+
+  it('hides and blocks the shell advanced-settings action while Power mode is off', () => {
+    expect(appComponent).toContain('@if (showLiveTournamentActions() && power.enabled()) {');
+    const body = appComponent.slice(appComponent.indexOf('openLiveTournamentAdvancedSettings(): void'));
+    const handler = body.slice(0, body.indexOf('\n  }'));
+    expect(handler).toContain('if (!this.power.enabled()) return;');
   });
 
   it('deleting is confirmed before it happens', () => {

@@ -1,5 +1,5 @@
 const event = {
-  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy event',
+  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', displayTitle: 'Legacy — Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris', venueStartDate: '2035-03-04', venueStartTime: '10:00:00', venueEndDate: '2035-03-04', venueEndTime: '18:00:00',
   startsAtUtc: '2035-03-04T09:00:00Z', endsAtUtc: '2035-03-04T17:00:00Z', capacity: 2, status: 'Published', bodyHtml: undefined,
@@ -29,6 +29,7 @@ function seedStorage(win) {
   win.localStorage.setItem('gones.first-visit.completed', 'true');
   win.localStorage.setItem('gones.settings.language', 'fr');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: [] }));
+  win.localStorage.removeItem('gones.calendar-v1.all-tournaments');
   win.localStorage.setItem(SEED_MARKER, 'true');
 }
 
@@ -51,6 +52,82 @@ function visit(path) {
 
 describe('public participant registration', () => {
   beforeEach(() => { cy.viewport(1280, 800); common(); });
+
+  it('resumes anonymous Calendar registration only after account verification, login, and confirmation', () => {
+    const returnUrl = '/calendar?month=2026-08&view=list&register=lyon-legacy';
+    let signedIn = false;
+    let registerCalls = 0;
+    cy.intercept('GET', '**/api/events/all', { items: [event], generatedAt: '2035-01-01T00:00:00Z', count: 1, truncated: false }).as('catalog');
+    cy.intercept('POST', '**/api/auth/refresh', req => signedIn
+      ? req.reply({ accessToken: 'memory-token', expiresAt: '2040-01-01T01:00:00Z', tokenType: 'Bearer' })
+      : req.reply({ statusCode: 401 }));
+    cy.intercept('POST', '**/api/auth/register', req => {
+      expect(req.body.returnUrl).to.eq(returnUrl);
+      req.reply({ statusCode: 201, body: { ...profile, email: 'calendar-user@example.test', emailVerified: false } });
+    }).as('createAccount');
+    cy.intercept('POST', '**/api/auth/verify-email', { statusCode: 204 }).as('verifyEmail');
+    cy.intercept('POST', '**/api/auth/login', req => {
+      signedIn = true;
+      req.reply({ accessToken: 'memory-token', expiresAt: '2040-01-01T01:00:00Z', tokenType: 'Bearer' });
+    }).as('login');
+    cy.intercept('GET', '**/api/users/me', profile);
+    cy.intercept('GET', '**/api/events/*/registration-capability', { canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 }).as('capability');
+    cy.intercept('POST', '**/api/events/*/registrations', req => {
+      registerCalls += 1;
+      req.reply({ statusCode: 201, body: { attemptId: 'calendar-attempt', eventId: event.id, userId: 'user', status: 'Confirmed', registeredAt: '2035-01-01T00:00:00Z' } });
+    }).as('calendarRegister');
+
+    visit('/calendar?view=list');
+    cy.get('[data-cy="calendar-card-status"], [data-cy="calendar-card-date"]').should('not.exist');
+    cy.get('[data-cy="calendar-card-title"]').should('contain.text', event.displayTitle);
+    cy.get('[data-cy="calendar-card-start-time"]').should('contain.text', '10:00');
+    cy.get('[data-cy="calendar-card-register"]').click();
+    cy.location('pathname').should('eq', '/login');
+    cy.location('search').should('contain', encodeURIComponent(returnUrl));
+    cy.get('[data-cy="login-register-link"]').click();
+    cy.location('pathname').should('eq', '/register');
+    cy.get('[data-cy="auth-email"]').type('calendar-user@example.test');
+    cy.get('[data-cy="auth-username"]').type('CalendarUser');
+    cy.get('[data-cy="register-first"]').type('Calendar');
+    cy.get('[data-cy="register-last"]').type('User');
+    cy.get('[data-cy="auth-password"]').type('valid-password-value');
+    cy.get('[data-cy="auth-confirm-password"]').type('valid-password-value');
+    cy.get('[data-cy="auth-submit"]').click();
+    cy.wait('@createAccount');
+    cy.location('pathname').should('eq', '/verify-email');
+    cy.location('search').should('contain', 'register%3Dlyon-legacy');
+
+    // Represents action URL delivered by verification email: token plus server-preserved returnUrl.
+    visit(`/verify-email?token=email-action-token&returnUrl=${encodeURIComponent(returnUrl)}`);
+    cy.get('[data-cy="verify-email-submit"]').click();
+    cy.wait('@verifyEmail');
+    cy.get('[data-cy="verify-login-link"]').click();
+    cy.location('pathname').should('eq', '/login');
+    cy.get('[data-cy="auth-email"]').type('calendar-user@example.test');
+    cy.get('[data-cy="auth-password"]').type('valid-password-value');
+    cy.get('[data-cy="auth-submit"]').click();
+    cy.wait('@login');
+    cy.location('pathname').should('eq', '/calendar');
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.wait('@calendarRegister');
+    cy.wrap(null).should(() => expect(registerCalls).to.eq(1));
+    cy.location('search').should('not.contain', 'register=');
+  });
+
+  it('rechecks resumed Calendar intent and reports capacity loss without mutation', () => {
+    authenticated();
+    cy.intercept('GET', '**/api/events/all', { items: [event], generatedAt: '2035-01-01T00:00:00Z', count: 1, truncated: false });
+    cy.intercept('GET', '**/api/events/*/registration-capability', { canRegister: false, canUnregister: false, reason: 'event_full', activeParticipantCount: 2, capacity: 2 });
+    cy.intercept('POST', '**/api/events/*/registrations').as('calendarRegister');
+
+    visit('/calendar?view=list&register=lyon-legacy');
+
+    cy.get('[data-cy="calendar-registration-message"]').should('contain.text', 'complet');
+    cy.get('[data-cy="calendar-card-register"]').should('not.exist');
+    cy.get('mat-dialog-container').should('not.exist');
+    cy.get('@calendarRegister.all').should('have.length', 0);
+    cy.location('search').should('not.contain', 'register=');
+  });
 
   it('prompts Visitors to sign in and exposes only public participant fields', () => {
     cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401 });
@@ -94,8 +171,8 @@ describe('public participant registration', () => {
     }).as('unregister');
 
     visit('/events/lyon-legacy');
-    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/events/lyon-legacy.ics');
-    cy.get('[data-cy="registration-actions"]').find('[data-cy="registration-register"]').should('exist');
+    cy.get('[data-cy="public-participants-section"] .public-participants__header-actions').find('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/events/lyon-legacy.ics');
+    cy.get('[data-cy="public-participants-section"] .public-participants__header-actions').find('[data-cy="registration-register"]').should('exist');
     cy.get('[data-cy="my-registrations-link"]').should('not.exist');
 
     cy.get('[data-cy="registration-register"]').dblclick();

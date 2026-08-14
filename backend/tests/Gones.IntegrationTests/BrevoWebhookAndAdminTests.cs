@@ -12,7 +12,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
@@ -20,7 +19,7 @@ public sealed class BrevoWebhookAndAdminTests : IAsyncLifetime
 {
     private static readonly string WebhookToken = $"c28_{new string('w', 40)}";
     private static readonly string SigningKey = new('x', 48);
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Instant.FromUtc(2026, 8, 2, 19, 0));
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;

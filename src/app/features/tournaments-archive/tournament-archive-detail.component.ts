@@ -1,4 +1,4 @@
-import { Component, computed, ElementRef, HostListener, signal, ViewChild, inject } from '@angular/core';
+import { Component, computed, HostListener, signal, ViewChild, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -13,7 +13,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
 import { canManageLeague, leagueCommandError } from '../../data/league-archive-command-ux';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { createByeRoundEntry, createMatchRoundEntry, getDefaultTournamentName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
+import { archiveTournamentDeletionSummary, archiveTournamentEditBatchIsEmpty, buildArchiveTournamentEditBatch, sameAuthorityLeagueOptions } from '../../domain/archive-tournament-edit-batch';
+import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
 import { importRoundEntries } from '../../domain/round-import';
 import { archetypeForPlayer, mergeImportedRoundArchetypes, setTournamentPlayerArchetype, tournamentPlayerArchetypeRows, validateTournamentPlayerArchetypes } from '../../domain/tournament-archetypes';
 import { calculateTournamentResult } from '../../domain/results';
@@ -25,23 +26,33 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { DeckArchetypeInputComponent } from '../../shared/deck-archetype-input.component';
 import { I18nService } from '../../i18n/i18n.service';
+import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
   imports: [FormsModule, MatButtonModule, MatCardModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatMenuModule, MatSelectModule, RankingTableComponent, BackButtonComponent, DeckArchetypeInputComponent],
   template: `
-    <gones-back-button data-cy="tournament-archive-detail-back-top" [link]="leagueBackLink()" [label]="i18n.t('nav.backToLeague')" position="top" />
+    <div class="tournament-archive-detail-action-row" data-cy="tournament-archive-detail-action-row">
+      <gones-back-button data-cy="tournament-archive-detail-back-top" [link]="leagueBackLink()" [label]="i18n.t('nav.backToLeague')" position="top" />
+      <div class="tournament-archive-detail-edit-actions" data-cy="tournament-archive-detail-edit-actions">
+        @if (editing()) {
+          <button mat-stroked-button type="button" class="secondary-action" data-cy="tournament-archive-detail-cancel-edit" [disabled]="saving()" (click)="cancelEdit()">{{ i18n.t('tournament.cancelEdit') }}</button>
+          <button mat-flat-button type="button" class="create-action-button" data-cy="tournament-archive-detail-save-changes" [disabled]="saving()" (click)="save()">{{ saving() ? i18n.t('common.saving') : i18n.t('tournament.saveChanges') }}</button>
+        } @else if (canEdit()) {
+          <button mat-stroked-button type="button" class="secondary-action" data-cy="tournament-archive-detail-edit" (click)="startEdit()">{{ i18n.t('tournament.edit') }}</button>
+        }
+      </div>
+    </div>
     @if (error()) { <p class="error" role="alert" data-cy="tournament-archive-detail-error">{{ error() }}</p> }
     @if (tournament(); as t) {
       <section class="page-heading" data-cy="tournament-archive-detail-page" (input)="markDirty()">
         <div data-cy="tournament-archive-detail-heading-block">
           <p class="kicker" data-cy="tournament-archive-detail-kicker">{{ i18n.t('tournament.kicker') }}</p>
           <div class="tournament-heading-fields" data-cy="tournament-archive-detail-heading-fields">
-            @if (titleOnlyEditing()) { <mat-form-field appearance="outline" class="title-field" data-cy="tournament-archive-detail-name-field"><mat-label data-cy="tournament-archive-detail-name-label">{{ i18n.t('tournament.name') }}</mat-label><input #tournamentNameInput data-cy="tournament-archive-detail-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()" (blur)="saveTitleEdit({ restoreFocus: false })" (keydown.enter)="$event.preventDefault(); saveTitleEdit({ restoreFocus: true })"></mat-form-field> }
-            @else if (canManage()) { <h1 data-cy="tournament-archive-detail-editable-title"><button #tournamentTitleButton class="editable-title" type="button" data-cy="tournament-archive-detail-title-button" (click)="startTitleEdit()" [attr.aria-label]="i18n.t('tournament.editNameAria', { name: t.name })">{{ t.name }}</button></h1> }
+            @if (editing()) { <mat-form-field appearance="outline" class="title-field" data-cy="tournament-archive-detail-name-field"><mat-label data-cy="tournament-archive-detail-name-label">{{ i18n.t('tournament.name') }}</mat-label><input data-cy="tournament-archive-detail-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()"></mat-form-field> }
             @else { <h1 data-cy="tournament-archive-detail-title">{{ t.name }}</h1> }
             <mat-form-field appearance="outline" class="tournament-date-field" data-cy="tournament-archive-detail-date-field"><mat-label data-cy="tournament-archive-detail-date-label">{{ i18n.t('tournament.date') }}</mat-label><input matInput type="date" data-cy="tournament-archive-detail-date-input" [(ngModel)]="t.tournamentDate" [readonly]="!canManage()"></mat-form-field>
-            <mat-form-field appearance="outline" class="tournament-league-field" data-cy="tournament-archive-detail-league-field"><mat-label data-cy="tournament-archive-detail-league-label">{{ i18n.t('tournament.league') }}</mat-label><mat-select data-cy="tournament-archive-detail-league-select" [ngModel]="leagueId()" [disabled]="!canManage() || saving()" (ngModelChange)="moveTournamentToLeague($event)">@for (leagueOption of leagues(); track leagueOption.id) { <mat-option data-cy="tournament-archive-detail-league-option" [value]="leagueOption.id">{{ leagueDisplayName(leagueOption) }}</mat-option> }</mat-select></mat-form-field>
+            <mat-form-field appearance="outline" class="tournament-league-field" data-cy="tournament-archive-detail-league-field"><mat-label data-cy="tournament-archive-detail-league-label">{{ i18n.t('tournament.league') }}</mat-label><mat-select data-cy="tournament-archive-detail-league-select" [ngModel]="selectedLeagueId()" [disabled]="!canManage() || saving()" (ngModelChange)="moveTournamentToLeague($event)">@for (leagueOption of leagueOptions(); track leagueOption.id) { <mat-option [attr.data-cy]="'tournament-archive-detail-league-option-' + leagueOption.id" [value]="leagueOption.id">{{ leagueDisplayName(leagueOption) }}</mat-option> }</mat-select></mat-form-field>
           </div>
           @if (result().provisional || result().incomplete) {
             <div class="warning" data-cy="tournament-archive-detail-completion-warning">
@@ -90,10 +101,12 @@ import { I18nService } from '../../i18n/i18n.service';
               <mat-menu #roundMenu="matMenu" data-cy="tournament-archive-detail-round-menu">
                 <button class="destructive-menu-item" mat-menu-item type="button" data-cy="tournament-archive-detail-delete-round" (click)="deleteRound(roundView.round)">{{ i18n.t('tournament.deleteRound') }}</button>
               </mat-menu>
-              <div class="import-row" data-cy="tournament-archive-detail-import-row">
-                <mat-form-field appearance="outline" data-cy="tournament-archive-detail-round-import-field"><mat-label data-cy="tournament-archive-detail-round-import-label">{{ i18n.t('tournament.roundImport') }}</mat-label><textarea matInput #importText data-cy="tournament-archive-detail-round-import-input" rows="4" [readonly]="!canManage()" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field>
-                @if (canManage() && hasValidRoundImport(importText.value)) { <button class="round-import-button create-action-button" mat-flat-button type="button" data-cy="tournament-archive-detail-round-import-submit" [disabled]="saving()" (click)="replaceRound(roundView.round, importText.value); importText.value = ''">{{ i18n.t('tournament.importRoundData') }}</button> }
-              </div>
+              @if (canManage()) {
+                <div class="import-row" data-cy="tournament-archive-detail-import-row">
+                  <mat-form-field appearance="outline" data-cy="tournament-archive-detail-round-import-field"><mat-label data-cy="tournament-archive-detail-round-import-label">{{ i18n.t('tournament.roundImport') }}</mat-label><textarea matInput #importText data-cy="tournament-archive-detail-round-import-input" rows="4" [placeholder]="roundImportPlaceholder"></textarea></mat-form-field>
+                  @if (hasValidRoundImport(importText.value)) { <button class="round-import-button create-action-button" mat-flat-button type="button" data-cy="tournament-archive-detail-round-import-submit" [disabled]="saving()" (click)="replaceRound(roundView.round, importText.value); importText.value = ''">{{ i18n.t('tournament.importRoundData') }}</button> }
+                </div>
+              }
               @if (roundView.round.entries.length) {
                 <div class="table-wrap round-entry-table-wrap" data-cy="tournament-archive-detail-round-entry-table-wrap">
                   <table class="ranking-table round-entry-table" data-cy="tournament-archive-detail-round-entry-table">
@@ -168,41 +181,44 @@ import { I18nService } from '../../i18n/i18n.service';
           } @else { <p class="empty" data-cy="tournament-archive-detail-no-players">{{ i18n.t('tournament.noPlayersYet') }}</p> }
         </mat-expansion-panel>
       </section>
-      @if (!canManage()) { <p class="muted" data-cy="tournament-archive-detail-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
-      @if (stale()) { <button type="button" class="secondary-action" data-cy="tournament-archive-detail-reload" (click)="reloadLatest()">{{ i18n.t('leagues.reloadLatest') }}</button> }
+      @if (!editing()) { <p class="muted" data-cy="tournament-archive-detail-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
+      @if (stale()) { <button type="button" class="secondary-action" data-cy="tournament-archive-detail-reload" [disabled]="saving()" (click)="reloadLatest()">{{ i18n.t('leagues.reloadLatest') }}</button> }
     } @else if (!loading()) { <mat-card class="panel" data-cy="tournament-archive-detail-not-found"><mat-card-title data-cy="tournament-archive-detail-not-found-title">{{ i18n.t('tournament.notFoundTitle') }}</mat-card-title><mat-card-content data-cy="tournament-archive-detail-not-found-body"><p data-cy="tournament-archive-detail-not-found-text">{{ i18n.t('tournament.notFoundBody') }}</p></mat-card-content></mat-card> }
     @if (!loading()) { <gones-back-button data-cy="tournament-archive-detail-back-bottom" [link]="leagueBackLink()" [label]="i18n.t('nav.backToLeague')" position="bottom" /> }
   `
 })
 export class TournamentArchiveDetailComponent {
   readonly i18n = inject(I18nService);
-  @ViewChild('tournamentNameInput') private tournamentNameInput?: ElementRef<HTMLInputElement>;
-  @ViewChild('tournamentTitleButton') private tournamentTitleButton?: ElementRef<HTMLButtonElement>;
   @ViewChild('roundsPanel') private roundsPanel?: MatExpansionPanel;
 
   readonly league = signal<PersistedLeague | null>(null);
-  readonly draft = signal<LeagueDocument>(null as unknown as LeagueDocument);
+  readonly draft = signal<LeagueDocument | null>(null);
   readonly editing = signal(false);
-  readonly titleOnlyEditing = signal(false);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly dirty = signal(false);
   readonly error = signal('');
   readonly stale = signal(false);
   readonly importErrors = signal<string[]>([]);
-  /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
-  readonly canManage = computed(() => canManageLeague(this.league()?.id, this.auth.profile()?.globalRole));
+  private readonly power = inject(PowerUserSettingsService);
+  /** Power mode never replaces per-league role/origin authority. */
+  readonly canEdit = computed(() => {
+    const league = this.league();
+    return Boolean(league && league.status === 'active' && canUsePowerMutation(this.power.enabled(), canManageLeague(league.id, this.auth.profile()?.globalRole)));
+  });
+  readonly canManage = computed(() => this.editing() && this.canEdit());
   readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());
   readonly leagues = signal<PersistedLeague[]>([]);
-  readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league()!);
+  readonly leagueOptions = computed(() => this.league() ? sameAuthorityLeagueOptions(this.league()!, this.leagues()) : []);
+  readonly currentLeague = computed(() => this.editing() ? this.draft() : this.league());
   readonly tournament = computed(() => this.currentLeague()?.tournaments.find((item) => item.id === this.tournamentId()) ?? null);
   readonly result = computed(() => this.tournament() ? calculateTournamentResult(this.tournament()!) : { rows: [], incomplete: true, provisional: false });
   readonly warnings = computed(() => this.tournament() ? getTournamentWarnings(this.tournament()!) : []);
   readonly completionIssues = computed(() => this.tournament() ? tournamentCompletionIssues(this.tournament()!, this.i18n) : []);
   readonly warningMessages = computed(() => this.tournament() ? this.warnings().map((warning) => tournamentWarningMessage(warning, this.tournament()!, this.i18n)) : []);
   readonly leagueId = signal('');
+  readonly selectedLeagueId = signal('');
   private readonly tournamentId = signal('');
-  private archetypePersistTimer: ReturnType<typeof setTimeout> | null = null;
   readonly leagueBackLink = computed(() => ['/leagues-archive', this.leagueId()]);
   get roundImportPlaceholder(): string { return this.i18n.t('tournament.roundImportPlaceholder'); }
 
@@ -222,7 +238,7 @@ export class TournamentArchiveDetailComponent {
       const [league, leagues] = await Promise.all([this.repo.getLeague(leagueId), this.repo.listLeagues()]);
       this.league.set(league);
       this.leagues.set(leagues);
-      this.startEdit(league);
+      this.selectedLeagueId.set(league?.id ?? leagueId);
       this.openRoundFromQuery();
     }
     catch (error) { logBoundaryError('tournament-detail.load', error, { leagueId, tournamentId: this.tournamentId() }); this.error.set(this.i18n.t('tournament.loadFailed')); }
@@ -254,85 +270,102 @@ export class TournamentArchiveDetailComponent {
   }
 
   startEdit(league = this.league()): void {
-    if (!league) return;
-    const draft = structuredClone(league);
-    const tournament = draft.tournaments.find((item) => item.id === this.tournamentId());
-    if (tournament && !tournament.tournamentDate) tournament.tournamentDate = todayDateInputValue();
-    this.titleOnlyEditing.set(false);
-    this.draft.set(draft);
+    if (!league || !this.canEdit()) return;
+    this.draft.set(structuredClone(league));
+    this.selectedLeagueId.set(league.id);
     this.editing.set(true);
     this.dirty.set(false);
+    this.stale.set(false);
+    this.error.set('');
+    this.importErrors.set([]);
   }
-  startTitleEdit(): void { if (!this.canManage()) return; if (!this.editing()) this.startEdit(); this.titleOnlyEditing.set(true); this.focusTournamentNameInput(); }
-  cancelEdit(): void { this.startEdit(); this.focusTournamentTitleButton(); }
-  markDirty(): void { if (this.canManage() && !this.saving()) this.dirty.set(true); }
-  async addRound(): Promise<void> {
-    if (!this.canManage() || this.saving()) return;
-    this.saving.set(true);
-    if (this.roundsPanel) this.roundsPanel.expanded = true;
-    try {
-      const source = await this.persistDraftChanges();
-      const updated = await this.repo.addResultRound(source, this.tournamentId());
-      this.acceptLeague(updated);
-      if (this.roundsPanel) this.roundsPanel.expanded = true;
-      this.error.set('');
-      this.stale.set(false);
-    } catch (error) {
-      logBoundaryError('tournament-detail.addRound', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
-      this.applyCommandError(error, 'tournament.saveFailed');
-    } finally { this.saving.set(false); }
-  }
-  async addMatch(round: RoundDocument): Promise<void> {
-    await this.runCommand(async league => this.repo.addResultEntry(league, this.tournamentId(), round.id, createMatchRoundEntry({ table: String(round.entries.length + 1) })));
-  }
-  async addBye(round: RoundDocument): Promise<void> {
-    await this.runCommand(async league => this.repo.addResultEntry(league, this.tournamentId(), round.id, createByeRoundEntry({ table: String(round.entries.length + 1) })));
-  }
-  async replaceRound(round: RoundDocument, text: string): Promise<void> {
-    const imported = importRoundEntries(text);
-    const tournament = this.tournament();
-    if (tournament) {
-      const merged = mergeImportedRoundArchetypes(tournament, imported.entries);
-      this.importErrors.set(merged.conflicts.map((conflict) => this.i18n.t('tournament.importConflictRow', {
-        player: conflict.playerName,
-        imported: conflict.importedArchetype || this.i18n.t('tournament.noArchetype'),
-        existing: conflict.existingArchetype || this.i18n.t('tournament.noArchetype')
-      })));
+
+  async cancelEdit(): Promise<void> {
+    if (!this.editing() || this.saving()) return;
+    if (!this.dirty()) {
+      this.exitEdit();
+      return;
     }
-    await this.runCommand(async league => this.repo.importResultRound(league, this.tournamentId(), round.id, text));
+    this.saving.set(true);
+    try {
+      const confirmed = await this.confirmDiscard('tournament.discardEditTitle', 'tournament.discardEditMessage');
+      if (confirmed) this.exitEdit();
+    } finally {
+      this.saving.set(false);
+    }
   }
+
+  markDirty(): void {
+    if (this.canManage() && !this.saving()) this.dirty.set(true);
+  }
+
+  addRound(): void {
+    if (!this.canManage() || this.saving()) return;
+    if (this.roundsPanel) this.roundsPanel.expanded = true;
+    this.updateTournament(tournament => ({ ...tournament, rounds: [...tournament.rounds, createRound()] }));
+  }
+
+  addMatch(round: RoundDocument): void {
+    if (!this.canManage() || this.saving()) return;
+    this.updateRound(round.id, item => ({ ...item, entries: [...item.entries, createMatchRoundEntry({ table: String(item.entries.length + 1) })] }));
+  }
+
+  addBye(round: RoundDocument): void {
+    if (!this.canManage() || this.saving()) return;
+    this.updateRound(round.id, item => ({ ...item, entries: [...item.entries, createByeRoundEntry({ table: String(item.entries.length + 1) })] }));
+  }
+
+  replaceRound(round: RoundDocument, text: string): void {
+    if (!this.canManage() || this.saving()) return;
+    const tournament = this.tournament();
+    if (!tournament) return;
+    const imported = importRoundEntries(text);
+    const merged = mergeImportedRoundArchetypes(tournament, imported.entries);
+    this.importErrors.set(merged.conflicts.map((conflict) => this.i18n.t('tournament.importConflictRow', {
+      player: conflict.playerName,
+      imported: conflict.importedArchetype || this.i18n.t('tournament.noArchetype'),
+      existing: conflict.existingArchetype || this.i18n.t('tournament.noArchetype')
+    })));
+    this.updateTournament(item => ({
+      ...item,
+      rounds: item.rounds.map(candidate => candidate.id === round.id ? { ...candidate, entries: merged.entries } : candidate),
+      playerArchetypes: merged.playerArchetypes
+    }));
+  }
+
   playerArchetypeRows(tournament: TournamentDocument) { return tournamentPlayerArchetypeRows(tournament); }
   archetypeFor(tournament: TournamentDocument, playerName: string): string { return archetypeForPlayer(tournament, playerName); }
+
   syncPlayerArchetypesFromRoundEntries(): void {
+    if (!this.canManage()) return;
     const tournament = this.tournament();
     if (!tournament) return;
     const rows = tournamentPlayerArchetypeRows(tournament);
-    const sameRows = rows.length === (tournament.playerArchetypes ?? []).length && rows.every((row, index) => row.playerName === tournament.playerArchetypes[index]?.playerName && row.archetype === tournament.playerArchetypes[index]?.archetype);
+    const sameRows = rows.length === (tournament.playerArchetypes ?? []).length
+      && rows.every((row, index) => row.playerName === tournament.playerArchetypes[index]?.playerName && row.archetype === tournament.playerArchetypes[index]?.archetype);
     if (sameRows) {
       this.markDirty();
       return;
     }
-    this.updateTournament((item) => ({ ...item, playerArchetypes: rows }));
+    this.updateTournament(item => ({ ...item, playerArchetypes: rows }));
   }
+
   setArchetype(playerName: string, archetype: string): void {
     if (!this.canManage()) return;
     this.importErrors.set([]);
     this.updateTournament(tournament => setTournamentPlayerArchetype(tournament, playerName, archetype));
-    if (this.archetypePersistTimer) clearTimeout(this.archetypePersistTimer);
-    this.archetypePersistTimer = setTimeout(() => {
-      this.archetypePersistTimer = null;
-      void this.save({ restoreFocus: false });
-    }, 250);
   }
+
   hasValidRoundImport(text: string): boolean {
     const entries = importRoundEntries(text).entries;
-    return entries.length > 0 && entries.every((entry) => entry.kind === 'match');
+    return entries.length > 0 && entries.every(entry => entry.kind === 'match');
   }
+
   roundEntryInputLabel(roundNumber: number, entryIndex: number, field: string): string { return this.i18n.t('tournament.roundEntryLabel', { round: roundNumber, entry: entryIndex + 1, field }); }
   roundEntryDeleteLabel(roundNumber: number, entryIndex: number): string { return this.i18n.t('tournament.roundEntryDelete', { round: roundNumber, entry: entryIndex + 1 }); }
   entryInvalid(entry: RoundEntry): boolean { return !validateRoundEntry(entry).valid; }
   entryHasWarning(round: RoundDocument, entry: RoundEntry): boolean {
-    return this.warnings().some((warning) => warning.roundId === round.id && (warning.entryIds?.includes(entry.id) ?? false));
+    return this.warnings().some(warning => warning.roundId === round.id && (warning.entryIds?.includes(entry.id) ?? false));
   }
   roundViewModels(tournament: TournamentDocument): Array<{ round: RoundDocument; number: number }> {
     return tournament.rounds.map((round, index) => ({ round, number: index + 1 })).reverse();
@@ -341,128 +374,147 @@ export class TournamentArchiveDetailComponent {
     return league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name;
   }
 
-  async moveTournamentToLeague(targetLeagueId: string): Promise<void> {
-    const saved = this.league();
-    const tournament = this.tournament();
-    if (!saved || !tournament || !this.canManage() || targetLeagueId === saved.id) return;
-    if (this.dirty()) { this.error.set(this.i18n.t('tournament.saveBeforeMove')); return; }
+  moveTournamentToLeague(targetLeagueId: string): void {
+    if (!this.canManage() || this.saving()) return;
+    if (!this.leagueOptions().some(league => league.id === targetLeagueId)) return;
+    this.selectedLeagueId.set(targetLeagueId);
+    this.markDirty();
+  }
+
+  private updateTournament(updater: (tournament: TournamentDocument) => TournamentDocument): void {
+    this.draft.update(league => league ? ({ ...league, tournaments: league.tournaments.map(tournament => tournament.id === this.tournamentId() ? updater(tournament) : tournament) }) : null);
+    this.markDirty();
+  }
+
+  private updateRound(roundId: string, updater: (round: RoundDocument) => RoundDocument): void {
+    this.updateTournament(tournament => ({ ...tournament, rounds: tournament.rounds.map(round => round.id === roundId ? updater(round) : round) }));
+  }
+
+  deleteEntry(round: RoundDocument, entryId: string): void {
+    if (!this.canManage() || this.saving()) return;
+    this.updateRound(round.id, item => ({ ...item, entries: item.entries.filter(entry => entry.id !== entryId) }));
+  }
+
+  deleteRound(round: RoundDocument): void {
+    if (!this.canManage() || this.saving()) return;
+    this.updateTournament(tournament => ({ ...tournament, rounds: tournament.rounds.filter(item => item.id !== round.id) }));
+  }
+
+  async save(): Promise<void> {
+    if (!this.canManage() || this.saving()) return;
+    const sourceLeague = this.league();
+    const draftLeague = this.draft();
+    const sourceTournament = sourceLeague?.tournaments.find(item => item.id === this.tournamentId());
+    const draftTournament = draftLeague?.tournaments.find(item => item.id === this.tournamentId());
+    if (!sourceLeague || !draftLeague || !sourceTournament || !draftTournament) return;
+
+    draftTournament.name = String(draftTournament.name ?? '').trim() || getDefaultTournamentName();
+    const command = buildArchiveTournamentEditBatch(sourceTournament, draftTournament);
+    const targetLeague = this.selectedLeagueId() === sourceLeague.id
+      ? null
+      : this.leagueOptions().find(item => item.id === this.selectedLeagueId()) ?? null;
+    if (!targetLeague && this.selectedLeagueId() !== sourceLeague.id) {
+      this.error.set(this.i18n.t('tournament.invalidMoveTarget'));
+      return;
+    }
+    if (archiveTournamentEditBatchIsEmpty(command) && !targetLeague) {
+      this.exitEdit();
+      return;
+    }
+
+    const issues = tournamentCompletionIssues(draftTournament, this.i18n, { includeMissingRound: false });
+    if (issues.length) {
+      this.error.set(this.i18n.t('tournament.invalidDraft', { count: issues.length }));
+      return;
+    }
+
+    const deleted = archiveTournamentDeletionSummary(sourceTournament, draftTournament);
     this.saving.set(true);
     try {
-      const result = await this.repo.moveTournament(tournament.id, saved.id, targetLeagueId);
+      const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+        data: {
+          title: this.i18n.t('tournament.saveChangesTitle'),
+          message: this.i18n.t('tournament.saveChangesSummary', {
+            move: targetLeague ? targetLeague.name : this.i18n.t('tournament.noLeagueMove'),
+            rounds: deleted.rounds,
+            entries: deleted.entries
+          }),
+          confirmLabel: this.i18n.t('tournament.saveChanges'),
+          destructive: deleted.rounds > 0 || deleted.entries > 0
+        }
+      }).afterClosed());
+      if (!confirmed) return;
+      const result = await this.repo.saveTournamentEdits(sourceLeague, this.tournamentId(), targetLeague, command);
       this.error.set('');
-      await this.router.navigate(['/leagues-archive', result.toLeague.id, 'tournaments-archive', tournament.id]);
+      this.stale.set(false);
+      this.importErrors.set([]);
+      this.notifyLeagueUpdated(result.sourceLeague.id);
+      if (targetLeague) {
+        if (!result.destinationLeague) throw new Error('destinationLeagueMissing');
+        this.adoptLeague(result.destinationLeague);
+        this.notifyLeagueUpdated(result.destinationLeague.id);
+        await this.router.navigate(['/leagues-archive', result.destinationLeague.id, 'tournaments-archive', this.tournamentId()]);
+      } else {
+        this.adoptLeague(result.sourceLeague);
+      }
     } catch (error) {
-      logBoundaryError('tournament-detail.moveTournament', error, { leagueId: saved.id, tournamentId: tournament.id, targetLeagueId });
-      // A move across the two authorities is refused, not emulated (ADR 0028): say so, rather than
-      // reporting the generic "could not move" that hides why it can never succeed.
-      if (error instanceof Error && error.message === 'crossAuthorityMoveNotSupported') { this.stale.set(false); this.error.set(this.i18n.t('leagues.crossAuthorityMove')); }
-      else this.applyCommandError(error, 'tournament.moveFailed');
+      logBoundaryError('tournament-detail.save', error, { leagueId: sourceLeague.id, tournamentId: this.tournamentId(), targetLeagueId: targetLeague?.id ?? null });
+      this.applyCommandError(error, 'tournament.saveFailed');
     } finally {
       this.saving.set(false);
     }
   }
-  private focusTournamentNameInput(): void { setTimeout(() => this.tournamentNameInput?.nativeElement.focus()); }
-  private focusTournamentTitleButton(): void { setTimeout(() => this.tournamentTitleButton?.nativeElement.focus()); }
-  private updateTournament(updater: (tournament: TournamentDocument) => TournamentDocument): void {
-    this.draft.update((league) => ({ ...league, tournaments: league.tournaments.map((tournament) => tournament.id === this.tournamentId() ? updater(tournament) : tournament) }));
-    this.markDirty();
-  }
-  private updateRound(roundId: string, updater: (round: RoundDocument) => RoundDocument): void {
-    this.updateTournament((tournament) => ({ ...tournament, rounds: tournament.rounds.map((round) => round.id === roundId ? updater(round) : round) }));
-  }
-  async deleteEntry(round: RoundDocument, entryId: string): Promise<void> {
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('tournament.deleteMatchTitle'), message: this.i18n.t('tournament.deleteMatchMessage'), confirmLabel: this.i18n.t('tournament.deleteMatchConfirm'), destructive: true } }).afterClosed());
-    if (confirmed) await this.runCommand(async league => this.repo.deleteResultEntry(league, this.tournamentId(), round.id, entryId));
-  }
-  async deleteRound(round: RoundDocument): Promise<void> {
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('tournament.deleteRoundTitle'), message: this.i18n.t('tournament.deleteRoundMessage'), confirmLabel: this.i18n.t('tournament.deleteRoundConfirm'), destructive: true } }).afterClosed());
-    if (confirmed) await this.runCommand(async league => this.repo.deleteResultRound(league, this.tournamentId(), round.id));
-  }
-
-  async saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): Promise<void> {
-    if (!this.titleOnlyEditing() || this.saving()) return;
-    const tournament = this.tournament();
-    if (tournament) tournament.name = String(tournament.name ?? '').trim() || getDefaultTournamentName();
-    await this.save({ restoreFocus });
-  }
-
-  async save({ restoreFocus = true }: { restoreFocus?: boolean } = {}): Promise<void> {
-    if (!this.canManage() || this.saving()) return;
-    this.saving.set(true);
-    try {
-      const league = await this.persistDraftChanges();
-      this.acceptLeague(league);
-      this.error.set('');
-      this.stale.set(false);
-      this.importErrors.set([]);
-      if (restoreFocus) this.focusTournamentTitleButton();
-    } catch (error) {
-      logBoundaryError('tournament-detail.save', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
-      this.applyCommandError(error, 'tournament.saveFailed');
-    } finally { this.saving.set(false); }
-  }
 
   async reloadLatest(): Promise<void> {
-    const latest = await this.repo.getLeague(this.leagueId());
-    if (latest) this.acceptLeague(latest);
-    this.stale.set(false);
-    this.error.set('');
-  }
-
-  private async runCommand(command: (league: PersistedLeague) => Promise<PersistedLeague>): Promise<void> {
-    if (!this.canManage() || this.saving()) return;
+    if (!this.stale() || this.saving()) return;
     this.saving.set(true);
     try {
-      let league = await this.persistDraftChanges();
-      league = await command(league);
-      this.acceptLeague(league);
+      const confirmed = await this.confirmDiscard('tournament.reloadLatestTitle', 'tournament.reloadLatestMessage');
+      if (!confirmed) return;
+      const latest = await this.repo.getLeague(this.leagueId());
+      if (!latest) throw new Error('leagueNotFound');
+      this.adoptLeague(latest);
       this.error.set('');
       this.stale.set(false);
     } catch (error) {
-      logBoundaryError('tournament-detail.command', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
+      logBoundaryError('tournament-detail.reloadLatest', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
       this.applyCommandError(error, 'tournament.saveFailed');
-    } finally { this.saving.set(false); }
+    } finally {
+      this.saving.set(false);
+    }
   }
 
-  private async persistDraftChanges(): Promise<PersistedLeague> {
-    const source = this.league();
-    const draft = this.draft();
-    if (!source) throw new Error('leagueNotFound');
-    const sourceTournament = source.tournaments.find(item => item.id === this.tournamentId());
-    const draftTournament = draft.tournaments.find(item => item.id === this.tournamentId());
-    if (!sourceTournament || !draftTournament) throw new Error('tournamentNotFound');
-    let latest = source;
-    if (sourceTournament.name !== draftTournament.name || sourceTournament.tournamentDate !== draftTournament.tournamentDate) {
-      latest = await this.repo.editResultTournament(latest, draftTournament.id, String(draftTournament.name ?? '').trim() || getDefaultTournamentName(), draftTournament.tournamentDate);
-    }
-    for (const draftRound of draftTournament.rounds) {
-      const currentRound = latest.tournaments.find(item => item.id === draftTournament.id)?.rounds.find(item => item.id === draftRound.id);
-      if (!currentRound || JSON.stringify(currentRound.entries) === JSON.stringify(draftRound.entries)) continue;
-      const sameEntryIds = currentRound.entries.length === draftRound.entries.length && currentRound.entries.every((entry, index) => entry.id === draftRound.entries[index]?.id);
-      if (!sameEntryIds) {
-        latest = await this.repo.replaceResultRound(latest, draftTournament.id, draftRound.id, draftRound.entries);
-        continue;
+  private async confirmDiscard(title: 'tournament.discardEditTitle' | 'tournament.reloadLatestTitle', message: 'tournament.discardEditMessage' | 'tournament.reloadLatestMessage'): Promise<boolean> {
+    return Boolean(await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: this.i18n.t(title),
+        message: this.i18n.t(message),
+        confirmLabel: this.i18n.t('tournament.discardDraft'),
+        destructive: true
       }
-      for (const draftEntry of draftRound.entries) {
-        const currentEntry = latest.tournaments.find(item => item.id === draftTournament.id)?.rounds.find(item => item.id === draftRound.id)?.entries.find(item => item.id === draftEntry.id);
-        if (currentEntry && JSON.stringify(currentEntry) !== JSON.stringify(draftEntry)) {
-          latest = await this.repo.editResultEntry(latest, draftTournament.id, draftRound.id, draftEntry.id, draftEntry);
-        }
-      }
-    }
-    for (const row of draftTournament.playerArchetypes) {
-      const current = latest.tournaments.find(item => item.id === draftTournament.id)?.playerArchetypes.find(item => item.playerName === row.playerName)?.archetype ?? '';
-      if (current !== row.archetype) latest = await this.repo.updateResultPlayerArchetype(latest, draftTournament.id, row.playerName, row.archetype);
-    }
-    return latest;
+    }).afterClosed()));
   }
 
-  private acceptLeague(league: PersistedLeague): void {
+  private exitEdit(): void {
+    this.draft.set(null);
+    this.editing.set(false);
+    this.dirty.set(false);
+    this.stale.set(false);
+    this.error.set('');
+    this.importErrors.set([]);
+    this.selectedLeagueId.set(this.league()?.id ?? this.leagueId());
+  }
+
+  private adoptLeague(league: PersistedLeague): void {
     const reopenRounds = this.roundsPanel?.expanded ?? false;
     this.league.set(league);
-    this.startEdit(league);
+    this.leagueId.set(league.id);
+    this.exitEdit();
     if (reopenRounds && this.roundsPanel) this.roundsPanel.expanded = true;
-    window.dispatchEvent(new CustomEvent('gones-league-updated', { detail: { leagueId: league.id } }));
+  }
+
+  private notifyLeagueUpdated(leagueId: string): void {
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('gones-league-updated', { detail: { leagueId } }));
   }
 
   private applyCommandError(error: unknown, fallback: 'tournament.moveFailed' | 'tournament.saveFailed'): void {
@@ -470,11 +522,12 @@ export class TournamentArchiveDetailComponent {
     this.stale.set(kind === 'stale');
     this.error.set(kind === 'stale' ? this.i18n.t('tournament.staleSave') : kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t(fallback));
   }
+
 }
 
-function tournamentCompletionIssues(tournament: TournamentDocument, i18n: I18nService): string[] {
+function tournamentCompletionIssues(tournament: TournamentDocument, i18n: I18nService, { includeMissingRound = true }: { includeMissingRound?: boolean } = {}): string[] {
   const issues: string[] = [];
-  if (!tournament.rounds?.length) issues.push(i18n.t('tournament.needOneRound'));
+  if (includeMissingRound && !tournament.rounds?.length) issues.push(i18n.t('tournament.needOneRound'));
   tournament.rounds?.forEach((round, roundIndex) => {
     round.entries.forEach((entry, entryIndex) => {
       const validation = validateRoundEntry(entry);
@@ -520,11 +573,4 @@ function tournamentWarningMessage(warning: TournamentWarning, tournament: Tourna
     return i18n.t('tournament.warnMissingArchetype', { players });
   }
   return i18n.t('tournament.warnRepeatedPairing');
-}
-
-function todayDateInputValue(date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }

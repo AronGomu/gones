@@ -3,9 +3,29 @@ import { HttpErrorResponse, HttpRequest, HttpResponse } from '@angular/common/ht
 import { Injector, runInInjectionContext } from '@angular/core';
 import { defer, firstValueFrom, of, shareReplay, Subject, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
-import { ApiAccessTokenStore } from '../api/api-boundary';
+import { alignLoopbackApiUrl, ApiAccessTokenStore, applyApiBoundary } from '../api/api-boundary';
 import { AuthService } from './auth.service';
 import { authSessionInterceptor } from './auth.interceptor';
+
+describe('API credential boundary', () => {
+  it('aligns a loopback API host with the page host so Lax refresh cookies remain same-site', () => {
+    expect(alignLoopbackApiUrl('http://127.0.0.1:5080/api/auth/login', 'localhost'))
+      .toBe('http://localhost:5080/api/auth/login');
+    expect(alignLoopbackApiUrl('http://localhost:5080/api/auth/login', '127.0.0.1'))
+      .toBe('http://127.0.0.1:5080/api/auth/login');
+    expect(alignLoopbackApiUrl('https://api.example.test/api/auth/login', 'localhost'))
+      .toBe('https://api.example.test/api/auth/login');
+  });
+
+  it('sends aligned API requests with credentials enabled', async () => {
+    const request = new HttpRequest('POST', 'http://127.0.0.1:5080/api/auth/login', {});
+    await firstValueFrom(applyApiBoundary(request, received => {
+      expect(received.url).toBe('http://localhost:5080/api/auth/login');
+      expect(received.withCredentials).toBe(true);
+      return of(new HttpResponse({ status: 200 }));
+    }, undefined, 'localhost'));
+  });
+});
 
 describe('authSessionInterceptor', () => {
   it('refreshes once then replays original request once', async () => {

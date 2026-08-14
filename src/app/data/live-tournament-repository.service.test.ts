@@ -9,6 +9,7 @@ import { SessionScopeService } from '../auth/session-scope.service';
 import { LIVE_BACKEND, LIVE_BACKEND_MODE, LiveBackendMode, LiveBackendPort } from '../backend/application-backend';
 import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from '../backend/server-read-cache.service';
 import { LiveTournamentDocument } from '../domain/live-tournament';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 import { LiveTournamentRepository } from './live-tournament-repository.service';
 
 /**
@@ -23,28 +24,27 @@ function document(id = LIVE_ID): LiveTournamentDocument {
   return { id, name: 'Cup', documentVersion: 1 } as unknown as LiveTournamentDocument;
 }
 
-function setup(options: { mode?: LiveBackendMode; userId?: string; cached?: Record<string, CachedRead<unknown>> } = {}) {
+function setup(options: { mode?: LiveBackendMode; userId?: string; cached?: Record<string, CachedRead<unknown>>; powerEnabled?: boolean } = {}) {
   installFakeWebLocks();
-  const mutation = vi.fn(async () => document());
   const backend = {
     listLiveTournaments: vi.fn(async () => [document()]),
     getLiveTournament: vi.fn(async () => document()),
     createLiveTournament: vi.fn(async () => document('created')),
     deleteLiveTournament: vi.fn(async () => undefined),
-    updateLiveSettings: mutation,
-    addLivePlayer: mutation,
-    editLivePlayer: mutation,
-    setLivePlayerPaid: mutation,
-    dropLivePlayer: mutation,
-    removeLivePlayer: mutation,
-    startLiveRound: mutation,
-    regenerateLiveRound: mutation,
-    cancelLiveRound: mutation,
-    validateLiveRound: mutation,
-    scoreLiveRoundEntry: mutation,
-    restoreLiveCheckpoint: mutation,
-    finalizeLiveTournament: mutation
-  } as unknown as LiveBackendPort & { listLiveTournaments: ReturnType<typeof vi.fn>; getLiveTournament: ReturnType<typeof vi.fn>; createLiveTournament: ReturnType<typeof vi.fn> };
+    updateLiveSettings: vi.fn(async () => document()),
+    addLivePlayer: vi.fn(async () => document()),
+    editLivePlayer: vi.fn(async () => document()),
+    setLivePlayerPaid: vi.fn(async () => document()),
+    dropLivePlayer: vi.fn(async () => document()),
+    removeLivePlayer: vi.fn(async () => document()),
+    startLiveRound: vi.fn(async () => document()),
+    regenerateLiveRound: vi.fn(async () => document()),
+    cancelLiveRound: vi.fn(async () => document()),
+    validateLiveRound: vi.fn(async () => document()),
+    scoreLiveRoundEntry: vi.fn(async () => document()),
+    restoreLiveCheckpoint: vi.fn(async () => document()),
+    finalizeLiveTournament: vi.fn(async () => ({ liveTournamentId: LIVE_ID, leagueId: 'league-1', finalizedTournamentId: 'final-1', liveDocumentVersion: 2 }))
+  } as unknown as LiveBackendPort & Record<keyof LiveBackendPort, ReturnType<typeof vi.fn>>;
   const rows = new Map<string, CachedRead<unknown>>(Object.entries(options.cached ?? {}));
   const cacheStore = {
     read: async (key: string) => rows.get(key) ?? null,
@@ -54,9 +54,16 @@ function setup(options: { mode?: LiveBackendMode; userId?: string; cached?: Reco
   const profile = signal<UserProfileResponse | null>(options.userId ? ({ id: options.userId } as UserProfileResponse) : null);
   const coordination = new AuthSessionCoordinationService();
   if (options.userId) coordination.bindProfile(options.userId, coordination.generation());
+  const powerEnabled = signal(options.powerEnabled ?? true);
+  const power = {
+    enabled: powerEnabled,
+    setEnabled: (value: boolean) => powerEnabled.set(value),
+    requireEnabled: () => { if (!powerEnabled()) throw new Error('powerUserRequired'); }
+  };
   const injector = Injector.create({ providers: [
     { provide: LIVE_BACKEND, useValue: backend },
     { provide: LIVE_BACKEND_MODE, useValue: options.mode ?? 'aspnet-api' },
+    { provide: PowerUserSettingsService, useValue: power },
     { provide: AuthService, useValue: { profile } as unknown as AuthService },
     { provide: AuthSessionCoordinationService, useValue: coordination },
     { provide: SERVER_READ_CACHE_STORE_PORT, useValue: cacheStore },
@@ -66,6 +73,44 @@ function setup(options: { mode?: LiveBackendMode; userId?: string; cached?: Reco
   const repository = runInInjectionContext(injector, () => new LiveTournamentRepository(backend));
   return { repository, backend, rows };
 }
+
+describe('LiveTournamentRepository Power User perimeter', () => {
+  it('rejects every mutation before touching the backend while Power mode is off', async () => {
+    const calls: Array<(repository: LiveTournamentRepository) => Promise<unknown>> = [
+      (repository) => repository.create(),
+      (repository) => repository.delete(LIVE_ID),
+      (repository) => repository.updateLiveSettings(LIVE_ID, 1, {} as never),
+      (repository) => repository.addLivePlayer(LIVE_ID, 1, {} as never),
+      (repository) => repository.editLivePlayer(LIVE_ID, 'p1', 1, {} as never),
+      (repository) => repository.setLivePlayerPaid(LIVE_ID, 'p1', 1, true),
+      (repository) => repository.dropLivePlayer(LIVE_ID, 'p1', 1),
+      (repository) => repository.removeLivePlayer(LIVE_ID, 'p1', 1),
+      (repository) => repository.startLiveRound(LIVE_ID, 1),
+      (repository) => repository.regenerateLiveRound(LIVE_ID, 1),
+      (repository) => repository.cancelLiveRound(LIVE_ID, 1),
+      (repository) => repository.validateLiveRound(LIVE_ID, 1),
+      (repository) => repository.scoreLiveRoundEntry(LIVE_ID, 'r1', 'e1', 1, {} as never),
+      (repository) => repository.restoreLiveCheckpoint(LIVE_ID, 'c1', 1),
+      (repository) => repository.finalizeLiveTournament(LIVE_ID, 1)
+    ];
+
+    expect(calls).toHaveLength(15);
+    for (const call of calls) {
+      const { repository, backend } = setup({ powerEnabled: false });
+      await expect(call(repository)).rejects.toThrowError('powerUserRequired');
+      expect(Object.values(backend).every((mock) => mock.mock.calls.length === 0)).toBe(true);
+    }
+  });
+
+  it('keeps list and detail reads available while Power mode is off', async () => {
+    const { repository, backend } = setup({ mode: 'browser-local', powerEnabled: false });
+
+    await expect(repository.list()).resolves.toEqual([document()]);
+    await expect(repository.get(LIVE_ID)).resolves.toEqual(document());
+    expect(backend.listLiveTournaments).toHaveBeenCalledOnce();
+    expect(backend.getLiveTournament).toHaveBeenCalledWith(LIVE_ID);
+  });
+});
 
 describe('LiveTournamentRepository offline read cache', () => {
   it('caches the server list and serves it back when the server is unreachable', async () => {

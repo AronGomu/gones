@@ -79,6 +79,7 @@ function mockAdminOrganizations() {
 function seedLanguage(win, language) {
   win.localStorage.setItem('gones.settings.language', language);
   win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
+  win.localStorage.setItem('gones.settings.power-user', 'true');
 }
 
 // The breadcrumb case below asserts a translated label, so the language has to be in localStorage
@@ -113,7 +114,7 @@ function fillValidForm() {
   cy.get('[data-cy="event-start"]').type('2027-08-01T10:00');
   cy.get('[data-cy="event-zone"]').clear().type('Europe/Paris');
   cy.get('[data-cy="event-capacity"]').type('32');
-  cy.get('[data-cy="event-formats"]').select('Legacy');
+  cy.get('[data-cy="event-format"]').select('Legacy');
 }
 
 function openValidPreview() {
@@ -131,46 +132,20 @@ function openValidPreview() {
 describe('Organizer Event create, preview, publish', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
-  it('lets a verified non-organizer reach the form with submission disabled behind an approval notice', () => {
+  it('keeps the Event create route and proposal UI unavailable to a verified non-organizer', () => {
     mockSession('User');
-    mockReferences();
-    mockPublicOrganizations();
     visit();
-    cy.location('pathname').should('eq', '/events/new');
-    cy.wait(['@publicOrganizations', '@formats']);
-    cy.get('[data-cy="event-preview-submit"]').should('not.exist');
-    cy.get('[data-cy="event-approval-notice"]').should('be.visible');
-    // The picker is populated from the public list, so the button is reachable rather than a
-    // dead click over an empty `<select>`.
-    cy.get('[data-cy="event-organization"] option').should('have.length', 1);
-    cy.get('[data-cy="event-submit-for-approval"]').should('be.visible').and('be.enabled');
+    cy.location('pathname').should('not.eq', '/events/new');
+    cy.get('[data-cy="organizer-event-create"]').should('not.exist');
+    cy.get('[data-cy="event-submit-for-approval"]').should('not.exist');
   });
 
-  it('lets a verified non-organizer request approval from chosen approvers', () => {
+  it('does not call the unchanged proposal API from the removed User route', () => {
     mockSession('User');
-    mockReferences();
-    mockPublicOrganizations();
-    cy.intercept('GET', '**/api/event-proposals/approvers*', req => {
-      // T26: the approver list is scoped to the organization the event would go under.
-      expect(req.query.organizationId).to.eq(ownOrgId);
-      req.reply([
-        { id: 'aaaaaaaa-0000-0000-0000-000000000001', username: 'admin-one', globalRole: 'Admin' },
-        { id: 'aaaaaaaa-0000-0000-0000-000000000002', username: 'organizer-two', globalRole: 'Organizer' }
-      ]);
-    }).as('approvers');
-    cy.intercept('POST', '**/api/event-proposals', {
-      statusCode: 201,
-      body: { id: 'pppppppp-0000-0000-0000-000000000001', status: 'Pending', expiresAt: '2027-08-08T00:00:00Z', recipientCount: 1 }
-    }).as('submitProposal');
+    cy.intercept('POST', '**/api/event-proposals').as('submitProposal');
     visit();
-    cy.wait(['@publicOrganizations', '@formats']);
-    fillValidForm();
-    cy.get('[data-cy="event-submit-for-approval"]').click();
-    cy.wait('@approvers');
-    cy.get('[data-cy^="approver-option-"]').first().check({ force: true });
-    cy.get('[data-cy="approver-dialog-submit"]').click();
-    cy.wait('@submitProposal');
-    cy.get('[data-cy="event-proposal-sent"]').should('be.visible');
+    cy.get('[data-cy="event-submit-for-approval"]').should('not.exist');
+    cy.get('@submitProposal.all').should('have.length', 0);
   });
 
   it('redirects the legacy organizer path, scopes organization picker, requires explicit start/zone, focuses title, and stays usable on mobile', () => {

@@ -96,6 +96,14 @@ internal sealed class AdminCatalogService(GonesDbContext database, IClock clock)
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ResourceNotFoundException();
 
+        if (await database.EventFormats.AsNoTracking().AnyAsync(link =>
+            link.TournamentFormatId == format.Id
+            && database.Events.Any(tournament => tournament.Id == link.EventId && tournament.DeletedAt == null),
+            cancellationToken))
+        {
+            throw new ResourceConflictException();
+        }
+
         try
         {
             format.SoftDelete(clock.GetCurrentInstant());

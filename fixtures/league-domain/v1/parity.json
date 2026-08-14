@@ -766,7 +766,7 @@
             {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -785,7 +785,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -796,8 +796,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -806,21 +817,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -828,15 +857,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -845,7 +870,7 @@
             {
               "id": "other-league",
               "name": "Other",
-              "status": "completed",
+              "status": "active",
               "tournaments": [
                 {
                   "id": "other-tournament",
@@ -891,22 +916,37 @@
       },
       "expected": {
         "playerName": "Alice",
-        "playedMatchCount": 4,
+        "playedMatchCount": 6,
         "byeCount": 1,
-        "matchWins": 1,
-        "gameWins": 3,
-        "gameLosses": 6,
-        "matchWinrate": 0.25,
-        "gameWinrate": 0.3333333333333333,
-        "nemesis": "Bob",
-        "rival": "Bob",
+        "matchWins": 2,
+        "matchLosses": 3,
+        "matchDraws": 1,
+        "playedGameCount": 13,
+        "gameWins": 6,
+        "gameLosses": 7,
+        "matchWinrate": 0.3333333333333333,
+        "gameWinrate": 0.46153846153846156,
+        "nemesis": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "rival": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "mostPlayedArchetype": {
+          "name": "Alpha",
+          "matchCount": 1
+        },
         "matches": [
           {
             "kind": "match",
             "league": {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -925,7 +965,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -936,8 +976,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -946,21 +997,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -968,15 +1037,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -999,7 +1064,7 @@
                       "player2Name": "Bob",
                       "player1Score": 0,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "Zoo",
                       "player2DeckArchetype": "Ice"
                     },
                     {
@@ -1010,8 +1075,19 @@
                       "player2Name": "Carol",
                       "player1Score": 1,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "",
                       "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
                     }
                   ]
                 },
@@ -1020,21 +1096,39 @@
                   "entries": [
                     {
                       "kind": "match",
-                      "id": "sm3",
+                      "id": "sm4",
                       "table": "1",
                       "player1Name": "Bob",
                       "player2Name": "Alice",
                       "player1Score": 0,
                       "player2Score": 2,
                       "player1DeckArchetype": "Ice",
-                      "player2DeckArchetype": "Fire"
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
                     },
                     {
                       "kind": "bye",
                       "id": "sb1",
-                      "table": "2",
+                      "table": "3",
                       "playerName": "Alice",
-                      "deckArchetype": "Fire"
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
                     }
                   ]
                 }
@@ -1042,15 +1136,11 @@
               "playerArchetypes": [
                 {
                   "playerName": "Alice",
-                  "archetype": "Fire"
+                  "archetype": "Alpha"
                 },
                 {
-                  "playerName": "Bob",
-                  "archetype": "Ice"
-                },
-                {
-                  "playerName": "Carol",
-                  "archetype": "Earth"
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
                 }
               ]
             },
@@ -1064,7 +1154,7 @@
             "league": {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -1083,7 +1173,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -1094,8 +1184,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -1104,21 +1205,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -1126,15 +1245,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -1157,7 +1272,7 @@
                       "player2Name": "Bob",
                       "player1Score": 0,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "Zoo",
                       "player2DeckArchetype": "Ice"
                     },
                     {
@@ -1168,8 +1283,19 @@
                       "player2Name": "Carol",
                       "player1Score": 1,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "",
                       "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
                     }
                   ]
                 },
@@ -1178,21 +1304,39 @@
                   "entries": [
                     {
                       "kind": "match",
-                      "id": "sm3",
+                      "id": "sm4",
                       "table": "1",
                       "player1Name": "Bob",
                       "player2Name": "Alice",
                       "player1Score": 0,
                       "player2Score": 2,
                       "player1DeckArchetype": "Ice",
-                      "player2DeckArchetype": "Fire"
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
                     },
                     {
                       "kind": "bye",
                       "id": "sb1",
-                      "table": "2",
+                      "table": "3",
                       "playerName": "Alice",
-                      "deckArchetype": "Fire"
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
                     }
                   ]
                 }
@@ -1200,15 +1344,11 @@
               "playerArchetypes": [
                 {
                   "playerName": "Alice",
-                  "archetype": "Fire"
+                  "archetype": "Alpha"
                 },
                 {
-                  "playerName": "Bob",
-                  "archetype": "Ice"
-                },
-                {
-                  "playerName": "Carol",
-                  "archetype": "Earth"
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
                 }
               ]
             },
@@ -1222,7 +1362,7 @@
             "league": {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -1241,7 +1381,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -1252,8 +1392,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -1262,21 +1413,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -1284,15 +1453,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -1315,7 +1480,7 @@
                       "player2Name": "Bob",
                       "player1Score": 0,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "Zoo",
                       "player2DeckArchetype": "Ice"
                     },
                     {
@@ -1326,8 +1491,19 @@
                       "player2Name": "Carol",
                       "player1Score": 1,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "",
                       "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
                     }
                   ]
                 },
@@ -1336,21 +1512,39 @@
                   "entries": [
                     {
                       "kind": "match",
-                      "id": "sm3",
+                      "id": "sm4",
                       "table": "1",
                       "player1Name": "Bob",
                       "player2Name": "Alice",
                       "player1Score": 0,
                       "player2Score": 2,
                       "player1DeckArchetype": "Ice",
-                      "player2DeckArchetype": "Fire"
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
                     },
                     {
                       "kind": "bye",
                       "id": "sb1",
-                      "table": "2",
+                      "table": "3",
                       "playerName": "Alice",
-                      "deckArchetype": "Fire"
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
                     }
                   ]
                 }
@@ -1358,15 +1552,219 @@
               "playerArchetypes": [
                 {
                   "playerName": "Alice",
-                  "archetype": "Fire"
+                  "archetype": "Alpha"
                 },
                 {
-                  "playerName": "Bob",
-                  "archetype": "Ice"
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
+                }
+              ]
+            },
+            "roundIndex": 0,
+            "opponentName": "alice",
+            "ownScore": 1,
+            "opponentScore": 1
+          },
+          {
+            "kind": "match",
+            "league": {
+              "id": "stats-league",
+              "name": "Stats",
+              "status": "completed",
+              "tournaments": [
+                {
+                  "id": "stats-tournament",
+                  "leagueId": "stats-league",
+                  "name": "Stats Event",
+                  "tournamentDate": "2026-01-01",
+                  "rounds": [
+                    {
+                      "id": "sr1",
+                      "entries": [
+                        {
+                          "kind": "match",
+                          "id": "sm1",
+                          "table": "1",
+                          "player1Name": "Alice",
+                          "player2Name": "Bob",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Zoo",
+                          "player2DeckArchetype": "Ice"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm2",
+                          "table": "2",
+                          "player1Name": "Alice",
+                          "player2Name": "Carol",
+                          "player1Score": 1,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "",
+                          "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "sr2",
+                      "entries": [
+                        {
+                          "kind": "match",
+                          "id": "sm4",
+                          "table": "1",
+                          "player1Name": "Bob",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Ice",
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb1",
+                          "table": "3",
+                          "playerName": "Alice",
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
+                        }
+                      ]
+                    }
+                  ],
+                  "playerArchetypes": [
+                    {
+                      "playerName": "Alice",
+                      "archetype": "Alpha"
+                    },
+                    {
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
+                    }
+                  ]
+                }
+              ]
+            },
+            "tournament": {
+              "id": "stats-tournament",
+              "leagueId": "stats-league",
+              "name": "Stats Event",
+              "tournamentDate": "2026-01-01",
+              "rounds": [
+                {
+                  "id": "sr1",
+                  "entries": [
+                    {
+                      "kind": "match",
+                      "id": "sm1",
+                      "table": "1",
+                      "player1Name": "Alice",
+                      "player2Name": "Bob",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Zoo",
+                      "player2DeckArchetype": "Ice"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm2",
+                      "table": "2",
+                      "player1Name": "Alice",
+                      "player2Name": "Carol",
+                      "player1Score": 1,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "",
+                      "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
+                    }
+                  ]
                 },
                 {
-                  "playerName": "Carol",
-                  "archetype": "Earth"
+                  "id": "sr2",
+                  "entries": [
+                    {
+                      "kind": "match",
+                      "id": "sm4",
+                      "table": "1",
+                      "player1Name": "Bob",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Ice",
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb1",
+                      "table": "3",
+                      "playerName": "Alice",
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
+                    }
+                  ]
+                }
+              ],
+              "playerArchetypes": [
+                {
+                  "playerName": "Alice",
+                  "archetype": "Alpha"
+                },
+                {
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
                 }
               ]
             },
@@ -1376,11 +1774,11 @@
             "opponentScore": 0
           },
           {
-            "kind": "bye",
+            "kind": "match",
             "league": {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -1399,7 +1797,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -1410,8 +1808,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -1420,21 +1829,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -1442,15 +1869,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -1473,7 +1896,7 @@
                       "player2Name": "Bob",
                       "player1Score": 0,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "Zoo",
                       "player2DeckArchetype": "Ice"
                     },
                     {
@@ -1484,8 +1907,19 @@
                       "player2Name": "Carol",
                       "player1Score": 1,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "",
                       "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
                     }
                   ]
                 },
@@ -1494,21 +1928,39 @@
                   "entries": [
                     {
                       "kind": "match",
-                      "id": "sm3",
+                      "id": "sm4",
                       "table": "1",
                       "player1Name": "Bob",
                       "player2Name": "Alice",
                       "player1Score": 0,
                       "player2Score": 2,
                       "player1DeckArchetype": "Ice",
-                      "player2DeckArchetype": "Fire"
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
                     },
                     {
                       "kind": "bye",
                       "id": "sb1",
-                      "table": "2",
+                      "table": "3",
                       "playerName": "Alice",
-                      "deckArchetype": "Fire"
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
                     }
                   ]
                 }
@@ -1516,15 +1968,219 @@
               "playerArchetypes": [
                 {
                   "playerName": "Alice",
-                  "archetype": "Fire"
+                  "archetype": "Alpha"
                 },
                 {
-                  "playerName": "Bob",
-                  "archetype": "Ice"
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
+                }
+              ]
+            },
+            "roundIndex": 1,
+            "opponentName": "Carol",
+            "ownScore": 2,
+            "opponentScore": 0
+          },
+          {
+            "kind": "bye",
+            "league": {
+              "id": "stats-league",
+              "name": "Stats",
+              "status": "completed",
+              "tournaments": [
+                {
+                  "id": "stats-tournament",
+                  "leagueId": "stats-league",
+                  "name": "Stats Event",
+                  "tournamentDate": "2026-01-01",
+                  "rounds": [
+                    {
+                      "id": "sr1",
+                      "entries": [
+                        {
+                          "kind": "match",
+                          "id": "sm1",
+                          "table": "1",
+                          "player1Name": "Alice",
+                          "player2Name": "Bob",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Zoo",
+                          "player2DeckArchetype": "Ice"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm2",
+                          "table": "2",
+                          "player1Name": "Alice",
+                          "player2Name": "Carol",
+                          "player1Score": 1,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "",
+                          "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "sr2",
+                      "entries": [
+                        {
+                          "kind": "match",
+                          "id": "sm4",
+                          "table": "1",
+                          "player1Name": "Bob",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Ice",
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb1",
+                          "table": "3",
+                          "playerName": "Alice",
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
+                        }
+                      ]
+                    }
+                  ],
+                  "playerArchetypes": [
+                    {
+                      "playerName": "Alice",
+                      "archetype": "Alpha"
+                    },
+                    {
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
+                    }
+                  ]
+                }
+              ]
+            },
+            "tournament": {
+              "id": "stats-tournament",
+              "leagueId": "stats-league",
+              "name": "Stats Event",
+              "tournamentDate": "2026-01-01",
+              "rounds": [
+                {
+                  "id": "sr1",
+                  "entries": [
+                    {
+                      "kind": "match",
+                      "id": "sm1",
+                      "table": "1",
+                      "player1Name": "Alice",
+                      "player2Name": "Bob",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Zoo",
+                      "player2DeckArchetype": "Ice"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm2",
+                      "table": "2",
+                      "player1Name": "Alice",
+                      "player2Name": "Carol",
+                      "player1Score": 1,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "",
+                      "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
+                    }
+                  ]
                 },
                 {
-                  "playerName": "Carol",
-                  "archetype": "Earth"
+                  "id": "sr2",
+                  "entries": [
+                    {
+                      "kind": "match",
+                      "id": "sm4",
+                      "table": "1",
+                      "player1Name": "Bob",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Ice",
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb1",
+                      "table": "3",
+                      "playerName": "Alice",
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
+                    }
+                  ]
+                }
+              ],
+              "playerArchetypes": [
+                {
+                  "playerName": "Alice",
+                  "archetype": "Alpha"
+                },
+                {
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
                 }
               ]
             },
@@ -1538,7 +2194,7 @@
             "league": {
               "id": "other-league",
               "name": "Other",
-              "status": "completed",
+              "status": "active",
               "tournaments": [
                 {
                   "id": "other-tournament",
@@ -1626,7 +2282,7 @@
             {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -1645,7 +2301,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -1656,8 +2312,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -1666,21 +2333,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -1688,15 +2373,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -1705,7 +2386,7 @@
             {
               "id": "other-league",
               "name": "Other",
-              "status": "completed",
+              "status": "active",
               "tournaments": [
                 {
                   "id": "other-tournament",
@@ -1757,19 +2438,34 @@
         "playedMatchCount": 2,
         "byeCount": 1,
         "matchWins": 1,
+        "matchLosses": 1,
+        "matchDraws": 0,
+        "playedGameCount": 4,
         "gameWins": 2,
         "gameLosses": 2,
         "matchWinrate": 0.5,
         "gameWinrate": 0.5,
-        "nemesis": "Bob",
-        "rival": "Bob",
+        "nemesis": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "rival": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "mostPlayedArchetype": {
+          "name": "Gamma",
+          "matchCount": 1
+        },
         "matches": [
           {
             "kind": "match",
             "league": {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -1788,7 +2484,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -1799,8 +2495,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -1809,21 +2516,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -1831,15 +2556,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -1862,7 +2583,7 @@
                       "player2Name": "Bob",
                       "player1Score": 0,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "Zoo",
                       "player2DeckArchetype": "Ice"
                     },
                     {
@@ -1873,8 +2594,19 @@
                       "player2Name": "Carol",
                       "player1Score": 1,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "",
                       "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
                     }
                   ]
                 },
@@ -1883,21 +2615,39 @@
                   "entries": [
                     {
                       "kind": "match",
-                      "id": "sm3",
+                      "id": "sm4",
                       "table": "1",
                       "player1Name": "Bob",
                       "player2Name": "Alice",
                       "player1Score": 0,
                       "player2Score": 2,
                       "player1DeckArchetype": "Ice",
-                      "player2DeckArchetype": "Fire"
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
                     },
                     {
                       "kind": "bye",
                       "id": "sb1",
-                      "table": "2",
+                      "table": "3",
                       "playerName": "Alice",
-                      "deckArchetype": "Fire"
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
                     }
                   ]
                 }
@@ -1905,15 +2655,11 @@
               "playerArchetypes": [
                 {
                   "playerName": "Alice",
-                  "archetype": "Fire"
+                  "archetype": "Alpha"
                 },
                 {
-                  "playerName": "Bob",
-                  "archetype": "Ice"
-                },
-                {
-                  "playerName": "Carol",
-                  "archetype": "Earth"
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
                 }
               ]
             },
@@ -1927,7 +2673,7 @@
             "league": {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -1946,7 +2692,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -1957,8 +2703,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -1967,21 +2724,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -1989,15 +2764,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -2020,7 +2791,7 @@
                       "player2Name": "Bob",
                       "player1Score": 0,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "Zoo",
                       "player2DeckArchetype": "Ice"
                     },
                     {
@@ -2031,8 +2802,19 @@
                       "player2Name": "Carol",
                       "player1Score": 1,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "",
                       "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
                     }
                   ]
                 },
@@ -2041,21 +2823,39 @@
                   "entries": [
                     {
                       "kind": "match",
-                      "id": "sm3",
+                      "id": "sm4",
                       "table": "1",
                       "player1Name": "Bob",
                       "player2Name": "Alice",
                       "player1Score": 0,
                       "player2Score": 2,
                       "player1DeckArchetype": "Ice",
-                      "player2DeckArchetype": "Fire"
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
                     },
                     {
                       "kind": "bye",
                       "id": "sb1",
-                      "table": "2",
+                      "table": "3",
                       "playerName": "Alice",
-                      "deckArchetype": "Fire"
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
                     }
                   ]
                 }
@@ -2063,15 +2863,11 @@
               "playerArchetypes": [
                 {
                   "playerName": "Alice",
-                  "archetype": "Fire"
+                  "archetype": "Alpha"
                 },
                 {
-                  "playerName": "Bob",
-                  "archetype": "Ice"
-                },
-                {
-                  "playerName": "Carol",
-                  "archetype": "Earth"
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
                 }
               ]
             },
@@ -2085,7 +2881,7 @@
             "league": {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -2104,7 +2900,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -2115,8 +2911,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -2125,21 +2932,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -2147,15 +2972,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -2178,7 +2999,7 @@
                       "player2Name": "Bob",
                       "player1Score": 0,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "Zoo",
                       "player2DeckArchetype": "Ice"
                     },
                     {
@@ -2189,8 +3010,19 @@
                       "player2Name": "Carol",
                       "player1Score": 1,
                       "player2Score": 2,
-                      "player1DeckArchetype": "Fire",
+                      "player1DeckArchetype": "",
                       "player2DeckArchetype": "Earth"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm3",
+                      "table": "3",
+                      "player1Name": "Alice",
+                      "player2Name": "alice",
+                      "player1Score": 1,
+                      "player2Score": 1,
+                      "player1DeckArchetype": "Beta",
+                      "player2DeckArchetype": "beta"
                     }
                   ]
                 },
@@ -2199,21 +3031,39 @@
                   "entries": [
                     {
                       "kind": "match",
-                      "id": "sm3",
+                      "id": "sm4",
                       "table": "1",
                       "player1Name": "Bob",
                       "player2Name": "Alice",
                       "player1Score": 0,
                       "player2Score": 2,
                       "player1DeckArchetype": "Ice",
-                      "player2DeckArchetype": "Fire"
+                      "player2DeckArchetype": "Gamma"
+                    },
+                    {
+                      "kind": "match",
+                      "id": "sm5",
+                      "table": "2",
+                      "player1Name": "Carol",
+                      "player2Name": "Alice",
+                      "player1Score": 0,
+                      "player2Score": 2,
+                      "player1DeckArchetype": "Earth",
+                      "player2DeckArchetype": "Delta"
                     },
                     {
                       "kind": "bye",
                       "id": "sb1",
-                      "table": "2",
+                      "table": "3",
                       "playerName": "Alice",
-                      "deckArchetype": "Fire"
+                      "deckArchetype": "Ignored"
+                    },
+                    {
+                      "kind": "bye",
+                      "id": "sb2",
+                      "table": "4",
+                      "playerName": "Bye Only",
+                      "deckArchetype": "Earth"
                     }
                   ]
                 }
@@ -2221,15 +3071,11 @@
               "playerArchetypes": [
                 {
                   "playerName": "Alice",
-                  "archetype": "Fire"
+                  "archetype": "Alpha"
                 },
                 {
-                  "playerName": "Bob",
-                  "archetype": "Ice"
-                },
-                {
-                  "playerName": "Carol",
-                  "archetype": "Earth"
+                  "playerName": "Roster Only",
+                  "archetype": "Air"
                 }
               ]
             },
@@ -2249,7 +3095,7 @@
             {
               "id": "stats-league",
               "name": "Stats",
-              "status": "active",
+              "status": "completed",
               "tournaments": [
                 {
                   "id": "stats-tournament",
@@ -2268,7 +3114,7 @@
                           "player2Name": "Bob",
                           "player1Score": 0,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "Zoo",
                           "player2DeckArchetype": "Ice"
                         },
                         {
@@ -2279,8 +3125,19 @@
                           "player2Name": "Carol",
                           "player1Score": 1,
                           "player2Score": 2,
-                          "player1DeckArchetype": "Fire",
+                          "player1DeckArchetype": "",
                           "player2DeckArchetype": "Earth"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm3",
+                          "table": "3",
+                          "player1Name": "Alice",
+                          "player2Name": "alice",
+                          "player1Score": 1,
+                          "player2Score": 1,
+                          "player1DeckArchetype": "Beta",
+                          "player2DeckArchetype": "beta"
                         }
                       ]
                     },
@@ -2289,21 +3146,39 @@
                       "entries": [
                         {
                           "kind": "match",
-                          "id": "sm3",
+                          "id": "sm4",
                           "table": "1",
                           "player1Name": "Bob",
                           "player2Name": "Alice",
                           "player1Score": 0,
                           "player2Score": 2,
                           "player1DeckArchetype": "Ice",
-                          "player2DeckArchetype": "Fire"
+                          "player2DeckArchetype": "Gamma"
+                        },
+                        {
+                          "kind": "match",
+                          "id": "sm5",
+                          "table": "2",
+                          "player1Name": "Carol",
+                          "player2Name": "Alice",
+                          "player1Score": 0,
+                          "player2Score": 2,
+                          "player1DeckArchetype": "Earth",
+                          "player2DeckArchetype": "Delta"
                         },
                         {
                           "kind": "bye",
                           "id": "sb1",
-                          "table": "2",
+                          "table": "3",
                           "playerName": "Alice",
-                          "deckArchetype": "Fire"
+                          "deckArchetype": "Ignored"
+                        },
+                        {
+                          "kind": "bye",
+                          "id": "sb2",
+                          "table": "4",
+                          "playerName": "Bye Only",
+                          "deckArchetype": "Earth"
                         }
                       ]
                     }
@@ -2311,15 +3186,11 @@
                   "playerArchetypes": [
                     {
                       "playerName": "Alice",
-                      "archetype": "Fire"
+                      "archetype": "Alpha"
                     },
                     {
-                      "playerName": "Bob",
-                      "archetype": "Ice"
-                    },
-                    {
-                      "playerName": "Carol",
-                      "archetype": "Earth"
+                      "playerName": "Roster Only",
+                      "archetype": "Air"
                     }
                   ]
                 }
@@ -2328,7 +3199,7 @@
             {
               "id": "other-league",
               "name": "Other",
-              "status": "completed",
+              "status": "active",
               "tournaments": [
                 {
                   "id": "other-tournament",
@@ -2379,14 +3250,275 @@
         "playedMatchCount": 0,
         "byeCount": 0,
         "matchWins": 0,
+        "matchLosses": 0,
+        "matchDraws": 0,
+        "playedGameCount": 0,
         "gameWins": 0,
         "gameLosses": 0,
         "matchWinrate": null,
         "gameWinrate": null,
         "nemesis": null,
         "rival": null,
+        "mostPlayedArchetype": null,
         "matches": []
       }
+    }
+  ],
+  "globalPlayerStatistics": [
+    {
+      "input": {
+        "version": 4,
+        "leagues": [
+          {
+            "id": "stats-league",
+            "name": "Stats",
+            "status": "completed",
+            "tournaments": [
+              {
+                "id": "stats-tournament",
+                "leagueId": "stats-league",
+                "name": "Stats Event",
+                "tournamentDate": "2026-01-01",
+                "rounds": [
+                  {
+                    "id": "sr1",
+                    "entries": [
+                      {
+                        "kind": "match",
+                        "id": "sm1",
+                        "table": "1",
+                        "player1Name": "Alice",
+                        "player2Name": "Bob",
+                        "player1Score": 0,
+                        "player2Score": 2,
+                        "player1DeckArchetype": "Zoo",
+                        "player2DeckArchetype": "Ice"
+                      },
+                      {
+                        "kind": "match",
+                        "id": "sm2",
+                        "table": "2",
+                        "player1Name": "Alice",
+                        "player2Name": "Carol",
+                        "player1Score": 1,
+                        "player2Score": 2,
+                        "player1DeckArchetype": "",
+                        "player2DeckArchetype": "Earth"
+                      },
+                      {
+                        "kind": "match",
+                        "id": "sm3",
+                        "table": "3",
+                        "player1Name": "Alice",
+                        "player2Name": "alice",
+                        "player1Score": 1,
+                        "player2Score": 1,
+                        "player1DeckArchetype": "Beta",
+                        "player2DeckArchetype": "beta"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "sr2",
+                    "entries": [
+                      {
+                        "kind": "match",
+                        "id": "sm4",
+                        "table": "1",
+                        "player1Name": "Bob",
+                        "player2Name": "Alice",
+                        "player1Score": 0,
+                        "player2Score": 2,
+                        "player1DeckArchetype": "Ice",
+                        "player2DeckArchetype": "Gamma"
+                      },
+                      {
+                        "kind": "match",
+                        "id": "sm5",
+                        "table": "2",
+                        "player1Name": "Carol",
+                        "player2Name": "Alice",
+                        "player1Score": 0,
+                        "player2Score": 2,
+                        "player1DeckArchetype": "Earth",
+                        "player2DeckArchetype": "Delta"
+                      },
+                      {
+                        "kind": "bye",
+                        "id": "sb1",
+                        "table": "3",
+                        "playerName": "Alice",
+                        "deckArchetype": "Ignored"
+                      },
+                      {
+                        "kind": "bye",
+                        "id": "sb2",
+                        "table": "4",
+                        "playerName": "Bye Only",
+                        "deckArchetype": "Earth"
+                      }
+                    ]
+                  }
+                ],
+                "playerArchetypes": [
+                  {
+                    "playerName": "Alice",
+                    "archetype": "Alpha"
+                  },
+                  {
+                    "playerName": "Roster Only",
+                    "archetype": "Air"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "other-league",
+            "name": "Other",
+            "status": "active",
+            "tournaments": [
+              {
+                "id": "other-tournament",
+                "leagueId": "other-league",
+                "name": "Other Event",
+                "tournamentDate": "2025-01-01",
+                "rounds": [
+                  {
+                    "id": "or1",
+                    "entries": [
+                      {
+                        "kind": "match",
+                        "id": "om1",
+                        "table": "1",
+                        "player1Name": "Alice",
+                        "player2Name": "Zed",
+                        "player1Score": 0,
+                        "player2Score": 2,
+                        "player1DeckArchetype": "",
+                        "player2DeckArchetype": ""
+                      }
+                    ]
+                  }
+                ],
+                "playerArchetypes": [
+                  {
+                    "playerName": "Alice",
+                    "archetype": ""
+                  },
+                  {
+                    "playerName": "Zed",
+                    "archetype": ""
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "calendarEvents": []
+      },
+      "expected": [
+        {
+          "playerName": "Alice",
+          "playedMatchCount": 5,
+          "matchWins": 2,
+          "matchLosses": 2,
+          "matchDraws": 1,
+          "matchWinrate": 0.4,
+          "playedGameCount": 11,
+          "gameWins": 6,
+          "gameLosses": 5,
+          "gameWinrate": 0.5454545454545454,
+          "nemesis": {
+            "name": "Bob",
+            "wins": 1,
+            "losses": 1
+          },
+          "rival": {
+            "name": "Bob",
+            "wins": 1,
+            "losses": 1
+          },
+          "mostPlayedArchetype": {
+            "name": "Alpha",
+            "matchCount": 1
+          }
+        },
+        {
+          "playerName": "Bob",
+          "playedMatchCount": 2,
+          "matchWins": 1,
+          "matchLosses": 1,
+          "matchDraws": 0,
+          "matchWinrate": 0.5,
+          "playedGameCount": 4,
+          "gameWins": 2,
+          "gameLosses": 2,
+          "gameWinrate": 0.5,
+          "nemesis": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "rival": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "mostPlayedArchetype": {
+            "name": "Ice",
+            "matchCount": 2
+          }
+        },
+        {
+          "playerName": "Carol",
+          "playedMatchCount": 2,
+          "matchWins": 1,
+          "matchLosses": 1,
+          "matchDraws": 0,
+          "matchWinrate": 0.5,
+          "playedGameCount": 5,
+          "gameWins": 2,
+          "gameLosses": 3,
+          "gameWinrate": 0.4,
+          "nemesis": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "rival": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "mostPlayedArchetype": {
+            "name": "Earth",
+            "matchCount": 2
+          }
+        },
+        {
+          "playerName": "alice",
+          "playedMatchCount": 1,
+          "matchWins": 0,
+          "matchLosses": 0,
+          "matchDraws": 1,
+          "matchWinrate": 0,
+          "playedGameCount": 2,
+          "gameWins": 1,
+          "gameLosses": 1,
+          "gameWinrate": 0.5,
+          "nemesis": null,
+          "rival": {
+            "name": "Alice",
+            "wins": 0,
+            "losses": 0
+          },
+          "mostPlayedArchetype": {
+            "name": "beta",
+            "matchCount": 1
+          }
+        }
+      ]
     }
   ],
   "renames": [

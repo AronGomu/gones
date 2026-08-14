@@ -30,6 +30,15 @@ export interface IClient {
     /**
      * @param page (optional)
      * @param pageSize (optional)
+     * @param search (optional)
+     * @param sort (optional)
+     * @param direction (optional)
+     * @return OK
+     */
+    getGlobalPlayerStatistics(page: number | undefined, pageSize: number | undefined, search: string | undefined, sort: string | undefined, direction: string | undefined): Observable<GlobalPlayerStatisticsResponse>;
+    /**
+     * @param page (optional)
+     * @param pageSize (optional)
      * @param status (optional)
      * @param search (optional)
      * @return OK
@@ -263,6 +272,12 @@ export interface IClient {
      * @return OK
      */
     moveArchiveTournament(id: string, tournamentId: string, if_Match: string | undefined, target_If_Match: string | undefined, body: MoveResultTournamentRequest): Observable<MoveTournamentResponse>;
+    /**
+     * @param if_Match (optional)
+     * @param target_If_Match (optional)
+     * @return OK
+     */
+    applyArchiveTournamentEditBatch(id: string, tournamentId: string, if_Match: string | undefined, target_If_Match: string | undefined, body: ArchiveTournamentEditBatchRequest): Observable<ArchiveTournamentEditBatchResponse>;
     /**
      * @param if_Match (optional)
      * @return OK
@@ -829,6 +844,91 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicDeckArchetypeResponse[];
             return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @param search (optional)
+     * @param sort (optional)
+     * @param direction (optional)
+     * @return OK
+     */
+    getGlobalPlayerStatistics(page: number | undefined, pageSize: number | undefined, search: string | undefined, sort: string | undefined, direction: string | undefined): Observable<GlobalPlayerStatisticsResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/global-player-statistics?";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        if (search === null)
+            throw new globalThis.Error("The parameter 'search' cannot be null.");
+        else if (search !== undefined)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (sort === null)
+            throw new globalThis.Error("The parameter 'sort' cannot be null.");
+        else if (sort !== undefined)
+            url_ += "sort=" + encodeURIComponent("" + sort) + "&";
+        if (direction === null)
+            throw new globalThis.Error("The parameter 'direction' cannot be null.");
+        else if (direction !== undefined)
+            url_ += "direction=" + encodeURIComponent("" + direction) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetGlobalPlayerStatistics(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetGlobalPlayerStatistics(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<GlobalPlayerStatisticsResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<GlobalPlayerStatisticsResponse>;
+        }));
+    }
+
+    protected processGetGlobalPlayerStatistics(response: HttpResponseBase): Observable<GlobalPlayerStatisticsResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as GlobalPlayerStatisticsResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -4057,6 +4157,70 @@ export class Client implements IClient {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as MoveTournamentResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @param target_If_Match (optional)
+     * @return OK
+     */
+    applyArchiveTournamentEditBatch(id: string, tournamentId: string, if_Match: string | undefined, target_If_Match: string | undefined, body: ArchiveTournamentEditBatchRequest): Observable<ArchiveTournamentEditBatchResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/{id}/tournaments-archive/{tournamentId}/edit-batch";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (tournamentId === undefined || tournamentId === null)
+            throw new globalThis.Error("The parameter 'tournamentId' must be defined.");
+        url_ = url_.replace("{tournamentId}", encodeURIComponent("" + tournamentId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Target-If-Match": target_If_Match !== undefined && target_If_Match !== null ? "" + target_If_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processApplyArchiveTournamentEditBatch(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processApplyArchiveTournamentEditBatch(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveTournamentEditBatchResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveTournamentEditBatchResponse>;
+        }));
+    }
+
+    protected processApplyArchiveTournamentEditBatch(response: HttpResponseBase): Observable<ArchiveTournamentEditBatchResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveTournamentEditBatchResponse;
             return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
@@ -9730,6 +9894,13 @@ export interface AccessTokenResponse {
     [key: string]: any;
 }
 
+export interface AddArchiveRoundIntent {
+    roundId: string;
+    entries: RoundEntry[];
+
+    [key: string]: any;
+}
+
 export interface AddLivePlayerRequest {
     name: string | undefined;
     initialWins: number | undefined;
@@ -9930,6 +10101,24 @@ export interface AdminUserSummaryResponse {
     [key: string]: any;
 }
 
+export interface ArchiveTournamentEditBatchRequest {
+    targetLeagueId: string | undefined;
+    editTournament: EditArchiveTournamentIntent | undefined;
+    addRounds: AddArchiveRoundIntent[];
+    deleteRoundIds: string[];
+    replaceRounds: ReplaceArchiveRoundIntent[];
+    updateArchetypes: UpdateArchiveArchetypeIntent[];
+
+    [key: string]: any;
+}
+
+export interface ArchiveTournamentEditBatchResponse {
+    sourceLeague: LeagueCommandResponse;
+    destinationLeague: LeagueCommandResponse | undefined;
+
+    [key: string]: any;
+}
+
 export interface BlockOrganizationUserRequest {
     userId: string;
     reason: string;
@@ -10023,6 +10212,13 @@ export interface DisableUserRequest {
     [key: string]: any;
 }
 
+export interface EditArchiveTournamentIntent {
+    name: string;
+    tournamentDate: string;
+
+    [key: string]: any;
+}
+
 export interface EditLivePlayerRequest {
     name: string | undefined;
     initialWins: number | undefined;
@@ -10042,6 +10238,7 @@ export interface EditResultTournamentRequest {
 
 export interface EmailAccountRequest {
     email: string;
+    returnUrl: string | undefined;
     rateLimitAccount?: string | undefined;
 
     [key: string]: any;
@@ -10069,9 +10266,12 @@ export interface EventManagementResponse {
     organizationId: string;
     organizationName: string;
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     bodyHtml: string | undefined;
+    liveTournamentUrl: string | undefined;
+    archiveTournamentUrl: string | undefined;
     streetAddress: string;
     postalCode: string | undefined;
     city: string;
@@ -10118,15 +10318,20 @@ export interface EventPayloadRequest {
     endsAtLocal: string | undefined;
     capacity: number | undefined;
     formatIds: string[];
+    liveTournamentUrl?: string | undefined;
+    archiveTournamentUrl?: string | undefined;
 
     [key: string]: any;
 }
 
 export interface EventPreviewRenderResponse {
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     bodyHtml: string | undefined;
+    liveTournamentUrl: string | undefined;
+    archiveTournamentUrl: string | undefined;
     venue: PublicEventVenueResponse;
     timeZoneId: string;
     venueStartDate: string;
@@ -10276,6 +10481,36 @@ export interface FullRestoreResponse {
 
 export interface GenericAccountActionResponse {
     message: string;
+
+    [key: string]: any;
+}
+
+export interface GlobalPlayerStatisticsResponse {
+    items: GlobalPlayerStatisticsRow[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    sort: string | undefined;
+    direction: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface GlobalPlayerStatisticsRow {
+    position: number;
+    playerName: string;
+    playedMatchCount: number;
+    matchWins: number;
+    matchLosses: number;
+    matchDraws: number;
+    matchWinrate: number | undefined;
+    playedGameCount: number;
+    gameWins: number;
+    gameLosses: number;
+    gameWinrate: number | undefined;
+    nemesis: OpponentRecord | undefined;
+    rival: OpponentRecord | undefined;
+    mostPlayedArchetype: PlayerArchetypeUsage | undefined;
 
     [key: string]: any;
 }
@@ -10557,6 +10792,14 @@ export interface OAuthStartResponse {
     [key: string]: any;
 }
 
+export interface OpponentRecord {
+    name: string;
+    wins: number;
+    losses: number;
+
+    [key: string]: any;
+}
+
 export interface OrganizationBlockedUserListResponse {
     items: OrganizationBlockedUserResponse[];
     page: number;
@@ -10649,6 +10892,13 @@ export interface PlayerArchetypeDocument {
     [key: string]: any;
 }
 
+export interface PlayerArchetypeUsage {
+    name: string;
+    matchCount: number;
+
+    [key: string]: any;
+}
+
 export interface PlayerMatch {
     kind: string;
     league: LeagueDocument;
@@ -10724,12 +10974,16 @@ export interface PlayerStatistics {
     playedMatchCount: number;
     byeCount: number;
     matchWins: number;
+    matchLosses: number;
+    matchDraws: number;
+    playedGameCount: number;
     gameWins: number;
     gameLosses: number;
     matchWinrate: number | undefined;
     gameWinrate: number | undefined;
-    nemesis: string | undefined;
-    rival: string | undefined;
+    nemesis: OpponentRecord | undefined;
+    rival: OpponentRecord | undefined;
+    mostPlayedArchetype: PlayerArchetypeUsage | undefined;
     matches: PlayerMatch[];
 
     [key: string]: any;
@@ -10794,9 +11048,12 @@ export interface PublicEventCatalogResponse {
 export interface PublicEventDetailResponse {
     id: string;
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     bodyHtml: string | undefined;
+    liveTournamentUrl: string | undefined;
+    archiveTournamentUrl: string | undefined;
     venue: PublicEventVenueResponse;
     timeZoneId: string;
     venueStartDate: string;
@@ -10853,6 +11110,7 @@ export interface PublicEventParticipantResponse {
 export interface PublicEventSummaryResponse {
     id: string;
     title: string;
+    displayTitle: string;
     slug: string;
     summary: string | undefined;
     venue: PublicEventVenueResponse;
@@ -11020,6 +11278,7 @@ export interface RegisterRequest {
     password: string;
     firstName: string;
     lastName: string;
+    returnUrl: string | undefined;
     rateLimitAccount?: string | undefined;
 
     [key: string]: any;
@@ -11034,6 +11293,13 @@ export interface RenameLeagueRequest {
 export interface RenamePlayerRequest {
     fromName: string;
     toName: string;
+
+    [key: string]: any;
+}
+
+export interface ReplaceArchiveRoundIntent {
+    roundId: string;
+    entries: RoundEntry[];
 
     [key: string]: any;
 }
@@ -11146,6 +11412,13 @@ export interface TransferOrganizationOwnershipRequest {
     [key: string]: any;
 }
 
+export interface UpdateArchiveArchetypeIntent {
+    playerName: string;
+    archetype: string;
+
+    [key: string]: any;
+}
+
 export interface UpdateEventDetailsRequest {
     title: string;
     summary: string | undefined;
@@ -11159,6 +11432,8 @@ export interface UpdateEventDetailsRequest {
     endsAtLocal: string | undefined;
     capacity: number | undefined;
     formatIds: string[];
+    liveTournamentUrl?: string | undefined;
+    archiveTournamentUrl?: string | undefined;
 
     [key: string]: any;
 }

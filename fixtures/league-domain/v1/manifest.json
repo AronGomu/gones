@@ -24,7 +24,7 @@
     "sourceDataVersion": 4
   },
   "serialization": "JSON.stringify(value, null, 2) + LF",
-  "paritySha256": "590f4ea6b1e64669f0a729adf90d5b462a68124bd0879c4e982d5d88824a02ca",
+  "paritySha256": "8f0d3146db0a8d52793e3b285fc8bacc18f20fabc3db3a2dc72b1b601c33f917",
   "caseCounts": {
     "normalization": 1,
     "csvImports": 2,
@@ -33,6 +33,7 @@
     "tournamentResults": 1,
     "leagueResults": 1,
     "playerStatistics": 3,
+    "globalPlayerStatistics": 1,
     "renames": 1,
     "placeholders": 1
   }

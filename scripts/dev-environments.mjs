@@ -124,6 +124,7 @@ export function validateEnvironment(environment) {
   // thirty seconds into a Docker reset, with the previous dataset already dropped.
   const organizationKeys = new Set(organizations.map(({ key }) => key));
   const formatKeys = new Set(formats.map(({ key }) => key));
+  const formatsByKey = new Map(formats.map((format) => [format.key, format]));
   const tournamentKeys = new Set(tournaments.map(({ key }) => key));
   const accountsByEmail = new Map(accounts.map((account) => [normalizeFixtureEmail(account.email), account]));
 
@@ -146,12 +147,37 @@ export function validateEnvironment(environment) {
     if (!organizationKeys.has(tournament.organizationKey)) {
       problems.push(`${label}: tournament ${tournament.key} references unknown organization ${tournament.organizationKey}`);
     }
+    if (!Array.isArray(tournament.formatKeys) || tournament.formatKeys.length !== 1) {
+      problems.push(`${label}: tournament ${tournament.key} must reference exactly one format`);
+    }
     for (const formatKey of tournament.formatKeys ?? []) {
       if (!formatKeys.has(formatKey)) problems.push(`${label}: tournament ${tournament.key} references unknown format ${formatKey}`);
     }
     const organizer = accountsByEmail.get(normalizeFixtureEmail(tournament.organizerEmail));
     if (organizer === undefined || !['Organizer', 'Admin'].includes(organizer.role)) {
       problems.push(`${label}: tournament ${tournament.key} organizer ${tournament.organizerEmail} is not an Organizer`);
+    }
+  }
+
+  const tournamentsByTitle = new Map();
+  for (const tournament of tournaments) {
+    const sameTitle = tournamentsByTitle.get(tournament.title) ?? [];
+    sameTitle.push(tournament);
+    tournamentsByTitle.set(tournament.title, sameTitle);
+  }
+  for (const sameTitle of tournamentsByTitle.values()) {
+    if (sameTitle.length < 2) continue;
+    const firstFormat = formatsByKey.get(sameTitle[0].formatKeys?.[0]);
+    if (firstFormat === undefined) continue;
+    const suffix = `-${firstFormat.slug}`;
+    const sourceKey = sameTitle[0].key.endsWith(suffix) ? sameTitle[0].key.slice(0, -suffix.length) : sameTitle[0].key;
+    for (const tournament of sameTitle) {
+      const format = formatsByKey.get(tournament.formatKeys?.[0]);
+      if (format === undefined) continue;
+      const expectedKey = `${sourceKey}-${format.slug}`;
+      if (tournament.key !== expectedKey) {
+        problems.push(`${label}: split tournament ${tournament.key} must use key "${expectedKey}"`);
+      }
     }
   }
 

@@ -6,13 +6,12 @@ using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
 
     public Task InitializeAsync() => postgres.StartAsync();
 
@@ -24,7 +23,11 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
         var seed = await SeedAsync(db);
-        var tournament = Event.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now);
+        var tournament = Event.Create(seed.Organization.Id, seed.User.Id, Draft() with
+        {
+            LiveTournamentUrl = "/live/legacy-cup",
+            ArchiveTournamentUrl = "https://example.test/archive/legacy-cup"
+        }, [seed.Legacy], Now);
         db.Events.Add(tournament);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
@@ -36,6 +39,25 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         Assert.Equal(1, stored.Version);
         Assert.Single(stored.Formats);
         Assert.Equal(seed.Legacy.Id, stored.Formats.Single().TournamentFormatId);
+        Assert.Equal("/live/legacy-cup", stored.LiveTournamentUrl);
+        Assert.Equal("https://example.test/archive/legacy-cup", stored.ArchiveTournamentUrl);
+    }
+
+    [Fact]
+    public async Task Database_rejects_second_format_row_for_same_event()
+    {
+        await using var db = CreateContext();
+        await db.Database.MigrateAsync();
+        var seed = await SeedAsync(db);
+        var modern = TournamentFormat.Create("Modern", "modern", 10, Now);
+        db.TournamentFormats.Add(modern);
+        var tournament = Event.Create(seed.Organization.Id, seed.User.Id, Draft(), [seed.Legacy], Now);
+        db.Events.Add(tournament);
+        await db.SaveChangesAsync();
+
+        db.EventFormats.Add(EventFormat.Create(tournament.Id, modern.Id));
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, ((PostgresException)exception.InnerException!).SqlState);
     }
 
     [Fact]
@@ -72,6 +94,7 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         Assert.Contains("ix_events_slug", indexNames);
         Assert.Contains("ix_events_organization_id_slug", indexNames);
         Assert.Contains("ix_event_formats_tournament_format_id", indexNames);
+        Assert.Contains("ix_event_formats_event_id", indexNames);
     }
 
     private static async Task InsertRawTournamentAsync(GonesDbContext db, SeedRows seed, Guid id, bool endsBeforeStart, int capacity, string status)

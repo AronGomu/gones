@@ -66,6 +66,14 @@ try {
     if (firstVisit.status !== 0) process.exitCode = firstVisit.status ?? 1;
   }
   if (!process.exitCode) {
+    const powerUserGating = runCypress('cypress/e2e/power-user-gating.cy.js');
+    if (powerUserGating.status !== 0) process.exitCode = powerUserGating.status ?? 1;
+  }
+  if (!process.exitCode) {
+    const archiveStagedEdit = runCypress('cypress/e2e/archive-staged-edit.cy.js');
+    if (archiveStagedEdit.status !== 0) process.exitCode = archiveStagedEdit.status ?? 1;
+  }
+  if (!process.exitCode) {
     const serverAuthority = runCypress('cypress/e2e/server-data-authority.cy.js');
     if (serverAuthority.status !== 0) process.exitCode = serverAuthority.status ?? 1;
   }
@@ -148,6 +156,10 @@ try {
   if (!process.exitCode) {
     const accessibility = runCypress('cypress/e2e/accessibility.cy.js');
     if (accessibility.status !== 0) process.exitCode = accessibility.status ?? 1;
+  }
+  if (!process.exitCode) {
+    const globalStats = runCypress('cypress/e2e/global-stats.cy.js');
+    if (globalStats.status !== 0) process.exitCode = globalStats.status ?? 1;
   }
   if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {

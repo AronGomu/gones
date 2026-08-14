@@ -30,6 +30,11 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("ArchiveTournamentUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("archive_tournament_url");
+
                     b.Property<string>("BodyHtml")
                         .HasMaxLength(10000)
                         .HasColumnType("character varying(10000)")
@@ -75,6 +80,11 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.Property<Instant>("EndsAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ends_at_utc");
+
+                    b.Property<string>("LiveTournamentUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("live_tournament_url");
 
                     b.Property<string>("NormalizedSearchText")
                         .IsRequired()
@@ -221,6 +231,10 @@ namespace Gones.Infrastructure.Persistence.Migrations
 
                     b.HasKey("EventId", "TournamentFormatId")
                         .HasName("pk_event_formats");
+
+                    b.HasIndex("EventId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_formats_event_id");
 
                     b.HasIndex("TournamentFormatId")
                         .HasDatabaseName("ix_event_formats_tournament_format_id");

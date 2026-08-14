@@ -20,6 +20,7 @@ import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { Client, UserProfileResponse } from '../../api/generated/gones-api';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
@@ -48,6 +49,7 @@ function setup(dialogAfterClosed: unknown) {
     { provide: MatDialog, useValue: dialogStub },
     { provide: AuthService, useValue: auth },
     { provide: EventProposalService, useValue: proposalsStub },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
@@ -70,7 +72,9 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     startsAtLocal: '2027-08-01T10:00',
     endsAtLocal: '',
     capacity: null,
-    formatIds: ['fmt1']
+    formatId: 'fmt1',
+    liveTournamentUrl: '',
+    archiveTournamentUrl: ''
   });
 }
 

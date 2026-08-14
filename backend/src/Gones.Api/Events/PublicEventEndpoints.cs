@@ -333,7 +333,9 @@ internal static partial class PublicEventEndpoints
                 organization.Description,
                 organization.Website,
                 organization.ContactEmail,
-                tournament.BodyHtml))
+                tournament.BodyHtml,
+                tournament.LiveTournamentUrl,
+                tournament.ArchiveTournamentUrl))
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ResourceNotFoundException();
     }
@@ -358,9 +360,13 @@ internal static partial class PublicEventEndpoints
                 group => (IReadOnlyList<PublicTournamentFormatResponse>)group.Select(item => new PublicTournamentFormatResponse(item.Id, item.Name, item.Slug, item.SortOrder)).ToArray());
     }
 
-    private static PublicEventSummaryResponse ToSummary(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent) => new(
+    private static PublicEventSummaryResponse ToSummary(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent)
+    {
+        var formats = formatsByEvent.TryGetValue(row.Id, out var loadedFormats) ? loadedFormats : [];
+        return new PublicEventSummaryResponse(
         row.Id,
         row.Title,
+        EventDisplayTitle.From(row.Title, formats.Single().Name),
         row.Slug,
         row.Summary,
         new PublicEventVenueResponse(row.StreetAddress, row.PostalCode, row.City, row.Country),
@@ -374,7 +380,8 @@ internal static partial class PublicEventEndpoints
         row.Capacity,
         row.Status.ToString(),
         new PublicEventOrganizationResponse(row.OrganizationId, row.OrganizationName, row.OrganizationDescription, row.OrganizationWebsite, row.OrganizationContactEmail),
-        formatsByEvent.TryGetValue(row.Id, out var formats) ? formats : []);
+        formats);
+    }
 
     private static PublicEventDetailResponse ToDetail(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent)
     {
@@ -382,9 +389,12 @@ internal static partial class PublicEventEndpoints
         return new PublicEventDetailResponse(
             summary.Id,
             summary.Title,
+            summary.DisplayTitle,
             summary.Slug,
             summary.Summary,
             row.BodyHtml,
+            row.LiveTournamentUrl,
+            row.ArchiveTournamentUrl,
             summary.Venue,
             summary.TimeZoneId,
             summary.VenueStartDate,
@@ -503,7 +513,9 @@ internal static partial class PublicEventEndpoints
         string? OrganizationDescription,
         string? OrganizationWebsite,
         string? OrganizationContactEmail,
-        string? BodyHtml = null);
+        string? BodyHtml = null,
+        string? LiveTournamentUrl = null,
+        string? ArchiveTournamentUrl = null);
 
     private sealed class EventQueryItem
     {
@@ -527,6 +539,7 @@ internal sealed record PublicEventListResponse(
 internal sealed record PublicEventSummaryResponse(
     Guid Id,
     string Title,
+    string DisplayTitle,
     string Slug,
     string? Summary,
     PublicEventVenueResponse Venue,
@@ -545,9 +558,12 @@ internal sealed record PublicEventSummaryResponse(
 internal sealed record PublicEventDetailResponse(
     Guid Id,
     string Title,
+    string DisplayTitle,
     string Slug,
     string? Summary,
     string? BodyHtml,
+    string? LiveTournamentUrl,
+    string? ArchiveTournamentUrl,
     PublicEventVenueResponse Venue,
     string TimeZoneId,
     string VenueStartDate,

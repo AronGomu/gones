@@ -17,10 +17,10 @@ Every account shares the same password: `Gones-dev-pass-123!`.
 
 | Email | Username | Role | Email verified | Organizations | What they can do |
 | --- | --- | --- | --- | --- | --- |
-| admin@gones.test | gones-admin | Admin | yes | — | Everything: admin screens, all organizations, publish for any organization |
-| organizer@gones.test | gones-organizer | Organizer | yes | Gones Lyon | Create and publish events for the organizations listed |
-| organizer2@gones.test | gones-organizer-2 | Organizer | yes | Ligue AURA | Create and publish events for the organizations listed |
-| test@gones.test | gones-test | User | yes | — | Browse the calendar, register for events, manage own registrations |
-| player1@gones.test | gones-player-1 | User | yes | — | Browse the calendar, register for events, manage own registrations |
-| player2@gones.test | gones-player-2 | User | yes | — | Browse the calendar, register for events, manage own registrations |
-| unverified@gones.test | gones-unverified | User | no | — | Browse the calendar, register for events, manage own registrations, cannot write until the email is verified |
+| admin-empty@gones.test | admin-empty | Admin | yes | — | Everything: admin screens, all organizations, publish for any organization |
+| organizer-gones-one-registration@gones.test | organizer-gones-one-registration | Organizer | yes | Gones Lyon | Create and publish events for the organizations listed |
+| organizer-aura-live-standings@gones.test | organizer-aura-live-standings | Organizer | yes | Ligue AURA | Create and publish events for the organizations listed |
+| user-four-registrations@gones.test | user-four-registrations | User | yes | — | Browse the calendar, register for events, manage own registrations |
+| user-two-registrations@gones.test | user-two-registrations | User | yes | — | Browse the calendar, register for events, manage own registrations |
+| user-empty@gones.test | user-empty | User | yes | — | Browse the calendar, register for events, manage own registrations |
+| user-unverified@gones.test | user-unverified | User | no | — | Browse the calendar, register for events, manage own registrations, cannot write until the email is verified |

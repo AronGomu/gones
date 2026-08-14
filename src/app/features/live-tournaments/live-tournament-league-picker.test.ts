@@ -20,6 +20,7 @@ import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { OnlineStatusService } from '../../shared/online-status.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { LiveTournamentRunnerComponent } from './live-tournament-runner.component';
 
 const SERVER_ID = '7f3a1d2c-0b44-4f9e-9a1e-2c8f0d6b5a11';
@@ -48,6 +49,7 @@ async function setup(leagues: PersistedLeague[]) {
     { provide: AuthService, useValue: auth },
     { provide: OnlineStatusService, useValue: { online: signal(true) } },
     { provide: LIVE_BACKEND_MODE, useValue: 'server' },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });

@@ -54,6 +54,7 @@ export async function buildBreadcrumbs(
   if (segments[0] === 'admin' && segments[1] === 'events' && segments[2] === 'deleted') return [{ label: menu, link: ['/'] }, { label: t('crumb.deletedEvents') }];
   if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: t('auth.account') }];
   if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: t('crumb.player') }];
+  if (segments[0] === 'global-stats') return [{ label: menu, link: ['/'] }, { label: t('crumb.globalStats') }];
   if (segments[0] === 'live-tournaments') {
     if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: t('crumb.runningTournaments') }];
     const liveTournament = segments[1] === 'new' ? null : await getLiveTournament(decodeURIComponent(segments[1]));

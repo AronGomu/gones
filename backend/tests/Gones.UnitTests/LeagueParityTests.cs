@@ -66,6 +66,11 @@ public sealed class LeagueParityTests
             var actual = LeagueRules.CalculatePlayerStatistics(data, input.GetProperty("playerName").GetString()!, filters);
             AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(actual));
         });
+        Process("globalPlayerStatistics", testCase =>
+        {
+            var data = LeagueJson.Deserialize<GonesData>(testCase.GetProperty("input"));
+            AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(LeagueRules.CalculateGlobalPlayerStatistics(data)));
+        });
         Process("renames", testCase =>
         {
             var input = testCase.GetProperty("input");

@@ -28,10 +28,9 @@ function templateBlock(opening: string): string {
 }
 
 describe('league archive list template', () => {
-  it('the list page always offers create', () => {
-    expect(source).toContain('data-cy="leagues-archive-list-create-card"');
-    // The create card is no longer inside a role gate at all: the old `@if (canManage())` wrapper
-    // and the component-wide `canManage` computed it read are both gone.
+  it('offers create only after browser Power User opt-in, without adding a role gate', () => {
+    expect(source.match(/data-cy="leagues-archive-list-create-card"/g)).toHaveLength(1);
+    expect(templateBlock('@if (power.enabled()) {')).toContain('data-cy="leagues-archive-list-create-card"');
     expect(source).not.toContain('@if (canManage())');
     expect(source).not.toMatch(/readonly canManage = computed/);
   });

@@ -1,11 +1,12 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort, FullLeagueRestoreCommand, LeagueRestoreCommand } from '../backend/application-backend';
+import { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, LEAGUE_ARCHIVE_BACKEND, LeagueArchiveBackendPort, FullLeagueRestoreCommand, LeagueRestoreCommand } from '../backend/application-backend';
 import { LocalLeagueArchiveBackend } from '../backend/local-league-archive-backend.service';
 import { ServerReadCacheService } from '../backend/server-read-cache.service';
 import { AuthService } from '../auth/auth.service';
 import { getDefaultTournamentName, isUnassignedLeagueName, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
 import { createLeagueTarget } from './league-archive-command-ux';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from './league-archive-origin';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
  * The dual-source League Archive (ADR 0028). Two stores, one list: `listLeagues()` merges them and
@@ -22,6 +23,7 @@ export class LeagueArchiveRepository {
   private readonly local = inject(LocalLeagueArchiveBackend);
   private readonly auth = inject(AuthService);
   private readonly cache = inject(ServerReadCacheService);
+  private readonly power = inject(PowerUserSettingsService);
 
   /** The last `listLeagues()` could not read the server — anonymous, offline, 401, 403 or cached. */
   readonly serverUnavailable = signal(false);
@@ -164,6 +166,27 @@ export class LeagueArchiveRepository {
     return this.freshMutation(() => this.writePort().restoreFullLeagueArchiveData(command, idempotencyKey));
   }
 
+  saveTournamentEdits(
+    sourceLeague: PersistedLeague,
+    tournamentId: string,
+    targetLeague: PersistedLeague | null,
+    command: ArchiveTournamentEditBatchCommand
+  ): Promise<ArchiveTournamentEditBatchResult> {
+    return this.freshMutation(() => {
+      if (targetLeague && isLocalLeagueId(sourceLeague.id) !== isLocalLeagueId(targetLeague.id)) throw new Error('crossAuthorityMoveNotSupported');
+      const target = targetLeague && targetLeague.id !== sourceLeague.id
+        ? { leagueId: targetLeague.id, expectedVersion: targetLeague.documentVersion }
+        : undefined;
+      return this.port(sourceLeague.id).applyArchiveTournamentEditBatch(
+        sourceLeague.id,
+        tournamentId,
+        sourceLeague.documentVersion,
+        command,
+        target
+      );
+    });
+  }
+
   /**
    * A tournament never crosses the boundary between the two authorities: emulating it would be a
    * sync path wearing a different hat. Export and re-import is the only bridge, and it is
@@ -177,11 +200,19 @@ export class LeagueArchiveRepository {
       const fromLeague = await port.getLeagueArchive(fromLeagueId);
       const toLeague = await port.getLeagueArchive(targetLeagueId);
       if (!fromLeague || !toLeague) throw new Error('leagueNotFound');
-      return port.moveArchiveTournament(fromLeagueId, tournamentId, fromLeague.documentVersion, targetLeagueId, toLeague.documentVersion);
+      const result = await port.applyArchiveTournamentEditBatch(
+        fromLeagueId,
+        tournamentId,
+        fromLeague.documentVersion,
+        { addRounds: [], deleteRoundIds: [], replaceRounds: [], updateArchetypes: [] },
+        { leagueId: targetLeagueId, expectedVersion: toLeague.documentVersion }
+      );
+      return { fromLeague: result.sourceLeague, toLeague: result.destinationLeague! };
     });
   }
 
   private async freshMutation<T>(action: () => Promise<T>): Promise<T> {
+    this.power.requireEnabled();
     const result = await action();
     this.detailStale.set(false);
     return result;

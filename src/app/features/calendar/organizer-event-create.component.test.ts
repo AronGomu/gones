@@ -18,6 +18,7 @@ import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, UserProfileResponse } from '../../api/generated/gones-api';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
@@ -41,6 +42,7 @@ function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEvent
     { provide: MatDialog, useValue: {} },
     { provide: AuthService, useValue: auth },
     { provide: EventProposalService, useValue: {} },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
@@ -62,6 +64,14 @@ describe('OrganizerEventCreateComponent role gating', () => {
   it('keeps submit enabled for an admin', () => {
     const component = setup('Admin');
     expect(component.canPublishDirectly()).toBe(true);
+  });
+
+  it('uses one required format control plus optional tournament links', () => {
+    const component = setup('Organizer');
+    expect(component.form.controls.formatId.value).toBe('');
+    expect(component.form.controls.formatId.valid).toBe(false);
+    expect(component.form.controls.liveTournamentUrl.value).toBe('');
+    expect(component.form.controls.archiveTournamentUrl.value).toBe('');
   });
 });
 

@@ -13,6 +13,7 @@ import { I18nService } from '../../i18n/i18n.service';
 import { RankingTableComponent } from '../../shared/ranking-table.component';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
@@ -79,8 +80,9 @@ export class LeagueArchiveDetailComponent {
   readonly titleEditing = signal(false);
   readonly error = signal('');
   readonly stale = signal(false);
-  /** Per league, not per session: a browser-stored league is manageable by anyone (ADR 0028). */
-  readonly canManage = computed(() => canManageLeague(this.league()?.id, this.auth.profile()?.globalRole));
+  private readonly power = inject(PowerUserSettingsService);
+  /** Power mode never replaces per-league role/origin authority. */
+  readonly canManage = computed(() => canUsePowerMutation(this.power.enabled(), canManageLeague(this.league()?.id, this.auth.profile()?.globalRole)));
   leagueNameDraft = '';
   readonly result = computed(() => calculateLeagueResult(this.league()!));
   readonly sortedTournaments = computed(() => [...(this.league()?.tournaments ?? [])].sort((a, b) => (b.tournamentDate || '9999-12-31').localeCompare(a.tournamentDate || '9999-12-31') || b.name.localeCompare(a.name)));
@@ -115,6 +117,7 @@ export class LeagueArchiveDetailComponent {
   }
 
   async saveTitleEdit({ restoreFocus }: { restoreFocus: boolean }): Promise<void> {
+    if (!this.canManage()) return;
     const saved = this.league();
     if (!saved || !this.titleEditing() || this.saving()) return;
     const name = this.validLeagueName(this.leagueNameDraft, saved.name);
@@ -146,6 +149,7 @@ export class LeagueArchiveDetailComponent {
   }
 
   async createNewTournament(): Promise<void> {
+    if (!this.canManage()) return;
     const saved = this.league();
     if (!saved || this.saving()) return;
     this.saving.set(true);

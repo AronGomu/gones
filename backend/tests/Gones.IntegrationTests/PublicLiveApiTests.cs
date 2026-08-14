@@ -8,14 +8,13 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
-using Testcontainers.PostgreSql;
 
 namespace Gones.IntegrationTests;
 
 public sealed class PublicLiveApiTests : IAsyncLifetime
 {
     private static readonly Guid Actor = Guid.Parse("30000000-0000-0000-0000-000000000001");
-    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+    private readonly PostgreSqlTestContainer postgres = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
 
