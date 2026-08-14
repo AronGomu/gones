@@ -14,6 +14,7 @@ import { authSessionInterceptor } from './app/auth/auth.interceptor';
 import { AuthService } from './app/auth/auth.service';
 import { ServerReadCacheService } from './app/backend/server-read-cache.service';
 import { DataAuthority, DataAuthorityConfigurationError, configureDataAuthority, mergeRuntimeDeclaration } from './app/config/data-authority';
+import { canonicalDevHostUrl } from './app/config/dev-host';
 import { GonesErrorHandler, routeErrorBoundary } from './app/shared/route-error-boundary';
 import { environment } from './environments/environment';
 
@@ -56,6 +57,14 @@ async function startGones(): Promise<void> {
     if (error instanceof DataAuthorityConfigurationError) renderDataAuthorityFailure(error);
     console.error(error);
     throw error;
+  }
+
+  // A dev page opened on the host the API cookie is not bound to cannot keep a session across a
+  // reload, so it moves to the API's host before anything tries to restore one.
+  const canonicalUrl = canonicalDevHostUrl(location.href, authority.apiBaseUrl, environment.production);
+  if (canonicalUrl) {
+    location.replace(canonicalUrl);
+    return;
   }
 
   if (environment.production) enableProdMode();
