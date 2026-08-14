@@ -19,7 +19,10 @@
 | local Live store | Offline IndexedDB Live authority for anonymous and `User`, never synced (ADR 0021) | `src/app/backend/local-live-backend.service.ts` |
 | calendar | Public Event calendar feature and its detail page | `src/app/features/calendar/public-calendar.component.ts` |
 | guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
-| power user | Browser-only opt-in for advanced Event and League mutation UI; never grants server authority | `src/app/shared/power-user-settings.service.ts` |
+| power user | Browser-only opt-in (`gones.settings.power-user`) for advanced Event, League and Live mutation UI; never grants server authority, never hides home cards or browse destinations (ADR 0037) | `src/app/shared/power-user-settings.service.ts` |
+| global stats | Public server-derived ranking over all completed League Archives; 14 columns, search/sort/page; browsable at `/global-stats`; local League records excluded | `src/app/features/players/global-stats.component.ts` |
+| event link | Optional `liveTournamentUrl` or `archiveTournamentUrl` on an Event; navigation string only, no data-authority coupling, broken links are valid (ADR 0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
+| staged edit | Power-User opt-in that keeps Archive Tournament mutations in a memory draft until explicit Save Changes; one atomic batch per save (ADR 0037) | `src/app/features/tournaments-archive/tournament-archive-detail.component.ts` |
 | session | Access-token scope and cache purge on sign-out | `src/app/auth/session-scope.service.ts` |
 | i18n | French/English message catalogue and language signal | `src/app/i18n/i18n.service.ts` |
 | ics | Calendar export to an .ics subscription file | `src/app/domain/calendar-ics.ts` |

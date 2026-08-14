@@ -28,12 +28,45 @@ describe('HomeMenuComponent template', () => {
     expect(source).not.toContain('menu-login-card');
   });
 
-  it('the home menu still carries every other destination', () => {
+  it('the home menu carries every required destination', () => {
     expect(source).toContain('menu-running-tournaments-card');
     expect(source).toContain('menu-leagues-archive-card');
+    expect(source).toContain('menu-global-stats-card');
     expect(source).toContain('menu-calendar-card');
     expect(source).toContain('menu-settings-link');
     expect(source).toContain('menu-about-link');
+  });
+
+  it('Global Stats card links to /global-stats', () => {
+    expect(source).toContain('routerLink="/global-stats"');
+  });
+
+  it('signed-in order is Calendar, My Reg, Global Stats, Leagues, Live, About, Settings (7 cards)', () => {
+    // Extract unique identifiers in appearance order (the @if block cards appear once each)
+    const identifiers = [...source.matchAll(/data-cy="(menu-[a-z-]+(?:-card|-link)(?:-title|-desc)?)"/g)]
+      .map((m) => m[1])
+      .filter((id) => !id.endsWith('-title') && !id.endsWith('-desc'));
+    const unique: string[] = [];
+    for (const id of identifiers) { if (!unique.includes(id)) unique.push(id); }
+    expect(unique).toEqual([
+      'menu-calendar-card',
+      'menu-registrations-card',
+      'menu-global-stats-card',
+      'menu-leagues-archive-card',
+      'menu-running-tournaments-card',
+      'menu-about-link',
+      'menu-settings-link',
+    ]);
+  });
+
+  it('Live Tournaments home card uses Live Tournaments copy (not Running)', () => {
+    expect(catalogs.en['home.runningTournaments']).toBe('Live Tournaments');
+    expect(catalogs.fr['home.runningTournaments']).toBe('Tournois live');
+  });
+
+  it('Live Tournaments breadcrumb uses Live Tournaments copy', () => {
+    expect(catalogs.en['crumb.runningTournaments']).toBe('Live Tournaments');
+    expect(catalogs.fr['crumb.runningTournaments']).toBe('Tournois live');
   });
 
   it('settings is the last card', () => {

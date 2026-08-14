@@ -459,6 +459,18 @@ _Avoid_: Migration, deployment
 - **Global Player Statistics** include valid Match participants from Completed Leagues only
 - Byes and roster-only Player Names do not create **Global Player Statistics** rows or affect Global performance
 - Active League Matches do not contribute to **Global Player Statistics**
+- Browser-local League Archive records never contribute to **Global Player Statistics**; the source is always the server
+- **Global Player Statistics** expose 14 columns in fixed order: Position, Player, Matches, MW, ML, MD, M%, Games, GW, GL, G%, Nemesis, Rival, Archetype
+- Position in **Global Player Statistics** is dynamic: it reflects the current sort and search result, not a stored rank
+- **Global Player Statistics** identity is case-sensitive exact Player Name; `Alice` and `alice` are different rows
+- **Global Player Statistics** have no Elo rating in this release
+- **Global Player Statistics** are browsable at `/global-stats`; the page supports search, sort by numeric column, and pagination (10/25/50/100 per page, default 100)
+- **Global Player Statistics** sort: numeric column click sets descending; second click toggles ascending; ties broken by Player Name ascending
+- Percentages in **Global Player Statistics** display as whole-number percentages; null values display as `—`
+- Nemesis and Rival cells in **Global Player Statistics** display as `Name (W-L)`; Archetype displays as `Name (N matches)`
+- **Power User** mode is a browser-local opt-in that reveals advanced mutation controls; it never grants server authority and never hides home cards or browse destinations including **Global Player Statistics**
+- Gones is unreleased with no production environment; local data may be reset or reshaped without production migration guarantees until the release-state note in `AGENT.md` is explicitly replaced
+- An **Event** has exactly one active Tournament Format; the optional `liveTournamentUrl` and `archiveTournamentUrl` are navigation strings, not data authority links
 - A **Tournament Result** is recalculated from the Tournament's Rounds after relevant data changes
 - A **League Result** is recalculated from Tournament Results after relevant data changes
 - An **Incomplete Tournament** may still produce a **Provisional Result**

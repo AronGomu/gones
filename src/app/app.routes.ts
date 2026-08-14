@@ -100,6 +100,7 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
     { path: 'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result', loadComponent: () => import('./features/tournaments-archive/tournament-archive-result.component').then((m) => m.TournamentArchiveResultComponent) },
     { path: 'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result/metagames', loadComponent: () => import('./features/tournaments-archive/tournament-archive-result.component').then((m) => m.TournamentArchiveResultComponent) },
     ...archiveRedirectRoutes(),
+    { path: 'global-stats', loadComponent: () => import('./features/players/global-stats.component').then((m) => m.GlobalStatsComponent) },
     { path: 'players/:playerName', loadComponent: () => import('./features/players/player-detail.component').then((m) => m.PlayerDetailComponent) },
     { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },
     ...(authV1 ? authRoutes : []),

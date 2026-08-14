@@ -158,6 +158,10 @@ try {
     if (accessibility.status !== 0) process.exitCode = accessibility.status ?? 1;
   }
   if (!process.exitCode) {
+    const globalStats = runCypress('cypress/e2e/global-stats.cy.js');
+    if (globalStats.status !== 0) process.exitCode = globalStats.status ?? 1;
+  }
+  if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const seed = spawnSync(process.execPath, ['scripts/seed-local.mjs'], { stdio: 'inherit' });
       if (seed.status !== 0) {

@@ -115,3 +115,22 @@
 - [ ] Active-only and soft-deleted Leagues do not contribute players to global stats.
 - [ ] Players whose only appearances are Bye entries are absent from results.
 - [ ] `pageSize=20` returns HTTP 400; `sort=unknownColumn` returns HTTP 400; search longer than 200 chars returns HTTP 400.
+
+## T15 global-stats-page-home-nav
+
+- [ ] Visit `/global-stats` as anonymous visitor; confirm page loads with 14 column headers in order: #, Player, Matches, MW, ML, MD, M%, Games, GW, GL, G%, Nemesis, Rival, Archetype.
+- [ ] Click a numeric header (e.g. MW); confirm table re-requests with sort=matchWins&direction=desc and Position column reflects new order.
+- [ ] Click same numeric header again; confirm direction toggles to asc.
+- [ ] Click Position, Player, Nemesis, Rival, or Archetype header; confirm no sort request is triggered.
+- [ ] Type a player name substring in the search field and apply; confirm URL includes search param and page is reset to 1.
+- [ ] Select page sizes 10, 25, 50, 100 from the dropdown; confirm correct rows returned and URL updates.
+- [ ] Confirm null match/game win-rate cells show `—`, opponent cells show `Name (W-L)`, archetype cell shows `Name (N matches)`.
+- [ ] Confirm non-null percentage cells show whole-number percent (e.g. 75%, not 75.00%).
+- [ ] Click a Player Name link; confirm navigation to `/players/:name` for that player.
+- [ ] Visit home page signed in; confirm card order is Calendar, My Registrations, Global Rankings, Leagues (archive), Live Tournaments, About, Settings (7 cards).
+- [ ] Visit home page signed out; confirm card order is Calendar, Global Rankings, Leagues (archive), Live Tournaments, About, Settings (6 cards); My Registrations absent.
+- [ ] Click Global Rankings home card; confirm navigation to `/global-stats`.
+- [ ] Confirm home card for Live Tournaments says "Live Tournaments" (not "Running Tournaments"); Live Tournaments list page title also says "Live Tournaments".
+- [ ] Confirm Live Tournaments list page create action says "Create Live Tournament".
+- [ ] Confirm breadcrumb at `/global-stats` reads "Menu > Global Rankings" in English and "Menu > Classement mondial" in French.
+- [ ] Confirm breadcrumb at `/live-tournaments` reads "Menu > Live Tournaments" in English.

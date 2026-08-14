@@ -57,7 +57,7 @@ describe('calendar routes', () => {
 
 describe('route exposure per capability flag', () => {
   it('always serves the public browsing, League archive, Live and Settings surface', () => {
-    for (const path of ['', 'about', 'calendar', 'events/:slug', 'leagues-archive', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
+    for (const path of ['', 'about', 'calendar', 'events/:slug', 'global-stats', 'leagues-archive', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
       expect(paths(noCapabilities)).toContain(path);
     }
   });
