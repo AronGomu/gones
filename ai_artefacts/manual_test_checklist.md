@@ -147,3 +147,14 @@
 - [ ] Open an event-create success screen — the "Return to menu" link navigates to `/events`.
 - [ ] Check breadcrumbs at `/events`: shows `Menu / Événements` with `Menu` linking to `/`.
 - [ ] Check breadcrumbs at `/events/some-slug`: shows `Menu / Événements / Event` with `Événements` linking to `/events`.
+
+## T2 event-rename-files
+
+- [ ] Start `npm run dev`; open `/events` — browse page renders exactly as before with calendar and list views.
+- [ ] Open `/events/:slug` for an event detail — page renders correctly.
+- [ ] Open `/organizer/events` (signed in as organizer) — list page renders and event create/cancel/delete actions work.
+- [ ] Open `/events/new` (signed in as power-user organizer) — event create form renders.
+- [ ] Open `/registrations` (signed in) — My Registrations page renders.
+- [ ] Open `/admin/events/deleted` (signed in as admin) — deleted events page renders.
+- [ ] Check browser DevTools Network tab: no 404 for any `features/` chunk import.
+- [ ] Confirm localStorage key for the event catalog cache is still `gones.calendar-v1.all-tournaments` (unchanged — T3 will rename it).

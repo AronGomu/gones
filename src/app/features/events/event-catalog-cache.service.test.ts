@@ -4,8 +4,8 @@ import { Injector } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 import { API_BASE_URL } from '../../api/generated/gones-api';
-import { PublicEventView } from './public-calendar';
-import { ALL_EVENTS_CACHE_KEY, AllEventsCacheService } from './all-events-cache.service';
+import { PublicEventView } from './public-event-list';
+import { EVENT_CATALOG_CACHE_KEY, EventCatalogCacheService } from './event-catalog-cache.service';
 
 function makeStorage(): Storage {
   const store = new Map<string, string>();
@@ -22,16 +22,16 @@ function makeStorage(): Storage {
 const items: PublicEventView[] = [];
 const body = { items, generatedAt: '2026-08-08T00:00:00Z', count: 0, truncated: false };
 
-function buildService(get: ReturnType<typeof vi.fn>): AllEventsCacheService {
+function buildService(get: ReturnType<typeof vi.fn>): EventCatalogCacheService {
   const injector = Injector.create({ providers: [
-    AllEventsCacheService,
+    EventCatalogCacheService,
     { provide: HttpClient, useValue: { get } },
     { provide: API_BASE_URL, useValue: 'https://api.example' }
   ] });
-  return injector.get(AllEventsCacheService);
+  return injector.get(EventCatalogCacheService);
 }
 
-describe('AllEventsCacheService', () => {
+describe('EventCatalogCacheService', () => {
   beforeEach(() => {
     (globalThis as { localStorage?: Storage }).localStorage = makeStorage();
   });
@@ -52,7 +52,7 @@ describe('AllEventsCacheService', () => {
   });
 
   it('load skips the request within 24h', async () => {
-    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(EVENT_CATALOG_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), truncated: false
     }));
     const get = vi.fn();
@@ -64,7 +64,7 @@ describe('AllEventsCacheService', () => {
   });
 
   it('load refetches after 24h', async () => {
-    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(EVENT_CATALOG_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), truncated: false
     }));
     const get = vi.fn().mockReturnValueOnce(of(new HttpResponse({ body, status: 200, headers: new HttpHeaders({ ETag: '"v2"' }) })));
@@ -76,7 +76,7 @@ describe('AllEventsCacheService', () => {
   });
 
   it('force always refetches', async () => {
-    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(EVENT_CATALOG_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date().toISOString(), truncated: false
     }));
     const get = vi.fn().mockReturnValueOnce(of(new HttpResponse({ body, status: 200, headers: new HttpHeaders({ ETag: '"v2"' }) })));
@@ -88,7 +88,7 @@ describe('AllEventsCacheService', () => {
   });
 
   it('a failed refetch falls back to the cache', async () => {
-    globalThis.localStorage!.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify({
+    globalThis.localStorage!.setItem(EVENT_CATALOG_CACHE_KEY, JSON.stringify({
       items, etag: '"v1"', fetchedAt: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(), truncated: false
     }));
     const get = vi.fn().mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Offline' })));

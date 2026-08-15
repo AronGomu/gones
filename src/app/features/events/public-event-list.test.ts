@@ -3,21 +3,21 @@ import { describe, expect, it } from 'vitest';
 import {
   PAGE_SIZE,
   PublicEventView,
-  addCalendarRegisterIntent,
-  buildCalendarQueryParams,
-  calendarRegisterIntent,
-  removeCalendarRegisterIntent,
+  addEventRegisterIntent,
+  buildEventListQueryParams,
+  eventRegisterIntent,
+  removeEventRegisterIntent,
   calendarPageCount,
   clampCalendarPage,
   groupEventsByVenueDate,
   isPastCalendarDay,
   paginateEvents,
-  readCalendarQuery,
+  readEventListQuery,
   sortEventsForList,
   eventDatePresentation,
   eventsByDate,
   venueMapsUrl
-} from './public-calendar';
+} from './public-event-list';
 
 function make(count: number): PublicEventView[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -81,7 +81,7 @@ describe('public Calendar helpers', () => {
   });
 
   it('reads the reduced query', () => {
-    expect(readCalendarQuery(params({
+    expect(readEventListQuery(params({
       month: '2026-09', view: 'list', q: 'lyon', past: 'true'
     }), 'calendar', new Date('2026-03-01T12:00:00Z'))).toEqual({
       month: '2026-09', view: 'list', q: 'lyon', past: true, page: 1
@@ -89,7 +89,7 @@ describe('public Calendar helpers', () => {
   });
 
   it('drops removed parameters', () => {
-    const result = readCalendarQuery(params({
+    const result = readEventListQuery(params({
       month: '2026-08', status: 'Published', city: 'Lyon'
     }), 'calendar');
     expect(result).not.toHaveProperty('status');
@@ -97,41 +97,41 @@ describe('public Calendar helpers', () => {
   });
 
   it('a missing page parameter reads as one', () => {
-    expect(readCalendarQuery(params({ month: '2026-08', view: 'list' }), 'list').page).toBe(1);
+    expect(readEventListQuery(params({ month: '2026-08', view: 'list' }), 'list').page).toBe(1);
   });
 
   it('a page parameter is parsed', () => {
-    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: '3' }), 'list').page).toBe(3);
+    expect(readEventListQuery(params({ month: '2026-08', view: 'list', page: '3' }), 'list').page).toBe(3);
   });
 
   it('a junk page parameter reads as one', () => {
-    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: 'abc' }), 'list').page).toBe(1);
-    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: '0' }), 'list').page).toBe(1);
-    expect(readCalendarQuery(params({ month: '2026-08', view: 'list', page: '-2' }), 'list').page).toBe(1);
+    expect(readEventListQuery(params({ month: '2026-08', view: 'list', page: 'abc' }), 'list').page).toBe(1);
+    expect(readEventListQuery(params({ month: '2026-08', view: 'list', page: '0' }), 'list').page).toBe(1);
+    expect(readEventListQuery(params({ month: '2026-08', view: 'list', page: '-2' }), 'list').page).toBe(1);
   });
 
   it('uses local view preference only when URL omits view', () => {
-    expect(readCalendarQuery(params({}), 'list', new Date('2026-03-01T12:00:00Z')).view).toBe('list');
-    expect(readCalendarQuery(params({ view: 'calendar' }), 'list', new Date('2026-03-01T12:00:00Z')).view).toBe('calendar');
+    expect(readEventListQuery(params({}), 'list', new Date('2026-03-01T12:00:00Z')).view).toBe('list');
+    expect(readEventListQuery(params({ view: 'calendar' }), 'list', new Date('2026-03-01T12:00:00Z')).view).toBe('calendar');
   });
 
   it('builds only the reduced parameters', () => {
-    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
       .toEqual({ month: '2026-09', view: 'calendar' });
   });
 
   it('keeps q when set', () => {
-    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy', past: false, page: 1 }))
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy', past: false, page: 1 }))
       .toEqual({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy' });
   });
 
   it('page one is not written to the url', () => {
-    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
       .not.toHaveProperty('page');
   });
 
   it('a later page is written to the url', () => {
-    expect(buildCalendarQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 4 })['page'])
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 4 })['page'])
       .toBe('4');
   });
 
@@ -139,23 +139,23 @@ describe('public Calendar helpers', () => {
 
 describe('calendar registration intent', () => {
   it('adds an encoded slug while preserving safe Calendar query and hash', () => {
-    expect(addCalendarRegisterIntent('/events?month=2026-08&view=list#events', 'lyon legacy'))
+    expect(addEventRegisterIntent('/events?month=2026-08&view=list#events', 'lyon legacy'))
       .toBe('/events?month=2026-08&view=list&register=lyon+legacy#events');
   });
 
   it('parses a register slug only from a safe Calendar URL', () => {
-    expect(calendarRegisterIntent('/events?view=list&register=lyon-legacy')).toBe('lyon-legacy');
-    expect(calendarRegisterIntent('/events/x?register=lyon-legacy')).toBeNull();
-    expect(calendarRegisterIntent('https://evil.test/events?register=lyon-legacy')).toBeNull();
+    expect(eventRegisterIntent('/events?view=list&register=lyon-legacy')).toBe('lyon-legacy');
+    expect(eventRegisterIntent('/events/x?register=lyon-legacy')).toBeNull();
+    expect(eventRegisterIntent('https://evil.test/events?register=lyon-legacy')).toBeNull();
   });
 
   it('removes only the transient register parameter', () => {
-    expect(removeCalendarRegisterIntent('/events?month=2026-08&register=lyon-legacy&q=legacy#events'))
+    expect(removeEventRegisterIntent('/events?month=2026-08&register=lyon-legacy&q=legacy#events'))
       .toBe('/events?month=2026-08&q=legacy#events');
   });
 
   it('falls back to events for unsafe input before adding intent', () => {
-    expect(addCalendarRegisterIntent('//evil.test/steal', 'lyon-legacy')).toBe('/events?register=lyon-legacy');
+    expect(addEventRegisterIntent('//evil.test/steal', 'lyon-legacy')).toBe('/events?register=lyon-legacy');
   });
 });
 

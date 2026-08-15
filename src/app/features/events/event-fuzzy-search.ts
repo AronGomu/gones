@@ -1,6 +1,6 @@
 import Fuse from 'fuse.js';
 import { splitSearchTerms } from '../../shared/search-highlight';
-import { PublicEventView } from './public-calendar';
+import { PublicEventView } from './public-event-list';
 
 export function searchableText(item: PublicEventView): string {
   return [

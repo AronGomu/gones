@@ -61,7 +61,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.test.ts",
+                    "target": "src/app/features/events/public-event-list.test.ts",
                     "detail": "month and list projection"
                 },
                 {
@@ -1364,7 +1364,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/organizer-event-create.component.test.ts",
+                    "target": "src/app/features/events/organizer-event-create.component.test.ts",
                     "detail": "the organization picker filters out draft and deleted organizations"
                 }
             ]
@@ -1385,7 +1385,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/organizer-event-create.test.ts",
+                    "target": "src/app/features/events/organizer-event-create.test.ts",
                     "detail": "form model and validation"
                 },
                 {
@@ -1510,7 +1510,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.test.ts",
+                    "target": "src/app/features/events/public-event-list.test.ts",
                     "detail": "client visibility rules"
                 },
                 {
@@ -1531,7 +1531,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.test.ts",
+                    "target": "src/app/features/events/public-event-list.test.ts",
                     "detail": "filters and view switching"
                 },
                 {
@@ -1562,12 +1562,12 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/all-events-cache.service.test.ts",
+                    "target": "src/app/features/events/event-catalog-cache.service.test.ts",
                     "detail": "the catalog is fetched once and served from cache"
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.component.test.ts",
+                    "target": "src/app/features/events/public-event-list.component.test.ts",
                     "detail": "the router stub feeds navigations back into queryParamMap, so month navigation is shown not to call the catalog loader and typing is shown to be debounced rather than merely asynchronous"
                 },
                 {
@@ -1593,7 +1593,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-event.service.test.ts",
+                    "target": "src/app/features/events/public-event.service.test.ts",
                     "detail": "full-event presentation"
                 }
             ]
@@ -1666,7 +1666,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/event-registration.service.test.ts",
+                    "target": "src/app/features/events/event-registration.service.test.ts",
                     "detail": "client capability model"
                 }
             ]
@@ -1713,7 +1713,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/event-registration.service.test.ts",
+                    "target": "src/app/features/events/event-registration.service.test.ts",
                     "detail": "client error mapping"
                 },
                 {
@@ -1781,7 +1781,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/participant-management.test.ts",
+                    "target": "src/app/features/events/participant-management.test.ts",
                     "detail": "private list presentation"
                 },
                 {
@@ -2208,7 +2208,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-event.service.test.ts",
+                    "target": "src/app/features/events/public-event.service.test.ts",
                     "detail": "detail page model"
                 },
                 {
@@ -2229,7 +2229,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/my-registrations.test.ts",
+                    "target": "src/app/features/events/my-registrations.test.ts",
                     "detail": "my registrations model"
                 },
                 {
@@ -2255,7 +2255,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/event-management.test.ts",
+                    "target": "src/app/features/events/event-management.test.ts",
                     "detail": "management list model"
                 },
                 {

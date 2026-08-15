@@ -13,8 +13,8 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
-import { PublicCalendarComponent } from './public-calendar.component';
-import { AllEventsCacheService, AllEventsResult } from './all-events-cache.service';
+import { PublicEventListComponent } from './public-event-list.component';
+import { EventCatalogCacheService, EventCatalogResult } from './event-catalog-cache.service';
 import { PublicEventService } from './public-event.service';
 import { EventRegistrationService } from './event-registration.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -23,7 +23,7 @@ import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AuthService } from '../../auth/auth.service';
-import { PublicEventView, shiftMonth } from './public-calendar';
+import { PublicEventView, shiftMonth } from './public-event-list';
 import { UserProfileResponse } from '../../api/generated/gones-api';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -90,7 +90,7 @@ function makeItems(count: number): PublicEventView[] {
 
 function setup(options: {
   params?: Record<string, string>;
-  result?: Partial<AllEventsResult>;
+  result?: Partial<EventCatalogResult>;
   profile?: UserProfileResponse | null;
   authEnabled?: boolean;
   itemCount?: number;
@@ -98,7 +98,7 @@ function setup(options: {
   register?: ReturnType<typeof vi.fn>;
   open?: ReturnType<typeof vi.fn>;
 } = {}) {
-  const result: AllEventsResult = {
+  const result: EventCatalogResult = {
     items: options.itemCount !== undefined ? makeItems(options.itemCount) : [event],
     fetchedAt: '2026-08-08T10:00:00.000Z',
     fromCache: false,
@@ -107,7 +107,7 @@ function setup(options: {
     ...options.result
   };
   const load = vi.fn(async () => result);
-  const catalog = { load } as unknown as AllEventsCacheService;
+  const catalog = { load } as unknown as EventCatalogCacheService;
   const initialParams = paramMap({ month: '2026-08', view: 'calendar', ...options.params });
 
   // The router stub feeds the query params it is handed straight back into `queryParamMap`, the way
@@ -137,7 +137,7 @@ function setup(options: {
   const open = options.open ?? vi.fn(() => ({ afterClosed: () => of(true) }));
 
   const injector = Injector.create({ providers: [
-    { provide: AllEventsCacheService, useValue: catalog },
+    { provide: EventCatalogCacheService, useValue: catalog },
     { provide: PublicEventService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics') } },
     { provide: EventRegistrationService, useValue: { capability, register } },
     { provide: MatDialog, useValue: { open } },
@@ -149,7 +149,7 @@ function setup(options: {
     I18nService
   ] });
 
-  const component = runInInjectionContext(injector, () => new PublicCalendarComponent());
+  const component = runInInjectionContext(injector, () => new PublicEventListComponent());
   return { component, load, navigate, navigateByUrl, capability, register, open, lastQueryParams: () => navigate.mock.calls[navigate.mock.calls.length - 1]?.[1]?.queryParams };
 }
 
@@ -169,7 +169,7 @@ const verifiedUserProfile = {
   isPreferredLanguagePublic: false
 } as unknown as UserProfileResponse;
 
-describe('PublicCalendarComponent', () => {
+describe('PublicEventListComponent', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     Object.defineProperty(window, 'scrollY', scrollYDescriptor);
@@ -360,8 +360,8 @@ describe('PublicCalendarComponent', () => {
   });
 });
 
-describe('PublicCalendarComponent top action row layout', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent top action row layout', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the sync button shares the back-button row', () => {
@@ -424,8 +424,8 @@ describe('PublicCalendarComponent top action row layout', () => {
   });
 });
 
-describe('PublicCalendarComponent search row layout', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent search row layout', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the search row sits between the title and the view tabs', () => {
@@ -512,8 +512,8 @@ describe('PublicCalendarComponent search row layout', () => {
   });
 });
 
-describe('PublicCalendarComponent toolbar row', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent toolbar row', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the create button lives on the view-tab row', () => {
@@ -555,8 +555,8 @@ describe('PublicCalendarComponent toolbar row', () => {
   });
 });
 
-describe('PublicCalendarComponent month nav layout', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent month nav layout', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the month nav is the element immediately above the grid', () => {
@@ -626,8 +626,8 @@ describe('PublicCalendarComponent month nav layout', () => {
   });
 });
 
-describe('PublicCalendarComponent calendar day cells', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent calendar day cells', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('renders current event links without the retired pill markup', () => {
@@ -722,7 +722,7 @@ function templateBlock(source: string, opening: string): string {
   throw new Error(`unbalanced template block "${opening}"`);
 }
 
-describe('PublicCalendarComponent list pagination', () => {
+describe('PublicEventListComponent list pagination', () => {
   it('the list renders only one page of events', async () => {
     const { component } = setup({ params: { view: 'list' }, itemCount: 45 });
     component.ngOnInit();
@@ -744,7 +744,7 @@ describe('PublicCalendarComponent list pagination', () => {
     // on every single-page list as a dead bar with two disabled buttons. There is no TestBed here to
     // render it in, so the guard is asserted structurally — the nav must live inside the block that
     // only opens past one page, and nowhere else in the template.
-    const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+    const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
     expect(source.match(/data-cy="calendar-pagination"/g)).toHaveLength(1);
     expect(templateBlock(source, '@if (pageCount() > 1) {')).toContain('data-cy="calendar-pagination"');
   });
@@ -829,7 +829,7 @@ describe('PublicCalendarComponent list pagination', () => {
   });
 
   it('the pagination nav exists in the list block only', () => {
-    const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+    const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
     const listIndex = source.indexOf('data-cy="calendar-list"');
     const paginationIndex = source.indexOf('data-cy="calendar-pagination"');
     expect(listIndex).toBeGreaterThan(-1);
@@ -841,8 +841,8 @@ describe('PublicCalendarComponent list pagination', () => {
   });
 });
 
-describe('PublicCalendarComponent day-cell events', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent day-cell events', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
 
   it('day cells render their events', () => {
     const cellStart = source.indexOf('class="public-month-day"');
@@ -873,8 +873,8 @@ describe('PublicCalendarComponent day-cell events', () => {
   });
 });
 
-describe('PublicCalendarComponent list card', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent list card', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
   const cardTag = source.slice(source.indexOf('<article class="panel public-tournament-card"'), source.indexOf('>', source.indexOf('<article class="panel public-tournament-card"')));
   const cardActions = source.slice(source.indexOf('data-cy="calendar-card-actions"'), source.indexOf('</article></ng-template>'));
@@ -1091,8 +1091,8 @@ describe('PublicCalendarComponent list card', () => {
   });
 });
 
-describe('PublicCalendarComponent past day cells', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent past day cells', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   // There is no TestBed in this suite, so "the cell carries the past marker" is asserted the way
@@ -1143,8 +1143,8 @@ describe('PublicCalendarComponent past day cells', () => {
   });
 });
 
-describe('PublicCalendarComponent search match highlighting', () => {
-  const source = readFileSync(join(__dirname, 'public-calendar.component.ts'), 'utf8');
+describe('PublicEventListComponent search match highlighting', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   // No TestBed in this repo, so the rendered class is proved in two halves: the parts the component

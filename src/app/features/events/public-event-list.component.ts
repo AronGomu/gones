@@ -10,28 +10,28 @@ import { AuthService } from '../../auth/auth.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { OfflineBannerComponent } from '../../shared/offline-banner.component';
 import {
-  CalendarQuery,
+  EventListQuery,
   CalendarView,
   PAGE_SIZE,
   PublicEventView,
-  addCalendarRegisterIntent,
-  calendarRegisterIntent,
+  addEventRegisterIntent,
+  eventRegisterIntent,
   VenueDateGroup,
-  buildCalendarQueryParams,
+  buildEventListQueryParams,
   calendarPageCount,
   clampCalendarPage,
   groupEventsByVenueDate,
   isPastCalendarDay,
   paginateEvents,
-  readCalendarQuery,
-  removeCalendarRegisterIntent,
+  readEventListQuery,
+  removeEventRegisterIntent,
   shiftMonth,
   sortEventsForList,
   eventDatePresentation,
   eventsByDate,
   MAX_DAY_CELL_EVENTS
-} from './public-calendar';
-import { AllEventsCacheService } from './all-events-cache.service';
+} from './public-event-list';
+import { EventCatalogCacheService } from './event-catalog-cache.service';
 import { PublicEventService } from './public-event.service';
 import { filterEvents } from './event-fuzzy-search';
 import { HighlightPart, highlightSearchText } from '../../shared/search-highlight';
@@ -151,17 +151,17 @@ const SEARCH_DEBOUNCE_MS = 300;
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="calendar-back-bottom" />
   `
 })
-export class PublicCalendarComponent implements OnInit, OnDestroy {
+export class PublicEventListComponent implements OnInit, OnDestroy {
   readonly i18n = inject(I18nService);
   readonly service = inject(PublicEventService);
   readonly auth = inject(AuthService);
-  private readonly catalog = inject(AllEventsCacheService);
+  private readonly catalog = inject(EventCatalogCacheService);
   private readonly registrations = inject(EventRegistrationService);
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly power = inject(PowerUserSettingsService);
-  private readonly initialRegisterSlug = calendarRegisterIntent(this.router.url);
+  private readonly initialRegisterSlug = eventRegisterIntent(this.router.url);
   private subscription?: Subscription;
   private searchDebounce?: ReturnType<typeof setTimeout>;
   private loadId = 0;
@@ -171,7 +171,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   readonly skeletons = Array.from({ length: 6 });
   readonly weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   readonly today = signal(localDateValue(new Date()));
-  readonly query = signal<CalendarQuery>(readCalendarQuery(this.route.snapshot.queryParamMap, this.preferredView()));
+  readonly query = signal<EventListQuery>(readEventListQuery(this.route.snapshot.queryParamMap, this.preferredView()));
   readonly searchDraft = signal<string>(this.query().q);
   readonly allItems = signal<PublicEventView[]>([]);
   readonly syncedAt = signal<string | undefined>(undefined);
@@ -211,9 +211,9 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.subscription = this.route.queryParamMap.subscribe(params => {
-      const query = readCalendarQuery(params, this.preferredView());
+      const query = readEventListQuery(params, this.preferredView());
       if (params.get('month') !== query.month || params.get('view') !== query.view) {
-        void this.router.navigate([], { relativeTo: this.route, queryParams: buildCalendarQueryParams(query), replaceUrl: true });
+        void this.router.navigate([], { relativeTo: this.route, queryParams: buildEventListQueryParams(query), replaceUrl: true });
         return;
       }
       this.query.set(query);
@@ -274,7 +274,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
     this.registrationMessageKey.set(null);
     await this.auth.whenSessionReady();
     if (this.auth.profile() === null) {
-      const returnUrl = addCalendarRegisterIntent(this.router.url, item.slug);
+      const returnUrl = addEventRegisterIntent(this.router.url, item.slug);
       await this.router.navigate(['/login'], { queryParams: { returnUrl } });
       return;
     }
@@ -360,7 +360,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
   }
 
   private async stripRegisterIntent(): Promise<void> {
-    await this.router.navigateByUrl(removeCalendarRegisterIntent(this.router.url), { replaceUrl: true });
+    await this.router.navigateByUrl(removeEventRegisterIntent(this.router.url), { replaceUrl: true });
   }
 
   private async load(options: { force?: boolean } = {}): Promise<void> {
@@ -381,7 +381,7 @@ export class PublicCalendarComponent implements OnInit, OnDestroy {
     }
   }
 
-  private navigate(query: CalendarQuery, extras: { scroll?: 'manual' } = {}): Promise<boolean> { return this.router.navigate([], { relativeTo: this.route, queryParams: buildCalendarQueryParams(query), ...extras }); }
+  private navigate(query: EventListQuery, extras: { scroll?: 'manual' } = {}): Promise<boolean> { return this.router.navigate([], { relativeTo: this.route, queryParams: buildEventListQueryParams(query), ...extras }); }
   private preferredView(): CalendarView {
     try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'calendar'; } catch { return 'calendar'; }
   }

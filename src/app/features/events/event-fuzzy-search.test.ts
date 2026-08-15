@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PublicEventView } from './public-calendar';
+import { PublicEventView } from './public-event-list';
 import { splitSearchTerms } from '../../shared/search-highlight';
 import { filterEvents, searchableText } from './event-fuzzy-search';
 

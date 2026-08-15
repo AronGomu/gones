@@ -4,7 +4,7 @@ import { safeReturnUrl } from '../../auth/return-url';
 
 export type CalendarView = 'calendar' | 'list';
 
-export interface CalendarQuery {
+export interface EventListQuery {
   month: string;
   view: CalendarView;
   q: string;
@@ -44,7 +44,7 @@ export interface EventDatePresentation {
   secondary?: string;
 }
 
-export function readCalendarQuery(params: ParamMap, preferredView: CalendarView, now = new Date()): CalendarQuery {
+export function readEventListQuery(params: ParamMap, preferredView: CalendarView, now = new Date()): EventListQuery {
   const rawView = params.get('view');
   return {
     month: validMonth(params.get('month')) ?? monthValue(now),
@@ -55,7 +55,7 @@ export function readCalendarQuery(params: ParamMap, preferredView: CalendarView,
   };
 }
 
-export function buildCalendarQueryParams(query: CalendarQuery): Record<string, string> {
+export function buildEventListQueryParams(query: EventListQuery): Record<string, string> {
   const result: Record<string, string> = { month: query.month };
   if (query.q) result['q'] = query.q;
   if (query.past) result['past'] = 'true';
@@ -64,33 +64,33 @@ export function buildCalendarQueryParams(query: CalendarQuery): Record<string, s
   return result;
 }
 
-export function calendarRegisterIntent(candidate: string | null | undefined): string | null {
+export function eventRegisterIntent(candidate: string | null | undefined): string | null {
   const url = calendarUrl(candidate);
   if (!url) return null;
   const slug = url.searchParams.get('register')?.trim() ?? '';
   return slug.length > 0 && slug.length <= 200 && !hasControlCharacter(slug) ? slug : null;
 }
 
-export function addCalendarRegisterIntent(candidate: string | null | undefined, slug: string): string {
-  const url = calendarUrl(candidate) ?? new URL('/events', CALENDAR_ORIGIN);
+export function addEventRegisterIntent(candidate: string | null | undefined, slug: string): string {
+  const url = calendarUrl(candidate) ?? new URL('/events', EVENT_LIST_ORIGIN);
   const cleanSlug = slug.trim().slice(0, 200);
   if (cleanSlug && !hasControlCharacter(cleanSlug)) url.searchParams.set('register', cleanSlug);
   else url.searchParams.delete('register');
   return localUrl(url);
 }
 
-export function removeCalendarRegisterIntent(candidate: string | null | undefined): string {
-  const url = calendarUrl(candidate) ?? new URL('/events', CALENDAR_ORIGIN);
+export function removeEventRegisterIntent(candidate: string | null | undefined): string {
+  const url = calendarUrl(candidate) ?? new URL('/events', EVENT_LIST_ORIGIN);
   url.searchParams.delete('register');
   return localUrl(url);
 }
 
-const CALENDAR_ORIGIN = 'https://events.internal';
+const EVENT_LIST_ORIGIN = 'https://events.internal';
 
 function calendarUrl(candidate: string | null | undefined): URL | null {
   const safe = safeReturnUrl(candidate, '');
   if (!safe) return null;
-  const url = new URL(safe, CALENDAR_ORIGIN);
+  const url = new URL(safe, EVENT_LIST_ORIGIN);
   return url.pathname === '/events' ? url : null;
 }
 

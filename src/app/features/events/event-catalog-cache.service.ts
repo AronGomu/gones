@@ -3,12 +3,12 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL, PublicEventCatalogResponse } from '../../api/generated/gones-api';
 import { joinApiUrl } from '../../api/api-boundary';
-import { PublicEventView } from './public-calendar';
+import { PublicEventView } from './public-event-list';
 
-export const ALL_EVENTS_CACHE_KEY = 'gones.calendar-v1.all-tournaments';
-export const ALL_EVENTS_TTL_MS = 24 * 60 * 60 * 1000;
+export const EVENT_CATALOG_CACHE_KEY = 'gones.calendar-v1.all-tournaments';
+export const EVENT_CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
 
-export interface AllEventsResult {
+export interface EventCatalogResult {
   items: PublicEventView[];
   fetchedAt: string;
   fromCache: boolean;
@@ -24,16 +24,16 @@ interface StoredEntry {
 }
 
 @Injectable({ providedIn: 'root' })
-export class AllEventsCacheService {
+export class EventCatalogCacheService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = inject(API_BASE_URL);
 
   readonly cachedAt = signal<string | undefined>(undefined);
   readonly truncated = signal(false);
 
-  async load(options: { force?: boolean } = {}): Promise<AllEventsResult> {
+  async load(options: { force?: boolean } = {}): Promise<EventCatalogResult> {
     const cached = this.readCache();
-    if (!options.force && cached && Date.now() - Date.parse(cached.fetchedAt) < ALL_EVENTS_TTL_MS) {
+    if (!options.force && cached && Date.now() - Date.parse(cached.fetchedAt) < EVENT_CATALOG_TTL_MS) {
       this.cachedAt.set(cached.fetchedAt);
       this.truncated.set(cached.truncated);
       return { items: cached.items, fetchedAt: cached.fetchedAt, fromCache: true, stale: false, truncated: cached.truncated };
@@ -73,7 +73,7 @@ export class AllEventsCacheService {
 
   private readCache(): StoredEntry | undefined {
     try {
-      const raw = globalThis.localStorage?.getItem(ALL_EVENTS_CACHE_KEY);
+      const raw = globalThis.localStorage?.getItem(EVENT_CATALOG_CACHE_KEY);
       return raw ? JSON.parse(raw) as StoredEntry : undefined;
     } catch {
       return undefined;
@@ -82,7 +82,7 @@ export class AllEventsCacheService {
 
   private writeCache(entry: StoredEntry): void {
     try {
-      globalThis.localStorage?.setItem(ALL_EVENTS_CACHE_KEY, JSON.stringify(entry));
+      globalThis.localStorage?.setItem(EVENT_CATALOG_CACHE_KEY, JSON.stringify(entry));
     } catch {
       // Cache failure must not hide fresh public data.
     }

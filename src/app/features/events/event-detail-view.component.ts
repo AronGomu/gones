@@ -2,7 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { PublicEventDetailResponse, EventPreviewRenderResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
-import { eventDatePresentation, venueMapsUrl } from './public-calendar';
+import { eventDatePresentation, venueMapsUrl } from './public-event-list';
 import { ServerSanitizedHtmlComponent } from './server-sanitized-html.component';
 
 export type EventDetailView = PublicEventDetailResponse | EventPreviewRenderResponse;

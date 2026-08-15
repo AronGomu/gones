@@ -145,11 +145,11 @@ describe('canonical browser store containment', () => {
       // Cross-tab marker + generation only; values contain no profile or domain data.
       'src/app/auth/auth-session-coordination.service.ts',
       // Public read cache (C39) — the 24h full-catalog snapshot, anonymous GET responses only.
-      'src/app/features/calendar/all-events-cache.service.ts',
+      'src/app/features/events/event-catalog-cache.service.ts',
       // Browser view preference.
-      'src/app/features/calendar/public-calendar.component.ts',
+      'src/app/features/events/public-event-list.component.ts',
       // Public read cache (C39) — anonymous GET responses only, never a mutation source.
-      'src/app/features/calendar/public-event.service.ts',
+      'src/app/features/events/public-event.service.ts',
       // Two Player Statistics display preferences only: source visibility + page size.
       'src/app/features/players/player-stats-preferences.ts',
       // Language + local Deck Archetype preference.
