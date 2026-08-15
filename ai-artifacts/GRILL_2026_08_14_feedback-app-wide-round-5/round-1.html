@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App-wide feedback — the 15 forks I will not guess</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .settled { margin:0 0 32px; padding:18px 22px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; background:var(--panel); }
+    .settled h2 { font-size:1rem; margin-bottom:10px; }
+    .settled ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; }
+    .settled code { color:var(--accent); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 1 · Whole feedback frontier</span>
+    <h1>15 forks I will not guess</h1>
+    <p class="lede">Your feedback file holds ~45 asks. I read the code: ~30 are mechanical and need no question. These 15 branch the architecture — cache authority, player-stat storage (your own question), the Event rename blast radius, killing Organization ownership, and how 100× data gets made. Tick a choice or write your own, then hit <b>Copy answer summary</b> and paste it back.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <b>App-wide feedback</b>
+    <span class="arrow">→</span>
+    <span class="node active">Sync &amp; cache</span>
+    <span class="node active">Player stats</span>
+    <span class="node active">Event rename</span>
+    <span class="node active">Org model</span>
+    <span class="node active">Stress data</span>
+    <span class="node active">UI contracts</span>
+    <span class="arrow">→</span>
+    <span class="node">Ticket plan</span>
+  </nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Today: two cache authorities</b>One public, one private — your ask puts them in conflict.</figcaption>
+      <svg viewBox="0 0 420 300" role="img" aria-labelledby="cache-title cache-desc">
+        <title id="cache-title">Current caching architecture</title>
+        <desc id="cache-desc">Public event catalog caches to localStorage with a 24 hour TTL. Private authenticated reads cache to a per-user IndexedDB store that is purged at logout. Feedback asks to move private pages to localStorage.</desc>
+        <rect class="svg-node active" x="8" y="12" width="180" height="66" rx="10"/>
+        <text class="svg-label" x="22" y="36">Public catalog</text>
+        <text class="svg-note" x="22" y="52">AllEventsCacheService</text>
+        <text class="svg-note" x="22" y="66">localStorage · 24h TTL · ETag</text>
+
+        <rect class="svg-node" x="232" y="12" width="180" height="66" rx="10"/>
+        <text class="svg-label" x="246" y="36">Private reads</text>
+        <text class="svg-note" x="246" y="52">ServerReadCacheService</text>
+        <text class="svg-note" x="246" y="66">IndexedDB · per-user · purged</text>
+
+        <path class="svg-line" d="M98 78 L98 118"/>
+        <path class="svg-line" d="M322 78 L322 118"/>
+        <text class="svg-note" x="104" y="102">ADR 0023</text>
+        <text class="svg-note" x="328" y="102">ADR 0031</text>
+
+        <rect class="svg-node" x="8" y="118" width="404" height="48" rx="10"/>
+        <text class="svg-label" x="22" y="140">Server = only data authority (ADR 0020)</text>
+        <text class="svg-note" x="22" y="156">Browser stores are caches, never merged into a response</text>
+
+        <rect class="svg-node active" x="8" y="192" width="404" height="96" rx="10"/>
+        <text class="svg-accent" x="22" y="216" font-size="12" font-weight="700">Feedback asks</text>
+        <text class="svg-note" x="22" y="234">Registrations · Global Rankings · Leagues Archive · Live</text>
+        <text class="svg-note" x="22" y="250">Settings · every admin page · every player page</text>
+        <text class="svg-note" x="22" y="266">→ all behave &quot;exactly like Calendar&quot; = localStorage</text>
+        <text class="svg-note" x="22" y="282">Private rows in localStorage survive logout. Q1 decides.</text>
+      </svg>
+    </figure>
+
+    <figure>
+      <figcaption><b>Player stats path today</b>Both readers recompute from whole league documents.</figcaption>
+      <svg viewBox="0 0 420 300" role="img" aria-labelledby="stats-title stats-desc">
+        <title id="stats-title">Player statistics data flow</title>
+        <desc id="stats-desc">The global rankings endpoint loads every completed league aggregate into memory and recomputes on each request. The player detail page downloads every league to the browser and computes there. Neither survives a hundredfold data increase.</desc>
+        <rect class="svg-node" x="120" y="8" width="180" height="52" rx="10"/>
+        <text class="svg-label" x="134" y="30">league_archive_aggregates</text>
+        <text class="svg-note" x="134" y="46">whole JSON documents</text>
+
+        <path class="svg-line" d="M170 60 L80 104"/><polygon class="svg-arrow" points="80,104 90,96 92,106"/>
+        <path class="svg-line" d="M250 60 L340 104"/><polygon class="svg-arrow" points="340,104 328,106 330,96"/>
+
+        <rect class="svg-node" x="8" y="106" width="180" height="74" rx="10"/>
+        <text class="svg-label" x="22" y="128">GET global-player-statistics</text>
+        <text class="svg-note" x="22" y="144">loads ALL completed leagues</text>
+        <text class="svg-note" x="22" y="158">recomputes EVERY request</text>
+        <text class="svg-note" x="22" y="172">no cache, no index</text>
+
+        <rect class="svg-node" x="232" y="106" width="180" height="74" rx="10"/>
+        <text class="svg-label" x="246" y="128">/players/:name</text>
+        <text class="svg-note" x="246" y="144">repo.listLeagues() → browser</text>
+        <text class="svg-note" x="246" y="158">calculatePlayerStatistics()</text>
+        <text class="svg-note" x="246" y="172">client-side, full download</text>
+
+        <rect class="svg-node active" x="8" y="206" width="404" height="82" rx="10"/>
+        <text class="svg-accent" x="22" y="230" font-size="12" font-weight="700">At 100× (your stress ask)</text>
+        <text class="svg-note" x="22" y="248">~200 leagues × ~1600 archive tournaments of rounds</text>
+        <text class="svg-note" x="22" y="264">Both paths melt: one CPU-bound per request, one MB-bound per page</text>
+        <text class="svg-note" x="22" y="280">Q3 picks the replacement. Q4 picks how match history ships.</text>
+      </svg>
+    </figure>
+  </section>
+
+  <section class="settled">
+    <h2>Already settled by the code — not asking</h2>
+    <ul>
+      <li>First-visit redirect to <code>/about</code> already ships (<code>firstVisitHomeGuard</code> + <code>gones.first-visit.completed</code>). Feedback item = verify + test only.</li>
+      <li>Register button already renders on cards for signed-out visitors; only its <b>order</b> and post-login landing change.</li>
+      <li>Maps link already exists on the Event detail page (<code>venueMapsUrl</code>); the ask is to reuse it on list cards.</li>
+      <li>Back-button component exists with top/bottom positions. Missing on 15 routed pages; top-only on 3.</li>
+      <li>Backend already speaks Event end-to-end (ADR 0035). The rename ask is frontend-side.</li>
+      <li>Mechanical renames, margins, onChange filters, breadcrumb rows, validator messages, cancel buttons: no question, straight into tickets.</li>
+    </ul>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="Where do private pages cache their data, given ADR 0031 keeps private reads in a per-user IndexedDB purged at logout?">
+      <legend>1. Private data — localStorage literally, or user-scoped store?</legend>
+      <p class="why">You asked every page to cache &quot;exactly like Calendar&quot; = plain localStorage; but Calendar caches anonymous public data, while Registrations, Settings and admin lists are private rows that would then outlive logout and be readable by the next account on the same browser.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Same UX everywhere (load once, 24h TTL, sync button, synced-at label); public pages use localStorage exactly like Calendar; private pages use the same TTL contract but a user-scoped store purged at logout"><span><b>Split by privacy, identical UX</b><span class="rank">Recommended</span><span class="detail">You get the exact button, label and 24h behaviour on all 12 pages; no private row survives logout; ADR 0031 stays true.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Plain localStorage for every page including private ones, keyed by user id, cleared on logout"><span><b>localStorage everywhere, keyed + cleared</b><span class="rank">Second</span><span class="detail">One mechanism to reason about; needs an ADR superseding 0031 and still leaks rows if the tab dies before logout.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Plain localStorage for every page, no user scoping, no logout purge"><span><b>Literal reading of the feedback</b><span class="rank">Third</span><span class="detail">Simplest to build; shared-computer accounts can read each other's registrations and admin lists.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Only public pages get the cache; private pages get the sync button and label but refetch every visit"><span><b>Public-only cache</b><span class="rank">Fourth</span><span class="detail">Zero privacy risk; loses the tab-switch savings exactly where navigation is most repetitive (admin).</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. which pages you consider private; whether Settings counts"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How does a 24h cache stay correct on pages that mutate their own data (admin users, admin organizations, registrations)?">
+      <legend>2. Stale cache on mutating pages</legend>
+      <p class="why">Grant a role on the admin Users page and the cached list would keep showing the old role for up to 24 hours — the page would appear to lie about the change you just made.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Every successful mutation invalidates that page's cache entry and refetches immediately; the 24h TTL only governs navigation"><span><b>Mutation invalidates its own cache</b><span class="rank">Recommended</span><span class="detail">Tab-switching stays instant, your own writes always show; ~1 line per mutation handler.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Admin pages keep the sync button and synced-at label but never persist; only read-mostly pages cache"><span><b>No persistence on admin</b><span class="rank">Second</span><span class="detail">Impossible to show stale admin state; admin navigation refetches every time.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Shorter TTL on mutating pages (e.g. 5 minutes) plus mutation invalidation"><span><b>Short TTL + invalidation</b><span class="rank">Third</span><span class="detail">Belt and braces; a second TTL constant to explain and test.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Accept 24h staleness everywhere; user presses Synchronize when suspicious"><span><b>Accept staleness</b><span class="rank">Fourth</span><span class="detail">Cheapest; makes another admin's concurrent change invisible for a day.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. TTL value if not 24h for admin"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What is the most cost-efficient way to store and load player statistics for hundreds of players?">
+      <legend>3. Your question — player stats storage</legend>
+      <p class="why">You offered two options. Facts that decide it: the global rankings endpoint <b>already</b> loads every completed league document and recomputes per request, and the player page downloads every league to the browser — both are O(all data) per view and both die at 100×. Tournaments land a few per week, so the write side is nearly free.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Option 2 extended: materialized player_statistics read-model table on the server, recomputed when an archive is committed/imported/deleted; both Global Rankings and the player page read it; browser caches the response like Calendar"><span><b>Materialized table, one writer, both readers</b><span class="rank">Recommended</span><span class="detail">Read becomes an indexed paged query; rankings and the player page can never disagree; cost moves to the rare write. Fixes the rankings endpoint too.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Option 2 minimal: table serves the player page only; Global Rankings keeps recomputing"><span><b>Table for player page only</b><span class="rank">Second</span><span class="detail">Smaller change; leaves the worst endpoint untouched and lets the two views drift apart.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Option 1: keep computing on the fly server-side, cache the response in localStorage per player with the 24h contract"><span><b>On the fly + browser cache</b><span class="rank">Third</span><span class="detail">No schema change; first uncached view stays slow and CPU cost scales with visitors, not with data.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep today's browser-side computation, cache the league documents in localStorage"><span><b>Status quo + cached documents</b><span class="rank">Fourth</span><span class="detail">No backend work; ships megabytes to a phone and blows the ~5 MB localStorage quota at 100×.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. is a stats rebuild allowed to be a background job, or must it be synchronous with the commit?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How does the per-player match history reach the player page?">
+      <legend>4. Match history delivery</legend>
+      <p class="why">Stats are ~20 numbers, but the match list is unbounded and the page filters, sorts and pages it locally today — that behaviour is what your archetype and layout asks build on.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="New server endpoint returns the player's full match history (already flat, no league documents) alongside stats; browser keeps doing filter/sort/paging locally and caches the payload like Calendar"><span><b>Flat history from server, client-side filtering kept</b><span class="rank">Recommended</span><span class="detail">Keeps every existing filter/sort/highlight feature working untouched; payload is a few hundred rows even for a heavy player.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Server-side paged, filtered and sorted match history; browser sends query params"><span><b>Fully server-side history</b><span class="rank">Second</span><span class="detail">Scales without limit; every click becomes a request and the instant token-filter UX regresses.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep computing history in the browser from league documents"><span><b>Status quo</b><span class="rank">Third</span><span class="detail">Zero work now; unusable at 100×.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. cap on history rows returned"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How deep does the Calendar to Event rename go on the frontend?">
+      <legend>5. Event rename blast radius</legend>
+      <p class="why">You said DOMAIN CHANGE, URL and all data names. On the frontend &quot;calendar&quot; is currently a route, a directory, ~12 component/service files, ~120 i18n keys, ~400 <code>data-cy</code> attributes, two localStorage keys and a Cypress suite. Depth changes this from ~2 tickets to ~5.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Full frontend rename: route /calendar to /events (old path kept as permanent redirect), src/app/features/calendar to src/app/features/events, file and class names, i18n key namespace calendar.* to event.*, data-cy prefixes, Cypress specs; the Calendar and List views keep the word Calendar only where it names the month-grid view itself"><span><b>Full rename, redirect kept</b><span class="rank">Recommended</span><span class="detail">Matches &quot;all data names&quot;; one big mechanical diff plus a redirect so bookmarks and the PWA survive. Word &quot;calendar&quot; survives only for the grid view and the ICS button.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Route, i18n keys and data-cy renamed; leave directory, file and class names as calendar"><span><b>User-facing + test ids only</b><span class="rank">Second</span><span class="detail">Half the churn; the codebase keeps saying calendar where the domain says Event.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Route and visible strings only; internal names, i18n keys and data-cy unchanged"><span><b>Thin rename</b><span class="rank">Third</span><span class="detail">One ticket; least faithful to the ask.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Also: rename localStorage keys gones.calendar-v1.* to gones.events.* with a one-time migration, or leave them? Drop the /calendar redirect entirely since the app is unreleased?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What replaces Organization ownership once Owner is removed from the domain?">
+      <legend>6. Killing Organization ownership</legend>
+      <p class="why">&quot;No one owns an Organization&quot; is a backend domain change, not a form tweak: <code>OrganizationRoles.Owner</code> gates publishing, and account closure today refuses to close an account that solely owns an organization unless you name a successor (a whole transfer flow in <code>AdminAccountService</code> and <code>OrganizationService</code>).</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Remove Owner entirely: every member is an Organizer with equal rights; drop ownerUserId from create; account closure just removes the membership and an organization left with zero members becomes Draft (ADR 0034) instead of blocking the closure; delete the ownership-transfer flow and its UI"><span><b>Flat membership, closure unblocked</b><span class="rank">Recommended</span><span class="detail">Truest to the ask and deletes code; an admin closing the last member silently drafts the organization, which ADR 0034 already models.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Remove Owner from the domain but keep the closure guard: refuse to close an account that is the last member of a live organization until an admin adds another member"><span><b>Flat membership, closure guarded</b><span class="rank">Second</span><span class="detail">No organization silently goes Draft; the admin gets a blocking error instead of a transfer picker.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Remove the Owner User ID field from the admin create form only; keep Owner in the domain, assigning the creating admin implicitly"><span><b>UI-only removal</b><span class="rank">Third</span><span class="detail">One small ticket, zero migration; the domain keeps a concept you said should not exist.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. should the demo fixtures' ownerEmail become a plain member entry?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How is the 100x stress dataset produced?">
+      <legend>7. Making 100× data</legend>
+      <p class="why">The demo environment is hand-written JSON seeded through the real HTTP API, replaying every Live command. 100× that is roughly 700 accounts, 200 organizations, 1600 Events, 200 League Archives and their rounds — through HTTP that is a very long seed and a repository full of generated JSON.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="New generator script writes a stress environment from a seeded PRNG at run time (deterministic, gitignored output), and a bulk SQL path inserts leagues/events directly into Postgres instead of replaying HTTP for the bulk rows; accounts and organizations still go through the API"><span><b>Generator + bulk SQL insert</b><span class="rank">Recommended</span><span class="detail">Seeds in a minute or two, repository stays small, deterministic from a seed number. Bypassing the API for bulk rows is a documented test-only path.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Generator script writes the fixture files, existing HTTP seeder loads them unchanged"><span><b>Generator + existing HTTP seeder</b><span class="rank">Second</span><span class="detail">Zero new persistence path, every row passes real validation; expect a long, possibly hour-scale seed run.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Commit the generated 100x JSON fixtures to the repository like demo"><span><b>Commit the fixtures</b><span class="rank">Third</span><span class="detail">Reproducible by inspection; adds tens of megabytes of generated JSON to git forever.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. keep demo untouched and add stress alongside? name of the environment?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What exactly is multiplied by 100, and is the stress environment allowed to be slow to seed?">
+      <legend>8. Stress dataset shape</legend>
+      <p class="why">&quot;Multiply all current numbers by 100&quot; taken literally includes accounts — 700 registered users, each needing a password hash, which dominates seed time and is rarely what stress-testing the design needs.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="100x the content that stresses layout — Events, leagues, archive tournaments, matches, players, registrations — but keep accounts modest (about 30) since account count does not stress any page except admin Users"><span><b>100× content, ~30 accounts</b><span class="rank">Recommended</span><span class="detail">Every list, table, calendar cell and ranking page gets its stress; seed stays quick.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Literal 100x of everything including 700 accounts"><span><b>Literal 100×</b><span class="rank">Second</span><span class="detail">Also stresses the admin Users pager honestly; slowest to seed by far.</span></span></label>
+        <label class="choice"><input type="checkbox" value="100x content and 100x accounts, but accounts seeded with a cheap password hashing cost in the stress environment only"><span><b>100× everything, cheap hashes</b><span class="rank">Third</span><span class="detail">Full scale at tolerable speed; needs a test-only hashing switch, which is a security-shaped knob I would rather not add.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. player-name pool size; matches per archive tournament"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What should Add to Calendar actually do, given browsers cannot force an app chooser?">
+      <legend>9. ICS &quot;open with&quot;</legend>
+      <p class="why">There is no web API to raise the OS app picker. The link currently carries <code>download</code>, which forces a save. Removing it and serving the file inline is the closest thing: the OS hands the <code>.ics</code> to whatever is registered, which on desktop is usually a chooser.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Drop the download attribute, serve text/calendar with Content-Disposition inline, let the OS handler take it"><span><b>Inline ICS, OS decides</b><span class="rank">Recommended</span><span class="detail">Closest achievable to your ask; on a phone this opens the calendar app directly.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Turn the button into a small menu: Download .ics, Google Calendar, Outlook Web"><span><b>Menu of targets</b><span class="rank">Second</span><span class="detail">Actually gives a chooser, and it is one we control; more UI and two URL templates to maintain.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep the download attribute as-is"><span><b>Leave it</b><span class="rank">Third</span><span class="detail">No work; the ask goes unmet.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Does the new player-stat-cell layout drop Match Losses and Game Losses?">
+      <legend>10. Player stat grid — dropped cells</legend>
+      <p class="why">Your three rows list 11 cells and none of them is Match Losses or Game Losses, which exist today. I will not silently delete a metric.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Yes — drop the Match Losses and Game Losses cells; losses are derivable from played minus wins minus draws"><span><b>Drop both loss cells</b><span class="rank">Recommended</span><span class="detail">Exactly the layout you drew; a 4/4/3 grid that reads cleanly.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep them, appended to the end of row 3"><span><b>Keep, moved to row 3</b><span class="rank">Second</span><span class="detail">Nothing is lost; row 3 becomes 5 cells and the grid is less regular.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep them by folding into existing cells, e.g. Match Win cell shows wins and losses"><span><b>Fold into wins cells</b><span class="rank">Third</span><span class="detail">Dense but keeps the 4/4/3 shape; two numbers per card fights the big-number styling.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Also: Match Draw Percentage = draws / played matches, correct?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Where does logout land, and what does the sign-in page do afterwards?">
+      <legend>11. Logout return contract</legend>
+      <p class="why">Logout currently goes to <code>/</code>. Your rule sends it to sign-in and back to &quot;the previous page where the user clicked logout&quot; — but that page is often one that requires the session you just ended.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Logout navigates to /login?returnUrl={page where logout was clicked}; a successful sign-in returns there; if that page needs a role the new account lacks, its guard redirects as usual"><span><b>returnUrl always, guards arbitrate</b><span class="rank">Recommended</span><span class="detail">One rule, no special cases; the existing route guards already handle a mismatched role.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Same, but only carry returnUrl when the page is publicly viewable; otherwise sign-in returns to the home menu"><span><b>returnUrl only for public pages</b><span class="rank">Second</span><span class="detail">Never bounces a user off a page they just landed on; a rule with an exception to remember.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Logout goes to /login with no returnUrl; sign-in goes to the home menu"><span><b>Plain sign-in</b><span class="rank">Third</span><span class="detail">Simplest; loses the return half of your ask.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. should the sign-in page show a &quot;you have been signed out&quot; notice?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="In the Event title line, is Starting Hour the venue local time or the viewer's local time?">
+      <legend>12. &quot;Starting Hour&quot; timezone</legend>
+      <p class="why">Events carry a venue IANA timezone; the app already renders both a venue time and a viewer time, and the two differ for anyone browsing from another country.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Venue local time in the title line (consistent with the card time and the venue-date grouping), viewer time stays on its own line below"><span><b>Venue time in the title</b><span class="rank">Recommended</span><span class="detail">The title then matches the card and grid times everywhere; no line moves meaning by geography.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Viewer local time in the title line"><span><b>Viewer time</b><span class="rank">Second</span><span class="detail">Literal reading of &quot;local hour&quot;; the title then disagrees with the card the user clicked.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Both, e.g. 14:00 venue / 15:00 yours"><span><b>Both in the title</b><span class="rank">Third</span><span class="detail">No ambiguity; long title line on mobile.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. exact rendering: Gones Open (32 players) Starting Hour : 14:00"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="After a signed-out visitor presses Register on a card and signs in, where do they land?">
+      <legend>13. Anonymous register flow</legend>
+      <p class="why">Today the intent round-trips back to the calendar list and opens a confirm dialog there. Your text says the sign-in should redirect to the event page to confirm.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Sign-in returns to /events/{slug} with the register intent, and the confirm prompt opens on the event page"><span><b>Land on the event page</b><span class="rank">Recommended</span><span class="detail">Exactly your text; the user sees what they are registering for before confirming.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep returning to the list with the intent, as today"><span><b>Status quo</b><span class="rank">Second</span><span class="detail">Already built and tested; user confirms without re-reading the event.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. should a new-account signup follow the same path?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What happens to the /organizations and /organizations/:id pages that are being removed?">
+      <legend>14. Removing the public Organizations pages</legend>
+      <p class="why">You asked to delete the second Organizations button and the <code>/organizations</code> page. That page's detail route is also the only management screen the &quot;My organizations&quot; page links to, so deleting the list alone would strand it.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Delete the /organizations list route, component and admin button; keep /organizations/:id as the organization detail screen and repoint the My organizations links at it"><span><b>Delete list, keep detail</b><span class="rank">Recommended</span><span class="detail">Removes the duplicate entry point you flagged; organizers keep a way to manage their organization.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Delete both /organizations and /organizations/:id; organizers manage everything through the admin Organizations workbench"><span><b>Delete both</b><span class="rank">Second</span><span class="detail">One place for organizations; the workbench is admin-gated, so non-admin organizers lose self-service.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Delete both and move organizer self-service to /organizer/organizations with an inline detail pane"><span><b>Delete both, grow organizer page</b><span class="rank">Third</span><span class="detail">Cleanest information architecture; largest build of the three.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Does the every-page back button rule include auth pages, dialogs and the live tournament runner?">
+      <legend>15. Back button — edge pages</legend>
+      <p class="why">Fifteen routed pages have no back button and three have top-only. The awkward ones are sign-in/register (where a back button competes with the sign-in flow), the Live runner (long scroll, has its own footer), and modal dialogs (not pages).</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Every routed page gets top and bottom, including auth pages and the Live runner; dialogs are excluded since they are not pages; enforce it with a test that fails when a routed component lacks both"><span><b>All routed pages, enforced by test</b><span class="rank">Recommended</span><span class="detail">The rule becomes mechanical and cannot rot; matches &quot;MUST be on every page&quot;.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Every routed page except the auth pages, which keep only the top button"><span><b>All but auth bottom</b><span class="rank">Second</span><span class="detail">Keeps the sign-in form the last thing on the page; one exception to remember.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Add where missing, no enforcing test"><span><b>Add only</b><span class="rank">Third</span><span class="detail">Fastest; the next new page will forget again.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. label per page, or always Back?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 1 · Whole feedback frontier — 15 forks I will not guess\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

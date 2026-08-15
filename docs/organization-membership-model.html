@@ -71,8 +71,9 @@
   </div>
   <div class="card card--server">
     <h3><span class="tag tag--server">table</span> <code>organization_members</code></h3>
-    <p>One row per (organization, user) pair with an organization role: <code>Owner</code> or
-    <code>Organizer</code>. This table decides the account-wide <code>global_role</code>.</p>
+    <p>One row per (organization, user) pair. <strong>One role only: <code>Organizer</code></strong>
+    (ADR 0041). No owner, no hierarchy — every member holds identical rights. This table decides the
+    account-wide <code>global_role</code>.</p>
   </div>
   <div class="card card--cache">
     <h3><span class="tag tag--danger">derived</span> Draft</h3>
@@ -120,8 +121,8 @@
     <tr><td><code>OrganizationService.RemoveMemberAsync</code></td><td>same sync; last member allowed</td><td>204</td></tr>
     <tr><td>Event publication</td><td>organization must have at least one member</td><td><code>409 organization_is_draft</code></td></tr>
     <tr><td>Event create picker</td><td>Draft and deleted organizations filtered out</td><td>not offered</td></tr>
-    <tr><td>Organization created</td><td>the owner's membership is written, then synced</td><td>201 with the organization</td></tr>
-    <tr><td>Ownership transfer / account closure</td><td><code>AdminAccountService</code> syncs every affected subject in ascending id order</td><td>204</td></tr>
+    <tr><td>Organization created</td><td>the creating actor's membership is written as <code>Organizer</code>, then synced — no <code>ownerUserId</code> is accepted</td><td>201 with the organization</td></tr>
+    <tr><td>Account closure</td><td><code>AdminAccountService</code> removes the subject's memberships and syncs every affected subject in ascending id order. Never refused for ownership reasons; an organization left member-less becomes Draft</td><td>204</td></tr>
     <tr><td>One-shot heal migration</td><td>legacy member-less orgs soft-deleted, org-less Organizers demoted</td><td>one audit row per change</td></tr>
   </tbody>
 </table>
@@ -163,9 +164,21 @@ writes memberships re-derives it. The manual override was <em>not</em> removed:
 on that account, which overwrites it from the roster. Retiring the Organizer half of those buttons is
 a follow-up, not something this model already did.</p>
 
+<div class="note">
+  <strong>Ownership is gone (ADR 0041).</strong> <code>OrganizationRoles</code> holds one role.
+  <code>POST /api/organizations</code> takes no <code>ownerUserId</code>;
+  <code>POST /api/organizations/{id}/transfer-ownership</code> no longer exists; the closure API
+  carries no <code>suggestedNewOwnerUserId</code> and no <code>ownershipTransfers</code>. Every member
+  can edit the organization and manage its roster — including removing each other. The migration
+  <code>RemoveOrganizationOwnership</code> rewrote every stored <code>Owner</code> row to
+  <code>Organizer</code>, and its <code>Down</code> is a deliberate no-op.
+</div>
+
 <footer>
   ADR 0034 — Derived Organizer Role and Draft Organizations · read with
-  <code>docs/adr/0034-derived-organizer-role-and-draft-organizations.md</code>
+  <code>docs/adr/0034-derived-organizer-role-and-draft-organizations.md</code><br>
+  ADR 0041 — Organizations Without Owners · read with
+  <code>docs/adr/0041-organizations-without-owners.md</code>
 </footer>
 
 </div>

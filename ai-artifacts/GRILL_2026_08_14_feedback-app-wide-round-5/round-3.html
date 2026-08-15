@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The last branch — what makes an Archive Tournament &quot;completed&quot;</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .node.done { border-color:#3f6212; color:#a3e635; } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-node.bad { stroke:#b91c1c; } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-line.dash { stroke-dasharray:5 4; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); } .svg-bad { fill:#f87171; font-size:10px; }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .settled { margin:0 0 32px; padding:18px 22px; border:1px solid var(--line); border-left:3px solid #65a30d; border-radius:12px; background:var(--panel); }
+    .settled h2 { font-size:1rem; margin-bottom:10px; }
+    .settled ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; }
+    .settled code, .why code { color:var(--accent); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 3 · Last branch</span>
+    <h1>&quot;Only completed Tournaments&quot; — the domain has no such word</h1>
+    <p class="lede">Your round-2 answer moved the stats scope from the <b>League</b> to the <b>Archive Tournament</b>. I checked: <code>TournamentDocument</code> has no status and no <code>completedAt</code> — only <code>LeagueDocument</code> carries <code>active | completed</code>. So the rule you want does not exist yet and I will not invent it silently. Two questions, then the plan gets written.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <b>App-wide feedback</b>
+    <span class="arrow">→</span>
+    <span class="node done">R1 · 15 settled</span>
+    <span class="arrow">→</span>
+    <span class="node done">R2 · 6 settled</span>
+    <span class="arrow">→</span>
+    <span class="node active">Completion rule</span>
+    <span class="node active">Read-model repair</span>
+    <span class="arrow">→</span>
+    <span class="node">Ticket plan</span>
+  </nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Where &quot;completed&quot; lives today</b>One level up from where you want it.</figcaption>
+      <svg viewBox="0 0 420 300" role="img" aria-labelledby="dom-title dom-desc">
+        <title id="dom-title">Archive document shape</title>
+        <desc id="dom-desc">League documents carry an active or completed status. Tournament documents beneath them carry only an id, league id, name, date, rounds and player archetypes, with no completion state of any kind.</desc>
+        <rect class="svg-node active" x="8" y="10" width="404" height="56" rx="10"/>
+        <text class="svg-label" x="22" y="32">LeagueDocument</text>
+        <text class="svg-note" x="22" y="48">id · name · tournaments[]</text>
+        <text class="svg-accent" x="250" y="32" font-size="12" font-weight="700">status: active | completed</text>
+        <text class="svg-note" x="250" y="48">the only completion flag that exists</text>
+
+        <path class="svg-line" d="M120 66 L120 92"/><polygon class="svg-arrow" points="120,92 115,82 125,82"/>
+
+        <rect class="svg-node bad" x="8" y="94" width="404" height="60" rx="10"/>
+        <text class="svg-label" x="22" y="116">TournamentDocument</text>
+        <text class="svg-note" x="22" y="132">id · leagueId · name · tournamentDate</text>
+        <text class="svg-note" x="22" y="146">rounds[] · playerArchetypes[]</text>
+        <text class="svg-bad" x="250" y="116">NO status</text>
+        <text class="svg-bad" x="250" y="132">NO completedAt</text>
+        <text class="svg-accent" x="250" y="148" font-size="10">Q1 fills this gap</text>
+
+        <path class="svg-line" d="M120 154 L120 180"/><polygon class="svg-arrow" points="120,180 115,170 125,170"/>
+
+        <rect class="svg-node" x="8" y="182" width="404" height="50" rx="10"/>
+        <text class="svg-label" x="22" y="204">RoundDocument → RoundEntry</text>
+        <text class="svg-note" x="22" y="220">match (2 scores) · bye · invalid (raw unparsed text)</text>
+
+        <rect class="svg-node" x="8" y="248" width="404" height="44" rx="10"/>
+        <text class="svg-bad" x="22" y="268">Ambiguity: an unscored match and a real 0–0 are identical bytes</text>
+        <text class="svg-note" x="22" y="284">so &quot;all matches scored&quot; cannot be read off the data with certainty</text>
+      </svg>
+    </figure>
+
+    <figure>
+      <figcaption><b>Why a repair path is needed</b>A synchronous rebuild only fires when an archive is written.</figcaption>
+      <svg viewBox="0 0 420 300" role="img" aria-labelledby="rep-title rep-desc">
+        <title id="rep-title">Read model staleness after a formula change</title>
+        <desc id="rep-desc">Because the statistics table is rebuilt only inside archive write transactions, a deployment that changes the statistics formula leaves every untouched row computed by the old formula, with no trigger to fix it.</desc>
+        <rect class="svg-node" x="8" y="12" width="190" height="52" rx="10"/>
+        <text class="svg-label" x="22" y="34">Archive written</text>
+        <text class="svg-note" x="22" y="50">→ rebuild fires (R2 Q5)</text>
+
+        <rect class="svg-node bad" x="222" y="12" width="190" height="52" rx="10"/>
+        <text class="svg-label" x="236" y="34">Formula changed</text>
+        <text class="svg-note" x="236" y="50">→ nothing fires</text>
+
+        <path class="svg-line" d="M103 64 L103 104"/><polygon class="svg-arrow" points="103,104 98,94 108,94"/>
+        <path class="svg-line dash" d="M317 64 L317 104"/>
+
+        <rect class="svg-node" x="8" y="106" width="404" height="46" rx="10"/>
+        <text class="svg-label" x="22" y="128">player_statistics</text>
+        <text class="svg-note" x="22" y="144">rows for untouched archives keep the old numbers, indefinitely</text>
+
+        <rect class="svg-node active" x="8" y="176" width="404" height="112" rx="10"/>
+        <text class="svg-accent" x="22" y="200" font-size="12" font-weight="700">Q2 picks the repair path</text>
+        <text class="svg-note" x="22" y="220">Also needed after: a bug fix in the stats maths, a bad import,</text>
+        <text class="svg-note" x="22" y="236">a manual DB edit, or the very first deploy that creates the table</text>
+        <text class="svg-note" x="22" y="258">Without one, the only fix is hand-editing Postgres —</text>
+        <text class="svg-note" x="22" y="274">which is exactly the kind of step nobody remembers at 2am.</text>
+      </svg>
+    </figure>
+  </section>
+
+  <section class="settled">
+    <h2>Everything else is settled — this is the last round unless an answer opens a branch</h2>
+    <ul>
+      <li>21 decisions closed across rounds 1 and 2. Cache stores, cache shapes, rename depth, ownership removal, stress seeding, rebuild timing, layout, logout, ICS, back buttons: all locked.</li>
+      <li>Catalog endpoint contract already scouted, not asked: mirror <code>/api/events/all</code> — cap 5000 (config-overridable), SHA-256 ETag over <code>total:updatedAt:id</code>, <code>Cache-Control: public, max-age=3600</code>, <code>truncated</code> flag.</li>
+      <li>ICS change is one line: <code>ContentDispositionHeaderValue("attachment")</code> → <code>inline</code>, plus dropping the <code>download</code> attribute on both links.</li>
+    </ul>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="What makes an Archive Tournament completed, given TournamentDocument has no status field?">
+      <legend>1. Defining a completed Archive Tournament</legend>
+      <p class="why">This rule decides which matches exist as far as every statistic is concerned — Global Rankings, the player page, the archetype counts, nemesis and rival. Get it wrong in the silent direction and results vanish from a player's record with no error anywhere.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Add an explicit completion flag to the Archive Tournament domain (status active|completed, or completedAt), set by an organizer action, carried through export/import and the fixtures; only completed tournaments feed the statistics table; existing rows backfilled as completed"><span><b>Explicit flag on the tournament</b><span class="rank">Recommended</span><span class="detail">The rule is stated, not guessed, and an organizer entering rounds over several evenings never has half a tournament counted. Costs a document-format field, a migration, a UI control and a fixture pass — the export/restore contract changes with it.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Derive it: a tournament is completed when it has at least one round and no round entry is invalid and no match entry has both scores at zero"><span><b>Derived from the rounds</b><span class="rank">Second</span><span class="detail">Zero schema change and it matches how the data actually looks; a genuine 0–0 double no-show would silently disqualify the whole tournament from every statistic.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Date-based: a tournament counts once its tournamentDate is strictly in the past"><span><b>Past-dated counts</b><span class="rank">Third</span><span class="detail">Trivial, no new concept, and archives are history so this is nearly always true; a tournament still being typed in the week after the event would be counted half-entered.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Interpret it at league level after all: a tournament counts when its League status is completed, which is exactly what Global Rankings does today"><span><b>League status (today's rule)</b><span class="rank">Fourth</span><span class="detail">Nothing to build and rankings numbers never move; it is the reading you explicitly declined in round 2.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If explicit: who sets it — any Organizer, or Admin only? Should completing a tournament be reversible? Should a completed League force all its tournaments completed?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How does the statistics table get repaired when the formula changes or a rebuild is otherwise needed?">
+      <legend>2. Read-model repair path</legend>
+      <p class="why">You chose a rebuild inside the archive write transaction. That covers every data change, but nothing triggers it when the <i>code</i> changes — a fixed bug in the winrate maths would leave every untouched player wrong forever, including on the very first deploy where the table starts empty.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Admin-only POST /api/admin/player-statistics/rebuild plus a Rebuild statistics action on the admin page; documented as the repair tool"><span><b>Explicit admin rebuild action</b><span class="rank">Recommended</span><span class="detail">Visible, testable, and it fits the admin cards you already asked for; one endpoint and one button, and someone must remember to press it after a formula change.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Store a formula version alongside the table; the API rebuilds automatically at startup when the stored version differs from the code's"><span><b>Versioned auto-rebuild at startup</b><span class="rank">Second</span><span class="detail">Impossible to forget and the first deploy self-populates; a full rebuild on the boot path delays container start at 100× and makes startup failure modes richer.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Both: version-triggered rebuild at startup and an admin button for ad-hoc repair"><span><b>Both</b><span class="rank">Third</span><span class="detail">Belt and braces, nothing can rot; two code paths doing the same job, each needing its own test.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Neither; repair by re-running the archive import or editing the database by hand"><span><b>No repair tool</b><span class="rank">Fourth</span><span class="detail">Least code now; the recovery procedure is undocumented improvisation.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. should the rebuild be exposed as a script under scripts/ instead of an endpoint?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 3 · Last branch — "Only completed Tournaments"\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

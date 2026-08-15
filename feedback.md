@@ -1,36 +1,129 @@
-# Feedback Calendar V1 Implementation
+# Feedback
 
-1. on calendar page, calendar view : show on the calendar all the dates that are passed (starting form yetersday) as different as ye to come days. Choose design.
+## General
 
-2. on calendar page, list view : remove button view page and replace it b making the entire card clickable. Make sure to keep add to calendar button interactable and working.
+For all those, update AGENTS file to write as general rule
 
-3. on calendar page, list view: Give only the hour in the timezone do nto precise the GTM. Information is already present with localisation.
+### Synchronized Data
 
-4. on calendar page, list view & calendar view : When searching, highlight matching text in search like for stat player
+Information on the website update rarely : (once a day on average)
 
-5. When on tournaments/new page, breadcrumb show : "Not Found". Fix to "Create Tournament"
+For all features with data from database : Calendar, Registrations, Global Rankigns, Leagues Archive, Live Tournament, Settings, all admin page.
 
-6. When on tournaments/new page, rename
+If latest fetch request is over 24h, redo fetch and cache to localstorage.
+They have synchronize button with latest data label and handle the data exactly like Calendar Page : 2. All Data is loaded once on page load. 3. It is cached in localStorage exactly like Events on calendar page. 4. Add a synchronize button like for calendar page at the top right. 5. If latest call is over 24 hours, automatically call server to fetch new information.
 
-7. Create admin page with organization section to allow admin only to create organization and those organization can be assign to user and transform them into organizer of their organization. An organisation can have several organizer. An organizer can be in different organization (many to many). All must be done from a single screen. Tell me best way to design that UI/UX.
-   Admin can assign itself organizations too as normal user
+This avoid useless refetch for quick navigation between tabs.
 
-8. Admin always has access to all organization for creating a new tournament event
+Note : Same for all individual player stat page.
 
-9. rename /tournaments/new to /events/new. Glboally rename all of that. Those all are event of 1 or more tournaments, use "Event" for back and front
+### Back button
 
-10. on calendar page calendar view, when clicking on previous and next buttons, the calendar disapearing does change scrollbar position. Make sure to stay exactly on same position because its a hassle to always rescroll back down for each time we click next month and try to see the tournaments of that month
+Top and Bottom back button MUST be on every page on the application.
 
-11. on calendar page list view : add cool hover effect for cards of list like other cards in application
+### Logging Out
 
-12. on http://localhost:4200/calendar/tournaments/{id} page, make location a clickable link that open maps in another tab with the adress. Add little google maps icon.
+Should return to sign in Page. If signing in that page, return to previous page where user clicked on logout.
 
-13. on http://localhost:4200/calendar/tournaments/{id} page : move tournament format and capacity on title row like that : [{format}] {title} ({capacity})
-14. on http://localhost:4200/calendar/tournaments/{id} page : move date and time and location on same row : {date + time} - {location with link to maps}
-15. on http://localhost:4200/calendar/tournaments/{id} page : move button "Organization Website" to be bottom right of section
-16. on http://localhost:4200/calendar/tournaments/{id} page : move add to calendar to be on same line as register button, make register button green. remove My registrations buttons. instead make dialog that confirm the registrations and show a button to go look at "my registrations"
-17. on http://localhost:4200/calendar/tournaments/{id} page : remove the organization id block. there should be no block left
+## Test Data
 
-18. http://localhost:4200/registrations page : the page is accessible to non logged user. thats bug. fix it. Only logged user can access it.
+1. Context : I need way more generated data to stress tests website design.
+   Proposition : Multiply all current numbers of items every by 100. 100x Leagues, players, matchs played, etc...
 
-19. generate markdown files that contains all demo admin/organizer/user logins and what they should have at project root.
+## Home page
+
+1. Rename "Leagues (Archive)" => "Leagues Archive"
+
+## About page
+
+1. On first connexion on website, redirect to about page instead of home page on "/" path only. Redirect and cache it only the first time the user try to access the menu.
+
+## Global Rankings Page
+
+1. Rename french translation "Classement Mondial" => "Classement Global".
+
+2. Add margin between "Global Rankings" and Filter Input
+
+3. 1. Filter Input apply search onChange.
+
+4. Add back button to page
+
+## Player Stats Page
+
+1. Context : I dont know what is the best way to load the player data. Tournaments will be rarely added making (a few per week) and all the data should be inserted at once. So its largely possible to calculate once the stats of a player and store it in a table. That could help the global rankings page, basically it should match minus the match history.
+   Question : Assuming hundreds of user : What is the more cost efficient way to store and load the data ?
+   1. Calculation on the fly, storing in localStorage only the match history
+   2. Store the data in a table
+
+2. Add the archetype played and against in the card of match.
+   It should be insert after the score.
+   Cyan color is player. Red is opponent.
+   Formatting : {Player archetype} vs {Opponent Archetype}
+   Unknow = Archetype manquant
+
+3. New layout for "player-stat-cell" :
+   [Match played] [Match Winrate] [Match Win] [Match Draws]
+   [Game played] [Game Winrate] [Game Win] [Match Draw Percentage (new cell)]
+   [Most played archetype] [Nemesis] [Rival]
+
+## Calendar Page
+
+1. Rename Calendar Page to Event Page. This is DOMAIN CHANGE. URl and all data names must be updated to "Event".
+   Event Page still contain Calendar view and list view. Those are unchanged.
+   New url : /events/
+   Already existing is unchanging : /events/{id}
+
+### Calendar View
+
+1. Sunday must be 7th column and Monday 1st
+
+### Event View
+
+1. After the title of the event, add max number of player and reformat liek this :
+   {title of the event} ({number of player} players) Starting Hour : {starting hour local hour}
+
+2. Add link to google maps for address in event cards
+
+3. On cards, move register button at the left of "Add to Calendar" button. Make it visible to all user. Invited user also see it but instead of registering, it opens sign in page and if signed in or created account, redirect to event page to confirm register.
+
+4. Clicking on "Add to Calendar" should prompt user to find application with which to open ICS files if possible.
+
+## Events/{id} page
+
+1. Remove "event-detail-actions" and transform "event-detail-kicker" to become a link that redirect to Organization Website (if existing) in organization settings.
+
+2. Add a line with all organizer of organization as new row at the bottom of the hero. Font small, italic.
+
+## Sign in Page
+
+1. Remove the "sign in" button in the header just for this page (and create new account page).
+
+## Admin Page
+
+1. Fix breadcrumb to show only "admin" (remove menu). Admin is start new tree. All related pages add to breadcrumb.
+
+2. User cards like in the homepage for each item in the admin menu
+
+3. Remove second Organizations Button and /organizations page.
+
+### Users Page
+
+1. If last admin account : Admin cannot revoke its own account.
+
+2. If last admin account : Admin cannot disable its own account.
+
+3. Cannot grant role user already have.
+
+### Organizations
+
+1. Instead of "Owner User ID" text input. Replace with a filter select of all the users that validate the conditions to become an organizer.
+
+2. Add User feedback on validators of inputs to create an organization. Only name is mandatory. Other are optional and can be empty.
+
+3. Add a button to cancel the creation of a new organization (same as clicking again on new organization but in form section).
+
+4. Remove "Owner User ID" field from form and domain data. No one own an Organization. Organization can have many organizer. Oganizer can have many Organization.
+
+5. Remove "Apply" button and make onInput filter.
+
+6. Move "New Organization" button at the bottom of search section and update it to warning colors.
