@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
+import { BackButtonComponent } from '../../shared/back-button.component';
 import { Client, GlobalPlayerStatisticsRow, OpponentRecord, PlayerArchetypeUsage } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { LatestRequest } from '../../shared/async-guards';
@@ -22,8 +23,10 @@ import {
 
 @Component({
   standalone: true,
-  imports: [RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule],
+  imports: [RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="global-stats-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
+
     <section class="page-heading" data-cy="global-stats-heading">
       <div data-cy="global-stats-heading-text">
         <h1 data-cy="global-stats-title">{{ i18n.t('globalStats.title') }}</h1>
@@ -127,6 +130,8 @@ import {
         </nav>
       }
     }
+
+    <gones-back-button data-cy="global-stats-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `,
   styles: [`
     .global-stats-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }

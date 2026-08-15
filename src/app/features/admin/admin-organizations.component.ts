@@ -14,16 +14,19 @@ import {
 import { I18nService } from '../../i18n/i18n.service';
 import { LatestRequest } from '../../shared/async-guards';
 import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 export const MAX_PICKER_USERS = 500;
 const PICKER_PAGE_SIZE = 100;
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="admin-organizations-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
+
     <section class="admin-page stack" data-cy="admin-organizations" aria-labelledby="admin-orgs-title">
-      <header class="page-heading" data-cy="admin-orgs-heading"><div data-cy="admin-orgs-heading-text"><p class="kicker" data-cy="admin-orgs-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-orgs-title" data-cy="admin-orgs-title">{{ i18n.t('admin.organizations') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="admin-orgs-back">{{ i18n.t('admin.back') }}</a></header>
+      <header class="page-heading" data-cy="admin-orgs-heading"><div data-cy="admin-orgs-heading-text"><p class="kicker" data-cy="admin-orgs-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-orgs-title" data-cy="admin-orgs-title">{{ i18n.t('admin.organizations') }}</h1></div></header>
 
       <div class="admin-org-workbench" data-cy="admin-org-workbench">
         <div class="stack" data-cy="admin-org-list-pane">
@@ -136,6 +139,8 @@ const PICKER_PAGE_SIZE = 100;
 
       @if (status()) { <p role="status" data-cy="admin-org-status">{{ status() }}</p> }
     </section>
+
+    <gones-back-button data-cy="admin-organizations-back-bottom" [link]="['/admin']" [label]="i18n.t('admin.back')" position="bottom" />
   `
 })
 export class AdminOrganizationsComponent {

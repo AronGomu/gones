@@ -7,11 +7,14 @@ import { formatPlayerWithArchetype, PersistedLeague, TournamentDocument } from '
 import { ArchetypeShare, buildTournamentSummary, TournamentSummary } from '../../domain/tournament-summary';
 import { logBoundaryError } from '../../shared/app-logger';
 import { I18nService } from '../../i18n/i18n.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [MatButtonModule, MatCardModule, RouterLink],
+  imports: [MatButtonModule, MatCardModule, RouterLink, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="tournament-archive-result-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+
     @if (error()) { <p class="error" role="alert" data-cy="tournament-archive-result-error">{{ error() }}</p> }
     @if (summary(); as report) {
       <section #resultSection class="tournament-result-page" [class.result-page--metagame]="page() === 'metagames'" data-cy="tournament-archive-result-page">
@@ -94,6 +97,8 @@ import { I18nService } from '../../i18n/i18n.service';
         <button mat-stroked-button class="back-button secondary-action" type="button" data-cy="tournament-archive-result-download-all" [disabled]="downloading()" (click)="downloadAllResultImages()">{{ i18n.t('result.downloadAll') }}</button>
       </footer>
     }
+
+    <gones-back-button data-cy="tournament-archive-result-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class TournamentArchiveResultComponent {

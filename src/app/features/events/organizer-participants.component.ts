@@ -15,6 +15,7 @@ import {
   EventManagementResponse
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { blockPayload, lookupQuery, ParticipantLookupKind, participantErrorKey } from './participant-management';
 
@@ -59,8 +60,10 @@ export class ParticipantBlockDialogComponent {
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="organizer-participants-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+
     <section class="participant-management-page stack" data-cy="organizer-participants" aria-labelledby="participant-management-title">
       <a mat-stroked-button class="back-button" routerLink="/organizer/events" data-cy="participant-back">{{ i18n.t('participants.back') }}</a>
       @if (loading()) {
@@ -148,6 +151,8 @@ export class ParticipantBlockDialogComponent {
         @if (status()) { <p #statusMessage class="registration-live-status" role="status" tabindex="-1" data-cy="participant-status">{{ status() }}</p> }
       }
     </section>
+
+    <gones-back-button data-cy="organizer-participants-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class OrganizerParticipantsComponent {

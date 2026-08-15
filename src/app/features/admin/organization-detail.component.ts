@@ -12,11 +12,14 @@ import {
   PublicOrganizationResponse
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="organization-detail-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+
     <section class="admin-page stack" data-cy="organization-detail" aria-labelledby="org-detail-title">
       <a mat-stroked-button routerLink="/organizations" data-cy="org-detail-back">{{ i18n.t('org.backToList') }}</a>
       @if (loading()) { <p data-cy="org-detail-loading">{{ i18n.t('common.loading') }}</p> }
@@ -73,6 +76,8 @@ import { I18nService } from '../../i18n/i18n.service';
         }
       }
     </section>
+
+    <gones-back-button data-cy="organization-detail-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class OrganizationDetailComponent {

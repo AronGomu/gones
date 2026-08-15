@@ -7,11 +7,14 @@ import { firstValueFrom } from 'rxjs';
 import { Client, PublicOrganizationResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="organization-list-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
+
     <section class="admin-page stack" data-cy="organizations" aria-labelledby="organizations-title">
       <header class="page-heading" data-cy="orgs-heading"><div data-cy="orgs-heading-text"><p class="kicker" data-cy="orgs-kicker">{{ i18n.t('org.kicker') }}</p><h1 id="organizations-title" data-cy="orgs-title">{{ i18n.t('org.publicList') }}</h1></div></header>
       <form class="filter-bar auth-form" data-cy="orgs-filters" (ngSubmit)="applyFilters()">
@@ -39,6 +42,8 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
         </div>
       }
     </section>
+
+    <gones-back-button data-cy="organization-list-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
 })
 export class OrganizationListComponent {

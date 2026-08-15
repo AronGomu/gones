@@ -7,11 +7,14 @@ import { firstValueFrom } from 'rxjs';
 import { AdminAuditRecordResponse, Client } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="admin-audit-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
+
     <section class="admin-page stack" data-cy="admin-audit" aria-labelledby="admin-audit-title">
       <header class="page-heading" data-cy="audit-heading"><div data-cy="audit-heading-text"><p class="kicker" data-cy="audit-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-audit-title" data-cy="audit-title">{{ i18n.t('admin.audit') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="audit-back">{{ i18n.t('admin.back') }}</a></header>
       <form class="filter-bar auth-form audit-filter-grid" data-cy="audit-filters" (ngSubmit)="applyFilters()">
@@ -42,6 +45,8 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
         <div class="pager" data-cy="audit-pager"><button mat-stroked-button type="button" data-cy="audit-page-previous" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="audit-page">{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="audit-page-next" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
       }
     </section>
+
+    <gones-back-button data-cy="admin-audit-back-bottom" [link]="['/admin']" [label]="i18n.t('admin.back')" position="bottom" />
   `
 })
 export class AdminAuditComponent {

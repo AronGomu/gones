@@ -13,15 +13,17 @@ import {
 import { I18nService } from '../../i18n/i18n.service';
 import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
 import { LatestRequest } from '../../shared/async-guards';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="admin-users-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
+
     <section class="admin-page stack" data-cy="admin-users" aria-labelledby="admin-users-title">
       <header class="page-heading" data-cy="admin-users-heading">
         <div data-cy="admin-users-heading-text"><p class="kicker" data-cy="admin-users-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-users-title" data-cy="admin-users-title">{{ i18n.t('admin.users') }}</h1></div>
-        <a mat-stroked-button routerLink="/admin" data-cy="admin-users-back">{{ i18n.t('admin.back') }}</a>
       </header>
 
       <form class="filter-bar auth-form" data-cy="admin-users-filters" (ngSubmit)="applyFilters()">
@@ -91,6 +93,8 @@ import { LatestRequest } from '../../shared/async-guards';
         </mat-card>
       }
     </section>
+
+    <gones-back-button data-cy="admin-users-back-bottom" [link]="['/admin']" [label]="i18n.t('admin.back')" position="bottom" />
   `
 })
 export class AdminUsersComponent {

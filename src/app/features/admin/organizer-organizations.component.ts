@@ -6,11 +6,14 @@ import { MatCardModule } from '@angular/material/card';
 import { firstValueFrom } from 'rxjs';
 import { Client, MyOrganizationResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="organizer-organizations-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
+
     <section class="admin-page stack" data-cy="organizer-organizations" aria-labelledby="organizer-orgs-title">
       <header class="page-heading" data-cy="organizer-orgs-heading"><div data-cy="organizer-orgs-heading-text"><p class="kicker" data-cy="organizer-orgs-kicker">{{ i18n.t('org.ownerKicker') }}</p><h1 id="organizer-orgs-title" data-cy="organizer-orgs-title">{{ i18n.t('org.myOrganizations') }}</h1></div></header>
       @if (loading()) { <p data-cy="my-orgs-loading">{{ i18n.t('common.loading') }}</p> }
@@ -30,6 +33,8 @@ import { I18nService } from '../../i18n/i18n.service';
         </div>
       }
     </section>
+
+    <gones-back-button data-cy="organizer-organizations-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
 })
 export class OrganizerOrganizationsComponent {

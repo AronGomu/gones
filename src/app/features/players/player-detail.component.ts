@@ -121,7 +121,7 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
       }
     </section>
     <footer class="live-tournament-footer player-detail-footer" data-cy="player-footer">
-      <gones-back-button data-cy="player-back-footer" [label]="i18n.t('nav.backToPrevious')" position="top" />
+      <gones-back-button data-cy="player-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
       <button mat-stroked-button class="secondary-action live-scroll-top-button" type="button" data-cy="player-scroll-top-button" (click)="scrollToTop()" [attr.aria-label]="i18n.t('live.backToTop')">↑</button>
     </footer>
   `,

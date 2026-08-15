@@ -7,11 +7,14 @@ import { firstValueFrom } from 'rxjs';
 import { AdminNotificationResponse, Client } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="admin-notification-delivery-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
+
     <section class="admin-page stack" data-cy="admin-notification-delivery" aria-labelledby="notification-delivery-title">
       <header class="page-heading" data-cy="notification-heading">
         <div data-cy="notification-heading-text"><p class="kicker" data-cy="notification-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="notification-delivery-title" data-cy="notification-title">{{ title() }}</h1></div>
@@ -55,6 +58,8 @@ import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
         <div class="pager" data-cy="notification-pager"><button mat-stroked-button type="button" data-cy="notification-page-previous" [disabled]="page <= 1" (click)="goPage(page - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="notification-page">{{ page }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="notification-page-next" [disabled]="page >= pages()" (click)="goPage(page + 1)">{{ i18n.t('common.next') }}</button></div>
       }
     </section>
+
+    <gones-back-button data-cy="admin-notification-delivery-back-bottom" [link]="['/admin']" [label]="i18n.t('admin.back')" position="bottom" />
   `
 })
 export class AdminNotificationDeliveryComponent {

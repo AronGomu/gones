@@ -167,3 +167,26 @@
 - [ ] Sync the event list (click Synchronise) — page refreshes data and `gones.events.catalog` is written with the view preference in `gones.events.view`.
 - [ ] Open an event detail page — all strings render correctly (no raw `event.*` key visible).
 - [ ] Open `/events` as a non-logged-in user — offline banner and stale indicator work if offline.
+
+## T4 back-button-everywhere
+
+- [ ] Sign in as `admin@gones.test` / `Gones-dev-pass-123!`. Navigate to `/admin` — confirm a back button appears above and below the admin nav; both navigate back to `/`.
+- [ ] Navigate to `/admin/users` — confirm back button above and below content; clicking either takes you to `/admin`.
+- [ ] Navigate to `/admin/organizations` — confirm back button above and below content; clicking either takes you to `/admin`.
+- [ ] Navigate to `/admin/audit` — confirm back button above and below content; clicking either takes you to `/admin`.
+- [ ] Navigate to `/admin/notifications/history` and `/admin/notifications/dead-letters` — confirm back buttons above and below; clicking either takes you to `/admin`.
+- [ ] Navigate to `/admin/events/deleted` — confirm back buttons above and below; clicking either takes you to `/admin`.
+- [ ] Navigate to `/global-stats` — confirm back button above and below; both navigate to `/`.
+- [ ] Navigate to `/settings/account` — confirm back button above and below; clicking either uses browser history back.
+- [ ] Navigate to `/organizations` (public list) — confirm back button above and below; both navigate to `/`.
+- [ ] Navigate to `/organizations/:id` — confirm back button above and below; clicking either uses browser history back.
+- [ ] Navigate to `/organizer/organizations` (if organizer role) — confirm back button above and below; both navigate to `/`.
+- [ ] Navigate to `/organizer/events` — confirm back button above and below; clicking either uses browser history back.
+- [ ] Navigate to `/events/new` — confirm back button above and below; clicking either uses browser history back.
+- [ ] Navigate to `/organizer/events/:id/participants` — confirm back button above and below; clicking either uses browser history back.
+- [ ] Navigate to `/login` — confirm a top back button is present and NO bottom back button is shown.
+- [ ] Navigate to any result page `/leagues-archive/:id/tournaments-archive/:id/result` — confirm a top back button appears above; clicking uses browser history back.
+- [ ] Navigate to `/live-tournaments/new` or an existing live tournament — confirm both top and bottom back buttons exist.
+- [ ] Navigate to `/players/:name` — confirm the footer back button now says "Back to previous page" and uses browser history (not the old `position="top"` footer).
+- [ ] Check the home page (`/`) — confirm a top back button is rendered; confirm no broken layout.
+- [ ] Open `/app-error` directly — confirm back button above and below content.

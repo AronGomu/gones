@@ -240,6 +240,8 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
         </div>
       </ng-template>
     } @else { <mat-card class="panel" data-cy="live-runner-not-found"><mat-card-title data-cy="live-runner-not-found-title">{{ i18n.t('live.notFoundTitle') }}</mat-card-title><mat-card-content data-cy="live-runner-not-found-content"><p data-cy="live-runner-not-found-body">{{ i18n.t('live.notFoundBody') }}</p></mat-card-content></mat-card> }
+
+    <gones-back-button data-cy="live-runner-back-bottom" [link]="['/live-tournaments']" [label]="i18n.t('nav.backToRunningTournaments')" position="bottom" />
   `
 })
 export class LiveTournamentRunnerComponent implements OnDestroy {

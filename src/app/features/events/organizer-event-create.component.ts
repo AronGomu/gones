@@ -16,6 +16,7 @@ import { EventProposalService, sortApprovers } from './event-proposal.service';
 import { changedEventFields, majorEventChanges, managementToDetail, managementToDraft, eventUpdatePayload } from './event-management';
 import { canManageLeagues } from '../../data/league-archive-command-ux';
 import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'refresh-preview' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
@@ -35,8 +36,10 @@ const MaximumPublicOrganizationPages = 20;
 
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatDialogModule, EventDetailViewComponent],
+  imports: [ReactiveFormsModule, RouterLink, MatButtonModule, MatDialogModule, EventDetailViewComponent, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="organizer-event-create-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+
     <section class="organizer-tournament-create stack" [attr.data-cy]="editMode ? 'organizer-event-edit' : 'organizer-event-create'" aria-labelledby="organizer-event-title">
       <header class="page-heading" data-cy="event-create-header">
         <div data-cy="event-create-heading-group"><h1 id="organizer-event-title" data-cy="event-create-title">{{ editMode ? i18n.t('eventManage.editTitle') : editing() ? i18n.t('eventCreate.title') : i18n.t('eventCreate.previewTitle') }}</h1></div>
@@ -191,6 +194,8 @@ const MaximumPublicOrganizationPages = 20;
         </div>
       }
     </section>
+
+    <gones-back-button data-cy="organizer-event-create-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {

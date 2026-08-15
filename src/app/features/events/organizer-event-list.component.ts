@@ -11,11 +11,14 @@ import { MessageKey } from '../../i18n/messages';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { canCancelEvent, canEditEvent } from './event-management';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatCardModule, MatDialogModule],
+  imports: [RouterLink, MatButtonModule, MatCardModule, MatDialogModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="organizer-event-list-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+
     <section class="tournament-management-page stack" data-cy="organizer-events" aria-labelledby="organizer-events-title">
       <header class="page-heading" data-cy="organizer-events-heading">
         <div data-cy="organizer-events-heading-text"><p class="kicker" data-cy="organizer-events-kicker">{{ i18n.t('eventCreate.kicker') }}</p><h1 id="organizer-events-title" data-cy="organizer-events-title">{{ i18n.t('eventManage.title') }}</h1></div>
@@ -52,6 +55,8 @@ import { PowerUserSettingsService } from '../../shared/power-user-settings.servi
       }
       @if (status()) { <p role="status" data-cy="event-management-status">{{ status() }}</p> }
     </section>
+
+    <gones-back-button data-cy="organizer-event-list-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class OrganizerEventListComponent {

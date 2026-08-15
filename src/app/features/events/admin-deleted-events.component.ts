@@ -6,11 +6,14 @@ import { firstValueFrom } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
 import { Client, EventManagementResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatCardModule],
+  imports: [RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="admin-deleted-events-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
+
     <section class="tournament-management-page stack" data-cy="deleted-events" aria-labelledby="deleted-events-title">
       <header class="page-heading" data-cy="deleted-events-heading"><div data-cy="deleted-events-heading-text"><p class="kicker" data-cy="deleted-events-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="deleted-events-title" data-cy="deleted-events-title">{{ i18n.t('eventManage.deletedTitle') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="deleted-events-back">{{ i18n.t('admin.back') }}</a></header>
       <p class="muted" data-cy="deleted-events-help">{{ i18n.t('eventManage.restoreHelp') }}</p>
@@ -33,6 +36,8 @@ import { I18nService } from '../../i18n/i18n.service';
       }
       @if (status()) { <p role="status" data-cy="deleted-events-status">{{ status() }}</p> }
     </section>
+
+    <gones-back-button data-cy="admin-deleted-events-back-bottom" [link]="['/admin']" [label]="i18n.t('admin.back')" position="bottom" />
   `
 })
 export class AdminDeletedEventsComponent {

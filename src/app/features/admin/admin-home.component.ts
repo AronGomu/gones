@@ -4,11 +4,14 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { dataAuthority } from '../../config/data-authority';
 import { I18nService } from '../../i18n/i18n.service';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatCardModule],
+  imports: [RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="admin-home-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
+
     <section class="admin-page stack" data-cy="admin-home" aria-labelledby="admin-title">
       <header class="page-heading" data-cy="admin-home-heading"><div data-cy="admin-home-heading-text"><p class="kicker" data-cy="admin-home-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-title" data-cy="admin-home-title">{{ i18n.t('admin.title') }}</h1></div></header>
       @if (!enabled) {
@@ -25,6 +28,8 @@ import { I18nService } from '../../i18n/i18n.service';
         </nav>
       }
     </section>
+
+    <gones-back-button data-cy="admin-home-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `
 })
 export class AdminHomeComponent {
