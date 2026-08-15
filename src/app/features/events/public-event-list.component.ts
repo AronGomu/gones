@@ -8,7 +8,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
-import { OfflineBannerComponent } from '../../shared/offline-banner.component';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 import {
   EventListQuery,
   CalendarView,
@@ -54,17 +54,11 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, BackButtonComponent, SyncBarComponent],
   template: `
     <div class="calendar-top-actions" data-cy="event-list-top-actions">
       <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="event-list-back-top" />
-      <div class="calendar-sync-group" data-cy="event-list-sync-group">
-        @if (syncedAt(); as instant) { <span class="muted calendar-synced-at" data-cy="event-list-synced-at">{{ i18n.t('event.syncedAt', { instant: i18n.formatDateTime(instant) }) }}</span> }
-        <button mat-stroked-button type="button" class="secondary-action calendar-sync-button" data-cy="event-list-sync" [disabled]="loading()" (click)="sync()" [attr.aria-label]="i18n.t('event.synchroniseAria')">
-          <svg class="calendar-sync-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.9-3" /><path d="M4 5v5h5" /><path d="M4 13a8 8 0 0 0 14.9 3" /><path d="M20 19v-5h-5" /></svg>
-          <span data-cy="event-list-sync-label">{{ i18n.t('event.synchronise') }}</span>
-        </button>
-      </div>
+      <gones-sync-bar cyPrefix="event-list" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="event-list-sync-bar" />
     </div>
     <section class="info-page public-calendar-page" aria-labelledby="public-calendar-title" data-cy="public-calendar">
       <header class="section-header" data-cy="event-list-header">
@@ -86,7 +80,6 @@ const SEARCH_DEBOUNCE_MS = 300;
         }
       </div>
 
-      <gones-offline-banner [stale]="stale()" [cachedAt]="syncedAt()" data-cy="event-list-offline-banner" />
       @if (registrationMessageKey(); as messageKey) { <p class="registration-live-status" role="status" aria-live="polite" data-cy="event-list-registration-message">{{ i18n.t(messageKey) }}</p> }
       @if (error()) {
         <section class="panel calendar-state" role="alert" data-cy="event-list-error"><h2 data-cy="event-list-error-title">{{ i18n.t('event.listLoadFailed') }}</h2><button mat-stroked-button type="button" data-cy="event-list-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></section>

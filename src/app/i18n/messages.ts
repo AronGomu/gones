@@ -629,10 +629,7 @@ const en = {
   'event.city': 'City',
   'event.organization': 'Organization ID',
   'event.format': 'Format',
-  'event.synchronise': 'Synchronise',
-  'event.synchroniseAria': 'Synchronise the event catalogue',
   'event.createEvent': 'Create Event',
-  'event.syncedAt': 'Last sync: {instant}',
   'event.searchPlaceholder': 'Recherchez statut, pays, region, ville, nom organiation, format, date',
   'event.paginationAria': 'Event list pages',
   'event.pageStatus': 'Page {page} of {total}',
@@ -655,6 +652,11 @@ const en = {
   'event.archiveTournament': 'Archive Tournament',
   'event.organizationWebsite': 'Organization Website',
   'event.openInMaps': 'Open {address} in Google Maps',
+
+  // Sync bar — shared by every page on the one cache contract (ADR 0039)
+  'sync.synchronise': 'Synchronise',
+  'sync.synchroniseAria': 'Synchronise the data on this page',
+  'sync.syncedAt': 'Last sync: {instant}',
 
   // Event registration
   'registration.title': 'Registration',
@@ -1829,10 +1831,7 @@ const fr: Record<MessageKey, string> = {
   'event.city': 'Ville',
   'event.organization': 'ID de l’organisation',
   'event.format': 'Format',
-  'event.synchronise': 'Synchroniser',
-  'event.synchroniseAria': 'Synchroniser le catalogue des événements',
   'event.createEvent': 'Créer un événement',
-  'event.syncedAt': 'Dernière synchro : {instant}',
   'event.searchPlaceholder': 'Recherchez statut, pays, region, ville, nom organiation, format, date',
   'event.paginationAria': 'Pages de la liste des événements',
   'event.pageStatus': 'Page {page} sur {total}',
@@ -1855,6 +1854,11 @@ const fr: Record<MessageKey, string> = {
   'event.archiveTournament': 'Tournoi archivé',
   'event.organizationWebsite': 'Site Web de l’organisation',
   'event.openInMaps': 'Ouvrir {address} dans Google Maps',
+
+  // Barre de synchronisation — partagée par toutes les pages du contrat de cache (ADR 0039)
+  'sync.synchronise': 'Synchroniser',
+  'sync.synchroniseAria': 'Synchroniser les données de cette page',
+  'sync.syncedAt': 'Dernière synchro : {instant}',
 
   // Inscription aux tournois
   'registration.title': 'Inscription',

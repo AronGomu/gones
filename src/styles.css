@@ -1207,6 +1207,8 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .calendar-create-tournament { margin-left: auto; }
 .calendar-top-actions { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .calendar-top-actions .back-button-row--top { margin-bottom: 0; }
+/* The shared sync bar stacks its group over its banner and stays on the right of the action row. */
+gones-sync-bar { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; margin-left: auto; }
 .calendar-sync-group { display: inline-flex; align-items: center; gap: .6rem; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
 .calendar-synced-at { font-size: .82rem; white-space: nowrap; }
 .calendar-sync-button { display: inline-flex; align-items: center; gap: .45rem; }

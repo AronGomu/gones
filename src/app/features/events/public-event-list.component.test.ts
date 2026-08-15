@@ -363,42 +363,53 @@ describe('PublicEventListComponent', () => {
 describe('PublicEventListComponent top action row layout', () => {
   const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+  // T7 moved the affordance itself into the shared `gones-sync-bar`, so the assertions about what
+  // the button looks like read the bar's own source. What stays here is what this page decides:
+  // where the bar sits, which prefix its test ids carry, and which signals feed it.
+  const barSource = readFileSync(join(__dirname, '..', '..', 'shared', 'sync-bar.component.ts'), 'utf8');
 
-  it('the sync button shares the back-button row', () => {
+  it('the sync bar shares the back-button row', () => {
     const open = source.indexOf('data-cy="event-list-top-actions"');
     expect(open).toBeGreaterThan(-1);
     const rowStart = source.lastIndexOf('<div', open);
-    const rowEnd = source.indexOf('</div>\n    </div>', rowStart);
+    const rowEnd = source.indexOf('</div>\n    <section', rowStart);
     expect(rowEnd).toBeGreaterThan(-1);
     const row = source.slice(rowStart, rowEnd);
     expect(row).toContain('data-cy="event-list-back-top"');
-    expect(row).toContain('data-cy="event-list-sync"');
+    expect(row).toContain('<gones-sync-bar cyPrefix="event-list"');
+  });
+
+  it('the bar renders this page\u2019s stable test ids', () => {
+    const ids = [...barSource.matchAll(/\[attr\.data-cy\]="cyPrefix\(\) \+ '([^']+)'"/g)].map(([, suffix]) => 'event-list' + suffix);
+    expect(ids).toEqual(expect.arrayContaining(['event-list-sync-button', 'event-list-sync-synced-at']));
+  });
+
+  it('the bar is fed by the page\u2019s own load state', () => {
+    const barStart = source.indexOf('<gones-sync-bar');
+    const bar = source.slice(barStart, source.indexOf('>', barStart));
+    expect(bar).toContain('[syncedAt]="syncedAt()"');
+    expect(bar).toContain('[loading]="loading()"');
+    expect(bar).toContain('[stale]="stale()"');
+    expect(bar).toContain('(sync)="sync()"');
   });
 
   it('the last-sync stamp is to the left of the button', () => {
-    const groupStart = source.indexOf('data-cy="event-list-sync-group"');
-    expect(groupStart).toBeGreaterThan(-1);
-    const groupEnd = source.indexOf('</div>', source.indexOf('data-cy="event-list-sync"', groupStart));
-    const group = source.slice(groupStart, groupEnd);
-    const syncedAtIndex = group.indexOf('calendar-synced-at');
-    const syncIndex = group.indexOf('event-list-sync"');
+    const syncedAtIndex = barSource.indexOf('calendar-synced-at');
+    const syncIndex = barSource.indexOf("'-sync-button'");
     expect(syncedAtIndex).toBeGreaterThan(-1);
     expect(syncedAtIndex).toBeLessThan(syncIndex);
   });
 
   it('the sync button carries an icon', () => {
-    const buttonStart = source.indexOf('data-cy="event-list-sync"');
-    const buttonEnd = source.indexOf('</button>', buttonStart);
-    const button = source.slice(buttonStart, buttonEnd);
+    const buttonStart = barSource.indexOf("cyPrefix() + '-sync-button'");
+    const button = barSource.slice(buttonStart, barSource.indexOf('</button>', buttonStart));
     expect(button).toContain('<svg');
     expect(button).toContain('class="calendar-sync-icon"');
   });
 
   it('the icon is decorative', () => {
-    const iconStart = source.indexOf('class="calendar-sync-icon"');
-    const iconTagStart = source.lastIndexOf('<svg', iconStart);
-    const iconTagEnd = source.indexOf('>', iconStart);
-    const icon = source.slice(iconTagStart, iconTagEnd);
+    const iconStart = barSource.indexOf('class="calendar-sync-icon"');
+    const icon = barSource.slice(barSource.lastIndexOf('<svg', iconStart), barSource.indexOf('>', iconStart));
     expect(icon).toContain('aria-hidden="true"');
   });
 
@@ -407,7 +418,7 @@ describe('PublicEventListComponent top action row layout', () => {
     const headerEnd = source.indexOf('</header>', headerStart);
     expect(headerEnd).toBeGreaterThan(-1);
     const header = source.slice(headerStart, headerEnd);
-    expect(header).not.toContain('event-list-sync"');
+    expect(header).not.toContain('gones-sync-bar');
     expect(header).not.toContain('calendar-synced-at');
   });
 

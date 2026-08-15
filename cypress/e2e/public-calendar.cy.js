@@ -310,10 +310,10 @@ describe('public Calendar V1', () => {
   it('Synchroniser forces a refetch', () => {
     visit('/events?month=2026-08');
     cy.wait('@allEvents');
-    cy.get('[data-cy="event-list-sync"]').click();
+    cy.get('[data-cy="event-list-sync-button"]').click();
     cy.wait('@allEvents');
     cy.get('@allEvents.all').should('have.length', 2);
-    cy.get('[data-cy="event-list-synced-at"]').should('be.visible');
+    cy.get('[data-cy="event-list-sync-synced-at"]').should('be.visible');
   });
 
   // The search query and the event title both reach the DOM as interpolated text nodes: the

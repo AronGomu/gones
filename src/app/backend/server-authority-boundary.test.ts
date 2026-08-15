@@ -144,14 +144,14 @@ describe('canonical browser store containment', () => {
     expect(filesMatching(/localStorage\??\.(get|set|remove)Item/)).toEqual([
       // Cross-tab marker + generation only; values contain no profile or domain data.
       'src/app/auth/auth-session-coordination.service.ts',
-      // Public read cache (C39) — the 24h full-catalog snapshot, anonymous GET responses only.
-      'src/app/features/events/event-catalog-cache.service.ts',
       // Browser view preference.
       'src/app/features/events/public-event-list.component.ts',
       // Public read cache (C39) — anonymous GET responses only, never a mutation source.
       'src/app/features/events/public-event.service.ts',
       // Two Player Statistics display preferences only: source visibility + page size.
       'src/app/features/players/player-stats-preferences.ts',
+      // Public read cache (C39, ADR 0039) — the 24h full-catalog snapshot, public GET responses only.
+      'src/app/shared/catalog-cache.ts',
       // Language + local Deck Archetype preference.
       'src/app/shared/deck-archetype-settings.service.ts',
       // First-visit flag — routes the very first load to /about, never a data source.

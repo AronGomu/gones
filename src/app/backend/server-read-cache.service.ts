@@ -3,14 +3,21 @@ import { AuthCacheScope, AuthSessionCoordinationService } from '../auth/auth-ses
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { logBoundaryError } from '../shared/app-logger';
-import { get, openDatabase, put } from './indexed-db';
+import { get, openDatabase, put, remove } from './indexed-db';
 
 /**
- * Per-user offline read cache for server responses (ADR 0031).
+ * Per-user offline read cache for server responses (ADR 0031, amended by ADR 0039).
  *
- * It is a cache, never an authority: a row is only ever read when the server read it mirrors has
- * failed, it is never merged into a response, and nothing in it is ever sent back to the server. A
- * fulfilled read overwrites its row unconditionally — that is "remote prevails" in code.
+ * It is a cache, never an authority: it is never merged into a response, and nothing in it is ever
+ * sent back to the server. A fulfilled read overwrites its row unconditionally — that is "remote
+ * prevails" in code.
+ *
+ * There are two reads over the one store. `read()` is **fallback-only**: its row is served solely
+ * after the server read it mirrors has failed, which is the original ADR 0031 contract and is
+ * unchanged for its callers. `readCached()` is **TTL-primary** (ADR 0039): it serves a row that is
+ * younger than the TTL without calling the server at all, falls back to an older row when the load
+ * fails, and is what every page on the one cache contract uses. `invalidate()` is how a page that
+ * just mutated its own data drops its entry instead of waiting out the TTL.
  *
  * It is also private data, so it is scoped to one user (`<userId>:<resource>`) and the whole database
  * is dropped by the reset this service registers with `SessionScopeService`: logout, a failed
@@ -24,13 +31,18 @@ export const SERVER_READ_CACHE_DB_NAME = 'gones-cache';
 export const SERVER_READ_CACHE_STORE = 'reads';
 const SERVER_READ_CACHE_DB_VERSION = 1;
 
+/** Same 24h TTL as the public catalog cache: one contract, two stores (ADR 0039). */
+export const PRIVATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 export interface CachedRead<T> { value: T; cachedAt: string; }
 export interface ServerReadResult<T> { value: T; stale: boolean; cachedAt?: string; }
+export interface PrivateCacheResult<T> { value: T; fetchedAt: string; fromCache: boolean; stale: boolean; }
 
 /** The persistence seam. Everything IndexedDB lives behind it, so nothing else grows an `IDBDatabase`. */
 export interface ServerReadCacheStore {
   read(key: string): Promise<CachedRead<unknown> | null>;
   write(key: string, entry: CachedRead<unknown>): Promise<void>;
+  delete(key: string): Promise<void>;
   clear(): Promise<void>;
 }
 
@@ -75,6 +87,58 @@ export class ServerReadCacheService {
     }
     await this.remember(scope, key, value);
     return { value, stale: false };
+  }
+
+  /**
+   * Read-through under a TTL (ADR 0039). A row younger than `ttlMs` is served as-is and the loader is
+   * never called; anything older is reloaded, and `force` skips the row entirely. A rejected load
+   * still falls back to whatever row exists, flagged stale, and still rethrows when there is none.
+   *
+   * Every privacy guarantee of `read()` is kept verbatim: an anonymous caller is passed through and
+   * caches nothing, and the session is re-checked after the load resolves, so a response that lands
+   * after a logout or after the next sign-in is answered to its caller and written nowhere.
+   */
+  async readCached<T>(resource: string, load: () => Promise<T>, options: { ttlMs?: number; force?: boolean } = {}): Promise<PrivateCacheResult<T>> {
+    const scope = this.coordination.captureCacheScope(this.auth.profile()?.id);
+    if (!scope) return { value: await load(), fetchedAt: new Date().toISOString(), fromCache: false, stale: false };
+    const key = this.key(scope, resource);
+    const ttlMs = options.ttlMs ?? PRIVATE_CACHE_TTL_MS;
+    if (!options.force) {
+      const row = await this.cached(key);
+      if (row && await this.isCurrent(scope) && Date.now() - Date.parse(row.cachedAt) < ttlMs) {
+        return { value: row.value as T, fetchedAt: row.cachedAt, fromCache: true, stale: false };
+      }
+    }
+    let value: T;
+    try {
+      value = await load();
+    } catch (error) {
+      if (!await this.isCurrent(scope)) throw error;
+      const row = await this.cached(key);
+      if (!row || !await this.isCurrent(scope)) throw error;
+      return { value: row.value as T, fetchedAt: row.cachedAt, fromCache: true, stale: true };
+    }
+    await this.remember(scope, key, value);
+    return { value, fetchedAt: new Date().toISOString(), fromCache: false, stale: false };
+  }
+
+  /**
+   * Drops one row, so a page that just mutated its own data reads the server again instead of its own
+   * stale copy. A broken cache is logged and swallowed: a cache that cannot forget must not turn a
+   * successful mutation into a failed one.
+   */
+  async invalidate(resource: string): Promise<void> {
+    const scope = this.coordination.captureCacheScope(this.auth.profile()?.id);
+    if (!scope) return;
+    const key = this.key(scope, resource);
+    try {
+      await this.coordination.withAvailableLock(async () => {
+        if (!this.isCurrentUnlocked(scope)) return;
+        await this.store.delete(key);
+      });
+    } catch (error) {
+      logBoundaryError('server-read-cache.invalidate', error);
+    }
   }
 
   /** Drops the whole database. Registered with SessionScopeService, so logout purges it. */
@@ -139,6 +203,10 @@ export class IndexedDbServerReadCacheStore implements ServerReadCacheStore {
 
   async write(key: string, entry: CachedRead<unknown>): Promise<void> {
     await put(await this.open(), SERVER_READ_CACHE_STORE, { key, ...entry } satisfies CachedReadRow);
+  }
+
+  async delete(key: string): Promise<void> {
+    await remove(await this.open(), SERVER_READ_CACHE_STORE, key);
   }
 
   /**
