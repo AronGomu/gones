@@ -200,3 +200,11 @@
 - [ ] Open `/auth/complete-profile`, `/verify-email`, `/forgot-password`, `/reset-password` — confirm none show a Sign in button in the header.
 - [ ] Open `/events` while signed out — confirm the header shows the Sign in button.
 - [ ] Log out from `/admin/users` as an admin, then sign in as a plain User account — confirm the admin guard redirects (e.g. to `/`) instead of rendering the admin page.
+
+## T6 home-about-polish
+
+- [ ] Run `npm run dev`, open `http://127.0.0.1:4200/` in a fresh browser profile (or clear localStorage in DevTools). Confirm you land on `/about`.
+- [ ] From `/about`, navigate to `/` (via the Menu link or address bar). Confirm the home menu renders and its Leagues archive card reads **Leagues Archive**.
+- [ ] In the home menu, switch language to French. Confirm the Leagues archive card reads **Archives des ligues**.
+- [ ] Navigate to `/leagues-archive`. Confirm the breadcrumb shows **Leagues Archive** (en) or **Archives des ligues** (fr).
+- [ ] Reload the page while on `/`. Confirm the home menu renders immediately (no second redirect to `/about`).

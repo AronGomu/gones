@@ -52,14 +52,14 @@ describe('buildBreadcrumbs', () => {
     expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Paramètres']);
   });
 
-  it('labels the archive list breadcrumb "Ligues (archive)"', async () => {
+  it('labels the archive list breadcrumb "Archives des ligues"', async () => {
     const crumbs = await buildBreadcrumbs('/leagues-archive');
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Ligues (archive)']);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archives des ligues']);
   });
 
   it('links every archive crumb into the renamed segments', async () => {
     const crumbs = await buildBreadcrumbs('/leagues-archive/abc/tournaments-archive/def/result');
-    expect(crumbs[1].label).toBe('Ligues (archive)');
+    expect(crumbs[1].label).toBe('Archives des ligues');
     expect(crumbs[1].link).toEqual(['/leagues-archive']);
     expect(crumbs[2].link).toEqual(['/leagues-archive', 'abc']);
     expect(crumbs[3].link).toEqual(['/leagues-archive', 'abc', 'tournaments-archive', 'def']);

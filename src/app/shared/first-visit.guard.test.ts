@@ -4,6 +4,8 @@ import { Injector, runInInjectionContext } from '@angular/core';
 import { Router, UrlTree } from '@angular/router';
 import { firstVisitHomeGuard, markVisitedGuard } from './first-visit.guard';
 import { FirstVisitService } from './first-visit.service';
+import { buildRoutes } from '../app.routes';
+import { DataAuthorityCapabilityFlags } from '../config/data-authority';
 
 interface FirstVisitStub {
   isFirstVisit: ReturnType<typeof vi.fn>;
@@ -53,6 +55,24 @@ describe('firstVisitHomeGuard', () => {
     expect(result).toBe(true);
     expect(firstVisitStub.markVisited).not.toHaveBeenCalled();
     expect(routerStub.createUrlTree).not.toHaveBeenCalled();
+  });
+});
+
+describe('route table', () => {
+  it('only guards the root path with firstVisitHomeGuard', () => {
+    const flags: DataAuthorityCapabilityFlags = { authV1: true, adminV1: true };
+    const routes = buildRoutes(flags);
+
+    function flatten(rs: ReturnType<typeof buildRoutes>): ReturnType<typeof buildRoutes> {
+      return rs.flatMap((r) => [r, ...(r.children ? flatten(r.children) : [])]);
+    }
+
+    const guarded = flatten(routes).filter(
+      (r) => Array.isArray(r.canActivate) && r.canActivate.includes(firstVisitHomeGuard)
+    );
+
+    expect(guarded).toHaveLength(1);
+    expect(guarded[0].path).toBe('');
   });
 });
 
