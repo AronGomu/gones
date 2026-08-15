@@ -5,7 +5,7 @@ import { API_BASE_URL, PublicEventCatalogResponse } from '../../api/generated/go
 import { joinApiUrl } from '../../api/api-boundary';
 import { PublicEventView } from './public-event-list';
 
-export const EVENT_CATALOG_CACHE_KEY = 'gones.calendar-v1.all-tournaments';
+export const EVENT_CATALOG_CACHE_KEY = 'gones.events.catalog';
 export const EVENT_CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface EventCatalogResult {

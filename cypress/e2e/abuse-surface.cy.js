@@ -92,7 +92,7 @@ describe('abuse surface', () => {
     visit('/events');
     cy.wait('@events');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
-    cy.get('[data-cy="calendar-error"]').should('not.exist');
+    cy.get('[data-cy="event-error"]').should('not.exist');
 
     cy.get('img').each(($image) => {
       const source = $image.attr('src') ?? '';

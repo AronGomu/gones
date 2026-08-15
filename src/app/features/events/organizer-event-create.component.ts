@@ -92,7 +92,7 @@ const MaximumPublicOrganizationPages = 20;
               <input id="event-postal-code" data-cy="event-postal-code" formControlName="postalCode" autocomplete="postal-code" />
             </div>
             <div class="tournament-create-field" data-cy="event-field-city">
-              <label for="event-city" data-cy="event-label-city">{{ i18n.t('calendar.city') }}</label>
+              <label for="event-city" data-cy="event-label-city">{{ i18n.t('event.city') }}</label>
               <input id="event-city" data-cy="event-city" formControlName="city" autocomplete="address-level2" [attr.aria-invalid]="fieldError('city') ? 'true' : null" [attr.aria-describedby]="fieldError('city') ? 'event-city-error' : null" />
               @if (fieldError('city'); as message) { <p id="event-city-error" class="field-error" data-cy="event-city-error">{{ message }}</p> }
             </div>
@@ -118,7 +118,7 @@ const MaximumPublicOrganizationPages = 20;
               @if (fieldError('timeZoneId'); as message) { <p id="event-zone-error" class="field-error" data-cy="event-zone-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-capacity">
-              <label for="event-capacity" data-cy="event-label-capacity">{{ i18n.t('calendar.capacity') }}</label>
+              <label for="event-capacity" data-cy="event-label-capacity">{{ i18n.t('event.capacity') }}</label>
               <input id="event-capacity" data-cy="event-capacity" type="number" min="1" step="1" formControlName="capacity" [attr.aria-invalid]="fieldError('capacity') ? 'true' : null" [attr.aria-describedby]="fieldError('capacity') ? 'event-capacity-error' : null" />
               @if (fieldError('capacity'); as message) { <p id="event-capacity-error" class="field-error" data-cy="event-capacity-error">{{ message }}</p> }
             </div>

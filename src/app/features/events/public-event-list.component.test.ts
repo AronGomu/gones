@@ -365,29 +365,29 @@ describe('PublicEventListComponent top action row layout', () => {
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the sync button shares the back-button row', () => {
-    const open = source.indexOf('data-cy="calendar-top-actions"');
+    const open = source.indexOf('data-cy="event-list-top-actions"');
     expect(open).toBeGreaterThan(-1);
     const rowStart = source.lastIndexOf('<div', open);
     const rowEnd = source.indexOf('</div>\n    </div>', rowStart);
     expect(rowEnd).toBeGreaterThan(-1);
     const row = source.slice(rowStart, rowEnd);
-    expect(row).toContain('data-cy="calendar-back-top"');
-    expect(row).toContain('data-cy="calendar-sync"');
+    expect(row).toContain('data-cy="event-list-back-top"');
+    expect(row).toContain('data-cy="event-list-sync"');
   });
 
   it('the last-sync stamp is to the left of the button', () => {
-    const groupStart = source.indexOf('data-cy="calendar-sync-group"');
+    const groupStart = source.indexOf('data-cy="event-list-sync-group"');
     expect(groupStart).toBeGreaterThan(-1);
-    const groupEnd = source.indexOf('</div>', source.indexOf('data-cy="calendar-sync"', groupStart));
+    const groupEnd = source.indexOf('</div>', source.indexOf('data-cy="event-list-sync"', groupStart));
     const group = source.slice(groupStart, groupEnd);
     const syncedAtIndex = group.indexOf('calendar-synced-at');
-    const syncIndex = group.indexOf('calendar-sync"');
+    const syncIndex = group.indexOf('event-list-sync"');
     expect(syncedAtIndex).toBeGreaterThan(-1);
     expect(syncedAtIndex).toBeLessThan(syncIndex);
   });
 
   it('the sync button carries an icon', () => {
-    const buttonStart = source.indexOf('data-cy="calendar-sync"');
+    const buttonStart = source.indexOf('data-cy="event-list-sync"');
     const buttonEnd = source.indexOf('</button>', buttonStart);
     const button = source.slice(buttonStart, buttonEnd);
     expect(button).toContain('<svg');
@@ -403,11 +403,11 @@ describe('PublicEventListComponent top action row layout', () => {
   });
 
   it('the header no longer holds the sync affordance', () => {
-    const headerStart = source.indexOf('data-cy="calendar-header"');
+    const headerStart = source.indexOf('data-cy="event-list-header"');
     const headerEnd = source.indexOf('</header>', headerStart);
     expect(headerEnd).toBeGreaterThan(-1);
     const header = source.slice(headerStart, headerEnd);
-    expect(header).not.toContain('calendar-sync"');
+    expect(header).not.toContain('event-list-sync"');
     expect(header).not.toContain('calendar-synced-at');
   });
 
@@ -429,9 +429,9 @@ describe('PublicEventListComponent search row layout', () => {
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the search row sits between the title and the view tabs', () => {
-    const titleIndex = source.indexOf('data-cy="calendar-title"');
-    const searchRowIndex = source.indexOf('data-cy="calendar-search-row"');
-    const viewTabsIndex = source.indexOf('data-cy="calendar-view-tabs"');
+    const titleIndex = source.indexOf('data-cy="event-list-title"');
+    const searchRowIndex = source.indexOf('data-cy="event-list-search-row"');
+    const viewTabsIndex = source.indexOf('data-cy="event-list-view-tabs"');
     expect(titleIndex).toBeGreaterThan(-1);
     expect(searchRowIndex).toBeGreaterThan(-1);
     expect(viewTabsIndex).toBeGreaterThan(-1);
@@ -444,14 +444,14 @@ describe('PublicEventListComponent search row layout', () => {
   });
 
   it('the search input names itself for assistive tech', () => {
-    const inputStart = source.indexOf('data-cy="calendar-search"');
+    const inputStart = source.indexOf('data-cy="event-list-search"');
     const inputEnd = source.indexOf('>', inputStart);
     const input = source.slice(inputStart, inputEnd);
     expect(input).toContain(`[attr.aria-label]="i18n.t('common.search')"`);
   });
 
   it('the search row is not a panel', () => {
-    const rowStart = source.lastIndexOf('<form', source.indexOf('data-cy="calendar-search-row"'));
+    const rowStart = source.lastIndexOf('<form', source.indexOf('data-cy="event-list-search-row"'));
     const rowTagEnd = source.indexOf('>', rowStart);
     const rowTag = source.slice(rowStart, rowTagEnd);
     expect(rowTag).not.toContain('panel');
@@ -477,7 +477,7 @@ describe('PublicEventListComponent search row layout', () => {
   });
 
   it('the view tabs are on their own row', () => {
-    const headerStart = source.indexOf('data-cy="calendar-header"');
+    const headerStart = source.indexOf('data-cy="event-list-header"');
     const headerEnd = source.indexOf('</header>', headerStart);
     const header = source.slice(headerStart, headerEnd);
     expect(header).not.toContain('calendar-view-tabs');
@@ -517,25 +517,25 @@ describe('PublicEventListComponent toolbar row', () => {
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the create button lives on the view-tab row', () => {
-    const tabsStart = source.indexOf('data-cy="calendar-view-tabs"');
+    const tabsStart = source.indexOf('data-cy="event-list-view-tabs"');
     expect(tabsStart).toBeGreaterThan(-1);
     const tabsOpen = source.lastIndexOf('<div', tabsStart);
     const tabsEnd = source.indexOf('</div>', tabsStart);
     const tabs = source.slice(tabsOpen, tabsEnd);
-    expect(tabs).toContain('data-cy="calendar-create-event"');
+    expect(tabs).toContain('data-cy="event-list-create-event"');
   });
 
   it('the create button is not in the page header any more', () => {
-    expect(source).not.toContain('data-cy="calendar-header-actions"');
-    const createIndex = source.indexOf('data-cy="calendar-create-event"');
-    const tabsIndex = source.indexOf('data-cy="calendar-view-tabs"');
+    expect(source).not.toContain('data-cy="event-list-header-actions"');
+    const createIndex = source.indexOf('data-cy="event-list-create-event"');
+    const tabsIndex = source.indexOf('data-cy="event-list-view-tabs"');
     expect(createIndex).toBeGreaterThan(-1);
     expect(tabsIndex).toBeGreaterThan(-1);
     expect(createIndex).toBeGreaterThan(tabsIndex);
   });
 
   it('the create button wears the success green', () => {
-    const buttonStart = source.indexOf('data-cy="calendar-create-event"');
+    const buttonStart = source.indexOf('data-cy="event-list-create-event"');
     const tagStart = source.lastIndexOf('<a', buttonStart);
     const tagEnd = source.indexOf('>', buttonStart);
     const tag = source.slice(tagStart, tagEnd);
@@ -560,7 +560,7 @@ describe('PublicEventListComponent month nav layout', () => {
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
   it('the month nav is the element immediately above the grid', () => {
-    const navIndex = source.indexOf('data-cy="calendar-month-controls"');
+    const navIndex = source.indexOf('data-cy="event-list-month-controls"');
     const gridIndex = source.indexOf('class="public-month-grid"');
     expect(navIndex).toBeGreaterThan(-1);
     expect(gridIndex).toBeGreaterThan(-1);
@@ -640,7 +640,7 @@ describe('PublicEventListComponent calendar day cells', () => {
     expect(cellStart).toBeGreaterThan(-1);
     const cellEnd = source.indexOf('</article>', cellStart);
     const cell = source.slice(cellStart, cellEnd);
-    expect(cell).toContain('data-cy="calendar-month-day-date"');
+    expect(cell).toContain('data-cy="event-list-month-day-date"');
   });
 
   it('the month model carries no events', () => {
@@ -745,8 +745,8 @@ describe('PublicEventListComponent list pagination', () => {
     // render it in, so the guard is asserted structurally — the nav must live inside the block that
     // only opens past one page, and nowhere else in the template.
     const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
-    expect(source.match(/data-cy="calendar-pagination"/g)).toHaveLength(1);
-    expect(templateBlock(source, '@if (pageCount() > 1) {')).toContain('data-cy="calendar-pagination"');
+    expect(source.match(/data-cy="event-list-pagination"/g)).toHaveLength(1);
+    expect(templateBlock(source, '@if (pageCount() > 1) {')).toContain('data-cy="event-list-pagination"');
   });
 
   it('pagination appears past twenty', async () => {
@@ -830,8 +830,8 @@ describe('PublicEventListComponent list pagination', () => {
 
   it('the pagination nav exists in the list block only', () => {
     const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
-    const listIndex = source.indexOf('data-cy="calendar-list"');
-    const paginationIndex = source.indexOf('data-cy="calendar-pagination"');
+    const listIndex = source.indexOf('data-cy="event-list-list"');
+    const paginationIndex = source.indexOf('data-cy="event-list-pagination"');
     expect(listIndex).toBeGreaterThan(-1);
     expect(paginationIndex).toBeGreaterThan(listIndex);
 
@@ -851,15 +851,15 @@ describe('PublicEventListComponent day-cell events', () => {
     const cell = source.slice(cellStart, cellEnd);
 
     expect(cell).toContain('visibleDayEvents(day.date)');
-    expect(cell).toContain('calendar-month-day-event-');
+    expect(cell).toContain('event-list-month-day-event-');
   });
 
   it('the calendar tab lists nothing under the grid', () => {
     const calendarBlock = templateBlock(source, "@if (query().view === 'calendar') {");
 
-    expect(calendarBlock).not.toContain('data-cy="calendar-list"');
+    expect(calendarBlock).not.toContain('data-cy="event-list-list"');
     expect(calendarBlock).not.toContain('calendar-venue-date-');
-    expect(calendarBlock).not.toContain('data-cy="calendar-pagination"');
+    expect(calendarBlock).not.toContain('data-cy="event-list-pagination"');
   });
 
   it('the list tab keeps its list', () => {
@@ -868,8 +868,8 @@ describe('PublicEventListComponent day-cell events', () => {
     expect(elseStart).toBeGreaterThan(-1);
     const listBlock = templateBlock(source.slice(elseStart + 2), '@else {');
 
-    expect(listBlock).toContain('data-cy="calendar-list"');
-    expect(listBlock).toContain('data-cy="calendar-pagination"');
+    expect(listBlock).toContain('data-cy="event-list-list"');
+    expect(listBlock).toContain('data-cy="event-list-pagination"');
   });
 });
 
@@ -877,7 +877,7 @@ describe('PublicEventListComponent list card', () => {
   const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
   const cardTag = source.slice(source.indexOf('<article class="panel public-tournament-card"'), source.indexOf('>', source.indexOf('<article class="panel public-tournament-card"')));
-  const cardActions = source.slice(source.indexOf('data-cy="calendar-card-actions"'), source.indexOf('</article></ng-template>'));
+  const cardActions = source.slice(source.indexOf('data-cy="event-list-card-actions"'), source.indexOf('</article></ng-template>'));
 
   it('clicking the card navigates to the event page', async () => {
     const { component, navigate } = setup({ params: { view: 'list' } });
@@ -918,7 +918,7 @@ describe('PublicEventListComponent list card', () => {
   // The card handler sits on the ancestor: without stopPropagation, downloading the ICS or
   // following the title link would also fire the card's navigation.
   it('clicking add to calendar does not navigate', () => {
-    const icsMarker = cardActions.indexOf('data-cy="calendar-card-ics"');
+    const icsMarker = cardActions.indexOf('data-cy="event-list-card-ics"');
     const icsAnchor = cardActions.slice(cardActions.lastIndexOf('<a', icsMarker), cardActions.indexOf('</a>', icsMarker));
 
     expect(icsAnchor).toContain('(click)="$event.stopPropagation()"');
@@ -928,7 +928,7 @@ describe('PublicEventListComponent list card', () => {
   // Enter on the anchor bubbles as a keydown *before* the click it synthesises, so the click guard
   // alone would still let the card navigate the reader away from their download.
   it('keyboard activation of add to calendar does not navigate either', () => {
-    const icsMarker = cardActions.indexOf('data-cy="calendar-card-ics"');
+    const icsMarker = cardActions.indexOf('data-cy="event-list-card-ics"');
     const icsAnchor = cardActions.slice(cardActions.lastIndexOf('<a', icsMarker), cardActions.indexOf('</a>', icsMarker));
 
     expect(icsAnchor).toContain('(keydown.enter)="$event.stopPropagation()"');
@@ -936,42 +936,42 @@ describe('PublicEventListComponent list card', () => {
   });
 
   it('the title link stays and stops pointer plus keyboard card navigation', () => {
-    const titleStart = source.indexOf('data-cy="calendar-card-title"');
+    const titleStart = source.indexOf('data-cy="event-list-card-title"');
     const titleAnchor = source.slice(titleStart, source.indexOf('</h3>', titleStart));
 
-    expect(titleAnchor).toContain('data-cy="calendar-card-link"');
+    expect(titleAnchor).toContain('data-cy="event-list-card-link"');
     expect(titleAnchor).toContain('(click)="$event.stopPropagation()"');
     expect(titleAnchor).toContain('(keydown.enter)="$event.stopPropagation()"');
     expect(titleAnchor).toContain('(keydown.space)="$event.stopPropagation()"');
   });
 
   it('the view page button is gone', () => {
-    expect(source).not.toContain('data-cy="calendar-card-view"');
-    expect(cardActions).toContain('data-cy="calendar-card-ics"');
+    expect(source).not.toContain('data-cy="event-list-card-view"');
+    expect(cardActions).toContain('data-cy="event-list-card-ics"');
   });
 
   it('the standalone venue date is gone while differing viewer time stays', () => {
-    const cardBody = source.slice(source.indexOf('data-cy="calendar-card-body"'), source.indexOf('data-cy="calendar-card-venue"'));
+    const cardBody = source.slice(source.indexOf('data-cy="event-list-card-body"'), source.indexOf('data-cy="event-list-card-venue"'));
 
-    expect(cardBody).not.toContain('data-cy="calendar-card-date"');
+    expect(cardBody).not.toContain('data-cy="event-list-card-date"');
     expect(cardBody).not.toContain('date(item).primary');
-    expect(cardBody).toContain('data-cy="calendar-card-viewer-date"');
+    expect(cardBody).toContain('data-cy="event-list-card-viewer-date"');
   });
 
   it('removes the status and standalone date lines, then puts backend title and start time on one row', () => {
-    const cardBody = source.slice(source.indexOf('data-cy="calendar-card-body"'), source.indexOf('data-cy="calendar-card-actions"'));
+    const cardBody = source.slice(source.indexOf('data-cy="event-list-card-body"'), source.indexOf('data-cy="event-list-card-actions"'));
 
-    expect(cardBody).not.toContain('data-cy="calendar-card-status"');
-    expect(cardBody).not.toContain('data-cy="calendar-card-date"');
-    expect(cardBody).toContain('data-cy="calendar-card-heading"');
+    expect(cardBody).not.toContain('data-cy="event-list-card-status"');
+    expect(cardBody).not.toContain('data-cy="event-list-card-date"');
+    expect(cardBody).toContain('data-cy="event-list-card-heading"');
     expect(cardBody).toContain('item.displayTitle');
-    expect(cardBody).toContain('data-cy="calendar-card-start-time"');
+    expect(cardBody).toContain('data-cy="event-list-card-start-time"');
   });
 
   it('puts green Register beside Add to Calendar and guards pointer plus keyboard propagation', () => {
-    expect(cardActions).toContain('data-cy="calendar-card-register"');
+    expect(cardActions).toContain('data-cy="event-list-card-register"');
     expect(cardActions).toContain('registration-register-button');
-    const marker = cardActions.indexOf('data-cy="calendar-card-register"');
+    const marker = cardActions.indexOf('data-cy="event-list-card-register"');
     const button = cardActions.slice(cardActions.lastIndexOf('<button', marker), cardActions.indexOf('</button>', marker));
     expect(button).toContain('(click)="registerFromCard(item, $event)"');
     expect(button).toContain('(keydown.enter)="$event.stopPropagation()"');
@@ -1126,7 +1126,7 @@ describe('PublicEventListComponent past day cells', () => {
     const cell = source.slice(cellStart, source.indexOf('>', cellStart));
 
     expect(cell).toContain('[class.public-month-day--past]="isPast(day.date)"');
-    expect(cell).toContain(`[attr.data-cy]="isPast(day.date) ? 'calendar-month-day-past' : 'calendar-month-day'"`);
+    expect(cell).toContain(`[attr.data-cy]="isPast(day.date) ? 'event-list-month-day-past' : 'event-list-month-day'"`);
   });
 
   // Blanket `opacity` on the cell dragged every descendant below the AA contrast bar (axe
@@ -1161,11 +1161,11 @@ describe('PublicEventListComponent search match highlighting', () => {
     expect(parts.map(part => part.text).join('')).toBe(event.displayTitle);
     expect(parts.filter(part => part.highlighted)).toEqual([{ text: 'Lyon', highlighted: true }]);
 
-    const titleStart = source.indexOf('data-cy="calendar-card-title"');
+    const titleStart = source.indexOf('data-cy="event-list-card-title"');
     const title = source.slice(titleStart, source.indexOf('</h3>', titleStart));
     expect(title).toContain('@for (part of highlightParts(item.displayTitle); track $index)');
     expect(title).toContain('[class.match-highlight]="part.highlighted"');
-    expect(title).toContain(`[attr.data-cy]="'calendar-card-title-part-' + item.slug + '-' + $index"`);
+    expect(title).toContain(`[attr.data-cy]="'event-list-card-title-part-' + item.slug + '-' + $index"`);
   });
 
   it('the month cell title highlights the query', async () => {
@@ -1177,18 +1177,18 @@ describe('PublicEventListComponent search match highlighting', () => {
     component.setSearchDraft('lyon');
     expect(component.highlightParts(event.title).some(part => part.highlighted)).toBe(true);
 
-    const titleStart = source.indexOf('data-cy="calendar-month-day-event-title"');
+    const titleStart = source.indexOf('data-cy="event-list-month-day-event-title"');
     const title = source.slice(titleStart, source.indexOf('</span>', source.indexOf('</span>', titleStart) + 1));
     expect(title).toContain('@for (part of highlightParts(event.title); track $index)');
     expect(title).toContain('[class.match-highlight]="part.highlighted"');
-    expect(title).toContain(`[attr.data-cy]="'calendar-month-day-event-title-part-' + event.slug + '-' + $index"`);
+    expect(title).toContain(`[attr.data-cy]="'event-list-month-day-event-title-part-' + event.slug + '-' + $index"`);
   });
 
   it('the remaining venue and summary lines highlight too', () => {
     for (const field of ['venue', 'summary']) {
-      expect(source).toContain(`[attr.data-cy]="'calendar-card-${field}-part-' + item.slug + '-' + $index"`);
+      expect(source).toContain(`[attr.data-cy]="'event-list-card-${field}-part-' + item.slug + '-' + $index"`);
     }
-    expect(source).not.toContain("'calendar-card-date-part-'");
+    expect(source).not.toContain("'event-list-card-date-part-'");
   });
 
   // The query is user input: it reaches the DOM as interpolated text nodes only, never as HTML.

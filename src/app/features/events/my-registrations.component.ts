@@ -41,7 +41,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
     <ng-template #attemptCard let-attempt>
       <article class="panel registration-card" data-cy="registration-attempt">
         <div data-cy="registration-attempt-header"><p class="kicker" data-cy="registration-attempt-org">{{ attempt.organizationName }}</p><h3 data-cy="registration-attempt-title"><a [routerLink]="['/events', attempt.eventSlug]" data-cy="registration-attempt-link">{{ attempt.eventTitle }}</a></h3></div>
-        <dl data-cy="registration-attempt-details"><div data-cy="registration-attempt-venue-row"><dt data-cy="registration-attempt-venue-time-label">{{ i18n.t('calendar.venueTime') }}</dt><dd data-cy="registration-attempt-venue-time">{{ venueTime(attempt) }}</dd></div><div data-cy="registration-attempt-status-row"><dt data-cy="registration-attempt-status-label">{{ i18n.t('registration.status') }}</dt><dd data-cy="registration-attempt-status">{{ statusLabel(attempt.status) }}</dd></div></dl>
+        <dl data-cy="registration-attempt-details"><div data-cy="registration-attempt-venue-row"><dt data-cy="registration-attempt-venue-time-label">{{ i18n.t('event.venueTime') }}</dt><dd data-cy="registration-attempt-venue-time">{{ venueTime(attempt) }}</dd></div><div data-cy="registration-attempt-status-row"><dt data-cy="registration-attempt-status-label">{{ i18n.t('registration.status') }}</dt><dd data-cy="registration-attempt-status">{{ statusLabel(attempt.status) }}</dd></div></dl>
       </article>
     </ng-template>
   `

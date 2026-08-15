@@ -115,8 +115,8 @@ describe('Power User Event, League and Live gates', () => {
     visit('/events?view=list&month=2030-08', false);
 
     cy.wait('@publicEvents');
-    cy.get('[data-cy="calendar-card-register"]').should('be.visible');
-    cy.get('[data-cy="calendar-create-event"]').should('not.exist');
+    cy.get('[data-cy="event-card-register"]').should('be.visible');
+    cy.get('[data-cy="event-create-event"]').should('not.exist');
   });
 
   it('keeps an anonymous local Live detail readable while mutations are off', () => {

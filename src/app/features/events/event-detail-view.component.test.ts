@@ -64,14 +64,14 @@ describe('EventDetailViewComponent hero', () => {
   });
 
   it('renders localized singular, plural and unlimited player counts beside the heading', () => {
-    expect(translate('en', 'calendar.playerCount', { count: 1 })).toBe('1 player');
-    expect(translate('en', 'calendar.playerCountPlural', { count: 32 })).toBe('32 players');
-    expect(translate('fr', 'calendar.playerCount', { count: 1 })).toBe('1 joueur');
-    expect(translate('fr', 'calendar.playerCountPlural', { count: 32 })).toBe('32 joueurs');
+    expect(translate('en', 'event.playerCount', { count: 1 })).toBe('1 player');
+    expect(translate('en', 'event.playerCountPlural', { count: 32 })).toBe('32 players');
+    expect(translate('fr', 'event.playerCount', { count: 1 })).toBe('1 joueur');
+    expect(translate('fr', 'event.playerCountPlural', { count: 32 })).toBe('32 joueurs');
     expect(title).toContain('data-cy="event-detail-player-count"');
     expect(title).toContain('{{ playerCount() }}');
-    expect(build({ capacity: 1 }).playerCount()).toBe(translate('fr', 'calendar.playerCount', { count: 1 }));
-    expect(build({ capacity: 32 }).playerCount()).toBe(translate('fr', 'calendar.playerCountPlural', { count: 32 }));
+    expect(build({ capacity: 1 }).playerCount()).toBe(translate('fr', 'event.playerCount', { count: 1 }));
+    expect(build({ capacity: 32 }).playerCount()).toBe(translate('fr', 'event.playerCountPlural', { count: 32 }));
     expect(build({ capacity: undefined }).playerCount()).toBe(translate('fr', 'registration.unlimited'));
   });
 
@@ -99,7 +99,7 @@ describe('EventDetailViewComponent hero', () => {
     expect(link).toContain('[href]="url"');
     expect(link).toContain('target="_blank"');
     expect(link).toContain('rel="noopener noreferrer"');
-    expect(link).toContain(`i18n.t('calendar.openInMaps', { address: venue() })`);
+    expect(link).toContain(`i18n.t('event.openInMaps', { address: venue() })`);
     expect(link).toContain('class="maps-icon"');
     expect(link).toContain('aria-hidden="true"');
     expect(stylesheet).toContain('.maps-icon {');

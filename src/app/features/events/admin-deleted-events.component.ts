@@ -29,7 +29,7 @@ import { I18nService } from '../../i18n/i18n.service';
             </mat-card-content></mat-card>
           }
         </div>
-        <nav class="pager" data-cy="deleted-events-pager" [attr.aria-label]="i18n.t('calendar.pagesAria')"><button mat-stroked-button type="button" data-cy="deleted-events-page-previous" [disabled]="page() <= 1 || !!pendingId()" (click)="goPage(page() - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="deleted-events-page">{{ page() }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="deleted-events-page-next" [disabled]="page() >= pages() || !!pendingId()" (click)="goPage(page() + 1)">{{ i18n.t('common.next') }}</button></nav>
+        <nav class="pager" data-cy="deleted-events-pager" [attr.aria-label]="i18n.t('event.pagesAria')"><button mat-stroked-button type="button" data-cy="deleted-events-page-previous" [disabled]="page() <= 1 || !!pendingId()" (click)="goPage(page() - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="deleted-events-page">{{ page() }} / {{ pages() }}</span><button mat-stroked-button type="button" data-cy="deleted-events-page-next" [disabled]="page() >= pages() || !!pendingId()" (click)="goPage(page() + 1)">{{ i18n.t('common.next') }}</button></nav>
       }
       @if (status()) { <p role="status" data-cy="deleted-events-status">{{ status() }}</p> }
     </section>

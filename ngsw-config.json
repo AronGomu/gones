@@ -18,7 +18,7 @@
   ],
   "dataGroups": [
     {
-      "name": "public-calendar-reads",
+      "name": "public-event-reads",
       "version": 1,
       "urls": [
         "/api/events$",

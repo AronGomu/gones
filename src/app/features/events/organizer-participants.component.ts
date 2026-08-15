@@ -122,7 +122,7 @@ export class ParticipantBlockDialogComponent {
                 </mat-card-content></mat-card>
               }
             </div>
-            <nav class="pager" data-cy="participant-pager" [attr.aria-label]="i18n.t('calendar.pagesAria')"><button mat-stroked-button type="button" data-cy="participant-page-previous" [disabled]="participantPage() <= 1 || !!pending()" (click)="goPage(participantPage() - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="participant-page">{{ i18n.t('participants.page', { page: participantPage(), pages: participantPages() }) }}</span><button mat-stroked-button type="button" data-cy="participant-page-next" [disabled]="participantPage() >= participantPages() || !!pending()" (click)="goPage(participantPage() + 1)">{{ i18n.t('common.next') }}</button></nav>
+            <nav class="pager" data-cy="participant-pager" [attr.aria-label]="i18n.t('event.pagesAria')"><button mat-stroked-button type="button" data-cy="participant-page-previous" [disabled]="participantPage() <= 1 || !!pending()" (click)="goPage(participantPage() - 1)">{{ i18n.t('common.previous') }}</button><span data-cy="participant-page">{{ i18n.t('participants.page', { page: participantPage(), pages: participantPages() }) }}</span><button mat-stroked-button type="button" data-cy="participant-page-next" [disabled]="participantPage() >= participantPages() || !!pending()" (click)="goPage(participantPage() + 1)">{{ i18n.t('common.next') }}</button></nav>
           }
         </section>
 

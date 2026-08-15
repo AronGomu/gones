@@ -17,7 +17,7 @@ interface CacheEntry<T> {
   data: T;
 }
 
-const CACHE_PREFIX = 'gones.calendar-v1.cache.';
+const CACHE_PREFIX = 'gones.events.cache.';
 
 @Injectable({ providedIn: 'root' })
 export class PublicEventService {

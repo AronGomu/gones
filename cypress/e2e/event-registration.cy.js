@@ -29,7 +29,7 @@ function seedStorage(win) {
   win.localStorage.setItem('gones.first-visit.completed', 'true');
   win.localStorage.setItem('gones.settings.language', 'fr');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'fr', deckArchetypes: [] }));
-  win.localStorage.removeItem('gones.calendar-v1.all-tournaments');
+  win.localStorage.removeItem('gones.events.catalog');
   win.localStorage.setItem(SEED_MARKER, 'true');
 }
 
@@ -78,10 +78,10 @@ describe('public participant registration', () => {
     }).as('calendarRegister');
 
     visit('/events?view=list');
-    cy.get('[data-cy="calendar-card-status"], [data-cy="calendar-card-date"]').should('not.exist');
-    cy.get('[data-cy="calendar-card-title"]').should('contain.text', event.displayTitle);
-    cy.get('[data-cy="calendar-card-start-time"]').should('contain.text', '10:00');
-    cy.get('[data-cy="calendar-card-register"]').click();
+    cy.get('[data-cy="event-card-status"], [data-cy="event-card-date"]').should('not.exist');
+    cy.get('[data-cy="event-card-title"]').should('contain.text', event.displayTitle);
+    cy.get('[data-cy="event-card-start-time"]').should('contain.text', '10:00');
+    cy.get('[data-cy="event-card-register"]').click();
     cy.location('pathname').should('eq', '/login');
     cy.location('search').should('contain', encodeURIComponent(returnUrl));
     cy.get('[data-cy="login-register-link"]').click();
@@ -122,8 +122,8 @@ describe('public participant registration', () => {
 
     visit('/events?view=list&register=lyon-legacy');
 
-    cy.get('[data-cy="calendar-registration-message"]').should('contain.text', 'complet');
-    cy.get('[data-cy="calendar-card-register"]').should('not.exist');
+    cy.get('[data-cy="event-registration-message"]').should('contain.text', 'complet');
+    cy.get('[data-cy="event-card-register"]').should('not.exist');
     cy.get('mat-dialog-container').should('not.exist');
     cy.get('@calendarRegister.all').should('have.length', 0);
     cy.location('search').should('not.contain', 'register=');

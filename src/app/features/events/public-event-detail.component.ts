@@ -31,9 +31,9 @@ import { EventDetailViewComponent } from './event-detail-view.component';
   template: `
     <gones-back-button data-cy="public-event-detail-back-top" [link]="['/events']" [label]="i18n.t('nav.backToEvents')" position="top" />
     <gones-offline-banner data-cy="public-event-detail-offline-banner" [stale]="stale()" [cachedAt]="cachedAt()" />
-    @if (loading()) { <section class="panel event-section calendar-detail-skeleton" aria-busy="true" data-cy="calendar-loading"><div data-cy="calendar-loading-line-1"></div><div data-cy="calendar-loading-line-2"></div><div data-cy="calendar-loading-line-3"></div></section> }
-    @else if (error()) { <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h1 data-cy="calendar-error-title">{{ i18n.t('calendar.detailLoadFailed') }}</h1><button mat-stroked-button type="button" data-cy="calendar-error-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></section> }
-    @else if (notFound()) { <section class="panel calendar-state" data-cy="calendar-not-found"><h1 data-cy="calendar-not-found-title">{{ i18n.t('event.notFoundTitle') }}</h1><p data-cy="calendar-not-found-body">{{ i18n.t('event.notFoundBody') }}</p></section> }
+    @if (loading()) { <section class="panel event-section calendar-detail-skeleton" aria-busy="true" data-cy="event-loading"><div data-cy="event-loading-line-1"></div><div data-cy="event-loading-line-2"></div><div data-cy="event-loading-line-3"></div></section> }
+    @else if (error()) { <section class="panel calendar-state" role="alert" data-cy="event-error"><h1 data-cy="event-error-title">{{ i18n.t('event.detailLoadFailed') }}</h1><button mat-stroked-button type="button" data-cy="event-error-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></section> }
+    @else if (notFound()) { <section class="panel calendar-state" data-cy="event-not-found"><h1 data-cy="event-not-found-title">{{ i18n.t('event.notFoundTitle') }}</h1><p data-cy="event-not-found-body">{{ i18n.t('event.notFoundBody') }}</p></section> }
     @else if (event(); as item) {
       <div class="stack" data-cy="public-event-detail">
         <gones-event-detail-view data-cy="public-event-detail-view" [event]="item" [icsUrl]="service.icsUrl(item.slug)" [showIcsAction]="false" />
@@ -42,7 +42,7 @@ import { EventDetailViewComponent } from './event-detail-view.component';
           <div class="public-participants__header" data-cy="public-participants-header">
             <h2 id="participants-title" data-cy="public-participants-title">{{ i18n.t('registration.participants') }}</h2>
             <div class="public-participants__header-actions" data-cy="public-participants-header-actions">
-              <a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="registration-ics">{{ i18n.t('calendar.addToCalendar') }}</a>
+              <a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="registration-ics">{{ i18n.t('event.addToCalendar') }}</a>
               @if (auth.enabled && !auth.profile()) {
                 <a mat-flat-button class="home-primary-action" routerLink="/login" [queryParams]="{ returnUrl: currentPath() }" data-cy="registration-login">{{ i18n.t('auth.signIn') }}</a>
               }

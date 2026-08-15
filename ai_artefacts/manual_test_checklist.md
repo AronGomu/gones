@@ -157,4 +157,13 @@
 - [ ] Open `/registrations` (signed in) — My Registrations page renders.
 - [ ] Open `/admin/events/deleted` (signed in as admin) — deleted events page renders.
 - [ ] Check browser DevTools Network tab: no 404 for any `features/` chunk import.
-- [ ] Confirm localStorage key for the event catalog cache is still `gones.calendar-v1.all-tournaments` (unchanged — T3 will rename it).
+- [x] localStorage key `gones.calendar-v1.all-tournaments` renamed to `gones.events.catalog` by T3.
+
+## T3 event-rename-identifiers
+
+- [ ] Start `npm run dev`, open `/events` in a browser that already has `gones.calendar-v1.all-tournaments` in localStorage — the page loads from the network, writes `gones.events.catalog` to localStorage, and the old key is never read again.
+- [ ] Switch language to French on `/events` and back to English — every string still resolves; no raw key is rendered.
+- [ ] Check localStorage in DevTools: key `gones.events.catalog` exists; `gones.calendar-v1.all-tournaments` does not.
+- [ ] Sync the event list (click Synchronise) — page refreshes data and `gones.events.catalog` is written with the view preference in `gones.events.view`.
+- [ ] Open an event detail page — all strings render correctly (no raw `event.*` key visible).
+- [ ] Open `/events` as a non-logged-in user — offline banner and stale indicator work if offline.

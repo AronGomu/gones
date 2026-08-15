@@ -43,9 +43,9 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
             <h1 id="event-request-title" data-cy="event-request-title">{{ review.event.title }}</h1>
             <p data-cy="event-request-submitted-by">{{ i18n.t('proposal.submittedBy', { username: review.submittedByUsername }) }}</p>
             <dl class="tournament-request-facts" data-cy="event-request-facts">
-              <dt data-cy="event-request-fact-organization-label">{{ i18n.t('calendar.organization') }}</dt>
+              <dt data-cy="event-request-fact-organization-label">{{ i18n.t('event.organization') }}</dt>
               <dd data-cy="event-request-fact-organization">{{ review.organizationName || '—' }}</dd>
-              <dt data-cy="event-request-fact-formats-label">{{ i18n.t('calendar.format') }}</dt>
+              <dt data-cy="event-request-fact-formats-label">{{ i18n.t('event.format') }}</dt>
               <dd data-cy="event-request-fact-formats">{{ review.formatNames.join(', ') }}</dd>
               <dt data-cy="event-request-fact-venue-label">{{ i18n.t('common.location') }}</dt>
               <dd data-cy="event-request-fact-venue">{{ venueLine(review) }}</dd>
@@ -55,7 +55,7 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dd data-cy="event-request-fact-ends">{{ review.event.endsAtLocal || '—' }}</dd>
               <dt data-cy="event-request-fact-timezone-label">{{ i18n.t('eventCreate.zone') }}</dt>
               <dd data-cy="event-request-fact-timezone">{{ review.event.timeZoneId }}</dd>
-              <dt data-cy="event-request-fact-capacity-label">{{ i18n.t('calendar.capacity') }}</dt>
+              <dt data-cy="event-request-fact-capacity-label">{{ i18n.t('event.capacity') }}</dt>
               <dd data-cy="event-request-fact-capacity">{{ review.event.capacity ?? '—' }}</dd>
               <dt data-cy="event-request-fact-summary-label">{{ i18n.t('eventCreate.summary') }}</dt>
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
@@ -81,7 +81,7 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
             <h1 data-cy="event-request-approved-title">{{ i18n.t('proposal.approvedTitle') }}</h1>
             <p data-cy="event-request-approved-body">{{ i18n.t('proposal.approvedBody') }}</p>
             @if (slug()) {
-              <a mat-flat-button class="home-primary-action" [routerLink]="['/events', slug()]" data-cy="event-request-approved-link">{{ i18n.t('calendar.title') }}</a>
+              <a mat-flat-button class="home-primary-action" [routerLink]="['/events', slug()]" data-cy="event-request-approved-link">{{ i18n.t('event.title') }}</a>
             }
           </section>
         }

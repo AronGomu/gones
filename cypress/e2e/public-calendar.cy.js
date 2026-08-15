@@ -81,33 +81,33 @@ describe('public Calendar V1', () => {
     visit('/events?month=2026-08&q=Lyon');
     cy.wait('@allEvents');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
-    cy.get('[data-cy="calendar-view"]').should('have.attr', 'aria-pressed', 'true');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="calendar-month-day"]').within(() => {
-      cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]')
+    cy.get('[data-cy="event-list-view"]').should('have.attr', 'aria-pressed', 'true');
+    cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="event-list-month-day"]').within(() => {
+      cy.get('[data-cy="event-list-month-day-event-lyon-legacy"]')
         .should('contain.text', '23:30')
         .and('contain.text', 'Lyon Legacy')
         .and('have.attr', 'href', '/events/lyon-legacy');
     });
-    cy.get('[data-cy="calendar-search"]').clear().type('does-not-match');
-    cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('not.exist');
-    cy.get('[data-cy="calendar-search"]').clear().type('Lyon');
-    cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('exist');
+    cy.get('[data-cy="event-list-search"]').clear().type('does-not-match');
+    cy.get('[data-cy="event-list-month-day-event-lyon-legacy"]').should('not.exist');
+    cy.get('[data-cy="event-list-search"]').clear().type('Lyon');
+    cy.get('[data-cy="event-list-month-day-event-lyon-legacy"]').should('exist');
 
     cy.get('[data-cy="list-view"]').click();
     cy.location('search').should('contain', 'view=list');
-    cy.get('[data-cy="calendar-list"]').should('be.visible');
-    cy.get('[data-cy="calendar-card-status"]').should('contain.text', 'Cancelled');
+    cy.get('[data-cy="event-list-list"]').should('be.visible');
+    cy.get('[data-cy="event-list-card-status"]').should('contain.text', 'Cancelled');
     // A reload within the 24h cache TTL must not refetch: the alias stays at one call.
     visit('/events?month=2026-08');
     cy.get('[data-cy="list-view"]').should('have.attr', 'aria-pressed', 'true');
     cy.get('@allEvents.all').should('have.length', 1);
 
-    cy.get('[data-cy="calendar-search"]').type('zzzzzz-does-not-match');
+    cy.get('[data-cy="event-list-search"]').type('zzzzzz-does-not-match');
     // This line used to assert `public-month-grid` did not exist. The view was switched to list four
     // lines earlier, where the grid cannot exist however the filter behaves, so the assertion held for
     // any implementation. What the filter is actually responsible for is the card going away.
     cy.get('[data-cy="event-lyon-legacy"]').should('not.exist');
-    cy.get('[data-cy="calendar-empty"]').should('be.visible');
+    cy.get('[data-cy="event-list-empty"]').should('be.visible');
     cy.get('@allEvents.all').should('have.length', 1);
   });
 
@@ -117,7 +117,7 @@ describe('public Calendar V1', () => {
   it('navigates months over the cached catalog without re-querying the API', () => {
     visit('/events?month=2026-08&view=calendar');
     cy.wait('@allEvents');
-    cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('be.visible');
+    cy.get('[data-cy="event-list-month-day-event-lyon-legacy"]').should('be.visible');
 
     // The witness that the grid moved is locale-independent by construction: the day cell's
     // `datetime` attribute is the machine-readable ISO date and is never translated, where the month
@@ -125,15 +125,15 @@ describe('public Calendar V1', () => {
     // moving is not a claim about translation, and this way the test cannot break when it does not.
     // A mid-month day is picked because it is always in-month, never a muted leading/trailing cell
     // borrowed from a neighbouring month.
-    cy.get('[data-cy="calendar-month-next"]').click();
+    cy.get('[data-cy="event-list-month-next"]').click();
     cy.location('search').should('contain', 'month=2026-09');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('exist');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('not.exist');
+    cy.get('[data-cy="event-list-month-day-date"][datetime="2026-09-15"]').should('exist');
+    cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-15"]').should('not.exist');
 
-    cy.get('[data-cy="calendar-month-prev"]').click();
+    cy.get('[data-cy="event-list-month-prev"]').click();
     cy.location('search').should('contain', 'month=2026-08');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('exist');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('not.exist');
+    cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-15"]').should('exist');
+    cy.get('[data-cy="event-list-month-day-date"][datetime="2026-09-15"]').should('not.exist');
 
     cy.get('@allEvents.all').should('have.length', 1);
   });
@@ -152,21 +152,21 @@ describe('public Calendar V1', () => {
 
     // Scrolled as deep as a reader can be and still see the control they are about to click; the
     // offset keeps the control clear of the sticky app toolbar.
-    cy.get('[data-cy="calendar-month-next"]').scrollIntoView({ offset: { top: -180, left: 0 } });
+    cy.get('[data-cy="event-list-month-next"]').scrollIntoView({ offset: { top: -180, left: 0 } });
     cy.window().its('scrollY').should('be.greaterThan', 100);
     cy.window().then(win => {
       const before = win.scrollY;
       // `scrollBehavior: false` keeps Cypress from scrolling the button into view itself, which would
       // move the page between the reading of `before` and the click that is under test.
-      cy.get('[data-cy="calendar-month-next"]').click({ scrollBehavior: false });
-      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-09-15"]').should('exist');
+      cy.get('[data-cy="event-list-month-next"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="event-list-month-day-date"][datetime="2026-09-15"]').should('exist');
       // A retrying assertion would pass on the frame before the router scrolls to the top; the wait
       // makes the check read the settled position instead.
       cy.wait(500);
       cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
 
-      cy.get('[data-cy="calendar-month-prev"]').click({ scrollBehavior: false });
-      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('exist');
+      cy.get('[data-cy="event-list-month-prev"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-15"]').should('exist');
       cy.wait(500);
       cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
     });
@@ -179,17 +179,17 @@ describe('public Calendar V1', () => {
     cy.wait('@emptyCatalog');
     cy.get('[data-cy="public-month-grid"]').should('be.visible');
 
-    cy.get('[data-cy="calendar-month-prev"]').scrollIntoView({ offset: { top: -180, left: 0 } });
+    cy.get('[data-cy="event-list-month-prev"]').scrollIntoView({ offset: { top: -180, left: 0 } });
     cy.window().its('scrollY').should('be.greaterThan', 100);
     cy.window().then(win => {
       const before = win.scrollY;
-      cy.get('[data-cy="calendar-month-prev"]').click({ scrollBehavior: false });
-      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-07-15"]').should('exist');
+      cy.get('[data-cy="event-list-month-prev"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="event-list-month-day-date"][datetime="2026-07-15"]').should('exist');
       cy.wait(500);
       cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
 
-      cy.get('[data-cy="calendar-month-next"]').click({ scrollBehavior: false });
-      cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-15"]').should('exist');
+      cy.get('[data-cy="event-list-month-next"]').click({ scrollBehavior: false });
+      cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-15"]').should('exist');
       cy.wait(500);
       cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
     });
@@ -206,9 +206,9 @@ describe('public Calendar V1', () => {
 
     visit('/events?month=2026-08&view=calendar');
     cy.wait('@sameDay');
-    cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="calendar-month-day"]').within(() => {
+    cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="event-list-month-day"]').within(() => {
       cy.get('a.public-month-event').should('have.length', 3);
-      cy.get('[data-cy="calendar-month-day-more"]').should('contain.text', '+1');
+      cy.get('[data-cy="event-list-month-day-more"]').should('contain.text', '+1');
     });
   });
 
@@ -274,19 +274,19 @@ describe('public Calendar V1', () => {
 
     visit('/events?month=2026-08&view=list');
     cy.wait('@allEvents');
-    cy.get('[data-cy="calendar-card-view"]').should('not.exist');
-    cy.get('[data-cy="calendar-card-date"]').should('not.contain.text', 'Europe/Paris').and('not.contain.text', '(');
+    cy.get('[data-cy="event-list-card-view"]').should('not.exist');
+    cy.get('[data-cy="event-list-card-date"]').should('not.contain.text', 'Europe/Paris').and('not.contain.text', '(');
 
-    cy.get('[data-cy="calendar-card-ics"]').click();
+    cy.get('[data-cy="event-list-card-ics"]').click();
     cy.wait('@ics');
     cy.location('pathname').should('eq', '/events');
-    cy.get('[data-cy="calendar-list"]').should('be.visible');
+    cy.get('[data-cy="event-list-list"]').should('be.visible');
 
     // Enter on the button reaches the card as a keydown before the click it synthesises.
-    cy.get('[data-cy="calendar-card-ics"]').focus().trigger('keydown', { key: 'Enter' });
+    cy.get('[data-cy="event-list-card-ics"]').focus().trigger('keydown', { key: 'Enter' });
     cy.location('pathname').should('eq', '/events');
 
-    cy.get('[data-cy="calendar-card-venue"]').click();
+    cy.get('[data-cy="event-list-card-venue"]').click();
     cy.location('pathname').should('eq', '/events/lyon-legacy');
     cy.wait('@detail');
     cy.get('[data-cy="public-event-detail"]').should('be.visible');
@@ -297,23 +297,23 @@ describe('public Calendar V1', () => {
     visit('/events?month=2026-08');
     cy.wait('@empty');
     cy.get('[data-cy="public-month-grid"]').should('be.visible');
-    cy.get('[data-cy="calendar-empty"]').should('be.visible');
+    cy.get('[data-cy="event-list-empty"]').should('be.visible');
   });
 
   it('shows a retryable error panel when the catalog fetch fails', () => {
     cy.intercept('GET', '**/api/events/all*', { statusCode: 503, body: { title: 'Unavailable' } }).as('failed');
     visit('/events?month=2026-09');
     cy.wait('@failed');
-    cy.get('[data-cy="calendar-error"]').find('button').should('be.visible');
+    cy.get('[data-cy="event-list-error"]').find('button').should('be.visible');
   });
 
   it('Synchroniser forces a refetch', () => {
     visit('/events?month=2026-08');
     cy.wait('@allEvents');
-    cy.get('[data-cy="calendar-sync"]').click();
+    cy.get('[data-cy="event-list-sync"]').click();
     cy.wait('@allEvents');
     cy.get('@allEvents.all').should('have.length', 2);
-    cy.get('[data-cy="calendar-synced-at"]').should('be.visible');
+    cy.get('[data-cy="event-list-synced-at"]').should('be.visible');
   });
 
   // The search query and the event title both reach the DOM as interpolated text nodes: the
@@ -330,20 +330,20 @@ describe('public Calendar V1', () => {
 
     visit('/events?month=2026-08&view=calendar');
     cy.wait('@markupEvent');
-    cy.get('[data-cy="calendar-search"]').type('Lyon');
-    cy.get('[data-cy^="calendar-month-day-event-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
+    cy.get('[data-cy="event-list-search"]').type('Lyon');
+    cy.get('[data-cy^="event-list-month-day-event-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
 
     // The list view is entered through the URL rather than the tab: the tab click navigates with the
     // query the debounce has committed so far, which would drop a query typed under 300ms ago.
     visit('/events?month=2026-08&view=list&q=Lyon');
-    cy.get('[data-cy="calendar-card-title"]').should('have.text', markupTitle);
-    cy.get('[data-cy="calendar-card-title"] img').should('not.exist');
-    cy.get('[data-cy^="calendar-card-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
-    cy.get('[data-cy^="calendar-card-venue-part-lyon-legacy-"].match-highlight').should('exist');
+    cy.get('[data-cy="event-list-card-title"]').should('have.text', markupTitle);
+    cy.get('[data-cy="event-list-card-title"] img').should('not.exist');
+    cy.get('[data-cy^="event-list-card-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
+    cy.get('[data-cy^="event-list-card-venue-part-lyon-legacy-"].match-highlight').should('exist');
 
-    cy.get('[data-cy="calendar-search"]').clear().type('<img src=x onerror=alert(1)>');
-    cy.get('[data-cy="calendar-card-title"]').should('have.text', markupTitle);
-    cy.get('[data-cy="calendar-card-title"] img').should('not.exist');
+    cy.get('[data-cy="event-list-search"]').clear().type('<img src=x onerror=alert(1)>');
+    cy.get('[data-cy="event-list-card-title"]').should('have.text', markupTitle);
+    cy.get('[data-cy="event-list-card-title"] img').should('not.exist');
     cy.get('[data-cy="public-calendar"] img').should('not.exist');
   });
 
@@ -360,13 +360,13 @@ describe('public Calendar V1', () => {
     visit('/events?month=2026-08&view=list');
     cy.wait('@manyEvents');
     cy.get('[data-cy^="event-item-"]').should('have.length', 20);
-    cy.get('[data-cy="calendar-pagination"]').should('be.visible');
+    cy.get('[data-cy="event-list-pagination"]').should('be.visible');
 
-    cy.get('[data-cy="calendar-page-next"]').click();
+    cy.get('[data-cy="event-list-page-next"]').click();
     cy.location('search').should('contain', 'page=2');
     cy.get('[data-cy^="event-item-"]').should('have.length', 5);
 
-    cy.get('[data-cy="calendar-search"]').type('Event');
+    cy.get('[data-cy="event-list-search"]').type('Event');
     cy.location('search', { timeout: 5000 }).should('not.contain', 'page=');
   });
 });
