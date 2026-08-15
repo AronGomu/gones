@@ -17,7 +17,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           <h1 id="about-title" data-cy="about-hero-title" data-reveal style="--reveal-delay: 70ms">{{ i18n.t('about.hero.title') }}</h1>
           <p class="about-hero__lede" data-cy="about-hero-lede" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.hero.lede') }}</p>
           <div class="info-actions" data-cy="about-hero-actions" data-reveal style="--reveal-delay: 210ms">
-            <a mat-flat-button class="home-primary-action" routerLink="/calendar" data-cy="about-hero-calendar-link">{{ i18n.t('about.hero.calendar') }}</a>
+            <a mat-flat-button class="home-primary-action" routerLink="/events" data-cy="about-hero-calendar-link">{{ i18n.t('about.hero.calendar') }}</a>
             <a mat-stroked-button class="secondary-action" routerLink="/about" fragment="equipe" data-cy="about-hero-team-link">{{ i18n.t('about.hero.team') }}</a>
           </div>
         </div>
@@ -52,7 +52,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           <h2 id="weekly-title" data-cy="about-weekly-title">{{ i18n.t('about.weekly.title') }}</h2>
           <p data-cy="about-weekly-body">{{ i18n.t('about.weekly.body') }}</p>
         </div>
-        <a mat-stroked-button class="secondary-action" routerLink="/calendar" data-cy="about-weekly-calendar-link" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.weekly.calendar') }}</a>
+        <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-weekly-calendar-link" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.weekly.calendar') }}</a>
       </section>
 
       <section class="about-events" data-cy="about-events" aria-labelledby="events-title">
@@ -135,7 +135,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           <h2 id="contact-title" data-cy="about-contact-title">{{ i18n.t('about.contact.title') }}</h2>
           <p data-cy="about-contact-body">{{ i18n.t('about.contact.body') }}</p>
           <div class="info-actions" data-cy="about-contact-actions">
-            <a mat-flat-button class="home-primary-action" routerLink="/calendar" data-cy="about-contact-calendar-link">{{ i18n.t('about.contact.calendar') }}</a>
+            <a mat-flat-button class="home-primary-action" routerLink="/events" data-cy="about-contact-calendar-link">{{ i18n.t('about.contact.calendar') }}</a>
           </div>
         </div>
         <address class="about-contact__details" data-cy="about-contact-details">

@@ -83,7 +83,7 @@ describe('accessibility', () => {
   });
 
   it('public calendar list and calendar views have no WCAG A/AA violations', () => {
-    visit('/calendar');
+    visit('/events');
     cy.wait('@events');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     checkA11y('calendar (month view)');
@@ -113,7 +113,7 @@ describe('accessibility', () => {
   });
 
   it('every calendar filter control has a programmatic name', () => {
-    visit('/calendar');
+    visit('/events');
     cy.wait('@events');
     cy.get('[data-cy="calendar-search-row"]').find('input, select, textarea').each(($control) => {
       const element = $control[0];
@@ -128,7 +128,7 @@ describe('accessibility', () => {
   });
 
   it('keyboard alone reaches and operates the calendar view toggle', () => {
-    visit('/calendar');
+    visit('/events');
     cy.wait('@events');
 
     cy.get('[data-cy="list-view"]').focus();
@@ -139,7 +139,7 @@ describe('accessibility', () => {
   });
 
   it('no element is reachable by keyboard while hidden from assistive technology', () => {
-    visit('/calendar');
+    visit('/events');
     cy.wait('@events');
     cy.get('body').find('[aria-hidden="true"]').each(($hidden) => {
       const focusable = Cypress.$($hidden).find('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
@@ -151,7 +151,7 @@ describe('accessibility', () => {
     cy.intercept('GET', '**/api/events/all*', (request) => {
       request.reply({ delay: 400, body: { items: [event], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false } });
     }).as('slowEvents');
-    visit('/calendar');
+    visit('/events');
     cy.get('[data-cy="calendar-loading"]')
       .should('have.attr', 'aria-busy', 'true')
       .and('have.attr', 'aria-live');
@@ -160,7 +160,7 @@ describe('accessibility', () => {
   });
 
   it('has no horizontal overflow at 375px on the public surfaces', () => {
-    for (const path of ['/', '/calendar', '/events/lyon-legacy', '/settings']) {
+    for (const path of ['/', '/events', '/events/lyon-legacy', '/settings']) {
       visit(path, [375, 812]);
       cy.get('gones-root').should('exist');
       cy.document().then((document) => {
@@ -171,7 +171,7 @@ describe('accessibility', () => {
   });
 
   it('public surfaces pass axe at 375px too', () => {
-    visit('/calendar', [375, 812]);
+    visit('/events', [375, 812]);
     cy.wait('@events');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     checkA11y('calendar @375px');

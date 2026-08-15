@@ -4,12 +4,12 @@ import { canonicalDevHostUrl } from './dev-host';
 
 describe('canonicalDevHostUrl', () => {
   it('moves a localhost page to the API loopback host so the refresh cookie is sent', () => {
-    expect(canonicalDevHostUrl('http://localhost:4200/calendar?view=list#today', 'http://127.0.0.1:5080', false))
-      .toBe('http://127.0.0.1:4200/calendar?view=list#today');
+    expect(canonicalDevHostUrl('http://localhost:4200/events?view=list#today', 'http://127.0.0.1:5080', false))
+      .toBe('http://127.0.0.1:4200/events?view=list#today');
   });
 
   it('leaves a page already on the API host alone', () => {
-    expect(canonicalDevHostUrl('http://127.0.0.1:4200/calendar', 'http://127.0.0.1:5080', false)).toBeUndefined();
+    expect(canonicalDevHostUrl('http://127.0.0.1:4200/events', 'http://127.0.0.1:5080', false)).toBeUndefined();
   });
 
   it('never redirects a production build', () => {

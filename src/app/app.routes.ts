@@ -45,14 +45,14 @@ const adminRoutes: Routes = [
 ];
 
 /**
- * Calendar V1. `/calendar` browses, `/events/:slug` is the canonical Event page (ADR 0035); the
- * retired `/calendar/tournaments/:slug` path stays as a permanent redirect so bookmarks survive.
+ * Events V2. `/events` browses the Event list and calendar view, `/events/:slug` is the canonical
+ * Event page. `/calendar` and `/calendar/tournaments/:slug` are removed with no redirect alias —
+ * stale bookmarks hit the 404 page (ADR 0038 supersedes the redirect clause of ADR 0035).
  */
-export function calendarRoutes(): Routes {
+export function eventRoutes(): Routes {
   return [
-    { path: 'calendar', loadComponent: () => import('./features/calendar/public-calendar.component').then((m) => m.PublicCalendarComponent) },
-    { path: 'events/:slug', loadComponent: () => import('./features/calendar/public-event-detail.component').then((m) => m.PublicEventDetailComponent) },
-    { path: 'calendar/tournaments/:slug', pathMatch: 'full', redirectTo: ({ params }) => `/events/${encodeURIComponent(String(params['slug'] ?? ''))}` }
+    { path: 'events', loadComponent: () => import('./features/calendar/public-calendar.component').then((m) => m.PublicCalendarComponent) },
+    { path: 'events/:slug', loadComponent: () => import('./features/calendar/public-event-detail.component').then((m) => m.PublicEventDetailComponent) }
   ];
 }
 
@@ -88,7 +88,7 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
     { path: 'about', canActivate: [markVisitedGuard], loadComponent: () => import('./features/menu/about.component').then((m) => m.AboutComponent) },
     // Spread before the calendar routes: `events/new` has to match ahead of `events/:slug`.
     ...(authV1 ? registrationAndOrganizerRoutes : []),
-    ...calendarRoutes(),
+    ...eventRoutes(),
     { path: 'event-requests/:token', loadComponent: () => import('./features/calendar/event-request.component').then((m) => m.EventRequestComponent) },
     { path: 'tournament-requests/:token', pathMatch: 'full', redirectTo: ({ params }) => `/event-requests/${encodeURIComponent(String(params['token'] ?? ''))}` },
     { path: 'leagues-archive', loadComponent: () => import('./features/leagues-archive/league-archive-list.component').then((m) => m.LeagueArchiveListComponent) },

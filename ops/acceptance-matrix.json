@@ -2610,7 +2610,7 @@
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/public-calendar.cy.js",
-                    "detail": "/calendar/tournaments/:slug lands on the /events/:slug page in the browser"
+                    "detail": "/events browses the event list and calendar view; /calendar hits the 404 page"
                 },
                 {
                     "gate": "cypress",

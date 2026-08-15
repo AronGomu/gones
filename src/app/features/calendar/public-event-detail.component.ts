@@ -29,7 +29,7 @@ import { EventDetailViewComponent } from './event-detail-view.component';
   standalone: true,
   imports: [RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent, EventDetailViewComponent],
   template: `
-    <gones-back-button data-cy="public-event-detail-back-top" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="top" />
+    <gones-back-button data-cy="public-event-detail-back-top" [link]="['/events']" [label]="i18n.t('nav.backToEvents')" position="top" />
     <gones-offline-banner data-cy="public-event-detail-offline-banner" [stale]="stale()" [cachedAt]="cachedAt()" />
     @if (loading()) { <section class="panel event-section calendar-detail-skeleton" aria-busy="true" data-cy="calendar-loading"><div data-cy="calendar-loading-line-1"></div><div data-cy="calendar-loading-line-2"></div><div data-cy="calendar-loading-line-3"></div></section> }
     @else if (error()) { <section class="panel calendar-state" role="alert" data-cy="calendar-error"><h1 data-cy="calendar-error-title">{{ i18n.t('calendar.detailLoadFailed') }}</h1><button mat-stroked-button type="button" data-cy="calendar-error-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></section> }
@@ -84,7 +84,7 @@ import { EventDetailViewComponent } from './event-detail-view.component';
         </section>
       </div>
     }
-    <gones-back-button data-cy="public-event-detail-back-bottom" [link]="['/calendar']" [label]="i18n.t('nav.backToEvents')" position="bottom" />
+    <gones-back-button data-cy="public-event-detail-back-bottom" [link]="['/events']" [label]="i18n.t('nav.backToEvents')" position="bottom" />
   `
 })
 export class PublicEventDetailComponent implements OnInit {

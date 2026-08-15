@@ -9,7 +9,7 @@ export const powerUserGuard: CanActivateFn = (_route, state) => {
 };
 
 function powerUserFallback(url: string): string {
-  if (url === '/events/new' || url.startsWith('/events/new?')) return '/calendar';
+  if (url === '/events/new' || url.startsWith('/events/new?')) return '/events';
   if (/^\/organizer\/events\/[^/]+\/edit(?:[?#]|$)/.test(url)) return '/organizer/events';
   if (url === '/live-tournaments/new' || url.startsWith('/live-tournaments/new?')) return '/live-tournaments';
   return '/';

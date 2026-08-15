@@ -52,7 +52,7 @@ const MaximumPublicOrganizationPages = 20;
         <section class="panel" role="status" data-cy="event-proposal-sent">
           <h2 data-cy="event-proposal-sent-title">{{ i18n.t('proposal.sentTitle') }}</h2>
           <p data-cy="event-proposal-sent-body">{{ i18n.t('proposal.sentBody', { count }) }}</p>
-          <a mat-stroked-button routerLink="/calendar" data-cy="event-proposal-sent-back">{{ i18n.t('nav.returnToMenu') }}</a>
+          <a mat-stroked-button routerLink="/events" data-cy="event-proposal-sent-back">{{ i18n.t('nav.returnToMenu') }}</a>
         </section>
       } @else if (editing()) {
         <form class="panel tournament-create-form" data-cy="event-create-form" [formGroup]="form" (ngSubmit)="editMode ? saveEdit() : requestPreview()" novalidate [attr.aria-busy]="formPending()">
@@ -181,7 +181,7 @@ const MaximumPublicOrganizationPages = 20;
             <span data-cy="event-publish-error-message">{{ error.message }}</span>
             @if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/events/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-publish-error-login">{{ i18n.t('eventCreate.signInAgain') }}</a> }
             @if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="event-publish-error-reload" (click)="reloadOrganizationAccess()">{{ i18n.t('eventCreate.reloadOrganizations') }}</button> }
-            @if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/calendar" data-cy="event-review-calendar">{{ i18n.t('eventCreate.reviewCalendar') }}</a> }
+            @if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/events" data-cy="event-review-calendar">{{ i18n.t('eventCreate.reviewCalendar') }}</a> }
             @if (error.action === 'refresh-preview') { <button mat-stroked-button type="button" data-cy="event-refresh-preview" (click)="refreshPreview()">{{ i18n.t('eventCreate.refreshPreview') }}</button> }
           </div>
         }

@@ -72,7 +72,7 @@ export function calendarRegisterIntent(candidate: string | null | undefined): st
 }
 
 export function addCalendarRegisterIntent(candidate: string | null | undefined, slug: string): string {
-  const url = calendarUrl(candidate) ?? new URL('/calendar', CALENDAR_ORIGIN);
+  const url = calendarUrl(candidate) ?? new URL('/events', CALENDAR_ORIGIN);
   const cleanSlug = slug.trim().slice(0, 200);
   if (cleanSlug && !hasControlCharacter(cleanSlug)) url.searchParams.set('register', cleanSlug);
   else url.searchParams.delete('register');
@@ -80,18 +80,18 @@ export function addCalendarRegisterIntent(candidate: string | null | undefined, 
 }
 
 export function removeCalendarRegisterIntent(candidate: string | null | undefined): string {
-  const url = calendarUrl(candidate) ?? new URL('/calendar', CALENDAR_ORIGIN);
+  const url = calendarUrl(candidate) ?? new URL('/events', CALENDAR_ORIGIN);
   url.searchParams.delete('register');
   return localUrl(url);
 }
 
-const CALENDAR_ORIGIN = 'https://calendar.internal';
+const CALENDAR_ORIGIN = 'https://events.internal';
 
 function calendarUrl(candidate: string | null | undefined): URL | null {
   const safe = safeReturnUrl(candidate, '');
   if (!safe) return null;
   const url = new URL(safe, CALENDAR_ORIGIN);
-  return url.pathname === '/calendar' ? url : null;
+  return url.pathname === '/events' ? url : null;
 }
 
 function localUrl(url: URL): string {

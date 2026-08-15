@@ -85,11 +85,28 @@ describe('event breadcrumbs', () => {
     expect(await labels('/events/new')).toEqual(['Menu', 'Calendrier', 'Créer un événement']);
   });
 
-  it('links the Calendar crumb back to /calendar from an Event page', async () => {
+  it('links the Calendar crumb back to /events from an Event page', async () => {
     const crumbs = await buildBreadcrumbs('/events/gones-night', en);
     expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Calendar', 'Event']);
-    expect(crumbs[1].link).toEqual(['/calendar']);
+    expect(crumbs[1].link).toEqual(['/events']);
     expect(crumbs[2].link).toBeUndefined();
+  });
+
+  it('builds the events crumb', async () => {
+    const crumbs = await buildBreadcrumbs('/events');
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Calendrier']);
+    expect(crumbs[0].link).toEqual(['/']);
+  });
+
+  it('builds the event detail crumb', async () => {
+    const crumbs = await buildBreadcrumbs('/events/lyon-legacy', en);
+    expect(crumbs).toHaveLength(3);
+    expect(crumbs[1].link).toEqual(['/events']);
+  });
+
+  it('treats /calendar as not found', async () => {
+    const crumbs = await buildBreadcrumbs('/calendar');
+    expect(crumbs[crumbs.length - 1].label).toBe('Introuvable');
   });
 
   it('labels every organizer Event page instead of falling through to Not Found', async () => {

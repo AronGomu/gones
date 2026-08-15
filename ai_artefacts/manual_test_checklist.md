@@ -134,3 +134,16 @@
 - [ ] Confirm Live Tournaments list page create action says "Create Live Tournament".
 - [ ] Confirm breadcrumb at `/global-stats` reads "Menu > Global Rankings" in English and "Menu > Classement mondial" in French.
 - [ ] Confirm breadcrumb at `/live-tournaments` reads "Menu > Live Tournaments" in English.
+
+## T1 event-rename-routes
+
+- [ ] Start `npm run dev`, open `http://127.0.0.1:4200/events` — the browse page (calendar + list views) renders.
+- [ ] Open `http://127.0.0.1:4200/calendar` — the 404 page renders; no redirect occurs.
+- [ ] Open `http://127.0.0.1:4200/calendar/tournaments/some-slug` — the 404 page renders; no redirect occurs.
+- [ ] Click the home-menu calendar card — browser navigates to `/events`.
+- [ ] Open the About page; click all three calendar-related buttons — each lands on `/events`.
+- [ ] While signed in as a non-power-user, navigate to `/events/new` directly — guard redirects to `/events`.
+- [ ] Open any event detail page — the Back buttons (top and bottom) each link back to `/events`.
+- [ ] Open an event-create success screen — the "Return to menu" link navigates to `/events`.
+- [ ] Check breadcrumbs at `/events`: shows `Menu / Événements` with `Menu` linking to `/`.
+- [ ] Check breadcrumbs at `/events/some-slug`: shows `Menu / Événements / Event` with `Événements` linking to `/events`.

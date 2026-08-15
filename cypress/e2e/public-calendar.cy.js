@@ -78,7 +78,7 @@ describe('public Calendar V1', () => {
   });
 
   it('defaults to month view, restores URL filters, persists list view, and filters locally without a network call', () => {
-    visit('/calendar?month=2026-08&q=Lyon');
+    visit('/events?month=2026-08&q=Lyon');
     cy.wait('@allEvents');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="calendar-view"]').should('have.attr', 'aria-pressed', 'true');
@@ -98,7 +98,7 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="calendar-list"]').should('be.visible');
     cy.get('[data-cy="calendar-card-status"]').should('contain.text', 'Cancelled');
     // A reload within the 24h cache TTL must not refetch: the alias stays at one call.
-    visit('/calendar?month=2026-08');
+    visit('/events?month=2026-08');
     cy.get('[data-cy="list-view"]').should('have.attr', 'aria-pressed', 'true');
     cy.get('@allEvents.all').should('have.length', 1);
 
@@ -115,7 +115,7 @@ describe('public Calendar V1', () => {
   // navigation re-slices it in the browser. The request counter is the whole point — assert it here
   // and the row has a gate that fails when month navigation starts hitting the API again.
   it('navigates months over the cached catalog without re-querying the API', () => {
-    visit('/calendar?month=2026-08&view=calendar');
+    visit('/events?month=2026-08&view=calendar');
     cy.wait('@allEvents');
     cy.get('[data-cy="calendar-month-day-event-lyon-legacy"]').should('be.visible');
 
@@ -146,7 +146,7 @@ describe('public Calendar V1', () => {
   it('keeps the window scroll position when changing month in a content-heavy month', () => {
     cy.intercept('GET', '**/api/events/all*', { items: busyMonthItems, generatedAt: '2026-08-08T10:00:00Z', count: busyMonthItems.length, truncated: false }).as('busyMonths');
     cy.viewport(1024, 500);
-    visit('/calendar?month=2026-08&view=calendar');
+    visit('/events?month=2026-08&view=calendar');
     cy.wait('@busyMonths');
     cy.get('[data-cy="public-month-grid"]').should('be.visible');
 
@@ -175,7 +175,7 @@ describe('public Calendar V1', () => {
   it('keeps the window scroll position when changing month in an empty month', () => {
     cy.intercept('GET', '**/api/events/all*', { items: [], generatedAt: '2026-08-08T10:00:00Z', count: 0, truncated: false }).as('emptyCatalog');
     cy.viewport(1024, 500);
-    visit('/calendar?month=2026-08&view=calendar');
+    visit('/events?month=2026-08&view=calendar');
     cy.wait('@emptyCatalog');
     cy.get('[data-cy="public-month-grid"]').should('be.visible');
 
@@ -204,7 +204,7 @@ describe('public Calendar V1', () => {
     }));
     cy.intercept('GET', '**/api/events/all*', { items: sameDay, generatedAt: '2026-08-08T10:00:00Z', count: 4, truncated: false }).as('sameDay');
 
-    visit('/calendar?month=2026-08&view=calendar');
+    visit('/events?month=2026-08&view=calendar');
     cy.wait('@sameDay');
     cy.get('[data-cy="calendar-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="calendar-month-day"]').within(() => {
       cy.get('a.public-month-event').should('have.length', 3);
@@ -212,14 +212,12 @@ describe('public Calendar V1', () => {
     });
   });
 
-  it('renders detail, server body links, ICS action, redirect, and mobile layout', () => {
+  it('renders detail, server body links, ICS action, and mobile layout', () => {
     cy.intercept('GET', '**/api/events/lyon-legacy', {
       ...event,
       bodyHtml: '<p>Register at <a href="https://tickets.example.test">tickets</a>.</p>'
     }).as('detail');
-    // Cold deep link on a retired bookmark: the address bar has to end up canonical, and the page
-    // behind it has to be the real detail render rather than the redirect placeholder.
-    visit('/calendar/tournaments/lyon-legacy');
+    visit('/events/lyon-legacy');
     cy.location('pathname').should('eq', '/events/lyon-legacy');
     cy.wait('@detail');
     cy.get('[data-cy="public-event-detail"]').should('contain.text', 'Europe/Paris').and('not.contain.text', 'Cancelled');
@@ -274,19 +272,19 @@ describe('public Calendar V1', () => {
       body: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n'
     }).as('ics');
 
-    visit('/calendar?month=2026-08&view=list');
+    visit('/events?month=2026-08&view=list');
     cy.wait('@allEvents');
     cy.get('[data-cy="calendar-card-view"]').should('not.exist');
     cy.get('[data-cy="calendar-card-date"]').should('not.contain.text', 'Europe/Paris').and('not.contain.text', '(');
 
     cy.get('[data-cy="calendar-card-ics"]').click();
     cy.wait('@ics');
-    cy.location('pathname').should('eq', '/calendar');
+    cy.location('pathname').should('eq', '/events');
     cy.get('[data-cy="calendar-list"]').should('be.visible');
 
     // Enter on the button reaches the card as a keydown before the click it synthesises.
     cy.get('[data-cy="calendar-card-ics"]').focus().trigger('keydown', { key: 'Enter' });
-    cy.location('pathname').should('eq', '/calendar');
+    cy.location('pathname').should('eq', '/events');
 
     cy.get('[data-cy="calendar-card-venue"]').click();
     cy.location('pathname').should('eq', '/events/lyon-legacy');
@@ -296,7 +294,7 @@ describe('public Calendar V1', () => {
 
   it('shows an empty state below the grid when nothing matches the catalog', () => {
     cy.intercept('GET', '**/api/events/all*', { items: [], generatedAt: '2026-08-08T10:00:00Z', count: 0, truncated: false }).as('empty');
-    visit('/calendar?month=2026-08');
+    visit('/events?month=2026-08');
     cy.wait('@empty');
     cy.get('[data-cy="public-month-grid"]').should('be.visible');
     cy.get('[data-cy="calendar-empty"]').should('be.visible');
@@ -304,13 +302,13 @@ describe('public Calendar V1', () => {
 
   it('shows a retryable error panel when the catalog fetch fails', () => {
     cy.intercept('GET', '**/api/events/all*', { statusCode: 503, body: { title: 'Unavailable' } }).as('failed');
-    visit('/calendar?month=2026-09');
+    visit('/events?month=2026-09');
     cy.wait('@failed');
     cy.get('[data-cy="calendar-error"]').find('button').should('be.visible');
   });
 
   it('Synchroniser forces a refetch', () => {
-    visit('/calendar?month=2026-08');
+    visit('/events?month=2026-08');
     cy.wait('@allEvents');
     cy.get('[data-cy="calendar-sync"]').click();
     cy.wait('@allEvents');
@@ -330,14 +328,14 @@ describe('public Calendar V1', () => {
       truncated: false
     }).as('markupEvent');
 
-    visit('/calendar?month=2026-08&view=calendar');
+    visit('/events?month=2026-08&view=calendar');
     cy.wait('@markupEvent');
     cy.get('[data-cy="calendar-search"]').type('Lyon');
     cy.get('[data-cy^="calendar-month-day-event-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
 
     // The list view is entered through the URL rather than the tab: the tab click navigates with the
     // query the debounce has committed so far, which would drop a query typed under 300ms ago.
-    visit('/calendar?month=2026-08&view=list&q=Lyon');
+    visit('/events?month=2026-08&view=list&q=Lyon');
     cy.get('[data-cy="calendar-card-title"]').should('have.text', markupTitle);
     cy.get('[data-cy="calendar-card-title"] img').should('not.exist');
     cy.get('[data-cy^="calendar-card-title-part-lyon-legacy-"].match-highlight').should('contain.text', 'Lyon');
@@ -359,7 +357,7 @@ describe('public Calendar V1', () => {
     }));
     cy.intercept('GET', '**/api/events/all*', { items: manyEvents, generatedAt: '2026-08-08T10:00:00Z', count: 25, truncated: false }).as('manyEvents');
 
-    visit('/calendar?month=2026-08&view=list');
+    visit('/events?month=2026-08&view=list');
     cy.wait('@manyEvents');
     cy.get('[data-cy^="event-item-"]').should('have.length', 20);
     cy.get('[data-cy="calendar-pagination"]').should('be.visible');

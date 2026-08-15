@@ -91,7 +91,7 @@ describe('Power User Event, League and Live gates', () => {
     cy.get(`[data-cy="event-row-public-view-${eventId}"]`).should('exist');
 
     cy.visit('/events/new');
-    cy.location('pathname').should('eq', '/calendar');
+    cy.location('pathname').should('eq', '/events');
     cy.visit(`/organizer/events/${eventId}/edit`);
     cy.location('pathname').should('eq', '/organizer/events');
 
@@ -112,7 +112,7 @@ describe('Power User Event, League and Live gates', () => {
   it('keeps Calendar Register available while Power mode is off', () => {
     signedOut();
     stubPublicEvents([publicEvent]);
-    visit('/calendar?view=list&month=2030-08', false);
+    visit('/events?view=list&month=2030-08', false);
 
     cy.wait('@publicEvents');
     cy.get('[data-cy="calendar-card-register"]').should('be.visible');

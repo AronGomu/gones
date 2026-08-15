@@ -54,7 +54,7 @@ describe('public participant registration', () => {
   beforeEach(() => { cy.viewport(1280, 800); common(); });
 
   it('resumes anonymous Calendar registration only after account verification, login, and confirmation', () => {
-    const returnUrl = '/calendar?month=2026-08&view=list&register=lyon-legacy';
+    const returnUrl = '/events?month=2026-08&view=list&register=lyon-legacy';
     let signedIn = false;
     let registerCalls = 0;
     cy.intercept('GET', '**/api/events/all', { items: [event], generatedAt: '2035-01-01T00:00:00Z', count: 1, truncated: false }).as('catalog');
@@ -77,7 +77,7 @@ describe('public participant registration', () => {
       req.reply({ statusCode: 201, body: { attemptId: 'calendar-attempt', eventId: event.id, userId: 'user', status: 'Confirmed', registeredAt: '2035-01-01T00:00:00Z' } });
     }).as('calendarRegister');
 
-    visit('/calendar?view=list');
+    visit('/events?view=list');
     cy.get('[data-cy="calendar-card-status"], [data-cy="calendar-card-date"]').should('not.exist');
     cy.get('[data-cy="calendar-card-title"]').should('contain.text', event.displayTitle);
     cy.get('[data-cy="calendar-card-start-time"]').should('contain.text', '10:00');
@@ -107,7 +107,7 @@ describe('public participant registration', () => {
     cy.get('[data-cy="auth-password"]').type('valid-password-value');
     cy.get('[data-cy="auth-submit"]').click();
     cy.wait('@login');
-    cy.location('pathname').should('eq', '/calendar');
+    cy.location('pathname').should('eq', '/events');
     cy.get('[data-cy="confirm-dialog-confirm"]').click();
     cy.wait('@calendarRegister');
     cy.wrap(null).should(() => expect(registerCalls).to.eq(1));
@@ -120,7 +120,7 @@ describe('public participant registration', () => {
     cy.intercept('GET', '**/api/events/*/registration-capability', { canRegister: false, canUnregister: false, reason: 'event_full', activeParticipantCount: 2, capacity: 2 });
     cy.intercept('POST', '**/api/events/*/registrations').as('calendarRegister');
 
-    visit('/calendar?view=list&register=lyon-legacy');
+    visit('/events?view=list&register=lyon-legacy');
 
     cy.get('[data-cy="calendar-registration-message"]').should('contain.text', 'complet');
     cy.get('[data-cy="calendar-card-register"]').should('not.exist');

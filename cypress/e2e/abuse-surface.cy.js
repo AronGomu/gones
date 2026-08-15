@@ -89,7 +89,7 @@ describe('abuse surface', () => {
     // (`PublicEventCatalogResponse`) so the page renders instead of erroring — the claim below
     // only means something on a Calendar that actually rendered.
     cy.intercept('GET', '**/api/events/all*', { items: [event], generatedAt: '2026-07-01T00:00:00Z', count: 1, truncated: false }).as('events');
-    visit('/calendar');
+    visit('/events');
     cy.wait('@events');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="calendar-error"]').should('not.exist');

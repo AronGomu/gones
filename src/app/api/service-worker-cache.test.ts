@@ -86,7 +86,7 @@ describe('service worker public read allowlist', () => {
   });
 
   it('rejects non-API URLs so only the asset groups own the app shell', () => {
-    expect(isCacheablePublicApiRequest({ method: 'GET', url: '/calendar' })).toBe(false);
+    expect(isCacheablePublicApiRequest({ method: 'GET', url: '/events' })).toBe(false);
     expect(isCacheablePublicApiRequest({ method: 'GET', url: '/index.html' })).toBe(false);
   });
 });

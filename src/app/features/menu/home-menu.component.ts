@@ -12,7 +12,7 @@ import { AuthService } from '../../auth/auth.service';
   template: `
     <section class="home-landing" [attr.aria-label]="i18n.t('home.aria')" data-cy="menu-section">
       <nav class="home-destinations" [attr.aria-label]="i18n.t('home.navAria')" data-cy="menu-nav">
-        <a class="home-destination home-destination--calendar" routerLink="/calendar" data-cy="menu-calendar-card">
+        <a class="home-destination home-destination--calendar" routerLink="/events" data-cy="menu-calendar-card">
           <strong data-cy="menu-calendar-card-title">{{ i18n.t('home.calendar') }}</strong>
           <p data-cy="menu-calendar-card-desc">{{ i18n.t('home.calendarDesc') }}</p>
         </a>

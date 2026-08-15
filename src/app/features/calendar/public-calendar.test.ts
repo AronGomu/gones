@@ -139,23 +139,23 @@ describe('public Calendar helpers', () => {
 
 describe('calendar registration intent', () => {
   it('adds an encoded slug while preserving safe Calendar query and hash', () => {
-    expect(addCalendarRegisterIntent('/calendar?month=2026-08&view=list#events', 'lyon legacy'))
-      .toBe('/calendar?month=2026-08&view=list&register=lyon+legacy#events');
+    expect(addCalendarRegisterIntent('/events?month=2026-08&view=list#events', 'lyon legacy'))
+      .toBe('/events?month=2026-08&view=list&register=lyon+legacy#events');
   });
 
   it('parses a register slug only from a safe Calendar URL', () => {
-    expect(calendarRegisterIntent('/calendar?view=list&register=lyon-legacy')).toBe('lyon-legacy');
+    expect(calendarRegisterIntent('/events?view=list&register=lyon-legacy')).toBe('lyon-legacy');
     expect(calendarRegisterIntent('/events/x?register=lyon-legacy')).toBeNull();
-    expect(calendarRegisterIntent('https://evil.test/calendar?register=lyon-legacy')).toBeNull();
+    expect(calendarRegisterIntent('https://evil.test/events?register=lyon-legacy')).toBeNull();
   });
 
   it('removes only the transient register parameter', () => {
-    expect(removeCalendarRegisterIntent('/calendar?month=2026-08&register=lyon-legacy&q=legacy#events'))
-      .toBe('/calendar?month=2026-08&q=legacy#events');
+    expect(removeCalendarRegisterIntent('/events?month=2026-08&register=lyon-legacy&q=legacy#events'))
+      .toBe('/events?month=2026-08&q=legacy#events');
   });
 
-  it('falls back to Calendar for unsafe input before adding intent', () => {
-    expect(addCalendarRegisterIntent('//evil.test/steal', 'lyon-legacy')).toBe('/calendar?register=lyon-legacy');
+  it('falls back to events for unsafe input before adding intent', () => {
+    expect(addCalendarRegisterIntent('//evil.test/steal', 'lyon-legacy')).toBe('/events?register=lyon-legacy');
   });
 });
 

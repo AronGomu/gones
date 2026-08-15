@@ -121,7 +121,7 @@ function setup(options: {
     return true;
   });
   const navigateByUrl = vi.fn(async () => true);
-  const router = { navigate, navigateByUrl, url: `/calendar?${new URLSearchParams({ month: '2026-08', view: 'calendar', ...options.params }).toString()}` } as unknown as Router;
+  const router = { navigate, navigateByUrl, url: `/events?${new URLSearchParams({ month: '2026-08', view: 'calendar', ...options.params }).toString()}` } as unknown as Router;
   const route = {
     snapshot: { queryParamMap: initialParams },
     queryParamMap: params$.asObservable()
@@ -986,7 +986,7 @@ describe('PublicCalendarComponent list card', () => {
 
     expect(activation.preventDefault).toHaveBeenCalled();
     expect(activation.stopPropagation).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/calendar?month=2026-08&view=list&q=legacy&register=lyon-legacy' } });
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/events?month=2026-08&view=list&q=legacy&register=lyon-legacy' } });
   });
 
   it('rechecks capability and never mutates before confirmation', async () => {
@@ -1042,7 +1042,7 @@ describe('PublicCalendarComponent list card', () => {
 
     expect(capability).toHaveBeenCalledWith(event.id);
     expect(register).toHaveBeenCalledTimes(1);
-    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
   });
 
   it('resumed cancellation performs no mutation and strips register', async () => {
@@ -1053,7 +1053,7 @@ describe('PublicCalendarComponent list card', () => {
     await component.resumeRegistrationIntent();
 
     expect(register).not.toHaveBeenCalled();
-    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
   });
 
   it('resumed ineligible intent shows server reason and strips register', async () => {
@@ -1065,7 +1065,7 @@ describe('PublicCalendarComponent list card', () => {
 
     expect(component.registrationMessageKey()).toBe('registration.full');
     expect(register).not.toHaveBeenCalled();
-    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
   });
 
   it('resumed missing intent reports unavailable and strips register via replacement URL', async () => {
@@ -1076,7 +1076,7 @@ describe('PublicCalendarComponent list card', () => {
 
     expect(component.registrationMessageKey()).toBe('registration.unavailable');
     expect(register).not.toHaveBeenCalled();
-    expect(navigateByUrl).toHaveBeenCalledWith('/calendar?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
   });
 
   it('the card lifts on hover and on keyboard focus', () => {
