@@ -24,6 +24,8 @@ import { ApiProblemError } from './api/api-boundary';
 import { BreadcrumbItem, buildBreadcrumbs } from './app-breadcrumbs';
 import { canUsePowerMutation, PowerUserSettingsService } from './shared/power-user-settings.service';
 
+const AUTH_PATHS = ['/login', '/register', '/auth/complete-profile', '/verify-email', '/forgot-password', '/reset-password'];
+
 interface HeaderTournament {
   league: PersistedLeague;
   tournament: TournamentDocument;
@@ -83,7 +85,9 @@ interface HeaderTournament {
               <a class="toolbar-profile-link" routerLink="/settings/account" data-cy="profile-link">{{ profile.username }}</a>
               <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="logout-button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
             } @else {
-              <a mat-stroked-button class="secondary-action" routerLink="/login" data-cy="toolbar-sign-in-link" [attr.aria-label]="i18n.t('auth.signInAria')">{{ i18n.t('auth.signIn') }}</a>
+              @if (showSignInLink()) {
+                <a mat-stroked-button class="secondary-action" routerLink="/login" data-cy="toolbar-sign-in-link" [attr.aria-label]="i18n.t('auth.signInAria')">{{ i18n.t('auth.signIn') }}</a>
+              }
             }
           </div>
         }
@@ -127,6 +131,7 @@ export class AppComponent {
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
   readonly isResultPage = computed(() => this.pathOnly(this.currentUrl()).split('/').includes('result'));
+  readonly showSignInLink = computed(() => !AUTH_PATHS.includes(this.pathOnly(this.currentUrl())));
   readonly importing = signal(false);
   readonly settingsImporting = signal(false);
   readonly deletingTournament = signal(false);
@@ -183,8 +188,9 @@ export class AppComponent {
   }
 
   async logout(): Promise<void> {
+    const returnUrl = this.currentUrl();
     await this.auth.logout();
-    await this.router.navigate(['/']);
+    await this.router.navigate(['/login'], { queryParams: { returnUrl } });
   }
 
   async resendBanner(): Promise<void> {

@@ -190,3 +190,13 @@
 - [ ] Navigate to `/players/:name` — confirm the footer back button now says "Back to previous page" and uses browser history (not the old `position="top"` footer).
 - [ ] Check the home page (`/`) — confirm a top back button is rendered; confirm no broken layout.
 - [ ] Open `/app-error` directly — confirm back button above and below content.
+
+## T5 logout-return-url
+
+- [ ] Start `npm run dev`, sign in as `test@gones.test` / `Gones-dev-pass-123!`, navigate to `/registrations`, click Logout — confirm URL is `/login?returnUrl=%2Fregistrations`.
+- [ ] From that `/login?returnUrl=%2Fregistrations` page, sign in again — confirm you land back on `/registrations`.
+- [ ] Open `/login` while signed out — confirm the header shows no Sign in button.
+- [ ] Open `/register` while signed out — confirm the header shows no Sign in button.
+- [ ] Open `/auth/complete-profile`, `/verify-email`, `/forgot-password`, `/reset-password` — confirm none show a Sign in button in the header.
+- [ ] Open `/events` while signed out — confirm the header shows the Sign in button.
+- [ ] Log out from `/admin/users` as an admin, then sign in as a plain User account — confirm the admin guard redirects (e.g. to `/`) instead of rendering the admin page.
