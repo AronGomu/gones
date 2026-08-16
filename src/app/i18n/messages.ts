@@ -554,6 +554,14 @@ const en = {
   'leagues.createTournamentFailed': 'Could not create this Tournament.',
   'leagues.noTournamentDate': 'No Tournament Date',
 
+  // Archive Tournament completion
+  'archive.tournamentActive': 'Active',
+  'archive.tournamentCompleted': 'Completed',
+  'archive.markComplete': 'Mark complete',
+  'archive.reopen': 'Reopen',
+  'archive.completeConfirm': 'Mark this Tournament as completed? Completed Tournaments are counted in League standings.',
+  'archive.reopenConfirm': 'Reopen this Tournament? It will be treated as active and excluded from standings until completed again.',
+
   // Ranking table
   'ranking.expand': 'Expand Ranking',
   'ranking.collapse': 'Collapse Ranking',
@@ -1765,6 +1773,13 @@ const fr: Record<MessageKey, string> = {
   'leagues.staleCreateTournament': 'Cette ligue a changé avant la création du tournoi. Rechargez les données puis réessayez.',
   'leagues.createTournamentFailed': 'Impossible de créer ce tournoi.',
   'leagues.noTournamentDate': 'Pas de date de tournoi',
+
+  'archive.tournamentActive': 'Actif',
+  'archive.tournamentCompleted': 'Terminé',
+  'archive.markComplete': 'Marquer comme terminé',
+  'archive.reopen': 'Rouvrir',
+  'archive.completeConfirm': 'Marquer ce tournoi comme terminé ? Les tournois terminés sont comptabilisés dans le classement de la ligue.',
+  'archive.reopenConfirm': 'Rouvrir ce tournoi ? Il sera traité comme actif et exclu du classement jusqu’à nouveau.',
 
   'ranking.expand': 'Développer le classement',
   'ranking.collapse': 'Réduire le classement',

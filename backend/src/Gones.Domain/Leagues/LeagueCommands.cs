@@ -75,6 +75,11 @@ public static class LeagueCommands
             updated = ReplaceRound(updated, tournamentId, intent.RoundId, intent.Entries, false);
         foreach (var intent in command.UpdateArchetypes)
             updated = UpdateArchetype(updated, tournamentId, intent.PlayerName, intent.Archetype);
+        if (command.Status is not null)
+        {
+            if (command.Status is not ("active" or "completed")) throw new ArgumentException("Tournament status must be active or completed.", nameof(command));
+            updated = ReplaceTournament(updated, tournamentId, tournament => tournament with { Status = command.Status });
+        }
         return updated;
     }
 
@@ -364,4 +369,5 @@ public sealed record ArchiveTournamentEditBatch(
     IReadOnlyList<AddArchiveRoundIntent> AddRounds,
     IReadOnlyList<string> DeleteRoundIds,
     IReadOnlyList<ReplaceArchiveRoundIntent> ReplaceRounds,
-    IReadOnlyList<UpdateArchiveArchetypeIntent> UpdateArchetypes);
+    IReadOnlyList<UpdateArchiveArchetypeIntent> UpdateArchetypes,
+    string? Status = null);

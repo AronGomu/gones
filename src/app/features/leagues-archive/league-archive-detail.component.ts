@@ -48,6 +48,7 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
               <span class="tournament-card-copy" data-cy="leagues-archive-detail-tournament-card-copy">
                 <strong data-cy="leagues-archive-detail-tournament-card-name">{{ tournament.name }}</strong>
                 <span data-cy="leagues-archive-detail-tournament-card-date">{{ formatTournamentDate(tournament.tournamentDate) }}</span>
+                <span class="status archive-tournament-status" [class.completed]="tournament.status === 'completed'" data-cy="leagues-archive-detail-tournament-card-status"><span class="status-dot" aria-hidden="true" data-cy="leagues-archive-detail-tournament-card-status-dot"></span>{{ tournament.status === 'completed' ? i18n.t('archive.tournamentCompleted') : i18n.t('archive.tournamentActive') }}</span>
               </span>
               <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-detail-tournament-card-view">{{ i18n.t('common.view') }}</span>
             </a>

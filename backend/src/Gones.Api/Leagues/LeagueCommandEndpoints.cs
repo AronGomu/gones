@@ -559,9 +559,9 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
             || request.ReplaceRounds.Any(intent => intent is null || intent.Entries is null)
             || request.UpdateArchetypes.Any(intent => intent is null))
             throw Validation("command", "Intent rows and Round entries arrays are required.");
-        if (!moving && request.EditTournament is null && request.AddRounds.Count == 0 && request.DeleteRoundIds.Count == 0 && request.ReplaceRounds.Count == 0 && request.UpdateArchetypes.Count == 0)
+        if (!moving && request.EditTournament is null && request.Status is null && request.AddRounds.Count == 0 && request.DeleteRoundIds.Count == 0 && request.ReplaceRounds.Count == 0 && request.UpdateArchetypes.Count == 0)
             throw Validation("command", "Edit batch cannot be empty.");
-        return new ArchiveTournamentEditBatch(request.EditTournament, request.AddRounds, request.DeleteRoundIds, request.ReplaceRounds, request.UpdateArchetypes);
+        return new ArchiveTournamentEditBatch(request.EditTournament, request.AddRounds, request.DeleteRoundIds, request.ReplaceRounds, request.UpdateArchetypes, request.Status);
     }
 
     private static IReadOnlyList<string> EditBatchIntentNames(ArchiveTournamentEditBatchRequest request)
@@ -573,6 +573,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
         if (request.ReplaceRounds.Count > 0) names.Add("replaceRounds");
         if (request.UpdateArchetypes.Count > 0) names.Add("updateArchetypes");
         if (request.TargetLeagueId is not null) names.Add("moveTournament");
+        if (request.Status is not null) names.Add("status");
         return names;
     }
 
@@ -617,6 +618,7 @@ internal sealed record MoveResultTournamentRequest(string TargetLeagueId);
 internal sealed record ArchiveTournamentEditBatchRequest(
     string? TargetLeagueId,
     EditArchiveTournamentIntent? EditTournament,
+    string? Status,
     IReadOnlyList<AddArchiveRoundIntent> AddRounds,
     IReadOnlyList<string> DeleteRoundIds,
     IReadOnlyList<ReplaceArchiveRoundIntent> ReplaceRounds,

@@ -326,7 +326,7 @@ function applyLocalEditBatch(
       || !Array.isArray(command.replaceRounds) || !Array.isArray(command.updateArchetypes)) {
     throw new Error('invalidArchiveTournamentEditBatch');
   }
-  if (!moving && !command.editTournament && command.addRounds.length === 0 && command.deleteRoundIds.length === 0
+  if (!moving && !command.editTournament && !command.status && command.addRounds.length === 0 && command.deleteRoundIds.length === 0
       && command.replaceRounds.length === 0 && command.updateArchetypes.length === 0) {
     throw new Error('emptyArchiveTournamentEditBatch');
   }
@@ -365,6 +365,9 @@ function applyLocalEditBatch(
   };
   for (const intent of command.updateArchetypes) {
     updated = { ...updated, playerArchetypes: upsertArchetype(updated.playerArchetypes, intent.playerName, intent.archetype) };
+  }
+  if (command.status !== undefined) {
+    updated = { ...updated, status: command.status };
   }
   return { ...league, tournaments: league.tournaments.map(item => item.id === tournamentId ? updated : item) };
 }

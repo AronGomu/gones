@@ -181,6 +181,49 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Tournament_edit_batch_commits_a_status_change()
+    {
+        var route = "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch";
+        var command = new
+        {
+            editTournament = (object?)null,
+            status = "active",
+            addRounds = Array.Empty<object>(),
+            deleteRoundIds = Array.Empty<string>(),
+            replaceRounds = Array.Empty<object>(),
+            updateArchetypes = Array.Empty<object>()
+        };
+
+        using var response = await SendJsonAsync(HttpMethod.Post, route, command, "Organizer", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await Body(response);
+        var tournament = body.GetProperty("sourceLeague").GetProperty("tournaments")[0];
+        Assert.Equal("active", tournament.GetProperty("status").GetString());
+
+        await using var database = CreateContext();
+        var stored = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "command-league");
+        Assert.Equal("active", stored.ReadDocument().Tournaments[0].Status);
+    }
+
+    [Fact]
+    public async Task Tournament_edit_batch_refuses_a_status_change_from_a_plain_User()
+    {
+        var route = "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch";
+        var command = new
+        {
+            editTournament = (object?)null,
+            status = "active",
+            addRounds = Array.Empty<object>(),
+            deleteRoundIds = Array.Empty<string>(),
+            replaceRounds = Array.Empty<object>(),
+            updateArchetypes = Array.Empty<object>()
+        };
+
+        using var response = await SendJsonAsync(HttpMethod.Post, route, command, "User", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Tournament_edit_batch_move_is_atomic_and_stale_or_invalid_input_rolls_back()
     {
         var route = "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch";

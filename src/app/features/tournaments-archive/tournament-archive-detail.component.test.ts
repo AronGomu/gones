@@ -20,10 +20,10 @@ import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settin
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { TournamentArchiveDetailComponent } from './tournament-archive-detail.component';
 
-function league(id = 'server-source', name = 'Source'): PersistedLeague {
+function league(id = 'server-source', name = 'Source', tournamentStatus: 'active' | 'completed' = 'completed'): PersistedLeague {
   return {
     ...createLeague({ id, name, status: 'active', tournaments: [createTournament({
-      id: 't1', leagueId: id, name: 'Cup', tournamentDate: '2026-08-13',
+      id: 't1', leagueId: id, name: 'Cup', tournamentDate: '2026-08-13', status: tournamentStatus,
       rounds: [createRound({ id: 'r1', entries: [createMatchRoundEntry({ id: 'e1', player1Name: 'Alice', player2Name: 'Bob' })] })],
       playerArchetypes: [{ playerName: 'Alice', archetype: 'Burn' }]
     })] }),
@@ -195,6 +195,63 @@ describe('TournamentArchiveDetailComponent staged edit state', () => {
     expect(getLeague.mock.calls.length).toBeGreaterThan(readsBefore);
     expect(component.editing()).toBe(false);
     expect(component.tournament()!.name).toBe('Cup');
+  });
+});
+
+describe('Tournament completion status badge and toggle', () => {
+  it('shows the active badge', async () => {
+    const { component } = await build({ role: 'Organizer', source: league('local-s', 'S', 'active') });
+    expect(component.statusLabel()).toBe(component.i18n.t('archive.tournamentActive'));
+  });
+
+  it('shows the completed badge', async () => {
+    const { component } = await build({ role: 'Organizer', source: league('local-s', 'S', 'completed') });
+    expect(component.statusLabel()).toBe(component.i18n.t('archive.tournamentCompleted'));
+  });
+
+  it('offers Mark complete to a power organizer', async () => {
+    const { component } = await build({ power: true, role: 'Organizer', source: league('local-s', 'S', 'active') });
+    expect(component.canToggleStatus()).toBe(true);
+    expect(component.toggleLabel()).toBe(component.i18n.t('archive.markComplete'));
+  });
+
+  it('offers Reopen when completed', async () => {
+    const { component } = await build({ power: true, role: 'Organizer', source: league('local-s', 'S', 'completed') });
+    expect(component.canToggleStatus()).toBe(true);
+    expect(component.toggleLabel()).toBe(component.i18n.t('archive.reopen'));
+  });
+
+  it('hides the toggle without power mode', async () => {
+    const { component } = await build({ power: false, role: 'Organizer', source: league('local-s', 'S', 'active') });
+    expect(component.canToggleStatus()).toBe(false);
+    expect(component.statusLabel()).toBe(component.i18n.t('archive.tournamentActive'));
+  });
+
+  it('hides the toggle without write rights', async () => {
+    const { component } = await build({ power: true, role: 'User', source: league('server-s', 'S', 'active') });
+    expect(component.canToggleStatus()).toBe(false);
+  });
+
+  it('confirms before toggling', async () => {
+    const { component, saveTournamentEdits, open } = await build({
+      power: true, role: 'Organizer',
+      source: league('local-s', 'S', 'active'),
+      confirmations: [false]
+    });
+    await component.toggleStatus();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(saveTournamentEdits).not.toHaveBeenCalled();
+  });
+
+  it('sends the status in the edit intent', async () => {
+    const { component, saveTournamentEdits } = await build({
+      power: true, role: 'Organizer',
+      source: league('local-s', 'S', 'active'),
+      confirmations: [true]
+    });
+    await component.toggleStatus();
+    expect(saveTournamentEdits).toHaveBeenCalledTimes(1);
+    expect(saveTournamentEdits.mock.calls[0][3]).toMatchObject({ status: 'completed' });
   });
 });
 

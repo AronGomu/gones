@@ -14,7 +14,8 @@ import { AuthService } from '../../auth/auth.service';
 import { canManageLeague, leagueCommandError } from '../../data/league-archive-command-ux';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { archiveTournamentDeletionSummary, archiveTournamentEditBatchIsEmpty, buildArchiveTournamentEditBatch, sameAuthorityLeagueOptions } from '../../domain/archive-tournament-edit-batch';
-import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
+import { createByeRoundEntry, createMatchRoundEntry, createRound, getDefaultTournamentName, LeagueDocument, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundDocument, RoundEntry, TournamentDocument } from '../../domain/models';
+import { ArchiveTournamentEditBatchCommand } from '../../backend/application-backend';
 import { importRoundEntries } from '../../domain/round-import';
 import { archetypeForPlayer, mergeImportedRoundArchetypes, setTournamentPlayerArchetype, tournamentPlayerArchetypeRows, validateTournamentPlayerArchetypes } from '../../domain/tournament-archetypes';
 import { calculateTournamentResult } from '../../domain/results';
@@ -41,6 +42,9 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
         } @else if (canEdit()) {
           <button mat-stroked-button type="button" class="secondary-action" data-cy="tournament-archive-detail-edit" (click)="startEdit()">{{ i18n.t('tournament.edit') }}</button>
         }
+        @if (canToggleStatus() && !editing()) {
+          <button mat-stroked-button type="button" class="secondary-action" data-cy="archive-tournament-complete-toggle" [disabled]="saving()" (click)="toggleStatus()">{{ toggleLabel() }}</button>
+        }
       </div>
     </div>
     @if (error()) { <p class="error" role="alert" data-cy="tournament-archive-detail-error">{{ error() }}</p> }
@@ -48,6 +52,7 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
       <section class="page-heading" data-cy="tournament-archive-detail-page" (input)="markDirty()">
         <div data-cy="tournament-archive-detail-heading-block">
           <p class="kicker" data-cy="tournament-archive-detail-kicker">{{ i18n.t('tournament.kicker') }}</p>
+          <span class="status archive-tournament-status" [class.completed]="t.status === 'completed'" data-cy="archive-tournament-status-badge"><span class="status-dot" aria-hidden="true" data-cy="archive-tournament-status-dot"></span>{{ statusLabel() }}</span>
           <div class="tournament-heading-fields" data-cy="tournament-archive-detail-heading-fields">
             @if (editing()) { <mat-form-field appearance="outline" class="title-field" data-cy="tournament-archive-detail-name-field"><mat-label data-cy="tournament-archive-detail-name-label">{{ i18n.t('tournament.name') }}</mat-label><input data-cy="tournament-archive-detail-name-input" matInput [(ngModel)]="t.name" [readonly]="saving()"></mat-form-field> }
             @else { <h1 data-cy="tournament-archive-detail-title">{{ t.name }}</h1> }
@@ -207,6 +212,9 @@ export class TournamentArchiveDetailComponent {
     return Boolean(league && league.status === 'active' && canUsePowerMutation(this.power.enabled(), canManageLeague(league.id, this.auth.profile()?.globalRole)));
   });
   readonly canManage = computed(() => this.editing() && this.canEdit());
+  readonly canToggleStatus = computed(() => canUsePowerMutation(this.power.enabled(), canManageLeague(this.leagueId(), this.auth.profile()?.globalRole)));
+  readonly statusLabel = computed(() => this.i18n.t(this.tournament()?.status === 'completed' ? 'archive.tournamentCompleted' : 'archive.tournamentActive'));
+  readonly toggleLabel = computed(() => this.tournament()?.status === 'completed' ? this.i18n.t('archive.reopen') : this.i18n.t('archive.markComplete'));
   readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly leagueOptions = computed(() => this.league() ? sameAuthorityLeagueOptions(this.league()!, this.leagues()) : []);
@@ -478,6 +486,33 @@ export class TournamentArchiveDetailComponent {
       this.stale.set(false);
     } catch (error) {
       logBoundaryError('tournament-detail.reloadLatest', error, { leagueId: this.leagueId(), tournamentId: this.tournamentId() });
+      this.applyCommandError(error, 'tournament.saveFailed');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  async toggleStatus(): Promise<void> {
+    if (!this.canToggleStatus() || this.saving()) return;
+    const sourceLeague = this.league();
+    const tournament = sourceLeague?.tournaments.find(item => item.id === this.tournamentId());
+    if (!sourceLeague || !tournament) return;
+    const newStatus: LeagueStatus = tournament.status === 'completed' ? 'active' : 'completed';
+    const confirmKey = newStatus === 'completed' ? 'archive.completeConfirm' : 'archive.reopenConfirm';
+    const labelKey = newStatus === 'completed' ? 'archive.markComplete' : 'archive.reopen';
+    this.saving.set(true);
+    try {
+      const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+        data: { title: this.i18n.t(labelKey), message: this.i18n.t(confirmKey), confirmLabel: this.i18n.t(labelKey) }
+      }).afterClosed());
+      if (!confirmed) return;
+      const command: ArchiveTournamentEditBatchCommand = { status: newStatus, addRounds: [], deleteRoundIds: [], replaceRounds: [], updateArchetypes: [] };
+      const result = await this.repo.saveTournamentEdits(sourceLeague, this.tournamentId(), null, command);
+      this.error.set('');
+      this.notifyLeagueUpdated(result.sourceLeague.id);
+      this.adoptLeague(result.sourceLeague);
+    } catch (error) {
+      logBoundaryError('tournament-detail.toggleStatus', error, { leagueId: sourceLeague.id, tournamentId: this.tournamentId() });
       this.applyCommandError(error, 'tournament.saveFailed');
     } finally {
       this.saving.set(false);

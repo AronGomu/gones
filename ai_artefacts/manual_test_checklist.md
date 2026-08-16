@@ -364,9 +364,9 @@
 
 ## T20 tournament-completion-flag
 
-Nothing changes visually in this slice: the Archive Tournament now carries a `status` of `active` or
-`completed`, but no screen shows it and nothing reads it yet. These steps check the field is carried
-correctly, and that the app looks and behaves exactly as before.
+The Archive Tournament now carries a `status` of `active` or `completed`. T21 adds the visible badge
+and toggle — check T21 for all visual coverage. These T20 steps verify the flag is carried correctly
+in data exports and restores, and that the app behaves exactly as before at the data layer.
 
 - [ ] Run `npm run dev -- --env=demo` and sign in as `organizer-gones-one-registration@gones.test`, Power User mode on.
 - [ ] Open `/leagues-archive` and confirm the list and each League detail page look exactly as before — no new badge, chip, column or control anywhere on a Tournament.
@@ -379,3 +379,17 @@ correctly, and that the app looks and behaves exactly as before.
 - [ ] Finish a running tournament from `/live-tournaments` through to its Archive, then export the target League: the finalized tournament reads `"status": "active"`.
 - [ ] Repeat the create / edit / export / restore checks in browser-local mode (signed out, Power User mode on): the same statuses appear in the exported JSON.
 - [ ] Open a League Result and a Tournament Result page and confirm the standings, warnings and Player Statistics are identical to before — the new field feeds nothing yet.
+
+## T21 tournament-completion-ui
+
+- [ ] Run `npm run dev -- --env=demo`, sign in as `organizer-gones-one-registration@gones.test`, enable Power User mode in Settings.
+- [ ] Open a League from `/leagues-archive`, open an Archive Tournament. Confirm a status badge is visible near the top of the heading block — it should read **Completed** (backfilled by T20 for demo data).
+- [ ] Confirm a **Reopen** button is visible in the action row (top-right area). Click it and confirm a confirmation dialog appears; dismiss with Cancel — confirm no change occurs and the badge still reads Completed.
+- [ ] Click **Reopen** again and confirm in the dialog. Confirm the badge changes to **Active** and the button changes to **Mark complete** — without a page reload.
+- [ ] Reload the page. Confirm the badge still reads **Active** (persisted through reload).
+- [ ] Click **Mark complete**, confirm in the dialog. Confirm the badge returns to **Completed**.
+- [ ] Turn Power User mode OFF (Settings). Return to the same Archive Tournament — confirm the badge is still visible but the **Mark complete / Reopen** button is absent.
+- [ ] Sign out. Open the same Archive Tournament URL. Confirm the badge is still visible and no toggle button appears.
+- [ ] Open the League detail page. Confirm each Tournament card in the list shows a small status badge (Active or Completed) matching the tournament's status.
+- [ ] Repeat the mark-complete and reopen flow in browser-local mode (signed out, Power User mode on, using a league created in this browser): confirm the toggle and badge work the same way.
+- [ ] Sign in as a plain `User` (not Organizer or Admin). Open a server League's Archive Tournament — confirm the badge shows but the toggle is absent.

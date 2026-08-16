@@ -88,6 +88,32 @@ describe('Archive Tournament explicit staged editor', () => {
     cy.then(() => expect(apiCalls.filter(call => !call.startsWith('GET ')), 'server mutation calls').to.deep.equal([]));
   });
 
+  it('marks a local Tournament complete and can reopen it after reload', () => {
+    visit('/leagues-archive', true);
+
+    cy.get('[data-cy="leagues-archive-list-create-card"]').click();
+    cy.contains('mat-dialog-container', 'New League').within(() => {
+      cy.get('input').type('Completion Test League');
+      cy.contains('button', 'Create League').click();
+    });
+    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
+
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('be.visible');
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').should('contain', 'Mark complete');
+
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('contain', 'Completed');
+
+    cy.reload();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('contain', 'Completed');
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').should('contain', 'Reopen');
+
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('contain', 'Active');
+  });
+
   it('keeps server draft on 412, cancels Reload Latest without loss, then discards after confirmation', () => {
     organizer();
     const source = {

@@ -35,6 +35,7 @@ export interface ReplaceArchiveRoundIntent {
 
 export interface ArchiveTournamentEditBatchCommand {
   editTournament?: { name: string; tournamentDate: string };
+  status?: LeagueStatus;
   addRounds: AddArchiveRoundIntent[];
   deleteRoundIds: string[];
   replaceRounds: ReplaceArchiveRoundIntent[];
