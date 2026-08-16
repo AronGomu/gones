@@ -256,7 +256,7 @@
 
 - [ ] Run `npm run dev -- --env=demo`, sign in as `admin@gones.test`, open `/admin/users`. In DevTools Network, confirm a request to `/api/admin/users*` is made and the user list renders.
 - [ ] Confirm the Synchronise button and "Last sync: …" label are visible directly under the page heading.
-- [ ] Grant the Organizer role to a user — confirm the list refreshes immediately and the role is shown. In DevTools Network, confirm a new `/api/admin/users*` request was made (invalidation triggered a refetch).
+- [ ] Grant the Organizer role to a user whose role is still `User` (T19 disables the button on rows that already hold it) — confirm the list refreshes immediately and the role is shown. In DevTools Network, confirm a new `/api/admin/users*` request was made (invalidation triggered a refetch).
 - [ ] Navigate away then return to `/admin/users`. Confirm NO new `/api/admin/users*` request (served from 24h IndexedDB cache). The list still renders correctly.
 - [ ] Paginate to page 2 then back to page 1 — each page should be served from its own cache entry (no extra requests on repeated navigation).
 - [ ] Press Synchronise — confirm exactly one new `/api/admin/users*` request and the "Last sync" label updates.
@@ -348,3 +348,16 @@
 - [ ] Each card has a title and a short description.
 - [ ] Click each card and confirm: the breadcrumb reads `Admin console / <page name>` and clicking `Admin console` navigates back to `/admin`.
 - [ ] Confirm that no admin page (`/admin/users`, `/admin/organizations`, `/admin/audit`, `/admin/notifications/history`, `/admin/notifications/dead-letters`, `/admin/events/deleted`) shows `Menu` or `Page not found` in its breadcrumb.
+
+## T19 admin-role-guards
+
+- [ ] Run `npm run dev -- --env=demo` and sign in as `admin@gones.test`. Open `/admin/users` and find your own row.
+- [ ] On your own row, Revoke Admin is greyed out and cannot be clicked; hovering it shows "You cannot revoke your own Admin role."
+- [ ] On your own row, Disable account is greyed out and cannot be clicked; hovering it shows "You cannot disable your own account." No disable dialog opens.
+- [ ] On your own row, both Grant Organizer and Grant Admin are greyed out, since an Admin already holds both.
+- [ ] On a row whose role is `Organizer`, Grant Organizer is greyed out and hovering it shows "This account already has this role."; Grant Admin stays clickable.
+- [ ] On a row whose role is `Admin` (not yours), Grant Organizer is greyed out and hovering it shows "Admin already includes Organizer."; Grant Admin is greyed out too.
+- [ ] On a row whose role is `User`, both Grant buttons are clickable and granting still works end to end.
+- [ ] With DevTools Network open, hover and try to click every greyed-out button above: no request leaves the browser.
+- [ ] Switch the language to French and re-check the same rows: each greyed-out button shows the French explanation, none is blank.
+- [ ] On another admin's row (not yours), Revoke Admin and Disable account stay clickable — the block is about yourself, not about the Admin role.

@@ -273,6 +273,46 @@ describe('admin organization and account controls', () => {
     cy.get('[data-cy="admin-create-org-name"]').should('have.value', '');
   });
 
+  // The server refuses a self-revoke unconditionally and a self-closure too, and treats a grant of a
+  // role the account already outranks as a no-op. The page must not offer those actions at all.
+  it('disables the user actions the server refuses', () => {
+    mockSession('Admin');
+    cy.intercept('GET', '**/api/admin/users?*', {
+      items: [
+        { id: adminProfile.id, email: adminProfile.email, emailVerified: true, globalRole: 'Admin', username: 'admin-user', firstName: 'Admin', lastName: 'User', isClosed: false, createdAt: '2026-08-01T00:00:00Z' },
+        { id: '22222222-2222-2222-2222-222222222222', email: 'bob@example.test', emailVerified: true, globalRole: 'Organizer', username: 'organizer-bob', firstName: 'Bob', lastName: 'Organizer', isClosed: false, createdAt: '2026-08-01T00:00:00Z' },
+        { id: '33333333-3333-3333-3333-333333333333', email: 'jane@example.test', emailVerified: true, globalRole: 'User', username: 'plain-jane', firstName: 'Jane', lastName: 'Plain', isClosed: false, createdAt: '2026-08-01T00:00:00Z' }
+      ],
+      page: 1,
+      pageSize: 20,
+      totalCount: 3
+    });
+    cy.intercept('POST', '**/api/admin/users/**').as('userMutation');
+    cy.intercept('GET', '**/api/admin/users/*/closure-impact').as('impact');
+    visit('/admin/users');
+
+    // Own row: no self-revoke, no self-closure, and Admin already outranks both grants.
+    cy.get('[data-cy="revoke-admin-admin-user"]').should('be.disabled').and('have.attr', 'title').and('not.be.empty');
+    cy.get('[data-cy="revoke-admin-admin-user"]').should('have.attr', 'aria-label').and('not.be.empty');
+    cy.get('[data-cy="close-user-admin-user"]').should('be.disabled').and('have.attr', 'title').and('not.be.empty');
+    cy.get('[data-cy="grant-organizer-admin-user"]').should('be.disabled');
+    cy.get('[data-cy="grant-admin-admin-user"]').should('be.disabled');
+
+    // Another Organizer: only the role they already hold is refused.
+    cy.get('[data-cy="grant-organizer-organizer-bob"]').should('be.disabled').and('have.attr', 'title').and('not.be.empty');
+    cy.get('[data-cy="grant-admin-organizer-bob"]').should('not.be.disabled').and('not.have.attr', 'title');
+    cy.get('[data-cy="revoke-admin-organizer-bob"]').should('not.be.disabled');
+    cy.get('[data-cy="close-user-organizer-bob"]').should('not.be.disabled');
+
+    // A plain User can be granted either role.
+    cy.get('[data-cy="grant-organizer-plain-jane"]').should('not.be.disabled');
+    cy.get('[data-cy="grant-admin-plain-jane"]').should('not.be.disabled');
+
+    // Rendering the refusals never talks to the server.
+    cy.get('@userMutation.all').should('have.length', 0);
+    cy.get('@impact.all').should('have.length', 0);
+  });
+
   it('admin pages show breadcrumb rooted at Admin, not Menu', () => {
     mockSession();
     cy.intercept('GET', '**/api/admin/users?*', { items: [], page: 1, pageSize: 20, totalCount: 0 });

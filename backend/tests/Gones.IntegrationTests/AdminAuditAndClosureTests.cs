@@ -192,6 +192,38 @@ public sealed class AdminAuditAndClosureTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// T19: the Users page disables a self-revoke, but a disabled attribute is an affordance, not a
+    /// guard. The refusal is unconditional - a second Admin exists here, so it is not the last-Admin
+    /// rule answering - and the actor keeps the role they tried to drop.
+    /// </summary>
+    [Fact]
+    public async Task Revoking_your_own_Admin_role_is_refused_even_with_another_Admin_left()
+    {
+        var adminEmail = $"self-revoke-admin-{Guid.NewGuid():N}@example.test";
+        var otherEmail = $"self-revoke-other-{Guid.NewGuid():N}@example.test";
+        await RegisterAndVerifyAsync(adminEmail, UniqueUsername("RAdm"));
+        await RegisterAndVerifyAsync(otherEmail, UniqueUsername("ROth"));
+        await PromoteToAdminAsync(adminEmail);
+        var adminToken = await LoginAsync(adminEmail);
+
+        await using var database = CreateContext();
+        var admin = await database.Users.AsNoTracking().SingleAsync(item => item.NormalizedEmail == adminEmail.ToUpperInvariant());
+        var other = await database.Users.AsNoTracking().SingleAsync(item => item.NormalizedEmail == otherEmail.ToUpperInvariant());
+        using var promote = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/users/{other.Id:D}/roles/Admin/grant", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, promote.StatusCode);
+
+        using var selfRevoke = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/users/{admin.Id:D}/roles/Admin/revoke", adminToken);
+        Assert.Equal(HttpStatusCode.Conflict, selfRevoke.StatusCode);
+        Assert.Equal(GlobalRoles.Admin, await GlobalRoleAsync(admin.Id));
+
+        // Revoking the other Admin from the same actor is allowed, so the refusal above is about the
+        // actor being the subject, nothing else.
+        using var revokeOther = await SendAuthorizedAsync(HttpMethod.Post, $"/api/admin/users/{other.Id:D}/roles/Admin/revoke", adminToken);
+        Assert.Equal(HttpStatusCode.NoContent, revokeOther.StatusCode);
+        Assert.Equal(GlobalRoles.User, await GlobalRoleAsync(other.Id));
+    }
+
+    /// <summary>
     /// An archived organization can lose its last member too, and comes back from the archive as a
     /// Draft with the closed account keeping no stale Organizer role.
     /// </summary>
