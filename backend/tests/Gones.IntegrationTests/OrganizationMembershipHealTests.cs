@@ -120,6 +120,21 @@ public sealed class OrganizationMembershipHealTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// ADR 0041 removed <c>Owner</c> from the domain, so the only way a row can still read it is a
+    /// database written before that - which is exactly what <c>RemoveOrganizationOwnership</c> heals.
+    /// The row is seeded through raw SQL because <c>OrganizationMember.Create</c> refuses the role.
+    /// </summary>
+    [Fact]
+    public async Task Stored_owner_rows_are_rewritten_to_organizer()
+    {
+        await using var db = CreateContext();
+        var member = await db.OrganizationMembers.SingleAsync(item =>
+            item.OrganizationId == staffedOrganizationId && item.UserId == organizerWithMembershipId);
+        Assert.Equal(OrganizationRoles.Organizer, member.Role);
+        Assert.Empty(await db.OrganizationMembers.Where(item => item.Role == "Owner").ToListAsync());
+    }
+
+    /// <summary>
     /// The heal only demotes. A member whose role never caught up stays a <c>User</c> until the next
     /// membership write runs the derivation: a migration must not hand out a privilege nobody asked
     /// for, and no membership is ever invented to justify a role.
@@ -259,12 +274,20 @@ public sealed class OrganizationMembershipHealTests : IAsyncLifetime
         await db.SaveChangesAsync();
 
         db.OrganizationMembers.AddRange(
-            OrganizationMember.Create(staffedOrganization.Id, organizerWithMembership.Id, OrganizationRoles.Owner, Now),
+            OrganizationMember.Create(staffedOrganization.Id, organizerWithMembership.Id, OrganizationRoles.Organizer, Now),
             OrganizationMember.Create(staffedOrganization.Id, adminWithMembership.Id, OrganizationRoles.Organizer, Now),
             OrganizationMember.Create(staffedOrganization.Id, memberWithUserRole.Id, OrganizationRoles.Organizer, Now),
-            OrganizationMember.Create(archivedOrganization.Id, organizerWithArchivedMembershipOnly.Id, OrganizationRoles.Owner, Now),
+            OrganizationMember.Create(archivedOrganization.Id, organizerWithArchivedMembershipOnly.Id, OrganizationRoles.Organizer, Now),
             OrganizationMember.Create(archivedOrganization.Id, adminWithArchivedMembershipOnly.Id, OrganizationRoles.Organizer, Now));
         await db.SaveChangesAsync();
+
+        // Pre-ADR-0041 rows: the domain refuses to build them, and the schema at this revision still
+        // accepts them, so they go in as raw SQL - one per organization, as the owner index demanded.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE organization_members SET role = 'Owner'
+            WHERE (organization_id = {staffedOrganization.Id} AND user_id = {organizerWithMembership.Id})
+               OR (organization_id = {archivedOrganization.Id} AND user_id = {organizerWithArchivedMembershipOnly.Id})
+            """);
         db.ChangeTracker.Clear();
 
         emptyOrganizationId = emptyOrganization.Id;

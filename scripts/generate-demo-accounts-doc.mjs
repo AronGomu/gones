@@ -36,9 +36,12 @@ function capability(account) {
   return account.emailConfirmed === false ? `${base}, cannot write until the email is verified` : base;
 }
 
-function ownedOrganizations(account, organizations) {
-  const owned = organizations.filter((organization) => organization.ownerEmail === account.email).map((organization) => organization.name);
-  return owned.length ? owned.join(', ') : '—';
+/** Nobody owns an organization (ADR 0041), so the column lists the ones the account organizes. */
+function memberOrganizations(account, organizations) {
+  const joined = organizations
+    .filter((organization) => (organization.memberEmails ?? []).includes(account.email))
+    .map((organization) => organization.name);
+  return joined.length ? joined.join(', ') : '—';
 }
 
 /** The full markdown file, as a string, so the drift test can compare it to the committed one. */
@@ -48,7 +51,7 @@ export function renderDemoAccountsDoc(accounts, organizations, password) {
     account.username,
     account.role,
     account.emailConfirmed === false ? 'no' : 'yes',
-    ownedOrganizations(account, organizations),
+    memberOrganizations(account, organizations),
     capability(account)
   ]);
 

@@ -192,16 +192,20 @@ async function seedOrganizations(environment, tokens) {
   if (!environment.organizations.length) return ids;
 
   const token = tokenForRole(environment, tokens, 'Admin', 'organizations');
-  // A fixture names its owner by email; only the admin user list turns that into the user ID the
-  // create endpoint wants.
+  // A fixture names its members by email; only the admin user list turns those into the user IDs the
+  // roster endpoint wants.
   const listed = await requireResponse(await api('GET', '/api/admin/users?pageSize=100', { token }), 'organizations', 'user lookup');
   const userIds = new Map((await listed.json()).items.map((user) => [normalizeFixtureEmail(user.email), user.id]));
 
   for (const organization of environment.organizations) {
-    const ownerUserId = userIds.get(normalizeFixtureEmail(organization.ownerEmail));
-    if (ownerUserId === undefined) {
-      console.error(`Seeding organizations failed for ${organization.key}: owner ${organization.ownerEmail} was not registered.`);
-      process.exit(1);
+    const memberUserIds = [];
+    for (const email of organization.memberEmails ?? []) {
+      const memberUserId = userIds.get(normalizeFixtureEmail(email));
+      if (memberUserId === undefined) {
+        console.error(`Seeding organizations failed for ${organization.key}: member ${email} was not registered.`);
+        process.exit(1);
+      }
+      memberUserIds.push(memberUserId);
     }
 
     const created = await requireResponse(await api('POST', '/api/admin/organizations', {
@@ -210,11 +214,28 @@ async function seedOrganizations(environment, tokens) {
         name: organization.name,
         description: organization.description ?? null,
         website: organization.website ?? null,
-        contactEmail: organization.contactEmail ?? null,
-        ownerUserId
+        contactEmail: organization.contactEmail ?? null
       }
     }), 'organizations', organization.key);
-    ids.set(organization.key, (await created.json()).id);
+    const organizationId = (await created.json()).id;
+    ids.set(organization.key, organizationId);
+
+    // Nobody owns an organization (ADR 0041), so every fixture member joins the same way: as an
+    // Organizer, which is also what promotes the account to the global Organizer role.
+    for (const memberUserId of memberUserIds) {
+      await requireResponse(await api('POST', `/api/organizations/${organizationId}/members`, {
+        token,
+        body: { userId: memberUserId, role: 'Organizer' }
+      }), 'organizations', `${organization.key} member`);
+    }
+
+    // Creating an organization makes the actor its first member, and the actor here is the seeding
+    // admin. Step it back out so the roster is exactly what the fixture declares.
+    const roster = await requireResponse(await api('GET', `/api/organizations/${organizationId}/members`, { token }), 'organizations', `${organization.key} roster`);
+    for (const member of await roster.json()) {
+      if (memberUserIds.includes(member.userId)) continue;
+      await requireResponse(await api('DELETE', `/api/organizations/${organizationId}/members/${member.userId}`, { token }), 'organizations', `${organization.key} seeder membership`);
+    }
   }
   return ids;
 }

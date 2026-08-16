@@ -55,10 +55,12 @@ into a Docker reset.
 with the same slug is reused instead of created), `sortOrder`.
 
 `organizations.json` — `key` (referenced by `tournaments[].organizationKey`), `name`, `description`,
-`website`, `contactEmail`, `ownerEmail` (an `accounts.json` email; that account becomes the
-organization owner, which is what lets it publish tournaments).
+`website`, `contactEmail`, `memberEmails` (an array of `accounts.json` emails; nobody owns an
+organization, so each of those accounts joins it as an Organizer, which is what lets them publish
+tournaments for it). The seeding admin creates the organization and is stepped back out, so the
+roster is exactly this list — an empty array leaves the organization Draft.
 
-`tournaments.json` — `key`, `organizationKey`, `organizerEmail` (must be the organization's owner),
+`tournaments.json` — `key`, `organizationKey`, `organizerEmail` (must be one of the organization's `memberEmails`),
 `title`, `summary` (50 characters maximum), `bodyHtml` (well-formed markup limited to
 `p`, `br`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, `a`), `streetAddress`, `postalCode`, `city`,
 `country`, `timeZoneId` (IANA), `startsAtLocalOffsetDays` / `startsAtLocalTime` and

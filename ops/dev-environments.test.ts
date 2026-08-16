@@ -61,7 +61,7 @@ interface DevEnvironmentRegistration {
 
 interface DevEnvironmentOrganization {
   key: string;
-  ownerEmail: string;
+  memberEmails: string[];
   [key: string]: unknown;
 }
 
@@ -287,8 +287,8 @@ describe('shipped development environments', () => {
     expect(demo.accounts.map((account) => account.role)).toEqual(['Admin', 'Organizer', 'Organizer', 'User', 'User', 'User', 'User']);
     expect(demo.accounts.filter((account) => account.emailConfirmed === false).map((account) => account.email)).toEqual(['user-unverified@gones.test']);
     expect(demo.organizations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ key: 'gones-lyon', ownerEmail: 'organizer-gones-one-registration@gones.test' }),
-      expect.objectContaining({ key: 'aura-league', ownerEmail: 'organizer-aura-live-standings@gones.test' })
+      expect.objectContaining({ key: 'gones-lyon', memberEmails: ['organizer-gones-one-registration@gones.test'] }),
+      expect.objectContaining({ key: 'aura-league', memberEmails: ['organizer-aura-live-standings@gones.test'] })
     ]));
     expect(demo.liveTournaments.map((live) => live.organizerEmail)).toEqual([
       'organizer-gones-one-registration@gones.test',
@@ -386,7 +386,7 @@ describe('environment validation', () => {
   it.each([{ formatKeys: [] }, { formatKeys: ['legacy', 'modern'] }])('rejects Events with $formatKeys formats', ({ formatKeys }) => {
     const fixture = validEnvironment();
     fixture['accounts'] = [{ email: 'o@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }];
-    fixture['organizations'] = [{ key: 'org', ownerEmail: 'o@gones.test' }];
+    fixture['organizations'] = [{ key: 'org', memberEmails: ['o@gones.test'] }];
     fixture['formats'] = [
       { key: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 10 },
       { key: 'modern', name: 'Modern', slug: 'modern', sortOrder: 20 }
@@ -399,7 +399,7 @@ describe('environment validation', () => {
   it('rejects malformed or duplicate split keys', () => {
     const fixture = validEnvironment();
     fixture['accounts'] = [{ email: 'o@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }];
-    fixture['organizations'] = [{ key: 'org', ownerEmail: 'o@gones.test' }];
+    fixture['organizations'] = [{ key: 'org', memberEmails: ['o@gones.test'] }];
     fixture['formats'] = [
       { key: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 10 },
       { key: 'modern', name: 'Modern', slug: 'modern', sortOrder: 20 }
@@ -417,12 +417,12 @@ describe('environment validation', () => {
 
   it('reports renamed account references left dangling', () => {
     const fixture = validEnvironment();
-    fixture['organizations'] = [{ key: 'org', ownerEmail: 'old@gones.test' }];
+    fixture['organizations'] = [{ key: 'org', memberEmails: ['old@gones.test'] }];
     fixture['liveTournaments'] = [{ key: 'live', organizerEmail: 'old@gones.test', leagueKey: null, roundCount: 1, scoredRounds: 0, players: [{ name: 'A' }, { name: 'B' }] }];
     fixture['registrations'] = [{ tournamentKey: 'missing', userEmail: 'old@gones.test' }];
 
     const problems = validateEnvironment(fixture) as string[];
-    expect(problems).toContain('demo: organization org owner old@gones.test is not a seeded account');
+    expect(problems).toContain('demo: organization org member old@gones.test is not a seeded account');
     expect(problems).toContain('demo: running tournament live organizer old@gones.test is not an Organizer');
     expect(problems).toContain('demo: registration missing/old@gones.test is not seedable');
   });

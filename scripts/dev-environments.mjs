@@ -138,8 +138,15 @@ export function validateEnvironment(environment) {
   }
 
   for (const organization of organizations) {
-    if (!accountsByEmail.has(normalizeFixtureEmail(organization.ownerEmail))) {
-      problems.push(`${label}: organization ${organization.key} owner ${organization.ownerEmail} is not a seeded account`);
+    // Nobody owns an organization (ADR 0041): a fixture lists the members it wants on the roster.
+    if (!Array.isArray(organization.memberEmails)) {
+      problems.push(`${label}: organization ${organization.key} must declare a memberEmails array`);
+      continue;
+    }
+    for (const email of organization.memberEmails) {
+      if (!accountsByEmail.has(normalizeFixtureEmail(email))) {
+        problems.push(`${label}: organization ${organization.key} member ${email} is not a seeded account`);
+      }
     }
   }
 

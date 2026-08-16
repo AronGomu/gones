@@ -23,7 +23,6 @@ internal sealed class OrganizationService(
         string? description,
         string? website,
         string? contactEmail,
-        Guid ownerUserId,
         CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();
@@ -38,40 +37,29 @@ internal sealed class OrganizationService(
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var owner = await database.Users
-            .FromSqlInterpolated($"SELECT * FROM asp_net_users WHERE id = {ownerUserId} FOR UPDATE")
-            .SingleOrDefaultAsync(cancellationToken)
-            ?? throw Validation("ownerUserId", "Owner user was not found.");
-
-        if (!owner.EmailConfirmed)
-        {
-            throw Validation("ownerUserId", "Owner user must have a verified email.");
-        }
-
         if (await database.Organizations.AnyAsync(item => item.NormalizedName == organization.NormalizedName, cancellationToken))
         {
             throw new ResourceConflictException();
         }
 
-        var ownerMember = OrganizationMember.Create(organization.Id, owner.Id, OrganizationRoles.Owner, now);
+        // Nobody owns an organization (ADR 0041): the actor who creates it is simply its first member.
+        var firstMember = OrganizationMember.Create(organization.Id, actorUserId, OrganizationRoles.Organizer, now);
         var settings = OrganizationNotificationSettings.CreateDefault(organization.Id, now);
         database.Organizations.Add(organization);
-        database.OrganizationMembers.Add(ownerMember);
+        database.OrganizationMembers.Add(firstMember);
         database.OrganizationNotificationSettings.Add(settings);
         database.AuditRecords.Add(NewAudit(actorUserId, "admin.organization.created", "organization", organization.Id,
             JsonSerializer.Serialize(new
             {
-                fields = new[] { "name", "description", "website", "contactEmail", "ownerUserId" },
-                name = organization.Name,
-                ownerUserId = owner.Id
+                fields = new[] { "name", "description", "website", "contactEmail" },
+                name = organization.Name
             }), now));
 
         try
         {
             await database.SaveChangesAsync(cancellationToken);
-            // The owner membership is a membership like any other: creating the organization is what
-            // makes its owner an Organizer.
-            await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, owner.Id, cancellationToken);
+            // That first membership is a membership like any other, so it derives the global role.
+            await membershipRoles.SyncAfterMembershipChangeAsync(actorUserId, actorUserId, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return organization;
         }
@@ -212,14 +200,10 @@ internal sealed class OrganizationService(
         // Defence in depth behind the Admin policy on the route: creating a membership grants the
         // global Organizer role, so it never runs for a non-admin actor whatever calls this.
         if (!actorIsAdmin) throw new AdminMembershipGrantRequiredException();
-        if (!OrganizationRoles.IsKnown(role)) throw Validation("role", "Role must be Owner or Organizer.");
-        if (role == OrganizationRoles.Owner)
-        {
-            throw Validation("role", "Owner can only be assigned at creation or via ownership transfer.");
-        }
+        if (!OrganizationRoles.IsKnown(role)) throw Validation("role", "Role must be Organizer.");
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        _ = await access.RequireOwnerAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
+        _ = await access.RequireMemberAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
         var organization = await LockOrganizationAsync(organizationId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (!organization.IsActive) throw new ResourceNotFoundException();
@@ -268,7 +252,7 @@ internal sealed class OrganizationService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        _ = await access.RequireOwnerAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
+        _ = await access.RequireMemberAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
         var organization = await LockOrganizationAsync(organizationId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (!organization.IsActive) throw new ResourceNotFoundException();
@@ -282,21 +266,8 @@ internal sealed class OrganizationService(
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ResourceNotFoundException();
 
-        var ownerCount = await database.OrganizationMembers.CountAsync(
-            item => item.OrganizationId == organizationId && item.Role == OrganizationRoles.Owner,
-            cancellationToken);
-        var memberCount = await database.OrganizationMembers.CountAsync(
-            item => item.OrganizationId == organizationId,
-            cancellationToken);
-        try
-        {
-            OrganizationMembershipPolicy.EnsureCanRemove(member, ownerCount, memberCount);
-        }
-        catch (InvalidOperationException)
-        {
-            throw new ResourceConflictException();
-        }
-
+        // No member is protected (ADR 0041): the last one may leave, which returns the organization
+        // to the Draft state ADR 0034 already models.
         database.OrganizationMembers.Remove(member);
         database.AuditRecords.Add(NewAudit(actorUserId, "organization.member.removed", "organization_member", member.Id,
             JsonSerializer.Serialize(new
@@ -319,14 +290,10 @@ internal sealed class OrganizationService(
         bool actorIsAdmin,
         CancellationToken cancellationToken)
     {
-        if (!OrganizationRoles.IsKnown(role)) throw Validation("role", "Role must be Owner or Organizer.");
-        if (role == OrganizationRoles.Owner)
-        {
-            throw Validation("role", "Use ownership transfer to assign Owner.");
-        }
+        if (!OrganizationRoles.IsKnown(role)) throw Validation("role", "Role must be Organizer.");
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        _ = await access.RequireOwnerAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
+        _ = await access.RequireMemberAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
         var organization = await LockOrganizationAsync(organizationId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (!organization.IsActive) throw new ResourceNotFoundException();
@@ -340,12 +307,8 @@ internal sealed class OrganizationService(
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new ResourceNotFoundException();
 
-        var ownerCount = await database.OrganizationMembers.CountAsync(
-            item => item.OrganizationId == organizationId && item.Role == OrganizationRoles.Owner,
-            cancellationToken);
         try
         {
-            OrganizationMembershipPolicy.EnsureCanDemote(member, role, ownerCount);
             member.ChangeRole(role, clock.GetCurrentInstant());
         }
         catch (InvalidOperationException)
@@ -377,92 +340,6 @@ internal sealed class OrganizationService(
         }
     }
 
-    public async Task TransferOwnershipAsync(
-        Guid actorUserId,
-        Guid organizationId,
-        Guid newOwnerUserId,
-        bool actorIsAdmin,
-        CancellationToken cancellationToken)
-    {
-        // Same reason as AddMemberAsync: a transfer to a non-member mints a membership.
-        if (!actorIsAdmin) throw new AdminMembershipGrantRequiredException();
-        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        _ = await access.RequireOwnerAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
-        var organization = await LockOrganizationAsync(organizationId, cancellationToken)
-            ?? throw new ResourceNotFoundException();
-        if (!organization.IsActive) throw new ResourceNotFoundException();
-
-        var members = await database.OrganizationMembers
-            .FromSqlInterpolated($"""
-                SELECT * FROM organization_members
-                WHERE organization_id = {organizationId}
-                FOR UPDATE
-                """)
-            .ToListAsync(cancellationToken);
-
-        var currentOwner = members.SingleOrDefault(item => item.Role == OrganizationRoles.Owner)
-            ?? throw new ResourceConflictException();
-        if (currentOwner.UserId == newOwnerUserId)
-        {
-            await transaction.CommitAsync(cancellationToken);
-            return;
-        }
-
-        var newOwnerUser = await database.Users.SingleOrDefaultAsync(item => item.Id == newOwnerUserId, cancellationToken)
-            ?? throw Validation("newOwnerUserId", "User was not found.");
-        if (!newOwnerUser.EmailConfirmed) throw Validation("newOwnerUserId", "User must have a verified email.");
-
-        var now = clock.GetCurrentInstant();
-        // Demote then promote in separate flushes so partial unique owner index never sees two Owners.
-        var previousOwnerUserId = currentOwner.UserId;
-        currentOwner.ChangeRole(OrganizationRoles.Organizer, now);
-        try
-        {
-            await database.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw new ResourceConflictException();
-        }
-
-        var incoming = members.SingleOrDefault(item => item.UserId == newOwnerUserId);
-        if (incoming is null)
-        {
-            incoming = OrganizationMember.Create(organizationId, newOwnerUserId, OrganizationRoles.Owner, now);
-            database.OrganizationMembers.Add(incoming);
-        }
-        else
-        {
-            incoming.ChangeRole(OrganizationRoles.Owner, now);
-        }
-
-        database.AuditRecords.Add(NewAudit(actorUserId, "organization.owner.transferred", "organization", organizationId,
-            JsonSerializer.Serialize(new
-            {
-                previousOwnerUserId,
-                newOwnerUserId,
-                fields = new[] { "owner" }
-            }), now));
-
-        try
-        {
-            await database.SaveChangesAsync(cancellationToken);
-            // A transfer can hand the organization to someone who was not a member yet, so both sides
-            // are re-derived; the outgoing owner keeps a membership and normally does not move.
-            await membershipRoles.SyncAfterMembershipChangeAsync(
-                actorUserId,
-                [previousOwnerUserId, newOwnerUserId],
-                cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw new ResourceConflictException();
-        }
-    }
-
     public async Task<OrganizationNotificationSettings> UpdateNotificationSettingsAsync(
         Guid actorUserId,
         Guid organizationId,
@@ -472,7 +349,7 @@ internal sealed class OrganizationService(
         CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        _ = await access.RequireOwnerAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
+        _ = await access.RequireMemberAsync(organizationId, actorUserId, actorIsAdmin, cancellationToken);
         var organization = await LockOrganizationAsync(organizationId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (!organization.IsActive) throw new ResourceNotFoundException();

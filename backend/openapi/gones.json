@@ -6800,69 +6800,6 @@
         }
       }
     },
-    "/api/organizations/{organizationId}/transfer-ownership": {
-      "post": {
-        "tags": [
-          "OrganizationEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "organizationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TransferOrganizationOwnershipRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/organizations/{organizationId}/notification-settings": {
       "get": {
         "tags": [
@@ -7374,7 +7311,6 @@
           "isSelf",
           "canClose",
           "blockReason",
-          "soleOwnedOrganizations",
           "otherMembershipOrganizationIds"
         ],
         "type": "object",
@@ -7409,12 +7345,6 @@
               "null",
               "string"
             ]
-          },
-          "soleOwnedOrganizations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminSoleOwnerOrganizationResponse"
-            }
           },
           "otherMembershipOrganizationIds": {
             "type": "array",
@@ -7910,37 +7840,6 @@
           }
         }
       },
-      "AdminSoleOwnerOrganizationResponse": {
-        "required": [
-          "organizationId",
-          "organizationName",
-          "suggestedNewOwnerUserId",
-          "suggestedNewOwnerUsername"
-        ],
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "organizationName": {
-            "type": "string"
-          },
-          "suggestedNewOwnerUserId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "suggestedNewOwnerUsername": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "AdminUserDetailResponse": {
         "required": [
           "id",
@@ -8325,8 +8224,7 @@
           "name",
           "description",
           "website",
-          "contactEmail",
-          "ownerUserId"
+          "contactEmail"
         ],
         "type": "object",
         "properties": {
@@ -8358,10 +8256,6 @@
               "null",
               "string"
             ]
-          },
-          "ownerUserId": {
-            "type": "string",
-            "format": "uuid"
           }
         }
       },
@@ -8453,8 +8347,7 @@
       },
       "DisableUserRequest": {
         "required": [
-          "confirmedUsername",
-          "ownershipTransfers"
+          "confirmedUsername"
         ],
         "type": "object",
         "properties": {
@@ -8462,15 +8355,6 @@
             "maxLength": 120,
             "minLength": 0,
             "type": "string"
-          },
-          "ownershipTransfers": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/OwnershipTransferBody"
-            }
           }
         }
       },
@@ -10908,23 +10792,6 @@
           }
         }
       },
-      "OwnershipTransferBody": {
-        "required": [
-          "organizationId",
-          "newOwnerUserId"
-        ],
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "newOwnerUserId": {
-            "type": "string",
-            "format": "uuid"
-          }
-        }
-      },
       "PatchUserProfileRequest": {
         "required": [
           "username",
@@ -12959,18 +12826,6 @@
             "items": {
               "$ref": "#/components/schemas/RankingRow"
             }
-          }
-        }
-      },
-      "TransferOrganizationOwnershipRequest": {
-        "required": [
-          "newOwnerUserId"
-        ],
-        "type": "object",
-        "properties": {
-          "newOwnerUserId": {
-            "type": "string",
-            "format": "uuid"
           }
         }
       },

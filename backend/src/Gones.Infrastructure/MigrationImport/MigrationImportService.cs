@@ -369,11 +369,13 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
         var organizationExists = await database.Organizations
             .AsNoTracking()
             .AnyAsync(organization => organization.Id == mapping.OrganizationId && organization.DeletedAt == null, cancellationToken);
+        // A bundle predates ADR 0041, so the Owner role it names maps to the only role left,
+        // Organizer: the mapping's owner just has to be a member of the target organization.
         var ownerIsOwner = await database.OrganizationMembers
             .AsNoTracking()
             .AnyAsync(member => member.OrganizationId == mapping.OrganizationId
                                 && member.UserId == mapping.OwnerUserId
-                                && member.Role == OrganizationRoles.Owner, cancellationToken);
+                                && member.Role == OrganizationRoles.Organizer, cancellationToken);
 
         return new MigrationTargetState(
             databaseIdentity,

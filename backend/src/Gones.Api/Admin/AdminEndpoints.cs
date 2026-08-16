@@ -202,10 +202,7 @@ internal static class AdminEndpoints
         AdminAccountService accounts,
         CancellationToken cancellationToken)
     {
-        var transfers = (request.OwnershipTransfers ?? [])
-            .Select(item => new OwnershipTransferRequest(item.OrganizationId, item.NewOwnerUserId))
-            .ToArray();
-        await accounts.CloseAsync(CurrentUserId(principal), userId, request.ConfirmedUsername, transfers, cancellationToken);
+        await accounts.CloseAsync(CurrentUserId(principal), userId, request.ConfirmedUsername, cancellationToken);
         return Results.NoContent();
     }
 
@@ -442,11 +439,6 @@ internal static class AdminEndpoints
             impact.IsSelf,
             impact.CanClose,
             impact.BlockReason,
-            impact.SoleOwnedOrganizations.Select(item => new AdminSoleOwnerOrganizationResponse(
-                item.OrganizationId,
-                item.OrganizationName,
-                item.SuggestedNewOwnerUserId,
-                item.SuggestedNewOwnerUsername)).ToArray(),
             impact.OtherMembershipOrganizationIds);
 
     private static Guid CurrentUserId(ClaimsPrincipal principal)
@@ -513,22 +505,10 @@ internal sealed record AdminAccountClosureImpactResponse(
     bool IsSelf,
     bool CanClose,
     string? BlockReason,
-    IReadOnlyList<AdminSoleOwnerOrganizationResponse> SoleOwnedOrganizations,
     IReadOnlyList<Guid> OtherMembershipOrganizationIds);
 
-internal sealed record AdminSoleOwnerOrganizationResponse(
-    Guid OrganizationId,
-    string OrganizationName,
-    Guid? SuggestedNewOwnerUserId,
-    string? SuggestedNewOwnerUsername);
-
 internal sealed record DisableUserRequest(
-    [property: Required, StringLength(120)] string ConfirmedUsername,
-    IReadOnlyList<OwnershipTransferBody>? OwnershipTransfers);
-
-internal sealed record OwnershipTransferBody(
-    [property: Required] Guid OrganizationId,
-    [property: Required] Guid NewOwnerUserId);
+    [property: Required, StringLength(120)] string ConfirmedUsername);
 
 internal sealed record AdminAuditListResponse(
     IReadOnlyList<AdminAuditRecordResponse> Items,

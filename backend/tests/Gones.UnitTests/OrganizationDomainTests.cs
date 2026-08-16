@@ -42,33 +42,19 @@ public sealed class OrganizationDomainTests
         Assert.Equal("Other", organization.Name);
     }
 
+    /// <summary>ADR 0041: <c>Organizer</c> is the only membership role there is.</summary>
     [Fact]
-    public void Member_roles_are_owner_or_organizer_only()
+    public void Organizer_is_the_only_membership_role()
     {
-        var member = OrganizationMember.Create(Guid.NewGuid(), Guid.NewGuid(), OrganizationRoles.Owner, Now);
-        Assert.True(member.IsOwner);
-        member.ChangeRole(OrganizationRoles.Organizer, Now);
-        Assert.False(member.IsOwner);
+        Assert.Equal([OrganizationRoles.Organizer], OrganizationRoles.All);
+        Assert.True(OrganizationRoles.IsKnown(OrganizationRoles.Organizer));
+        Assert.False(OrganizationRoles.IsKnown("Owner"));
+
+        var member = OrganizationMember.Create(Guid.NewGuid(), Guid.NewGuid(), OrganizationRoles.Organizer, Now);
+        Assert.Equal(OrganizationRoles.Organizer, member.Role);
+        Assert.Throws<ArgumentException>(() => OrganizationMember.Create(Guid.NewGuid(), Guid.NewGuid(), "Owner", Now));
         Assert.Throws<ArgumentException>(() => OrganizationMember.Create(Guid.NewGuid(), Guid.NewGuid(), "Admin", Now));
-    }
-
-    [Fact]
-    public void Sole_owner_cannot_be_removed_or_demoted_without_transfer()
-    {
-        var owner = OrganizationMember.Create(Guid.NewGuid(), Guid.NewGuid(), OrganizationRoles.Owner, Now);
-        Assert.Throws<InvalidOperationException>(() => OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 1, memberCount: 2));
-        Assert.Throws<InvalidOperationException>(() => OrganizationMembershipPolicy.EnsureCanDemote(owner, OrganizationRoles.Organizer, ownerCount: 1));
-        OrganizationMembershipPolicy.EnsureCanDemote(owner, OrganizationRoles.Organizer, ownerCount: 2);
-        OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 2, memberCount: 2);
-        // T11: the last member may leave - that empties the organization back to Draft.
-        OrganizationMembershipPolicy.EnsureCanRemove(owner, ownerCount: 1, memberCount: 1);
-    }
-
-    [Fact]
-    public void Second_owner_add_is_blocked()
-    {
-        Assert.Throws<InvalidOperationException>(() => OrganizationMembershipPolicy.EnsureCanAddAsOwner(organizationAlreadyHasOwner: true));
-        OrganizationMembershipPolicy.EnsureCanAddAsOwner(organizationAlreadyHasOwner: false);
+        Assert.Throws<ArgumentException>(() => member.ChangeRole("Owner", Now));
     }
 
     [Fact]

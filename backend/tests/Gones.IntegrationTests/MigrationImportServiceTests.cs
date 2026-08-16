@@ -405,7 +405,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         db.Organizations.Add(organization);
         if (db.Entry(legacy).State == EntityState.Detached) db.TournamentFormats.Add(legacy);
         await db.SaveChangesAsync();
-        db.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, user.Id, OrganizationRoles.Owner, Now));
+        db.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, user.Id, OrganizationRoles.Organizer, Now));
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         return new SeedRows(user, organization, legacy);

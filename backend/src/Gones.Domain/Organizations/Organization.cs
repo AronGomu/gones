@@ -5,20 +5,20 @@ using NodaTime;
 
 namespace Gones.Domain.Organizations;
 
+/// <summary>Nobody owns an organization: every member is an Organizer with equal rights (ADR 0041).</summary>
 public static class OrganizationRoles
 {
-    public const string Owner = "Owner";
     public const string Organizer = "Organizer";
 
-    public static readonly IReadOnlyList<string> All = [Owner, Organizer];
+    public static readonly IReadOnlyList<string> All = [Organizer];
 
-    public static bool IsKnown(string? role) => role is Owner or Organizer;
+    public static bool IsKnown(string? role) => role is Organizer;
 
     public static bool IsMemberRole(string? role) => role is Organizer;
 
     public static string RequireKnown(string role)
     {
-        if (!IsKnown(role)) throw new ArgumentException("Organization role must be Owner or Organizer.", nameof(role));
+        if (!IsKnown(role)) throw new ArgumentException("Organization role must be Organizer.", nameof(role));
         return role;
     }
 }
@@ -157,8 +157,6 @@ public sealed class OrganizationMember : VersionedEntity
     public Instant CreatedAt { get; private init; }
     public Instant UpdatedAt { get; private set; }
 
-    public bool IsOwner => Role == OrganizationRoles.Owner;
-
     public static OrganizationMember Create(Guid organizationId, Guid userId, string role, Instant now)
     {
         if (organizationId == Guid.Empty) throw new ArgumentException("Organization ID cannot be empty.", nameof(organizationId));
@@ -276,41 +274,5 @@ public sealed class OrganizationNotificationSettings : VersionedEntity
         NotifyOnRegistration = notifyOnRegistration;
         NotifyOnUnregistration = notifyOnUnregistration;
         UpdatedAt = now;
-    }
-}
-
-public static class OrganizationMembershipPolicy
-{
-    /// <summary>
-    /// The sole Owner may only leave when nobody is left behind: that empties the organization and
-    /// returns it to Draft, which is a state it is allowed to be in. Leaving other members behind
-    /// would strand them under an organization no one can administer, so that still requires a
-    /// transfer first.
-    /// </summary>
-    public static void EnsureCanRemove(OrganizationMember target, int ownerCount, int memberCount)
-    {
-        if (target.IsOwner && ownerCount <= 1 && memberCount > 1)
-        {
-            throw new InvalidOperationException("Sole organization Owner cannot be removed while other members remain.");
-        }
-    }
-
-    public static void EnsureCanDemote(OrganizationMember target, string nextRole, int ownerCount)
-    {
-        OrganizationRoles.RequireKnown(nextRole);
-        if (target.IsOwner
-            && nextRole != OrganizationRoles.Owner
-            && ownerCount <= 1)
-        {
-            throw new InvalidOperationException("Sole organization Owner cannot be demoted without transfer.");
-        }
-    }
-
-    public static void EnsureCanAddAsOwner(bool organizationAlreadyHasOwner)
-    {
-        if (organizationAlreadyHasOwner)
-        {
-            throw new InvalidOperationException("Organization already has an Owner; use ownership transfer.");
-        }
     }
 }

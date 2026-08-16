@@ -571,7 +571,7 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         database.Organizations.Add(organization);
         if (database.Entry(legacy).State == EntityState.Detached) database.TournamentFormats.Add(legacy);
         await database.SaveChangesAsync();
-        database.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, organizer.Id, OrganizationRoles.Owner, Now));
+        database.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, organizer.Id, OrganizationRoles.Organizer, Now));
         database.OrganizationNotificationSettings.Add(OrganizationNotificationSettings.CreateDefault(organization.Id, Now));
         await database.SaveChangesAsync();
         return new SeedRows(organization, organizer, user, registered, blocked, unverified, legacy);

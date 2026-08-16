@@ -28,7 +28,7 @@ interface DemoAccount {
 interface DemoOrganization {
   key: string;
   name: string;
-  ownerEmail: string;
+  memberEmails: string[];
 }
 
 interface DemoRegistration {
@@ -69,7 +69,7 @@ describe('DEMO_ACCOUNTS.md', () => {
     expect(doc.split('\n').filter((line) => line.startsWith('| ') && line.includes('@gones.test'))).toHaveLength(accounts.length);
   });
 
-  it('lists the organizations each purpose organizer owns', () => {
+  it('lists the organizations each purpose organizer belongs to', () => {
     expect(rowFor('organizer-gones-one-registration@gones.test')).toContain('Gones Lyon');
     expect(rowFor('organizer-aura-live-standings@gones.test')).toContain('Ligue AURA');
   });

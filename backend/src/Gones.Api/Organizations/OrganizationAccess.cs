@@ -12,7 +12,6 @@ internal sealed class OrganizationAccess
     public required bool IsAdmin { get; init; }
 
     public bool IsMember => IsAdmin || Membership is not null;
-    public bool IsOwner => IsAdmin || Membership is { Role: OrganizationRoles.Owner };
 }
 
 public interface IOrganizationDeleteDependency
@@ -66,17 +65,6 @@ internal sealed class OrganizationAccessService(GonesDbContext database)
     {
         var access = await LoadAsync(organizationId, userId, isAdmin, includeDeletedForAdmin: isAdmin, cancellationToken);
         if (!access.IsMember) throw new ResourceNotFoundException();
-        return access;
-    }
-
-    public async Task<OrganizationAccess> RequireOwnerAsync(
-        Guid organizationId,
-        Guid userId,
-        bool isAdmin,
-        CancellationToken cancellationToken)
-    {
-        var access = await LoadAsync(organizationId, userId, isAdmin, includeDeletedForAdmin: isAdmin, cancellationToken);
-        if (!access.IsOwner) throw new ResourceNotFoundException();
         return access;
     }
 }
