@@ -6,16 +6,20 @@ import { firstValueFrom } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
 import { Client, EventManagementResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
+import { adminCacheKey } from '../admin/admin-query';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
+  imports: [RouterLink, MatButtonModule, MatCardModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="admin-deleted-events-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
 
     <section class="tournament-management-page stack" data-cy="deleted-events" aria-labelledby="deleted-events-title">
       <header class="page-heading" data-cy="deleted-events-heading"><div data-cy="deleted-events-heading-text"><p class="kicker" data-cy="deleted-events-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="deleted-events-title" data-cy="deleted-events-title">{{ i18n.t('eventManage.deletedTitle') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="deleted-events-back">{{ i18n.t('admin.back') }}</a></header>
+      <gones-sync-bar cyPrefix="admin-deleted-events" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="admin-deleted-events-sync-bar" />
       <p class="muted" data-cy="deleted-events-help">{{ i18n.t('eventManage.restoreHelp') }}</p>
       @if (loading()) { <p role="status" data-cy="deleted-events-loading">{{ i18n.t('common.loading') }}</p> }
       @else if (error()) { <div class="error stack" role="alert" data-cy="deleted-events-error"><span data-cy="deleted-events-error-text">{{ error() }}</span><button mat-stroked-button type="button" data-cy="deleted-events-retry" (click)="load()">{{ i18n.t('common.retry') }}</button></div> }
@@ -50,8 +54,11 @@ export class AdminDeletedEventsComponent {
   readonly error = signal('');
   readonly status = signal('');
   readonly pendingId = signal('');
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly page = signal(1);
   readonly pageSize = 20;
+  private readonly cache = inject(ServerReadCacheService);
   readonly totalCount = signal(0);
   readonly pages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
 
@@ -63,13 +70,16 @@ export class AdminDeletedEventsComponent {
     });
   }
 
-  async load(): Promise<void> {
+  async load(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     this.error.set('');
     try {
-      const response = await firstValueFrom(this.client.listDeletedEvents(this.page(), this.pageSize));
-      this.items.set(response.items);
-      this.totalCount.set(response.totalCount);
+      const key = adminCacheKey('admin-deleted-events', { page: this.page() });
+      const result = await this.cache.readCached(key, () => firstValueFrom(this.client.listDeletedEvents(this.page(), this.pageSize)), options);
+      this.items.set(result.value.items);
+      this.totalCount.set(result.value.totalCount);
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
     } catch {
       this.items.set([]);
       this.error.set(this.i18n.t('eventManage.loadDeletedFailed'));
@@ -77,6 +87,8 @@ export class AdminDeletedEventsComponent {
       this.loading.set(false);
     }
   }
+
+  sync(): void { void this.load({ force: true }); }
 
   goPage(page: number): void { void this.router.navigate([], { relativeTo: this.route, queryParams: { page } }); }
 
@@ -87,6 +99,7 @@ export class AdminDeletedEventsComponent {
     this.status.set('');
     try {
       await firstValueFrom(this.client.restoreEvent(event.id, event.eTag));
+      await this.cache.invalidateFamily('admin-deleted-events');
       this.items.update(items => items.filter(item => item.id !== event.id));
       this.totalCount.update(count => Math.max(0, count - 1));
       this.status.set(this.i18n.t('eventManage.restored'));
@@ -96,7 +109,10 @@ export class AdminDeletedEventsComponent {
         : error instanceof ApiProblemError && (error.status === 403 || error.status === 404 || error.status === 409)
           ? this.i18n.t('eventManage.restoreRejected')
           : this.i18n.t('eventManage.actionFailed'));
-      if (error instanceof ApiProblemError && error.status === 412) await this.load();
+      if (error instanceof ApiProblemError && error.status === 412) {
+        await this.cache.invalidateFamily('admin-deleted-events');
+        await this.load();
+      }
     } finally {
       this.pendingId.set('');
     }

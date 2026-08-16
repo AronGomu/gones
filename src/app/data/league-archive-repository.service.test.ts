@@ -81,7 +81,9 @@ function setup(options: { server?: Fake; local?: Fake; role?: GlobalRole; userId
   const cacheStore = {
     read: async (key: string) => rows.get(key) ?? null,
     write: async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); },
-    clear: async () => { rows.clear(); }
+    delete: async (key: string) => { rows.delete(key); },
+    clear: async () => { rows.clear(); },
+    keys: async () => [...rows.keys()]
   };
   const powerEnabled = signal(options.power ?? true);
   const power = {

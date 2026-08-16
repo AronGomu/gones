@@ -11,13 +11,15 @@ import {
   OwnershipTransferBody
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
-import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
+import { adminCacheKey, pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
 import { LatestRequest } from '../../shared/async-guards';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="admin-users-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
 
@@ -25,6 +27,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
       <header class="page-heading" data-cy="admin-users-heading">
         <div data-cy="admin-users-heading-text"><p class="kicker" data-cy="admin-users-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-users-title" data-cy="admin-users-title">{{ i18n.t('admin.users') }}</h1></div>
       </header>
+      <gones-sync-bar cyPrefix="admin-users" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="admin-users-sync-bar" />
 
       <form class="filter-bar auth-form" data-cy="admin-users-filters" (ngSubmit)="applyFilters()">
         <label for="admin-user-search" data-cy="admin-user-search-label">{{ i18n.t('common.search') }}</label>
@@ -111,6 +114,9 @@ export class AdminUsersComponent {
   readonly impactError = signal('');
   readonly closeError = signal('');
   readonly pages = signal(1);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
+  private readonly cache = inject(ServerReadCacheService);
   private readonly latest = new LatestRequest();
   search = '';
   page = 1;
@@ -136,15 +142,18 @@ export class AdminUsersComponent {
     void this.router.navigate([], { relativeTo: this.route, queryParams: pagedQueryParams({ search: this.search, page, pageSize: this.pageSize }) });
   }
 
-  async reload(): Promise<void> {
+  async reload(options: { force?: boolean } = {}): Promise<void> {
     const request = this.latest.begin();
     this.loading.set(true);
     this.error.set('');
     try {
-      const response = await firstValueFrom(this.client.users(this.search || undefined, this.page, this.pageSize));
+      const key = adminCacheKey('admin-users', { search: this.search, page: this.page, pageSize: this.pageSize });
+      const result = await this.cache.readCached(key, () => firstValueFrom(this.client.users(this.search || undefined, this.page, this.pageSize)), options);
       if (!this.latest.isCurrent(request)) return;
-      this.items.set(response.items ?? []);
-      this.pages.set(totalPages(response.totalCount ?? 0, response.pageSize || this.pageSize));
+      this.items.set(result.value.items ?? []);
+      this.pages.set(totalPages(result.value.totalCount ?? 0, result.value.pageSize || this.pageSize));
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
     } catch {
       if (!this.latest.isCurrent(request)) return;
       this.error.set(this.i18n.t('admin.loadFailed'));
@@ -153,6 +162,8 @@ export class AdminUsersComponent {
       if (this.latest.isCurrent(request)) this.loading.set(false);
     }
   }
+
+  sync(): void { void this.reload({ force: true }); }
 
   async grant(user: AdminUserSummaryResponse, role: string): Promise<void> {
     if (!confirm(this.i18n.t('admin.confirmRoleGrant', { username: user.username, role }))) return;
@@ -198,6 +209,7 @@ export class AdminUsersComponent {
     try {
       await firstValueFrom(this.client.disable(user.id, { confirmedUsername: this.confirmUsername, ownershipTransfers }));
       this.cancelClose();
+      await this.cache.invalidateFamily('admin-users');
       await this.reload();
     } catch {
       this.closeError.set(this.i18n.t('admin.closeFailed'));
@@ -212,6 +224,7 @@ export class AdminUsersComponent {
     this.error.set('');
     try {
       await action();
+      await this.cache.invalidateFamily('admin-users');
       await this.reload();
     } catch {
       this.error.set(this.i18n.t('admin.actionFailed'));

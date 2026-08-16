@@ -15,7 +15,8 @@ function fakeStore(seed: Record<string, CachedRead<unknown>> = {}) {
     read: async (key: string) => rows.get(key) ?? null,
     write: async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); },
     delete: async (key: string) => { rows.delete(key); },
-    clear: async () => { rows.clear(); }
+    clear: async () => { rows.clear(); },
+    keys: async () => [...rows.keys()]
   };
 }
 

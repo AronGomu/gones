@@ -23,7 +23,8 @@ function fakeStore(seed: Record<string, CachedRead<unknown>> = {}) {
     read: vi.fn(async (key: string) => rows.get(key) ?? null),
     write: vi.fn(async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); }),
     delete: vi.fn(async (key: string) => { rows.delete(key); }),
-    clear: vi.fn(async () => { rows.clear(); })
+    clear: vi.fn(async () => { rows.clear(); }),
+    keys: vi.fn(async () => [...rows.keys()])
   };
 }
 

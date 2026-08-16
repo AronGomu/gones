@@ -58,6 +58,14 @@ function visit(path) {
 
 describe('admin organization and account controls', () => {
   beforeEach(() => cy.viewport(1280, 800));
+  // Clear the private IndexedDB read-cache between tests so each test starts with a cold cache.
+  // Without this, cached responses from earlier tests would be served instead of the test's intercepts.
+  beforeEach(() => cy.window().then(win => new Promise(resolve => {
+    const req = win.indexedDB.deleteDatabase('gones-cache');
+    req.onsuccess = resolve;
+    req.onerror = resolve;
+    req.onblocked = resolve;
+  })));
 
   it('enforces role matrix for Admin routes', () => {
     mockSession('User');
@@ -210,5 +218,41 @@ describe('admin organization and account controls', () => {
     cy.get(`[data-cy="transfer-owner-${orgId}"]`).clear().type('44444444-4444-4444-4444-444444444444');
     cy.get('[data-cy="admin-close-confirm"]').click();
     cy.wait('@disable');
+  });
+
+  it('shows a new organization immediately after create and serves page from cache on reload', () => {
+    mockSession('Admin');
+    const newOrgId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const newOrg = { id: newOrgId, name: 'Fresh Club', description: '', website: '', contactEmail: '', deletedAt: null, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z', version: 1, memberCount: 0, isDraft: true };
+    let listCallCount = 0;
+
+    cy.intercept('GET', '**/api/admin/organizations?*', req => {
+      listCallCount++;
+      req.reply({ items: listCallCount > 1 ? [newOrg] : [], page: 1, pageSize: 20, totalCount: listCallCount > 1 ? 1 : 0 });
+    }).as('orgList');
+    cy.intercept('GET', '**/api/admin/users?*', { items: [], page: 1, pageSize: 100, totalCount: 0 });
+    cy.intercept('POST', '**/api/admin/organizations', req => {
+      req.reply({ statusCode: 201, body: newOrg });
+    }).as('createOrg');
+
+    visit('/admin/organizations');
+    cy.wait('@orgList');
+
+    cy.get('[data-cy="admin-org-create-toggle"]').click();
+    cy.get('[data-cy="admin-create-org-name"]').type('Fresh Club');
+    cy.get('[data-cy="admin-create-org-owner"]').type('some-owner-id');
+    cy.get('[data-cy="admin-create-org-submit"]').click();
+    cy.wait('@createOrg');
+    cy.wait('@orgList');
+
+    cy.get(`[data-cy="admin-org-row-name-${newOrgId}"]`).should('contain.text', 'Fresh Club');
+
+    // Reload the page: the cache is still warm (re-invalidated but just refetched), so verify the
+    // list renders without a new network request.
+    cy.intercept('GET', '**/api/admin/organizations?*').as('orgListReload');
+    cy.reload();
+    cy.get(`[data-cy="admin-org-row-name-${newOrgId}"]`).should('contain.text', 'Fresh Club');
+    // The reload should NOT fire a new API request (IndexedDB cache serves it).
+    cy.get('@orgListReload.all').should('have.length', 0);
   });
 });

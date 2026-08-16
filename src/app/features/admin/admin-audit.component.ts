@@ -6,17 +6,20 @@ import { MatCardModule } from '@angular/material/card';
 import { firstValueFrom } from 'rxjs';
 import { AdminAuditRecordResponse, Client } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
-import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
+import { adminCacheKey, pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="admin-audit-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
 
     <section class="admin-page stack" data-cy="admin-audit" aria-labelledby="admin-audit-title">
       <header class="page-heading" data-cy="audit-heading"><div data-cy="audit-heading-text"><p class="kicker" data-cy="audit-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-audit-title" data-cy="audit-title">{{ i18n.t('admin.audit') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="audit-back">{{ i18n.t('admin.back') }}</a></header>
+      <gones-sync-bar cyPrefix="admin-audit" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="admin-audit-sync-bar" />
       <form class="filter-bar auth-form audit-filter-grid" data-cy="audit-filters" (ngSubmit)="applyFilters()">
         <label for="audit-action" data-cy="audit-action-label">{{ i18n.t('admin.auditAction') }}</label><input id="audit-action" data-cy="audit-action" name="action" [(ngModel)]="action" />
         <label for="audit-entity-type" data-cy="audit-entity-type-label">{{ i18n.t('admin.auditEntityType') }}</label><input id="audit-entity-type" data-cy="audit-entity-type" name="entityType" [(ngModel)]="entityType" />
@@ -58,6 +61,9 @@ export class AdminAuditComponent {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly pages = signal(1);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
+  private readonly cache = inject(ServerReadCacheService);
   action = '';
   entityType = '';
   entityId = '';
@@ -85,13 +91,16 @@ export class AdminAuditComponent {
   applyFilters(): void { this.navigate(1); }
   goPage(page: number): void { this.navigate(page); }
 
-  async reload(): Promise<void> {
+  async reload(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     this.error.set('');
     try {
-      const response = await firstValueFrom(this.client.audit(this.action || undefined, this.entityType || undefined, this.entityId || undefined, this.actorId || undefined, this.from || undefined, this.to || undefined, this.page, this.pageSize));
-      this.items.set(response.items ?? []);
-      this.pages.set(totalPages(response.totalCount ?? 0, response.pageSize || this.pageSize));
+      const key = adminCacheKey('admin-audit', { action: this.action, entityType: this.entityType, entityId: this.entityId, actorId: this.actorId, from: this.from, to: this.to, page: this.page, pageSize: this.pageSize });
+      const result = await this.cache.readCached(key, () => firstValueFrom(this.client.audit(this.action || undefined, this.entityType || undefined, this.entityId || undefined, this.actorId || undefined, this.from || undefined, this.to || undefined, this.page, this.pageSize)), options);
+      this.items.set(result.value.items ?? []);
+      this.pages.set(totalPages(result.value.totalCount ?? 0, result.value.pageSize || this.pageSize));
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
     } catch {
       this.error.set(this.i18n.t('admin.loadFailed'));
       this.items.set([]);
@@ -99,6 +108,8 @@ export class AdminAuditComponent {
       this.loading.set(false);
     }
   }
+
+  sync(): void { void this.reload({ force: true }); }
 
   safeDiff(record: AdminAuditRecordResponse): string {
     return record.redactedDiff.replace(/(password|token|secret)[^,}]*/gi, '$1:redacted');

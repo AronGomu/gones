@@ -47,7 +47,9 @@ describe('SessionScopeService', () => {
     const store = {
       read: async (key: string) => rows.get(key) ?? null,
       write: async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); },
-      clear: async () => { rows.clear(); }
+      delete: async (key: string) => { rows.delete(key); },
+      clear: async () => { rows.clear(); },
+      keys: async () => [...rows.keys()]
     };
     const sessionScope = create();
     const profile = signal<UserProfileResponse | null>({ id: 'user-a' } as UserProfileResponse);

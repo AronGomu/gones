@@ -12,8 +12,10 @@ import {
   Client
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { LatestRequest } from '../../shared/async-guards';
-import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { adminCacheKey, pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
 export const MAX_PICKER_USERS = 500;
@@ -21,12 +23,13 @@ const PICKER_PAGE_SIZE = 100;
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="admin-organizations-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
 
     <section class="admin-page stack" data-cy="admin-organizations" aria-labelledby="admin-orgs-title">
       <header class="page-heading" data-cy="admin-orgs-heading"><div data-cy="admin-orgs-heading-text"><p class="kicker" data-cy="admin-orgs-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-orgs-title" data-cy="admin-orgs-title">{{ i18n.t('admin.organizations') }}</h1></div></header>
+      <gones-sync-bar cyPrefix="admin-orgs" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="admin-orgs-sync-bar" />
 
       <div class="admin-org-workbench" data-cy="admin-org-workbench">
         <div class="stack" data-cy="admin-org-list-pane">
@@ -164,6 +167,8 @@ export class AdminOrganizationsComponent {
   readonly error = signal('');
   readonly status = signal('');
   readonly pages = signal(1);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly maxPickerUsers = MAX_PICKER_USERS;
   readonly selected = computed(() => this.items().find((org) => org.id === this.selectedId()) ?? null);
   readonly filteredUsers = computed(() => {
@@ -180,6 +185,8 @@ export class AdminOrganizationsComponent {
   pageSize = 20;
   draft = { name: '', ownerUserId: '', description: '', website: '', contactEmail: '' };
   editDraft = { name: '', description: '', website: '', contactEmail: '' };
+
+  private readonly cache = inject(ServerReadCacheService);
 
   constructor() {
     void this.loadUsers();
@@ -216,13 +223,16 @@ export class AdminOrganizationsComponent {
     void this.router.navigate([], { relativeTo: this.route, queryParams: pagedQueryParams({ search: this.search, page: this.page, pageSize: this.pageSize }, this.queryExtras()) });
   }
 
-  async reload(): Promise<void> {
+  async reload(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     this.error.set('');
     try {
-      const response = await firstValueFrom(this.client.organizationsGET3(this.search || undefined, this.includeDeleted, this.page, this.pageSize));
-      this.items.set(response.items ?? []);
-      this.pages.set(totalPages(response.totalCount ?? 0, response.pageSize || this.pageSize));
+      const key = adminCacheKey('admin-organizations', { search: this.search, includeDeleted: this.includeDeleted, page: this.page, pageSize: this.pageSize });
+      const result = await this.cache.readCached(key, () => firstValueFrom(this.client.organizationsGET3(this.search || undefined, this.includeDeleted, this.page, this.pageSize)), options);
+      this.items.set(result.value.items ?? []);
+      this.pages.set(totalPages(result.value.totalCount ?? 0, result.value.pageSize || this.pageSize));
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
       const selected = this.selected();
       if (selected) this.syncEditDraft(selected);
     } catch {
@@ -232,6 +242,8 @@ export class AdminOrganizationsComponent {
       this.loading.set(false);
     }
   }
+
+  sync(): void { void this.reload({ force: true }); }
 
   async loadMembers(): Promise<void> {
     const organizationId = this.selectedId();
@@ -245,9 +257,10 @@ export class AdminOrganizationsComponent {
     this.membersLoading.set(true);
     this.membersError.set('');
     try {
-      const members = await firstValueFrom(this.client.membersAll2(organizationId));
+      const key = adminCacheKey('admin-organization-members', { organizationId });
+      const result = await this.cache.readCached(key, () => firstValueFrom(this.client.membersAll2(organizationId)));
       if (!this.latestMembers.isCurrent(request)) return;
-      this.members.set(members ?? []);
+      this.members.set(result.value ?? []);
     } catch {
       if (!this.latestMembers.isCurrent(request)) return;
       this.members.set([]);
@@ -263,6 +276,9 @@ export class AdminOrganizationsComponent {
     await this.mutate(async () => {
       await firstValueFrom(this.client.membersPOST(organizationId, { userId: user.id, role: 'Organizer' }));
       this.memberSearch.set('');
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
+      await this.cache.invalidateFamily('admin-user-picker');
       await this.loadMembers();
       await this.reload();
     });
@@ -274,6 +290,9 @@ export class AdminOrganizationsComponent {
     if (!confirm(this.i18n.t('admin.confirmRemoveMember', { username: member.username, name: this.selected()?.name ?? '' }))) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.membersDELETE(organizationId, member.userId));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
+      await this.cache.invalidateFamily('admin-user-picker');
       await this.loadMembers();
       await this.reload();
     });
@@ -284,6 +303,8 @@ export class AdminOrganizationsComponent {
       await firstValueFrom(this.client.organizationsPOST({ ...this.draft }));
       this.draft = { name: '', ownerUserId: '', description: '', website: '', contactEmail: '' };
       this.showCreate.set(false);
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
       await this.reload();
     });
   }
@@ -293,6 +314,8 @@ export class AdminOrganizationsComponent {
     if (!org) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.organizationsPUT(org.id, { ...this.editDraft }));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
       await this.reload();
     });
   }
@@ -301,6 +324,8 @@ export class AdminOrganizationsComponent {
     if (!confirm(this.i18n.t('admin.confirmDeleteOrg', { name: org.name }))) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.organizationsDELETE(org.id));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
       await this.reload();
       // A deleted organization drops out of the list unless "include deleted" is on: clear the
       // selection rather than leave `?organization=` pointing at a row the pane cannot show.
@@ -309,36 +334,43 @@ export class AdminOrganizationsComponent {
   }
 
   async restore(org: AdminOrganizationResponse): Promise<void> {
-    await this.mutate(async () => { await firstValueFrom(this.client.restore(org.id)); await this.reload(); });
+    await this.mutate(async () => {
+      await firstValueFrom(this.client.restore(org.id));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
+      await this.reload();
+    });
   }
 
   // The server caps `pageSize` at 100 and there is no user-search endpoint yet, so the picker holds
   // a bounded prefix of the account list and says so when it is truncated (T13 guardrail).
   private async loadUsers(): Promise<void> {
-    const loaded: AdminUserSummaryResponse[] = [];
-    let page = 1;
-    let totalCount = 0;
     this.usersError.set('');
     this.usersLoading.set(true);
     try {
-      while (loaded.length < MAX_PICKER_USERS) {
-        const response = await firstValueFrom(this.client.users(undefined, page, PICKER_PAGE_SIZE));
-        const batch = response.items ?? [];
-        loaded.push(...batch);
-        totalCount = response.totalCount ?? loaded.length;
-        if (batch.length < PICKER_PAGE_SIZE || loaded.length >= totalCount) break;
-        page += 1;
-      }
+      const result = await this.cache.readCached('admin-user-picker', async () => {
+        const loaded: AdminUserSummaryResponse[] = [];
+        let page = 1;
+        let totalCount = 0;
+        while (loaded.length < MAX_PICKER_USERS) {
+          const response = await firstValueFrom(this.client.users(undefined, page, PICKER_PAGE_SIZE));
+          const batch = response.items ?? [];
+          loaded.push(...batch);
+          totalCount = response.totalCount ?? loaded.length;
+          if (batch.length < PICKER_PAGE_SIZE || loaded.length >= totalCount) break;
+          page += 1;
+        }
+        return { users: loaded.slice(0, MAX_PICKER_USERS), capReached: loaded.length >= MAX_PICKER_USERS && totalCount > MAX_PICKER_USERS };
+      });
+      this.users.set(result.value.users);
+      this.userCapReached.set(result.value.capReached);
     } catch {
       this.users.set([]);
       this.userCapReached.set(false);
       this.usersError.set(this.i18n.t('admin.loadFailed'));
-      return;
     } finally {
       this.usersLoading.set(false);
     }
-    this.users.set(loaded.slice(0, MAX_PICKER_USERS));
-    this.userCapReached.set(loaded.length >= MAX_PICKER_USERS && totalCount > MAX_PICKER_USERS);
   }
 
   private clearSelection(): void {

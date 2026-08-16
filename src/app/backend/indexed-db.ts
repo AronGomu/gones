@@ -25,6 +25,10 @@ export function getAll<T>(database: IDBDatabase, store: string): Promise<T[]> {
   return run<T[]>(database, store, 'readonly', (objectStore) => objectStore.getAll()).then((rows) => rows ?? []);
 }
 
+export function getAllKeys(database: IDBDatabase, store: string): Promise<string[]> {
+  return run<IDBValidKey[]>(database, store, 'readonly', (objectStore) => objectStore.getAllKeys()).then((keys) => (keys ?? []) as string[]);
+}
+
 export function get<T>(database: IDBDatabase, store: string, key: IDBValidKey): Promise<T | null> {
   return run<T | undefined>(database, store, 'readonly', (objectStore) => objectStore.get(key)).then((row) => row ?? null);
 }

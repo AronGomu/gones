@@ -83,7 +83,9 @@ function setup(role?: GlobalRole) {
   const cacheStore = {
     read: async (key: string) => rows.get(key) ?? null,
     write: async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); },
-    clear: async () => { rows.clear(); }
+    delete: async (key: string) => { rows.delete(key); },
+    clear: async () => { rows.clear(); },
+    keys: async () => [...rows.keys()]
   };
   const injector = Injector.create({ providers: [
     { provide: LEAGUE_ARCHIVE_BACKEND, useValue: server },

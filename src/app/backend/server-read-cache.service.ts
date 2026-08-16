@@ -3,7 +3,7 @@ import { AuthCacheScope, AuthSessionCoordinationService } from '../auth/auth-ses
 import { AuthService } from '../auth/auth.service';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { logBoundaryError } from '../shared/app-logger';
-import { get, openDatabase, put, remove } from './indexed-db';
+import { get, getAllKeys, openDatabase, put, remove } from './indexed-db';
 
 /**
  * Per-user offline read cache for server responses (ADR 0031, amended by ADR 0039).
@@ -44,6 +44,7 @@ export interface ServerReadCacheStore {
   write(key: string, entry: CachedRead<unknown>): Promise<void>;
   delete(key: string): Promise<void>;
   clear(): Promise<void>;
+  keys(): Promise<string[]>;
 }
 
 /** The default is the real database; a unit test provides a fake instead. */
@@ -141,6 +142,26 @@ export class ServerReadCacheService {
     }
   }
 
+  /**
+   * Drops every row whose key starts with `<userId>:<family>` or `<userId>:<family>?`, so a page that
+   * mutated data invalidates all paged views of that family at once. A broken store is swallowed.
+   */
+  async invalidateFamily(family: string): Promise<void> {
+    const scope = this.coordination.captureCacheScope(this.auth.profile()?.id);
+    if (!scope) return;
+    const prefix = this.key(scope, family);
+    try {
+      await this.coordination.withAvailableLock(async () => {
+        if (!this.isCurrentUnlocked(scope)) return;
+        const allKeys = await this.store.keys();
+        const matching = allKeys.filter(k => k === prefix || k.startsWith(`${prefix}?`));
+        await Promise.all(matching.map(k => this.store.delete(k)));
+      });
+    } catch (error) {
+      logBoundaryError('server-read-cache.invalidateFamily', error);
+    }
+  }
+
   /** Drops the whole database. Registered with SessionScopeService, so logout purges it. */
   async purge(): Promise<void> {
     try {
@@ -207,6 +228,10 @@ export class IndexedDbServerReadCacheStore implements ServerReadCacheStore {
 
   async delete(key: string): Promise<void> {
     await remove(await this.open(), SERVER_READ_CACHE_STORE, key);
+  }
+
+  async keys(): Promise<string[]> {
+    return getAllKeys(await this.open(), SERVER_READ_CACHE_STORE);
   }
 
   /**

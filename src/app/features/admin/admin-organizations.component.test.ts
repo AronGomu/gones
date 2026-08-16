@@ -16,6 +16,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { AdminOrganizationMemberResponse, AdminOrganizationResponse, AdminUserSummaryResponse, Client } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { AdminOrganizationsComponent, MAX_PICKER_USERS } from './admin-organizations.component';
 
@@ -55,18 +56,31 @@ function user(id: string, username: string, globalRole = 'User'): AdminUserSumma
   return { id, email: `${username}@example.test`, emailVerified: true, globalRole, username, firstName: '', lastName: '', isClosed: false, createdAt: '2026-08-01T00:00:00Z' } as unknown as AdminUserSummaryResponse;
 }
 
+function fakeCache(fromCache = false) {
+  return {
+    readCached: vi.fn(async (_key: string, loader: () => Promise<unknown>, _opts = {}) =>
+      fromCache
+        ? { value: { users: [], capReached: false }, fetchedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), fromCache: true, stale: false }
+        : { value: await loader(), fetchedAt: new Date().toISOString(), fromCache: false, stale: false }
+    ),
+    invalidateFamily: vi.fn(async () => undefined)
+  };
+}
+
 interface SetupOptions {
   query?: Record<string, string>;
   organizations?: AdminOrganizationResponse[];
   members?: AdminOrganizationMemberResponse[];
   users?: AdminUserSummaryResponse[];
   totalUsers?: number;
+  cache?: ReturnType<typeof fakeCache>;
 }
 
 function setup(options: SetupOptions = {}) {
   const organizations = options.organizations ?? [org('org-1'), org('org-2', { isDraft: true, memberCount: 0 })];
   const allUsers = options.users ?? [user('u1', 'alice'), user('u2', 'organizer-bob', 'Organizer')];
   const totalUsers = options.totalUsers ?? allUsers.length;
+  const cache = options.cache ?? fakeCache(false);
 
   const organizationsGET3 = vi.fn(() => of({ items: organizations, page: 1, pageSize: 20, totalCount: organizations.length }));
   const membersAll2 = vi.fn(() => of(options.members ?? [member('u1', 'alice')]));
@@ -85,12 +99,13 @@ function setup(options: SetupOptions = {}) {
     { provide: Client, useValue: client },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
+    { provide: ServerReadCacheService, useValue: cache },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
   const component = runInInjectionContext(injector, () => new AdminOrganizationsComponent());
-  return { component, organizationsGET3, membersAll2, membersPOST, membersDELETE, users, navigate };
+  return { component, organizationsGET3, membersAll2, membersPOST, membersDELETE, users, navigate, cache };
 }
 
 async function flush(times = 6): Promise<void> {
@@ -183,5 +198,49 @@ describe('AdminOrganizationsComponent', () => {
 
     expect(component.selectedId()).toBe('org-2');
     expect(membersAll2).toHaveBeenCalledWith('org-2');
+  });
+});
+
+describe('AdminOrganizationsComponent cache', () => {
+  it('refetches members and list after addMember resolves', async () => {
+    const { component, membersAll2, organizationsGET3, membersPOST } = setup();
+    await flush();
+    component.select(org('org-1'));
+    await flush();
+    const listCallsBefore = organizationsGET3.mock.calls.length;
+    const memberCallsBefore = membersAll2.mock.calls.length;
+
+    await component.addMember(user('u9', 'carol'));
+    await flush();
+
+    expect(membersPOST).toHaveBeenCalledWith('org-1', { userId: 'u9', role: 'Organizer' });
+    expect(membersAll2.mock.calls.length).toBeGreaterThan(memberCallsBefore);
+    expect(organizationsGET3.mock.calls.length).toBeGreaterThan(listCallsBefore);
+    expect(component.error()).toBe('');
+  });
+
+  it('caches the user picker and skips paging on a cache hit', async () => {
+    const cachedPicker = { users: [user('u1', 'alice')], capReached: false };
+    const cache = {
+      readCached: vi.fn(async (_key: string, loader: () => Promise<unknown>) => {
+        if (_key === 'admin-user-picker') {
+          return { value: cachedPicker, fetchedAt: new Date().toISOString(), fromCache: true, stale: false };
+        }
+        return { value: await loader(), fetchedAt: new Date().toISOString(), fromCache: false, stale: false };
+      }),
+      invalidateFamily: vi.fn(async () => undefined)
+    };
+
+    const { users } = setup({ cache });
+    await flush();
+
+    // user picker was served from cache — no paging calls to client.users
+    expect(users).not.toHaveBeenCalled();
+    expect(cache.readCached).toHaveBeenCalledWith('admin-user-picker', expect.any(Function));
+  });
+
+  it('renders a gones-sync-bar with admin-orgs prefix', () => {
+    expect(source).toContain('cyPrefix="admin-orgs"');
+    expect(source).toContain('(sync)="sync()"');
   });
 });

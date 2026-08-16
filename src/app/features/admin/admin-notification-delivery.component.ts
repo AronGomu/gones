@@ -6,12 +6,14 @@ import { MatCardModule } from '@angular/material/card';
 import { firstValueFrom } from 'rxjs';
 import { AdminNotificationResponse, Client } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
-import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
+import { adminCacheKey, pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="admin-notification-delivery-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
 
@@ -20,6 +22,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         <div data-cy="notification-heading-text"><p class="kicker" data-cy="notification-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="notification-delivery-title" data-cy="notification-title">{{ title() }}</h1></div>
         <a mat-stroked-button routerLink="/admin" data-cy="notification-back">{{ i18n.t('admin.back') }}</a>
       </header>
+      <gones-sync-bar cyPrefix="admin-notifications" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="admin-notifications-sync-bar" />
       <nav class="admin-nav" data-cy="notification-nav" [attr.aria-label]="i18n.t('admin.notificationNav')">
         <a mat-stroked-button routerLink="/admin/notifications/history" data-cy="notification-nav-history">{{ i18n.t('admin.notificationHistory') }}</a>
         <a mat-stroked-button routerLink="/admin/notifications/dead-letters" data-cy="notification-nav-dead-letters">{{ i18n.t('admin.notificationDeadLetters') }}</a>
@@ -72,8 +75,11 @@ export class AdminNotificationDeliveryComponent {
   readonly error = signal('');
   readonly pages = signal(1);
   readonly retrying = signal(new Set<string>());
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly deadLetters = this.route.snapshot.data['mode'] === 'dead-letters';
   readonly title = signal(this.i18n.t(this.deadLetters ? 'admin.notificationDeadLetters' : 'admin.notificationHistory'));
+  private readonly cache = inject(ServerReadCacheService);
   status = '';
   page = 1;
   pageSize = 20;
@@ -91,16 +97,22 @@ export class AdminNotificationDeliveryComponent {
   applyFilters(): void { this.navigate(1); }
   goPage(page: number): void { this.navigate(page); }
 
-  async reload(): Promise<void> {
+  async reload(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     this.error.set('');
     try {
-      const request = this.deadLetters
-        ? this.client.deadLetters(this.status || undefined, this.page, this.pageSize)
-        : this.client.history(this.status || undefined, this.page, this.pageSize);
-      const response = await firstValueFrom(request);
-      this.items.set(response.items ?? []);
-      this.pages.set(totalPages(response.totalCount ?? 0, response.pageSize || this.pageSize));
+      const mode = this.deadLetters ? 'dead-letters' : 'history';
+      const key = adminCacheKey('admin-notifications', { mode, status: this.status, page: this.page, pageSize: this.pageSize });
+      const result = await this.cache.readCached(key, () => {
+        const request = this.deadLetters
+          ? this.client.deadLetters(this.status || undefined, this.page, this.pageSize)
+          : this.client.history(this.status || undefined, this.page, this.pageSize);
+        return firstValueFrom(request);
+      }, options);
+      this.items.set(result.value.items ?? []);
+      this.pages.set(totalPages(result.value.totalCount ?? 0, result.value.pageSize || this.pageSize));
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
     } catch {
       this.items.set([]);
       this.error.set(this.i18n.t('admin.notificationLoadFailed'));
@@ -109,11 +121,14 @@ export class AdminNotificationDeliveryComponent {
     }
   }
 
+  sync(): void { void this.reload({ force: true }); }
+
   async retry(item: AdminNotificationResponse): Promise<void> {
     if (!item.canRetry || !window.confirm(this.i18n.t('admin.notificationRetryConfirm'))) return;
     this.retrying.update((current) => new Set(current).add(item.id));
     try {
       await firstValueFrom(this.client.retry(item.id, { operatorApproved: true }));
+      await this.cache.invalidateFamily('admin-notifications');
       await this.reload();
     } catch {
       this.error.set(this.i18n.t('admin.notificationRetryFailed'));
