@@ -247,7 +247,7 @@
 - [ ] Confirm the Synchronise button and "Last sync: ..." label are visible directly below the page heading.
 - [ ] Navigate away (e.g. to `/`) then return to `/live-tournaments`. Confirm NO new request to `/api/live-tournaments*` (served from 24h IndexedDB cache).
 - [ ] Press Synchronise. Confirm exactly one new request and that the "Last sync" instant updates.
-- [ ] Enable Power User mode. Create a new Live Tournament from the list -- confirm you are navigated to the runner and, on returning to the list, the new tournament appears immediately.
-- [ ] With Power User mode on, use the Delete button on a list card to delete a tournament. Confirm a confirmation dialog appears, after confirmation the tournament disappears from the list, and DevTools shows a DELETE request followed by a GET list request.
+- [ ] Enable Power User mode. Create a new Live Tournament from the list -- confirm you are navigated to the runner and, on returning to the list, the new tournament appears immediately (the create invalidated the cache).
+- [ ] Confirm the list cards carry no Delete button: deleting a Live Tournament stays on the runner page.
 - [ ] Sign out while on `/live-tournaments`. In DevTools Application / IndexedDB, confirm the `gones-cache` database is gone (private cache purged on logout).
 - [ ] Sign out entirely, open `/live-tournaments` as an anonymous visitor. Confirm the browser-local empty state renders, the Synchronise button is visible, and no `/api/live-tournaments*` request is made.

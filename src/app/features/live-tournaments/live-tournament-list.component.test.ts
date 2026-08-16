@@ -40,12 +40,12 @@ describe('Live Tournament list cache contract', () => {
     expect(listComponent).toContain("this.cache.readCached('live-tournaments'");
   });
 
-  it('invalidates after a delete', () => {
-    expect(listComponent).toContain('this.liveRepo.delete(id)');
-    expect(listComponent).toContain("await this.cache.invalidate('live-tournaments')");
-    const deleteBody = listComponent.slice(listComponent.indexOf('async deleteTournament('));
-    const handler = deleteBody.slice(0, deleteBody.indexOf('\n  }') + 4);
+  it('invalidates after a create', () => {
+    // Create is the only mutation this page performs — deleting a Live Tournament lives on the runner.
+    expect(listComponent).not.toContain('deleteTournament');
+    const body = listComponent.slice(listComponent.indexOf('async createTournament(): Promise<void>'));
+    const handler = body.slice(0, body.indexOf('\n  }') + 4);
+    expect(handler).toContain('await this.liveRepo.create()');
     expect(handler).toContain("await this.cache.invalidate('live-tournaments')");
-    expect(handler).toContain('await this.load({ force: true })');
   });
 });

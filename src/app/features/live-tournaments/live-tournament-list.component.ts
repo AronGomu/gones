@@ -1,10 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, signal, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
@@ -16,14 +14,13 @@ import { LiveTournamentDocument, LiveTournamentStage } from '../../domain/live-t
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
-import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { I18nService } from '../../i18n/i18n.service';
 import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatProgressSpinnerModule, BackButtonComponent, SyncBarComponent],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatProgressSpinnerModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="live-list-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
@@ -65,9 +62,6 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
             </div>
             <div class="running-tournament-actions" [attr.data-cy]="'live-list-card-actions-' + tournament.id">
               <span class="running-tournament-resume" data-cy="resume-running-tournament">{{ i18n.t('liveList.resume') }}</span>
-              @if (canManage()) {
-                <button class="running-tournament-delete danger-action" type="button" [disabled]="deleting()" (click)="deleteTournament(tournament.id); $event.stopPropagation(); $event.preventDefault()" [attr.data-cy]="'live-list-card-delete-' + tournament.id">{{ i18n.t('common.delete') }}</button>
-              }
             </div>
           </a>
         }
@@ -89,10 +83,8 @@ export class LiveTournamentListComponent {
   private readonly auth = inject(AuthService);
   private readonly power = inject(PowerUserSettingsService);
   private readonly cache = inject(ServerReadCacheService);
-  private readonly dialog = inject(MatDialog);
   readonly loading = signal(true);
   readonly creating = signal(false);
-  readonly deleting = signal(false);
   readonly error = signal('');
   readonly syncedAt = signal<string | undefined>(undefined);
   readonly stale = signal(false);
@@ -143,31 +135,6 @@ export class LiveTournamentListComponent {
       this.error.set(this.i18n.t('liveList.createFailed'));
     } finally {
       this.creating.set(false);
-    }
-  }
-
-  async deleteTournament(id: string): Promise<void> {
-    if (!this.canManage() || this.deleting()) return;
-    const tournament = this.tournaments().find((t) => t.id === id);
-    const confirmed = Boolean(await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: this.i18n.t('live.deleteConfirmTitle'),
-        message: this.i18n.t('live.deleteConfirmMessage', { name: tournament?.name || this.i18n.t('liveList.liveTournament') }),
-        confirmLabel: this.i18n.t('live.deleteTournament'),
-        destructive: true
-      }
-    }).afterClosed()));
-    if (!confirmed) return;
-    this.deleting.set(true);
-    try {
-      await this.liveRepo.delete(id);
-      await this.cache.invalidate('live-tournaments');
-      await this.load({ force: true });
-    } catch (error) {
-      logBoundaryError('live-tournament-list.delete', error);
-      this.error.set(this.i18n.t('live.deleteFailed'));
-    } finally {
-      this.deleting.set(false);
     }
   }
 
