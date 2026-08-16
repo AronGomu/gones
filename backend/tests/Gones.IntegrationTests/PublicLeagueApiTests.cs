@@ -117,7 +117,7 @@ public sealed class PublicLeagueApiTests : IAsyncLifetime
         "api-league",
         "API League",
         "active",
-        [new TournamentDocument("result-tournament", "api-league", "Result Tournament", "2026-08-03",
+        [new TournamentDocument("result-tournament", "api-league", "Result Tournament", "2026-08-03", "completed",
             [new RoundDocument("round-1", [new MatchRoundEntry("entry-1", "1", "Alice", "Bob", 2, 1, "Tempo", "Control")])],
             [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")])]);
 
@@ -140,7 +140,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
             database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(ActiveLeague(), Instant.FromUtc(2026, 1, 2, 0, 0)));
             database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(PagingLeague(), Instant.FromUtc(2026, 1, 3, 0, 0)));
             database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(new LeagueDocument("glb-deleted", "Deleted League", "completed",
-                [new TournamentDocument("dt1", "glb-deleted", "Deleted Tournament", "2026-01-01",
+                [new TournamentDocument("dt1", "glb-deleted", "Deleted Tournament", "2026-01-01", "completed",
                     [new RoundDocument("dr1", [new MatchRoundEntry("de1", "1", "DeletedLeaguePlayer", "AnotherDeletedPlayer", 2, 0, "", "")])],
                     [])]), Instant.FromUtc(2026, 1, 4, 0, 0)));
             await database.SaveChangesAsync();
@@ -440,7 +440,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         "Completed League",
         "completed",
         [
-            new TournamentDocument("t1", "glb-completed", "Tournament One", "2026-01-01",
+            new TournamentDocument("t1", "glb-completed", "Tournament One", "2026-01-01", "completed",
                 [
                     new RoundDocument("r1",
                     [
@@ -459,7 +459,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
                     ])
                 ],
                 [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")]),
-            new TournamentDocument("t2", "glb-completed", "Tournament Two", "2026-01-08",
+            new TournamentDocument("t2", "glb-completed", "Tournament Two", "2026-01-08", "completed",
                 [
                     new RoundDocument("r4",
                     [
@@ -474,7 +474,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         "Active League",
         "active",
         [
-            new TournamentDocument("t3", "glb-active", "Active Tournament", "2026-01-01",
+            new TournamentDocument("t3", "glb-active", "Active Tournament", "2026-01-01", "completed",
                 [
                     new RoundDocument("r5",
                     [
@@ -496,6 +496,6 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         // Round 51: Pager0101 beats Pager0001, giving Pager0001 a loss and introducing Pager0101
         rounds.Add(new RoundDocument("pr51", [new MatchRoundEntry("pe51", "1", "Pager0101", "Pager0001", 2, 0, "", "")]));
         return new LeagueDocument("glb-paging", "Paging League", "completed",
-            [new TournamentDocument("pt1", "glb-paging", "Paging Tournament", "2026-01-01", rounds.ToArray(), [])]);
+            [new TournamentDocument("pt1", "glb-paging", "Paging Tournament", "2026-01-01", "completed", rounds.ToArray(), [])]);
     }
 }

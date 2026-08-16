@@ -68,6 +68,7 @@ public static partial class LeagueNormalizer
             leagueId,
             DefaultedTrimmedString(input, "name", DateTime.Now.ToString("yyyy/MM/dd", CultureInfo.InvariantCulture)),
             StringValue(Value(input, "tournamentDate")),
+            NormalizeTournamentStatus(Value(input, "status")),
             rounds,
             archetypes);
     }
@@ -156,6 +157,14 @@ public static partial class LeagueNormalizer
         var status = StringValue(value);
         return status is "completed" or "finished" ? "completed" : "active";
     }
+
+    /// <summary>
+    /// Deliberately the opposite default to <see cref="NormalizeStatus"/>: an archive document that predates the
+    /// field is history, and history is complete. Only the literal "active" reads active; a missing, null or
+    /// unknown value reads "completed", the same rule the backfill migration applies to stored documents.
+    /// A League status never cascades here — the two flags are independent.
+    /// </summary>
+    public static string NormalizeTournamentStatus(JsonElement? value) => StringValue(value) == "active" ? "active" : "completed";
 
     private static string DefaultedTrimmedString(JsonElement input, string name, string fallback)
     {

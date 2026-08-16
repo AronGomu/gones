@@ -84,7 +84,7 @@ function remapLeague(source: LeagueDocument, { idFactory, existingLeagues }: { i
   const name = uniqueRestoredName(source.name, existingLeagues);
   const league = createLeague({ name, status: source.status, tournaments: [] }, { idFactory });
   league.tournaments = (source.tournaments ?? []).map((tournament) => {
-    const next = createTournament({ leagueId: league.id, name: tournament.name, tournamentDate: tournament.tournamentDate, playerArchetypes: tournament.playerArchetypes, rounds: [] }, { idFactory });
+    const next = createTournament({ leagueId: league.id, name: tournament.name, tournamentDate: tournament.tournamentDate, status: tournament.status, playerArchetypes: tournament.playerArchetypes, rounds: [] }, { idFactory });
     next.rounds = (tournament.rounds ?? []).map((round) => createRound({ entries: (round.entries ?? []).map((entry) => remapEntry(entry, { idFactory })) }, { idFactory }));
     return next;
   });

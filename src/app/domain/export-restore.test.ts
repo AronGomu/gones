@@ -26,6 +26,19 @@ describe('export/restore contracts', () => {
     expect(restored.tournaments[0].playerArchetypes).toEqual([{ playerName: 'Alice', archetype: 'Fire' }]);
   });
 
+  it('preserves each tournament status across export restore', () => {
+    const source = createLeague({ name: 'League', tournaments: [{ name: 'Done', status: 'completed', rounds: [] }, { name: 'Ongoing', status: 'active', rounds: [] }] });
+    const restored = restoreLeague(exportLeague(source), { idFactory: createIdFactory('new') });
+    expect(restored.tournaments.map((tournament) => [tournament.name, tournament.status])).toEqual([['Done', 'completed'], ['Ongoing', 'active']]);
+  });
+
+  it('reads a restored tournament that predates the status field as completed', () => {
+    const restored = restoreLeague(
+      { kind: 'league', gonesDataVersion: 4, league: { id: 'old', name: 'Old', status: 'active', tournaments: [{ id: 'old-t', leagueId: 'old', name: 'Legacy', tournamentDate: '2026-01-01', rounds: [] }] } },
+      { idFactory: createIdFactory('new') });
+    expect(restored.tournaments[0].status).toBe('completed');
+  });
+
   it('builds League export filenames from date and League name', () => {
     const league = createLeague({ name: 'Demo League' });
     expect(leagueExportFilename(league, new Date('2026-06-10T17:30:00Z'))).toBe('2026-06-10 Demo League.json');

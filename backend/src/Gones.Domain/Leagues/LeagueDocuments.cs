@@ -16,6 +16,7 @@ public sealed record TournamentDocument(
     string LeagueId,
     string Name,
     string TournamentDate,
+    string Status,
     IReadOnlyList<RoundDocument> Rounds,
     IReadOnlyList<PlayerArchetypeDocument> PlayerArchetypes);
 

@@ -165,7 +165,7 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         id,
         name,
         status,
-        [new TournamentDocument($"{id}-t1", id, "Result Tournament", "2030-01-01",
+        [new TournamentDocument($"{id}-t1", id, "Result Tournament", "2030-01-01", "completed",
             [new RoundDocument($"{id}-r1", entries)],
             [])]);
 

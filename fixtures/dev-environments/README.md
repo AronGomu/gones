@@ -81,7 +81,9 @@ because the seeder restores each one with `POST /api/leagues-archive/restore`. P
 stable literal string, used as the fixture key and by `live-tournaments.json`), `name`, `status`
 (`active` \| `completed`) and `tournaments`. Per Archive Tournament: `id`, `leagueId` (must equal the
 parent League's `id` — the server refuses a Tournament claiming another League), `name`,
-`tournamentDate`, `rounds` and `playerArchetypes` (`playerName` + `archetype`, best taken from
+`tournamentDate`, `status` (`active` \| `completed`; unlike the League field this one defaults to
+`completed` when absent, because an archive document that predates the field is finished history),
+`rounds` and `playerArchetypes` (`playerName` + `archetype`, best taken from
 `src/app/config/legacy-archetype-presets.ts` so the autocomplete recognises them). Per Round: `id`
 and `entries`. A `kind: "match"` entry carries `table`, `player1Name`, `player2Name`, `player1Score`,
 `player2Score`, `player1DeckArchetype`, `player2DeckArchetype`; a `kind: "bye"` entry carries

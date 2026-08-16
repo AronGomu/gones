@@ -90,6 +90,7 @@
             "leagueId": "league-1",
             "name": "Weekly Cup",
             "tournamentDate": " 2026-03-08 ",
+            "status": "completed",
             "rounds": [
               {
                 "id": "round-1",
@@ -310,6 +311,7 @@
         "leagueId": "warning-league",
         "name": "Warnings",
         "tournamentDate": "2026-03-01",
+        "status": "completed",
         "rounds": [
           {
             "id": "wr1",
@@ -409,6 +411,7 @@
         "leagueId": "result-league",
         "name": "Results",
         "tournamentDate": "2026-02-02",
+        "status": "completed",
         "rounds": [
           {
             "id": "rr1",
@@ -585,6 +588,7 @@
             "leagueId": "result-league",
             "name": "Results",
             "tournamentDate": "2026-02-02",
+            "status": "completed",
             "rounds": [
               {
                 "id": "rr1",
@@ -677,6 +681,7 @@
             "leagueId": "result-league",
             "name": "Empty",
             "tournamentDate": "2026-03-03",
+            "status": "completed",
             "rounds": [],
             "playerArchetypes": []
           }
@@ -773,6 +778,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -877,6 +883,7 @@
                   "leagueId": "other-league",
                   "name": "Other Event",
                   "tournamentDate": "2025-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "or1",
@@ -953,6 +960,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -1052,6 +1060,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -1161,6 +1170,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -1260,6 +1270,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -1369,6 +1380,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -1468,6 +1480,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -1577,6 +1590,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -1676,6 +1690,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -1785,6 +1800,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -1884,6 +1900,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -1993,6 +2010,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -2092,6 +2110,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -2201,6 +2220,7 @@
                   "leagueId": "other-league",
                   "name": "Other Event",
                   "tournamentDate": "2025-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "or1",
@@ -2237,6 +2257,7 @@
               "leagueId": "other-league",
               "name": "Other Event",
               "tournamentDate": "2025-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "or1",
@@ -2289,6 +2310,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -2393,6 +2415,7 @@
                   "leagueId": "other-league",
                   "name": "Other Event",
                   "tournamentDate": "2025-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "or1",
@@ -2472,6 +2495,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -2571,6 +2595,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -2680,6 +2705,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -2779,6 +2805,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -2888,6 +2915,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -2987,6 +3015,7 @@
               "leagueId": "stats-league",
               "name": "Stats Event",
               "tournamentDate": "2026-01-01",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "sr1",
@@ -3102,6 +3131,7 @@
                   "leagueId": "stats-league",
                   "name": "Stats Event",
                   "tournamentDate": "2026-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "sr1",
@@ -3206,6 +3236,7 @@
                   "leagueId": "other-league",
                   "name": "Other Event",
                   "tournamentDate": "2025-01-01",
+                  "status": "completed",
                   "rounds": [
                     {
                       "id": "or1",
@@ -3279,6 +3310,7 @@
                 "leagueId": "stats-league",
                 "name": "Stats Event",
                 "tournamentDate": "2026-01-01",
+                "status": "completed",
                 "rounds": [
                   {
                     "id": "sr1",
@@ -3383,6 +3415,7 @@
                 "leagueId": "other-league",
                 "name": "Other Event",
                 "tournamentDate": "2025-01-01",
+                "status": "completed",
                 "rounds": [
                   {
                     "id": "or1",
@@ -3534,6 +3567,7 @@
               "leagueId": "rename-league",
               "name": "Rename Event",
               "tournamentDate": "2026-01-02",
+              "status": "completed",
               "rounds": [
                 {
                   "id": "rename-round",
@@ -3600,6 +3634,7 @@
             "leagueId": "rename-league",
             "name": "Rename Event",
             "tournamentDate": "2026-01-02",
+            "status": "completed",
             "rounds": [
               {
                 "id": "rename-round",

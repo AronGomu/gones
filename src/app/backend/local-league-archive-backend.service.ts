@@ -93,7 +93,7 @@ export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
   }
 
   createArchiveTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
-    return this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: [...league.tournaments, createTournament({ leagueId: league.id, name, tournamentDate })] }));
+    return this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: [...league.tournaments, createTournament({ leagueId: league.id, name, tournamentDate, status: 'active' })] }));
   }
 
   editArchiveTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {

@@ -457,6 +457,26 @@ describe('LocalLeagueArchiveBackend', () => {
     expect(updated.documentVersion).toBe(2);
   });
 
+  it('a newly created tournament is active', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    const created = await backend.createLeagueArchive('Summer');
+
+    const updated = await backend.createArchiveTournament(created.id, created.documentVersion, 'Weekly', '2026-08-15');
+
+    // Only the create path defaults to active; the builder itself defaults a document without the field to completed.
+    expect(updated.tournaments[0].status).toBe('active');
+  });
+
+  it('editing a tournament keeps its status', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    const created = await backend.createLeagueArchive('Summer');
+    const withTournament = await backend.createArchiveTournament(created.id, created.documentVersion, 'Weekly', '2026-08-15');
+
+    const updated = await backend.editArchiveTournament(created.id, withTournament.tournaments[0].id, withTournament.documentVersion, 'Renamed', '2026-09-01');
+
+    expect(updated.tournaments[0].status).toBe('active');
+  });
+
   it('an unnamed tournament gets the default name', async () => {
     const backend = new LocalLeagueArchiveBackend();
     const created = await backend.createLeagueArchive('Summer');

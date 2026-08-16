@@ -18150,6 +18150,7 @@
         "leagueId": "league-flow",
         "name": "Flow Night",
         "tournamentDate": "2026-08-05",
+        "status": "active",
         "rounds": [
           {
             "id": "final1-1",
@@ -18792,6 +18793,7 @@
         "leagueId": "league-flow",
         "name": "Flow Night",
         "tournamentDate": "2026-08-05",
+        "status": "active",
         "rounds": [
           {
             "id": "final2-1",
@@ -19280,6 +19282,7 @@
         "leagueId": "league-flow",
         "name": "Flow Night",
         "tournamentDate": "2026-08-05",
+        "status": "active",
         "rounds": [
           {
             "id": "final3-1",

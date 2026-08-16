@@ -361,3 +361,21 @@
 - [ ] With DevTools Network open, hover and try to click every greyed-out button above: no request leaves the browser.
 - [ ] Switch the language to French and re-check the same rows: each greyed-out button shows the French explanation, none is blank.
 - [ ] On another admin's row (not yours), Revoke Admin and Disable account stay clickable — the block is about yourself, not about the Admin role.
+
+## T20 tournament-completion-flag
+
+Nothing changes visually in this slice: the Archive Tournament now carries a `status` of `active` or
+`completed`, but no screen shows it and nothing reads it yet. These steps check the field is carried
+correctly, and that the app looks and behaves exactly as before.
+
+- [ ] Run `npm run dev -- --env=demo` and sign in as `organizer-gones-one-registration@gones.test`, Power User mode on.
+- [ ] Open `/leagues-archive` and confirm the list and each League detail page look exactly as before — no new badge, chip, column or control anywhere on a Tournament.
+- [ ] Open `Gones League 6` and export it (League Export). Open the downloaded JSON: every object under `league.tournaments` has `"status": "completed"` — three of them, since the demo Archive predates the field.
+- [ ] Restore that same file (Full Data / League restore). Open the restored League's export: every tournament still reads `"status": "completed"`. No tournament flipped to `active`.
+- [ ] In the restored League, create a new Archive Tournament, then export the League again: the new tournament reads `"status": "active"` while the restored ones stay `"completed"`.
+- [ ] Rename that new tournament and change its date, then export again: it still reads `"status": "active"` — an ordinary edit does not change the status.
+- [ ] Move the new tournament to another League, then export the destination League: it still reads `"status": "active"`.
+- [ ] Take an old League export made before this change (or hand-edit one to delete every `"status"` line under `tournaments`) and restore it: every tournament comes back as `"completed"`, and the League's own status is unchanged.
+- [ ] Finish a running tournament from `/live-tournaments` through to its Archive, then export the target League: the finalized tournament reads `"status": "active"`.
+- [ ] Repeat the create / edit / export / restore checks in browser-local mode (signed out, Power User mode on): the same statuses appear in the exported JSON.
+- [ ] Open a League Result and a Tournament Result page and confirm the standings, warnings and Player Statistics are identical to before — the new field feeds nothing yet.

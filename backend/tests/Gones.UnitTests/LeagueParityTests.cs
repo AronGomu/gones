@@ -147,7 +147,7 @@ public sealed class LeagueParityTests
                 $"league-{index}",
                 $"League {index}",
                 index % 2 == 0 ? "active" : "completed",
-                [new TournamentDocument($"tournament-{index}", $"league-{index}", $"Tournament {index}", "2026-01-01", [new RoundDocument($"round-{index}", [entry])], [new PlayerArchetypeDocument($"Player {index}", "Red Aggro")])]);
+                [new TournamentDocument($"tournament-{index}", $"league-{index}", $"Tournament {index}", "2026-01-01", index % 2 == 0 ? "active" : "completed", [new RoundDocument($"round-{index}", [entry])], [new PlayerArchetypeDocument($"Player {index}", "Red Aggro")])]);
 
             var json = LeagueJson.Serialize(league);
             var restored = LeagueJson.Deserialize<LeagueDocument>(json);
@@ -156,7 +156,7 @@ public sealed class LeagueParityTests
     }
 
     private static TournamentDocument Tournament(string leftName, int leftScore, string rightName, int rightScore) =>
-        new("property-tournament", "property-league", "Property", "2026-01-01",
+        new("property-tournament", "property-league", "Property", "2026-01-01", "completed",
             [new RoundDocument("round", [new MatchRoundEntry("match", "1", leftName, rightName, leftScore, rightScore, "", "")])], []);
 
     private static void AssertJson(JsonElement expected, JsonNode? actual)

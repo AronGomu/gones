@@ -365,7 +365,7 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
         id,
         name,
         "active",
-        [new TournamentDocument("tournament-1", id, "Result Tournament", "2030-01-01",
+        [new TournamentDocument("tournament-1", id, "Result Tournament", "2030-01-01", "completed",
             [new RoundDocument("round-1", [new MatchRoundEntry("entry-1", "1", "Alice", "Bob", 2, 1, "Tempo", "Control")])],
             [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")])]);
 
