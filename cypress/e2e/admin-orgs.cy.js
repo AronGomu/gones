@@ -89,7 +89,7 @@ describe('admin organization and account controls', () => {
       totalCount: 1
     }).as('audit');
     visit('/admin');
-    cy.get('[data-cy="admin-nav-organizations"]').click();
+    cy.get('[data-cy="admin-card-organizations"]').click();
     cy.location('pathname').should('eq', '/admin/organizations');
     cy.get('[data-cy="admin-org-search"]').type('Lyon{enter}');
     cy.location('search').should('contain', 'search=Lyon');
@@ -271,5 +271,13 @@ describe('admin organization and account controls', () => {
     cy.get('[data-cy="admin-create-org"]').should('not.exist');
     cy.get('[data-cy="admin-org-create-toggle"]').click();
     cy.get('[data-cy="admin-create-org-name"]').should('have.value', '');
+  });
+
+  it('admin pages show breadcrumb rooted at Admin, not Menu', () => {
+    mockSession();
+    cy.intercept('GET', '**/api/admin/users?*', { items: [], page: 1, pageSize: 20, totalCount: 0 });
+    cy.visit('/admin/users');
+    cy.get('[data-cy="breadcrumbs"]').invoke('text').should('match', /Admin console|Console Admin/);
+    cy.get('[data-cy="breadcrumbs"]').should('not.contain.text', 'Menu');
   });
 });

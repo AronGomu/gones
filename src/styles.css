@@ -1143,6 +1143,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .auth-form fieldset:disabled { opacity: .7; }
 .auth-form button[type='submit'] { margin-top: .5rem; }
 .auth-name-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.admin-destinations { margin-top: 1rem; }
 .admin-page, .admin-page * { min-width: 0; }
 .admin-page .filter-bar { grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); align-items: end; }
 .admin-row-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 12rem) auto; gap: .75rem; align-items: center; }

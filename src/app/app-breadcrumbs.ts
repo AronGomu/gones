@@ -46,7 +46,16 @@ export async function buildBreadcrumbs(
   if (segments[0] === 'registrations') return [{ label: menu, link: ['/'] }, { label: t('registration.myRegistrations') }];
   if (segments[0] === 'event-requests') return [{ label: menu, link: ['/'] }, { label: t('crumb.eventRequest') }];
   if (segments[0] === 'organizer' && segments[1] === 'events') return [{ label: menu, link: ['/'] }, { label: t('crumb.organizerEvents') }];
-  if (segments[0] === 'admin' && segments[1] === 'events' && segments[2] === 'deleted') return [{ label: menu, link: ['/'] }, { label: t('crumb.deletedEvents') }];
+  if (segments[0] === 'admin') {
+    const root = { label: t('admin.title'), link: ['/admin'] };
+    if (!segments[1]) return [{ label: t('admin.title') }];
+    if (segments[1] === 'users') return [root, { label: t('admin.users') }];
+    if (segments[1] === 'organizations') return [root, { label: t('admin.organizations') }];
+    if (segments[1] === 'audit') return [root, { label: t('admin.audit') }];
+    if (segments[1] === 'notifications') return [root, { label: t(segments[2] === 'dead-letters' ? 'admin.notificationDeadLetters' : 'admin.notificationHistory') }];
+    if (segments[1] === 'events' && segments[2] === 'deleted') return [root, { label: t('crumb.deletedEvents') }];
+    return [root];
+  }
   if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: t('auth.account') }];
   if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: t('crumb.player') }];
   if (segments[0] === 'global-stats') return [{ label: menu, link: ['/'] }, { label: t('crumb.globalStats') }];

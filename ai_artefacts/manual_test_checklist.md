@@ -340,3 +340,11 @@
 - [ ] Sign in as a non-creating member of an organization and open `/organizer/organizations`: the card action reads **Manage** (not View) and opens the detail page.
 - [ ] As that member, open `/settings`: the organization notification preferences section lists **every** organization you belong to, and saving one shows the confirmation.
 - [ ] Open `/admin/users`, click Disable account on a user who belongs to an organization: the impact line reports only the membership count, there are no per-organization transfer inputs, and disabling with just the typed username succeeds.
+
+## T18 admin-breadcrumb-cards
+
+- [ ] Run `npm run dev -- --env=demo` and sign in as `admin@gones.test`.
+- [ ] Open `/admin`: the breadcrumb reads `Admin console` alone (no `Menu` crumb), and the page shows six cards laid out in a grid like the home menu.
+- [ ] Each card has a title and a short description.
+- [ ] Click each card and confirm: the breadcrumb reads `Admin console / <page name>` and clicking `Admin console` navigates back to `/admin`.
+- [ ] Confirm that no admin page (`/admin/users`, `/admin/organizations`, `/admin/audit`, `/admin/notifications/history`, `/admin/notifications/dead-letters`, `/admin/events/deleted`) shows `Menu` or `Page not found` in its breadcrumb.

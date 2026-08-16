@@ -116,9 +116,45 @@ describe('event breadcrumbs', () => {
     }
   });
 
-  it('labels the admin deleted-events page', async () => {
-    expect(await labels('/admin/events/deleted', en)).toEqual(['Menu', 'Deleted Events']);
-    expect(await labels('/admin/events/deleted')).toEqual(['Menu', 'Événements supprimés']);
+  it('roots the admin tree at admin', async () => {
+    expect(await labels('/admin', en)).toEqual(['Admin console']);
+    expect(await labels('/admin')).toEqual(['Console Admin']);
+  });
+
+  it('builds the users crumb', async () => {
+    expect(await labels('/admin/users', en)).toEqual(['Admin console', 'Users']);
+  });
+
+  it('builds the organizations crumb', async () => {
+    expect(await labels('/admin/organizations', en)).toEqual(['Admin console', 'Organizations']);
+  });
+
+  it('builds the audit crumb', async () => {
+    expect(await labels('/admin/audit', en)).toEqual(['Admin console', 'Audit']);
+  });
+
+  it('builds both notification crumbs', async () => {
+    expect(await labels('/admin/notifications/history', en)).toEqual(['Admin console', 'Notification history']);
+    expect(await labels('/admin/notifications/dead-letters', en)).toEqual(['Admin console', 'Dead letters']);
+  });
+
+  it('builds the deleted events crumb', async () => {
+    expect(await labels('/admin/events/deleted', en)).toEqual(['Admin console', 'Deleted Events']);
+    expect(await labels('/admin/events/deleted')).toEqual(['Console Admin', 'Événements supprimés']);
+  });
+
+  it('never shows Menu under admin', async () => {
+    for (const path of ['/admin', '/admin/users', '/admin/organizations', '/admin/audit', '/admin/notifications/history', '/admin/notifications/dead-letters', '/admin/events/deleted']) {
+      const crumbs = await labels(path, en);
+      expect(crumbs, path).not.toContain('Menu');
+    }
+  });
+
+  it('never falls through to not found under admin', async () => {
+    for (const path of ['/admin', '/admin/users', '/admin/organizations', '/admin/audit', '/admin/notifications/history', '/admin/notifications/dead-letters', '/admin/events/deleted']) {
+      const crumbs = await labels(path, en);
+      expect(crumbs, path).not.toContain('Page not found');
+    }
   });
 
   it('labels the renamed event-requests review page', async () => {
