@@ -91,6 +91,11 @@ else
     builder.Services.AddScoped<OrganizerParticipantService>();
     builder.Services.AddScoped<LeagueCommandService>();
     builder.Services.AddScoped<PlayerNameMaintenanceService>();
+    builder.Services.AddSingleton<PlayerStatisticsRebuildService>();
+    // Inserted first on purpose: the web host registers its own hosted service while the builder is
+    // constructed, so appending would start Kestrel before the read model is filled. ADR 0040 wants the
+    // rebuild to finish before the API serves traffic.
+    builder.Services.Insert(0, ServiceDescriptor.Singleton<IHostedService, PlayerStatisticsStartupRebuild>());
     builder.Services.AddScoped<LiveCommandService>();
     builder.Services.AddSingleton(EventRegistrationOptions.Load(builder.Configuration));
     builder.Services.AddScoped<IOrganizationDeleteDependency, EventOrganizationDeleteDependency>();

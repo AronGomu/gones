@@ -378,7 +378,7 @@ in data exports and restores, and that the app behaves exactly as before at the 
 - [ ] Take an old League export made before this change (or hand-edit one to delete every `"status"` line under `tournaments`) and restore it: every tournament comes back as `"completed"`, and the League's own status is unchanged.
 - [ ] Finish a running tournament from `/live-tournaments` through to its Archive, then export the target League: the finalized tournament reads `"status": "active"`.
 - [ ] Repeat the create / edit / export / restore checks in browser-local mode (signed out, Power User mode on): the same statuses appear in the exported JSON.
-- [ ] Open a League Result and a Tournament Result page and confirm the standings, warnings and Player Statistics are identical to before — the new field feeds nothing yet.
+- [ ] Open a League Result and a Tournament Result page and confirm the standings, warnings and Player Statistics are identical to before — the per-Tournament field does not change those pages. (Since T22 it *does* scope the global Player Rankings; see the T22 section.)
 
 ## T21 tournament-completion-ui
 
@@ -393,3 +393,28 @@ in data exports and restores, and that the app behaves exactly as before at the 
 - [ ] Open the League detail page. Confirm each Tournament card in the list shows a small status badge (Active or Completed) matching the tournament's status.
 - [ ] Repeat the mark-complete and reopen flow in browser-local mode (signed out, Power User mode on, using a league created in this browser): confirm the toggle and badge work the same way.
 - [ ] Sign in as a plain `User` (not Organizer or Admin). Open a server League's Archive Tournament — confirm the badge shows but the toggle is absent.
+
+## T22 player-statistics-read-model
+
+Player statistics are now materialized in the `player_statistics` table, rewritten inside every archive
+write transaction and rebuilt at startup when the formula version changes. No page reads the table yet
+(T23/T25 do), so the visible app must be unchanged — with one real behaviour change: the global
+statistics are now scoped to **completed Archive Tournaments** instead of completed Leagues.
+
+Run `npm run dev -- --env=demo` and sign in as `organizer-gones-one-registration@gones.test` with Power
+User mode on. Read the table with:
+`docker compose exec -T postgres psql -U gones_migration -d gones -Atc 'select count(*) from player_statistics;'`
+
+- [ ] Right after the stack is up, the table already has rows — the startup rebuild ran before the API served traffic. `docker compose logs api | grep 'Player statistics rebuilt'` shows a row count and a duration, and that line appears *before* `Now listening on`.
+- [ ] `select * from player_statistics_meta;` returns exactly one row, with `formula_version` = 1 and a `rebuilt_at` from this start.
+- [ ] Browse the app as before — home, `/leagues-archive`, a League, an Archive Tournament, a player page, the global Player Rankings page. Nothing looks different from before this change.
+- [ ] Open an Archive Tournament of the **completed** demo League and click **Reopen**. The global Player Rankings page drops that tournament's matches from every player's totals, and players who only ever played there disappear from the list.
+- [ ] Click **Mark complete** on the same tournament. The Player Rankings numbers return to exactly what they were before the reopen, with no reload of the API and no waiting.
+- [ ] Repeat the reopen/complete on a tournament of the **active** demo League (`Gones League 7`). The row count in `player_statistics` moves both times — a completed Tournament counts even though its League is still active.
+- [ ] Delete a League from `/leagues-archive`. The `player_statistics` count drops, and players who only appeared in that League have no row left.
+- [ ] Restore that League from its export (Full Data / League restore). The count returns and the restored players are back.
+- [ ] Rename a player through the admin player-name maintenance screen. The old name has no row in `player_statistics`; the new name has one carrying the merged totals.
+- [ ] Stop the stack, run `docker compose exec -T postgres psql -U gones_migration -d gones -Atc 'update player_statistics_meta set formula_version = 0;'`, then `docker compose restart api`. The logs show `Rebuilding player statistics: stored formula version 0 is not 1.` followed by a rebuild line, and the meta row is back at 1.
+- [ ] Restart the API with `GONES_PLAYER_STATISTICS__REBUILD_ON_STARTUP=false` after setting `formula_version = 0` again. The logs say the startup rebuild is disabled, the table is left exactly as it was, and the meta row still reads 0.
+- [ ] With the switch back on, corrupt one archive row by hand (`update league_archive_aggregates set canonical_document = jsonb_set(canonical_document, '{tournaments,0,leagueId}', '"nope"') where ...`) and restart the API. It logs `Player statistics startup rebuild failed; the stored formula version is left unchanged.` and still reaches `Now listening on` — the API must not crash-loop.
+- [ ] In browser-local mode (signed out, Power User mode on), the app behaves exactly as before: the table is server-side only and browser-local data never reaches it.

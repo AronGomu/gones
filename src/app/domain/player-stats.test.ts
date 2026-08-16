@@ -6,8 +6,9 @@ function tournament(
   id: string,
   entries: TournamentDocument['rounds'][number]['entries'],
   playerArchetypes: TournamentDocument['playerArchetypes'] = [],
+  status: TournamentDocument['status'] = 'completed',
 ): TournamentDocument {
-  return createTournament({ id, leagueId: 'league', name: id, rounds: [{ id: `${id}-round`, entries }], playerArchetypes });
+  return createTournament({ id, leagueId: 'league', name: id, status, rounds: [{ id: `${id}-round`, entries }], playerArchetypes });
 }
 
 function data(leagues: LeagueDocument[]) {
@@ -93,7 +94,7 @@ describe('calculatePlayerStatistics', () => {
 });
 
 describe('calculateGlobalPlayerStatistics', () => {
-  it('includes completed-League Match players only, excludes active/bye/roster-only names, and sorts exact names ordinally', () => {
+  it('includes completed-Tournament Match players only, excludes active-Tournament/bye/roster-only names, and sorts exact names ordinally', () => {
     const completed = createLeague({
       id: 'league',
       status: 'completed',
@@ -107,7 +108,7 @@ describe('calculateGlobalPlayerStatistics', () => {
       status: 'active',
       tournaments: [tournament('active', [
         { kind: 'match', id: 'active-match', table: '1', player1Name: 'Alice', player2Name: 'Zed', player1Score: 0, player2Score: 2, player1DeckArchetype: '', player2DeckArchetype: '' },
-      ])],
+      ], [], 'active')],
     });
 
     const rows = calculateGlobalPlayerStatistics(data([active, completed]));
@@ -129,5 +130,26 @@ describe('calculateGlobalPlayerStatistics', () => {
       mostPlayedArchetype: { name: 'Fire', matchCount: 1 },
     });
     expect(rows[1]).toMatchObject({ playerName: 'alice', playedMatchCount: 1, matchLosses: 1 });
+  });
+
+  it('scopes on the Tournament, not the League: a completed Tournament of an active League counts, an active Tournament of a completed League does not', () => {
+    const activeLeague = createLeague({
+      id: 'active-league',
+      status: 'active',
+      tournaments: [tournament('done', [
+        { kind: 'match', id: 'done-match', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' },
+      ])],
+    });
+    const completedLeague = createLeague({
+      id: 'completed-league',
+      status: 'completed',
+      tournaments: [tournament('ongoing', [
+        { kind: 'match', id: 'ongoing-match', table: '1', player1Name: 'Carol', player2Name: 'Dana', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' },
+      ], [], 'active')],
+    });
+
+    const rows = calculateGlobalPlayerStatistics(data([activeLeague, completedLeague]));
+
+    expect(rows.map((row) => row.playerName)).toEqual(['Alice', 'Bob']);
   });
 });

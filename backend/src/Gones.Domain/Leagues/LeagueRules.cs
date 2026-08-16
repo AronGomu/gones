@@ -129,9 +129,13 @@ public static class LeagueRules
         var accumulators = new Dictionary<string, StatisticsAccumulator>(StringComparer.Ordinal);
         foreach (var league in data.Leagues)
         {
-            if (league.Status != "completed") continue;
             foreach (var tournament in league.Tournaments)
             {
+                // ADR 0040: scope is the Tournament, not the League. A played Match is history, and an
+                // archive is complete per Tournament, not per season — an active League that already ran
+                // a completed Tournament contributes it, and a completed League never drags an
+                // unfinished Tournament in with it.
+                if (tournament.Status != "completed") continue;
                 for (var roundIndex = 0; roundIndex < tournament.Rounds.Count; roundIndex++)
                 {
                     foreach (var entry in tournament.Rounds[roundIndex].Entries)

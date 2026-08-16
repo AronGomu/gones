@@ -3453,15 +3453,15 @@
       "expected": [
         {
           "playerName": "Alice",
-          "playedMatchCount": 5,
+          "playedMatchCount": 6,
           "matchWins": 2,
-          "matchLosses": 2,
+          "matchLosses": 3,
           "matchDraws": 1,
-          "matchWinrate": 0.4,
-          "playedGameCount": 11,
+          "matchWinrate": 0.3333333333333333,
+          "playedGameCount": 13,
           "gameWins": 6,
-          "gameLosses": 5,
-          "gameWinrate": 0.5454545454545454,
+          "gameLosses": 7,
+          "gameWinrate": 0.46153846153846156,
           "nemesis": {
             "name": "Bob",
             "wins": 1,
@@ -3528,6 +3528,25 @@
             "name": "Earth",
             "matchCount": 2
           }
+        },
+        {
+          "playerName": "Zed",
+          "playedMatchCount": 1,
+          "matchWins": 1,
+          "matchLosses": 0,
+          "matchDraws": 0,
+          "matchWinrate": 1,
+          "playedGameCount": 2,
+          "gameWins": 2,
+          "gameLosses": 0,
+          "gameWinrate": 1,
+          "nemesis": null,
+          "rival": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 0
+          },
+          "mostPlayedArchetype": null
         },
         {
           "playerName": "alice",

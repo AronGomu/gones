@@ -221,7 +221,7 @@ internal static class LeagueCommandEndpoints
     private static string NewId() => Guid.NewGuid().ToString("D");
 }
 
-internal sealed class LeagueCommandService(GonesDbContext database, IClock clock)
+internal sealed class LeagueCommandService(GonesDbContext database, IClock clock, PlayerStatisticsRebuildService playerStatistics)
 {
     private static readonly JsonSerializerOptions StoredJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
         .ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
@@ -239,6 +239,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
                 var aggregate = LeagueArchiveAggregate.Create(document, clock.GetCurrentInstant());
                 database.LeagueArchiveAggregates.Add(aggregate);
                 AddAudit(actorId, "league.created", aggregate.DocumentId, ["league"]);
+                await playerStatistics.RebuildAsync(database, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
                 return Response(aggregate);
             },
@@ -419,6 +420,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
             async () =>
             {
                 var restored = await RestoreOneAsync(request.League, actorId, cancellationToken);
+                await playerStatistics.RebuildAsync(database, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
                 return Response(restored);
             },
@@ -438,6 +440,7 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
             {
                 var restored = new List<LeagueArchiveAggregate>();
                 foreach (var source in request.Leagues) restored.Add(await RestoreOneAsync(source, actorId, cancellationToken));
+                await playerStatistics.RebuildAsync(database, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
                 return new FullRestoreResponse(restored.Select(Response).ToArray());
             },
@@ -485,6 +488,8 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
             CreatedAt = now,
             ExpiresAt = now + Duration.FromHours(24)
         });
+        // No rebuild here: this save only stores the idempotency record, and every command routed
+        // through it already rebuilt inside this same transaction.
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return response;
@@ -501,14 +506,22 @@ internal sealed class LeagueCommandService(GonesDbContext database, IClock clock
 
     private async Task SaveAsync(CancellationToken cancellationToken)
     {
+        // The rebuild deletes rows through raw SQL, so it must share a transaction with the save that
+        // stages their replacement: without one, a failed write would leave the table emptied. Callers
+        // that already opened a transaction keep it; the single-aggregate paths get one here.
+        await using var owned = database.Database.CurrentTransaction is null
+            ? await database.Database.BeginTransactionAsync(cancellationToken)
+            : null;
         try
         {
+            await playerStatistics.RebuildAsync(database, cancellationToken);
             await database.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
             throw new ConcurrencyConflictException();
         }
+        if (owned is not null) await owned.CommitAsync(cancellationToken);
     }
 
     private void AddAudit(Guid actorId, string action, string entityId, IReadOnlyList<string> fields) => database.AuditRecords.Add(new AuditRecord

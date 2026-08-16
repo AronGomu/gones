@@ -75,8 +75,10 @@ export function calculatePlayerStatistics(data: GonesData, playerName: string, f
 export function calculateGlobalPlayerStatistics(data: GonesData): GlobalPlayerStatistics[] {
   const accumulators = new Map<string, StatisticsAccumulator>();
   for (const league of data.leagues ?? []) {
-    if (league.status !== 'completed') continue;
     for (const tournament of league.tournaments ?? []) {
+      // ADR 0040: scope is the Tournament, not the League. A played Match is history, and an archive is
+      // complete per Tournament, not per season. Mirrors LeagueRules.CalculateGlobalPlayerStatistics.
+      if (tournament.status !== 'completed') continue;
       for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
         for (const entry of round.entries ?? []) {
           if (entry.kind !== 'match' || !validateRoundEntry(entry).valid) continue;

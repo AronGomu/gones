@@ -56,7 +56,7 @@ internal static class PlayerNameMaintenanceEndpoints
         Results.Ok(await service.RenameAsync(OrganizationPrincipal.UserId(principal), request.FromName, request.ToName, cancellationToken));
 }
 
-internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClock clock)
+internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClock clock, PlayerStatisticsRebuildService playerStatistics)
 {
     public async Task<PlayerNameListResponse> SearchAsync(string? search, CancellationToken cancellationToken)
     {
@@ -143,6 +143,9 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
 
         try
         {
+            // A rename changes the very key of the read model, so it is an archive write like any other
+            // (ADR 0040) and rebuilds inside this transaction.
+            await playerStatistics.RebuildAsync(database, cancellationToken);
             await database.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
