@@ -117,7 +117,10 @@ describe('admin organization and account controls', () => {
       { userId: MATE_ID, username: 'mate-user', role: 'Organizer', createdAt: '2026-08-01T00:00:00Z' }
     ]);
     cy.intercept('GET', '**/api/organizations/org-owned/notification-settings', { organizationId: 'org-owned', notifyOnRegistration: true, notifyOnUnregistration: false, updatedAt: '2026-08-01T00:00:00Z' });
-    cy.intercept('DELETE', '**/api/organizations/org-owned/members/**', { statusCode: 409, body: { code: 'last_owner' } }).as('removeOwner');
+    // `RemoveMemberAsync` protects no member since ADR 0041 — the last one may leave and the
+    // organization falls back to Draft — so the only refusal left is the 404 a member row that is
+    // already gone produces. `last_owner` no longer exists anywhere in the API.
+    cy.intercept('DELETE', '**/api/organizations/org-owned/members/**', { statusCode: 404, body: { code: 'not_found', status: 404 } }).as('removeMember');
     visit('/organizations/org-owned');
     cy.get('[data-cy="org-owner-panel"]').should('be.visible');
     // Adding a member grants the global Organizer role, so the server takes it from an Admin only;
@@ -130,7 +133,7 @@ describe('admin organization and account controls', () => {
     cy.get(`[data-cy="org-member-role-${MATE_ID}"]`).should('not.match', 'select');
     cy.on('window:confirm', () => true);
     cy.get('[data-cy="org-member-owner-user"] button').click();
-    cy.wait('@removeOwner');
+    cy.wait('@removeMember');
     cy.get('[data-cy="org-manage-status"]').should('not.be.empty');
 
     cy.intercept('GET', '**/api/organizations/org-hidden', { id: 'org-hidden', name: 'Hidden Club', description: '', website: '', contactEmail: '', createdAt: '2026-08-01T00:00:00Z' });
@@ -177,11 +180,11 @@ describe('admin organization and account controls', () => {
     cy.get(`[data-cy="admin-org-draft-${orgId}"]`).should('not.exist');
     cy.get(`[data-cy="admin-org-member-option-${userId}"]`).should('not.exist');
 
-    cy.intercept('DELETE', `**/api/organizations/${orgId}/members/${userId}`, { statusCode: 409, body: { code: 'last_owner', status: 409 } }).as('removeMember');
+    cy.intercept('DELETE', `**/api/organizations/${orgId}/members/${userId}`, { statusCode: 404, body: { code: 'not_found', status: 404 } }).as('removeMember');
     cy.on('window:confirm', () => true);
     cy.get(`[data-cy="admin-org-member-remove-${userId}"]`).click();
     cy.wait('@removeMember');
-    cy.get('[data-cy="admin-orgs-error"]').should('be.visible').and('contain.text', 'last_owner');
+    cy.get('[data-cy="admin-orgs-error"]').should('be.visible').and('contain.text', 'not_found');
   });
 
   it('requires a typed Username and shows the membership impact for account disable', () => {

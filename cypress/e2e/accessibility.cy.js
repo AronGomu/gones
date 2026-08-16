@@ -89,7 +89,7 @@ describe('accessibility', () => {
     checkA11y('calendar (month view)');
 
     cy.get('[data-cy="list-view"]').click();
-    cy.get('[data-cy="event-list"]').should('be.visible');
+    cy.get('[data-cy="event-list-list"]').should('be.visible');
     checkA11y('calendar (list view)');
   });
 
@@ -115,7 +115,7 @@ describe('accessibility', () => {
   it('every calendar filter control has a programmatic name', () => {
     visit('/events');
     cy.wait('@events');
-    cy.get('[data-cy="event-search-row"]').find('input, select, textarea').each(($control) => {
+    cy.get('[data-cy="event-list-search-row"]').find('input, select, textarea').each(($control) => {
       const element = $control[0];
       const id = element.getAttribute('id');
       const labelled = element.getAttribute('aria-label')
@@ -134,7 +134,7 @@ describe('accessibility', () => {
     cy.get('[data-cy="list-view"]').focus();
     cy.focused().should('have.attr', 'data-cy', 'list-view');
     cy.focused().type('{enter}');
-    cy.get('[data-cy="event-list"]').should('be.visible');
+    cy.get('[data-cy="event-list-list"]').should('be.visible');
     cy.get('[data-cy="list-view"]').should('have.attr', 'aria-pressed', 'true');
   });
 
@@ -152,7 +152,7 @@ describe('accessibility', () => {
       request.reply({ delay: 400, body: { items: [event], generatedAt: '2026-08-08T00:00:00Z', count: 1, truncated: false } });
     }).as('slowEvents');
     visit('/events');
-    cy.get('[data-cy="event-loading"]')
+    cy.get('[data-cy="event-list-loading"]')
       .should('have.attr', 'aria-busy', 'true')
       .and('have.attr', 'aria-live');
     cy.wait('@slowEvents');

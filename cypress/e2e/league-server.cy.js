@@ -185,6 +185,15 @@ describe('League server command flows', () => {
 
     cy.get('[data-cy="tournament-result-link"]').click();
     cy.get('[data-cy="tournament-archive-result-page"]').should('contain', 'Server Result').and('contain', '2').and('contain', '1');
+    // The result page does not scroll, so anything fixed to the bottom of the viewport sits on top of
+    // its own footer links for good: no scroll can move them apart. Assert the link owns its own
+    // centre point before clicking it, so a bar re-covering it fails here instead of surfacing as an
+    // unexplained `cy.click()` timeout.
+    cy.get('[data-cy="tournament-archive-result-back-to-tournament"]').should($link => {
+      const box = $link[0].getBoundingClientRect();
+      const atCentre = $link[0].ownerDocument.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      expect($link[0].contains(atCentre), `Back to Tournament must own its centre point, but ${atCentre && atCentre.outerHTML.slice(0, 120)} covers it`).to.equal(true);
+    });
     cy.contains('a', 'Back to Tournament').click();
     cy.contains('a.back-button', 'Back to League').first().click();
     cy.contains('button', 'Export League').click();

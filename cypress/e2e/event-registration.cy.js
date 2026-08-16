@@ -79,9 +79,9 @@ describe('public participant registration', () => {
 
     visit('/events?view=list');
     cy.get('[data-cy="event-card-status"], [data-cy="event-card-date"]').should('not.exist');
-    cy.get('[data-cy="event-card-title"]').should('contain.text', event.displayTitle);
-    cy.get('[data-cy="event-card-start-time"]').should('contain.text', '10:00');
-    cy.get('[data-cy="event-card-register"]').click();
+    cy.get('[data-cy="event-list-card-title"]').should('contain.text', event.displayTitle);
+    cy.get('[data-cy="event-list-card-start-time"]').should('contain.text', '10:00');
+    cy.get('[data-cy="event-list-card-register"]').click();
     cy.location('pathname').should('eq', '/login');
     cy.location('search').should('contain', encodeURIComponent(returnUrl));
     cy.get('[data-cy="login-register-link"]').click();
@@ -122,8 +122,8 @@ describe('public participant registration', () => {
 
     visit('/events?view=list&register=lyon-legacy');
 
-    cy.get('[data-cy="event-registration-message"]').should('contain.text', 'complet');
-    cy.get('[data-cy="event-card-register"]').should('not.exist');
+    cy.get('[data-cy="event-list-registration-message"]').should('contain.text', 'complet');
+    cy.get('[data-cy="event-list-card-register"]').should('not.exist');
     cy.get('mat-dialog-container').should('not.exist');
     cy.get('@calendarRegister.all').should('have.length', 0);
     cy.location('search').should('not.contain', 'register=');
@@ -254,6 +254,9 @@ function clearRegistrationsCache() {
 describe('My Registrations', () => {
   it('retries loading and separates upcoming from history with venue times and statuses', () => {
     cy.viewport(375, 812);
+    // An earlier test in this spec lands on /registrations, and the private read cache (ADR 0039)
+    // serves that row for 24h — the 503 below would never be issued against a warm cache.
+    clearRegistrationsCache();
     authenticated();
     let calls = 0;
     cy.intercept('GET', '**/api/users/me/registrations?*', req => {

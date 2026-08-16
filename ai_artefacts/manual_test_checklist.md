@@ -185,7 +185,7 @@
 - [ ] Navigate to `/events/new` — confirm back button above and below; clicking either uses browser history back.
 - [ ] Navigate to `/organizer/events/:id/participants` — confirm back button above and below; clicking either uses browser history back.
 - [ ] Navigate to `/login` — confirm a top back button is present and NO bottom back button is shown.
-- [ ] Navigate to any result page `/leagues-archive/:id/tournaments-archive/:id/result` — confirm a top back button appears above; clicking uses browser history back.
+- [ ] Navigate to any result page `/leagues-archive/:id/tournaments-archive/:id/result` — confirm a top back button appears above; clicking uses browser history back. This page does not scroll and docks its own footer row, so also confirm there is NO floating "Back to previous page" button at the bottom, and that the page's own "Back to Tournament", standings/metagames and download buttons are all visible and clickable (nothing sits on top of them).
 - [ ] Navigate to `/live-tournaments/new` or an existing live tournament — confirm both top and bottom back buttons exist.
 - [ ] Navigate to `/players/:name` — confirm the footer back button now says "Back to previous page" and uses browser history (not the old `position="top"` footer).
 - [ ] Check the home page (`/`) — confirm a top back button is rendered; confirm no broken layout.
