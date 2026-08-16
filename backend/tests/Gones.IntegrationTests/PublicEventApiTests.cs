@@ -279,10 +279,17 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
         var organizers = body.GetProperty("organization").GetProperty("organizers").EnumerateArray().Select(el => el.GetString()).ToArray();
 
-        // lists both, alphabetically, and no email addresses
+        // lists both, alphabetically
         Assert.Equal(new[] { "adam", "zoe" }, organizers);
-        var orgJson = body.GetProperty("organization").GetRawText();
-        Assert.DoesNotContain("@example.test", orgJson);
+
+        // no member's user e-mail leaks: the organization's own public contactEmail is the only "@" in the payload
+        var organization = body.GetProperty("organization");
+        Assert.Equal("alpha@example.test", organization.GetProperty("contactEmail").GetString());
+        var fieldsWithAnAtSign = organization.EnumerateObject()
+            .Where(property => property.Name != "contactEmail" && property.Value.GetRawText().Contains('@'))
+            .Select(property => property.Name)
+            .ToArray();
+        Assert.Equal(Array.Empty<string>(), fieldsWithAnAtSign);
     }
 
     [Fact]
