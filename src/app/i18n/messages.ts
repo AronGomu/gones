@@ -652,6 +652,7 @@ const en = {
   'event.archiveTournament': 'Archive Tournament',
   'event.organizationWebsite': 'Organization Website',
   'event.openInMaps': 'Open {address} in Google Maps',
+  'event.startingHour': 'Starting Hour',
 
   // Sync bar — shared by every page on the one cache contract (ADR 0039)
   'sync.synchronise': 'Synchronise',
@@ -1854,6 +1855,7 @@ const fr: Record<MessageKey, string> = {
   'event.archiveTournament': 'Tournoi archivé',
   'event.organizationWebsite': 'Site Web de l’organisation',
   'event.openInMaps': 'Ouvrir {address} dans Google Maps',
+  'event.startingHour': 'Heure de début',
 
   // Barre de synchronisation — partagée par toutes les pages du contrat de cache (ADR 0039)
   'sync.synchronise': 'Synchroniser',

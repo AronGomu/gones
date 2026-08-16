@@ -117,17 +117,52 @@ describe('EventDetailViewComponent hero', () => {
     expect(source).not.toContain('class="event-facts"');
   });
 
-  it('orders tournament and organization links in the end-aligned action row', () => {
-    const actionsStart = source.indexOf('class="event-detail-actions info-actions info-actions--end"');
-    expect(actionsStart).toBeGreaterThan(-1);
-    const actions = source.slice(actionsStart, source.indexOf('</div>', actionsStart));
-    expect(actions).toContain('data-cy="event-detail-live-tournament"');
-    expect(actions).toContain('data-cy="event-detail-archive-tournament"');
-    expect(actions).toContain('data-cy="event-detail-organization-website"');
-    expect(actions.indexOf('event-detail-live-tournament')).toBeLessThan(actions.indexOf('event-detail-archive-tournament'));
-    expect(actions.indexOf('event-detail-archive-tournament')).toBeLessThan(actions.indexOf('event-detail-organization-website'));
-    expect(actionsStart).toBeGreaterThan(source.indexOf('data-cy="event-detail-when-where"'));
-    expect(stylesheet).toContain('.info-actions--end { justify-content: flex-end; }');
+  it('has no actions row', () => {
+    expect(source).not.toContain('data-cy="event-detail-actions"');
+    expect(source).not.toContain('event-detail-live-tournament');
+    expect(source).not.toContain('event-detail-archive-tournament');
+    expect(source).not.toContain('event-detail-organization-website');
+  });
+
+  it('renders the title line', () => {
+    expect(title).toContain('data-cy="event-detail-starting-hour"');
+    expect(title).toContain("i18n.t('event.startingHour')");
+    expect(title).toContain('{{ startTime() }}');
+    expect(build({ venueStartTime: '14:00:00', capacity: 32 }).startTime()).toBe('14:00');
+    expect(build({ venueStartTime: '14:00:00', capacity: 32 }).playerCount()).toContain('32');
+  });
+
+  it('uses the singular for one player', () => {
+    expect(build({ capacity: 1 }).playerCount()).toContain('1 joueur');
+  });
+
+  it('says unlimited with no capacity', () => {
+    const count = build({ capacity: undefined }).playerCount();
+    expect(count).not.toContain('undefined');
+    expect(count).toBe(translate('fr', 'registration.unlimited'));
+  });
+
+  it('shows venue time not viewer time', () => {
+    expect(build({ venueStartTime: '14:00:00', timeZoneId: 'Europe/Paris' }).startTime()).toBe('14:00');
+    expect(title).toContain('{{ startTime() }}');
+  });
+
+  it('links the kicker to the website', () => {
+    const kicerIdx = source.indexOf('event-detail-kicker-link');
+    expect(kicerIdx).toBeGreaterThan(-1);
+    const kicker = source.slice(source.lastIndexOf('<a', kicerIdx), source.indexOf('>', kicerIdx) + 1);
+    expect(kicker).toContain('[href]');
+    expect(kicker).toContain('externalLinkAttrs');
+  });
+
+  it('keeps a plain kicker with no website', () => {
+    expect(source).toContain('data-cy="event-detail-kicker"');
+    expect(source).toContain('@else { <p class="kicker" data-cy="event-detail-kicker">');
+  });
+
+  it('keeps an ics action', () => {
+    expect(source).toContain('@if (showIcsAction() && icsUrl(); as url)');
+    expect(source).toContain('data-cy="event-ics"');
   });
 
   it('opens only absolute HTTP(S) tournament links in a new tab', () => {

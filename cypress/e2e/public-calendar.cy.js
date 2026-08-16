@@ -232,7 +232,7 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="event-detail-status"]').should('not.exist');
     cy.get('[data-cy="event-detail-fact-organization"]').should('not.exist');
     cy.get('[data-cy="event-detail-when-where"]').should('contain.text', 'Europe/Paris').and('contain.text', '1 Rue Test, 69001, Lyon, France');
-    cy.get('[data-cy="event-detail-hero"] > :last-child').should('have.attr', 'data-cy', 'event-detail-actions');
+    cy.get('[data-cy="event-detail-actions"]').should('not.exist');
     cy.get('[data-cy="event-detail-where-link"]')
       .should('have.attr', 'target', '_blank')
       .and('have.attr', 'rel', 'noopener noreferrer')
@@ -245,19 +245,6 @@ describe('public Calendar V1', () => {
           .to.be.closeTo($when[0].getBoundingClientRect().top, 2);
       });
     });
-    cy.get('[data-cy="event-detail-actions"]').then(($actions) => {
-      cy.get('[data-cy="event-detail-live-tournament"]')
-        .should('have.attr', 'href', '/live-tournaments/lyon-legacy')
-        .and('not.have.attr', 'target');
-      cy.get('[data-cy="event-detail-archive-tournament"]')
-        .should('have.attr', 'target', '_blank')
-        .and('have.attr', 'rel', 'noopener noreferrer');
-      cy.get('[data-cy="event-detail-organization-website"]').then(($website) => {
-        expect($website[0].getBoundingClientRect().right, 'website button hugs the right edge')
-          .to.be.closeTo($actions[0].getBoundingClientRect().right, 2);
-      });
-    });
-
     cy.viewport(375, 812);
     cy.document().then(document => expect(document.documentElement.scrollWidth).to.be.at.most(375));
   });

@@ -389,7 +389,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .event-hero, .event-section { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 2rem); }
 .event-when-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
 .event-player-count { color: var(--dim-ash); font-size: .4em; font-weight: 700; white-space: nowrap; }
-.event-detail-actions { margin-left: auto; }
+.event-hero-ics { margin-top: .75rem; }
 .maps-icon { width: 1em; height: 1em; margin-right: .3rem; vertical-align: -0.125em; }
 .event-tournament-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); grid-auto-rows: 4.75rem; gap: .5rem; }
 .event-description-fallback { margin: 0; color: var(--dim-ash); white-space: pre-wrap; line-height: 1.7; }
@@ -1291,7 +1291,7 @@ gones-sync-bar { display: flex; flex-direction: column; align-items: flex-end; g
   .public-tournament-card, .registration-card { grid-template-columns: 1fr; }
   .public-tournament-card .calendar-event__actions > *, .registration-action > a, .registration-action > button { width: 100%; }
   .registration-actions, .registration-actions > a, .registration-actions > button { width: 100%; }
-  .event-detail-actions, .event-detail-actions > a, .public-participants__header-actions, .public-participants__header-actions > a, .public-participants__header-actions > button { width: 100%; }
+  .event-hero-ics, .public-participants__header-actions, .public-participants__header-actions > a, .public-participants__header-actions > button { width: 100%; }
 }
 
 /* Organizer Tournament create + management */

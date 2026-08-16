@@ -14,19 +14,12 @@ export type EventDetailView = PublicEventDetailResponse | EventPreviewRenderResp
   template: `
     <article class="event-page public-tournament-detail" aria-labelledby="event-title" data-cy="event-detail-view">
       <section class="event-hero panel" data-cy="event-detail-hero">
-        <p class="kicker" data-cy="event-detail-kicker">{{ event().organization.name }}</p>
-        <h1 id="event-title" data-cy="event-detail-title"><span data-cy="event-detail-title-text">{{ event().displayTitle }}</span>&ngsp;<span class="event-player-count" data-cy="event-detail-player-count">{{ playerCount() }}</span></h1>
+        @if (event().organization.website; as url) { <a class="kicker" data-cy="event-detail-kicker-link" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ event().organization.name }}</a> } @else { <p class="kicker" data-cy="event-detail-kicker">{{ event().organization.name }}</p> }
+        <h1 id="event-title" data-cy="event-detail-title"><span data-cy="event-detail-title-text">{{ event().displayTitle }}</span>&ngsp;<span class="event-player-count" data-cy="event-detail-player-count">{{ playerCount() }}</span>&ngsp;<span class="event-starting-hour" data-cy="event-detail-starting-hour">{{ i18n.t('event.startingHour') }} : {{ startTime() }}</span></h1>
+        @if (showIcsAction() && icsUrl(); as url) { <a mat-stroked-button class="event-hero-ics" [href]="url" type="text/calendar" data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
         @if (event().summary) { <p class="event-description-fallback" data-cy="event-detail-summary">{{ event().summary }}</p> }
         <p class="event-when-where" data-cy="event-detail-when-where"><span data-cy="event-detail-when">{{ date().primary }}</span><span data-cy="event-detail-when-where-separator">-</span>@if (mapsUrl(); as url) { <a data-cy="event-detail-where-link" [href]="url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="i18n.t('event.openInMaps', { address: venue() })"><svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ venue() }}</a> } @else { <span data-cy="event-detail-where">{{ venue() }}</span> }</p>
         @if (date().secondary; as secondary) { <p class="viewer-date" data-cy="event-detail-fact-date-viewer">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }
-        @if ((showIcsAction() && icsUrl()) || event().liveTournamentUrl || event().archiveTournamentUrl || event().organization.website) {
-          <div class="event-detail-actions info-actions info-actions--end" data-cy="event-detail-actions">
-            @if (showIcsAction() && icsUrl(); as url) { <a mat-flat-button class="home-primary-action" [href]="url" type="text/calendar" data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
-            @if (event().liveTournamentUrl; as url) { <a mat-stroked-button data-cy="event-detail-live-tournament" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ i18n.t('event.liveTournament') }}</a> }
-            @if (event().archiveTournamentUrl; as url) { <a mat-stroked-button data-cy="event-detail-archive-tournament" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ i18n.t('event.archiveTournament') }}</a> }
-            @if (event().organization.website; as url) { <a mat-stroked-button data-cy="event-detail-organization-website" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ i18n.t('event.organizationWebsite') }}</a> }
-          </div>
-        }
       </section>
       <section class="event-section panel" data-cy="event-detail-description" aria-labelledby="event-description-title">
         <h2 id="event-description-title" data-cy="event-detail-description-title">{{ i18n.t('event.infoTitle') }}</h2>
@@ -48,6 +41,7 @@ export class EventDetailViewComponent {
     return this.i18n.t(capacity === 1 ? 'event.playerCount' : 'event.playerCountPlural', { count: capacity });
   });
   readonly mapsUrl = computed(() => venueMapsUrl(this.event().venue));
+  readonly startTime = computed(() => this.event().venueStartTime.slice(0, 5));
 
   externalLinkAttrs(url: string): { target?: '_blank'; rel?: 'noopener noreferrer' } {
     return /^https?:\/\//i.test(url) ? { target: '_blank', rel: 'noopener noreferrer' } : {};
