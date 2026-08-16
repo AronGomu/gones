@@ -17,18 +17,21 @@ import { calculateLeagueResult } from '../../domain/results';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { TextPromptDialogComponent } from '../../shared/dialogs';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { LeagueArchiveCatalogCacheService } from './league-archive-catalog-cache.service';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="leagues-archive-list-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
     <section class="page-heading league-list-heading" data-cy="leagues-archive-list-heading">
       <div data-cy="leagues-archive-list-heading-block"><h1 data-cy="leagues-archive-list-title">{{ i18n.t('leagues.title') }}</h1></div>
     </section>
+    <gones-sync-bar cyPrefix="leagues-archive-list" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="leagues-archive-list-sync-bar" />
     @if (error()) { <p class="error" role="alert" data-cy="leagues-archive-list-error">{{ error() }}</p> }
     <p class="muted" role="status" data-cy="leagues-archive-local-notice">{{ i18n.t('leagues.localNotice') }}</p>
     @if (repo.serverUnavailable()) { <p class="warning" role="status" data-cy="leagues-archive-server-unavailable">{{ i18n.t('leagues.serverUnavailable') }}</p> }
@@ -69,6 +72,8 @@ export class LeagueArchiveListComponent {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly creating = signal(false);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly power = inject(PowerUserSettingsService);
   /** Power mode applies to both stores; role authority still applies to server leagues. */
   readonly hasUnmanageableServerLeagues = computed(() => !this.power.enabled()
@@ -82,16 +87,39 @@ export class LeagueArchiveListComponent {
       .filter((league) => !search || this.leagueDisplayName(league).toLowerCase().includes(search) || league.name.toLowerCase().includes(search));
   });
 
+  private readonly catalogCache = inject(LeagueArchiveCatalogCacheService);
+
   constructor(readonly repo: LeagueArchiveRepository, private readonly auth: AuthService, private readonly router: Router, private readonly dialog: MatDialog) {
     void this.load();
   }
 
-  async load(): Promise<void> {
+  async load(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
-    try { this.leagues.set(await this.repo.listLeagues()); }
-    catch (error) { logBoundaryError('league-list.load', error); this.error.set(this.i18n.t('leagues.loadFailed')); }
-    finally { this.loading.set(false); }
+    const [serverResult, localResult] = await Promise.allSettled([
+      this.catalogCache.load(options),
+      this.repo.listLocalLeagues()
+    ]);
+    this.repo.serverUnavailable.set(
+      serverResult.status === 'rejected' || (serverResult.status === 'fulfilled' && serverResult.value.stale)
+    );
+    if (serverResult.status === 'rejected' && localResult.status === 'rejected') {
+      logBoundaryError('league-list.load', serverResult.reason);
+      this.error.set(this.i18n.t('leagues.loadFailed'));
+      this.loading.set(false);
+      return;
+    }
+    if (serverResult.status === 'fulfilled') {
+      this.syncedAt.set(serverResult.value.fetchedAt);
+      this.stale.set(serverResult.value.stale);
+    }
+    this.leagues.set([
+      ...(serverResult.status === 'fulfilled' ? serverResult.value.items : []),
+      ...(localResult.status === 'fulfilled' ? localResult.value : [])
+    ]);
+    this.loading.set(false);
   }
+
+  sync(): void { void this.load({ force: true }); }
 
   playerCount(league: PersistedLeague): number { return calculateLeagueResult(league).rows.length; }
 

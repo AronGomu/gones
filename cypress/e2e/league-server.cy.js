@@ -235,6 +235,18 @@ describe('League server command flows', () => {
     cy.get('[data-cy="tournament-archive-result-not-found"]').should('exist');
   });
 
+  it('shows the sync bar, serves from cache on reload, and refetches on sync click', () => {
+    mockSession();
+    mockLeagueServer();
+    visit('/leagues-archive');
+    cy.wait('@leagueList');
+    cy.get('[data-cy="leagues-archive-list-sync-button"]').should('be.visible');
+    cy.reload();
+    cy.get('[data-cy="leagues-archive-list-grid"]').should('exist');
+    cy.get('[data-cy="leagues-archive-list-sync-button"]').click();
+    cy.wait('@leagueList');
+  });
+
   it('shows User read-only controls plus explicit 403 and 412 reload recovery', () => {
     const state = mockLeagueServer();
     state.leagues.push({ id: 'league-role', name: 'Role League', status: 'active', tournaments: [], documentVersion: 1 });

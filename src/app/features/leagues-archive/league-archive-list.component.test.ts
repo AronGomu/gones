@@ -57,6 +57,22 @@ describe('league archive list template', () => {
     expect(source).toContain('data-cy="leagues-archive-server-unavailable"');
   });
 
+  it('renders the sync bar', () => {
+    expect(source).toContain('gones-sync-bar');
+    expect(source).toContain('cyPrefix="leagues-archive-list"');
+    // SyncBarComponent produces data-cy="{prefix}-sync-button"
+    expect(source).toContain('cyPrefix="leagues-archive-list"');
+  });
+
+  it('sync forces a refetch', () => {
+    expect(source).toContain('sync(): void { void this.load({ force: true }); }');
+  });
+
+  it('always reads local leagues live', () => {
+    expect(source).toContain('this.repo.listLocalLeagues()');
+    expect(source).toContain('this.catalogCache.load(options)');
+  });
+
   it('both placeholders are hidden and labelled the same way', () => {
     expect(source).toContain('!isAnyPlaceholderLeagueId(league.id) || league.tournaments.length > 0');
     expect(source).toContain("isAnyPlaceholderLeagueId(league.id) ? this.i18n.t('liveList.unassigned') : league.name");

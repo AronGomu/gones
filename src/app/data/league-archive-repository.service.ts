@@ -38,6 +38,14 @@ export class LeagueArchiveRepository {
    * offline, and mirroring it would create two answers for one document. A cached answer still raises
    * `serverUnavailable` — it means exactly what the banner says, that the server was not reached.
    */
+  listServerLeagues(): Promise<PersistedLeague[]> {
+    return this.server.listLeagueArchives();
+  }
+
+  listLocalLeagues(): Promise<PersistedLeague[]> {
+    return this.local.listLeagueArchives();
+  }
+
   async listLeagues(): Promise<PersistedLeague[]> {
     const serverRead = this.cache.read('leagues', () => this.server.listLeagueArchives());
     const [server, local] = await Promise.allSettled([serverRead, this.local.listLeagueArchives()]);
