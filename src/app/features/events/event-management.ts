@@ -123,7 +123,7 @@ export function managementToDetail(
     endsAtUtc: event.endsAtUtc,
     capacity: event.capacity,
     status: event.status,
-    organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined },
+    organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
     formats: event.formatIds.map(id => byId.get(id) ?? { id, name: id, slug: id, sortOrder: 0 })
   };
 }

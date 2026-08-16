@@ -19,14 +19,14 @@ function makeItem(overrides: Partial<PublicEventView>): PublicEventView {
     endsAtUtc: '2026-09-12T16:00:00Z',
     capacity: 64,
     status: 'published',
-    organization: { id: 'org-1', name: 'Gones Events', description: undefined, website: undefined, contactEmail: undefined },
+    organization: { id: 'org-1', name: 'Gones Events', description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
     formats: [{ id: 'format-1', name: 'Legacy', slug: 'legacy', sortOrder: 0 }],
     ...overrides
   } as PublicEventView;
 }
 
 function org(name: string): PublicEventView['organization'] {
-  return { id: name, name, description: undefined, website: undefined, contactEmail: undefined };
+  return { id: name, name, description: undefined, website: undefined, contactEmail: undefined, organizers: [] };
 }
 
 function formats(...names: string[]): PublicEventView['formats'] {

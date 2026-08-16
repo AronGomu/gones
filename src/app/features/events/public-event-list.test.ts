@@ -45,7 +45,7 @@ const event: PublicEventView = {
   endsAtUtc: '2026-08-01T23:30:00Z',
   capacity: 32,
   status: 'Published',
-  organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: undefined, contactEmail: undefined },
+  organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]
 };
 

@@ -38,7 +38,7 @@ const event = {
   status: 'Published',
   liveTournamentUrl: '/live-tournaments/gones-night',
   archiveTournamentUrl: 'https://archive.example.test/gones-night',
-  organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: 'https://example.test', contactEmail: undefined },
+  organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: 'https://example.test', contactEmail: undefined, organizers: ['adam', 'zoe'] },
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Modern', slug: 'modern', sortOrder: 1 }]
 } as unknown as PublicEventDetailResponse;
 
@@ -183,5 +183,25 @@ describe('EventDetailViewComponent hero', () => {
 
     expect(icsAnchor).not.toContain(' download');
     expect(icsAnchor).toContain('type="text/calendar"');
+  });
+
+  it('renders the organizer row', () => {
+    const component = build({ organization: { ...event.organization, organizers: ['adam', 'zoe'] } } as Partial<PublicEventDetailResponse>);
+    expect(component.organizers()).toEqual(['adam', 'zoe']);
+    expect(source).toContain('data-cy="event-detail-organizers"');
+    expect(source).toContain("organizers().join(', ')");
+  });
+
+  it('omits the row when there are none', () => {
+    const component = build({ organization: { ...event.organization, organizers: [] } } as Partial<PublicEventDetailResponse>);
+    expect(component.organizers()).toEqual([]);
+    expect(source).toContain('@if (organizers().length)');
+  });
+
+  it('is the last hero child', () => {
+    const heroSection = source.slice(source.indexOf('<section class="event-hero panel"'), source.indexOf('</section>'));
+    const organizersIdx = heroSection.indexOf('event-detail-organizers');
+    const viewerIdx = heroSection.indexOf('event-detail-fact-date-viewer');
+    expect(organizersIdx).toBeGreaterThan(viewerIdx);
   });
 });

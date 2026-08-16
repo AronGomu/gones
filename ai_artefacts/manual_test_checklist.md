@@ -296,3 +296,11 @@
 - [ ] No button row (Live Tournament / Archive Tournament / Organization Website / Add to Calendar block) appears below the date/location row.
 - [ ] An **Add to Calendar** button appears immediately below the `<h1>` (before the description) and downloads the `.ics` via OS handler.
 - [ ] Change system timezone or use a device in another zone — the title still shows venue local time (`Starting Hour`); the "your time" line below shows the viewer's local time.
+
+## T15 event-organizer-row
+
+- [ ] Run `npm run dev -- --env=demo`, open an event whose organization has two or more members — the bottom of the hero section shows a small italic comma-separated list of organizer usernames (e.g. `alice, bob`).
+- [ ] Open an event whose organization has exactly one member — one username appears, no trailing comma.
+- [ ] Open an event whose organization has no members (Draft organization) — no organizer line appears at all in the hero.
+- [ ] The organizer line is visually the last element of the hero, appearing after the viewer-time paragraph.
+- [ ] No e-mail addresses appear in the organizer row or anywhere in the event detail page outside the `contactEmail` field.

@@ -20,6 +20,7 @@ export type EventDetailView = PublicEventDetailResponse | EventPreviewRenderResp
         @if (event().summary) { <p class="event-description-fallback" data-cy="event-detail-summary">{{ event().summary }}</p> }
         <p class="event-when-where" data-cy="event-detail-when-where"><span data-cy="event-detail-when">{{ date().primary }}</span><span data-cy="event-detail-when-where-separator">-</span>@if (mapsUrl(); as url) { <a data-cy="event-detail-where-link" [href]="url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="i18n.t('event.openInMaps', { address: venue() })"><svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ venue() }}</a> } @else { <span data-cy="event-detail-where">{{ venue() }}</span> }</p>
         @if (date().secondary; as secondary) { <p class="viewer-date" data-cy="event-detail-fact-date-viewer">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }
+        @if (organizers().length) { <p class="event-hero-organizers" data-cy="event-detail-organizers">{{ organizers().join(', ') }}</p> }
       </section>
       <section class="event-section panel" data-cy="event-detail-description" aria-labelledby="event-description-title">
         <h2 id="event-description-title" data-cy="event-detail-description-title">{{ i18n.t('event.infoTitle') }}</h2>
@@ -42,6 +43,7 @@ export class EventDetailViewComponent {
   });
   readonly mapsUrl = computed(() => venueMapsUrl(this.event().venue));
   readonly startTime = computed(() => this.event().venueStartTime.slice(0, 5));
+  readonly organizers = computed(() => this.event().organization.organizers ?? []);
 
   externalLinkAttrs(url: string): { target?: '_blank'; rel?: 'noopener noreferrer' } {
     return /^https?:\/\//i.test(url) ? { target: '_blank', rel: 'noopener noreferrer' } : {};

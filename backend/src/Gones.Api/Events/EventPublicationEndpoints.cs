@@ -342,7 +342,7 @@ internal sealed class EventPublicationService(
                 tournament.EndsAtUtc,
                 tournament.Capacity,
                 tournament.Status.ToString(),
-                new PublicEventOrganizationResponse(organization.Id, organization.Name, organization.Description, organization.Website, organization.ContactEmail),
+                new PublicEventOrganizationResponse(organization.Id, organization.Name, organization.Description, organization.Website, organization.ContactEmail, []),
                 formats.Select(format => new PublicTournamentFormatResponse(format.Id, format.Name, format.Slug, format.SortOrder)).ToArray());
             var canonical = new CanonicalEventPayload(
                 request.OrganizationId,

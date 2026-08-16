@@ -390,6 +390,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .event-when-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
 .event-player-count { color: var(--dim-ash); font-size: .4em; font-weight: 700; white-space: nowrap; }
 .event-hero-ics { margin-top: .75rem; }
+.event-hero-organizers { margin-top: .6rem; color: var(--dim-ash); font-size: .82rem; font-style: italic; }
 .maps-icon { width: 1em; height: 1em; margin-right: .3rem; vertical-align: -0.125em; }
 .event-tournament-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); grid-auto-rows: 4.75rem; gap: .5rem; }
 .event-description-fallback { margin: 0; color: var(--dim-ash); white-space: pre-wrap; line-height: 1.7; }

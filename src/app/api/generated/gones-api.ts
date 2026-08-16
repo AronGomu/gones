@@ -11085,6 +11085,7 @@ export interface PublicEventOrganizationResponse {
     description: string | undefined;
     website: string | undefined;
     contactEmail: string | undefined;
+    organizers: string[];
 
     [key: string]: any;
 }

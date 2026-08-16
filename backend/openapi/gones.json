@@ -11782,7 +11782,8 @@
           "name",
           "description",
           "website",
-          "contactEmail"
+          "contactEmail",
+          "organizers"
         ],
         "type": "object",
         "properties": {
@@ -11810,6 +11811,12 @@
               "null",
               "string"
             ]
+          },
+          "organizers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

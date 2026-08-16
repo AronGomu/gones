@@ -17,7 +17,7 @@ const event = {
   status: 'Cancelled',
   liveTournamentUrl: '/live-tournaments/lyon-legacy',
   archiveTournamentUrl: 'https://archive.example.test/lyon-legacy',
-  organization: { id: orgId, name: 'Gones', description: '', website: 'https://example.test', contactEmail: '' },
+  organization: { id: orgId, name: 'Gones', description: '', website: 'https://example.test', contactEmail: '', organizers: ['adam', 'zoe'] },
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]
 };
 
@@ -233,6 +233,7 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="event-detail-fact-organization"]').should('not.exist');
     cy.get('[data-cy="event-detail-when-where"]').should('contain.text', 'Europe/Paris').and('contain.text', '1 Rue Test, 69001, Lyon, France');
     cy.get('[data-cy="event-detail-actions"]').should('not.exist');
+    cy.get('[data-cy="event-detail-organizers"]').should('contain.text', 'adam, zoe');
     cy.get('[data-cy="event-detail-where-link"]')
       .should('have.attr', 'target', '_blank')
       .and('have.attr', 'rel', 'noopener noreferrer')

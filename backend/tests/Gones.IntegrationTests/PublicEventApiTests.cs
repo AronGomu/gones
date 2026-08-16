@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
+using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
@@ -256,6 +257,44 @@ public sealed class PublicEventApiTests : IAsyncLifetime
             .ConfigureGones(postgres.GetConnectionString())
             .Options;
         return new GonesDbContext(options);
+    }
+
+    [Fact]
+    public async Task Lists_the_organizations_organizers()
+    {
+        await using var database = CreateContext();
+        var userZoe = new ApplicationUser { Id = Guid.NewGuid(), UserName = "zoe@example.test", NormalizedUserName = "ZOE@EXAMPLE.TEST", Email = "zoe@example.test", NormalizedEmail = "ZOE@EXAMPLE.TEST", EmailConfirmed = true, SecurityStamp = Guid.NewGuid().ToString("N"), ConcurrencyStamp = Guid.NewGuid().ToString("N") };
+        var userAdam = new ApplicationUser { Id = Guid.NewGuid(), UserName = "adam@example.test", NormalizedUserName = "ADAM@EXAMPLE.TEST", Email = "adam@example.test", NormalizedEmail = "ADAM@EXAMPLE.TEST", EmailConfirmed = true, SecurityStamp = Guid.NewGuid().ToString("N"), ConcurrencyStamp = Guid.NewGuid().ToString("N") };
+        database.Users.AddRange(userZoe, userAdam);
+        await database.SaveChangesAsync();
+        database.UserProfiles.AddRange(
+            UserProfile.Create(userZoe.Id, "zoe", "Zoe", "Tester", Now),
+            UserProfile.Create(userAdam.Id, "adam", "Adam", "Tester", Now));
+        database.OrganizationMembers.AddRange(
+            OrganizationMember.Create(seed.Alpha.Id, userZoe.Id, OrganizationRoles.Organizer, Now),
+            OrganizationMember.Create(seed.Alpha.Id, userAdam.Id, OrganizationRoles.Organizer, Now));
+        await database.SaveChangesAsync();
+
+        using var detail = await Client.GetAsync("/api/events/search-cup");
+        var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        var organizers = body.GetProperty("organization").GetProperty("organizers").EnumerateArray().Select(el => el.GetString()).ToArray();
+
+        // lists both, alphabetically, and no email addresses
+        Assert.Equal(new[] { "adam", "zoe" }, organizers);
+        var orgJson = body.GetProperty("organization").GetRawText();
+        Assert.DoesNotContain("@example.test", orgJson);
+    }
+
+    [Fact]
+    public async Task Is_empty_for_a_member_less_organization()
+    {
+        // completed-cup belongs to seed.Beta which has no members
+        using var detail = await Client.GetAsync("/api/events/completed-cup");
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        var organizers = body.GetProperty("organization").GetProperty("organizers");
+        Assert.Equal(JsonValueKind.Array, organizers.ValueKind);
+        Assert.Equal(0, organizers.GetArrayLength());
     }
 
     private static ScheduledTournamentDraft Draft(string title, string slug, LocalDateTime startsAt, string city, string summary, string? bodyHtml) => new(
