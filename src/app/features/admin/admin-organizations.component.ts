@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -20,6 +20,9 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 
 export const MAX_PICKER_USERS = 500;
 const PICKER_PAGE_SIZE = 100;
+const SEARCH_DEBOUNCE_MS = 300;
+const ABSOLUTE_URL = /^https?:\/\/\S+$/i;
+const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
 
 @Component({
   standalone: true,
@@ -35,22 +38,26 @@ const PICKER_PAGE_SIZE = 100;
         <div class="stack" data-cy="admin-org-list-pane">
           <form class="filter-bar auth-form" data-cy="admin-orgs-filters" (ngSubmit)="applyFilters()">
             <label for="admin-org-search" data-cy="admin-org-search-label">{{ i18n.t('common.search') }}</label>
-            <input id="admin-org-search" data-cy="admin-org-search" name="search" [(ngModel)]="search" />
+            <input id="admin-org-search" data-cy="admin-org-search" name="search" [ngModel]="search" (ngModelChange)="setSearchDraft($event)" />
             <label data-cy="admin-org-include-deleted-label"><input type="checkbox" data-cy="admin-org-include-deleted" name="includeDeleted" [(ngModel)]="includeDeleted" /> {{ i18n.t('admin.includeDeleted') }}</label>
-            <button mat-flat-button type="submit" data-cy="admin-org-search-submit">{{ i18n.t('common.apply') }}</button>
           </form>
 
-          <button mat-stroked-button type="button" data-cy="admin-org-create-toggle" [attr.aria-expanded]="showCreate()" (click)="showCreate.set(!showCreate())">{{ i18n.t('admin.newOrganization') }}</button>
+          <button mat-flat-button class="warning-action" type="button" data-cy="admin-org-create-toggle" [attr.aria-expanded]="showCreate()" (click)="showCreate.set(!showCreate())">{{ i18n.t('admin.newOrganization') }}</button>
           @if (showCreate()) {
             <mat-card class="panel" data-cy="admin-create-org-card"><mat-card-content data-cy="admin-create-org-card-content">
               <form class="auth-form" data-cy="admin-create-org" (ngSubmit)="create()">
                 <h2 data-cy="admin-create-org-title">{{ i18n.t('admin.createOrganization') }}</h2>
-                <label for="org-name" data-cy="admin-create-org-name-label">{{ i18n.t('org.name') }}</label><input id="org-name" data-cy="admin-create-org-name" name="name" [(ngModel)]="draft.name" required />
-                <label for="org-owner" data-cy="admin-create-org-owner-label">{{ i18n.t('admin.ownerUserId') }}</label><input id="org-owner" data-cy="admin-create-org-owner" name="ownerUserId" [(ngModel)]="draft.ownerUserId" required />
+                <label for="org-name" data-cy="admin-create-org-name-label">{{ i18n.t('org.name') }}</label><input id="org-name" data-cy="admin-create-org-name" name="name" [(ngModel)]="draft.name" />
+                @if (draftErrors().name; as message) { <p class="error" data-cy="admin-create-org-name-error">{{ message }}</p> }
                 <label for="org-description" data-cy="admin-create-org-description-label">{{ i18n.t('org.description') }}</label><textarea id="org-description" data-cy="admin-create-org-description" name="description" [(ngModel)]="draft.description"></textarea>
                 <label for="org-website" data-cy="admin-create-org-website-label">{{ i18n.t('org.website') }}</label><input id="org-website" data-cy="admin-create-org-website" name="website" [(ngModel)]="draft.website" />
+                @if (draftErrors().website; as message) { <p class="error" data-cy="admin-create-org-website-error">{{ message }}</p> }
                 <label for="org-contact" data-cy="admin-create-org-contact-label">{{ i18n.t('org.contactEmail') }}</label><input id="org-contact" data-cy="admin-create-org-contact" name="contactEmail" [(ngModel)]="draft.contactEmail" />
-                <button mat-flat-button type="submit" data-cy="admin-create-org-submit" [disabled]="pending()">{{ i18n.t('common.create') }}</button>
+                @if (draftErrors().contactEmail; as message) { <p class="error" data-cy="admin-create-org-contact-error">{{ message }}</p> }
+                <div class="actions" data-cy="admin-create-org-actions">
+                  <button mat-flat-button type="submit" data-cy="admin-create-org-submit" [disabled]="pending() || hasDraftErrors()">{{ i18n.t('common.create') }}</button>
+                  <button mat-stroked-button type="button" data-cy="admin-create-org-cancel" (click)="cancelCreate()">{{ i18n.t('common.cancel') }}</button>
+                </div>
               </form>
             </mat-card-content></mat-card>
           }
@@ -146,7 +153,7 @@ const PICKER_PAGE_SIZE = 100;
     <gones-back-button data-cy="admin-organizations-back-bottom" [link]="['/admin']" [label]="i18n.t('admin.back')" position="bottom" />
   `
 })
-export class AdminOrganizationsComponent {
+export class AdminOrganizationsComponent implements OnDestroy {
   readonly i18n = inject(I18nService);
   private readonly client = inject(Client);
   private readonly route = inject(ActivatedRoute);
@@ -179,11 +186,12 @@ export class AdminOrganizationsComponent {
   });
   private readonly latestMembers = new LatestRequest();
   private editDraftId = '';
+  private searchDebounce: ReturnType<typeof setTimeout> | undefined;
   search = '';
   includeDeleted = false;
   page = 1;
   pageSize = 20;
-  draft = { name: '', ownerUserId: '', description: '', website: '', contactEmail: '' };
+  draft = { name: '', description: '', website: '', contactEmail: '' };
   editDraft = { name: '', description: '', website: '', contactEmail: '' };
 
   private readonly cache = inject(ServerReadCacheService);
@@ -203,6 +211,38 @@ export class AdminOrganizationsComponent {
       }
       void this.reload();
     });
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+  }
+
+  /** The filter applies while typing; the debounce keeps a burst of keystrokes to one navigation. */
+  setSearchDraft(value: string): void {
+    this.search = value;
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+    this.searchDebounce = setTimeout(() => this.applyFilters(), SEARCH_DEBOUNCE_MS);
+  }
+
+  // `draft` is a plain object mutated by ngModel, so this is a method rather than a `computed`:
+  // a computed over non-signal state would memoise the first result and never refresh.
+  draftErrors(): { name?: string; website?: string; contactEmail?: string } {
+    const errors: { name?: string; website?: string; contactEmail?: string } = {};
+    if (!this.draft.name.trim()) errors.name = this.i18n.t('org.nameRequired');
+    const website = this.draft.website.trim();
+    if (website && !ABSOLUTE_URL.test(website)) errors.website = this.i18n.t('org.websiteInvalid');
+    const contactEmail = this.draft.contactEmail.trim();
+    if (contactEmail && !EMAIL_SHAPE.test(contactEmail)) errors.contactEmail = this.i18n.t('org.contactEmailInvalid');
+    return errors;
+  }
+
+  hasDraftErrors(): boolean {
+    return Object.keys(this.draftErrors()).length > 0;
+  }
+
+  cancelCreate(): void {
+    this.resetDraft();
+    this.showCreate.set(false);
   }
 
   applyFilters(): void {
@@ -299,9 +339,10 @@ export class AdminOrganizationsComponent {
   }
 
   async create(): Promise<void> {
+    if (this.hasDraftErrors()) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.organizationsPOST({ ...this.draft }));
-      this.draft = { name: '', ownerUserId: '', description: '', website: '', contactEmail: '' };
+      this.resetDraft();
       this.showCreate.set(false);
       await this.cache.invalidateFamily('admin-organizations');
       await this.cache.invalidateFamily('admin-organization-members');
@@ -371,6 +412,10 @@ export class AdminOrganizationsComponent {
     } finally {
       this.usersLoading.set(false);
     }
+  }
+
+  private resetDraft(): void {
+    this.draft = { name: '', description: '', website: '', contactEmail: '' };
   }
 
   private clearSelection(): void {

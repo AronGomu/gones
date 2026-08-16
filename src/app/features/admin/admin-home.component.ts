@@ -24,7 +24,6 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           <a mat-stroked-button routerLink="/admin/notifications/history" data-cy="admin-nav-notification-history">{{ i18n.t('admin.notificationHistory') }}</a>
           <a mat-stroked-button routerLink="/admin/notifications/dead-letters" data-cy="admin-nav-notification-dead-letters">{{ i18n.t('admin.notificationDeadLetters') }}</a>
           <a mat-stroked-button routerLink="/admin/events/deleted" data-cy="admin-nav-deleted-tournaments">{{ i18n.t('eventManage.deletedTitle') }}</a>
-          <a mat-stroked-button routerLink="/organizations" data-cy="admin-nav-public-orgs">{{ i18n.t('org.publicList') }}</a>
         </nav>
       }
     </section>

@@ -7,8 +7,7 @@ import { firstValueFrom } from 'rxjs';
 import {
   AdminAccountClosureImpactResponse,
   AdminUserSummaryResponse,
-  Client,
-  OwnershipTransferBody
+  Client
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { ServerReadCacheService } from '../../backend/server-read-cache.service';
@@ -72,14 +71,10 @@ import { BackButtonComponent } from '../../shared/back-button.component';
             <h2 data-cy="admin-close-title">{{ i18n.t('admin.closeTitle') }}</h2>
             <p data-cy="admin-close-help">{{ i18n.t('admin.closeHelp', { username: target.username }) }}</p>
             @if (impact(); as impact) {
-              <p class="warning" data-cy="admin-close-impact">{{ i18n.t('admin.closeImpact', { orgs: impact.soleOwnedOrganizations.length, memberships: impact.otherMembershipOrganizationIds.length }) }}</p>
+              <p class="warning" data-cy="admin-close-impact">{{ i18n.t('admin.closeImpact', { memberships: impact.otherMembershipOrganizationIds.length }) }}</p>
               @if (impact.blockReason === 'self_close' || impact.blockReason === 'last_admin' || impact.isClosed) {
                 <p class="error" role="alert" data-cy="admin-close-blocked">{{ i18n.t('admin.closeBlocked') }}</p>
               } @else {
-                @for (org of impact.soleOwnedOrganizations; track org.organizationId) {
-                  <label [attr.for]="'transfer-' + org.organizationId" [attr.data-cy]="'transfer-owner-label-' + org.organizationId">{{ i18n.t('admin.transferOwner', { name: org.organizationName }) }}</label>
-                  <input [id]="'transfer-' + org.organizationId" [attr.data-cy]="'transfer-owner-' + org.organizationId" [(ngModel)]="transfers[org.organizationId]" [name]="'transfer-' + org.organizationId" [placeholder]="org.suggestedNewOwnerUserId || ''" />
-                }
                 <label for="confirm-username" data-cy="admin-close-username-label">{{ i18n.t('admin.confirmUsername') }}</label>
                 <input id="confirm-username" data-cy="admin-close-username" [(ngModel)]="confirmUsername" name="confirmUsername" />
                 <div class="actions" data-cy="admin-close-actions">
@@ -122,7 +117,6 @@ export class AdminUsersComponent {
   page = 1;
   pageSize = 20;
   confirmUsername = '';
-  transfers: Record<string, string> = {};
 
   constructor() {
     this.route.queryParamMap.subscribe((params) => {
@@ -181,13 +175,8 @@ export class AdminUsersComponent {
     this.impactError.set('');
     this.closeError.set('');
     this.confirmUsername = '';
-    this.transfers = {};
     try {
-      const impact = await firstValueFrom(this.client.closureImpact(user.id));
-      this.impact.set(impact);
-      for (const org of impact.soleOwnedOrganizations ?? []) {
-        this.transfers[org.organizationId] = org.suggestedNewOwnerUserId ?? '';
-      }
+      this.impact.set(await firstValueFrom(this.client.closureImpact(user.id)));
     } catch {
       this.impactError.set(this.i18n.t('admin.loadFailed'));
     }
@@ -201,13 +190,10 @@ export class AdminUsersComponent {
   async confirmClose(): Promise<void> {
     const user = this.closing();
     if (!user || this.pending()) return;
-    const ownershipTransfers: OwnershipTransferBody[] = Object.entries(this.transfers)
-      .filter(([, value]) => value.trim())
-      .map(([organizationId, newOwnerUserId]) => ({ organizationId, newOwnerUserId: newOwnerUserId.trim() }));
     this.pending.set(true);
     this.closeError.set('');
     try {
-      await firstValueFrom(this.client.disable(user.id, { confirmedUsername: this.confirmUsername, ownershipTransfers }));
+      await firstValueFrom(this.client.disable(user.id, { confirmedUsername: this.confirmUsername }));
       this.cancelClose();
       await this.cache.invalidateFamily('admin-users');
       await this.reload();

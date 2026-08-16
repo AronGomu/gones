@@ -26,7 +26,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
               <mat-card-content class="stack" [attr.data-cy]="'organizer-orgs-card-content-' + org.id">
                 <div [attr.data-cy]="'organizer-orgs-card-heading-' + org.id"><h2 [attr.data-cy]="'organizer-orgs-card-name-' + org.id">{{ org.name }}</h2><p class="muted" [attr.data-cy]="'organizer-orgs-card-role-' + org.id">{{ org.role }}</p></div>
                 @if (org.description) { <p [attr.data-cy]="'organizer-orgs-card-description-' + org.id">{{ org.description }}</p> }
-                <a mat-stroked-button [routerLink]="['/organizations', org.id]" data-cy="manage-org-link">{{ org.role === 'Owner' ? i18n.t('org.manage') : i18n.t('common.view') }}</a>
+                <a mat-stroked-button [routerLink]="['/organizations', org.id]" data-cy="manage-org-link">{{ i18n.t('org.manage') }}</a>
               </mat-card-content>
             </mat-card>
           }

@@ -21,7 +21,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
     <gones-back-button data-cy="organization-detail-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
 
     <section class="admin-page stack" data-cy="organization-detail" aria-labelledby="org-detail-title">
-      <a mat-stroked-button routerLink="/organizations" data-cy="org-detail-back">{{ i18n.t('org.backToList') }}</a>
+      <a mat-stroked-button routerLink="/organizer/organizations" data-cy="org-detail-back">{{ i18n.t('org.backToList') }}</a>
       @if (loading()) { <p data-cy="org-detail-loading">{{ i18n.t('common.loading') }}</p> }
       @else if (error()) { <div class="stack" data-cy="org-detail-error-panel"><p class="error" role="alert" data-cy="org-detail-error">{{ error() }}</p><button mat-stroked-button type="button" data-cy="org-detail-retry" (click)="reload()">{{ i18n.t('common.retry') }}</button></div> }
       @else if (organization(); as org) {
@@ -43,21 +43,16 @@ import { BackButtonComponent } from '../../shared/back-button.component';
                 @for (member of members(); track member.userId) {
                   <div class="admin-row-grid member-row" [attr.data-cy]="'org-member-' + member.username">
                     <div [attr.data-cy]="'org-member-summary-' + member.userId"><strong [attr.data-cy]="'org-member-username-' + member.userId">{{ member.username }}</strong><p class="muted" [attr.data-cy]="'org-member-id-' + member.userId">{{ member.userId }}</p></div>
-                    <select [ngModel]="member.role" [attr.data-cy]="'org-member-role-' + member.userId" [attr.aria-label]="i18n.t('org.roleFor', { username: member.username })" (ngModelChange)="changeRole(member, $event)">
-                      @if (isAdmin() || member.role === 'Owner') { <option value="Owner" [attr.data-cy]="'org-member-role-owner-' + member.userId">Owner</option> }
-                      <option value="Organizer" [attr.data-cy]="'org-member-role-organizer-' + member.userId">Organizer</option>
-                    </select>
+                    <span class="muted" [attr.data-cy]="'org-member-role-' + member.userId">{{ member.role }}</span>
                     <button mat-stroked-button type="button" class="danger-ghost-action" [attr.data-cy]="'org-member-remove-' + member.userId" [disabled]="pending()" (click)="remove(member)">{{ i18n.t('common.remove') }}</button>
                   </div>
                 }
                 <!-- Adding a member grants the global Organizer role, so the server takes it from an
-                     admin only; showing the form to an Owner would be a control that always fails. -->
+                     admin only; showing the form to a plain member would be a control that always fails. -->
                 @if (isAdmin()) {
                   <form class="auth-form admin-inline-form" data-cy="org-add-member-form" (ngSubmit)="addMember()">
                     <label for="org-member-user" data-cy="org-member-user-label">{{ i18n.t('org.addUserId') }}</label>
                     <input id="org-member-user" data-cy="org-member-user" name="newMemberUserId" [(ngModel)]="newMemberUserId" />
-                    <label for="org-member-role" data-cy="org-new-member-role-label">{{ i18n.t('org.role') }}</label>
-                    <select id="org-member-role" data-cy="org-new-member-role" name="newMemberRole" [(ngModel)]="newMemberRole"><option value="Organizer" data-cy="org-new-member-role-organizer">Organizer</option><option value="Owner" data-cy="org-new-member-role-owner">Owner</option></select>
                     <button mat-flat-button type="submit" data-cy="org-add-member-submit" [disabled]="pending()">{{ i18n.t('common.add') }}</button>
                   </form>
                 } @else { <p class="muted" data-cy="org-add-member-admin-only">{{ i18n.t('org.addMemberAdminOnly') }}</p> }
@@ -94,10 +89,9 @@ export class OrganizationDetailComponent {
   readonly error = signal('');
   readonly manageError = signal('');
   readonly status = signal('');
-  /** Membership grants - add a member, hand over ownership - are admin-only server-side. */
+  /** Membership grants are admin-only server-side: adding a member also grants the global Organizer role. */
   readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');
   newMemberUserId = '';
-  newMemberRole = 'Organizer';
   private organizationId = '';
 
   constructor() {
@@ -141,7 +135,7 @@ export class OrganizationDetailComponent {
   async addMember(): Promise<void> {
     if (!this.newMemberUserId.trim()) return;
     await this.mutate(async () => {
-      await firstValueFrom(this.client.membersPOST(this.organizationId, { userId: this.newMemberUserId.trim(), role: this.newMemberRole }));
+      await firstValueFrom(this.client.membersPOST(this.organizationId, { userId: this.newMemberUserId.trim(), role: 'Organizer' }));
       this.newMemberUserId = '';
       await this.loadManagement();
     });
@@ -151,17 +145,6 @@ export class OrganizationDetailComponent {
     if (!confirm(this.i18n.t('org.confirmRemoveMember', { username: member.username }))) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.membersDELETE(this.organizationId, member.userId));
-      await this.loadManagement();
-    });
-  }
-
-  async changeRole(member: OrganizationMemberResponse, role: string): Promise<void> {
-    if (role === member.role) return;
-    const action = role === 'Owner' ? this.i18n.t('org.confirmTransferOwner', { username: member.username }) : this.i18n.t('org.confirmRoleChange', { username: member.username, role });
-    if (!confirm(action)) { await this.loadManagement(); return; }
-    await this.mutate(async () => {
-      if (role === 'Owner') await firstValueFrom(this.client.transferOwnership(this.organizationId, { newOwnerUserId: member.userId }));
-      else await firstValueFrom(this.client.role(this.organizationId, member.userId, { role }));
       await this.loadManagement();
     });
   }

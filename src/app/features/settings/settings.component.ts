@@ -1031,10 +1031,11 @@ export class SettingsComponent {
 
   async loadOwnedOrganizations(): Promise<void> {
     try {
+      // Every membership carries the same Organizer role now, so every organization the account
+      // belongs to exposes its notification preferences here.
       const organizations = await firstValueFrom(this.client.organizationsAll());
-      const owned = organizations.filter((organization) => organization.role === 'Owner');
       const withSettings: OwnedOrganizationSettings[] = [];
-      for (const organization of owned) {
+      for (const organization of organizations) {
         try {
           withSettings.push({ organization, settings: await firstValueFrom(this.client.notificationSettingsGET(organization.id)) });
         } catch (error) {

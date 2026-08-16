@@ -79,6 +79,13 @@ describe('route exposure per capability flag', () => {
     }
   });
 
+  it('has no organizations list route', () => {
+    const enabled = paths(allCapabilities);
+
+    expect(enabled).not.toContain('organizations');
+    expect(enabled).toContain('organizations/:id');
+  });
+
   it('serves no sessions page, the feature was removed', () => {
     expect(paths(allCapabilities)).not.toContain('profile/sessions');
   });

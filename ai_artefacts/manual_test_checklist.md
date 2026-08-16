@@ -319,3 +319,24 @@
 - [ ] After that closure, the organization still exists and reads `memberCount: 0`, `isDraft: true` in `GET /api/admin/organizations?search=...`.
 - [ ] Closing yourself still returns `409`, and closing the last remaining Admin still returns `409`.
 - [ ] On a database seeded before this change, confirm `organization_members` has no row left with `role = 'Owner'` after the `RemoveOrganizationOwnership` migration runs.
+
+## T17 org-ownership-frontend
+
+- [ ] Run `npm run dev -- --env=demo` and sign in as `admin@gones.test`.
+- [ ] Open `/admin/organizations`; type in the search box and confirm the list narrows on its own after a short pause, without pressing anything — there is no Apply button.
+- [ ] Type three characters quickly and confirm the URL updates once, to the full term, not once per keystroke.
+- [ ] Confirm the New Organization button now sits **below** the search block and is warning-coloured.
+- [ ] Click New Organization: the form has a Name, Description, Website and Contact email field and **no** Owner User ID field.
+- [ ] With the name empty, confirm an inline "Name is required." message under the field and a disabled Create button; no request is sent.
+- [ ] Type `not a url` into Website: an inline message names the website field and Create stays disabled. Replace it with `https://example.com` and the message clears.
+- [ ] Type `nope` into Contact email: an inline message names the contact e-mail field and Create stays disabled. Replace it with `club@example.com` and the message clears.
+- [ ] Fill only the Name and submit: the organization is created and appears in the list with the signed-in admin as its single member.
+- [ ] Re-open the form, type a name, click Cancel: the form closes; re-opening it shows an empty name.
+- [ ] Open `/organizations` directly: the 404 page renders (the public list route is gone).
+- [ ] Open `/admin`: there is no second Organizations button next to the admin nav links.
+- [ ] Open `/organizations/{id}` for an organization you belong to: the detail page renders and its in-page back link goes to `/organizer/organizations`.
+- [ ] On that page, the roster shows each member's role as plain text `Organizer` — no role dropdown, and no way to promote anyone to Owner.
+- [ ] As an Admin on the same page, the Add member form has a User ID field and no role dropdown.
+- [ ] Sign in as a non-creating member of an organization and open `/organizer/organizations`: the card action reads **Manage** (not View) and opens the detail page.
+- [ ] As that member, open `/settings`: the organization notification preferences section lists **every** organization you belong to, and saving one shows the confirmation.
+- [ ] Open `/admin/users`, click Disable account on a user who belongs to an organization: the impact line reports only the membership count, there are no per-organization transfer inputs, and disabling with just the typed username succeeds.

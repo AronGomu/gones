@@ -86,13 +86,14 @@ function setup(options: SetupOptions = {}) {
   const membersAll2 = vi.fn(() => of(options.members ?? [member('u1', 'alice')]));
   const membersPOST = vi.fn(() => of({}));
   const membersDELETE = vi.fn(() => of(undefined));
+  const organizationsPOST = vi.fn((_body: Record<string, unknown>) => of(org('org-new')));
   const users = vi.fn((_search: string | undefined, page: number, pageSize: number) =>
     of({ items: allUsers.slice((page - 1) * pageSize, page * pageSize), page, pageSize, totalCount: totalUsers })
   );
 
-  const client = { organizationsGET3, membersAll2, membersPOST, membersDELETE, users } as unknown as Client;
+  const client = { organizationsGET3, membersAll2, membersPOST, membersDELETE, organizationsPOST, users } as unknown as Client;
   const route = { queryParamMap: of(paramMap(options.query ?? {})) } as unknown as ActivatedRoute;
-  const navigate = vi.fn(() => Promise.resolve(true));
+  const navigate = vi.fn((_commands: unknown[], _extras?: { queryParams?: Record<string, unknown> }) => Promise.resolve(true));
   const router = { navigate } as unknown as Router;
 
   const injector = Injector.create({ providers: [
@@ -105,7 +106,7 @@ function setup(options: SetupOptions = {}) {
   ] });
 
   const component = runInInjectionContext(injector, () => new AdminOrganizationsComponent());
-  return { component, organizationsGET3, membersAll2, membersPOST, membersDELETE, users, navigate, cache };
+  return { component, organizationsGET3, membersAll2, membersPOST, membersDELETE, organizationsPOST, users, navigate, cache };
 }
 
 async function flush(times = 6): Promise<void> {
@@ -242,5 +243,156 @@ describe('AdminOrganizationsComponent cache', () => {
   it('renders a gones-sync-bar with admin-orgs prefix', () => {
     expect(source).toContain('cyPrefix="admin-orgs"');
     expect(source).toContain('(sync)="sync()"');
+  });
+});
+
+describe('AdminOrganizationsComponent create form', () => {
+  it('has no owner field', async () => {
+    const { component } = setup();
+    await flush();
+    component.showCreate.set(true);
+
+    expect(source).not.toContain('admin-create-org-owner');
+    expect(source).not.toContain('ownerUserId');
+    expect(Object.keys(component.draft)).toEqual(['name', 'description', 'website', 'contactEmail']);
+  });
+
+  it('creates with a name only', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    await component.create();
+    await flush();
+
+    expect(organizationsPOST).toHaveBeenCalledWith({ name: 'Club', description: '', website: '', contactEmail: '' });
+    expect(Object.keys(organizationsPOST.mock.calls[0][0])).not.toContain('ownerUserId');
+  });
+
+  it('blocks an empty name', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = '   ';
+    await component.create();
+    await flush();
+
+    expect(organizationsPOST).not.toHaveBeenCalled();
+    expect(component.draftErrors().name).toBeTruthy();
+    expect(source).toContain('admin-create-org-name-error');
+  });
+
+  it('accepts empty optional fields', async () => {
+    const { component } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    expect(component.draftErrors()).toEqual({});
+    expect(component.hasDraftErrors()).toBe(false);
+  });
+
+  it('rejects a malformed website', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    component.draft.website = 'not a url';
+    await component.create();
+    await flush();
+
+    expect(component.draftErrors().website).toBeTruthy();
+    expect(organizationsPOST).not.toHaveBeenCalled();
+    expect(source).toContain('admin-create-org-website-error');
+  });
+
+  it('rejects a malformed e-mail', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    component.draft.contactEmail = 'nope';
+    await component.create();
+    await flush();
+
+    expect(component.draftErrors().contactEmail).toBeTruthy();
+    expect(organizationsPOST).not.toHaveBeenCalled();
+    expect(source).toContain('admin-create-org-contact-error');
+  });
+
+  it('cancel closes and clears the form', async () => {
+    const { component } = setup();
+    await flush();
+
+    component.showCreate.set(true);
+    component.draft.name = 'Club';
+    component.cancelCreate();
+
+    expect(component.showCreate()).toBe(false);
+    expect(component.draft.name).toBe('');
+    expect(source).toContain('admin-create-org-cancel');
+  });
+});
+
+describe('AdminOrganizationsComponent filter', () => {
+  it('filters on input', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      await flush();
+      navigate.mockClear();
+
+      component.setSearchDraft('ly');
+      expect(navigate).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(300);
+
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate.mock.calls[0][1]).toMatchObject({ queryParams: expect.objectContaining({ search: 'ly' }) });
+      expect(source).not.toContain('admin-org-search-submit');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('debounces', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      await flush();
+      navigate.mockClear();
+
+      component.setSearchDraft('l');
+      vi.advanceTimersByTime(100);
+      component.setSearchDraft('ly');
+      vi.advanceTimersByTime(100);
+      component.setSearchDraft('lyo');
+      vi.advanceTimersByTime(300);
+
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate.mock.calls[0][1]).toMatchObject({ queryParams: expect.objectContaining({ search: 'lyo' }) });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the pending debounce on destroy', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      await flush();
+      navigate.mockClear();
+
+      component.setSearchDraft('ly');
+      component.ngOnDestroy();
+      vi.advanceTimersByTime(300);
+
+      expect(navigate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('places the create toggle after the filter form with the warning styling', () => {
+    expect(source.indexOf('admin-org-create-toggle')).toBeGreaterThan(source.indexOf('admin-orgs-filters'));
+    expect(source).toMatch(/class="warning-action"[^>]*data-cy="admin-org-create-toggle"/);
   });
 });

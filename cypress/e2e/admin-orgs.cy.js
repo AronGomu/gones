@@ -103,30 +103,31 @@ describe('admin organization and account controls', () => {
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(375));
   });
 
-  it('handles owner pages, cross-org tamper, and last-owner guard without relying on hidden controls', () => {
+  it('handles organizer pages, cross-org tamper, and a member-removal refusal without relying on hidden controls', () => {
     mockSession('User');
-    cy.intercept('GET', '**/api/users/me/organizations', [{ id: 'org-owned', name: 'Owned Club', description: '', website: '', contactEmail: '', role: 'Owner', createdAt: '2026-08-01T00:00:00Z' }]);
+    cy.intercept('GET', '**/api/users/me/organizations', [{ id: 'org-owned', name: 'Owned Club', description: '', website: '', contactEmail: '', role: 'Organizer', createdAt: '2026-08-01T00:00:00Z' }]);
     visit('/organizer/organizations');
     cy.get('[data-cy="my-org-card-Owned Club"]').should('be.visible');
+    // Ownership is gone, so every member manages the organization.
+    cy.get('[data-cy="manage-org-link"]').should('contain.text', 'Manage');
 
     cy.intercept('GET', '**/api/organizations/org-owned', { id: 'org-owned', name: 'Owned Club', description: '', website: '', contactEmail: '', createdAt: '2026-08-01T00:00:00Z' });
     cy.intercept('GET', '**/api/organizations/org-owned/members', [
-      { userId: adminProfile.id, username: 'owner-user', role: 'Owner', createdAt: '2026-08-01T00:00:00Z' },
+      { userId: adminProfile.id, username: 'owner-user', role: 'Organizer', createdAt: '2026-08-01T00:00:00Z' },
       { userId: MATE_ID, username: 'mate-user', role: 'Organizer', createdAt: '2026-08-01T00:00:00Z' }
     ]);
     cy.intercept('GET', '**/api/organizations/org-owned/notification-settings', { organizationId: 'org-owned', notifyOnRegistration: true, notifyOnUnregistration: false, updatedAt: '2026-08-01T00:00:00Z' });
     cy.intercept('DELETE', '**/api/organizations/org-owned/members/**', { statusCode: 409, body: { code: 'last_owner' } }).as('removeOwner');
     visit('/organizations/org-owned');
     cy.get('[data-cy="org-owner-panel"]').should('be.visible');
-    // Adding a member and handing over ownership grant the global Organizer role, so the server
-    // takes them from an Admin only; an Owner is shown the reason instead of a control that fails.
+    // Adding a member grants the global Organizer role, so the server takes it from an Admin only;
+    // a plain member is shown the reason instead of a control that fails.
     cy.get('[data-cy="org-add-member-form"]').should('not.exist');
     cy.get('[data-cy="org-add-member-admin-only"]').should('be.visible');
-    // The current Owner keeps their own value in the select; promoting anyone else to Owner is the
-    // ownership transfer, so that option is gone for a non-admin.
-    cy.get(`[data-cy="org-member-role-owner-${adminProfile.id}"]`).should('exist');
-    cy.get(`[data-cy="org-member-role-owner-${MATE_ID}"]`).should('not.exist');
-    cy.get(`[data-cy="org-member-role-organizer-${MATE_ID}"]`).should('exist');
+    // There is exactly one organization role now, so the roster reads the role out instead of
+    // offering a select that could only ever pick the value it already has.
+    cy.get(`[data-cy="org-member-role-${MATE_ID}"]`).should('have.text', 'Organizer');
+    cy.get(`[data-cy="org-member-role-${MATE_ID}"]`).should('not.match', 'select');
     cy.on('window:confirm', () => true);
     cy.get('[data-cy="org-member-owner-user"] button').click();
     cy.wait('@removeOwner');
@@ -183,10 +184,9 @@ describe('admin organization and account controls', () => {
     cy.get('[data-cy="admin-orgs-error"]').should('be.visible').and('contain.text', 'last_owner');
   });
 
-  it('requires typed Username and ownership-transfer summary for account disable impact', () => {
+  it('requires a typed Username and shows the membership impact for account disable', () => {
     mockSession('Admin');
     const userId = '22222222-2222-2222-2222-222222222222';
-    const orgId = '33333333-3333-3333-3333-333333333333';
     cy.intercept('GET', '**/api/admin/users?*', {
       items: [{ id: userId, email: 'owner@example.test', emailVerified: true, globalRole: 'User', username: 'owner-user', firstName: 'Owner', lastName: 'User', isClosed: false, createdAt: '2026-08-01T00:00:00Z' }],
       page: 1,
@@ -202,20 +202,19 @@ describe('admin organization and account controls', () => {
       isLastAdmin: false,
       isSelf: false,
       canClose: true,
-      blockReason: 'missing_owner_transfer',
-      soleOwnedOrganizations: [{ organizationId: orgId, organizationName: 'Solo Club', suggestedNewOwnerUserId: '44444444-4444-4444-4444-444444444444', suggestedNewOwnerUsername: 'mate-user' }],
+      blockReason: null,
       otherMembershipOrganizationIds: ['55555555-5555-5555-5555-555555555555']
     });
     cy.intercept('POST', `**/api/admin/users/${userId}/disable`, req => {
-      expect(req.body.confirmedUsername).to.eq('owner-user');
-      expect(req.body.ownershipTransfers).to.deep.eq([{ organizationId: orgId, newOwnerUserId: '44444444-4444-4444-4444-444444444444' }]);
+      expect(req.body).to.deep.eq({ confirmedUsername: 'owner-user' });
       req.reply({ statusCode: 204 });
     }).as('disable');
     visit('/admin/users');
     cy.get('[data-cy="close-user-owner-user"]').click();
-    cy.get('[data-cy="admin-close-impact"]').should('contain.text', '1').and('contain.text', '1');
+    cy.get('[data-cy="admin-close-impact"]').should('contain.text', '1');
+    // Closure just leaves the organizations now: there is no transfer control left to fill in.
+    cy.get('[data-cy^="transfer-owner-"]').should('not.exist');
     cy.get('[data-cy="admin-close-username"]').type('owner-user');
-    cy.get(`[data-cy="transfer-owner-${orgId}"]`).clear().type('44444444-4444-4444-4444-444444444444');
     cy.get('[data-cy="admin-close-confirm"]').click();
     cy.wait('@disable');
   });
@@ -238,9 +237,16 @@ describe('admin organization and account controls', () => {
     visit('/admin/organizations');
     cy.wait('@orgList');
 
+    // The filter applies while typing, so there is no Apply button to press.
+    cy.get('[data-cy="admin-org-search-submit"]').should('not.exist');
+
     cy.get('[data-cy="admin-org-create-toggle"]').click();
+    cy.get('[data-cy="admin-create-org-owner"]').should('not.exist');
+    // An empty name blocks the submit inline, without a request.
+    cy.get('[data-cy="admin-create-org-name-error"]').should('be.visible');
+    cy.get('[data-cy="admin-create-org-submit"]').should('be.disabled');
     cy.get('[data-cy="admin-create-org-name"]').type('Fresh Club');
-    cy.get('[data-cy="admin-create-org-owner"]').type('some-owner-id');
+    cy.get('[data-cy="admin-create-org-name-error"]').should('not.exist');
     cy.get('[data-cy="admin-create-org-submit"]').click();
     cy.wait('@createOrg');
     cy.wait('@orgList');
@@ -254,5 +260,13 @@ describe('admin organization and account controls', () => {
     cy.get(`[data-cy="admin-org-row-name-${newOrgId}"]`).should('contain.text', 'Fresh Club');
     // The reload should NOT fire a new API request (IndexedDB cache serves it).
     cy.get('@orgListReload.all').should('have.length', 0);
+
+    // Cancel closes the create form and clears the draft.
+    cy.get('[data-cy="admin-org-create-toggle"]').click();
+    cy.get('[data-cy="admin-create-org-name"]').type('Abandoned Club');
+    cy.get('[data-cy="admin-create-org-cancel"]').click();
+    cy.get('[data-cy="admin-create-org"]').should('not.exist');
+    cy.get('[data-cy="admin-org-create-toggle"]').click();
+    cy.get('[data-cy="admin-create-org-name"]').should('have.value', '');
   });
 });
