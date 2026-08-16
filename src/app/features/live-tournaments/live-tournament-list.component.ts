@@ -1,11 +1,14 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, signal, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { canManageLive } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
@@ -13,12 +16,14 @@ import { LiveTournamentDocument, LiveTournamentStage } from '../../domain/live-t
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { I18nService } from '../../i18n/i18n.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatProgressSpinnerModule, BackButtonComponent],
+  imports: [CommonModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatProgressSpinnerModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="live-list-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
@@ -27,6 +32,7 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
         <h1 data-cy="live-list-title">{{ i18n.t('liveList.title') }}</h1>
       </div>
     </section>
+    <gones-sync-bar cyPrefix="live-list" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="live-list-sync-bar" />
 
     @if (localMode) { <p class="muted" role="status" data-cy="live-local-mode-notice">{{ i18n.t('live.localModeNotice') }}</p> }
     @if (liveRepo.listStale()) { <p class="warning" role="status" data-cy="live-list-cached-stale">{{ i18n.t('offline.cachedServerRead') }}</p> }
@@ -59,6 +65,9 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
             </div>
             <div class="running-tournament-actions" [attr.data-cy]="'live-list-card-actions-' + tournament.id">
               <span class="running-tournament-resume" data-cy="resume-running-tournament">{{ i18n.t('liveList.resume') }}</span>
+              @if (canManage()) {
+                <button class="running-tournament-delete danger-action" type="button" [disabled]="deleting()" (click)="deleteTournament(tournament.id); $event.stopPropagation(); $event.preventDefault()" [attr.data-cy]="'live-list-card-delete-' + tournament.id">{{ i18n.t('common.delete') }}</button>
+              }
             </div>
           </a>
         }
@@ -79,9 +88,14 @@ export class LiveTournamentListComponent {
   readonly i18n = inject(I18nService);
   private readonly auth = inject(AuthService);
   private readonly power = inject(PowerUserSettingsService);
+  private readonly cache = inject(ServerReadCacheService);
+  private readonly dialog = inject(MatDialog);
   readonly loading = signal(true);
   readonly creating = signal(false);
+  readonly deleting = signal(false);
   readonly error = signal('');
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly tournaments = signal<LiveTournamentDocument[]>([]);
   readonly leagues = signal<PersistedLeague[]>([]);
   readonly runningTournaments = computed(() => this.tournaments().filter((tournament) => tournament.stage !== 'completed'));
@@ -93,13 +107,18 @@ export class LiveTournamentListComponent {
 
   constructor(readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly router: Router) { void this.load(); }
 
-  async load(): Promise<void> {
+  async load(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     try {
       // The browser-local store never finalizes into a League, and Leagues are a server read the
       // anonymous visitor is not entitled to — so local mode does not ask for them at all.
-      const [tournaments, leagues] = await Promise.all([this.liveRepo.list(), this.localMode ? Promise.resolve([]) : this.leagueRepo.listLeagues()]);
-      this.tournaments.set(tournaments);
+      const [listResult, leagues] = await Promise.all([
+        this.cache.readCached('live-tournaments', () => this.liveRepo.list(), options),
+        this.localMode ? Promise.resolve([]) : this.leagueRepo.listLeagues()
+      ]);
+      this.tournaments.set(listResult.value);
+      this.syncedAt.set(listResult.fetchedAt);
+      this.stale.set(listResult.stale);
       this.leagues.set(leagues);
       this.error.set('');
     } catch (error) {
@@ -110,17 +129,45 @@ export class LiveTournamentListComponent {
     }
   }
 
+  sync(): void { void this.load({ force: true }); }
+
   async createTournament(): Promise<void> {
     if (!this.canManage() || this.creating()) return;
     this.creating.set(true);
     try {
       const tournament = await this.liveRepo.create();
+      await this.cache.invalidate('live-tournaments');
       await this.router.navigate(['/live-tournaments', tournament.id], { state: { editTitle: true } });
     } catch (error) {
       logBoundaryError('live-tournament-list.create', error);
       this.error.set(this.i18n.t('liveList.createFailed'));
     } finally {
       this.creating.set(false);
+    }
+  }
+
+  async deleteTournament(id: string): Promise<void> {
+    if (!this.canManage() || this.deleting()) return;
+    const tournament = this.tournaments().find((t) => t.id === id);
+    const confirmed = Boolean(await firstValueFrom(this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: this.i18n.t('live.deleteConfirmTitle'),
+        message: this.i18n.t('live.deleteConfirmMessage', { name: tournament?.name || this.i18n.t('liveList.liveTournament') }),
+        confirmLabel: this.i18n.t('live.deleteTournament'),
+        destructive: true
+      }
+    }).afterClosed()));
+    if (!confirmed) return;
+    this.deleting.set(true);
+    try {
+      await this.liveRepo.delete(id);
+      await this.cache.invalidate('live-tournaments');
+      await this.load({ force: true });
+    } catch (error) {
+      logBoundaryError('live-tournament-list.delete', error);
+      this.error.set(this.i18n.t('live.deleteFailed'));
+    } finally {
+      this.deleting.set(false);
     }
   }
 
