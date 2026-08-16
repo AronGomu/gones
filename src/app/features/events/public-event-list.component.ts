@@ -29,7 +29,11 @@ import {
   sortEventsForList,
   eventDatePresentation,
   eventsByDate,
-  MAX_DAY_CELL_EVENTS
+  MAX_DAY_CELL_EVENTS,
+  MonthDay,
+  buildMonthDays,
+  localDateValue,
+  venueMapsUrl
 } from './public-event-list';
 import { EventCatalogCacheService } from './event-catalog-cache.service';
 import { PublicEventService } from './public-event.service';
@@ -42,12 +46,6 @@ import { EventRegistrationService, registrationErrorKey } from './event-registra
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 import { canManageLeagues } from '../../data/league-archive-command-ux';
 import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
-
-interface MonthDay {
-  date: string;
-  day: number;
-  inMonth: boolean;
-}
 
 const VIEW_KEY = 'gones.events.view';
 const SEARCH_DEBOUNCE_MS = 300;
@@ -93,7 +91,7 @@ const SEARCH_DEBOUNCE_MS = 300;
           </nav>
           <section #monthGrid class="public-month-grid" role="grid" [style.min-height.px]="gridMinHeight()" [attr.aria-label]="i18n.t('event.monthAria')" data-cy="public-month-grid">
             <div class="public-month-row public-month-row--head" role="row" data-cy="event-list-month-row-head">
-              @for (weekday of weekdays; track weekday) { <div class="classic-calendar__weekday" role="columnheader" data-cy="event-list-weekday">{{ weekday }}</div> }
+              @for (weekday of weekdays(); track weekday) { <div class="classic-calendar__weekday" role="columnheader" data-cy="event-list-weekday">{{ weekday }}</div> }
             </div>
             @for (week of monthWeeks(); track week[0].date) {
               <div class="public-month-row" role="row" data-cy="event-list-month-row">
@@ -137,8 +135,8 @@ const SEARCH_DEBOUNCE_MS = 300;
 
       <ng-template #emptyState><section class="panel calendar-state" data-cy="event-list-empty"><h2 data-cy="event-list-empty-title">{{ i18n.t('event.emptyTitle') }}</h2><p data-cy="event-list-empty-body">{{ i18n.t('event.emptyBody') }}</p></section></ng-template>
       <ng-template #eventCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.displayTitle" [attr.data-cy]="'event-' + item.slug" (click)="openEvent(item)" (keydown.enter)="openEvent(item)" (keydown.space)="openEvent(item, $event)">
-        <div data-cy="event-list-card-body"><div class="calendar-card-heading" data-cy="event-list-card-heading"><h3 data-cy="event-list-card-title"><a [routerLink]="['/events', item.slug]" data-cy="event-list-card-link" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">@for (part of highlightParts(item.displayTitle); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-title-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></h3><time [attr.datetime]="item.startsAtUtc" data-cy="event-list-card-start-time">{{ item.venueStartTime.slice(0, 5) }}</time></div>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="event-list-card-viewer-date">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }<p data-cy="event-list-card-venue">@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p>@if (item.summary) { <p class="muted" data-cy="event-list-card-summary">@for (part of highlightParts(item.summary); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-summary-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }</div>
-        <div class="calendar-event__actions" data-cy="event-list-card-actions"><a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="event-list-card-ics" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('event.addToCalendar') }}</a>@if (showCardRegister(item)) { <button mat-flat-button type="button" class="registration-register-button" data-cy="event-list-card-register" [disabled]="pendingEventId() === item.id" (click)="registerFromCard(item, $event)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ pendingEventId() === item.id ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button> }</div>
+        <div data-cy="event-list-card-body"><div class="calendar-card-heading" data-cy="event-list-card-heading"><h3 data-cy="event-list-card-title"><a [routerLink]="['/events', item.slug]" data-cy="event-list-card-link" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">@for (part of highlightParts(item.displayTitle); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-title-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></h3><time [attr.datetime]="item.startsAtUtc" data-cy="event-list-card-start-time">{{ item.venueStartTime.slice(0, 5) }}</time></div>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="event-list-card-viewer-date">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }@if (cardMapsUrl(item); as mapsUrl) { <p [attr.data-cy]="'event-list-card-venue'"><a class="event-card-venue-link" [attr.data-cy]="'event-list-card-venue-link-' + item.slug" [href]="mapsUrl" target="_blank" rel="noopener noreferrer" [attr.aria-label]="i18n.t('event.openInMaps', { address: venue(item) })" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"><svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></p> } @else { <p [attr.data-cy]="'event-list-card-venue'">@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }@if (item.summary) { <p class="muted" data-cy="event-list-card-summary">@for (part of highlightParts(item.summary); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-summary-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }</div>
+        <div class="calendar-event__actions" data-cy="event-list-card-actions">@if (showCardRegister(item)) { <button mat-flat-button type="button" class="registration-register-button" data-cy="event-list-card-register" [disabled]="pendingEventId() === item.id" (click)="registerFromCard(item, $event)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ pendingEventId() === item.id ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button> }<a mat-stroked-button [href]="service.icsUrl(item.slug)" download data-cy="event-list-card-ics" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('event.addToCalendar') }}</a></div>
       </article></ng-template>
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="event-list-back-bottom" />
@@ -162,7 +160,10 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   @ViewChild('monthGrid') private monthGrid?: ElementRef<HTMLElement>;
 
   readonly skeletons = Array.from({ length: 6 });
-  readonly weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  readonly weekdays = computed(() => {
+    const formatter = new Intl.DateTimeFormat(this.i18n.locale(), { weekday: 'short' });
+    return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(Date.UTC(2026, 5, 1 + index))));
+  });
   readonly today = signal(localDateValue(new Date()));
   readonly query = signal<EventListQuery>(readEventListQuery(this.route.snapshot.queryParamMap, this.preferredView()));
   readonly searchDraft = signal<string>(this.query().q);
@@ -301,6 +302,7 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
     await this.confirmAndRegister(item, true);
   }
   venue(item: PublicEventView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
+  cardMapsUrl(item: PublicEventView): string | null { return venueMapsUrl(item.venue); }
   formatGroupDate(group: VenueDateGroup): string { return this.i18n.formatDate(group.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
   isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }
   highlightParts(text: string): HighlightPart[] { return highlightSearchText(text, this.searchDraft()); }
@@ -387,18 +389,4 @@ function chunkIntoWeeks(days: MonthDay[]): MonthDay[][] {
   return weeks;
 }
 
-function buildMonthDays(month: string): MonthDay[] {
-  const [year, monthNumber] = month.split('-').map(Number);
-  const first = new Date(year, monthNumber - 1, 1);
-  const start = new Date(year, monthNumber - 1, 1 - first.getDay());
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return { date: localDateValue(date), day: date.getDate(), inMonth: date.getMonth() === monthNumber - 1 };
-  });
-}
 
-/** The grid's cell keys are local wall dates, so "today" has to be read the same way. */
-function localDateValue(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}

@@ -655,14 +655,16 @@ describe('PublicEventListComponent calendar day cells', () => {
   });
 
   it('the month model carries no events', () => {
-    const declStart = source.indexOf('interface MonthDay');
-    const declEnd = source.indexOf('}', declStart);
-    const decl = source.slice(declStart, declEnd);
+    const listSource = readFileSync(join(__dirname, 'public-event-list.ts'), 'utf8');
+    const declStart = listSource.indexOf('interface MonthDay');
+    const declEnd = listSource.indexOf('}', declStart);
+    const decl = listSource.slice(declStart, declEnd);
     expect(decl).not.toContain('items');
   });
 
   it('building a month needs only the month', () => {
-    expect(source).toMatch(/function buildMonthDays\(month: string\)/);
+    const listSource = readFileSync(join(__dirname, 'public-event-list.ts'), 'utf8');
+    expect(listSource).toMatch(/function buildMonthDays\(month: string\)/);
   });
 
   it('the grid is still 42 cells over six rows', async () => {
@@ -1212,5 +1214,47 @@ describe('PublicEventListComponent search match highlighting', () => {
     const playerDetail = readFileSync(join(__dirname, '..', 'players', 'player-detail.component.ts'), 'utf8');
     expect(stylesheet).toContain('.match-highlight { border-radius: .18rem; background: oklch(86% 0.16 82 / .3); color: oklch(92% 0.16 82); box-shadow: 0 0 0 2px oklch(86% 0.16 82 / .16); }');
     expect(playerDetail).not.toContain('.match-highlight {');
+  });
+});
+
+describe('PublicEventListComponent calendar and card polish', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
+  const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
+
+  it('renders localised Monday-first headers', () => {
+    const { component } = setup();
+    const headers = component.weekdays();
+    const expectedMonday = new Intl.DateTimeFormat(component.i18n.locale(), { weekday: 'short' })
+      .format(new Date(Date.UTC(2026, 5, 1)));
+    expect(headers).toHaveLength(7);
+    expect(headers[0]).toBe(expectedMonday);
+    expect(source).toContain('weekdays()');
+  });
+
+  it('links the card address to maps', () => {
+    const { component } = setup();
+    const url = component.cardMapsUrl(event);
+    expect(url).toContain('maps/search');
+    expect(url).toContain(encodeURIComponent('1 Rue Test'));
+    expect(source).toContain('event-list-card-venue-link');
+  });
+
+  it('omits the link with no address', () => {
+    const { component } = setup();
+    const emptyVenueEvent: PublicEventView = { ...event, venue: {} as typeof event.venue };
+    expect(component.cardMapsUrl(emptyVenueEvent)).toBeNull();
+  });
+
+  it('puts register before add to calendar', () => {
+    const registerIndex = source.indexOf('event-list-card-register');
+    const icsIndex = source.indexOf('event-list-card-ics');
+    expect(registerIndex).toBeGreaterThan(-1);
+    expect(icsIndex).toBeGreaterThan(-1);
+    expect(registerIndex).toBeLessThan(icsIndex);
+  });
+
+  it('the venue link inherits colour and underlines only on hover and focus-visible', () => {
+    expect(stylesheet).toContain('.event-card-venue-link { color: inherit; text-decoration: none; }');
+    expect(stylesheet).toContain('.event-card-venue-link:hover, .event-card-venue-link:focus-visible { text-decoration: underline; }');
   });
 });

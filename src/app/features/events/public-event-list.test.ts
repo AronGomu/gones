@@ -16,7 +16,8 @@ import {
   sortEventsForList,
   eventDatePresentation,
   eventsByDate,
-  venueMapsUrl
+  venueMapsUrl,
+  buildMonthDays
 } from './public-event-list';
 
 function make(count: number): PublicEventView[] {
@@ -316,5 +317,31 @@ describe('venueMapsUrl', () => {
 
     expect(url).toBe('https://www.google.com/maps/search/?api=1&query=1%20%22Bar%22%20%26%20Grill%2C%20Lyon');
     expect(url!.slice(url!.indexOf('&query='))).not.toMatch(/[ "]|&(?!query=)/);
+  });
+});
+
+describe('buildMonthDays', () => {
+  it('starts the grid on Monday', () => {
+    // 1 Aug 2026 is a Saturday; the Monday before is 27 Jul 2026
+    expect(buildMonthDays('2026-08')[0].date).toBe('2026-07-27');
+  });
+
+  it('starts on the day itself when the 1st is a Monday', () => {
+    // 1 Jun 2026 is a Monday
+    expect(buildMonthDays('2026-06')[0].date).toBe('2026-06-01');
+  });
+
+  it('handles a Sunday first', () => {
+    // 1 Nov 2026 is a Sunday; the Monday before is 26 Oct 2026
+    expect(buildMonthDays('2026-11')[0].date).toBe('2026-10-26');
+  });
+
+  it('always returns 42 cells', () => {
+    const months = Array.from({ length: 12 }, (_, index) =>
+      `2026-${String(index + 1).padStart(2, '0')}`
+    );
+    for (const month of months) {
+      expect(buildMonthDays(month)).toHaveLength(42);
+    }
   });
 });

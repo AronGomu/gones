@@ -82,6 +82,7 @@ describe('public Calendar V1', () => {
     cy.wait('@allEvents');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
     cy.get('[data-cy="event-list-view"]').should('have.attr', 'aria-pressed', 'true');
+    cy.get('[data-cy="event-list-weekday"]').first().should('have.text', 'Mon');
     cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="event-list-month-day"]').within(() => {
       cy.get('[data-cy="event-list-month-day-event-lyon-legacy"]')
         .should('contain.text', '23:30')
@@ -286,7 +287,13 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="event-list-card-ics"]').focus().trigger('keydown', { key: 'Enter' });
     cy.location('pathname').should('eq', '/events');
 
-    cy.get('[data-cy="event-list-card-venue"]').click();
+    cy.get('[data-cy="event-list-card-register"]').then(($reg) => {
+    cy.get('[data-cy="event-list-card-ics"]').then(($ics) => {
+      expect($reg[0].compareDocumentPosition($ics[0]) & Node.DOCUMENT_POSITION_FOLLOWING).to.be.greaterThan(0);
+    });
+  });
+
+    cy.get('[data-cy="event-list-card-summary"]').click();
     cy.location('pathname').should('eq', '/events/lyon-legacy');
     cy.wait('@detail');
     cy.get('[data-cy="public-event-detail"]').should('be.visible');

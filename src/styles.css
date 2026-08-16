@@ -1245,6 +1245,8 @@ gones-sync-bar { display: flex; flex-direction: column; align-items: flex-end; g
 .calendar-card-heading time { color: var(--dim-ash); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .public-tournament-card p { margin: .25rem 0; }
 .public-tournament-card > .calendar-event__actions { justify-content: flex-end; margin-top: 0; }
+.event-card-venue-link { color: inherit; text-decoration: none; }
+.event-card-venue-link:hover, .event-card-venue-link:focus-visible { text-decoration: underline; }
 .viewer-date { color: var(--dim-ash) !important; font-size: .9rem; }
 .calendar-status--cancelled { color: oklch(85% .12 30); }
 .calendar-status--completed { color: var(--dim-ash); }

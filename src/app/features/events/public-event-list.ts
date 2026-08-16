@@ -149,6 +149,28 @@ export function venueMapsUrl(venue: { streetAddress?: string; postalCode?: strin
 
 export const MAX_DAY_CELL_EVENTS = 3;
 
+export interface MonthDay {
+  date: string;
+  day: number;
+  inMonth: boolean;
+}
+
+export function buildMonthDays(month: string): MonthDay[] {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const first = new Date(year, monthNumber - 1, 1);
+  const weekdayIndex = (first.getDay() + 6) % 7;
+  const start = new Date(year, monthNumber - 1, 1 - weekdayIndex);
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return { date: localDateValue(date), day: date.getDate(), inMonth: date.getMonth() === monthNumber - 1 };
+  });
+}
+
+export function localDateValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 /** Events keyed by their venue start date, each list sorted by start time then title. */
 export function eventsByDate(items: PublicEventView[]): Map<string, PublicEventView[]> {
   const grouped = new Map<string, PublicEventView[]>();
