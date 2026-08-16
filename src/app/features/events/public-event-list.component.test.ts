@@ -948,6 +948,14 @@ describe('PublicEventListComponent list card', () => {
     expect(icsAnchor).toContain('(keydown.space)="$event.stopPropagation()"');
   });
 
+  it('does not force a download from a card', () => {
+    const icsMarker = cardActions.indexOf('data-cy="event-list-card-ics"');
+    const icsAnchor = cardActions.slice(cardActions.lastIndexOf('<a', icsMarker), cardActions.indexOf('</a>', icsMarker));
+
+    expect(icsAnchor).not.toContain(' download');
+    expect(icsAnchor).toContain('type="text/calendar"');
+  });
+
   it('the title link stays and stops pointer plus keyboard card navigation', () => {
     const titleStart = source.indexOf('data-cy="event-list-card-title"');
     const titleAnchor = source.slice(titleStart, source.indexOf('</h3>', titleStart));

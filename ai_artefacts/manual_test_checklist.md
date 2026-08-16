@@ -277,3 +277,12 @@
 - [ ] While still on the list: confirm a card with no venue address shows plain unlinked text (no anchor).
 - [ ] Signed out, confirm a card shows **Register** to the left of **Add to Calendar**.
 - [ ] Press keyboard Enter on the venue address link — Google Maps URL opens in a new tab; the card does not navigate to the event detail.
+
+## T13 ics-inline
+
+- [ ] Run `npm run dev -- --env=demo`, open `/events`, switch to list view.
+- [ ] Click **Add to Calendar** on any card — the browser should hand the `.ics` file to the OS handler (desktop: a calendar app chooser or the calendar app opens directly; mobile: the calendar app opens). The file should **not** silently drop into the Downloads folder.
+- [ ] Open the Event detail page; click **Add to Calendar** in the hero — same OS-handler behaviour as above.
+- [ ] Confirm `curl -sI http://127.0.0.1:5080/api/events/<slug>.ics | grep -i 'content-disposition\|content-type'` shows `inline` and `text/calendar`.
+- [ ] Open DevTools → Network, click Add to Calendar — confirm the response `Content-Disposition` header starts with `inline` and still contains `filename*=<slug>.ics`.
+- [ ] The organizer bulk participants CSV export still downloads silently (no chooser) — confirm the `/admin/events/<slug>/participants` download is unaffected.

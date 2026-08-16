@@ -123,6 +123,23 @@ public sealed class PublicEventApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Ics_is_served_inline_with_calendar_content_type_and_valid_body()
+    {
+        using var ics = await Client.GetAsync("/api/events/search-cup.ics");
+        Assert.Equal(HttpStatusCode.OK, ics.StatusCode);
+
+        var disposition = ics.Content.Headers.ContentDisposition!;
+        Assert.Equal("inline", disposition.DispositionType);
+        Assert.Contains("search-cup.ics", disposition.FileNameStar ?? disposition.FileName ?? string.Empty);
+
+        Assert.Equal("text/calendar", ics.Content.Headers.ContentType!.MediaType);
+
+        var body = await ics.Content.ReadAsStringAsync();
+        Assert.Contains("BEGIN:VEVENT", body);
+        Assert.Contains("END:VCALENDAR", body);
+    }
+
+    [Fact]
     public async Task Representative_public_filters_use_calendar_indexes()
     {
         await using var database = CreateContext();

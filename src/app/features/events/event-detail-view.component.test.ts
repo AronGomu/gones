@@ -141,4 +141,12 @@ describe('EventDetailViewComponent hero', () => {
     expect(source).toContain('@if (showIcsAction() && icsUrl(); as url)');
     expect(source).toContain('showIcsAction() && icsUrl()');
   });
+
+  it('does not force a download from the hero', () => {
+    const icsMarker = source.indexOf('data-cy="event-ics"');
+    const icsAnchor = source.slice(source.lastIndexOf('<a', icsMarker), source.indexOf('</a>', icsMarker));
+
+    expect(icsAnchor).not.toContain(' download');
+    expect(icsAnchor).toContain('type="text/calendar"');
+  });
 });

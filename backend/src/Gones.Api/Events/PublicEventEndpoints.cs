@@ -297,7 +297,7 @@ internal static partial class PublicEventEndpoints
         var etag = HashETag($"ics:{row.Id:N}:{row.Version}:{row.UpdatedAt.ToUnixTimeTicks()}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        response.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileNameStar = $"{row.Slug}.ics" }.ToString();
+        response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline") { FileNameStar = $"{row.Slug}.ics" }.ToString();
         return Results.Text(BuildIcs(row), "text/calendar; charset=utf-8", Encoding.UTF8);
     }
 

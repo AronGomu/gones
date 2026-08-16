@@ -278,6 +278,7 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="event-list-card-view"]').should('not.exist');
     cy.get('[data-cy="event-list-card-date"]').should('not.contain.text', 'Europe/Paris').and('not.contain.text', '(');
 
+    cy.get('[data-cy="event-list-card-ics"]').should('not.have.attr', 'download').and('have.attr', 'type', 'text/calendar');
     cy.get('[data-cy="event-list-card-ics"]').click();
     cy.wait('@ics');
     cy.location('pathname').should('eq', '/events');

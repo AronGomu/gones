@@ -21,7 +21,7 @@ export type EventDetailView = PublicEventDetailResponse | EventPreviewRenderResp
         @if (date().secondary; as secondary) { <p class="viewer-date" data-cy="event-detail-fact-date-viewer">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }
         @if ((showIcsAction() && icsUrl()) || event().liveTournamentUrl || event().archiveTournamentUrl || event().organization.website) {
           <div class="event-detail-actions info-actions info-actions--end" data-cy="event-detail-actions">
-            @if (showIcsAction() && icsUrl(); as url) { <a mat-flat-button class="home-primary-action" [href]="url" download data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
+            @if (showIcsAction() && icsUrl(); as url) { <a mat-flat-button class="home-primary-action" [href]="url" type="text/calendar" data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
             @if (event().liveTournamentUrl; as url) { <a mat-stroked-button data-cy="event-detail-live-tournament" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ i18n.t('event.liveTournament') }}</a> }
             @if (event().archiveTournamentUrl; as url) { <a mat-stroked-button data-cy="event-detail-archive-tournament" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ i18n.t('event.archiveTournament') }}</a> }
             @if (event().organization.website; as url) { <a mat-stroked-button data-cy="event-detail-organization-website" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ i18n.t('event.organizationWebsite') }}</a> }
