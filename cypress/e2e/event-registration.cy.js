@@ -242,6 +242,15 @@ describe('public participant registration', () => {
   });
 });
 
+function clearRegistrationsCache() {
+  cy.window().then(win => new Promise(resolve => {
+    const req = win.indexedDB.deleteDatabase('gones-cache');
+    req.onsuccess = resolve;
+    req.onerror = resolve;
+    req.onblocked = resolve;
+  }));
+}
+
 describe('My Registrations', () => {
   it('retries loading and separates upcoming from history with venue times and statuses', () => {
     cy.viewport(375, 812);
@@ -260,5 +269,61 @@ describe('My Registrations', () => {
     cy.get('[data-cy="registrations-error"]').find('button').click();
     cy.get('[data-cy="registration-attempt"]').should('have.length', 2).and('contain.text', 'Europe/Paris').and('contain.text', 'Annulée par vous');
     cy.document().then(doc => expect(doc.documentElement.scrollWidth).to.be.at.most(375));
+  });
+
+  it('shows the sync bar and serves registrations from cache on second visit', () => {
+    cy.viewport(375, 812);
+    clearRegistrationsCache();
+    authenticated();
+    cy.intercept('GET', '**/api/users/me/registrations?*', {
+      items: [], page: 1, pageSize: 20, totalCount: 0
+    }).as('registrations');
+
+    visit('/registrations');
+    cy.wait('@registrations');
+    cy.get('[data-cy="registrations-sync-button"]').should('be.visible');
+    cy.get('[data-cy="registrations-sync-synced-at"]').should('be.visible');
+
+    // Second visit within 24h — IndexedDB cache serves the data, no new network request
+    visit('/registrations');
+    cy.get('[data-cy="registrations-sync-button"]').should('be.visible');
+    cy.get('@registrations.all').should('have.length', 1);
+  });
+
+  it('shows another account registrations after sign-out and re-login', () => {
+    cy.viewport(375, 812);
+    clearRegistrationsCache();
+    authenticated();
+    cy.intercept('GET', '**/api/users/me/registrations?*', {
+      items: [], page: 1, pageSize: 20, totalCount: 0
+    }).as('registrationsA');
+
+    visit('/registrations');
+    cy.wait('@registrationsA');
+    cy.get('[data-cy="registrations-sync-button"]').should('be.visible');
+
+    // Sign out — cache is purged on logout
+    cy.intercept('POST', '**/api/auth/logout', { statusCode: 204 });
+    cy.get('[data-cy="logout-button"]').click();
+    cy.location('pathname').should('eq', '/login');
+
+    // Sign in as a different user
+    const profileB = { ...profile, id: 'user-b', email: 'user-b@example.test', username: 'UserB', firstName: 'User', lastName: 'B' };
+    const userBItem = { attemptId: 'b-attempt', eventId: event.id, eventSlug: event.slug, eventTitle: event.title, organizationName: 'Gones', startsAtUtc: event.startsAtUtc, timeZoneId: event.timeZoneId, status: 'Confirmed', isCurrent: true, registeredByUserId: 'user-b', registeredAt: '2030-01-01T00:00:00Z' };
+    cy.intercept('POST', '**/api/auth/login', { accessToken: 'token-b', expiresAt: '2040-01-01T01:00:00Z', tokenType: 'Bearer' });
+    cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'token-b', expiresAt: '2040-01-01T01:00:00Z', tokenType: 'Bearer' });
+    cy.intercept('GET', '**/api/users/me', profileB);
+    cy.intercept('GET', '**/api/users/me/registrations?*', {
+      items: [userBItem], page: 1, pageSize: 20, totalCount: 1
+    }).as('registrationsB');
+
+    cy.get('[data-cy="auth-email"]').type('user-b@example.test');
+    cy.get('[data-cy="auth-password"]').type('valid-password-value');
+    cy.get('[data-cy="auth-submit"]').click();
+    cy.location('pathname').should('not.eq', '/login');
+
+    visit('/registrations');
+    cy.wait('@registrationsB');
+    cy.get('[data-cy="registration-attempt"]').should('have.length', 1);
   });
 });

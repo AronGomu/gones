@@ -3,19 +3,22 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { partitionRegistrationAttempts, registrationVenueTime } from './my-registrations';
 import { EventRegistrationService } from './event-registration.service';
 import { LatestRequest } from '../../shared/async-guards';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 
 @Component({
   standalone: true,
-  imports: [NgTemplateOutlet, RouterLink, MatButtonModule, BackButtonComponent],
+  imports: [NgTemplateOutlet, RouterLink, MatButtonModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="registrations-back-top" />
     <section class="registrations-page stack" aria-labelledby="registrations-title" data-cy="registrations-page">
       <header class="page-heading" data-cy="registrations-header"><div data-cy="registrations-header-text"><h1 id="registrations-title" data-cy="registrations-title">{{ i18n.t('registration.myRegistrations') }}</h1></div></header>
+      <gones-sync-bar cyPrefix="registrations" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="registrations-sync-bar" />
       @if (loading()) {
         <section class="panel calendar-state" aria-busy="true" data-cy="registrations-loading"><p data-cy="registrations-loading-label">{{ i18n.t('common.loading') }}</p></section>
       } @else if (error()) {
@@ -49,11 +52,14 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 export class MyRegistrationsComponent implements OnInit {
   readonly i18n = inject(I18nService);
   private readonly registrations = inject(EventRegistrationService);
+  private readonly cache = inject(ServerReadCacheService);
   readonly items = signal<EventRegistrationHistoryResponse[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly page = signal(1);
   readonly totalCount = signal(0);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly pageSize = 20;
   private readonly latest = new LatestRequest();
   readonly pageCount = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.pageSize)));
@@ -61,21 +67,25 @@ export class MyRegistrationsComponent implements OnInit {
 
   ngOnInit(): void { void this.load(); }
 
-  async load(): Promise<void> {
+  async load(options: { force?: boolean } = {}): Promise<void> {
     const request = this.latest.begin();
     this.loading.set(true);
     this.error.set(false);
     try {
-      const response = await this.registrations.list(this.page(), this.pageSize);
+      const result = await this.cache.readCached(`registrations:${this.page()}`, () => this.registrations.list(this.page(), this.pageSize), options);
       if (!this.latest.isCurrent(request)) return;
-      this.items.set(response.items);
-      this.totalCount.set(response.totalCount);
+      this.items.set(result.value.items);
+      this.totalCount.set(result.value.totalCount);
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
     } catch {
       if (this.latest.isCurrent(request)) this.error.set(true);
     } finally {
       if (this.latest.isCurrent(request)) this.loading.set(false);
     }
   }
+
+  sync(): void { void this.load({ force: true }); }
 
   changePage(page: number): void {
     this.page.set(Math.min(Math.max(page, 1), this.pageCount()));
