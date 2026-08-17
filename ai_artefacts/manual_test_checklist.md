@@ -418,3 +418,21 @@ User mode on. Read the table with:
 - [ ] Restart the API with `GONES_PLAYER_STATISTICS__REBUILD_ON_STARTUP=false` after setting `formula_version = 0` again. The logs say the startup rebuild is disabled, the table is left exactly as it was, and the meta row still reads 0.
 - [ ] With the switch back on, corrupt one archive row by hand (`update league_archive_aggregates set canonical_document = jsonb_set(canonical_document, '{tournaments,0,leagueId}', '"nope"') where ...`) and restart the API. It logs `Player statistics startup rebuild failed; the stored formula version is left unchanged.` and still reaches `Now listening on` — the API must not crash-loop.
 - [ ] In browser-local mode (signed out, Power User mode on), the app behaves exactly as before: the table is server-side only and browser-local data never reaches it.
+
+## T23 rankings-endpoints
+
+The rankings endpoints now read `player_statistics` instead of recomputing from League documents, and a
+full-catalog endpoint was added. The league-level `status = 'completed'` pre-filter is **gone**: a
+completed Archive Tournament counts even when its League is still active. On the demo dataset this
+raises the roster from 30 to 35 players and changes the totals of 8 shared players — that is the
+intended correction, not a regression.
+
+Run `npm run dev -- --env=demo`.
+
+- [ ] Open the global Player Rankings page. It lists **35** demo players, including `Demo Player 31`–`Demo Player 35`, who play only in the active League `Gones League 7`.
+- [ ] `Demo Player 06` shows **7** played matches (it showed 5 before this change), and `Demo Player 18` shows `Demo Player 11` as its Rival.
+- [ ] Page through the list at each page size (10, 25, 50, 100). No player appears on two pages, and the total stays 35. An out-of-range page size is refused rather than silently clamped.
+- [ ] Sort by each sortable column in both directions. The order matches the numbers shown, and the rank numbering stays continuous across pages.
+- [ ] Type a search term. The list narrows as expected and the total updates with it.
+- [ ] `curl -s -D- 'http://127.0.0.1:5080/api/leagues-archive/global-player-statistics/all' -o /dev/null` returns `200` with `Cache-Control: public, max-age=3600` and an `ETag`. Repeat the request with `If-None-Match: "<that etag>"` → `304`, no body. (Use `-D-` with GET; `curl -I` sends HEAD, which this route does not map.)
+- [ ] Reopen an Archive Tournament, then reload the rankings: the affected players' numbers change immediately and the ETag differs from the one before the write. Mark it complete again and the previous numbers and ETag return.

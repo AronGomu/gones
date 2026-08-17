@@ -1,7 +1,6 @@
 using Gones.Domain.Leagues;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using NodaTime;
 
 namespace Gones.Api.Leagues;
 
@@ -43,7 +42,6 @@ internal sealed class PlayerStatisticsStartupRebuild(
         using var scope = scopeFactory.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<GonesDbContext>();
         var rebuild = scope.ServiceProvider.GetRequiredService<PlayerStatisticsRebuildService>();
-        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
         // Configurations that boot without a reachable database are legitimate — the API still serves
         // its health endpoints and reports the database unhealthy. Refusing to start would turn that
@@ -55,7 +53,7 @@ internal sealed class PlayerStatisticsStartupRebuild(
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var meta = await database.PlayerStatisticsMeta.SingleOrDefaultAsync(cancellationToken);
+        var meta = await database.PlayerStatisticsMeta.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
         if (meta is not null && meta.FormulaVersion == PlayerStatisticsFormula.Version)
         {
             logger.LogInformation("Player statistics are current at formula version {Version}; no rebuild.", PlayerStatisticsFormula.Version);
@@ -68,22 +66,9 @@ internal sealed class PlayerStatisticsStartupRebuild(
             PlayerStatisticsFormula.Version);
         try
         {
+            // The rebuild stamps player_statistics_meta itself, in this same transaction, so every
+            // caller records the new state the same way.
             await rebuild.RebuildAsync(database, cancellationToken);
-            if (meta is null)
-            {
-                database.PlayerStatisticsMeta.Add(new PlayerStatisticsMeta
-                {
-                    Id = PlayerStatisticsMeta.SingletonId,
-                    FormulaVersion = PlayerStatisticsFormula.Version,
-                    RebuiltAt = clock.GetCurrentInstant()
-                });
-            }
-            else
-            {
-                meta.FormulaVersion = PlayerStatisticsFormula.Version;
-                meta.RebuiltAt = clock.GetCurrentInstant();
-            }
-
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }

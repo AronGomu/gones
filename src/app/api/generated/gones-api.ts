@@ -37,6 +37,10 @@ export interface IClient {
      */
     getGlobalPlayerStatistics(page: number | undefined, pageSize: number | undefined, search: string | undefined, sort: string | undefined, direction: string | undefined): Observable<GlobalPlayerStatisticsResponse>;
     /**
+     * @return OK
+     */
+    getGlobalPlayerStatisticsCatalog(): Observable<GlobalPlayerStatisticsCatalogResponse>;
+    /**
      * @param page (optional)
      * @param pageSize (optional)
      * @param status (optional)
@@ -925,6 +929,60 @@ export class Client implements IClient {
             let result400: any = null;
             result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    getGlobalPlayerStatisticsCatalog(): Observable<GlobalPlayerStatisticsCatalogResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/global-player-statistics/all";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetGlobalPlayerStatisticsCatalog(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetGlobalPlayerStatisticsCatalog(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<GlobalPlayerStatisticsCatalogResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<GlobalPlayerStatisticsCatalogResponse>;
+        }));
+    }
+
+    protected processGetGlobalPlayerStatisticsCatalog(response: HttpResponseBase): Observable<GlobalPlayerStatisticsCatalogResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as GlobalPlayerStatisticsCatalogResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -10018,6 +10076,7 @@ export interface AdminUserSummaryResponse {
 export interface ArchiveTournamentEditBatchRequest {
     targetLeagueId: string | undefined;
     editTournament: EditArchiveTournamentIntent | undefined;
+    status: string | undefined;
     addRounds: AddArchiveRoundIntent[];
     deleteRoundIds: string[];
     replaceRounds: ReplaceArchiveRoundIntent[];
@@ -10127,6 +10186,7 @@ export interface DisableUserRequest {
 export interface EditArchiveTournamentIntent {
     name: string;
     tournamentDate: string;
+    status?: string | undefined;
 
     [key: string]: any;
 }
@@ -10393,6 +10453,14 @@ export interface FullRestoreResponse {
 
 export interface GenericAccountActionResponse {
     message: string;
+
+    [key: string]: any;
+}
+
+export interface GlobalPlayerStatisticsCatalogResponse {
+    items: GlobalPlayerStatisticsRow[];
+    totalCount: number;
+    truncated: boolean;
 
     [key: string]: any;
 }
@@ -11297,6 +11365,7 @@ export interface TournamentDocument {
     leagueId: string;
     name: string;
     tournamentDate: string;
+    status: string;
     rounds: RoundDocument[];
     playerArchetypes: PlayerArchetypeDocument[];
 

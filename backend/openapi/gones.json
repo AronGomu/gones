@@ -154,6 +154,29 @@
         }
       }
     },
+    "/api/leagues-archive/global-player-statistics/all": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "operationId": "GetGlobalPlayerStatisticsCatalog",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalPlayerStatisticsCatalogResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          }
+        }
+      }
+    },
     "/api/leagues-archive": {
       "get": {
         "tags": [
@@ -7988,6 +8011,7 @@
         "required": [
           "targetLeagueId",
           "editTournament",
+          "status",
           "addRounds",
           "deleteRoundIds",
           "replaceRounds",
@@ -8009,6 +8033,12 @@
               {
                 "$ref": "#/components/schemas/EditArchiveTournamentIntent"
               }
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
             ]
           },
           "addRounds": {
@@ -8370,6 +8400,12 @@
           },
           "tournamentDate": {
             "type": "string"
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -9375,6 +9411,33 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "GlobalPlayerStatisticsCatalogResponse": {
+        "required": [
+          "items",
+          "totalCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlobalPlayerStatisticsRow"
+            }
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         }
       },
@@ -12772,6 +12835,7 @@
           "leagueId",
           "name",
           "tournamentDate",
+          "status",
           "rounds",
           "playerArchetypes"
         ],
@@ -12787,6 +12851,9 @@
             "type": "string"
           },
           "tournamentDate": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           },
           "rounds": {

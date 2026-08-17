@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using Gones.Api.Errors;
@@ -18,9 +20,14 @@ internal static class PublicLeagueEndpoints
     private const int MaximumPlayerNameLength = 200;
     private const string AppVersion = "0.1.0";
     private const string PublicCacheControl = "public, max-age=60";
+    private const string CatalogCacheControl = "public, max-age=3600";
+    /// <summary>Postgres collation that orders text byte by byte, the way <c>StringComparer.Ordinal</c> does.</summary>
+    private const string OrdinalCollation = "C";
 
     private static readonly int[] GlobalStatsAllowedPageSizes = [10, 25, 50, 100];
     private const int GlobalStatsDefaultPageSize = 100;
+    public const int GlobalStatsMaximumCatalogSize = 5000;
+    public const string GlobalStatsMaximumCatalogSizeKey = "Gones:GlobalStats:MaximumCatalogSize";
     private static readonly HashSet<string> GlobalStatsSortAllowlist = new(StringComparer.Ordinal)
     {
         "playedMatchCount", "matchWins", "matchLosses", "matchDraws", "matchWinrate",
@@ -35,6 +42,11 @@ internal static class PublicLeagueEndpoints
             .Produces<GlobalPlayerStatisticsResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest);
+        app.MapGet("/api/leagues-archive/global-player-statistics/all", GetGlobalPlayerStatisticsCatalogAsync)
+            .AllowAnonymous()
+            .WithName("GetGlobalPlayerStatisticsCatalog")
+            .Produces<GlobalPlayerStatisticsCatalogResponse>()
+            .Produces(StatusCodes.Status304NotModified);
         app.MapGet("/api/leagues-archive", ListAsync)
             .AllowAnonymous()
             .Produces<PublicLeagueListResponse>()
@@ -93,115 +105,148 @@ internal static class PublicLeagueEndpoints
         if (sort is not null && !GlobalStatsSortAllowlist.Contains(sort)) throw Validation("sort", "Sort column is not valid.");
         if (direction is not null && direction is not ("asc" or "desc")) throw Validation("direction", "Direction must be asc or desc.");
 
-        var aggregates = await database.LeagueArchiveAggregates.AsNoTracking()
-            .Where(a => a.DeletedAt == null && a.Status == "completed")
-            .ToListAsync(cancellationToken);
+        // ADR 0040: the numbers come from the materialized read model, so Postgres does the filtering,
+        // the ordering and the paging. Nothing on this path reads a League document any more.
+        var query = FilterGlobalStats(database.PlayerStatistics.AsNoTracking(), search);
+        var total = await query.CountAsync(cancellationToken);
 
-        var data = new GonesData(LeagueNormalizer.GonesDataVersion,
-            aggregates.Select(a => a.ReadDocument()).ToList(), []);
-        var allRows = LeagueRules.CalculateGlobalPlayerStatistics(data);
-
-        IReadOnlyList<GlobalPlayerStatistics> filtered;
-        if (string.IsNullOrWhiteSpace(search))
-        {
-            filtered = allRows;
-        }
-        else
-        {
-            var term = search.Trim().ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US"));
-            filtered = allRows
-                .Where(r => r.PlayerName.ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US")).Contains(term, StringComparison.Ordinal))
-                .ToArray();
-        }
-
-        var isDescending = !string.Equals(direction, "asc", StringComparison.Ordinal);
-        var sorted = ApplyGlobalSort(filtered, sort, isDescending);
-        var total = sorted.Count;
-
-        var items = sorted
-            .Skip((pageNumber - 1) * size)
-            .Take(size)
-            .Select((row, index) => new GlobalPlayerStatisticsRow(
-                (pageNumber - 1) * size + index + 1,
-                row.PlayerName,
-                row.PlayedMatchCount,
-                row.MatchWins,
-                row.MatchLosses,
-                row.MatchDraws,
-                row.MatchWinrate,
-                row.PlayedGameCount,
-                row.GameWins,
-                row.GameLosses,
-                row.GameWinrate,
-                row.Nemesis,
-                row.Rival,
-                row.MostPlayedArchetype))
-            .ToList();
-
-        var aggregateKey = string.Join('|', aggregates
-            .OrderBy(a => a.DocumentId, StringComparer.Ordinal)
-            .Select(a => $"{a.DocumentId}:{a.Version}"));
         var normalizedQuery = $"sort={sort}&dir={direction}&search={search?.Trim() ?? string.Empty}&page={pageNumber}&size={size}";
-        var etag = HashETag($"{aggregateKey}:{normalizedQuery}");
+        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{total}:{normalizedQuery}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        var isDescending = !string.Equals(direction, "asc", StringComparison.Ordinal);
+        var offset = (pageNumber - 1) * size;
+        var rows = await OrderGlobalStats(query, sort, isDescending)
+            .Skip(offset)
+            .Take(size)
+            .ToListAsync(cancellationToken);
+        var items = rows.Select((row, index) => ToGlobalStatsRow(offset + index + 1, row)).ToList();
 
         return Results.Ok(new GlobalPlayerStatisticsResponse(items, pageNumber, size, total, sort, direction));
     }
 
-    private static IReadOnlyList<GlobalPlayerStatistics> ApplyGlobalSort(
-        IReadOnlyList<GlobalPlayerStatistics> rows,
-        string? sort,
-        bool descending)
+    /// <summary>
+    /// The whole read model in one cacheable body, the rankings twin of <c>/api/events/all</c>: a
+    /// read-mostly public page filters and sorts it in the browser instead of paying a round trip per
+    /// interaction.
+    /// </summary>
+    private static async Task<IResult> GetGlobalPlayerStatisticsCatalogAsync(
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var ceiling = configuration.GetValue(GlobalStatsMaximumCatalogSizeKey, GlobalStatsMaximumCatalogSize);
+        var total = await database.PlayerStatistics.AsNoTracking().CountAsync(cancellationToken);
+        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{total}:catalog:{ceiling}");
+        response.Headers.ETag = etag;
+        response.Headers.CacheControl = CatalogCacheControl;
+        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        // One row past the ceiling is what tells a truncated catalog from a table that ends exactly there.
+        var fetched = await database.PlayerStatistics.AsNoTracking()
+            .OrderByDescending(row => row.PlayedMatchCount)
+            .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation))
+            .Take(ceiling + 1)
+            .ToListAsync(cancellationToken);
+        var truncated = fetched.Count > ceiling;
+        var items = (truncated ? fetched.Take(ceiling) : fetched)
+            .Select((row, index) => ToGlobalStatsRow(index + 1, row))
+            .ToList();
+        if (truncated)
+        {
+            loggerFactory.CreateLogger("Gones.Api.Leagues")
+                .LogWarning("Public player statistics catalog truncated: total={Total} ceiling={Ceiling}", total, ceiling);
+        }
+
+        return Results.Ok(new GlobalPlayerStatisticsCatalogResponse(items, total, truncated));
+    }
+
+    private static IQueryable<PlayerStatisticsRow> FilterGlobalStats(IQueryable<PlayerStatisticsRow> query, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return query;
+        var term = EscapeLikePattern(search.Trim());
+        return query.Where(row => EF.Functions.ILike(row.PlayerName, $"%{term}%", "\\"));
+    }
+
+    /// <summary>
+    /// The ordering the in-memory computation used, expressed so Postgres can serve it from the
+    /// per-column indexes. Two details are load-bearing: the Player Name tiebreak collates as <c>C</c>
+    /// because Player Names are exact and case-sensitive (ADR 0040) while the database collation is
+    /// not, and a null winrate sorts last in both directions instead of taking Postgres' own null
+    /// placement, which flips with the direction.
+    /// </summary>
+    private static IQueryable<PlayerStatisticsRow> OrderGlobalStats(IQueryable<PlayerStatisticsRow> query, string? sort, bool descending)
     {
         if (sort is null)
-            return rows
-                .OrderByDescending(r => r.MatchWins)
-                .ThenByDescending(r => r.GameWins)
-                .ThenByDescending(r => r.MatchDraws)
-                .ThenBy(r => r.PlayerName, StringComparer.Ordinal)
-                .ToArray();
+            return query
+                .OrderByDescending(row => row.MatchWins)
+                .ThenByDescending(row => row.GameWins)
+                .ThenByDescending(row => row.MatchDraws)
+                .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
         return sort switch
         {
-            "playedMatchCount" => descending
-                ? rows.OrderByDescending(r => r.PlayedMatchCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
-                : rows.OrderBy(r => r.PlayedMatchCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
-            "matchWins" => descending
-                ? rows.OrderByDescending(r => r.MatchWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
-                : rows.OrderBy(r => r.MatchWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
-            "matchLosses" => descending
-                ? rows.OrderByDescending(r => r.MatchLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
-                : rows.OrderBy(r => r.MatchLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
-            "matchDraws" => descending
-                ? rows.OrderByDescending(r => r.MatchDraws).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
-                : rows.OrderBy(r => r.MatchDraws).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
-            "matchWinrate" => GlobalNullLastSort(rows, r => r.MatchWinrate, descending),
-            "playedGameCount" => descending
-                ? rows.OrderByDescending(r => r.PlayedGameCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
-                : rows.OrderBy(r => r.PlayedGameCount).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
-            "gameWins" => descending
-                ? rows.OrderByDescending(r => r.GameWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
-                : rows.OrderBy(r => r.GameWins).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
-            "gameLosses" => descending
-                ? rows.OrderByDescending(r => r.GameLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray()
-                : rows.OrderBy(r => r.GameLosses).ThenBy(r => r.PlayerName, StringComparer.Ordinal).ToArray(),
-            "gameWinrate" => GlobalNullLastSort(rows, r => r.GameWinrate, descending),
+            "playedMatchCount" => GlobalSortByCount(query, row => row.PlayedMatchCount, descending),
+            "matchWins" => GlobalSortByCount(query, row => row.MatchWins, descending),
+            "matchLosses" => GlobalSortByCount(query, row => row.MatchLosses, descending),
+            "matchDraws" => GlobalSortByCount(query, row => row.MatchDraws, descending),
+            "matchWinrate" => GlobalSortByWinrate(query, row => row.MatchWinrate, row => row.MatchWinrate == null, descending),
+            "playedGameCount" => GlobalSortByCount(query, row => row.PlayedGameCount, descending),
+            "gameWins" => GlobalSortByCount(query, row => row.GameWins, descending),
+            "gameLosses" => GlobalSortByCount(query, row => row.GameLosses, descending),
+            "gameWinrate" => GlobalSortByWinrate(query, row => row.GameWinrate, row => row.GameWinrate == null, descending),
             _ => throw new InvalidOperationException($"Unknown sort: {sort}")
         };
     }
 
-    private static GlobalPlayerStatistics[] GlobalNullLastSort(
-        IReadOnlyList<GlobalPlayerStatistics> rows,
-        Func<GlobalPlayerStatistics, double?> selector,
+    private static IQueryable<PlayerStatisticsRow> GlobalSortByCount(
+        IQueryable<PlayerStatisticsRow> query,
+        Expression<Func<PlayerStatisticsRow, int>> column,
+        bool descending) =>
+        (descending ? query.OrderByDescending(column) : query.OrderBy(column))
+            .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
+
+    private static IQueryable<PlayerStatisticsRow> GlobalSortByWinrate(
+        IQueryable<PlayerStatisticsRow> query,
+        Expression<Func<PlayerStatisticsRow, double?>> column,
+        Expression<Func<PlayerStatisticsRow, bool>> missing,
         bool descending)
     {
-        var withValue = rows.Where(r => selector(r).HasValue);
-        var withoutValue = rows.Where(r => !selector(r).HasValue)
-            .OrderBy(r => r.PlayerName, StringComparer.Ordinal);
-        var ordered = descending
-            ? withValue.OrderByDescending(r => selector(r)!.Value).ThenBy(r => r.PlayerName, StringComparer.Ordinal)
-            : withValue.OrderBy(r => selector(r)!.Value).ThenBy(r => r.PlayerName, StringComparer.Ordinal);
-        return ordered.Concat(withoutValue).ToArray();
+        var nullsLast = query.OrderBy(missing);
+        return (descending ? nullsLast.ThenByDescending(column) : nullsLast.ThenBy(column))
+            .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
+    }
+
+    private static GlobalPlayerStatisticsRow ToGlobalStatsRow(int position, PlayerStatisticsRow row) => new(
+        position,
+        row.PlayerName,
+        row.PlayedMatchCount,
+        row.MatchWins,
+        row.MatchLosses,
+        row.MatchDraws,
+        row.MatchWinrate,
+        row.PlayedGameCount,
+        row.GameWins,
+        row.GameLosses,
+        row.GameWinrate,
+        row.Nemesis,
+        row.Rival,
+        row.MostPlayedArchetype);
+
+    /// <summary>
+    /// When the read model last changed, as the ETag input that replaces the scan over every archive
+    /// aggregate. <c>PlayerStatisticsRebuildService</c> moves the stamp inside the transaction of every
+    /// rebuild, so a conditional request cannot be answered 304 against numbers that have since moved.
+    /// </summary>
+    private static async Task<string> ReadModelStampAsync(GonesDbContext database, CancellationToken cancellationToken)
+    {
+        var rebuiltAt = await database.PlayerStatisticsMeta.AsNoTracking()
+            .Select(meta => (Instant?)meta.RebuiltAt)
+            .SingleOrDefaultAsync(cancellationToken);
+        return rebuiltAt?.ToUnixTimeTicks().ToString(CultureInfo.InvariantCulture) ?? "unbuilt";
     }
 
     private static async Task<IResult> ListAsync(
@@ -435,6 +480,11 @@ internal sealed record GlobalPlayerStatisticsResponse(
     int TotalCount,
     string? Sort,
     string? Direction);
+
+internal sealed record GlobalPlayerStatisticsCatalogResponse(
+    IReadOnlyList<GlobalPlayerStatisticsRow> Items,
+    int TotalCount,
+    bool Truncated);
 
 internal sealed record GlobalPlayerStatisticsRow(
     int Position,

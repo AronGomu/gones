@@ -168,7 +168,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Authority_includes_only_completed_nondeleted_leagues()
+    public async Task Authority_includes_only_completed_tournaments_of_nondeleted_leagues()
     {
         using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -181,8 +181,11 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         Assert.Contains("alice", names);
         // ByePlayer appeared only as a ByeRoundEntry → skipped by CalculateGlobalPlayerStatistics
         Assert.DoesNotContain("ByePlayer", names);
-        // active and deleted league players must be excluded
-        Assert.DoesNotContain("ActiveOnlyPlayer", names);
+        // ADR 0040: the scope is the Tournament, not the League. glb-active is a running League whose
+        // Tournament t3 is completed, so its Matches are history and they count.
+        Assert.Contains("ActiveOnlyPlayer", names);
+        Assert.Contains("AnotherActivePlayer", names);
+        // A deleted League still contributes nothing, whatever its Tournaments say.
         Assert.DoesNotContain("DeletedLeaguePlayer", names);
     }
 
