@@ -1222,6 +1222,8 @@ const en = {
   'player.draw': 'Draw',
   'player.roundN': 'Round {n}',
   'player.matchCardAria': '{result} vs {opponent}, {tournament}, {round}. Open tournament round.',
+  'player.localMatch': 'This browser',
+  'player.historyTruncated': 'Only the {shown} most recent matches of {total} are shown.',
 
   // Deck archetype input
   'archetype.addAria': 'Save archetype {value} to settings',
@@ -2434,6 +2436,8 @@ const fr: Record<MessageKey, string> = {
   'player.draw': 'Nul',
   'player.roundN': 'Ronde {n}',
   'player.matchCardAria': '{result} contre {opponent}, {tournament}, {round}. Ouvrir la ronde du tournoi.',
+  'player.localMatch': 'Ce navigateur',
+  'player.historyTruncated': 'Seuls les {shown} matchs les plus récents sur {total} sont affichés.',
 
   'archetype.addAria': 'Enregistrer l’archétype {value} dans les paramètres',
   'archetype.add': 'Enregistrer l’archétype',

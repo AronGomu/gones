@@ -475,4 +475,24 @@ Run `npm run dev -- --env=demo`.
 - [ ] `curl -s -D- 'http://127.0.0.1:5080/api/players/Demo%20Player%2006' -o /dev/null` returns `200` with `Cache-Control: public, max-age=3600` and an `ETag`. Repeat with `If-None-Match: "<that etag>"` → `304`, no body. (Use `-D-` with GET; `curl -I` sends HEAD, which this route does not map.)
 - [ ] Reopen an Archive Tournament that player played in, then request the endpoint again: the numbers and the history shrink accordingly and the ETag differs. Mark it complete again and both return.
 - [ ] The request carries no auth header and still succeeds — the endpoint is anonymous.
-- [ ] Open the player page in the app for the same player. It still renders exactly as before (T26 is what moves it onto this endpoint), and its filter, sort, paging and highlight controls all still work.
+- [ ] Open the player page in the app for the same player. Since T26 it reads this endpoint, so its numbers are exactly the ones above, and its filter, sort, paging and highlight controls all still work.
+
+## T26 player-page-server-stats
+
+The player page no longer downloads every League to the browser: it reads `GET /api/players/{playerName}`,
+caches the payload in `localStorage` for 24 h under `gones.player.<name>`, and only merges this
+browser's own leagues into the totals and the history when **Only use online data** is off.
+
+Run `npm run dev -- --env=demo`.
+
+- [ ] Open `/global-stats`, search `Demo Player 06` and click the name. The player page shows Matches Played **7**, Match Wins **5**, Match Losses **2**, Match Draws **0**, Games Played **17**, Game Wins **12**, Game Losses **5**, Match Win Rate **71.43%**, Game Win Rate **70.59%**, Nemesis and Rival both **Demo Player 04**, Most Played Archetype **Death and Taxes (White) (5 matches)** — the same numbers as that player's Rankings row.
+- [ ] With the Network tab open on that first load: exactly **one** request to `/api/players/Demo%20Player%2006`, and **no** `/api/leagues-archive` document downloads at all.
+- [ ] Navigate away with the top back button and open the same player again. **No** new `/api/players/` request is made and the "last synced" label still shows the earlier time (the 24 h cache answers).
+- [ ] Press **Synchronize**. Exactly one new `/api/players/` request is made and the "last synced" label updates.
+- [ ] `localStorage` holds one key per player: open a second player and check `gones.player.demo player 06` and `gones.player.<the other name>` both exist under Application → Local Storage.
+- [ ] Open `/players/Nobody%20At%20All`. The page renders the empty state (**No Matches.**, every count `0`, rates `N/A`) and shows no error banner — an unknown player and a player with no completed match are one answer.
+- [ ] Every match control still works on the server data: click any date / league / tournament / round / opponent / result token to filter, the matching text is highlighted, **Clear** restores the full list, the order toggle flips between **Newest first** and **Oldest first**, the matches-per-page select and Previous/Next page through, and clicking a match card opens `/leagues-archive/{leagueId}/tournaments-archive/{tournamentId}?round=N` on the right round.
+- [ ] Nemesis and Rival are still tinted in the match list, and the Nemesis / Rival cards still filter the list when clicked.
+- [ ] As a Power User with a browser-local league (Settings → power user, then create a League while signed out and record a match for a player who also exists on the server): on that player's page with **Only use online data** checked, only the server matches are listed and the totals are the server's. Uncheck it → the totals grow by exactly the local matches, the local rows appear carrying a **This browser** badge, and no server match is counted twice. Check it again → the local rows and their contribution disappear.
+- [ ] With **Only use online data** off, Match Win Rate and Game Win Rate are recomputed from the merged counts (not an average of two rates), and Nemesis / Rival / Most Played Archetype are recomputed over the merged history.
+- [ ] Both the top and bottom **back** buttons still leave the page, and the scroll-to-top button still works.
