@@ -436,3 +436,20 @@ Run `npm run dev -- --env=demo`.
 - [ ] Type a search term. The list narrows as expected and the total updates with it.
 - [ ] `curl -s -D- 'http://127.0.0.1:5080/api/leagues-archive/global-player-statistics/all' -o /dev/null` returns `200` with `Cache-Control: public, max-age=3600` and an `ETag`. Repeat the request with `If-None-Match: "<that etag>"` → `304`, no body. (Use `-D-` with GET; `curl -I` sends HEAD, which this route does not map.)
 - [ ] Reopen an Archive Tournament, then reload the rankings: the affected players' numbers change immediately and the ETag differs from the one before the write. Mark it complete again and the previous numbers and ETag return.
+
+## T24 rankings-page
+
+The global Rankings page now fetches the full catalog once (`/all` endpoint), caches it in
+`localStorage` for 24 h, and filters / sorts / pages entirely in the browser.
+
+Run `npm run dev -- --env=demo`.
+
+- [ ] Open `/global-stats`. Exactly one request to `/api/leagues-archive/global-player-statistics/all` appears in the Network tab. The page shows all 35 demo players.
+- [ ] Type a search term in the filter field. The table narrows **as you type** with no new network request. The position numbers restart from 1 for the filtered set.
+- [ ] Click any sortable column header. The table re-sorts instantly with no new network request; clicking again reverses the order.
+- [ ] Change the page size or click Previous/Next. Rows change instantly with no new network request.
+- [ ] Reload the page (F5). No new network request fires (served from `localStorage` cache). The "last synced" label matches the previous visit time.
+- [ ] Click the **Synchronize** button. Exactly one new request to `/all` is made and the "last synced" label updates.
+- [ ] Switch the app language to French (Settings). The page title reads **Classement Global** (not "Classement mondial"), and there is clear space between the title and the filter input.
+- [ ] Both the top and bottom **back** buttons navigate away from the page.
+- [ ] The **Apply** button is gone; there is no button to explicitly submit the search.

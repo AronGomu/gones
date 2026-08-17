@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,11 +6,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
-import { firstValueFrom } from 'rxjs';
 import { BackButtonComponent } from '../../shared/back-button.component';
-import { Client, GlobalPlayerStatisticsRow, OpponentRecord, PlayerArchetypeUsage } from '../../api/generated/gones-api';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
+import { GlobalPlayerStatisticsRow, OpponentRecord, PlayerArchetypeUsage } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
-import { LatestRequest } from '../../shared/async-guards';
 import {
   GLOBAL_STATS_PAGE_SIZES,
   GlobalStatsPageSize,
@@ -20,10 +19,13 @@ import {
   parseGlobalStatsQuery,
   toggleGlobalStatsSort,
 } from './global-stats-query';
+import { GlobalStatsCatalogCacheService } from './global-stats-catalog-cache.service';
+
+export const SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   standalone: true,
-  imports: [RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent],
+  imports: [RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="global-stats-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
@@ -33,6 +35,8 @@ import {
       </div>
     </section>
 
+    <gones-sync-bar cyPrefix="global-stats" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="onSync()" data-cy="global-stats-sync-bar" />
+
     <div class="global-stats-controls" data-cy="global-stats-controls">
       <div class="global-stats-search-wrap" data-cy="global-stats-search-wrap">
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="global-stats-search-field" data-cy="global-stats-search-field">
@@ -41,12 +45,11 @@ import {
             data-cy="global-stats-search-input"
             [placeholder]="i18n.t('globalStats.searchPlaceholder')"
             [attr.aria-label]="i18n.t('globalStats.searchAria')"
-            [(ngModel)]="searchDraft"
-            (keydown.enter)="applySearch()"
+            [ngModel]="searchDraft()"
+            (ngModelChange)="setSearchDraft($event)"
           />
         </mat-form-field>
-        <button mat-stroked-button type="button" data-cy="global-stats-search-apply" (click)="applySearch()">{{ i18n.t('common.apply') }}</button>
-        @if (searchDraft) {
+        @if (searchDraft()) {
           <button mat-stroked-button type="button" data-cy="global-stats-search-clear" [attr.aria-label]="i18n.t('globalStats.clearSearchAria')" (click)="clearSearch()">{{ i18n.t('common.clear') }}</button>
         }
       </div>
@@ -67,6 +70,9 @@ import {
     }
     @if (error()) {
       <p class="error" role="alert" data-cy="global-stats-error">{{ error() }}</p>
+    }
+    @if (truncated()) {
+      <p class="warning" role="status" data-cy="global-stats-truncated">{{ i18n.t('globalStats.truncatedWarning', { count: allRows().length }) }}</p>
     }
 
     @if (!loading() && !error()) {
@@ -95,12 +101,12 @@ import {
             </tr>
           </thead>
           <tbody data-cy="global-stats-tbody">
-            @if (!items().length) {
+            @if (!pagedRows().length) {
               <tr data-cy="global-stats-empty-row">
                 <td colspan="14" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
               </tr>
             }
-            @for (row of items(); track row.playerName) {
+            @for (row of pagedRows(); track row.playerName) {
               <tr [attr.data-cy]="'global-stats-row-' + row.position">
                 <td [attr.data-cy]="'global-stats-cell-position-' + row.position">{{ row.position }}</td>
                 <td [attr.data-cy]="'global-stats-cell-player-' + row.position"><a [routerLink]="['/players', row.playerName]" [attr.data-cy]="'global-stats-player-link-' + row.position">{{ row.playerName }}</a></td>
@@ -134,7 +140,7 @@ import {
     <gones-back-button data-cy="global-stats-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `,
   styles: [`
-    .global-stats-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; margin-bottom: 1rem; }
+    .global-stats-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; margin-bottom: 1rem; }
     .global-stats-search-wrap { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; }
     .global-stats-search-field { flex: 1 1 auto; min-width: 0; max-width: 28rem; }
     .global-stats-size-field { width: 9rem; }
@@ -155,28 +161,59 @@ import {
     .global-stats-pagination button:disabled { cursor: default; opacity: .45; }
   `]
 })
-export class GlobalStatsComponent {
-  private readonly client = inject(Client);
+export class GlobalStatsComponent implements OnDestroy {
+  private readonly cacheService = inject(GlobalStatsCatalogCacheService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly i18n = inject(I18nService);
 
-  private readonly latest = new LatestRequest();
+  private debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   readonly loading = signal(false);
   readonly error = signal('');
-  readonly items = signal<GlobalPlayerStatisticsRow[]>([]);
-  readonly totalCount = signal(0);
+  readonly stale = signal(false);
+  readonly truncated = signal(false);
+  readonly syncedAt = signal<string | undefined>(undefined);
+
+  readonly allRows = signal<GlobalPlayerStatisticsRow[]>([]);
+
   readonly currentPage = signal(1);
   readonly currentSize = signal<GlobalStatsPageSize>(100);
   readonly currentSort = signal<GlobalStatsSortCol | undefined>(undefined);
   readonly currentDirection = signal<'asc' | 'desc' | undefined>(undefined);
+  readonly searchDraft = signal('');
 
+  readonly filteredRows = computed(() => {
+    const term = this.searchDraft().toLowerCase().trim();
+    if (!term) return this.allRows();
+    return this.allRows().filter(r => r.playerName.toLowerCase().includes(term));
+  });
+
+  readonly sortedRows = computed(() => {
+    const rows = [...this.filteredRows()];
+    const col = this.currentSort();
+    const dir = this.currentDirection() ?? 'desc';
+    if (!col) return rows;
+    rows.sort((a, b) => {
+      const av = (a[col as keyof GlobalPlayerStatisticsRow] as number) ?? 0;
+      const bv = (b[col as keyof GlobalPlayerStatisticsRow] as number) ?? 0;
+      const cmp = av < bv ? -1 : av > bv ? 1 : a.playerName.localeCompare(b.playerName);
+      return dir === 'asc' ? cmp : -cmp;
+    });
+    return rows;
+  });
+
+  readonly pagedRows = computed(() => {
+    const page = this.currentPage();
+    const size = this.currentSize();
+    const start = (page - 1) * size;
+    return this.sortedRows().slice(start, start + size).map((row, i) => ({ ...row, position: start + i + 1 }));
+  });
+
+  readonly totalCount = computed(() => this.filteredRows().length);
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.currentSize())));
 
   readonly pageSizes = GLOBAL_STATS_PAGE_SIZES;
-
-  searchDraft = '';
 
   constructor() {
     this.route.queryParamMap.subscribe((params) => {
@@ -185,44 +222,59 @@ export class GlobalStatsComponent {
       this.currentSize.set(query.size);
       this.currentSort.set(query.sort);
       this.currentDirection.set(query.direction);
-      this.searchDraft = query.search;
-      void this.load(query);
+      this.searchDraft.set(query.search);
     });
+    void this.loadCatalog();
   }
 
-  private async load(query: GlobalStatsQuery): Promise<void> {
-    const token = this.latest.begin();
+  ngOnDestroy(): void {
+    if (this.debounceTimer !== undefined) clearTimeout(this.debounceTimer);
+  }
+
+  private async loadCatalog(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     this.error.set('');
     try {
-      const response = await firstValueFrom(
-        this.client.getGlobalPlayerStatistics(
-          query.page,
-          query.size,
-          query.search || undefined,
-          query.sort,
-          query.direction,
-        ),
-      );
-      if (!this.latest.isCurrent(token)) return;
-      this.items.set(response.items ?? []);
-      this.totalCount.set(response.totalCount ?? 0);
-      this.currentPage.set(response.page ?? query.page);
+      const result = await this.cacheService.load(options);
+      this.allRows.set(result.items);
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
+      this.truncated.set(result.truncated);
     } catch {
-      if (!this.latest.isCurrent(token)) return;
       this.error.set(this.i18n.t('globalStats.errorLoad'));
-      this.items.set([]);
-      this.totalCount.set(0);
     } finally {
-      if (this.latest.isCurrent(token)) this.loading.set(false);
+      this.loading.set(false);
     }
+  }
+
+  onSync(): void {
+    void this.loadCatalog({ force: true });
+  }
+
+  setSearchDraft(value: string): void {
+    this.searchDraft.set(value);
+    if (this.debounceTimer !== undefined) clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => {
+      const query: GlobalStatsQuery = {
+        page: 1,
+        size: this.currentSize(),
+        search: value,
+        sort: this.currentSort(),
+        direction: this.currentDirection(),
+      };
+      void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(query) });
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  clearSearch(): void {
+    this.setSearchDraft('');
   }
 
   sortBy(col: GlobalStatsSortCol): void {
     const current: GlobalStatsQuery = {
       page: this.currentPage(),
       size: this.currentSize(),
-      search: this.searchDraft,
+      search: this.searchDraft(),
       sort: this.currentSort(),
       direction: this.currentDirection(),
     };
@@ -239,7 +291,7 @@ export class GlobalStatsComponent {
     const current: GlobalStatsQuery = {
       page: this.currentPage(),
       size: this.currentSize(),
-      search: this.searchDraft,
+      search: this.searchDraft(),
       sort: this.currentSort(),
       direction: this.currentDirection(),
     };
@@ -249,27 +301,11 @@ export class GlobalStatsComponent {
     });
   }
 
-  applySearch(): void {
-    const current: GlobalStatsQuery = {
-      page: 1,
-      size: this.currentSize(),
-      search: this.searchDraft,
-      sort: this.currentSort(),
-      direction: this.currentDirection(),
-    };
-    void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(current) });
-  }
-
-  clearSearch(): void {
-    this.searchDraft = '';
-    this.applySearch();
-  }
-
   setSize(size: GlobalStatsPageSize): void {
     const current: GlobalStatsQuery = {
       page: 1,
       size,
-      search: this.searchDraft,
+      search: this.searchDraft(),
       sort: this.currentSort(),
       direction: this.currentDirection(),
     };

@@ -13,4 +13,8 @@ describe('messages', () => {
   it('uses the same name in the breadcrumb', () => {
     expect(translate('en', 'crumb.leagues')).toBe('Leagues Archive');
   });
+
+  it('says Classement Global', () => {
+    expect(translate('fr', 'globalStats.title')).toBe('Classement Global');
+  });
 });
