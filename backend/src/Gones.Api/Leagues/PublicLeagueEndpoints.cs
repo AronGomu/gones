@@ -17,12 +17,12 @@ internal static class PublicLeagueEndpoints
     public const int DefaultPageSize = 20;
     public const int MaximumPageSize = 100;
     private const int MaximumSearchLength = 200;
-    private const int MaximumPlayerNameLength = 200;
+    internal const int MaximumPlayerNameLength = 200;
     private const string AppVersion = "0.1.0";
     private const string PublicCacheControl = "public, max-age=60";
     private const string CatalogCacheControl = "public, max-age=3600";
     /// <summary>Postgres collation that orders text byte by byte, the way <c>StringComparer.Ordinal</c> does.</summary>
-    private const string OrdinalCollation = "C";
+    internal const string OrdinalCollation = "C";
 
     private static readonly int[] GlobalStatsAllowedPageSizes = [10, 25, 50, 100];
     private const int GlobalStatsDefaultPageSize = 100;
@@ -241,7 +241,7 @@ internal static class PublicLeagueEndpoints
     /// aggregate. <c>PlayerStatisticsRebuildService</c> moves the stamp inside the transaction of every
     /// rebuild, so a conditional request cannot be answered 304 against numbers that have since moved.
     /// </summary>
-    private static async Task<string> ReadModelStampAsync(GonesDbContext database, CancellationToken cancellationToken)
+    internal static async Task<string> ReadModelStampAsync(GonesDbContext database, CancellationToken cancellationToken)
     {
         var rebuiltAt = await database.PlayerStatisticsMeta.AsNoTracking()
             .Select(meta => (Instant?)meta.RebuiltAt)
@@ -424,7 +424,7 @@ internal static class PublicLeagueEndpoints
             throw Validation(field, $"Value must contain 1 to {maximumLength} characters.");
     }
 
-    private static string EscapeLikePattern(string value) =>
+    internal static string EscapeLikePattern(string value) =>
         value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
@@ -442,10 +442,10 @@ internal static class PublicLeagueEndpoints
         response.Headers.CacheControl = PublicCacheControl;
     }
 
-    private static bool IsNotModified(HttpRequest request, string etag) =>
+    internal static bool IsNotModified(HttpRequest request, string etag) =>
         request.Headers.IfNoneMatch.Any(value => string.Equals(value, etag, StringComparison.Ordinal));
 
-    private static string HashETag(string value) =>
+    internal static string HashETag(string value) =>
         $"\"{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)))}\"";
 
     private static ApiValidationException Validation(string field, string message) =>

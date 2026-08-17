@@ -727,6 +727,59 @@
         }
       }
     },
+    "/api/players/{playerName}": {
+      "get": {
+        "tags": [
+          "PlayerEndpoints"
+        ],
+        "operationId": "GetPlayer",
+        "parameters": [
+          {
+            "name": "playerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDetailResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/live-tournaments": {
       "get": {
         "tags": [
@@ -10985,6 +11038,37 @@
           }
         }
       },
+      "PlayerDetailResponse": {
+        "required": [
+          "statistics",
+          "matches",
+          "totalMatchCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "statistics": {
+            "$ref": "#/components/schemas/GlobalPlayerStatisticsRow"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerMatchRow"
+            }
+          },
+          "totalMatchCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "PlayerMatch": {
         "required": [
           "kind",
@@ -11032,6 +11116,76 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "PlayerMatchRow": {
+        "required": [
+          "kind",
+          "leagueId",
+          "leagueName",
+          "tournamentId",
+          "tournamentName",
+          "tournamentDate",
+          "roundIndex",
+          "opponentName",
+          "ownScore",
+          "opponentScore",
+          "ownArchetype",
+          "opponentArchetype"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "leagueId": {
+            "type": "string"
+          },
+          "leagueName": {
+            "type": "string"
+          },
+          "tournamentId": {
+            "type": "string"
+          },
+          "tournamentName": {
+            "type": "string"
+          },
+          "tournamentDate": {
+            "type": "string"
+          },
+          "roundIndex": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "opponentName": {
+            "type": "string"
+          },
+          "ownScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "opponentScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ownArchetype": {
+            "type": "string"
+          },
+          "opponentArchetype": {
+            "type": "string"
           }
         }
       },
@@ -13345,6 +13499,9 @@
     },
     {
       "name": "LeagueCommandEndpoints"
+    },
+    {
+      "name": "PlayerEndpoints"
     },
     {
       "name": "PublicLiveEndpoints"

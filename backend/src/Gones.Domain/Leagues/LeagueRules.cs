@@ -273,11 +273,21 @@ public static class LeagueRules
         return top.Key is null ? null : new PlayerArchetypeUsage(top.Key, top.Value);
     }
 
-    private static string SelectedArchetype(MatchRoundEntry match, int side, TournamentDocument tournament, string playerName)
+    /// <summary>
+    /// The archetype one side of a Match played with: the entry's own value first, then the Tournament
+    /// roster, then empty. Public because the cross-League player history serves the same precedence.
+    /// </summary>
+    public static string SelectedArchetype(MatchRoundEntry match, int side, TournamentDocument tournament, string playerName)
     {
         var matchArchetype = (side == 1 ? match.Player1DeckArchetype : match.Player2DeckArchetype).Trim();
-        if (matchArchetype.Length > 0) return matchArchetype;
-        return tournament.PlayerArchetypes.FirstOrDefault(row => LeagueNormalizer.TrimPlayerName(row.PlayerName) == playerName)?.Archetype.Trim() ?? string.Empty;
+        return matchArchetype.Length > 0 ? matchArchetype : RosterArchetype(tournament, playerName);
+    }
+
+    /// <summary>The archetype the Tournament roster records for a player, or empty when it records none.</summary>
+    public static string RosterArchetype(TournamentDocument tournament, string playerName)
+    {
+        var name = LeagueNormalizer.TrimPlayerName(playerName);
+        return tournament.PlayerArchetypes.FirstOrDefault(row => LeagueNormalizer.TrimPlayerName(row.PlayerName) == name)?.Archetype.Trim() ?? string.Empty;
     }
 
     public static LeagueDocument RenamePlayer(LeagueDocument league, string fromName, string toName)

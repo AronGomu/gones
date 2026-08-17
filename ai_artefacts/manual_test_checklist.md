@@ -453,3 +453,26 @@ Run `npm run dev -- --env=demo`.
 - [ ] Switch the app language to French (Settings). The page title reads **Classement Global** (not "Classement mondial"), and there is clear space between the title and the filter input.
 - [ ] Both the top and bottom **back** buttons navigate away from the page.
 - [ ] The **Apply** button is gone; there is no button to explicitly submit the search.
+
+## T25 player-endpoints
+
+A new anonymous `GET /api/players/{playerName}` returns one player's statistics — read straight from
+the `player_statistics` read model, so it agrees with the Rankings page by construction — plus a flat
+match history that carries ids and names instead of whole League and Tournament documents. Nothing in
+the UI consumes it yet; the player page still computes locally until T26.
+
+Run `npm run dev -- --env=demo`.
+
+- [ ] `curl -s 'http://127.0.0.1:5080/api/players/Demo%20Player%2006' | jq '.statistics'` returns `playedMatchCount 7`, `matchWins 5`, `matchLosses 2`, `gameWins 12`, `gameLosses 5`, Nemesis and Rival both `Demo Player 04`, most-played archetype `Death and Taxes (White)` ×5 — the same numbers the Rankings page shows for that player.
+- [ ] `… | jq '.matches | length'` returns `7`, `.totalMatchCount` returns `7` and `.truncated` is `false`.
+- [ ] `… | jq '.matches[0]'` has only flat fields — `kind`, `leagueId`, `leagueName`, `tournamentId`, `tournamentName`, `tournamentDate`, `roundIndex`, `opponentName`, `ownScore`, `opponentScore`, `ownArchetype`, `opponentArchetype`. No nested `league`, `tournament` or `rounds` object anywhere in the response.
+- [ ] Every entry has both archetype fields present as strings. An archetype nobody recorded is `""`, never `null` — `… | jq '[.matches[] | select(.ownArchetype == null or .opponentArchetype == null)] | length'` returns `0`.
+- [ ] The history is newest first: `… | jq -r '.matches[] | "\(.tournamentDate) r\(.roundIndex)"'` descends by date, then by round within a date.
+- [ ] `Gones League 7` is an **active** League with a completed `Day 1`; its matches appear in the history. A completed Tournament counts whatever its League's own status says.
+- [ ] `curl -s -o /dev/null -w '%{http_code}\n' 'http://127.0.0.1:5080/api/players/nobody'` returns `404`. So does any player who has never played a match in a completed Archive Tournament.
+- [ ] `curl -s 'http://127.0.0.1:5080/api/players/demo%20player%2006' | jq -r '.statistics.playerName'` returns the canonical `Demo Player 06`: the lookup is case-insensitive and answers with the stored spelling.
+- [ ] A name longer than 200 characters returns `400`, not `404`.
+- [ ] `curl -s -D- 'http://127.0.0.1:5080/api/players/Demo%20Player%2006' -o /dev/null` returns `200` with `Cache-Control: public, max-age=3600` and an `ETag`. Repeat with `If-None-Match: "<that etag>"` → `304`, no body. (Use `-D-` with GET; `curl -I` sends HEAD, which this route does not map.)
+- [ ] Reopen an Archive Tournament that player played in, then request the endpoint again: the numbers and the history shrink accordingly and the ETag differs. Mark it complete again and both return.
+- [ ] The request carries no auth header and still succeeds — the endpoint is anonymous.
+- [ ] Open the player page in the app for the same player. It still renders exactly as before (T26 is what moves it onto this endpoint), and its filter, sort, paging and highlight controls all still work.

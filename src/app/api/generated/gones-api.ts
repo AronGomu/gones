@@ -95,6 +95,10 @@ export interface IClient {
      */
     export(id: string): Observable<LeagueExportResponse>;
     /**
+     * @return OK
+     */
+    getPlayer(playerName: string): Observable<PlayerDetailResponse>;
+    /**
      * @param page (optional)
      * @param pageSize (optional)
      * @param stage (optional)
@@ -1697,6 +1701,75 @@ export class Client implements IClient {
         } else if (status === 304) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             return throwException("Not Modified", status, _responseText, _headers);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    getPlayer(playerName: string): Observable<PlayerDetailResponse> {
+        let url_ = this.baseUrl + "/api/players/{playerName}";
+        if (playerName === undefined || playerName === null)
+            throw new globalThis.Error("The parameter 'playerName' must be defined.");
+        url_ = url_.replace("{playerName}", encodeURIComponent("" + playerName));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetPlayer(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetPlayer(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PlayerDetailResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PlayerDetailResponse>;
+        }));
+    }
+
+    protected processGetPlayer(response: HttpResponseBase): Observable<PlayerDetailResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PlayerDetailResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
             }));
         } else if (status === 404) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -10872,6 +10945,15 @@ export interface PlayerArchetypeUsage {
     [key: string]: any;
 }
 
+export interface PlayerDetailResponse {
+    statistics: GlobalPlayerStatisticsRow;
+    matches: PlayerMatchRow[];
+    totalMatchCount: number;
+    truncated: boolean;
+
+    [key: string]: any;
+}
+
 export interface PlayerMatch {
     kind: string;
     league: LeagueDocument;
@@ -10880,6 +10962,23 @@ export interface PlayerMatch {
     opponentName: string;
     ownScore: number;
     opponentScore: number;
+
+    [key: string]: any;
+}
+
+export interface PlayerMatchRow {
+    kind: string;
+    leagueId: string;
+    leagueName: string;
+    tournamentId: string;
+    tournamentName: string;
+    tournamentDate: string;
+    roundIndex: number;
+    opponentName: string;
+    ownScore: number;
+    opponentScore: number;
+    ownArchetype: string;
+    opponentArchetype: string;
 
     [key: string]: any;
 }
