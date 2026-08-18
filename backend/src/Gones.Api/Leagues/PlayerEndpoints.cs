@@ -1,4 +1,5 @@
 using Gones.Api.Errors;
+using Gones.Api.Security;
 using Gones.Domain.Leagues;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,11 @@ internal static class PlayerEndpoints
     {
         app.MapGet("/api/players/{playerName}", GetPlayerAsync)
             .AllowAnonymous()
+            // The global limiter buckets anonymous reads per client and leaves authenticated ones
+            // unlimited, which is the wrong shape here: a cache-missing request streams and
+            // deserializes every live archive aggregate, and varying the name defeats the ETag. This
+            // policy partitions on the client key whether or not a token is present.
+            .RequireRateLimiting(AuthRateLimiting.PublicReadPolicy)
             .WithName("GetPlayer")
             .Produces<PlayerDetailResponse>()
             .Produces(StatusCodes.Status304NotModified)

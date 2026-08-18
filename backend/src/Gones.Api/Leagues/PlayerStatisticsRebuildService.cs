@@ -24,6 +24,7 @@ internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsReb
     {
         ArgumentNullException.ThrowIfNull(database);
         var started = Stopwatch.GetTimestamp();
+        await LockAsync(database, cancellationToken);
 
         // Tracked, not AsNoTracking: the caller is mid-write, so the archive change that triggered this
         // rebuild lives in the change tracker and not yet in the table. A tracked query returns the
@@ -56,6 +57,29 @@ internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsReb
             live.Count,
             Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
+
+    /// <summary>
+    /// Serialises every rebuild against every other one, for the whole of the caller's transaction.
+    ///
+    /// <para>Two transactions editing <b>different</b> Leagues both rewrite the whole table. Under READ
+    /// COMMITTED the second one's <c>DELETE</c> is evaluated against a snapshot taken before the first
+    /// committed, so it removes nothing the first inserted and then inserts the same Player Names on
+    /// top of them — a duplicate key on <c>pk_player_statistics</c>, which turns a legal archive write
+    /// into a 500 and rolls it back. Taking the lock first makes the loser wait and then rebuild over
+    /// the winner's committed rows.</para>
+    ///
+    /// <para>Transaction-scoped, so it is released by the commit or rollback that ends the caller's
+    /// transaction and never by this method. Every caller holds one (ADR 0040): the rebuild's own
+    /// <c>DELETE</c> is raw SQL that must share a transaction with the save that stages the
+    /// replacement, so a rebuild outside one is already broken for a louder reason.</para>
+    /// </summary>
+    private static Task LockAsync(GonesDbContext database, CancellationToken cancellationToken) =>
+        database.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext({LockScope}), hashtext({LockKey}))",
+            cancellationToken);
+
+    private const string LockScope = "gones:player-statistics";
+    private const string LockKey = "rebuild";
 
     /// <summary>
     /// Records that the table now holds this build's formula, at this transaction's clock. The stamp is

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Gones.Api.Security;
 using Gones.Domain.Leagues;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -256,6 +257,31 @@ public sealed class PlayerApiTests : IAsyncLifetime
         Assert.Null(request.Headers.Authorization);
         using var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    /// <summary>
+    /// A cache-missing request streams and deserializes every live archive aggregate, and a caller who
+    /// varies the Player Name misses the ETag every time. The global limiter leaves an authenticated GET
+    /// outside <c>/api/admin</c> unlimited, so the route carries the public-read policy: it partitions on
+    /// the client key, which holds whether or not a token is attached — and a new user id per request
+    /// does not buy a fresh bucket.
+    /// </summary>
+    [Fact]
+    public async Task Limits_signed_in_readers_as_well_as_anonymous_ones()
+    {
+        using var client = CreateClient((RateLimitSettings.PublicReadKey, "2"));
+
+        var statuses = new List<HttpStatusCode>();
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/players/Ada");
+            request.Headers.Add("X-Test-User", Guid.NewGuid().ToString("D"));
+            using var response = await client.SendAsync(request);
+            statuses.Add(response.StatusCode);
+        }
+
+        Assert.Equal(2, statuses.Count(status => status == HttpStatusCode.OK));
+        Assert.Equal(2, statuses.Count(status => status == HttpStatusCode.TooManyRequests));
     }
 
     private static JsonElement MatchAgainst(JsonElement body, string opponentName) =>

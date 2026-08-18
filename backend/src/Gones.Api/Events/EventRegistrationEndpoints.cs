@@ -669,7 +669,7 @@ internal sealed class EventRegistrationNotificationService(
         {
             throw new InvalidOperationException("GONES_PUBLIC_APP_ORIGIN must be an HTTPS origin.");
         }
-        return new Uri(origin, $"/calendar/tournaments/{Uri.EscapeDataString(slug)}");
+        return new Uri(origin, $"/events/{Uri.EscapeDataString(slug)}");
     }
 
     private static string RequiredEmail(ApplicationUser user) =>

@@ -222,6 +222,16 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             CreatedAt = now,
             ExpiresAt = now.Plus(Duration.FromDays(36500))
         });
+
+        // Imported Tournaments normalise to completed, so they belong in player_statistics (ADR 0040).
+        // The rebuild itself lives in Gones.Api, which this assembly cannot reference, so the import
+        // invalidates the read model instead of recomputing it: clearing the stamp is what makes
+        // PlayerStatisticsStartupRebuild treat the table as stale, and the API always starts after the
+        // migrator container this runs in. Until it does, the missing stamp also moves the public
+        // rankings ETag, so no conditional request is answered 304 over numbers that changed. Same
+        // trick as scripts/seed-dev-environment.mjs after its bulk load.
+        await database.Database.ExecuteSqlRawAsync("DELETE FROM player_statistics_meta", cancellationToken);
+
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return resultJson;

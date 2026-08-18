@@ -580,3 +580,19 @@ Documentation-only ticket. Read and confirm:
 - [ ] `docs/event-data-flow.html` exists and describes the event catalog cache flow with `/events` throughout; `docs/calendar-data-flow.html` is gone.
 - [ ] `docs/sanitizer-migration-report.md`: both path references say `src/app/features/events/` (not `features/calendar/`).
 - [ ] `ops/acceptance-matrix.json` has rows for the cache contract, back-button coverage, logout return contract, player statistics read model and ownership removal — each with evidence resolving to a committed gate.
+
+## Post-review backend fixes
+
+Four accepted backend findings from the branch review. The mail steps need a mail path you can read
+(`npm run dev` with the Brevo sandbox, or read `notification_outbox.template_model_json` directly).
+
+- [ ] Register for an Event as a signed-in user, then open the registration-confirmation mail: the link is `https://<origin>/events/<slug>` and clicking it lands on the Event page, not the 404 page.
+- [ ] Unregister from that Event and confirm the unregistration mail carries the same `/events/<slug>` link.
+- [ ] As the organizer, make a major update to a published Event and then cancel it; both mails link to `/events/<slug>`.
+- [ ] Let a reminder fall due (or move the clock in the worker) and confirm the reminder mail links to `/events/<slug>`.
+- [ ] Reject an Event proposal from the review link and confirm the "view the calendar" link in the mail is `https://<origin>/events` and opens the Event list.
+- [ ] Grep the running API image for the dead route: no outbound mail body contains `/calendar/tournaments/` or a bare `/calendar` link.
+- [ ] Run a migration import against a database that already has a rebuilt `player_statistics`, then confirm `SELECT count(*) FROM player_statistics_meta;` is 0 immediately after, and that the next API start logs `Player statistics rebuilt: … rows` and the imported players appear in `/global-stats` and on their `/players/<name>` page.
+- [ ] While the API is up but before that restart, confirm `/api/leagues-archive/global-stats` no longer answers `304` against the ETag captured before the import.
+- [ ] Edit two different Leagues at the same moment (two browser tabs, both saving an Archive Tournament) — both saves succeed; neither returns a 500 and `player_statistics` holds exactly one row per player afterwards.
+- [ ] Signed in, hammer `GET /api/players/<name>` past 120 requests in a minute (vary the name so the ETag misses): the API answers `429` with `rate_limited` and a `Retry-After` header, the same as when signed out.

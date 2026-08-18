@@ -271,7 +271,7 @@ internal static class EventProposalEndpoints
             .Select(user => user.Email)
             .SingleOrDefaultAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(submitterEmail)) throw new ResourceNotFoundException();
-        var calendarUrl = new Uri(AccountLifecycleOptions.Load(configuration).PublicOrigin, "/calendar");
+        var calendarUrl = new Uri(AccountLifecycleOptions.Load(configuration).PublicOrigin, "/events");
 
         database.ChangeTracker.Clear();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);

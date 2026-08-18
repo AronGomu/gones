@@ -117,6 +117,44 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
         Assert.Equal(first.Select(row => row.PlayerName).Distinct().Count(), second.Count);
     }
 
+    /// <summary>
+    /// Two archive writes touching different Leagues both rewrite the whole table. Under READ COMMITTED
+    /// the loser's <c>DELETE</c> is evaluated against a snapshot taken before the winner committed, so it
+    /// removes nothing the winner inserted and then inserts the same Player Names on top of them — a
+    /// duplicate key that turns a legal write into a 500. The advisory lock the rebuild takes first is
+    /// what makes the loser wait and then rebuild over rows it can actually see.
+    /// </summary>
+    [Fact]
+    public async Task A_second_rebuild_waits_for_the_first_instead_of_colliding_with_it()
+    {
+        await RebuildAsync();
+
+        await using var first = CreateContext();
+        await using var firstTransaction = await first.Database.BeginTransactionAsync();
+        await new PlayerStatisticsRebuildService(NullLogger<PlayerStatisticsRebuildService>.Instance)
+            .RebuildAsync(first, CancellationToken.None);
+        await first.SaveChangesAsync();
+
+        await using var second = CreateContext();
+        await using var secondTransaction = await second.Database.BeginTransactionAsync();
+        var contender = Task.Run(async () =>
+        {
+            await new PlayerStatisticsRebuildService(NullLogger<PlayerStatisticsRebuildService>.Instance)
+                .RebuildAsync(second, CancellationToken.None);
+            await second.SaveChangesAsync();
+            await secondTransaction.CommitAsync();
+        });
+
+        // Held by the lock rather than by luck: nothing lets the contender past it before the commit.
+        Assert.NotSame(contender, await Task.WhenAny(contender, Task.Delay(TimeSpan.FromSeconds(2))));
+        await firstTransaction.CommitAsync();
+        await contender;
+
+        var rows = await RowsAsync();
+        Assert.Equal(["Alice", "Bob", "Carol"], rows.Select(row => row.PlayerName));
+        Assert.Equal(await ExpectedAsync(), rows.Select(row => row.ToGlobalPlayerStatistics()));
+    }
+
     [Fact]
     public async Task Drops_a_player_who_no_longer_appears()
     {
