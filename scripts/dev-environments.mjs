@@ -253,6 +253,20 @@ export function localDateTime(offsetDays, time, today = new Date()) {
   return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}T${time}`;
 }
 
+/**
+ * The server's ASCII slug contract for a published Event: the slugified title, then the format slug.
+ * The seeder checks the slug the API answered against this, and the stress bulk loader — which writes
+ * the row itself — has to produce exactly the same string.
+ */
+export function expectedEventSlug(title, formatSlug) {
+  const titleSlug = String(title).normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `${titleSlug}-${formatSlug}`;
+}
+
 /** Splits process.argv.slice(2) for scripts/dev.mjs. */
 export function parseDevArgs(argv) {
   const parsed = { environment: DEFAULT_DEV_ENVIRONMENT, skipDocker: false, skipAccounts: false, detached: false, ngArgs: [] };

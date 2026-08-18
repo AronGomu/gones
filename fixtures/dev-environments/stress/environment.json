@@ -1,0 +1,5 @@
+{
+  "name": "stress",
+  "description": "Hundredfold dataset for design stress testing. Generated, not committed.",
+  "resetDatabase": true
+}

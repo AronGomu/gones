@@ -71,6 +71,13 @@ statistic, with no error anywhere.
 - Browser-local League Archives (ADR 0028) never reach the server, so the read model cannot see them.
   The player page keeps its `Online only` toggle: off, it computes the local half in the browser and
   merges it into the totals and the history, marking local matches.
-- **Measured startup rebuild against the 100× dataset: _to be recorded by T29_.** If it exceeds the
-  container start budget, move the rebuild into the `migrator` service, which already runs one-shot
-  before the API starts; the code path is identical.
+- **Measured startup rebuild against the 100× dataset (T29): 1183 rows from 201 Leagues in 177 ms.**
+  The API answered `/health/ready` again 2.3 s after `docker compose restart api`, rebuild included,
+  against the demo-scale baseline of 35 rows from 3 Leagues in ~88 ms. Two orders of magnitude more
+  archive costs roughly twice the rebuild, because the fixed startup cost dominates and the work
+  itself is a linear pass over 1.3 MB of documents. That is inside any container start budget, so the
+  rebuild **stays in the API** and the `migrator` fallback is not taken. Revisit if the measurement
+  ever approaches the readiness deadline: the move is one hosted-service registration and the code
+  path is identical.
+  <br>Dataset: `npm run dev:stress:generate -- --seed=1` then `npm run dev -- --env=stress` — 200
+  League Archives, 400 Archive Tournaments, 4800 round entries over a pool of ~1200 player names.

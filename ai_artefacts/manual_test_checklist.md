@@ -533,3 +533,33 @@ matches; most-played archetype is `Death and Taxes (White)`, and at least one ro
 - [ ] Searching for an archetype name in the filter input matches the card (filtering works via `matchSearchText`).
 - [ ] The existing `VS` separator between result pill and opponent name is still there; it is distinct from the new lowercase `vs` between archetypes.
 - [ ] Both top and bottom back buttons, order toggle, pagination, and match-card navigation to the tournament are unaffected.
+
+## T29 stress-dataset
+
+A hundredfold `demo`, so every page can be judged under real weight: ~700 accounts, 200
+organizations, 400 formats, 1600 Events, 700 registrations, 200 League Archives (400 Archive
+Tournaments, ~1200 distinct player names, one player with 536 matches), 10 running tournaments and
+10 000 generated audit rows. The dataset is generated, not committed.
+
+```bash
+npm run dev:stress:generate -- --seed=1   # writes fixtures/dev-environments/stress/*.json (gitignored)
+npm run dev -- --env=stress               # resets the stack and loads them (~75 s on a warm image)
+```
+
+Accounts are `stress-admin-000@gones.test`, `stress-organizer-000@gones.test`,
+`stress-user-000@gones.test` … all with the usual `Gones-dev-pass-123!`. The last hundred `stress-user-*`
+accounts are deliberately unverified.
+
+- [ ] `npm run dev:stress:generate -- --seed=1` twice in a row leaves identical files (`sha256sum fixtures/dev-environments/stress/*.json` matches); `--seed=2` changes them.
+- [ ] `git status` stays clean after generating: only `environment.json` is tracked under `fixtures/dev-environments/stress/`.
+- [ ] The seed prints the volumes and ends with `Player statistics rebuilt: … rows`, and the count is non-zero.
+- [ ] `/events` calendar view with ~1600 Events — month cells overflow gracefully and the "+N more" indicator behaves; switching months stays responsive.
+- [ ] `/events` list view — paging, the format filter (400 entries) and the city/text search all still answer quickly.
+- [ ] `/global-stats` with ~1183 ranked players — the catalog loads once, filtering and sorting stay instant, and paging does not refetch.
+- [ ] A heavy player's page (`Alix Aubert`, 536 matches) — the flat history renders, filters and pages without stalling; the 5/5/3 stat grid and the archetype matchups are intact.
+- [ ] `/admin/users` with 700 accounts — the pager works, each page is cached under its own key, and search narrows the list.
+- [ ] `/admin/audit` — the audit list pages through the generated rows and its filters answer.
+- [ ] `/leagues-archive` with 200 Leagues — the grid and the cached list hold up; opening a League shows its Archive Tournaments and a League Result.
+- [ ] `/live-tournaments` shows the 10 running tournaments; one of them is caught mid-round.
+- [ ] Top and bottom back buttons still work on every page above.
+- [ ] Reseed `demo` afterwards (`npm run dev:env -- --env=demo`) and confirm the player statistics count falls back to 35.
