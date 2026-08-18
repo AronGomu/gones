@@ -69,21 +69,24 @@ export interface PlayerStatsView {
     </div>
     <section class="page-heading" data-cy="player-heading"><div data-cy="player-heading-text"><p class="kicker" data-cy="player-kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
     <div class="stat-grid" data-cy="player-stat-grid">
-      <div class="stat-grid__row stat-grid__row--counts" data-cy="player-stat-row-counts">
+      <div class="stat-grid__row stat-grid__row--five" data-cy="player-stat-row-1">
         <div class="player-stat-cell" data-cy="player-stat-cell-played-matches"><p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="player-stat-value-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate"><p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="player-stat-value-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-match-wins"><p class="player-stat-label" data-cy="player-stat-label-match-wins">{{ i18n.t('player.matchWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-match-wins">{{ stats().matchWins }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-match-losses"><p class="player-stat-label" data-cy="player-stat-label-match-losses">{{ i18n.t('player.matchLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-match-losses">{{ stats().matchLosses }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-match-draws"><p class="player-stat-label" data-cy="player-stat-label-match-draws">{{ i18n.t('player.matchDraws') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draws"><mat-card-content class="stat-number" data-cy="player-stat-value-match-draws">{{ stats().matchDraws }}</mat-card-content></mat-card></div>
+      </div>
+      <div class="stat-grid__row stat-grid__row--five" data-cy="player-stat-row-2">
         <div class="player-stat-cell" data-cy="player-stat-cell-played-games"><p class="player-stat-label" data-cy="player-stat-label-played-games">{{ i18n.t('player.playedGames') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-games"><mat-card-content class="stat-number" data-cy="player-stat-value-played-games">{{ stats().playedGameCount }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-winrate"><p class="player-stat-label" data-cy="player-stat-label-game-winrate">{{ i18n.t('player.gameWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-winrate"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="player-stat-value-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-game-wins"><p class="player-stat-label" data-cy="player-stat-label-game-wins">{{ i18n.t('player.gameWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-game-wins">{{ stats().gameWins }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-game-losses"><p class="player-stat-label" data-cy="player-stat-label-game-losses">{{ i18n.t('player.gameLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-game-losses">{{ stats().gameLosses }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-draw-rate"><p class="player-stat-label" data-cy="player-stat-label-match-draw-rate">{{ i18n.t('player.matchDrawRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draw-rate"><mat-card-content class="stat-number" data-cy="player-stat-value-match-draw-rate">{{ pct(matchDrawRate()) }}</mat-card-content></mat-card></div>
       </div>
-      <div class="stat-grid__row stat-grid__row--metrics" data-cy="player-stat-row-metrics">
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate"><p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="player-stat-value-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-game-winrate"><p class="player-stat-label" data-cy="player-stat-label-game-winrate">{{ i18n.t('player.gameWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-winrate"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="player-stat-value-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card></div>
+      <div class="stat-grid__row stat-grid__row--three" data-cy="player-stat-row-3">
+        <div class="player-stat-cell" data-cy="player-stat-cell-most-played-archetype"><p class="player-stat-label" data-cy="player-stat-label-most-played-archetype">{{ i18n.t('player.mostPlayedArchetype') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-most-played-archetype"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-most-played-archetype">@if (stats().mostPlayedArchetype; as archetype) { <span data-cy="player-stat-archetype">{{ i18n.t('player.archetypeMatches', { name: archetype.name, count: archetype.matchCount }) }}</span> } @else { <span data-cy="player-stat-na-archetype">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-nemesis"><p class="player-stat-label" data-cy="player-stat-label-nemesis">{{ i18n.t('player.nemesis') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-nemesis"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-nemesis">@if (stats().nemesis; as nemesis) { <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="player-stat-filter-nemesis" (click)="filterByExact(nemesis.name)">{{ nemesis.name }}</button> } @else { <span data-cy="player-stat-na-nemesis">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-rival"><p class="player-stat-label" data-cy="player-stat-label-rival">{{ i18n.t('player.rival') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rival"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-rival">@if (stats().rival; as rival) { <button type="button" class="stat-filter-button stat-filter-button--rival" data-cy="player-stat-filter-rival" (click)="filterByExact(rival.name)">{{ rival.name }}</button> } @else { <span data-cy="player-stat-na-rival">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-most-played-archetype"><p class="player-stat-label" data-cy="player-stat-label-most-played-archetype">{{ i18n.t('player.mostPlayedArchetype') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-most-played-archetype"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-most-played-archetype">@if (stats().mostPlayedArchetype; as archetype) { <span data-cy="player-stat-archetype">{{ i18n.t('player.archetypeMatches', { name: archetype.name, count: archetype.matchCount }) }}</span> } @else { <span data-cy="player-stat-na-archetype">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
       </div>
     </div>
     <section class="stack" data-cy="player-matches-section">
@@ -189,11 +192,11 @@ export interface PlayerStatsView {
       min-width: 0;
       align-items: stretch;
     }
-    .stat-grid__row--counts {
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-    }
-    .stat-grid__row--metrics {
+    .stat-grid__row--five {
       grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    .stat-grid__row--three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .player-stat-cell {
       display: grid;
@@ -271,16 +274,16 @@ export interface PlayerStatsView {
       word-break: break-word;
     }
     @media (max-width: 1100px) {
-      .stat-grid__row--counts,
-      .stat-grid__row--metrics {
+      .stat-grid__row--five,
+      .stat-grid__row--three {
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
       }
     }
     @media (max-width: 640px) {
       .player-top-controls { align-items: flex-start; flex-direction: column; }
       .player-source-controls { align-items: flex-start; flex-direction: column; }
-      .stat-grid__row--counts,
-      .stat-grid__row--metrics { grid-template-columns: 1fr; }
+      .stat-grid__row--five,
+      .stat-grid__row--three { grid-template-columns: 1fr; }
     }
     .stat-filter-button:hover, .stat-filter-button:focus-visible { text-decoration: underline; text-underline-offset: .16em; outline: none; }
     .stat-filter-button--nemesis { color: oklch(78% 0.14 25); }
@@ -381,6 +384,7 @@ export class PlayerDetailComponent {
     const local = this.localStats();
     return local ? mergeStats(server, local, this.allMatches()) : serverStatsView(server);
   });
+  readonly matchDrawRate = computed(() => { const s = this.stats(); return s.playedMatchCount > 0 ? s.matchDraws / s.playedMatchCount : null; });
   readonly orderedMatches = computed(() => orderMatches(this.allMatches(), this.newestFirst()));
   readonly filteredMatches = computed(() => {
     const search = this.matchSearch().trim();

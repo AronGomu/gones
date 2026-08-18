@@ -273,13 +273,75 @@ describe('PlayerDetailComponent', () => {
     expect(player.opponentTone('Carol')).toBeNull();
   });
 
-  it('renders exact seven-count then five-metric card order', () => {
+  it('renders three rows', () => {
     const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
-    const cards = [...source.matchAll(/data-cy="player-stat-card-([^"]+)"/g)].map((match) => match[1]);
-    expect(cards).toEqual([
-      'played-matches', 'match-wins', 'match-losses', 'match-draws', 'played-games', 'game-wins', 'game-losses',
-      'match-winrate', 'game-winrate', 'nemesis', 'rival', 'most-played-archetype',
-    ]);
+    const rows = [...source.matchAll(/data-cy="player-stat-row-(\d)"/g)].map((m) => m[1]);
+    expect(rows).toEqual(['1', '2', '3']);
+  });
+
+  it('row one holds five cells in order', () => {
+    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+    const s = source.indexOf('player-stat-row-1"');
+    const e = source.indexOf('player-stat-row-2"');
+    const cells = [...source.slice(s, e).matchAll(/data-cy="player-stat-card-([^"]+)"/g)].map((m) => m[1]);
+    expect(cells).toEqual(['played-matches', 'match-winrate', 'match-wins', 'match-losses', 'match-draws']);
+  });
+
+  it('row two holds five cells in order', () => {
+    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+    const s = source.indexOf('player-stat-row-2"');
+    const e = source.indexOf('player-stat-row-3"');
+    const cells = [...source.slice(s, e).matchAll(/data-cy="player-stat-card-([^"]+)"/g)].map((m) => m[1]);
+    expect(cells).toEqual(['played-games', 'game-winrate', 'game-wins', 'game-losses', 'match-draw-rate']);
+  });
+
+  it('row three holds three cells in order', () => {
+    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+    const s = source.indexOf('player-stat-row-3"');
+    const section = source.slice(s);
+    const cells = [...section.matchAll(/data-cy="player-stat-card-([^"]+)"/g)].map((m) => m[1]).slice(0, 3);
+    expect(cells).toEqual(['most-played-archetype', 'nemesis', 'rival']);
+  });
+
+  it('computes the draw percentage', async () => {
+    localStorage.clear();
+    const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, playedMatchCount: 10, matchDraws: 2 } }) });
+    await settle();
+    expect(player.matchDrawRate()).toBeCloseTo(0.2);
+    expect(player.pct(player.matchDrawRate())).toBe('20.00%');
+  });
+
+  it('shows na with no matches', async () => {
+    localStorage.clear();
+    const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, playedMatchCount: 0, matchDraws: 0 } }) });
+    await settle();
+    expect(player.matchDrawRate()).toBeNull();
+    expect(player.pct(null)).toBe('common.na');
+  });
+
+  it('rounds to two decimals', async () => {
+    localStorage.clear();
+    const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, playedMatchCount: 3, matchDraws: 1 } }) });
+    await settle();
+    expect(player.pct(player.matchDrawRate())).toBe('33.33%');
+  });
+
+  it('does not tint the draw percentage', () => {
+    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+    const s = source.indexOf('player-stat-value-match-draw-rate');
+    const cellSource = source.slice(s - 200, s + 50);
+    expect(cellSource).toContain('class="stat-number"');
+    expect(cellSource).not.toContain('winrateStatClass');
+  });
+
+  it('keeps the nemesis filter button', async () => {
+    localStorage.clear();
+    const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, nemesis: { name: 'Bob', wins: 0, losses: 2 } } }) });
+    await settle();
+    const nemesis = player.stats().nemesis;
+    expect(nemesis).not.toBeNull();
+    player.filterByExact(nemesis!.name);
+    expect(player.matchSearch()).toBe('Bob');
   });
 
   it('pagination helper clamps unsupported page bounds', () => {

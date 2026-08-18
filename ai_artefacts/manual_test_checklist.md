@@ -496,3 +496,19 @@ Run `npm run dev -- --env=demo`.
 - [ ] As a Power User with a browser-local league (Settings → power user, then create a League while signed out and record a match for a player who also exists on the server): on that player's page with **Only use online data** checked, only the server matches are listed and the totals are the server's. Uncheck it → the totals grow by exactly the local matches, the local rows appear carrying a **This browser** badge, and no server match is counted twice. Check it again → the local rows and their contribution disappear.
 - [ ] With **Only use online data** off, Match Win Rate and Game Win Rate are recomputed from the merged counts (not an average of two rates), and Nemesis / Rival / Most Played Archetype are recomputed over the merged history.
 - [ ] Both the top and bottom **back** buttons still leave the page, and the scroll-to-top button still works.
+
+## T27 player-stat-grid
+
+The player stat grid is now three rows of 5, 5 and 3 cells, and carries a new Match Draw Percentage
+tile (`matchDraws / playedMatchCount`, `N/A` when the player has no matches).
+
+Run `npm run dev -- --env=demo` and open a player page (`Demo Player 06` is a good one: 7 matches,
+5-2-0, 17 games 12-5).
+
+- [ ] The grid shows three rows with exactly 5, 5 and 3 cells, in the order the ticket specifies.
+- [ ] Row 2 position 5 is Match Draw Percentage. For `Demo Player 06` (0 draws of 7) it reads `0%`; find or make a player with a draw and confirm the value equals draws ÷ matches.
+- [ ] Open a player with no played matches (or a fresh browser-local one) — the draw percentage reads `N/A`, not `0%` or a blank cell.
+- [ ] The draw tile is plain: it is not tinted by the win-rate colour scale that the winrate cells use.
+- [ ] Resize the window below 1100 px and again below 640 px. The rows reflow without cells overlapping, clipping or spilling out of their cards.
+- [ ] Click the Nemesis cell, then the Rival cell. Each still filters the match list below to that opponent, and clearing the filter restores the full list.
+- [ ] Toggle Online-only off with a browser-local league present. The grid still renders 5/5/3 and the numbers include the local matches.
