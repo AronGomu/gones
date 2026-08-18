@@ -512,3 +512,24 @@ Run `npm run dev -- --env=demo` and open a player page (`Demo Player 06` is a go
 - [ ] Resize the window below 1100 px and again below 640 px. The rows reflow without cells overlapping, clipping or spilling out of their cards.
 - [ ] Click the Nemesis cell, then the Rival cell. Each still filters the match list below to that opponent, and clearing the filter restores the full list.
 - [ ] Toggle Online-only off with a browser-local league present. The grid still renders 5/5/3 and the numbers include the local matches.
+
+## T28 match-card-archetypes
+
+Each match card now shows the archetype matchup (`{own} vs {opponent}`) immediately after the score,
+with the player's archetype in cyan and the opponent's in red. An empty archetype renders
+`Archetype manquant` (fr) / `Missing archetype` (en) in the same colour.
+
+Run `npm run dev -- --env=demo` (French or English) and open a player page (`Demo Player 06` has 7
+matches; most-played archetype is `Death and Taxes (White)`, and at least one row has an empty
+`ownArchetype` so the placeholder branch is reachable).
+
+- [ ] Every match card shows the archetype pair right after the score, formatted `{own} vs {opponent}`.
+- [ ] The player's archetype token is cyan (`oklch(80% 0.12 200)`); the opponent's is red (same shade as Nemesis).
+- [ ] The `vs` separator between archetypes is muted/dim and lowercase.
+- [ ] A match whose `ownArchetype` is empty renders `Archetype manquant` (fr) / `Missing archetype` (en) in cyan; a match with an empty `opponentArchetype` renders the placeholder in red.
+- [ ] Switch language to English. The placeholder reads `Missing archetype`.
+- [ ] A bye row shows only the player's archetype token with no `vs` separator and no opponent archetype.
+- [ ] Click any archetype token → the filter input is set and the match list narrows to cards containing that archetype; the matching text is highlighted. Clicking **Clear** restores the full list.
+- [ ] Searching for an archetype name in the filter input matches the card (filtering works via `matchSearchText`).
+- [ ] The existing `VS` separator between result pill and opponent name is still there; it is distinct from the new lowercase `vs` between archetypes.
+- [ ] Both top and bottom back buttons, order toggle, pagination, and match-card navigation to the tournament are unaffected.

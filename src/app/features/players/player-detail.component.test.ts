@@ -348,4 +348,93 @@ describe('PlayerDetailComponent', () => {
     expect(paginateMatches([1, 2, 3], 0, 2)).toEqual([1, 2]);
     expect(paginateMatches([1, 2, 3], 9, 2)).toEqual([3]);
   });
+
+  describe('match card archetypes', () => {
+    it('renders the archetype pair', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ matches: [serverMatch({ ownArchetype: 'Burn', opponentArchetype: 'Control' })] }) });
+      await settle();
+      const match = player.filteredMatches()[0];
+      expect(player.ownArchetypeLabel(match)).toBe('Burn');
+      expect(player.opponentArchetypeLabel(match)).toBe('Control');
+      const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+      expect(source).toContain('data-cy="match-own-archetype"');
+      expect(source).toContain('data-cy="match-opponent-archetype"');
+    });
+
+    it('places the archetype span after the score in the template', () => {
+      const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+      const scorePos = source.indexOf('match-card__score"');
+      const archetypePos = source.indexOf('match-card__archetypes"');
+      expect(archetypePos).toBeGreaterThan(scorePos);
+    });
+
+    it('tints the player archetype cyan via own class', () => {
+      const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+      expect(source).toContain('match-card__archetype--own');
+      expect(source).toMatch(/match-card__archetype--own[^}]*oklch.*200/);
+    });
+
+    it('tints the opponent archetype red via opponent class', () => {
+      const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+      expect(source).toContain('match-card__archetype--opponent');
+      expect(source).toMatch(/match-card__archetype--opponent[^}]*oklch.*25/);
+    });
+
+    it('shows the placeholder for a missing own archetype', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ matches: [serverMatch({ ownArchetype: '' })] }) });
+      await settle();
+      const match = player.filteredMatches()[0];
+      expect(player.ownArchetypeLabel(match)).toBe('player.missingArchetype');
+    });
+
+    it('shows the placeholder for a missing opponent archetype', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ matches: [serverMatch({ opponentArchetype: '' })] }) });
+      await settle();
+      const match = player.filteredMatches()[0];
+      expect(player.opponentArchetypeLabel(match)).toBe('player.missingArchetype');
+    });
+
+    it('shows both placeholders when neither archetype is known', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ matches: [serverMatch({ ownArchetype: '', opponentArchetype: '' })] }) });
+      await settle();
+      const match = player.filteredMatches()[0];
+      expect(player.ownArchetypeLabel(match)).toBe('player.missingArchetype');
+      expect(player.opponentArchetypeLabel(match)).toBe('player.missingArchetype');
+    });
+
+    it('omits the opponent archetype for a bye', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ matches: [serverMatch({ kind: 'bye', opponentName: 'Bye', ownScore: 2, opponentScore: 0, opponentArchetype: '' })] }) });
+      await settle();
+      const match = player.filteredMatches()[0];
+      expect(match.kind).toBe('bye');
+      expect(player.ownArchetypeLabel(match)).toBeTruthy();
+      const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+      expect(source).toContain("match.kind !== 'bye'");
+    });
+
+    it('filters by archetype when filterByExact is called with the archetype label', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ matches: [serverMatch({ ownArchetype: 'Burn' }), serverMatch({ ownArchetype: 'Control', roundIndex: 1, opponentArchetype: 'Burn' })] }) });
+      await settle();
+      expect(player.filteredMatches()).toHaveLength(2);
+      player.filterByExact('Burn');
+      expect(player.filteredMatches()).toHaveLength(2);
+      player.filterByExact('Control');
+      expect(player.filteredMatches()).toHaveLength(1);
+    });
+
+    it('highlights a matching archetype text', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ matches: [serverMatch({ ownArchetype: 'Burn' })] }) });
+      await settle();
+      player.setMatchSearch('burn');
+      const parts = player.highlightParts('Burn');
+      expect(parts.some((part) => part.highlighted)).toBe(true);
+    });
+  });
 });

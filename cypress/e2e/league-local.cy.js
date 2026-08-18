@@ -353,6 +353,11 @@ describe('League Archive browser-local flows', () => {
     cy.get('[data-cy="player-match-local"]').should('not.exist');
     cy.contains('[data-cy="match-card"]', 'Browser Opponent').should('not.exist');
     cy.get('[data-cy="player-sync-button"]').should('exist');
+    cy.get('[data-cy="match-own-archetype"]').should('exist');
+    cy.get('[data-cy="match-own-archetype"]').click();
+    cy.get('[data-cy="match-filter-input"]').should('not.have.value', '');
+    cy.get('[data-cy="match-card"]').should('have.length', 1);
+    cy.get('[data-cy="match-filter-clear"]').click();
 
     // Off: this browser's league is added to the totals and to the history, and marked.
     cy.get('[data-cy="player-online-only-toggle"]').click();

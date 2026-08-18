@@ -157,6 +157,13 @@ export interface PlayerStatsView {
                 <span class="match-card__score-separator" [attr.data-cy]="'match-score-separator-' + matchIndex">–</span>
                 <span [class.score-number--loss]="match.ownScore !== match.opponentScore" [attr.data-cy]="'match-score-losing-' + matchIndex">@for (part of highlightParts(matchLosingScore(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-score-losing-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</span>
               </span>
+              <span class="match-card__archetypes" [attr.data-cy]="'match-archetypes-' + matchIndex">
+                <button type="button" class="match-filter-token match-card__archetype match-card__archetype--own" data-cy="match-own-archetype" (click)="filterByExact(ownArchetypeLabel(match), $event)">@for (part of highlightParts(ownArchetypeLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-own-archetype-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+                @if (match.kind !== 'bye') {
+                  <span class="match-card__archetype-vs" [attr.data-cy]="'match-archetype-vs-' + matchIndex">{{ i18n.t('player.archetypeVersus') }}</span>
+                  <button type="button" class="match-filter-token match-card__archetype match-card__archetype--opponent" data-cy="match-opponent-archetype" (click)="filterByExact(opponentArchetypeLabel(match), $event)">@for (part of highlightParts(opponentArchetypeLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-opponent-archetype-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+                }
+              </span>
             </span>
           </mat-card-content>
         </mat-card>
@@ -344,6 +351,10 @@ export interface PlayerStatsView {
     .match-card--win .match-card__result-pill { background: oklch(88% 0.12 145 / .16); color: oklch(88% 0.12 145); }
     .match-card--loss .match-card__result-pill { background: oklch(86% 0.12 25 / .14); color: oklch(88% 0.11 25); }
     .match-card--draw .match-card__result-pill { background: oklch(86% 0.06 82 / .08); color: oklch(86% 0.06 82 / .9); border-color: oklch(86% 0.06 82 / .28); }
+    .match-card__archetypes { display: inline-flex; align-items: center; gap: .4rem; font-size: .95rem; font-weight: 800; }
+    .match-card__archetype--own { color: oklch(80% 0.12 200); }
+    .match-card__archetype--opponent { color: oklch(78% 0.14 25); }
+    .match-card__archetype-vs { color: var(--dim-ash); font-size: .85em; text-transform: lowercase; }
     .match-card__score { color: var(--ash); font-size: 1.18rem; font-weight: 950; white-space: nowrap; }
     .match-card__score-separator { color: var(--dim-ash); margin-inline: .12rem; }
     .score-number--win { color: oklch(82% 0.15 145); }
@@ -485,8 +496,11 @@ export class PlayerDetailComponent {
   matchLosingScore(match: PlayerMatchView): string { return Math.min(match.ownScore, match.opponentScore).toString(); }
   matchScoreLabel(match: PlayerMatchView): string { return `${this.matchWinningScore(match)}–${this.matchLosingScore(match)}`; }
 
+  ownArchetypeLabel(match: PlayerMatchView): string { return match.ownArchetype || this.i18n.t('player.missingArchetype'); }
+  opponentArchetypeLabel(match: PlayerMatchView): string { return match.opponentArchetype || this.i18n.t('player.missingArchetype'); }
+
   matchCardAriaLabel(match: PlayerMatchView): string {
-    return this.i18n.t('player.matchCardAria', { result: this.matchResultLabel(match), opponent: match.opponentName, tournament: match.tournamentName, round: this.matchRoundLabel(match) });
+    return this.i18n.t('player.matchCardAria', { result: this.matchResultLabel(match), opponent: match.opponentName, tournament: match.tournamentName, round: this.matchRoundLabel(match), own: this.ownArchetypeLabel(match), opponent2: match.kind !== 'bye' ? this.opponentArchetypeLabel(match) : '' });
   }
 
   opponentTone(name: string): 'nemesis' | 'rival' | null {
@@ -549,6 +563,8 @@ export class PlayerDetailComponent {
       match.opponentName,
       this.matchResultLabel(match),
       this.matchScoreLabel(match),
+      this.ownArchetypeLabel(match),
+      ...(match.kind !== 'bye' ? [this.opponentArchetypeLabel(match)] : []),
     ].join(' ');
   }
 }
