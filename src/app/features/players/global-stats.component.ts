@@ -17,6 +17,7 @@ import {
   GlobalStatsQuery,
   globalStatsQueryParams,
   parseGlobalStatsQuery,
+  sortGlobalStatsRows,
   toggleGlobalStatsSort,
 } from './global-stats-query';
 import { GlobalStatsCatalogCacheService } from './global-stats-catalog-cache.service';
@@ -189,19 +190,8 @@ export class GlobalStatsComponent implements OnDestroy {
     return this.allRows().filter(r => r.playerName.toLowerCase().includes(term));
   });
 
-  readonly sortedRows = computed(() => {
-    const rows = [...this.filteredRows()];
-    const col = this.currentSort();
-    const dir = this.currentDirection() ?? 'desc';
-    if (!col) return rows;
-    rows.sort((a, b) => {
-      const av = (a[col as keyof GlobalPlayerStatisticsRow] as number) ?? 0;
-      const bv = (b[col as keyof GlobalPlayerStatisticsRow] as number) ?? 0;
-      const cmp = av < bv ? -1 : av > bv ? 1 : a.playerName.localeCompare(b.playerName);
-      return dir === 'asc' ? cmp : -cmp;
-    });
-    return rows;
-  });
+  /** Server ordering, reproduced client-side so both rankings surfaces agree (see the helper). */
+  readonly sortedRows = computed(() => sortGlobalStatsRows(this.filteredRows(), this.currentSort(), this.currentDirection() ?? 'desc'));
 
   readonly pagedRows = computed(() => {
     const page = this.currentPage();

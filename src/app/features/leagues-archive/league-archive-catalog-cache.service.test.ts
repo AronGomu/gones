@@ -3,7 +3,7 @@ import { Injector } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PersistedLeague } from '../../domain/models';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { LEAGUE_CATALOG_CACHE_KEY, LeagueArchiveCatalogCacheService } from './league-archive-catalog-cache.service';
+import { clearLeagueCatalogCache, LEAGUE_CATALOG_CACHE_KEY, LeagueArchiveCatalogCacheService } from './league-archive-catalog-cache.service';
 
 function makeStorage(): Storage {
   const store = new Map<string, string>();
@@ -94,5 +94,35 @@ describe('LeagueArchiveCatalogCacheService', () => {
     const service = buildService(listServerLeagues);
 
     await expect(service.load()).rejects.toThrow('Offline');
+  });
+});
+
+/**
+ * ADR 0039: the TTL governs navigation, never correctness. Nothing ever dropped this row, so a
+ * League created, renamed or deleted — and the Archive Tournament a Live finalize produces — was
+ * absent from `/leagues-archive` for a full 24 hours.
+ */
+describe('clearLeagueCatalogCache', () => {
+  beforeEach(() => {
+    (globalThis as { localStorage?: Storage }).localStorage = makeStorage();
+  });
+
+  it('sends the next load back to the server even though the row was fresh', async () => {
+    globalThis.localStorage!.setItem(LEAGUE_CATALOG_CACHE_KEY, JSON.stringify({
+      items, fetchedAt: new Date().toISOString(), truncated: false
+    }));
+    const listServerLeagues = vi.fn().mockResolvedValue(items);
+    const service = buildService(listServerLeagues);
+
+    clearLeagueCatalogCache();
+
+    const result = await service.load();
+    expect(result.fromCache).toBe(false);
+    expect(listServerLeagues).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when nothing is cached', () => {
+    expect(() => clearLeagueCatalogCache()).not.toThrow();
+    expect(globalThis.localStorage!.getItem(LEAGUE_CATALOG_CACHE_KEY)).toBeNull();
   });
 });

@@ -2,8 +2,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, InjectionToken, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessionScopeService } from '../../auth/session-scope.service';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { MessageKey } from '../../i18n/messages';
 import { OnlineStatusService } from '../../shared/online-status.service';
+import { REGISTRATIONS_CACHE_FAMILY } from './my-registrations';
 import {
   Client,
   PublicEventParticipantListResponse,
@@ -41,6 +43,8 @@ export function registrationErrorKey(code?: string): MessageKey {
 export class EventRegistrationService {
   private readonly client = inject(Client);
   private readonly isOnline = inject(REGISTRATION_ONLINE);
+  /** My Registrations caches every page of this list, and this service owns both writes to it. */
+  private readonly cache = inject(ServerReadCacheService);
   /** Idempotency keys are session-scoped: a new user must never replay the previous one. */
   private readonly retryKeys = new Map<string, string>();
 
@@ -80,6 +84,9 @@ export class EventRegistrationService {
     try {
       const response = await firstValueFrom(dispatch(key));
       this.retryKeys.delete(operation);
+      // Every page of My Registrations now shows a registration that is no longer what the server
+      // holds, so the whole family goes rather than waiting out the 24h TTL (ADR 0039).
+      await this.cache.invalidateFamily(REGISTRATIONS_CACHE_FAMILY);
       return response;
     } catch (error) {
       if (!(error instanceof HttpErrorResponse && error.status === 0)) this.retryKeys.delete(operation);

@@ -6,6 +6,7 @@ import { AuthSessionCoordinationService } from '../auth/auth-session-coordinatio
 import { AuthService } from '../auth/auth.service';
 import { installFakeWebLocks } from '../auth/fake-web-locks';
 import { SessionScopeService } from '../auth/session-scope.service';
+import { REGISTRATIONS_CACHE_FAMILY, registrationsCacheKey } from '../features/events/my-registrations';
 import { CachedRead, IndexedDbServerReadCacheStore, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from './server-read-cache.service';
 
 /**
@@ -460,6 +461,38 @@ describe('ServerReadCacheService invalidate', () => {
 
     expect(logged.mock.calls.map(([line]) => String(line)).join()).toContain('server-read-cache.invalidate');
     logged.mockRestore();
+  });
+});
+
+/**
+ * `invalidateFamily` matches a key that *is* the family or begins `<family>?` and nothing else, so a
+ * paged key shaped any other way makes the call a silent no-op — the mutation looks invalidated and
+ * the page keeps serving the row for the full 24h. These pin the one paged family in the app against
+ * the matcher rather than trusting the two to stay in step.
+ */
+describe('ServerReadCacheService invalidateFamily', () => {
+  it('drops every page My Registrations caches, and nothing else', async () => {
+    const store = fakeStore({
+      [`u1:${registrationsCacheKey(1)}`]: cached([1]),
+      [`u1:${registrationsCacheKey(2)}`]: cached([2]),
+      [`u1:${REGISTRATIONS_CACHE_FAMILY}`]: cached([3]),
+      'u1:registrations-elsewhere': cached([4]),
+      'u2:registrations?page=1': cached([5])
+    });
+    const { service } = setup({ userId: 'u1', store });
+
+    await service.invalidateFamily(REGISTRATIONS_CACHE_FAMILY);
+
+    expect([...store.rows.keys()]).toEqual(['u1:registrations-elsewhere', 'u2:registrations?page=1']);
+  });
+
+  it('deletes nothing for an anonymous caller', async () => {
+    const store = fakeStore({ [`u1:${registrationsCacheKey(1)}`]: cached([1]) });
+    const { service } = setup({ store });
+
+    await service.invalidateFamily(REGISTRATIONS_CACHE_FAMILY);
+
+    expect(store.delete).not.toHaveBeenCalled();
   });
 });
 

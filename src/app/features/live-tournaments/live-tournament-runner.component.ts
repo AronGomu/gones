@@ -17,10 +17,12 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId } from '../../data/league-archive-origin';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { canManageLive, liveCommandError, liveDeleteOutcome } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
+import { clearLeagueCatalogCache } from '../leagues-archive/league-archive-catalog-cache.service';
 import { activeLivePlayers, autoLiveSwissRoundCount, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, currentLiveRound, currentRoundComplete, finalizeLiveTournament as finalizeLiveTournamentDocument, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, unpaidActivePlayers } from '../../domain/live-tournament';
 import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, trimPlayerName } from '../../domain/models';
 import { collectKnownPlayerNames, suggestPlayerNames } from '../../domain/player-stats';
@@ -274,6 +276,8 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly power = inject(PowerUserSettingsService);
   private readonly onlineStatus = inject(OnlineStatusService);
+  /** Finalize and delete both remove this tournament from the list this page came from (ADR 0039). */
+  private readonly cache = inject(ServerReadCacheService);
   /** Resolved once, with the port itself (ADR 0021): a role change mid-session needs a reload. */
   readonly localMode = inject(LIVE_BACKEND_MODE) === 'browser-local';
   /** In the browser-local store the visitor owns everything they can see, so they have Live authority. */
@@ -644,6 +648,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       if (!latestLive) return;
       const version = this.serverVersion;
       const result = await this.liveRepo.finalizeLiveTournament(latestLive.id, version);
+      await this.cache.invalidate('live-tournaments');
       if (!result.leagueId) {
         // Browser-local authority (ADR 0021): there is no League to write into, so the finished
         // tournament is handed to the user as the JSON the server would have archived.
@@ -653,6 +658,8 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
         await this.load();
         return;
       }
+      // The finalize wrote an Archive Tournament into its League, so the public catalog is stale too.
+      clearLeagueCatalogCache();
       await this.router.navigate(['/leagues-archive', result.leagueId, 'tournaments-archive', result.finalizedTournamentId]);
     } catch (error) {
       logBoundaryError('live-tournament.finalize', error, { liveTournamentId: live.id, leagueId: live.leagueId });
@@ -745,6 +752,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     this.error.set('');
     try {
       await this.liveRepo.delete(live.id);
+      await this.cache.invalidate('live-tournaments');
       await this.router.navigate(['/live-tournaments']);
     } catch (error) {
       logBoundaryError('live-tournament-runner.delete', error, { liveTournamentId: live.id });

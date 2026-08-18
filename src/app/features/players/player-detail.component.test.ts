@@ -7,7 +7,7 @@ import { PlayerDetailResponse, PlayerMatchRow } from '../../api/generated/gones-
 import { PlayerDetailResult } from './player-detail-cache.service';
 import { PlayerDetailComponent, paginateMatches } from './player-detail.component';
 
-function league(id: string, opponent: string, count = 1): PersistedLeague {
+function league(id: string, opponent: string, count = 1, status: 'active' | 'completed' = 'completed'): PersistedLeague {
   return { ...createLeague({
     id,
     name: id,
@@ -16,6 +16,7 @@ function league(id: string, opponent: string, count = 1): PersistedLeague {
       leagueId: id,
       name: id,
       tournamentDate: '2026-01-01',
+      status,
       playerArchetypes: [{ playerName: 'Alice', archetype: 'Tempo' }],
       rounds: Array.from({ length: count }, (_, index) => ({
         id: `${id}-round-${index}`,
@@ -148,6 +149,44 @@ describe('PlayerDetailComponent', () => {
 
     expect(player.localLeagues()).toEqual([]);
     expect(player.stats().playedMatchCount).toBe(1);
+  });
+
+  /**
+   * The server half counts completed Archive Tournaments only, and a browser-local Tournament is
+   * created `active` (ADR 0028) — so without the same filter on the local half the identical
+   * document inflated every number on this page while being invisible on the server.
+   */
+  it('never counts a browser-local tournament the server would exclude', async () => {
+    localStorage.clear();
+    const { player } = component({ local: [league('local-league', 'Carol', 1, 'active')] });
+    await settle();
+
+    player.setOnlineOnly(false);
+    await settle();
+
+    // The server row verbatim: one played Match against Bob, no Carol anywhere.
+    expect(player.stats()).toMatchObject({
+      playedMatchCount: 1, matchWins: 1, playedGameCount: 3, gameWins: 2, gameLosses: 1,
+      rival: { name: 'Bob', wins: 1, losses: 0 }, mostPlayedArchetype: { name: 'Control', matchCount: 1 }
+    });
+    expect(player.allMatches().map((match) => match.opponentName)).toEqual(['Bob']);
+  });
+
+  it('counts a completed browser-local tournament and skips an active one in the same league', async () => {
+    localStorage.clear();
+    const mixed = league('local-league', 'Carol');
+    mixed.tournaments.push(createTournament({
+      id: 'local-league-active', leagueId: 'local-league', name: 'Running', tournamentDate: '2026-02-01', status: 'active',
+      rounds: [{ id: 'local-league-active-round', entries: [{ kind: 'match', id: 'local-league-active-match', table: '1', player1Name: 'Alice', player2Name: 'Dave', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
+    }));
+    const { player } = component({ local: [mixed] });
+    await settle();
+
+    player.setOnlineOnly(false);
+    await settle();
+
+    expect(player.stats().playedMatchCount).toBe(2);
+    expect(player.allMatches().map((match) => match.opponentName).sort()).toEqual(['Bob', 'Carol']);
   });
 
   it('renders a browser-local-only player when the server answers 404 and online-only is off', async () => {

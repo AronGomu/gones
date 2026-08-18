@@ -212,7 +212,15 @@ export class TournamentArchiveDetailComponent {
     return Boolean(league && league.status === 'active' && canUsePowerMutation(this.power.enabled(), canManageLeague(league.id, this.auth.profile()?.globalRole)));
   });
   readonly canManage = computed(() => this.editing() && this.canEdit());
-  readonly canToggleStatus = computed(() => canUsePowerMutation(this.power.enabled(), canManageLeague(this.leagueId(), this.auth.profile()?.globalRole)));
+  /**
+   * Same active-League gate as `canEdit`: a completed League refuses the edit batch this toggle
+   * sends (`RequireActive` on the server, `completedLeagueCannotBeEdited` locally), so offering the
+   * button there only ever produces a failure.
+   */
+  readonly canToggleStatus = computed(() => {
+    const league = this.league();
+    return Boolean(league && league.status === 'active' && canUsePowerMutation(this.power.enabled(), canManageLeague(league.id, this.auth.profile()?.globalRole)));
+  });
   readonly statusLabel = computed(() => this.i18n.t(this.tournament()?.status === 'completed' ? 'archive.tournamentCompleted' : 'archive.tournamentActive'));
   readonly toggleLabel = computed(() => this.tournament()?.status === 'completed' ? this.i18n.t('archive.reopen') : this.i18n.t('archive.markComplete'));
   readonly expandedRoundNumbers = signal<ReadonlySet<number>>(new Set());

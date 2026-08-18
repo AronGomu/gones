@@ -75,7 +75,6 @@ describe('PublicEventDetailComponent registration actions', () => {
     expect(header).toContain('class="public-participants__header-actions"');
     expect(header).toContain('data-cy="registration-ics"');
     expect(header).toContain('[href]="service.icsUrl(item.slug)"');
-    expect(header).toContain('download');
     expect(header).toContain('data-cy="registration-login"');
     expect(header).toContain('data-cy="registration-register"');
     expect(header).toContain('class="registration-register-button"');
@@ -90,6 +89,20 @@ describe('PublicEventDetailComponent registration actions', () => {
     expect(stylesheet).toContain('justify-content: space-between;');
     expect(stylesheet).toContain('.public-participants__header-actions {');
     expect(stylesheet).toContain('.registration-register-button:not(:disabled) {');
+  });
+
+  /**
+   * T13's rule, asserted on the anchor this page actually renders. The hero anchor of
+   * `event-detail-view` is opted out here (`[showIcsAction]="false"`), so this is the only
+   * Add-to-Calendar link a visitor can click on an Event page: it must hand the file to the OS
+   * calendar app rather than save it.
+   */
+  it('does not force a download from the Add-to-Calendar action', () => {
+    const icsMarker = header.indexOf('data-cy="registration-ics"');
+    const icsAnchor = header.slice(header.lastIndexOf('<a', icsMarker), header.indexOf('</a>', icsMarker));
+
+    expect(icsAnchor).not.toContain(' download');
+    expect(icsAnchor).toContain('type="text/calendar"');
   });
 
   it('keeps capability, offline, reason and mutation status inside Participants', () => {

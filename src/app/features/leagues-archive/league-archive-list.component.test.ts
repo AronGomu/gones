@@ -73,6 +73,17 @@ describe('league archive list template', () => {
     expect(source).toContain('this.catalogCache.load(options)');
   });
 
+  /**
+   * ADR 0039: creating a League here must not leave it missing from this very page for 24h. The
+   * create stays on the list rather than announcing `gones-league-updated`, so it drops the snapshot
+   * itself.
+   */
+  it('drops the catalog snapshot after a successful create', () => {
+    const body = source.slice(source.indexOf('async createLeague(): Promise<void>'));
+    const handler = body.slice(0, body.indexOf('\n  }'));
+    expect(handler).toContain('const league = await this.repo.createLeague(name);\n      clearLeagueCatalogCache();');
+  });
+
   it('both placeholders are hidden and labelled the same way', () => {
     expect(source).toContain('!isAnyPlaceholderLeagueId(league.id) || league.tournaments.length > 0');
     expect(source).toContain("isAnyPlaceholderLeagueId(league.id) ? this.i18n.t('liveList.unassigned') : league.name");

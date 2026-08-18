@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { GlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
 import {
   GLOBAL_STATS_PAGE_SIZES,
   GLOBAL_STATS_SORTABLE_COLS,
   parseGlobalStatsQuery,
+  sortGlobalStatsRows,
   toggleGlobalStatsSort,
   globalStatsQueryParams,
   type GlobalStatsQuery,
@@ -140,5 +142,74 @@ describe('globalStatsQueryParams round-trip', () => {
     const qs = new URLSearchParams(params as Record<string, string>);
     const parsed = parseGlobalStatsQuery(qs);
     expect(parsed).toEqual(original);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ordering — the client-side catalog must rank exactly as the paged endpoint does
+// ---------------------------------------------------------------------------
+
+function row(playerName: string, overrides: Partial<GlobalPlayerStatisticsRow> = {}): GlobalPlayerStatisticsRow {
+  return {
+    position: 0, playerName, playedMatchCount: 0, matchWins: 0, matchLosses: 0, matchDraws: 0,
+    matchWinrate: 0, playedGameCount: 0, gameWins: 0, gameLosses: 0, gameWinrate: 0,
+    nemesis: undefined, rival: undefined, mostPlayedArchetype: undefined,
+    ...overrides
+  };
+}
+
+const names = (rows: readonly GlobalPlayerStatisticsRow[]): string[] => rows.map((item) => item.playerName);
+
+describe('sortGlobalStatsRows', () => {
+  /**
+   * `PublicLeagueEndpoints.OrderGlobalStats` puts a null winrate last in **both** directions. A
+   * comparator that coerces null to 0 and then negates for `desc` hands ascending order to the very
+   * players the server ranks last — and a 0–0 draw makes a null `gameWinrate` reachable.
+   */
+  it('ranks a missing winrate last whichever direction is asked for', () => {
+    const rows = [
+      row('Ana', { gameWinrate: undefined }),
+      row('Bo', { gameWinrate: 0.25 }),
+      row('Cy', { gameWinrate: 0.75 })
+    ];
+
+    expect(names(sortGlobalStatsRows(rows, 'gameWinrate', 'asc'))).toEqual(['Bo', 'Cy', 'Ana']);
+    expect(names(sortGlobalStatsRows(rows, 'gameWinrate', 'desc'))).toEqual(['Cy', 'Bo', 'Ana']);
+  });
+
+  /** The name tiebreak is always ascending on the server; negating it with the value reversed it. */
+  it('tiebreaks equal values by name ascending in both directions', () => {
+    const rows = [row('Zoe', { matchWins: 4 }), row('Ana', { matchWins: 4 }), row('Mel', { matchWins: 4 })];
+
+    expect(names(sortGlobalStatsRows(rows, 'matchWins', 'desc'))).toEqual(['Ana', 'Mel', 'Zoe']);
+    expect(names(sortGlobalStatsRows(rows, 'matchWins', 'asc'))).toEqual(['Ana', 'Mel', 'Zoe']);
+  });
+
+  /** Ordinal, not the browser locale: Player Names are exact and case-sensitive (ADR 0040). */
+  it('tiebreaks names by code unit, not by locale collation', () => {
+    const rows = [row('a', { matchWins: 1 }), row('B', { matchWins: 1 })];
+
+    expect(names(sortGlobalStatsRows(rows, 'matchWins', 'desc'))).toEqual(['B', 'a']);
+  });
+
+  /** With no `?sort=` the endpoint documents `matchWins DESC, gameWins DESC, matchDraws DESC, name ASC`. */
+  it('applies the documented default ordering when no sort is selected', () => {
+    const rows = [
+      row('Ana', { matchWins: 2, gameWins: 4, matchDraws: 0 }),
+      row('Bo', { matchWins: 3, gameWins: 6, matchDraws: 1 }),
+      row('Cy', { matchWins: 2, gameWins: 5, matchDraws: 0 }),
+      row('Dee', { matchWins: 2, gameWins: 4, matchDraws: 2 }),
+      row('Abe', { matchWins: 2, gameWins: 4, matchDraws: 0 })
+    ];
+
+    expect(names(sortGlobalStatsRows(rows))).toEqual(['Bo', 'Cy', 'Dee', 'Abe', 'Ana']);
+  });
+
+  it('leaves the input array untouched', () => {
+    const rows = [row('Zoe', { matchWins: 1 }), row('Ana', { matchWins: 2 })];
+
+    sortGlobalStatsRows(rows, 'matchWins', 'desc');
+
+    expect(names(rows)).toEqual(['Zoe', 'Ana']);
   });
 });

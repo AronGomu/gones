@@ -177,7 +177,9 @@ describe('EventDetailViewComponent hero', () => {
     expect(source).toContain('showIcsAction() && icsUrl()');
   });
 
-  it('does not force a download from the hero', () => {
+  // The Add-to-Calendar rule is asserted on the anchor a visitor actually reaches, in
+  // `public-event-detail.component.test.ts` — the hero anchor here is opted out by its only host.
+  it('keeps the hero anchor consistent with it when a host opts in', () => {
     const icsMarker = source.indexOf('data-cy="event-ics"');
     const icsAnchor = source.slice(source.lastIndexOf('<a', icsMarker), source.indexOf('</a>', icsMarker));
 

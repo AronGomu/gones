@@ -282,7 +282,7 @@
 
 - [ ] Run `npm run dev -- --env=demo`, open `/events`, switch to list view.
 - [ ] Click **Add to Calendar** on any card — the browser should hand the `.ics` file to the OS handler (desktop: a calendar app chooser or the calendar app opens directly; mobile: the calendar app opens). The file should **not** silently drop into the Downloads folder.
-- [ ] Open the Event detail page; click **Add to Calendar** in the hero — same OS-handler behaviour as above.
+- [ ] Open the Event detail page; click **Add to Calendar** in the **Participants** header (the Event page renders no hero Add-to-Calendar anchor) — same OS-handler behaviour as above.
 - [ ] Confirm `curl -sI http://127.0.0.1:5080/api/events/<slug>.ics | grep -i 'content-disposition\|content-type'` shows `inline` and `text/calendar`.
 - [ ] Open DevTools → Network, click Add to Calendar — confirm the response `Content-Disposition` header starts with `inline` and still contains `filename*=<slug>.ics`.
 - [ ] The organizer bulk participants CSV export still downloads silently (no chooser) — confirm the `/admin/events/<slug>/participants` download is unaffected.
@@ -294,7 +294,7 @@
 - [ ] The kicker (organization name) above the title is a clickable link to the organization website; clicking it opens in a new tab with `rel="noopener noreferrer"`.
 - [ ] If the organization has no website, the kicker is a plain `<p>` with no anchor.
 - [ ] No button row (Live Tournament / Archive Tournament / Organization Website / Add to Calendar block) appears below the date/location row.
-- [ ] An **Add to Calendar** button appears immediately below the `<h1>` (before the description) and downloads the `.ics` via OS handler.
+- [ ] The Event page renders no Add-to-Calendar button in the hero: the one Add-to-Calendar action lives in the **Participants** header, and it hands the `.ics` to the OS handler.
 - [ ] Change system timezone or use a device in another zone — the title still shows venue local time (`Starting Hour`); the "your time" line below shows the viewer's local time.
 
 ## T15 event-organizer-row
@@ -383,7 +383,7 @@ in data exports and restores, and that the app behaves exactly as before at the 
 ## T21 tournament-completion-ui
 
 - [ ] Run `npm run dev -- --env=demo`, sign in as `organizer-gones-one-registration@gones.test`, enable Power User mode in Settings.
-- [ ] Open a League from `/leagues-archive`, open an Archive Tournament. Confirm a status badge is visible near the top of the heading block — it should read **Completed** (backfilled by T20 for demo data).
+- [ ] Open a League from `/leagues-archive` **whose own status is Active**, open an Archive Tournament. Confirm a status badge is visible near the top of the heading block — it should read **Completed** (backfilled by T20 for demo data). Inside a completed League no toggle is offered at all — see Post-review frontend fixes.
 - [ ] Confirm a **Reopen** button is visible in the action row (top-right area). Click it and confirm a confirmation dialog appears; dismiss with Cancel — confirm no change occurs and the badge still reads Completed.
 - [ ] Click **Reopen** again and confirm in the dialog. Confirm the badge changes to **Active** and the button changes to **Mark complete** — without a page reload.
 - [ ] Reload the page. Confirm the badge still reads **Active** (persisted through reload).
@@ -493,7 +493,7 @@ Run `npm run dev -- --env=demo`.
 - [ ] Open `/players/Nobody%20At%20All`. The page renders the empty state (**No Matches.**, every count `0`, rates `N/A`) and shows no error banner — an unknown player and a player with no completed match are one answer.
 - [ ] Every match control still works on the server data: click any date / league / tournament / round / opponent / result token to filter, the matching text is highlighted, **Clear** restores the full list, the order toggle flips between **Newest first** and **Oldest first**, the matches-per-page select and Previous/Next page through, and clicking a match card opens `/leagues-archive/{leagueId}/tournaments-archive/{tournamentId}?round=N` on the right round.
 - [ ] Nemesis and Rival are still tinted in the match list, and the Nemesis / Rival cards still filter the list when clicked.
-- [ ] As a Power User with a browser-local league (Settings → power user, then create a League while signed out and record a match for a player who also exists on the server): on that player's page with **Only use online data** checked, only the server matches are listed and the totals are the server's. Uncheck it → the totals grow by exactly the local matches, the local rows appear carrying a **This browser** badge, and no server match is counted twice. Check it again → the local rows and their contribution disappear.
+- [ ] As a Power User with a browser-local league (Settings → power user, then create a League while signed out, record a match for a player who also exists on the server, **and mark that Tournament complete** — statistics count completed Archive Tournaments only): on that player's page with **Only use online data** checked, only the server matches are listed and the totals are the server's. Uncheck it → the totals grow by exactly the local matches, the local rows appear carrying a **This browser** badge, and no server match is counted twice. Check it again → the local rows and their contribution disappear.
 - [ ] With **Only use online data** off, Match Win Rate and Game Win Rate are recomputed from the merged counts (not an average of two rates), and Nemesis / Rival / Most Played Archetype are recomputed over the merged history.
 - [ ] Both the top and bottom **back** buttons still leave the page, and the scroll-to-top button still works.
 
@@ -596,3 +596,23 @@ Four accepted backend findings from the branch review. The mail steps need a mai
 - [ ] While the API is up but before that restart, confirm `/api/leagues-archive/global-stats` no longer answers `304` against the ETag captured before the import.
 - [ ] Edit two different Leagues at the same moment (two browser tabs, both saving an Archive Tournament) — both saves succeed; neither returns a 500 and `player_statistics` holds exactly one row per player afterwards.
 - [ ] Signed in, hammer `GET /api/players/<name>` past 120 requests in a minute (vary the name so the ETag misses): the API answers `429` with `rate_limited` and a `Retry-After` header, the same as when signed out.
+
+## Post-review frontend fixes
+
+The accepted frontend findings from the branch review that have observable behaviour — the sixth,
+the `localStorage` boundary allowlist, is test-only. The cache steps all need DevTools open on the
+Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a self-inflicted write
+(ADR 0039).
+
+- [ ] Run `npm run dev -- --env=demo`, sign in as an Organizer, open `/live-tournaments` (cache warms), open a Live Tournament, finalize it into a League, then return to `/live-tournaments`: the finalized tournament is gone from the list and a `/api/live-tournaments*` request was made. Repeat with **Delete** from the runner's advanced settings — the deleted tournament is gone immediately too.
+- [ ] Finalize a Live Tournament into a League, then open `/leagues-archive`: the resulting Archive Tournament is counted on its League card without pressing Synchronize.
+- [ ] Signed in as `test@gones.test`, open `/registrations` (cache warms), open an Event you are not registered for and press **Register**, then return to `/registrations`: the new registration is listed and a `/api/users/me/registrations*` request was made. Unregister from it and return again — the attempt shows as cancelled, still without pressing Synchronize.
+- [ ] Enable Power User mode, open `/leagues-archive` (cache warms), create a League, then return to `/leagues-archive`: the new League is in the grid immediately. Repeat for renaming a League, deleting a League from the header menu, and deleting an Archive Tournament from the header menu.
+- [ ] Signed out with Power User mode on, create a browser-local League and an Archive Tournament in it, record a match for a player who also exists on the server, and leave that Tournament **Active**. Open that player's page and untick **Only use online data**: the counts, Nemesis, Rival, Most Played Archetype and the match list are unchanged from the online-only view — an active Tournament counts nowhere, exactly as on the server.
+- [ ] Mark that same browser-local Tournament **complete**, reload the player page and untick **Only use online data** again: now the local match is counted and its card carries the **This browser** badge.
+- [ ] Open any `/events/<slug>` and click **Add to Calendar** in the Participants header: the browser hands the `.ics` to the OS calendar handler instead of dropping it in Downloads.
+- [ ] Open an Archive Tournament inside a League whose status is **Completed** (mark a League complete first if the demo data has none): no **Mark complete / Reopen** button is rendered, matching the **Edit** button that is already hidden there.
+- [ ] Open the same Archive Tournament inside an **Active** League: the toggle is back and still works.
+- [ ] Open `/global-stats` with no `?sort=` in the URL: position 1 is the player with the most Match Wins, ties broken by Game Wins, then Match Draws, then name A→Z — the same first row as the League Archive's own ranking.
+- [ ] Sort by **Game Win Rate** ascending, then descending: a player whose only matches are 0–0 draws (no winrate, shown `N/A`) is listed **last** in both directions, never first.
+- [ ] Sort by any column and find two rows with the same value: their names read A→Z in both the ascending and the descending view.

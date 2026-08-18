@@ -76,7 +76,7 @@ describe('MyRegistrationsComponent caching', () => {
 
     await component.load();
 
-    expect(cache.readCached).toHaveBeenCalledWith('registrations:1', expect.any(Function), {});
+    expect(cache.readCached).toHaveBeenCalledWith('registrations?page=1', expect.any(Function), {});
     expect(listFn).not.toHaveBeenCalled();
   });
 
@@ -98,7 +98,7 @@ describe('MyRegistrationsComponent caching', () => {
     component.sync();
     await new Promise(resolve => setTimeout(resolve, 0));
 
-    expect(cache.readCached).toHaveBeenCalledWith('registrations:1', expect.any(Function), { force: true });
+    expect(cache.readCached).toHaveBeenCalledWith('registrations?page=1', expect.any(Function), { force: true });
   });
 
   it('shows the synced-at label from the cache result', async () => {

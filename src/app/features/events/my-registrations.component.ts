@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
 import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { I18nService } from '../../i18n/i18n.service';
-import { partitionRegistrationAttempts, registrationVenueTime } from './my-registrations';
+import { partitionRegistrationAttempts, registrationsCacheKey, registrationVenueTime } from './my-registrations';
 import { EventRegistrationService } from './event-registration.service';
 import { LatestRequest } from '../../shared/async-guards';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -72,7 +72,7 @@ export class MyRegistrationsComponent implements OnInit {
     this.loading.set(true);
     this.error.set(false);
     try {
-      const result = await this.cache.readCached(`registrations:${this.page()}`, () => this.registrations.list(this.page(), this.pageSize), options);
+      const result = await this.cache.readCached(registrationsCacheKey(this.page()), () => this.registrations.list(this.page(), this.pageSize), options);
       if (!this.latest.isCurrent(request)) return;
       this.items.set(result.value.items);
       this.totalCount.set(result.value.totalCount);

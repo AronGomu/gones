@@ -384,7 +384,7 @@ export class PlayerDetailComponent {
   /** `null` while Online-only is on: nothing browser-local counts, so nothing browser-local is read. */
   readonly localStats = computed<PlayerStatistics | null>(() => this.onlineOnly()
     ? null
-    : calculatePlayerStatistics({ version: GONES_DATA_VERSION, leagues: this.localLeagues(), calendarEvents: [] } satisfies GonesData, this.playerName()));
+    : calculatePlayerStatistics({ version: GONES_DATA_VERSION, leagues: completedTournamentsOnly(this.localLeagues()), calendarEvents: [] } satisfies GonesData, this.playerName()));
   readonly allMatches = computed<PlayerMatchView[]>(() => {
     const server = (this.serverPayload()?.matches ?? []).map(toServerMatchView);
     const local = this.localStats()?.matches ?? [];
@@ -567,6 +567,20 @@ export class PlayerDetailComponent {
       ...(match.kind !== 'bye' ? [this.opponentArchetypeLabel(match)] : []),
     ].join(' ');
   }
+}
+
+/**
+ * The one statistics rule, applied to the browser half too: only a **completed** Archive Tournament
+ * counts.
+ *
+ * The server read model already excludes an active Tournament, and a browser-local Tournament is
+ * created `active` (ADR 0028), so without this the same document would inflate the played Match
+ * count, the winrates, the Nemesis, the Rival and the most played Archetype on this page while being
+ * invisible on the server. Filtering here rather than inside `calculatePlayerStatistics` keeps the
+ * shared domain function — and its C# twin — identical on both sides of the parity fixtures.
+ */
+export function completedTournamentsOnly(leagues: readonly PersistedLeague[]): PersistedLeague[] {
+  return leagues.map((league) => ({ ...league, tournaments: league.tournaments.filter((tournament) => tournament.status === 'completed') }));
 }
 
 export function paginateMatches<T>(matches: readonly T[], page: number, pageSize: number): T[] {

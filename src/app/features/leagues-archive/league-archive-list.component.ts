@@ -20,7 +20,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
 import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { TextPromptDialogComponent } from '../../shared/dialogs';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
-import { LeagueArchiveCatalogCacheService } from './league-archive-catalog-cache.service';
+import { clearLeagueCatalogCache, LeagueArchiveCatalogCacheService } from './league-archive-catalog-cache.service';
 
 @Component({
   standalone: true,
@@ -145,6 +145,7 @@ export class LeagueArchiveListComponent {
     this.creating.set(true);
     try {
       const league = await this.repo.createLeague(name);
+      clearLeagueCatalogCache();
       this.error.set('');
       await this.router.navigate(['/leagues-archive', league.id]);
     } catch (error) {

@@ -1,5 +1,19 @@
 import { EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
 
+/**
+ * The private cache family My Registrations pages under (ADR 0039).
+ *
+ * The `?` is load-bearing: `ServerReadCacheService.invalidateFamily` only matches a key that is the
+ * family itself or begins `<family>?`, so a page key that separated its page with anything else
+ * would make the invalidation a silent no-op and leave a new or cancelled registration hidden for
+ * the full 24 hours.
+ */
+export const REGISTRATIONS_CACHE_FAMILY = 'registrations';
+
+export function registrationsCacheKey(page: number): string {
+  return `${REGISTRATIONS_CACHE_FAMILY}?page=${page}`;
+}
+
 export interface RegistrationAttemptGroups {
   upcoming: EventRegistrationHistoryResponse[];
   history: EventRegistrationHistoryResponse[];

@@ -232,6 +232,18 @@ describe('Tournament completion status badge and toggle', () => {
     expect(component.canToggleStatus()).toBe(false);
   });
 
+  /**
+   * The toggle sends the same edit batch `canEdit` gates: a completed League refuses it at
+   * `RequireActive` on the server and `completedLeagueCannotBeEdited` locally, so an enabled button
+   * there could only ever fail.
+   */
+  it('hides the toggle inside a completed League', async () => {
+    const completed = { ...league('local-s', 'S', 'active'), status: 'completed' as const };
+    const { component } = await build({ power: true, role: 'Admin', source: completed });
+    expect(component.canEdit()).toBe(false);
+    expect(component.canToggleStatus()).toBe(false);
+  });
+
   it('confirms before toggling', async () => {
     const { component, saveTournamentEdits, open } = await build({
       power: true, role: 'Organizer',

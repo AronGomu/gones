@@ -160,4 +160,24 @@ describe('canonical browser store containment', () => {
       'src/app/shared/power-user-settings.service.ts'
     ]);
   });
+
+  /**
+   * The allowlist above only sees raw `localStorage` calls, and `catalog-cache.ts` is now the single
+   * file that makes them for public reads — so without this second list a new file could put private
+   * user data in `localStorage` through `writeCatalogEntry` and still pass. `localStorage` outlives
+   * logout and is readable by the next account on this browser, so each importer is named on purpose
+   * and adding one is a deliberate edit here.
+   */
+  it('keeps the public catalog cache helper to its declared importers', () => {
+    expect(filesMatching(/from '[^']*shared\/catalog-cache'/)).toEqual([
+      // Public Event catalog — anonymous GET responses.
+      'src/app/features/events/event-catalog-cache.service.ts',
+      // Public League Archive catalog — anonymous GET responses.
+      'src/app/features/leagues-archive/league-archive-catalog-cache.service.ts',
+      // Public global Player Statistics catalog — anonymous GET responses.
+      'src/app/features/players/global-stats-catalog-cache.service.ts',
+      // Public per-player statistics — anonymous GET responses.
+      'src/app/features/players/player-detail-cache.service.ts'
+    ]);
+  });
 });

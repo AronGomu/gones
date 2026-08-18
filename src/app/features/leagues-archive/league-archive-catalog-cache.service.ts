@@ -1,9 +1,21 @@
 import { Injectable, inject } from '@angular/core';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { PersistedLeague } from '../../domain/models';
-import { CatalogEntry, CatalogResult, isCatalogFresh, readCatalogEntry, writeCatalogEntry } from '../../shared/catalog-cache';
+import { CatalogEntry, CatalogResult, clearCatalogEntry, isCatalogFresh, readCatalogEntry, writeCatalogEntry } from '../../shared/catalog-cache';
 
 export const LEAGUE_CATALOG_CACHE_KEY = 'gones.leagues-archive.catalog';
+
+/**
+ * Drops the catalog row so the next `/leagues-archive` load reads the server instead of a snapshot
+ * taken before this mutation (ADR 0039: the TTL governs navigation, never correctness).
+ *
+ * It is a module function rather than a method because the callers are the League and Tournament
+ * mutation sites — the app header, the Live runner's finalize — none of which own this page or its
+ * injector, and a created, renamed or deleted League must not wait out 24 hours to appear.
+ */
+export function clearLeagueCatalogCache(): void {
+  clearCatalogEntry(LEAGUE_CATALOG_CACHE_KEY);
+}
 
 type StoredEntry = CatalogEntry<PersistedLeague[]>;
 

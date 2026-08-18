@@ -22,6 +22,7 @@ import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
 import { ApiProblemError } from './api/api-boundary';
 import { BreadcrumbItem, buildBreadcrumbs } from './app-breadcrumbs';
+import { clearLeagueCatalogCache } from './features/leagues-archive/league-archive-catalog-cache.service';
 import { canUsePowerMutation, PowerUserSettingsService } from './shared/power-user-settings.service';
 
 const AUTH_PATHS = ['/login', '/register', '/auth/complete-profile', '/verify-email', '/forgot-password', '/reset-password'];
@@ -157,7 +158,14 @@ export class AppComponent {
   constructor() {
     void this.updateRouteState(this.router.url);
     window.addEventListener('gones-live-tournament-updated', (event) => this.handleLiveTournamentUpdated(event));
-    window.addEventListener('gones-league-updated', () => void this.updateRouteState(this.router.url));
+    // Every League/Tournament mutation that stays on a League page announces itself here, so this is
+    // the one place the public catalog snapshot is dropped for all of them (ADR 0039). The two header
+    // deletions below clear it directly instead: they navigate away, and re-entering this handler
+    // would rebuild the header from the League that was just deleted.
+    window.addEventListener('gones-league-updated', () => {
+      clearLeagueCatalogCache();
+      void this.updateRouteState(this.router.url);
+    });
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       this.lastVisited.record(event.urlAfterRedirects);
       void this.updateRouteState(event.urlAfterRedirects);
@@ -356,6 +364,7 @@ export class AppComponent {
     if (!confirmed) return;
     try {
       await this.repo.deleteLeague(league.id);
+      clearLeagueCatalogCache();
       this.headerLeague.set(null);
       await this.router.navigate(['/leagues-archive']);
     } catch (error) {
@@ -374,6 +383,7 @@ export class AppComponent {
     this.importError.set('');
     try {
       await this.repo.deleteResultTournament(league, tournament.id);
+      clearLeagueCatalogCache();
       this.headerTournament.set(null);
       await this.router.navigate(['/leagues-archive', league.id]);
     } catch (error) {

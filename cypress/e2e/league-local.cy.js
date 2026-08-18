@@ -341,6 +341,13 @@ describe('League Archive browser-local flows', () => {
     cy.get('[data-cy="confirm-dialog-confirm"]').click();
     cy.get('[data-cy="tournament-archive-detail-edit"]').should('exist');
 
+    // Statistics count completed Archive Tournaments only — the server read model excludes an active
+    // one, and the browser half now obeys the same rule — so this browser-local Tournament is marked
+    // complete before it may fold into the player page.
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').should('have.length', 1).click();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('have.class', 'completed');
+
     // Everything the League Archive pages asked for is history; what matters is what the player
     // page asks for, so the count is snapshotted here and re-read at the end.
     cy.then(() => cy.wrap(leagueApiCalls.length).as('leagueCallsBeforePlayerPage'));
