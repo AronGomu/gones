@@ -35,7 +35,7 @@ _Formerly_: Result Tournament
 _Avoid_: Scheduled Tournament
 
 **Event**:
-The Calendar V1 record an organizer publishes and a User registers for: base title, venue, venue-local dates, exactly one active Tournament Format, capacity, and optional Live/Archive Tournament links. It is served under `/api/events`, browsed at `/calendar`, read at `/events/:slug` and persisted in `events` (ADRs 0035–0036). An Event is tied to one single-format tournament conceptually, and that tournament has no row of its own. Public responses derive the display title from format plus base title.
+The Calendar V1 record an organizer publishes and a User registers for: base title, venue, venue-local dates, exactly one active Tournament Format, capacity, and optional Live/Archive Tournament links. It is served under `/api/events`, browsed at `/events`, read at `/events/:slug` and persisted in `events` (ADRs 0035–0036, 0038). An Event is tied to one single-format tournament conceptually, and that tournament has no row of its own. Public responses derive the display title from format plus base title.
 _Formerly_: Scheduled Tournament, Calendar Tournament, `/api/tournaments`
 _Avoid_: Tournament on its own, Archive Tournament, Live Tournament
 
@@ -44,7 +44,7 @@ Retired (ADR 0035). The word the Calendar V1 record carried before the rename. I
 _Avoid_: as a name for anything new
 
 **Organization**:
-The association an Event is published under. It owns a roster of members in `organization_members`, each an `Owner` or an `Organizer`, and that roster is the only source of truth for the account-wide Organizer role (ADR 0034).
+The association an Event is published under. It owns a roster of members in `organization_members`, each an `Organizer` (one role, no Owner hierarchy), and that roster is the only source of truth for the account-wide Organizer role (ADRs 0034, 0041).
 _Avoid_: Club, team, Gones organization data
 
 **Draft Organization**:
@@ -124,7 +124,7 @@ The Deck Archetype used by a selected Player Name in the most Matches, with alph
 _Avoid_: Favorite deck
 
 **Global Player Statistics**:
-Derived Player Statistics rows from valid Matches in Completed Leagues. Position is assigned by the API or UI later.
+Derived Player Statistics rows from valid Matches in **completed Archive Tournaments** (across all non-deleted Leagues regardless of League status). Materialized in the `player_statistics` table and rebuilt transactionally on every archive write (ADR 0040). Position is assigned by the API or UI later.
 _Avoid_: Stored global ranking
 
 **Nemesis**:
@@ -456,9 +456,9 @@ _Avoid_: Migration, deployment
 - **Most Played Archetype** counts the selected side's Match Deck Archetype once per Match, falls back to that Tournament's roster when blank, and omits the Match when both are blank
 - **Most Played Archetype** ties are broken by Deck Archetype name in alphabetical ascending order
 - These alphabetical tie rules are the user-confirmed future-recommendation override and supersede the previous worst-rate and recency recommendations
-- **Global Player Statistics** include valid Match participants from Completed Leagues only
+- **Global Player Statistics** include valid Match participants from completed Archive Tournaments only (league status does not filter; ADR 0040)
 - Byes and roster-only Player Names do not create **Global Player Statistics** rows or affect Global performance
-- Active League Matches do not contribute to **Global Player Statistics**
+- Archive Tournaments whose status is `active` do not contribute to **Global Player Statistics**
 - Browser-local League Archive records never contribute to **Global Player Statistics**; the source is always the server
 - **Global Player Statistics** expose 14 columns in fixed order: Position, Player, Matches, MW, ML, MD, M%, Games, GW, GL, G%, Nemesis, Rival, Archetype
 - Position in **Global Player Statistics** is dynamic: it reflects the current sort and search result, not a stored rank

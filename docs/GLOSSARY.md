@@ -17,12 +17,14 @@
 | repository | Angular signal store fronting one backend port | `src/app/data/league-archive-repository.service.ts` |
 | runner | Live tournament pairing and result-entry screen | `src/app/features/live-tournaments/live-tournament-runner.component.ts` |
 | local Live store | Offline IndexedDB Live authority for anonymous and `User`, never synced (ADR 0021) | `src/app/backend/local-live-backend.service.ts` |
-| calendar | Public Event calendar feature and its detail page | `src/app/features/calendar/public-calendar.component.ts` |
+| calendar | Public Event calendar feature and its detail page; browse route `/events` (ADR 0038) | `src/app/features/events/public-event-list.component.ts` |
 | guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
 | power user | Browser-only opt-in (`gones.settings.power-user`) for advanced Event, League and Live mutation UI; never grants server authority, never hides home cards or browse destinations (ADR 0037) | `src/app/shared/power-user-settings.service.ts` |
 | global stats | Public server-derived ranking over all completed League Archives; 14 columns, search/sort/page; browsable at `/global-stats`; local League records excluded | `src/app/features/players/global-stats.component.ts` |
 | event link | Optional `liveTournamentUrl` or `archiveTournamentUrl` on an Event; navigation string only, no data-authority coupling, broken links are valid (ADR 0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
 | staged edit | Power-User opt-in that keeps Archive Tournament mutations in a memory draft until explicit Save Changes; one atomic batch per save (ADR 0037) | `src/app/features/tournaments-archive/tournament-archive-detail.component.ts` |
+| sync bar | Per-page "last synced" label + Synchronize button implementing the ADR 0039 cache contract | `src/app/shared/sync-bar.component.ts` |
+| catalog cache | Public `localStorage` store with 24h TTL for anonymous read-only catalogs | `src/app/shared/catalog-cache.ts` |
 | session | Access-token scope and cache purge on sign-out | `src/app/auth/session-scope.service.ts` |
 | i18n | French/English message catalogue and language signal | `src/app/i18n/i18n.service.ts` |
 | ics | Calendar export to an .ics subscription file | `src/app/domain/calendar-ics.ts` |
@@ -50,12 +52,14 @@
 | identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
 | registration | Participant sign-up and unregistration on an event | `backend/src/Gones.Api/Events/EventRegistrationEndpoints.cs` |
 | league archive | Archived Leagues and their result Tournaments, `/api/leagues-archive` (formerly `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs` |
-| archive tournament | A result Tournament inside the League Archive, `/tournaments-archive` (formerly Result Tournament) | `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs` |
+| archive tournament | A result Tournament inside the League Archive; carries `status: active \| completed`; statistics count completed ones only (ADR 0040) | `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs` |
+| read model | Materialized `player_statistics` table rebuilt transactionally on every archive write; read by both rankings and the player page (ADR 0040) | `backend/src/Gones.Domain/Leagues/LeagueRules.cs` |
 
 ## Other
 
 | word | short description | ref in code |
 | ---- | ----------------- | ----------- |
+| stress environment | Hundredfold `demo` dataset, generated and loaded with `npm run dev -- --env=stress`; deterministic from `--seed` (T29) | `fixtures/dev-environments/stress/` |
 | adr | Numbered architecture decision records, the binding rules | `docs/adr/` |
 | matrix | Executable V1 acceptance rows with per-gate evidence | `ops/acceptance-matrix.json` |
 | contract | Vendor-neutral runtime contract every host must satisfy | `docs/RUNTIME_CONTRACT.md` |

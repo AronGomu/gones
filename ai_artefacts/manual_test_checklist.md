@@ -563,3 +563,20 @@ accounts are deliberately unverified.
 - [ ] `/live-tournaments` shows the 10 running tournaments; one of them is caught mid-round.
 - [ ] Top and bottom back buttons still work on every page above.
 - [ ] Reseed `demo` afterwards (`npm run dev:env -- --env=demo`) and confirm the player statistics count falls back to 35.
+
+## T30 agent-rules-and-docs
+
+Documentation-only ticket. Read and confirm:
+
+- [ ] Open `AGENT.md` end to end. The three new rules ("Every page that reads server data joins the cache contract", "Every routed page carries a back button", "Logging out returns to sign-in") are present under "Rules for agents" and are unambiguous to a reader with no prior context.
+- [ ] The "four newest ADRs" paragraph in `AGENT.md` names 0038, 0039, 0040 and 0041 and gives a one-line summary of each binding.
+- [ ] The "What Gones is" paragraph in `AGENT.md` says "browse at `/events`" (not `/calendar`).
+- [ ] Open `docs/adr/0038-event-routes-without-calendar-aliases.md`. Confirm it has a `## Status` section, says "Accepted", explicitly supersedes the permanent-frontend-redirect clause of ADR 0035, and names the routes that are not affected.
+- [ ] Open `docs/adr/0039-ttl-cache-contract.md`. Confirm it names `readCached`, `invalidate`, `invalidateFamily` and `gones-sync-bar`, and states that private rows never reach `localStorage`.
+- [ ] Open `docs/adr/0040-player-statistics-read-model.md`. Confirm it describes the `player_statistics` table, the transactional rebuild, `PlayerStatisticsFormula.Version`, and includes measured rebuild durations.
+- [ ] Open `docs/adr/0041-organizations-without-owners.md`. Confirm it describes the single `Organizer` role, removal of `ownerUserId` and the transfer endpoint, and account-closure behaviour.
+- [ ] `docs/CONTEXT.md`: "Event" entry says "browsed at `/events`"; "Organization" entry describes flat membership with a single Organizer role; "Global Player Statistics" entry says "completed Archive Tournaments" and references ADR 0040.
+- [ ] `docs/GLOSSARY.md`: `calendar` entry points to `src/app/features/events/public-event-list.component.ts` and says "browse route `/events`"; new entries for `sync bar`, `catalog cache`, `read model` and `stress environment` are present.
+- [ ] `docs/event-data-flow.html` exists and describes the event catalog cache flow with `/events` throughout; `docs/calendar-data-flow.html` is gone.
+- [ ] `docs/sanitizer-migration-report.md`: both path references say `src/app/features/events/` (not `features/calendar/`).
+- [ ] `ops/acceptance-matrix.json` has rows for the cache contract, back-button coverage, logout return contract, player statistics read model and ownership removal — each with evidence resolving to a committed gate.

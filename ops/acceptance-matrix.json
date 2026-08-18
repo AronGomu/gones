@@ -2655,6 +2655,96 @@
                     "detail": "14 headers, formatting, numeric sort, search, page sizes 25/50/100, player link, home card navigation"
                 }
             ]
+        },
+        {
+            "id": "doc09-ttl-cache-contract",
+            "doc": "09-frontend-angular.md",
+            "capability": "Every data page joins the one TTL-cache contract: load once per 24h, show last-synced label and Synchronize button, two stores by privacy, mutation invalidates its own entry (ADR 0039).",
+            "section": "Engineering",
+            "status": "proved",
+            "acceptance": [
+                "eng-suites-green"
+            ],
+            "evidence": [
+                {
+                    "gate": "vitest",
+                    "target": "src/app/shared/catalog-cache.test.ts",
+                    "detail": "TTL, read/write/clear, freshness check for public catalog store"
+                },
+                {
+                    "gate": "vitest",
+                    "target": "src/app/backend/server-read-cache.service.test.ts",
+                    "detail": "readCached TTL-primary, invalidate, invalidateFamily, logout purge for private store"
+                }
+            ]
+        },
+        {
+            "id": "doc09-back-button-coverage",
+            "doc": "09-frontend-angular.md",
+            "capability": "Every routed page carries top and bottom back buttons; auth pages carry the top one only.",
+            "section": "Engineering",
+            "status": "proved",
+            "acceptance": [
+                "eng-suites-green"
+            ],
+            "evidence": [
+                {
+                    "gate": "vitest",
+                    "target": "src/app/shared/back-button-coverage.test.ts",
+                    "detail": "structural assertion over every routed component"
+                }
+            ]
+        },
+        {
+            "id": "doc03-logout-return-contract",
+            "doc": "03-authentification.md",
+            "capability": "Logout navigates to /login?returnUrl=<current page>; sign-in navigates back to it.",
+            "section": "Product",
+            "status": "proved",
+            "acceptance": [
+                "product-auth"
+            ],
+            "evidence": [
+                {
+                    "gate": "cypress",
+                    "target": "cypress/e2e/auth-profile.cy.js",
+                    "detail": "logout returnUrl flow end-to-end"
+                }
+            ]
+        },
+        {
+            "id": "doc02-player-statistics-read-model",
+            "doc": "02-modeles-donnees.md",
+            "capability": "player_statistics materialized table rebuilt transactionally inside every archive write and at startup on formula-version change; rankings and player page both read the table (ADR 0040).",
+            "section": "Engineering",
+            "status": "proved",
+            "acceptance": [
+                "eng-suites-green"
+            ],
+            "evidence": [
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/PlayerStatisticsRebuildTests.cs",
+                    "detail": "rebuild on archive write, startup version change, transactional rollback"
+                }
+            ]
+        },
+        {
+            "id": "doc04-organizations-without-owners",
+            "doc": "04-utilisateurs-et-organisation.md",
+            "capability": "OrganizationRoles has one role (Organizer); no ownerUserId, no transfer endpoint; closure removes memberships only (ADR 0041).",
+            "section": "Product",
+            "status": "proved",
+            "acceptance": [
+                "product-admin"
+            ],
+            "evidence": [
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+                    "detail": "single Organizer role, no transfer endpoint, closure removes membership"
+                }
+            ]
         }
     ],
     "acceptanceChecklist": [

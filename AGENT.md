@@ -6,7 +6,7 @@ Single context initialisation file for every agent working in this repository.
 ## What Gones is
 
 Angular single-page PWA with three surfaces: the public **Event** calendar people register for
-(Calendar V1 — browse at `/calendar`, an event at `/events/:slug`, publish at `/events/new`), the
+(Calendar V1 — browse at `/events`, an event at `/events/:slug`, publish at `/events/new`), the
 **League Archive** of past tournament results, and the browser-run **Live Tournament**. It also
 exports Gones source-data backups and edits League source data. Backed by an ASP.NET API and
 PostgreSQL.
@@ -42,6 +42,7 @@ violation — read `docs/adr/0021-role-scoped-browser-live-store.md` and
 | path | contents |
 | --- | --- |
 | `src/` | Angular app: standalone components, Signals, zoneless change detection, Material with the dark-metal / blood-red theme. Backend bridge in `src/app/backend/`, declared authority in `src/app/config/data-authority.ts` |
+| `src/app/features/events/` | Public Event calendar, organizer create/edit, registrations, admin deleted events |
 | `src/AGENT.md` | Frontend agent contract: data-cy rule, title/kicker rule, component style |
 | `backend/` | ASP.NET solution (`backend/Gones.sln`) and EF migrations |
 | `ops/` | runtime/host contract tests, `acceptance-matrix.json` |
@@ -54,11 +55,12 @@ violation — read `docs/adr/0021-role-scoped-browser-live-store.md` and
 | `.agents/skills/` | project skills: `ship` (engineering pipeline), `start-gones-server` |
 | repository root | `DEMO_ACCOUNTS.md` — every demo login and what it can do, generated from the demo fixtures by `npm run docs:demo-accounts` |
 
-ADRs live in `docs/adr/` (lowercase — tests and cross-references point there). The three newest bind
-the current shape of the app: **0033** every auth guard awaits `AuthService.whenSessionReady()`
-before it decides, **0034** the global `Organizer` role is derived from organization membership and a
-member-less organization is Draft and cannot publish, **0035** the calendar domain is Event through
-every ring, with no `/api/tournaments*` aliases and permanent frontend redirects.
+ADRs live in `docs/adr/` (lowercase — tests and cross-references point there). The four newest bind
+the current shape of the app: **0038** `/calendar` and `/calendar/tournaments/:slug` are deleted with
+no redirect, superseding the permanent-redirect clause of ADR 0035; **0039** every page that reads
+server data joins a one TTL-cache contract — 24h, two stores, mutation-invalidates; **0040** player
+statistics are materialized in `player_statistics` / `player_statistics_meta` and rebuilt
+transactionally; **0041** `OrganizationRoles` has one role (`Organizer`), ownership is removed.
 
 ## Commands
 
@@ -81,6 +83,20 @@ Gates: `npm run e2e:ci`, `npm run acceptance:matrix`, `npm run release:rehearsal
 
 ## Rules for agents
 
+- **Every page that reads server data joins the cache contract.** Load once on page load, cache for
+  24 hours, show a "last synced" label and a Synchronize button (`gones-sync-bar`), and refetch
+  automatically when the cached copy is older than 24 hours. Public data caches in `localStorage`
+  through `src/app/shared/catalog-cache.ts`; private data caches in the per-user IndexedDB store
+  through `ServerReadCacheService.readCached`, which logout purges. Every successful mutation
+  invalidates its own cache entry and refetches — the TTL governs navigation, never correctness
+  (ADR 0039).
+- **Every routed page carries a back button at the top and at the bottom** (`gones-back-button`,
+  `position="top"` and `position="bottom"`). The auth pages are the single exception and keep the top
+  one only. Enforced by `src/app/shared/back-button-coverage.test.ts`.
+- **Logging out returns to sign-in, and signing in returns the user where they were.** Logout
+  navigates to `/login?returnUrl=<page where logout was clicked>`; a successful sign-in navigates
+  back to it. When the new session lacks the role that page needs, its route guard redirects as
+  usual — no special case.
 - Read `docs/CONTEXT.md` for the domain vocabulary and product rules before touching domain code —
   it is the language contract (Event, Draft Organization, Tournament, League, Round Import, Player
   Statistics, …).
