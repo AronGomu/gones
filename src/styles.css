@@ -734,7 +734,6 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
   .ranking-table { min-width: 0; }
   .ranking-table .mat-column-record { display: none; }
 }
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
 /* Shared by every search-match highlight: player statistics and both calendar views. */
 .match-highlight { border-radius: .18rem; background: oklch(86% 0.16 82 / .3); color: oklch(92% 0.16 82); box-shadow: 0 0 0 2px oklch(86% 0.16 82 / .16); }
 .match-card, .user-card, .round-panel { border: 1px solid var(--soot); }

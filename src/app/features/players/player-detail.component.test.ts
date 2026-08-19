@@ -312,35 +312,8 @@ describe('PlayerDetailComponent', () => {
     expect(player.opponentTone('Carol')).toBeNull();
   });
 
-  it('renders three rows', () => {
-    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
-    const rows = [...source.matchAll(/data-cy="player-stat-row-(\d)"/g)].map((m) => m[1]);
-    expect(rows).toEqual(['1', '2', '3']);
-  });
-
-  it('row one holds five cells in order', () => {
-    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
-    const s = source.indexOf('player-stat-row-1"');
-    const e = source.indexOf('player-stat-row-2"');
-    const cells = [...source.slice(s, e).matchAll(/data-cy="player-stat-card-([^"]+)"/g)].map((m) => m[1]);
-    expect(cells).toEqual(['played-matches', 'match-winrate', 'match-wins', 'match-losses', 'match-draws']);
-  });
-
-  it('row two holds five cells in order', () => {
-    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
-    const s = source.indexOf('player-stat-row-2"');
-    const e = source.indexOf('player-stat-row-3"');
-    const cells = [...source.slice(s, e).matchAll(/data-cy="player-stat-card-([^"]+)"/g)].map((m) => m[1]);
-    expect(cells).toEqual(['played-games', 'game-winrate', 'game-wins', 'game-losses', 'match-draw-rate']);
-  });
-
-  it('row three holds three cells in order', () => {
-    const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
-    const s = source.indexOf('player-stat-row-3"');
-    const section = source.slice(s);
-    const cells = [...section.matchAll(/data-cy="player-stat-card-([^"]+)"/g)].map((m) => m[1]).slice(0, 3);
-    expect(cells).toEqual(['most-played-archetype', 'nemesis', 'rival']);
-  });
+  // Row structure, cell order and the painted line breaks live in cypress/e2e/player-stat-layout.cy.js:
+  // a source regex cannot tell a three-row grid from three rows laid out side by side.
 
   it('computes the draw percentage', async () => {
     localStorage.clear();

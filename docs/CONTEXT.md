@@ -509,7 +509,7 @@ _Avoid_: Migration, deployment
 - **Player Statistics** page can be opened from **Ranking Table** rows
 - **Player Statistics** page identifies the selected player by encoded Player Name, not a player ID
 - **Player Statistics** page defaults to server-origin League Archive data and can include browser-local Leagues with a persisted display toggle
-- **Player Statistics** page shows seven count metrics followed by Match Winrate, Game Winrate, Nemesis, Rival, and Most Played Archetype
+- **Player Statistics** page lays its metrics out in three rows: Match Winrate, Matches Played, Match Wins, Match Losses, Match Draws; then Game Winrate, Games Played, Game Wins, Game Losses, Match Draw Percentage; then Most Played Archetype, Nemesis, Rival
 - **Player Statistics** Match history is filtered and sorted before client-side paging; page size persists, page index resets after data or view changes
 - **Player Statistics** filters are represented in the page URL
 - League and Tournament pages identify source entities by internal IDs in the URL
