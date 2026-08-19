@@ -24,6 +24,14 @@ internal static class PublicLeagueEndpoints
     /// <summary>Postgres collation that orders text byte by byte, the way <c>StringComparer.Ordinal</c> does.</summary>
     internal const string OrdinalCollation = "C";
 
+    /// <summary>
+    /// The League catalog ceiling. It is far below the 5000 rows the rankings catalog allows because a
+    /// League is a whole document of up to <see cref="LeagueArchiveAggregate.MaximumDocumentBytes"/>,
+    /// not a fixed-width row.
+    /// </summary>
+    public const int MaximumCatalogSize = 1000;
+    public const string MaximumCatalogSizeKey = "Gones:Leagues:MaximumCatalogSize";
+
     private static readonly int[] GlobalStatsAllowedPageSizes = [10, 25, 50, 100];
     private const int GlobalStatsDefaultPageSize = 100;
     public const int GlobalStatsMaximumCatalogSize = 5000;
@@ -52,6 +60,10 @@ internal static class PublicLeagueEndpoints
             .Produces<PublicLeagueListResponse>()
             .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status400BadRequest);
+        app.MapGet("/api/leagues-archive/all", ListCatalogAsync)
+            .AllowAnonymous()
+            .Produces<PublicLeagueCatalogResponse>()
+            .Produces(StatusCodes.Status304NotModified);
         app.MapGet("/api/leagues-archive/{id}", GetAsync)
             .AllowAnonymous()
             .Produces<PublicLeagueDetailResponse>()
@@ -293,6 +305,53 @@ internal static class PublicLeagueEndpoints
         return Results.Ok(new PublicLeagueListResponse(items, pageNumber, size, total));
     }
 
+    /// <summary>
+    /// The whole archive in one cacheable body, the League twin of <c>/api/events/all</c> (ADR 0039).
+    /// Without it the list page had to read the paged summaries and then one detail per League, which
+    /// on a large archive is hundreds of requests for one navigation and trips the public read limiter.
+    /// The summary rows carry neither the Tournaments nor the players the cards count, so paging alone
+    /// cannot answer that page — the documents themselves have to come down.
+    /// </summary>
+    private static async Task<IResult> ListCatalogAsync(
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var ceiling = configuration.GetValue(MaximumCatalogSizeKey, MaximumCatalogSize);
+        var query = database.LeagueArchiveAggregates.AsNoTracking().Where(aggregate => aggregate.DeletedAt == null);
+        var total = await query.CountAsync(cancellationToken);
+        // Every write bumps `UpdatedAt` to now, so the newest row plus the count identifies the archive:
+        // an edit moves the stamp, a create or a soft delete moves the count.
+        var stamp = await query
+            .OrderByDescending(aggregate => aggregate.UpdatedAt)
+            .ThenBy(aggregate => aggregate.Id)
+            .Select(aggregate => new { aggregate.UpdatedAt, aggregate.DocumentId, aggregate.Version })
+            .FirstOrDefaultAsync(cancellationToken);
+        var etag = HashETag($"{total}:{stamp?.UpdatedAt}:{stamp?.DocumentId}:{stamp?.Version}:catalog:{ceiling}");
+        response.Headers.ETag = etag;
+        response.Headers.CacheControl = CatalogCacheControl;
+        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        // One row past the ceiling is what tells a truncated catalog from an archive that ends exactly there.
+        var fetched = await query
+            .OrderByDescending(aggregate => aggregate.UpdatedAt)
+            .ThenBy(aggregate => aggregate.Id)
+            .Take(ceiling + 1)
+            .ToListAsync(cancellationToken);
+        var truncated = fetched.Count > ceiling;
+        var items = (truncated ? fetched.Take(ceiling) : fetched).Select(ToDetail).ToList();
+        if (truncated)
+        {
+            loggerFactory.CreateLogger("Gones.Api.Leagues")
+                .LogWarning("Public League catalog truncated: total={Total} ceiling={Ceiling}", total, ceiling);
+        }
+
+        return Results.Ok(new PublicLeagueCatalogResponse(items, total, truncated));
+    }
+
     private static async Task<IResult> GetAsync(
         string id,
         HttpRequest request,
@@ -304,14 +363,19 @@ internal static class PublicLeagueEndpoints
         var etag = StrongETag.Encode(aggregate.Version);
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+        return Results.Ok(ToDetail(aggregate));
+    }
+
+    private static PublicLeagueDetailResponse ToDetail(LeagueArchiveAggregate aggregate)
+    {
         var document = aggregate.ReadDocument();
-        return Results.Ok(new PublicLeagueDetailResponse(
+        return new PublicLeagueDetailResponse(
             document.Id,
             document.Name,
             document.Status,
             document.Tournaments,
             aggregate.Version,
-            aggregate.UpdatedAt));
+            aggregate.UpdatedAt);
     }
 
     private static async Task<IResult> GetLeagueResultAsync(
@@ -472,6 +536,11 @@ internal sealed record PublicLeagueDetailResponse(
     IReadOnlyList<TournamentDocument> Tournaments,
     long DocumentVersion,
     Instant UpdatedAt);
+
+internal sealed record PublicLeagueCatalogResponse(
+    IReadOnlyList<PublicLeagueDetailResponse> Items,
+    int TotalCount,
+    bool Truncated);
 
 internal sealed record GlobalPlayerStatisticsResponse(
     IReadOnlyList<GlobalPlayerStatisticsRow> Items,

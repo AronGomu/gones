@@ -35,6 +35,7 @@ import { clearLeagueCatalogCache, LeagueArchiveCatalogCacheService } from './lea
     @if (error()) { <p class="error" role="alert" data-cy="leagues-archive-list-error">{{ error() }}</p> }
     <p class="muted" role="status" data-cy="leagues-archive-local-notice">{{ i18n.t('leagues.localNotice') }}</p>
     @if (repo.serverUnavailable()) { <p class="warning" role="status" data-cy="leagues-archive-server-unavailable">{{ i18n.t('leagues.serverUnavailable') }}</p> }
+    @if (repo.catalogTruncated()) { <p class="warning" role="status" data-cy="leagues-archive-truncated">{{ i18n.t('leagues.truncated') }}</p> }
     @if (showLeagueFilter()) {
       <div class="league-toolbar" data-cy="leagues-archive-list-toolbar">
         <mat-form-field appearance="outline" class="search" data-cy="leagues-archive-list-search-field"><mat-label data-cy="leagues-archive-list-search-label">{{ i18n.t('leagues.search') }}</mat-label><input matInput data-cy="leagues-archive-list-search-input" [(ngModel)]="searchTerm"></mat-form-field>

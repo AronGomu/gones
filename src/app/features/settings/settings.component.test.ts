@@ -37,7 +37,7 @@ describe('settings page local sections', () => {
     });
     let stored = [league('local-1', 'Alice'), league('local-2', 'Alice')];
     const localBackend = {
-      listLeagueArchives: vi.fn(async () => stored),
+      listLeagueArchives: vi.fn(async () => ({ leagues: stored, truncated: false })),
       renameLeagueArchivePlayerName: vi.fn(async (id: string) => {
         if (id === 'local-2') throw new Error('write failed');
         stored = stored.map((item) => item.id === id ? league(id, 'Alicia') : item);
@@ -74,7 +74,7 @@ describe('settings page local sections', () => {
     const stored = [league('local-1'), league('local-2')];
     const localBackend = {
       listLeagueArchives: vi.fn()
-        .mockResolvedValueOnce(stored)
+        .mockResolvedValueOnce({ leagues: stored, truncated: false })
         .mockRejectedValueOnce(new Error('reload failed')),
       renameLeagueArchivePlayerName: vi.fn(async (id: string) => {
         if (id === 'local-2') throw new Error('write failed');

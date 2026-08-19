@@ -38,7 +38,7 @@ function fakeBackend(namespace: 'server' | 'local') {
     league(namespace === 'local' ? `${LOCAL_LEAGUE_ID_PREFIX}${incoming.id}-restored` : `${incoming.id}-restored`, incoming.name);
   const rows = new Map<string, PersistedLeague>();
   return {
-    listLeagueArchives: vi.fn(async () => [...rows.values()]),
+    listLeagueArchives: vi.fn(async () => ({ leagues: [...rows.values()], truncated: false })),
     getLeagueArchive: vi.fn(async (id: string) => rows.get(id) ?? null),
     createLeagueArchive: vi.fn(async (name: string) => league('created', name)),
     renameLeagueArchive: vi.fn(async () => league('renamed')),

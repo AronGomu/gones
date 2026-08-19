@@ -286,6 +286,28 @@
         }
       }
     },
+    "/api/leagues-archive/all": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicLeagueCatalogResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          }
+        }
+      }
+    },
     "/api/leagues-archive/{id}": {
       "get": {
         "tags": [
@@ -12112,6 +12134,33 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "PublicLeagueCatalogResponse": {
+        "required": [
+          "items",
+          "totalCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicLeagueDetailResponse"
+            }
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         }
       },

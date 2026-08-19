@@ -124,8 +124,8 @@ describe('Archive Tournament explicit staged editor', () => {
       }]
     };
     let batchCalls = 0;
-    cy.intercept('GET', /\/api\/leagues-archive\?.*/, { items: [{ id: source.id, name: source.name, status: source.status, documentVersion: source.documentVersion }], page: 1, pageSize: 100, totalCount: 1 });
     cy.intercept('GET', /\/api\/leagues-archive\/server-source$/, persisted(source)).as('sourceDetail');
+    cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [persisted(source)], totalCount: 1, truncated: false });
     cy.intercept('POST', /\/api\/leagues-archive\/server-source\/tournaments-archive\/t1\/edit-batch$/, req => {
       batchCalls += 1;
       expect(req.headers['if-match']).to.eq(etag(4));

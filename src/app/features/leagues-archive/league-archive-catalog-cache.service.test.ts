@@ -1,5 +1,5 @@
 import '@angular/compiler';
-import { Injector } from '@angular/core';
+import { Injector, signal } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PersistedLeague } from '../../domain/models';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
@@ -19,10 +19,12 @@ function makeStorage(): Storage {
 
 const items: PersistedLeague[] = [];
 
+const catalogTruncated = signal(false);
+
 function buildService(listServerLeagues: ReturnType<typeof vi.fn>): LeagueArchiveCatalogCacheService {
   const injector = Injector.create({ providers: [
     LeagueArchiveCatalogCacheService,
-    { provide: LeagueArchiveRepository, useValue: { listServerLeagues } }
+    { provide: LeagueArchiveRepository, useValue: { listServerLeagues, catalogTruncated } }
   ] });
   return injector.get(LeagueArchiveCatalogCacheService);
 }
@@ -30,6 +32,7 @@ function buildService(listServerLeagues: ReturnType<typeof vi.fn>): LeagueArchiv
 describe('LeagueArchiveCatalogCacheService', () => {
   beforeEach(() => {
     (globalThis as { localStorage?: Storage }).localStorage = makeStorage();
+    catalogTruncated.set(false);
   });
 
   it('fetches when the cache is empty', async () => {
@@ -95,6 +98,21 @@ describe('LeagueArchiveCatalogCacheService', () => {
 
     await expect(service.load()).rejects.toThrow('Offline');
   });
+
+  // The row cap is a property of the answer, so it has to survive being stored and served again —
+  // otherwise the warning shows on the fetch and silently disappears on the next navigation.
+  it('stores the cap the fresh read reported and replays it from the cache', async () => {
+    const listServerLeagues = vi.fn().mockImplementation(async () => { catalogTruncated.set(true); return items; });
+    const service = buildService(listServerLeagues);
+
+    expect((await service.load()).truncated).toBe(true);
+
+    catalogTruncated.set(false);
+    const replayed = await service.load();
+    expect(replayed.fromCache).toBe(true);
+    expect(replayed.truncated).toBe(true);
+    expect(catalogTruncated()).toBe(true);
+  });
 });
 
 /**
@@ -105,6 +123,7 @@ describe('LeagueArchiveCatalogCacheService', () => {
 describe('clearLeagueCatalogCache', () => {
   beforeEach(() => {
     (globalThis as { localStorage?: Storage }).localStorage = makeStorage();
+    catalogTruncated.set(false);
   });
 
   it('sends the next load back to the server even though the row was fresh', async () => {

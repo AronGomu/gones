@@ -984,7 +984,7 @@ export class SettingsComponent {
   /** Derived from the browser League store (ADR 0032) — there is no local player table to read. */
   async loadLocalPlayers(preserveMessage = false): Promise<void> {
     try {
-      this.localPlayers.set(localPlayerNames(await this.localBackend.listLeagueArchives()));
+      this.localPlayers.set(localPlayerNames((await this.localBackend.listLeagueArchives()).leagues));
     } catch (error) {
       logBoundaryError('settings.loadLocalPlayers', error);
       if (!preserveMessage) this.playerMessage.set(this.i18n.t('settings.loadFailed'));
@@ -1011,7 +1011,7 @@ export class SettingsComponent {
     this.playerSaving.set(true);
     let partialRename = false;
     try {
-      for (const league of await this.localBackend.listLeagueArchives()) {
+      for (const league of (await this.localBackend.listLeagueArchives()).leagues) {
         if (!localPlayerNames([league]).some((item) => samePlayerName(item.name, player.name))) continue;
         // One guarded command per league. The returned document carries the next expected version,
         // and each league is written exactly once, so no stale version can be replayed.

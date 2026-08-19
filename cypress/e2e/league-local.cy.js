@@ -37,10 +37,10 @@ const profile = {
 
 const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00Z' };
 
-/** The list reads a summary page and then each league document, so both GETs are stubbed. */
+/** The list reads the whole archive in one catalog request (ADR 0039); a detail page still reads one. */
 function stubServerLeagueReads() {
-  cy.intercept('GET', /\/api\/leagues-archive\?.*/, { items: [serverLeague], page: 1, pageSize: 100, totalCount: 1 }).as('leagueList');
   cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague).as('leagueDetail');
+  cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeague], totalCount: 1, truncated: false }).as('leagueList');
 }
 
 function stubSignedIn(globalRole) {

@@ -25,14 +25,18 @@ function mockLeagueServer() {
   const bump = league => { league.documentVersion += 1; return commandResponse(league); };
   const find = id => leagues.find(league => league.id === id);
 
-  cy.intercept('GET', /\/api\/leagues-archive\?.*/, req => req.reply({
-    items: leagues.map(({ id, name, status, documentVersion }) => ({ id, name, status, documentVersion, updatedAt: '2026-08-02T00:00:00Z' })),
-    page: 1, pageSize: 100, totalCount: leagues.length
-  })).as('leagueList');
   cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, req => {
     const league = find(decodeURIComponent(req.url.split('/').pop()));
     req.reply(league ? commandResponse(league) : { statusCode: 404, body: { code: 'not_found', message: 'Missing.' } });
   }).as('leagueDetail');
+  // The list page reads the whole archive in one catalog request (ADR 0039), not a summary page plus
+  // a detail per League. Registered after the detail route because that pattern also matches `/all`
+  // and Cypress gives precedence to the intercept declared last.
+  cy.intercept('GET', /\/api\/leagues-archive\/all$/, req => req.reply({
+    items: leagues.map(commandResponse),
+    totalCount: leagues.length,
+    truncated: false
+  })).as('leagueList');
   cy.intercept('POST', /\/api\/leagues-archive$/, req => {
     expect(req.headers['idempotency-key']).to.be.a('string').and.not.be.empty;
     const league = { id: `league-${next++}`, name: req.body.name, status: 'active', tournaments: [], documentVersion: 1 };

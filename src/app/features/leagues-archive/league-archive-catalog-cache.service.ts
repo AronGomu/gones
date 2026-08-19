@@ -26,17 +26,22 @@ export class LeagueArchiveCatalogCacheService {
   async load(options: { force?: boolean } = {}): Promise<CatalogResult<PersistedLeague[]>> {
     const cached = readCatalogEntry<PersistedLeague[]>(LEAGUE_CATALOG_CACHE_KEY);
     if (!options.force && cached && isCatalogFresh(cached)) {
-      return { items: cached.items, fetchedAt: cached.fetchedAt, fromCache: true, stale: false, truncated: false };
+      // A cached catalog carries the cap it was taken under, so serving it does not quietly drop the
+      // warning the fresh read raised.
+      this.repo.catalogTruncated.set(cached.truncated);
+      return { items: cached.items, fetchedAt: cached.fetchedAt, fromCache: true, stale: false, truncated: cached.truncated };
     }
     try {
       const items = await this.repo.listServerLeagues();
+      const truncated = this.repo.catalogTruncated();
       const fetchedAt = new Date().toISOString();
-      const entry: StoredEntry = { items, fetchedAt, truncated: false };
+      const entry: StoredEntry = { items, fetchedAt, truncated };
       writeCatalogEntry(LEAGUE_CATALOG_CACHE_KEY, entry);
-      return { items, fetchedAt, fromCache: false, stale: false, truncated: false };
+      return { items, fetchedAt, fromCache: false, stale: false, truncated };
     } catch (error) {
       if (cached) {
-        return { items: cached.items, fetchedAt: cached.fetchedAt, fromCache: false, stale: true, truncated: false };
+        this.repo.catalogTruncated.set(cached.truncated);
+        return { items: cached.items, fetchedAt: cached.fetchedAt, fromCache: false, stale: true, truncated: cached.truncated };
       }
       throw error;
     }

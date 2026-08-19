@@ -29,6 +29,11 @@ export class LeagueArchiveRepository {
   readonly serverUnavailable = signal(false);
   /** Last server League detail came from this user's offline cache, not from server. */
   readonly detailStale = signal(false);
+  /**
+   * The last server list hit the catalog row cap (ADR 0039), so it is missing Leagues that exist.
+   * A page may render a capped list; a full export may not present one as a complete backup.
+   */
+  readonly catalogTruncated = signal(false);
 
   /**
    * The union of both stores. A rejected server read degrades to the local list alone and raises the
@@ -38,22 +43,32 @@ export class LeagueArchiveRepository {
    * offline, and mirroring it would create two answers for one document. A cached answer still raises
    * `serverUnavailable` — it means exactly what the banner says, that the server was not reached.
    */
-  listServerLeagues(): Promise<PersistedLeague[]> {
-    return this.server.listLeagueArchives();
+  async listServerLeagues(): Promise<PersistedLeague[]> {
+    const catalog = await this.server.listLeagueArchives();
+    this.catalogTruncated.set(catalog.truncated);
+    return catalog.leagues;
   }
 
-  listLocalLeagues(): Promise<PersistedLeague[]> {
-    return this.local.listLeagueArchives();
+  async listLocalLeagues(): Promise<PersistedLeague[]> {
+    return (await this.local.listLeagueArchives()).leagues;
   }
 
   async listLeagues(): Promise<PersistedLeague[]> {
-    const serverRead = this.cache.read('leagues', () => this.server.listLeagueArchives());
+    // Only the Leagues are cached, not the catalog envelope: the row cap describes the one answer that
+    // reached the server, and a stored copy of it would outlive the read it belongs to.
+    let truncated = false;
+    const serverRead = this.cache.read('leagues', async () => {
+      const catalog = await this.server.listLeagueArchives();
+      truncated = catalog.truncated;
+      return catalog.leagues;
+    });
     const [server, local] = await Promise.allSettled([serverRead, this.local.listLeagueArchives()]);
     this.serverUnavailable.set(server.status === 'rejected' || (server.status === 'fulfilled' && server.value.stale));
+    if (server.status === 'fulfilled' && !server.value.stale) this.catalogTruncated.set(truncated);
     if (server.status === 'rejected' && local.status === 'rejected') throw server.reason;
     return [
       ...(server.status === 'fulfilled' ? server.value.value : []),
-      ...(local.status === 'fulfilled' ? local.value : [])
+      ...(local.status === 'fulfilled' ? local.value.leagues : [])
     ];
   }
 

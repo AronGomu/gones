@@ -347,6 +347,12 @@ export class AppComponent {
       this.importError.set(this.i18n.t('msg.fullDataExportServerUnavailable'));
       return;
     }
+    // Same rule for the other way a server list can be short of the whole archive: the catalog row cap
+    // (ADR 0039). A capped list is fine to render, never fine to write as a complete backup.
+    if (this.repo.catalogTruncated()) {
+      this.importError.set(this.i18n.t('msg.fullDataExportTruncated'));
+      return;
+    }
     const leagues = merged.filter((league) => !isAnyPlaceholderLeagueId(league.id));
     this.importError.set('');
     saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: [] })), 'gones-full-data.gones.json');

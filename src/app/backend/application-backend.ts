@@ -47,8 +47,18 @@ export interface ArchiveTournamentEditBatchResult {
   destinationLeague: PersistedLeague | null;
 }
 
+/**
+ * A whole store read in one answer. `truncated` is the store admitting it returned less than it holds
+ * — the server catalog has a row cap (ADR 0039), so a caller that may not present a partial archive
+ * as a complete one has something to check.
+ */
+export interface LeagueArchiveCatalog {
+  leagues: PersistedLeague[];
+  truncated: boolean;
+}
+
 export interface LeagueArchiveBackendPort {
-  listLeagueArchives(): Promise<PersistedLeague[]>;
+  listLeagueArchives(): Promise<LeagueArchiveCatalog>;
   getLeagueArchive(id: string): Promise<PersistedLeague | null>;
   createLeagueArchive(name: string, idempotencyKey?: string): Promise<PersistedLeague>;
   renameLeagueArchive(id: string, expectedVersion: number, name: string): Promise<PersistedLeague>;

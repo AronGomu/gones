@@ -74,6 +74,37 @@ describe('ASP.NET League command adapter', () => {
     expect(client.restoreLeagueArchive).toHaveBeenCalledWith('restore-key', expect.objectContaining({ kind: 'league', gonesDataVersion: 3 }));
     expect(client.restoreFullLeagueArchiveData).toHaveBeenCalledWith('restore-full-key', expect.objectContaining({ kind: 'fullData', gonesDataVersion: 3 }));
   });
+
+  /**
+   * The regression this pins: listing used to page the summaries and then fetch one detail per
+   * League. On the 200-League stress environment that was 200-odd requests for one navigation, and
+   * the public read limiter (120 a minute an IP) rejected most of them, so the page rendered almost
+   * nothing. The count is the assertion — the catalog endpoint answers in exactly one.
+   */
+  it('lists the whole archive in one request, never one per League', async () => {
+    const client = clientMock();
+    client.all = vi.fn(() => of({
+      items: [response, { ...response, id: 'league-2', name: 'Second' }],
+      totalCount: 2,
+      truncated: false
+    })) as never;
+    const backend = new AspNetApiBackend(client);
+
+    const catalog = await backend.listLeagueArchives();
+
+    expect(catalog.leagues.map((item) => item.id)).toEqual(['league-1', 'league-2']);
+    expect(catalog.truncated).toBe(false);
+    expect(client.all).toHaveBeenCalledTimes(1);
+    expect(client.leaguesArchive).not.toHaveBeenCalled();
+    expect(client.leaguesArchive2).not.toHaveBeenCalled();
+  });
+
+  it('carries the catalog row cap through to the caller', async () => {
+    const client = clientMock();
+    client.all = vi.fn(() => of({ items: [response], totalCount: 9, truncated: true })) as never;
+
+    await expect(new AspNetApiBackend(client).listLeagueArchives()).resolves.toMatchObject({ truncated: true });
+  });
 });
 
 const liveDocument = createLiveTournament({ id: 'live-1', name: 'Live', documentVersion: 7, createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' });

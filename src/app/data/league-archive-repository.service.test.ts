@@ -33,7 +33,7 @@ function league(id: string, name = `League ${id}`): PersistedLeague {
 function fakeBackend(list: PersistedLeague[], byId: Record<string, PersistedLeague> = {}) {
   const resolveOne = vi.fn(async (id: string) => byId[id] ?? list.find((item) => item.id === id) ?? null);
   return {
-    listLeagueArchives: vi.fn(async () => list),
+    listLeagueArchives: vi.fn(async () => ({ leagues: list, truncated: false })),
     getLeagueArchive: resolveOne,
     createLeagueArchive: vi.fn(async (name: string) => league('created', name)),
     renameLeagueArchive: vi.fn(async () => league('renamed')),

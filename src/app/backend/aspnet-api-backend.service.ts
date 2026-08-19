@@ -4,7 +4,7 @@ import { ApiProblemError } from '../api/api-boundary';
 import { Client, LeagueCommandResponse, LiveCommandResponse, LiveTournamentDocumentResponse, PublicLeagueDetailResponse, PublicLiveTournamentDetailResponse, LiveTournamentDocument as ApiLiveTournamentDocument } from '../api/generated/gones-api';
 import { LiveTournamentDocument, normalizeLiveTournament } from '../domain/live-tournament';
 import { LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
-import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, BackendMode, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
+import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, BackendMode, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueArchiveCatalog, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Server-authority adapter. It carries intent commands only: no whole-document League or Live save
@@ -17,15 +17,15 @@ export class AspNetApiBackend implements LeagueArchiveBackendPort, LiveBackendPo
 
   constructor(private readonly client: Client) {}
 
-  async listLeagueArchives(): Promise<PersistedLeague[]> {
-    const summaries = [];
-    const pageSize = 100;
-    for (let page = 1; ; page++) {
-      const response = await firstValueFrom(this.client.leaguesArchive(page, pageSize, undefined, undefined));
-      summaries.push(...response.items);
-      if (summaries.length >= response.totalCount) break;
-    }
-    return Promise.all(summaries.map(async item => this.toPersisted(await firstValueFrom(this.client.leaguesArchive2(item.id)))));
+  /**
+   * One request for the whole archive (ADR 0039). It used to page the summaries and then fetch one
+   * detail per League, which made a single navigation cost a request per League — hundreds on a large
+   * archive, most of them rejected by the public read limiter. Paging is not an alternative here: the
+   * summary row carries neither the Tournaments nor the players the list page counts.
+   */
+  async listLeagueArchives(): Promise<LeagueArchiveCatalog> {
+    const response = await firstValueFrom(this.client.all());
+    return { leagues: response.items.map(item => this.toPersisted(item)), truncated: response.truncated };
   }
 
   async getLeagueArchive(id: string): Promise<PersistedLeague | null> {

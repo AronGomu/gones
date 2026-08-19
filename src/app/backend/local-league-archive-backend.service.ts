@@ -20,7 +20,7 @@ import {
 import { renamePlayerInLeague } from '../domain/rename-player';
 import { importRoundEntries } from '../domain/round-import';
 import { get, getAll, openDatabase, put, remove, requestResult, runTransaction } from './indexed-db';
-import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
+import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueArchiveCatalog, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Browser-local League authority (ADR 0028) — the League half of the browser-local store, next to
@@ -53,13 +53,15 @@ export class LeagueConcurrencyError extends Error {
 export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
   private database?: Promise<IDBDatabase>;
 
-  async listLeagueArchives(): Promise<PersistedLeague[]> {
+  /** The browser store has no row cap of its own, so its catalog is never truncated. */
+  async listLeagueArchives(): Promise<LeagueArchiveCatalog> {
     const database = await this.open();
     await this.ensurePlaceholder(database);
     const rows = await getAll<Partial<PersistedLeague>>(database, LOCAL_LEAGUE_STORE);
-    return rows
+    const leagues = rows
       .map((row) => this.persist(row))
       .sort((left, right) => placeholderRank(left) - placeholderRank(right) || left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }));
+    return { leagues, truncated: false };
   }
 
   async getLeagueArchive(id: string): Promise<PersistedLeague | null> {

@@ -57,6 +57,14 @@ describe('league archive list template', () => {
     expect(source).toContain('data-cy="leagues-archive-server-unavailable"');
   });
 
+  // A capped catalog (ADR 0039) renders a shorter list that looks exactly like a complete one. The
+  // page has to say so, because nothing else on it distinguishes the two.
+  it('a capped catalog is surfaced too', () => {
+    expect(source).toContain('@if (repo.catalogTruncated()) {');
+    expect(source).toContain('data-cy="leagues-archive-truncated"');
+    expect(source).toContain("i18n.t('leagues.truncated')");
+  });
+
   it('renders the sync bar', () => {
     expect(source).toContain('gones-sync-bar');
     expect(source).toContain('cyPrefix="leagues-archive-list"');

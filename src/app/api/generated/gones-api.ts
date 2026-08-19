@@ -56,6 +56,10 @@ export interface IClient {
     /**
      * @return OK
      */
+    all(): Observable<PublicLeagueCatalogResponse>;
+    /**
+     * @return OK
+     */
     leaguesArchive2(id: string): Observable<PublicLeagueDetailResponse>;
     /**
      * @param if_Match (optional)
@@ -148,7 +152,7 @@ export interface IClient {
      * @param from (optional)
      * @return OK
      */
-    all(from: string | undefined): Observable<PublicEventCatalogResponse>;
+    all2(from: string | undefined): Observable<PublicEventCatalogResponse>;
     /**
      * @return OK
      */
@@ -1123,6 +1127,60 @@ export class Client implements IClient {
             let result201: any = null;
             result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LeagueCommandResponse;
             return _observableOf(result201);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    all(): Observable<PublicLeagueCatalogResponse> {
+        let url_ = this.baseUrl + "/api/leagues-archive/all";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processAll(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processAll(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<PublicLeagueCatalogResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<PublicLeagueCatalogResponse>;
+        }));
+    }
+
+    protected processAll(response: HttpResponseBase): Observable<PublicLeagueCatalogResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicLeagueCatalogResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -2317,7 +2375,7 @@ export class Client implements IClient {
      * @param from (optional)
      * @return OK
      */
-    all(from: string | undefined): Observable<PublicEventCatalogResponse> {
+    all2(from: string | undefined): Observable<PublicEventCatalogResponse> {
         let url_ = this.baseUrl + "/api/events/all?";
         if (from === null)
             throw new globalThis.Error("The parameter 'from' cannot be null.");
@@ -2334,11 +2392,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processAll(response_);
+            return this.processAll2(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processAll(response_ as any);
+                    return this.processAll2(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<PublicEventCatalogResponse>;
                 }
@@ -2347,7 +2405,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processAll(response: HttpResponseBase): Observable<PublicEventCatalogResponse> {
+    protected processAll2(response: HttpResponseBase): Observable<PublicEventCatalogResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -11216,6 +11274,14 @@ export interface PublicFormatResponse {
     name: string;
     slug: string;
     sortOrder: number;
+
+    [key: string]: any;
+}
+
+export interface PublicLeagueCatalogResponse {
+    items: PublicLeagueDetailResponse[];
+    totalCount: number;
+    truncated: boolean;
 
     [key: string]: any;
 }

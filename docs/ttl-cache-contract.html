@@ -161,7 +161,7 @@ is why it feels instant. Server-paged endpoints cannot do that without a new end
 <tbody>
 <tr><td>Events</td><td>full catalog</td><td>localStorage</td><td><code>gones.events.catalog</code></td></tr>
 <tr><td>Global Rankings</td><td>full catalog <em>(new endpoint)</em></td><td>localStorage</td><td><code>gones.global-stats.catalog</code></td></tr>
-<tr><td>Leagues Archive</td><td>full list</td><td>localStorage</td><td><code>gones.leagues-archive.catalog</code></td></tr>
+<tr><td>Leagues Archive</td><td>full catalog <em>(new endpoint)</em></td><td>localStorage</td><td><code>gones.leagues-archive.catalog</code></td></tr>
 <tr><td>Player page</td><td>one player, whole history</td><td>localStorage</td><td><code>gones.player.&lt;name&gt;</code></td></tr>
 <tr><td>My Registrations</td><td>server-paged</td><td>IndexedDB</td><td><code>registrations:&lt;page&gt;</code></td></tr>
 <tr><td>Settings</td><td>catalogs</td><td>IndexedDB</td><td><code>settings-catalogs</code></td></tr>
@@ -173,7 +173,8 @@ is why it feels instant. Server-paged endpoints cannot do that without a new end
 
 <p>A new public catalog endpoint copies <code>/api/events/all</code> exactly: cap 5000 rows
 (config-overridable), a <code>truncated</code> flag in the body, a SHA-256 ETag, and
-<code>Cache-Control: public, max-age=3600</code>.</p>
+<code>Cache-Control: public, max-age=3600</code>. <code>/api/leagues-archive/all</code> caps at 1000
+instead, because a League is a whole document of up to 1 MB rather than a fixed-width row.</p>
 
 <h2>Staleness is not allowed to lie</h2>
 
