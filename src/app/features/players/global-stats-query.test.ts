@@ -154,6 +154,9 @@ function row(playerName: string, overrides: Partial<GlobalPlayerStatisticsRow> =
     position: 0, playerName, playedMatchCount: 0, matchWins: 0, matchLosses: 0, matchDraws: 0,
     matchWinrate: 0, playedGameCount: 0, gameWins: 0, gameLosses: 0, gameWinrate: 0,
     nemesis: undefined, rival: undefined, mostPlayedArchetype: undefined,
+    rating: 1500, ratingDeviation: 350, previousRating: 1500, lastRatingDelta: 0,
+    tournamentsPlayed: 0, lastPlayedDate: undefined, provisional: true, inactive: false,
+    decayedRating: undefined,
     ...overrides
   };
 }

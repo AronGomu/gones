@@ -10592,6 +10592,15 @@ export interface GlobalPlayerStatisticsRow {
     nemesis: OpponentRecord | undefined;
     rival: OpponentRecord | undefined;
     mostPlayedArchetype: PlayerArchetypeUsage | undefined;
+    rating: number;
+    ratingDeviation: number;
+    previousRating: number;
+    lastRatingDelta: number;
+    tournamentsPlayed: number;
+    lastPlayedDate: string | undefined;
+    provisional: boolean;
+    inactive: boolean;
+    decayedRating: number | undefined;
 
     [key: string]: any;
 }

@@ -9538,7 +9538,16 @@
           "gameWinrate",
           "nemesis",
           "rival",
-          "mostPlayedArchetype"
+          "mostPlayedArchetype",
+          "rating",
+          "ratingDeviation",
+          "previousRating",
+          "lastRatingDelta",
+          "tournamentsPlayed",
+          "lastPlayedDate",
+          "provisional",
+          "inactive",
+          "decayedRating"
         ],
         "type": "object",
         "properties": {
@@ -9656,6 +9665,67 @@
                 "$ref": "#/components/schemas/PlayerArchetypeUsage"
               }
             ]
+          },
+          "rating": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ratingDeviation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "previousRating": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastRatingDelta": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "tournamentsPlayed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastPlayedDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "inactive": {
+            "type": "boolean"
+          },
+          "decayedRating": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },

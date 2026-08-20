@@ -87,6 +87,35 @@ public sealed class PlayerApiTests : IAsyncLifetime
         Assert.Equal(JsonValueKind.Null, statistics.GetProperty("nemesis").ValueKind);
     }
 
+    /// <summary>
+    /// The player page reads the same row type Global Rankings does, so the rating columns and the two
+    /// derived flags reach it without a second mapping (ADR 0043).
+    /// </summary>
+    [Fact]
+    public async Task Serves_the_rating_on_the_player_page()
+    {
+        using var client = CreateClient();
+        var body = await client.GetFromJsonAsync<JsonElement>("/api/players/Ada");
+        var statistics = body.GetProperty("statistics");
+
+        await using var database = CreateContext();
+        var row = await database.PlayerStatistics.AsNoTracking().SingleAsync(candidate => candidate.PlayerName == "Ada");
+
+        Assert.Equal((int)Math.Round(row.Rating, MidpointRounding.AwayFromZero), statistics.GetProperty("rating").GetInt32());
+        Assert.Equal(row.RatingDeviation, statistics.GetProperty("ratingDeviation").GetDouble());
+        Assert.Equal((int)Math.Round(row.PreviousRating, MidpointRounding.AwayFromZero), statistics.GetProperty("previousRating").GetInt32());
+        Assert.Equal(
+            statistics.GetProperty("rating").GetInt32() - statistics.GetProperty("previousRating").GetInt32(),
+            statistics.GetProperty("lastRatingDelta").GetInt32());
+
+        // One completed Tournament, so Ada is provisional; a provisional player is never also inactive.
+        Assert.Equal(1, statistics.GetProperty("tournamentsPlayed").GetInt32());
+        Assert.Equal("2031-05-02", statistics.GetProperty("lastPlayedDate").GetString());
+        Assert.True(statistics.GetProperty("provisional").GetBoolean());
+        Assert.False(statistics.GetProperty("inactive").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, statistics.GetProperty("decayedRating").ValueKind);
+    }
+
     [Fact]
     public async Task Flattens_league_and_tournament()
     {

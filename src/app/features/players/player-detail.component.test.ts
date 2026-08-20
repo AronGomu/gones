@@ -43,7 +43,10 @@ function serverPayload(overrides: Partial<PlayerDetailResponse> = {}): PlayerDet
       // The endpoint always emits 1 here — it is the row's index in its own response, not a rank.
       position: 1, playerName: 'Alice', playedMatchCount: 1, matchWins: 1, matchLosses: 0, matchDraws: 0,
       matchWinrate: 1, playedGameCount: 3, gameWins: 2, gameLosses: 1, gameWinrate: 2 / 3,
-      nemesis: undefined, rival: { name: 'Bob', wins: 1, losses: 0 }, mostPlayedArchetype: { name: 'Control', matchCount: 1 }
+      nemesis: undefined, rival: { name: 'Bob', wins: 1, losses: 0 }, mostPlayedArchetype: { name: 'Control', matchCount: 1 },
+      rating: 1500, ratingDeviation: 350, previousRating: 1500, lastRatingDelta: 0,
+      tournamentsPlayed: 1, lastPlayedDate: '2026-01-01', provisional: true, inactive: false,
+      decayedRating: undefined
     },
     matches,
     totalMatchCount: matches.length,

@@ -3,6 +3,7 @@ using Gones.Api.Security;
 using Gones.Domain.Leagues;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace Gones.Api.Leagues;
 
@@ -46,6 +47,7 @@ internal static class PlayerEndpoints
         HttpResponse response,
         GonesDbContext database,
         IConfiguration configuration,
+        IClock clock,
         CancellationToken cancellationToken)
     {
         var requested = LeagueNormalizer.TrimPlayerName(playerName);
@@ -61,8 +63,11 @@ internal static class PlayerEndpoints
         var row = await FindAsync(database, requested, cancellationToken) ?? throw new ResourceNotFoundException();
 
         var ceiling = configuration.GetValue(MaximumHistorySizeKey, MaximumHistorySize);
+        // The statistics half carries the inactive flag, which turns over on a date rather than on a
+        // rebuild, so the day belongs in the ETag here for the same reason it does on the rankings.
+        var today = clock.GetCurrentInstant().InUtc().Date;
         var etag = PublicLeagueEndpoints.HashETag(
-            $"{await PublicLeagueEndpoints.ReadModelStampAsync(database, cancellationToken)}:player:{row.PlayerName}:{ceiling}");
+            $"{await PublicLeagueEndpoints.ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:player:{row.PlayerName}:{ceiling}");
         response.Headers.ETag = etag;
         response.Headers.CacheControl = PlayerCacheControl;
         if (PublicLeagueEndpoints.IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
@@ -71,7 +76,14 @@ internal static class PlayerEndpoints
         var truncated = matches.Count > ceiling;
         var capped = truncated ? matches.Take(ceiling).ToList() : matches;
 
-        return Results.Ok(new PlayerDetailResponse(ToStatisticsRow(row), capped, matches.Count, truncated));
+        // The row is mapped by the same function Global Rankings uses, so the page cannot fall behind a
+        // field the rankings gained; `position` is 1 because a response holding one player has one row,
+        // and it is not a rank.
+        return Results.Ok(new PlayerDetailResponse(
+            PublicLeagueEndpoints.ToGlobalStatsRow(1, row, today),
+            capped,
+            matches.Count,
+            truncated));
     }
 
     /// <summary>
@@ -181,27 +193,6 @@ internal static class PlayerEndpoints
             ownArchetype,
             opponentArchetype);
     }
-
-    /// <summary>
-    /// The read model row in the exact shape Global Rankings serves it, so the page can reuse one type
-    /// for both. <c>position</c> is the row's index in the response it belongs to, which for a response
-    /// holding one player is always 1 — it is not a rank.
-    /// </summary>
-    private static GlobalPlayerStatisticsRow ToStatisticsRow(PlayerStatisticsRow row) => new(
-        1,
-        row.PlayerName,
-        row.PlayedMatchCount,
-        row.MatchWins,
-        row.MatchLosses,
-        row.MatchDraws,
-        row.MatchWinrate,
-        row.PlayedGameCount,
-        row.GameWins,
-        row.GameLosses,
-        row.GameWinrate,
-        row.Nemesis,
-        row.Rival,
-        row.MostPlayedArchetype);
 }
 
 /// <summary>

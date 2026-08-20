@@ -37,7 +37,8 @@ internal static class PublicLeagueEndpoints
     private static readonly HashSet<string> GlobalStatsSortAllowlist = new(StringComparer.Ordinal)
     {
         "playedMatchCount", "matchWins", "matchLosses", "matchDraws", "matchWinrate",
-        "playedGameCount", "gameWins", "gameLosses", "gameWinrate"
+        "playedGameCount", "gameWins", "gameLosses", "gameWinrate",
+        "rating", "tournamentsPlayed"
     };
 
     public static void MapPublicLeagueEndpoints(this WebApplication app)
@@ -104,6 +105,7 @@ internal static class PublicLeagueEndpoints
         HttpRequest request,
         HttpResponse response,
         GonesDbContext database,
+        IClock clock,
         CancellationToken cancellationToken)
     {
         var pageNumber = page ?? 1;
@@ -119,18 +121,22 @@ internal static class PublicLeagueEndpoints
         var query = FilterGlobalStats(database.PlayerStatistics.AsNoTracking(), search);
         var total = await query.CountAsync(cancellationToken);
 
+        // The inactive flag and the bucket it orders by come from the request clock rather than the read
+        // model (ADR 0043), so the day is part of what this body says: without it, a client cached one
+        // side of a midnight boundary would keep being told 304 against yesterday's buckets.
+        var today = clock.GetCurrentInstant().InUtc().Date;
         var normalizedQuery = $"sort={sort}&dir={direction}&search={search?.Trim() ?? string.Empty}&page={pageNumber}&size={size}";
-        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{total}:{normalizedQuery}");
+        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:{total}:{normalizedQuery}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
 
         var isDescending = !string.Equals(direction, "asc", StringComparison.Ordinal);
         var offset = (pageNumber - 1) * size;
-        var rows = await OrderGlobalStats(query, sort, isDescending)
+        var rows = await OrderGlobalStats(query, sort, isDescending, today)
             .Skip(offset)
             .Take(size)
             .ToListAsync(cancellationToken);
-        var items = rows.Select((row, index) => ToGlobalStatsRow(offset + index + 1, row)).ToList();
+        var items = rows.Select((row, index) => ToGlobalStatsRow(offset + index + 1, row, today)).ToList();
 
         return Results.Ok(new GlobalPlayerStatisticsResponse(items, pageNumber, size, total, sort, direction));
     }
@@ -146,11 +152,13 @@ internal static class PublicLeagueEndpoints
         GonesDbContext database,
         IConfiguration configuration,
         ILoggerFactory loggerFactory,
+        IClock clock,
         CancellationToken cancellationToken)
     {
         var ceiling = configuration.GetValue(GlobalStatsMaximumCatalogSizeKey, GlobalStatsMaximumCatalogSize);
         var total = await database.PlayerStatistics.AsNoTracking().CountAsync(cancellationToken);
-        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{total}:catalog:{ceiling}");
+        var today = clock.GetCurrentInstant().InUtc().Date;
+        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:{total}:catalog:{ceiling}");
         response.Headers.ETag = etag;
         response.Headers.CacheControl = CatalogCacheControl;
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
@@ -163,7 +171,7 @@ internal static class PublicLeagueEndpoints
             .ToListAsync(cancellationToken);
         var truncated = fetched.Count > ceiling;
         var items = (truncated ? fetched.Take(ceiling) : fetched)
-            .Select((row, index) => ToGlobalStatsRow(index + 1, row))
+            .Select((row, index) => ToGlobalStatsRow(index + 1, row, today))
             .ToList();
         if (truncated)
         {
@@ -187,15 +195,46 @@ internal static class PublicLeagueEndpoints
     /// because Player Names are exact and case-sensitive (ADR 0040) while the database collation is
     /// not, and a null winrate sorts last in both directions instead of taking Postgres' own null
     /// placement, which flips with the direction.
+    ///
+    /// <para>The default is the three-bucket partition of ADR 0043 rather than a single column: active
+    /// ranked players by rating, then inactive ranked ones by rating, then the provisional ones by how
+    /// much they have played. The bucket is computed in the projection so Postgres does the ordering,
+    /// and the two counts below it are keyed off the provisional test so that they only break ties
+    /// inside the last bucket — a ranked player is separated by rating and then by name, exactly as
+    /// before.</para>
     /// </summary>
-    private static IQueryable<PlayerStatisticsRow> OrderGlobalStats(IQueryable<PlayerStatisticsRow> query, string? sort, bool descending)
+    private static IQueryable<PlayerStatisticsRow> OrderGlobalStats(
+        IQueryable<PlayerStatisticsRow> query,
+        string? sort,
+        bool descending,
+        LocalDate today)
     {
         if (sort is null)
+        {
+            // Stored last-played dates are fixed-width ISO, so "idle for twelve whole months" is one
+            // string comparison against this date. It collates as C for the same reason the name
+            // tiebreak does: PlayerRankingRules decides the flag ordinally in memory, the database
+            // decides the bucket that orders by it, and the badge would contradict the ordering if the
+            // two ever disagreed on a comparison. The database collation is en_US, not C.
+            var cutoff = PlayerRankingRules.InactiveCutoff(today);
             return query
-                .OrderByDescending(row => row.MatchWins)
-                .ThenByDescending(row => row.GameWins)
-                .ThenByDescending(row => row.MatchDraws)
+                .OrderBy(row => row.TournamentsPlayed < PlayerRankingRules.ProvisionalTournamentThreshold
+                    ? PlayerRankingRules.ProvisionalBucket
+                    : row.LastPlayedDate == null
+                      || string.Compare(EF.Functions.Collate(row.LastPlayedDate, OrdinalCollation), cutoff) <= 0
+                        ? PlayerRankingRules.InactiveRankedBucket
+                        : PlayerRankingRules.ActiveRankedBucket)
+                .ThenByDescending(row => row.TournamentsPlayed < PlayerRankingRules.ProvisionalTournamentThreshold
+                    ? 0d
+                    : row.Rating)
+                .ThenByDescending(row => row.TournamentsPlayed < PlayerRankingRules.ProvisionalTournamentThreshold
+                    ? row.TournamentsPlayed
+                    : 0)
+                .ThenByDescending(row => row.TournamentsPlayed < PlayerRankingRules.ProvisionalTournamentThreshold
+                    ? row.PlayedMatchCount
+                    : 0)
                 .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
+        }
         return sort switch
         {
             "playedMatchCount" => GlobalSortByCount(query, row => row.PlayedMatchCount, descending),
@@ -207,6 +246,8 @@ internal static class PublicLeagueEndpoints
             "gameWins" => GlobalSortByCount(query, row => row.GameWins, descending),
             "gameLosses" => GlobalSortByCount(query, row => row.GameLosses, descending),
             "gameWinrate" => GlobalSortByWinrate(query, row => row.GameWinrate, row => row.GameWinrate == null, descending),
+            "rating" => GlobalSortByRating(query, row => row.Rating, descending),
+            "tournamentsPlayed" => GlobalSortByCount(query, row => row.TournamentsPlayed, descending),
             _ => throw new InvalidOperationException($"Unknown sort: {sort}")
         };
     }
@@ -214,6 +255,18 @@ internal static class PublicLeagueEndpoints
     private static IQueryable<PlayerStatisticsRow> GlobalSortByCount(
         IQueryable<PlayerStatisticsRow> query,
         Expression<Func<PlayerStatisticsRow, int>> column,
+        bool descending) =>
+        (descending ? query.OrderByDescending(column) : query.OrderBy(column))
+            .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
+
+    /// <summary>
+    /// The winrate twin without the nulls-last branch: a rating is stored on every row, so there is no
+    /// missing value whose placement would flip with the direction. It sorts on the stored double, not
+    /// the integer the wire carries, so two ratings that round to the same number keep their real order.
+    /// </summary>
+    private static IQueryable<PlayerStatisticsRow> GlobalSortByRating(
+        IQueryable<PlayerStatisticsRow> query,
+        Expression<Func<PlayerStatisticsRow, double>> column,
         bool descending) =>
         (descending ? query.OrderByDescending(column) : query.OrderBy(column))
             .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
@@ -229,21 +282,45 @@ internal static class PublicLeagueEndpoints
             .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
     }
 
-    private static GlobalPlayerStatisticsRow ToGlobalStatsRow(int position, PlayerStatisticsRow row) => new(
-        position,
-        row.PlayerName,
-        row.PlayedMatchCount,
-        row.MatchWins,
-        row.MatchLosses,
-        row.MatchDraws,
-        row.MatchWinrate,
-        row.PlayedGameCount,
-        row.GameWins,
-        row.GameLosses,
-        row.GameWinrate,
-        row.Nemesis,
-        row.Rival,
-        row.MostPlayedArchetype);
+    /// <summary>
+    /// One read-model row on the wire. The rating is rounded here rather than in the browser so every
+    /// surface shows the same integer, and the delta is the difference between the two rounded numbers
+    /// rather than the stored double — a client that prints rating and delta must never be able to
+    /// derive a previous rating that disagrees with the one it was sent.
+    /// </summary>
+    internal static GlobalPlayerStatisticsRow ToGlobalStatsRow(int position, PlayerStatisticsRow row, LocalDate today)
+    {
+        var rating = RoundRating(row.Rating);
+        var previousRating = RoundRating(row.PreviousRating);
+        return new(
+            position,
+            row.PlayerName,
+            row.PlayedMatchCount,
+            row.MatchWins,
+            row.MatchLosses,
+            row.MatchDraws,
+            row.MatchWinrate,
+            row.PlayedGameCount,
+            row.GameWins,
+            row.GameLosses,
+            row.GameWinrate,
+            row.Nemesis,
+            row.Rival,
+            row.MostPlayedArchetype,
+            rating,
+            row.RatingDeviation,
+            previousRating,
+            rating - previousRating,
+            row.TournamentsPlayed,
+            row.LastPlayedDate,
+            PlayerRankingRules.IsProvisional(row.TournamentsPlayed),
+            PlayerRankingRules.IsInactive(row.LastPlayedDate, row.TournamentsPlayed, today),
+            // T19 owns the decay switch. The field is on the wire from here so a client can ship its
+            // reader first, and it stays null until that key turns the stored value on.
+            null);
+    }
+
+    private static int RoundRating(double value) => (int)Math.Round(value, MidpointRounding.AwayFromZero);
 
     /// <summary>
     /// When the read model last changed, as the ETag input that replaces the scan over every archive
@@ -587,7 +664,16 @@ internal sealed record GlobalPlayerStatisticsRow(
     double? GameWinrate,
     OpponentRecord? Nemesis,
     OpponentRecord? Rival,
-    PlayerArchetypeUsage? MostPlayedArchetype);
+    PlayerArchetypeUsage? MostPlayedArchetype,
+    int Rating,
+    double RatingDeviation,
+    int PreviousRating,
+    int LastRatingDelta,
+    int TournamentsPlayed,
+    string? LastPlayedDate,
+    bool Provisional,
+    bool Inactive,
+    int? DecayedRating);
 
 internal sealed record LeagueExportResponse(
     string Kind,

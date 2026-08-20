@@ -862,3 +862,32 @@ data is reset). The compose service is `postgres` and the role is `gones_migrati
 - [ ] `curl -s "localhost:5080/api/players/<name>"` likewise carries no rating field.
 - [ ] Gones Export from Settings still produces a bundle with no rating in it, and restoring that bundle into a clean stack recomputes the ratings from scratch (the rating is derived, never exported).
 - [ ] The full-stack smoke gate still agrees on the migration list: `npm run smoke:full-stack` (or the gate that calls `scripts/smoke-full-stack.mjs`) does not throw `PostgreSQL migrations differ.`
+
+## T15 rating-statistics-api
+
+Set-up: `npm run dev:stress:generate`, then `npm run dev -- --env=stress` (the 100× dataset; local
+data is reset). The compose service is `postgres` and the role is `gones_migration`. Rebuild the API
+image first (`docker compose build api worker`) — a stale image serves the old contract.
+
+This ticket is API-only. Nothing on the rankings page or the player page changes visually until T16.
+
+- [ ] Every row carries the rating block: `curl -s "localhost:5080/api/leagues-archive/global-player-statistics?page=1&pageSize=10" | jq '.items[0]'` shows `rating`, `ratingDeviation`, `previousRating`, `lastRatingDelta`, `tournamentsPlayed`, `lastPlayedDate`, `provisional`, `inactive` and `decayedRating`.
+- [ ] `rating` and `previousRating` are whole numbers, and `lastRatingDelta` equals their difference on every row: `curl -s "localhost:5080/api/leagues-archive/global-player-statistics/all" | jq '[.items[] | select(.lastRatingDelta != (.rating - .previousRating))] | length'` → `0`.
+- [ ] `decayedRating` is `null` on every row — T19 owns the switch that fills it: `curl -s "localhost:5080/api/leagues-archive/global-player-statistics/all" | jq '[.items[] | select(.decayedRating != null)] | length'` → `0`.
+- [ ] The four game columns T6 dropped from the table are still on the wire: `jq '.items[0] | {playedGameCount, gameWins, gameLosses, gameWinrate}'` on the same read.
+- [ ] `provisional` is exactly "fewer than 5 Tournaments": `jq '[.items[] | select(.provisional != (.tournamentsPlayed < 5))] | length'` → `0`.
+- [ ] No player is both provisional and inactive: `jq '[.items[] | select(.provisional and .inactive)] | length'` → `0`.
+- [ ] A player idle over a year is flagged: pick one with an old `lastPlayedDate` and at least 5 Tournaments and confirm `inactive: true`; pick one who played in the last few months and confirm `inactive: false`.
+- [ ] The default order is the three buckets in order — page through the whole ranking and confirm the bucket number never goes back down: `for p in $(seq 1 12); do curl -s "localhost:5080/api/leagues-archive/global-player-statistics?page=$p&pageSize=100"; done | jq -s '[.[].items[] | if .provisional then 2 elif .inactive then 1 else 0 end] | . == (. | sort)'` → `true`.
+- [ ] Active ranked players lead, by rating descending, and an inactive player with a **higher** rating than the leader still sits below every active one.
+- [ ] Provisional players are last, ordered by `tournamentsPlayed` descending and then `playedMatchCount` descending — a 1900-rated provisional player does not jump the queue.
+- [ ] Two names that differ only in case are adjacent and capital-first (`Alice` before `alice`).
+- [ ] `?sort=rating&direction=asc` returns ratings ascending and **ignores** the buckets (a provisional player can lead).
+- [ ] `?sort=tournamentsPlayed` returns counts descending, and tied counts fall back to the ordinal name order.
+- [ ] `?sort=bogus` → `400` with `sort` named in the problem body; every pre-existing sort (`matchWins`, `gameWinrate`, …) still works in both directions.
+- [ ] The catalog `/global-player-statistics/all` is **not** re-ranked: it stays ordered by `playedMatchCount` descending, and only gained the new fields.
+- [ ] The player page inherits the block: `curl -s "localhost:5080/api/players/<name>" | jq '.statistics | {rating, lastRatingDelta, tournamentsPlayed, provisional, inactive}'`.
+- [ ] The ETag turns over at midnight UTC on all three reads. Note the ETag of `?pageSize=100`, of `/all` and of `/api/players/<name>`; move the host clock (or the container's) past midnight; confirm all three ETags change with no rebuild in between, and that a conditional request with the old ETag answers `200`, not `304`.
+- [ ] Within the same day the ETags are stable and a conditional request still answers `304`.
+- [ ] `/global-stats` still renders, sorts, filters and pages exactly as before — the page ignores the new fields until T16. Note that its client-side default order is still the old `matchWins` one; that mirror is T16's job.
+- [ ] A player page opened from the rankings still shows the same statistics, history, filters and pagination as before.

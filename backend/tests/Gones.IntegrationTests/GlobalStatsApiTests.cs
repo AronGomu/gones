@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -85,12 +86,7 @@ public sealed class GlobalStatsApiTests : IAsyncLifetime
     [Fact]
     public async Task Matches_the_previous_computation()
     {
-        var expected = (await ExpectedAsync())
-            .OrderByDescending(row => row.MatchWins)
-            .ThenByDescending(row => row.GameWins)
-            .ThenByDescending(row => row.MatchDraws)
-            .ThenBy(row => row.PlayerName, StringComparer.Ordinal)
-            .ToArray();
+        var expected = InDefaultOrder(await ExpectedAsync());
 
         using var response = await Client.GetAsync($"{Path}?page=1&pageSize=100");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -308,6 +304,29 @@ public sealed class GlobalStatsApiTests : IAsyncLifetime
         using var refreshed = await Client.GetAsync($"{Path}?pageSize=100&search=ActiveLeaguePlayer");
         var edited = (await refreshed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items")[0];
         Assert.Equal(2, edited.GetProperty("playedMatchCount").GetInt32());
+    }
+
+    /// <summary>
+    /// The default order of ADR 0043, restated here independently of the endpoint: active ranked players
+    /// by rating, then inactive ranked ones by rating, then the provisional ones by Tournaments played
+    /// and Matches played. The twelve-month line is derived from the same clock the server reads rather
+    /// than hardcoded, so this oracle does not rot when the fixture's dates age past it.
+    /// </summary>
+    private static GlobalPlayerStatistics[] InDefaultOrder(IEnumerable<GlobalPlayerStatistics> rows)
+    {
+        var cutoff = DateTime.UtcNow.Date.AddMonths(-12).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        static int Provisional(GlobalPlayerStatistics row) => row.TournamentsPlayed < 5 ? 2 : 0;
+        int Bucket(GlobalPlayerStatistics row) =>
+            Provisional(row) == 2 ? 2
+            : row.LastPlayedDate is null || string.CompareOrdinal(row.LastPlayedDate, cutoff) <= 0 ? 1
+            : 0;
+        return rows
+            .OrderBy(Bucket)
+            .ThenByDescending(row => Provisional(row) == 2 ? 0d : row.Rating)
+            .ThenByDescending(row => Provisional(row) == 2 ? row.TournamentsPlayed : 0)
+            .ThenByDescending(row => Provisional(row) == 2 ? row.PlayedMatchCount : 0)
+            .ThenBy(row => row.PlayerName, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static double? Sortable(JsonElement value) =>

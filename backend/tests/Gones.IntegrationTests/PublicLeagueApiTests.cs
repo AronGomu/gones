@@ -172,8 +172,9 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("public", response.Headers.CacheControl!.ToString());
         Assert.NotNull(response.Headers.ETag);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var names = body.GetProperty("items").EnumerateArray().Select(r => r.GetProperty("playerName").GetString()!).ToHashSet();
+        // Membership is about the whole population, so it is read across every page: the default order
+        // is the ADR 0043 ranking, and page one of a ranking is not a sample of who is in it.
+        var names = await AllPlayerNamesAsync();
         // from glb-completed only
         Assert.Contains("Alice", names);
         Assert.Contains("alice", names);
@@ -199,7 +200,9 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
     [Fact]
     public async Task Identity_Alice_and_alice_are_separate_players()
     {
-        using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100");
+        // The search is case-insensitive, so one page holds both spellings whatever the ranking does
+        // with them.
+        using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100&search=Alice");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var names = body.GetProperty("items").EnumerateArray().Select(r => r.GetProperty("playerName").GetString()!).ToList();
         Assert.Contains("Alice", names);
@@ -207,14 +210,33 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         Assert.NotEqual(names.IndexOf("Alice"), names.IndexOf("alice"));
     }
 
+    /// <summary>Every Player Name the paged rankings serve, walked page by page.</summary>
+    private async Task<HashSet<string>> AllPlayerNamesAsync()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        for (var page = 1; ; page++)
+        {
+            using var response = await Client.GetAsync($"/api/leagues-archive/global-player-statistics?page={page}&pageSize=100");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var items = body.GetProperty("items").EnumerateArray()
+                .Select(item => item.GetProperty("playerName").GetString()!)
+                .ToArray();
+            if (items.Length == 0) return names;
+            foreach (var name in items) names.Add(name);
+        }
+    }
+
     [Fact]
-    public async Task Default_sort_is_matchWins_desc_gameWins_desc_matchDraws_desc_name_asc()
+    public async Task Default_sort_echoes_no_sort_and_numbers_positions_within_the_result()
     {
         using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=10");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var items = body.GetProperty("items").EnumerateArray().ToArray();
-        // Alice has MW=2, should be first in completed league results
-        // Find first item among glb-completed players (search by name to isolate)
+        Assert.NotEmpty(items);
+        // The default order itself is the ADR 0043 three-bucket ranking, covered in
+        // GlobalStatsRatingApiTests; what this asserts is that an unsorted request echoes no sort and
+        // still numbers its own rows.
         using var r2 = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100&search=Alice");
         var b2 = await r2.Content.ReadFromJsonAsync<JsonElement>();
         var aliceRow = b2.GetProperty("items").EnumerateArray().First(r => r.GetProperty("playerName").GetString() == "Alice");
@@ -224,7 +246,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         Assert.True(b2.GetProperty("sort").ValueKind == JsonValueKind.Null);
         Assert.True(b2.GetProperty("direction").ValueKind == JsonValueKind.Null);
         Assert.Equal(1, b2.GetProperty("page").GetInt32());
-        // Alice is position 1 (highest MW among Alice results)
+        // Alice leads the two Alice spellings: same bucket, same counts, and the ordinal name tiebreak.
         Assert.Equal(1, aliceRow.GetProperty("position").GetInt32());
     }
 

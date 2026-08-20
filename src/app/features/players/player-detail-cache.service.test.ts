@@ -22,7 +22,10 @@ function payload(overrides: Partial<PlayerDetailResponse> = {}): PlayerDetailRes
     statistics: {
       position: 1, playerName: 'Alice', playedMatchCount: 3, matchWins: 2, matchLosses: 1, matchDraws: 0,
       matchWinrate: 2 / 3, playedGameCount: 6, gameWins: 4, gameLosses: 2, gameWinrate: 2 / 3,
-      nemesis: undefined, rival: undefined, mostPlayedArchetype: undefined
+      nemesis: undefined, rival: undefined, mostPlayedArchetype: undefined,
+      rating: 1500, ratingDeviation: 350, previousRating: 1500, lastRatingDelta: 0,
+      tournamentsPlayed: 1, lastPlayedDate: '2026-01-01', provisional: true, inactive: false,
+      decayedRating: undefined
     },
     matches: [],
     totalMatchCount: 3,

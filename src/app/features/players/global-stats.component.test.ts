@@ -160,6 +160,15 @@ function makeRow(overrides: Partial<GlobalPlayerStatisticsRow> = {}): GlobalPlay
     nemesis: undefined,
     rival: undefined,
     mostPlayedArchetype: undefined,
+    rating: 1500,
+    ratingDeviation: 350,
+    previousRating: 1500,
+    lastRatingDelta: 0,
+    tournamentsPlayed: 0,
+    lastPlayedDate: undefined,
+    provisional: true,
+    inactive: false,
+    decayedRating: undefined,
     ...overrides,
   };
 }
