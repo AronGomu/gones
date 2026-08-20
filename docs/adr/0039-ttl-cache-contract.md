@@ -4,7 +4,7 @@
 
 Accepted. **Amends ADR 0031** (authenticated offline read cache) from fallback-only to
 fallback-plus-TTL. Extends the pattern ADR 0023 set for the public catalog. Planned by T7–T11 in
-`ai_artefacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`.
+`artifacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`.
 
 ## Context
 

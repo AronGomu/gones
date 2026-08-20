@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Planned by T20–T26 in `ai_artefacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`. Answers
+Accepted. Planned by T20–T26 in `artifacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`. Answers
 the product owner's own question: "assuming hundreds of players, what is the most cost-efficient way
 to store and load player statistics?"
 

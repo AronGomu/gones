@@ -3,7 +3,7 @@
 ## Status
 
 Accepted. Builds on ADR 0034 (derived Organizer role and Draft organizations). Planned by T16–T17 in
-`ai_artefacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`.
+`artifacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`.
 
 ## Context
 

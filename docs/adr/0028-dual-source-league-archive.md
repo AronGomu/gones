@@ -132,4 +132,4 @@ Both adapters already behaved this way; this ADR pins it as the rule rather than
 - ADR 0020 — Retire the legacy browser data authority
 - ADR 0021 — Role-scoped browser Live store
 - `docs/league-archive-authority.html` — the diagrammed version of this decision
-- Plan `ai-artifacts/PLAN_2026_08_09_feedback-calendar-v1-round-2.md`, tickets T12–T15
+- Plan `artifacts/PLAN_2026_08_09_feedback-calendar-v1-round-2.md`, tickets T12–T15

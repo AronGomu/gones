@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted. Implemented by T8–T13 in `ai_artefacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`. Finalized T15.
+Accepted. Implemented by T8–T13 in `artifacts/PLAN_2026_08_13_feedback-calendar-v1-implementation.md`. Finalized T15.
 
 ## Context
 

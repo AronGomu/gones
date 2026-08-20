@@ -3,7 +3,7 @@
 ## Status
 
 Accepted. **Supersedes the permanent-frontend-redirect clause of ADR 0035**, for the calendar paths
-only. Planned by T1 in `ai_artefacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`.
+only. Planned by T1 in `artifacts/PLAN_2026_08_15_feedback-app-wide-round-5.md`.
 
 ## Context
 

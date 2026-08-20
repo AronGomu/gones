@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shape the player rating metric</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { margin:0 0 32px; padding:18px 22px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; background:var(--panel); }
+    .facts h2 { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+    .facts ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; }
+    .facts li { margin:5px 0; } .facts code { color:var(--text); background:var(--panel-2); padding:1px 5px; border-radius:5px; font-size:.85em; }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 1 · Rating model &amp; scope</span>
+    <h1>Shape the player rating metric</h1>
+    <p class="lede">Twelve independent decisions define what a Gones rating <em>is</em> before any constant is picked. All twelve are answerable today — the facts below were read from the repository, not guessed. Tick any answers that fit; an empty tick list plus a precision note is a valid answer.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress"><span class="node"><b>Goal: default ranking metric</b></span><span class="arrow">→</span><span class="node active">Input</span><span class="node active">Algorithm</span><span class="node active">Ordering</span><span class="node active">Scope</span><span class="node active">Edge cases</span><span class="node active">Eligibility</span><span class="node active">Storage</span><span class="node active">Surfacing</span><span class="arrow">→</span><span class="node">Constants (K, seed, RD)</span><span class="node">API + cache</span><span class="node">UI columns</span><span class="node">Backfill</span></nav>
+
+  <section class="facts" aria-label="Facts read from the repository">
+    <h2>Facts scouted from the repo — not up for debate, they constrain the answers</h2>
+    <ul>
+      <li>A match is <code>MatchRoundEntry</code>: two names, two integer scores (games won), two archetypes. Draws are representable and counted (<code>matchDraws</code>). Byes are a separate entry kind.</li>
+      <li>A player is a <strong>trimmed name string</strong>. No account, no id, no rating field anywhere today.</li>
+      <li>The only time signal is <code>tournament.tournamentDate</code> (a date, no clock) plus the round's array index. Matches inside a round have no order.</li>
+      <li>ADR 0040 already materializes <code>player_statistics</code>, rebuilt <strong>fully and synchronously</strong> in the same transaction as every archive write, keyed by <code>PlayerStatisticsFormula.Version</code>. 100× dataset rebuild = 1183 rows from 201 leagues in 177 ms.</li>
+      <li>ADR 0040 scope: only tournaments with <code>status === 'completed'</code> feed global statistics.</li>
+      <li>ADR 0028: browser-local leagues (<code>local-</code> id prefix) never reach the server, so the server read model cannot see them. The player page merges them client-side behind an <code>Online only</code> toggle.</li>
+      <li>Existing standings (<code>results.ts</code>) are Swiss: 3/1/0 points, bye = free win worth 3, tiebreaks OMW% and OGW%. Global stats currently sort by name, then <code>matchWins</code>.</li>
+    </ul>
+  </section>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Decision frontier</b>Twelve open decisions run in parallel. Constants, API shape and UI columns stay blocked until these land.</figcaption>
+      <svg viewBox="0 0 400 250" role="img" aria-labelledby="tree-title tree-desc">
+        <title id="tree-title">Design decision dependency graph for the rating metric</title>
+        <desc id="tree-desc">The goal branches into six active decision clusters — input granularity, algorithm, ordering, scope, edge cases and storage — which all converge on blocked later decisions covering constants, API shape and user interface columns.</desc>
+        <path class="svg-line" d="M83 125H115M115 125V30H150M115 125V75H150M115 125H150M115 125V175H150M115 125V220H150M250 30H285V125M250 75H285M250 125H285M250 175H285M250 220H285V125H310"/>
+        <circle class="svg-node" cx="55" cy="125" r="28"/><text class="svg-label" x="55" y="122" text-anchor="middle">Rating</text><text class="svg-note" x="55" y="136" text-anchor="middle">goal</text>
+        <rect class="svg-node active" x="150" y="12" width="100" height="36" rx="10"/><text class="svg-label" x="200" y="28" text-anchor="middle">Input Q1</text><text class="svg-note" x="200" y="41" text-anchor="middle">match vs games</text>
+        <rect class="svg-node active" x="150" y="57" width="100" height="36" rx="10"/><text class="svg-label" x="200" y="73" text-anchor="middle">Algorithm Q2</text><text class="svg-note" x="200" y="86" text-anchor="middle">Elo / Glicko</text>
+        <rect class="svg-node active" x="150" y="107" width="100" height="36" rx="10"/><text class="svg-label" x="200" y="123" text-anchor="middle">Order Q3</text><text class="svg-note" x="200" y="136" text-anchor="middle">no timestamps</text>
+        <rect class="svg-node active" x="150" y="157" width="100" height="36" rx="10"/><text class="svg-label" x="200" y="173" text-anchor="middle">Scope Q4–Q8</text><text class="svg-note" x="200" y="186" text-anchor="middle">pool, byes, local</text>
+        <rect class="svg-node active" x="150" y="202" width="100" height="36" rx="10"/><text class="svg-label" x="200" y="218" text-anchor="middle">Surface Q9–Q12</text><text class="svg-note" x="200" y="231" text-anchor="middle">store, show</text>
+        <rect class="svg-node" x="310" y="98" width="80" height="54" rx="10"/><text class="svg-label" x="350" y="120" text-anchor="middle">Round 2</text><text class="svg-note" x="350" y="135" text-anchor="middle">blocked</text>
+        <circle class="svg-accent" cx="256" cy="30" r="4"/><circle class="svg-accent" cx="256" cy="75" r="4"/><circle class="svg-accent" cx="256" cy="125" r="4"/><circle class="svg-accent" cx="256" cy="175" r="4"/><circle class="svg-accent" cx="256" cy="220" r="4"/>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>Where a rating would be computed</b>Today's archive path. A rating engine slots between the replay and the materialized table — every write already triggers a full rebuild.</figcaption>
+      <svg viewBox="0 0 400 250" role="img" aria-labelledby="flow-title flow-desc">
+        <title id="flow-title">Archive data pipeline with a rating engine inserted</title>
+        <desc id="flow-desc">League documents contain tournaments with a completed status, which contain ordered rounds of match entries. A rating engine consumes them in an order that must be chosen, and writes rows to the materialized player statistics table read by the rankings page and the player page. Browser-local leagues bypass the server entirely.</desc>
+        <defs><marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path class="svg-arrow" d="M0 0L8 4L0 8Z"/></marker></defs>
+        <rect class="svg-node" x="12" y="20" width="96" height="46" rx="10"/><text class="svg-label" x="60" y="40" text-anchor="middle">League</text><text class="svg-note" x="60" y="55" text-anchor="middle">status, tournaments</text>
+        <rect class="svg-node" x="12" y="86" width="96" height="46" rx="10"/><text class="svg-label" x="60" y="106" text-anchor="middle">Tournament</text><text class="svg-note" x="60" y="121" text-anchor="middle">date · completed</text>
+        <rect class="svg-node" x="12" y="152" width="96" height="46" rx="10"/><text class="svg-label" x="60" y="172" text-anchor="middle">Round[i]</text><text class="svg-note" x="60" y="187" text-anchor="middle">entries, scores</text>
+        <rect class="svg-node active" x="152" y="86" width="96" height="60" rx="10"/><text class="svg-label" x="200" y="108" text-anchor="middle">Rating engine</text><text class="svg-note" x="200" y="123" text-anchor="middle">ordered replay</text><text class="svg-note" x="200" y="136" text-anchor="middle">NEW</text>
+        <rect class="svg-node" x="292" y="86" width="96" height="60" rx="10"/><text class="svg-label" x="340" y="108" text-anchor="middle">player_statistics</text><text class="svg-note" x="340" y="123" text-anchor="middle">rebuilt in txn</text><text class="svg-note" x="340" y="136" text-anchor="middle">formula version</text>
+        <rect class="svg-node" x="292" y="182" width="96" height="46" rx="10"/><text class="svg-label" x="340" y="202" text-anchor="middle">Rankings + /players</text><text class="svg-note" x="340" y="217" text-anchor="middle">TTL cache 24h</text>
+        <rect class="svg-node" x="132" y="192" width="96" height="42" rx="10" stroke-dasharray="5 4"/><text class="svg-label" x="180" y="211" text-anchor="middle">local- leagues</text><text class="svg-note" x="180" y="225" text-anchor="middle">never reach server</text>
+        <path class="svg-line" marker-end="url(#arrowhead)" d="M108 40H130V110H146M108 109H146M108 172H130V116H146M248 116H286M340 146V176"/>
+        <path class="svg-line" stroke-dasharray="5 4" marker-end="url(#arrowhead)" d="M228 210H286"/>
+        <text class="svg-note" x="268" y="105" text-anchor="middle">replay</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+    <fieldset data-question="What does one rating update consume — the match result, or the game score inside it?">
+      <legend>1. What does one rating update consume — the match result, or the game score inside it?</legend>
+      <p class="why">A match carries two integer game scores, so 2–0 and 2–1 are distinguishable; deciding now fixes whether dominance is signal or noise.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Match result only (win / draw / loss), one update per match"><span><b>Match result only (win / draw / loss), one update per match</b><span class="rank">Recommended</span><span class="detail">Matches how the tournament itself is won; least noisy, simplest to explain, and immune to unscored-game data quirks.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Match result, with the game score as a margin-of-victory multiplier"><span><b>Match result, with the game score as a margin-of-victory multiplier</b><span class="rank">Second</span><span class="detail">A 2–0 moves the rating more than a 2–1; one extra factor, still one update per match.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Each game is its own rating event"><span><b>Each game is its own rating event</b><span class="rank">Third</span><span class="detail">Three times more data, faster convergence — but rewards losing 2–1 repeatedly and detaches the rating from who actually won.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Fractional score: games won divided by games played, as the Elo actual-score term"><span><b>Fractional score: games won / games played as the Elo actual-score term</b><span class="rank">Fourth</span><span class="detail">Mathematically neat, but a 2–1 win scores 0.67 and a 0–0 unscored match becomes an undefined ratio.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. match result primary, margin bonus capped at +25%…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Which rating algorithm family?">
+      <legend>2. Which rating algorithm family?</legend>
+      <p class="why">The family decides whether the rating can express uncertainty, whether it is order-dependent, and how much maths lands in the domain layer.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Glicko-2 (rating + deviation + volatility, updated per rating period)"><span><b>Glicko-2 — rating + deviation + volatility, per rating period</b><span class="rank">Recommended</span><span class="detail">Built for exactly this shape: sparse play, tournaments as natural rating periods, and it answers the new-player problem itself via rating deviation instead of an ad-hoc placement rule. Order inside a period does not matter — a real advantage given no match timestamps exist.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Classic Elo with a K-factor"><span><b>Classic Elo with a K-factor</b><span class="rank">Second</span><span class="detail">Everybody understands it and it is ~15 lines of pure domain code, but it is strictly sequential, has no confidence notion, and punishes returning players.</span></span></label>
+        <label class="choice"><input type="checkbox" value="TrueSkill / Bayesian skill (mu, sigma)"><span><b>TrueSkill-style Bayesian (mu, sigma)</b><span class="rank">Third</span><span class="detail">Same benefits as Glicko-2 with better multiplayer/free-for-all support Gones does not need; heavier to implement and to explain.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Non-Elo composite score (weighted winrate × volume × opponent strength)"><span><b>Non-Elo composite (weighted winrate × volume × opponent strength)</b><span class="rank">Fourth</span><span class="detail">Order-free, trivially recomputable, easy to tune — but it is a bespoke formula nobody outside Gones can validate, and it drifts toward rewarding volume.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Familiarity with the player base, willingness to explain a deviation number…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How are matches ordered in time, given only a tournament date and a round index exist?">
+      <legend>3. How are matches ordered in time, given only a tournament date and a round index exist?</legend>
+      <p class="why">Every sequential rating is order-dependent, and today two tournaments on the same date have no defined order — an arbitrary choice would make the number silently unstable.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Tournament is the rating period: all its matches count against the ratings held before it started"><span><b>Tournament = rating period; all its matches use the ratings held before it started</b><span class="rank">Recommended</span><span class="detail">Order inside a tournament stops mattering entirely, which removes the instability at the source. Natural fit with Glicko-2 and with how players perceive an event.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Order by tournament date, then round index, then a deterministic tiebreak on ids"><span><b>Tournament date → round index → deterministic id tiebreak</b><span class="rank">Second</span><span class="detail">Keeps a strict sequence and stays reproducible, but the id tiebreak is a fiction: two same-day tournaments get an arbitrary but stable order.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Add a real timestamp to tournaments (and optionally rounds) and order by it"><span><b>Add a real timestamp to the tournament document</b><span class="rank">Third</span><span class="detail">Fixes the root cause and helps elsewhere, but it is a schema change, an export/import migration and organizer-facing UI work before any rating exists.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Do same-day tournaments actually happen? Are rounds within a tournament truly sequential?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Is a league rating the same number as the global rating, or a separate rating computed over that league only?">
+      <legend>4. Is a league rating the same number, or a separate rating computed over that league only?</legend>
+      <p class="why">The goal names two uses — a global ranking across all leagues and a ranking inside a league — and they need not be the same computation.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="One global rating; a league view just filters and re-ranks the same numbers"><span><b>One global rating; a league view filters and re-ranks the same numbers</b><span class="rank">Recommended</span><span class="detail">One formula, one stored value, no contradiction between two screens. A league leaderboard then shows global strength among that league's participants, not who did best in that league.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Same formula, replayed independently per league from a fresh seed"><span><b>Same formula, replayed independently per league from a fresh seed</b><span class="rank">Second</span><span class="detail">Answers &quot;who was strongest in this league&quot; and is fair to newcomers, but every player has N+1 ratings and cross-league comparisons stop meaning anything.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Global rating plus a per-league delta (rating gained during that league)"><span><b>Global rating plus a per-league delta (points gained during that league)</b><span class="rank">Third</span><span class="detail">Nice storytelling — &quot;+87 this season&quot; — and cheap once the global replay exists, but a delta is a form-metric, not a strength ranking.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Leagues keep the existing Swiss points standings; the rating stays global-only"><span><b>Leagues keep Swiss points standings; the rating stays global-only</b><span class="rank">Fourth</span><span class="detail">Zero risk to a working feature, but drops half of the stated goal.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="What question should a league leaderboard answer — season performance or player strength?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How do byes and draws affect the rating?">
+      <legend>5. How do byes and draws affect the rating?</legend>
+      <p class="why">The archive already treats a bye as a 3-point free win, and draws are first-class — a rating has no opponent for the first and no winner for the second.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Byes are ignored entirely; draws count as a 0.5 result against that opponent"><span><b>Byes ignored entirely; draws score 0.5 against the real opponent</b><span class="rank">Recommended</span><span class="detail">A bye contains no information about skill — it is pairing luck. Standard Elo/Glicko treatment, and it keeps rating honest while Swiss points keep rewarding the bye.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Byes ignored; draws ignored too"><span><b>Byes ignored; draws ignored too</b><span class="rank">Second</span><span class="detail">Simplest possible rule, but throws away a genuine result and would make two evenly matched players invisible to each other.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Byes count as a win against an average-rated phantom opponent"><span><b>Byes count as a win against an average-rated phantom opponent</b><span class="rank">Third</span><span class="detail">Consistent with the standings, but inflates whoever the pairing algorithm favoured.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Also: intentional draws, unscored 0–0 matches, dropped players…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="When does a player become rankable — is there a minimum activity gate?">
+      <legend>6. When does a player become rankable — is there a minimum activity gate?</legend>
+      <p class="why">Without a gate, one lucky 2–0 in a first tournament can top a global leaderboard, and the metric loses credibility on day one.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Provisional until N matches: rating shown but flagged and excluded from the default ranking"><span><b>Provisional until N matches — shown, flagged, excluded from the default ranking</b><span class="rank">Recommended</span><span class="detail">New players still see their number and see it move; the leaderboard stays trustworthy. N is a constant to settle next round.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Rank by a confidence-adjusted number (e.g. rating minus 2× deviation)"><span><b>Rank by a confidence-adjusted number (rating − 2× deviation)</b><span class="rank">Second</span><span class="detail">No hard threshold and self-correcting — this is the Glicko-native answer — but the ranked number differs from the displayed rating, which needs explaining.</span></span></label>
+        <label class="choice"><input type="checkbox" value="No gate: everyone with at least one played match is ranked"><span><b>No gate — one played match is enough</b><span class="rank">Third</span><span class="detail">Honest and simple, and the archive's real player pool may be small enough not to care; expect volatile top-10 churn.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Rough size of the real player pool, appetite for a two-number display…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Which archive data feeds the rating?">
+      <legend>7. Which archive data feeds the rating?</legend>
+      <p class="why">ADR 0040 already restricted global statistics to tournaments marked <code>completed</code>; the rating can inherit that rule or diverge from it.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Completed tournaments only — identical to the ADR 0040 statistics scope"><span><b>Completed tournaments only — identical to the ADR 0040 scope</b><span class="rank">Recommended</span><span class="detail">Rating and statistics can never disagree, one filter, one story. A tournament in progress simply does not move ratings until the organizer completes it.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Every valid match entry, completed or not"><span><b>Every valid match entry, completed or not</b><span class="rank">Second</span><span class="detail">Ratings react live during an event, but they would then contradict every other number on the site, and an edited in-progress round would rewrite history.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Completed tournaments, restricted further to tournaments in completed leagues"><span><b>Completed tournaments inside completed leagues only</b><span class="rank">Third</span><span class="detail">Maximum stability, but an active league's results stay invisible for months — this is the scope ADR 0040 deliberately moved away from.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should live tournaments ever preview a rating change?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What happens to browser-local league archives, which the server can never see?">
+      <legend>8. What happens to browser-local league archives, which the server can never see?</legend>
+      <p class="why">ADR 0028 keeps <code>local-</code> leagues strictly in IndexedDB, so any server-computed rating structurally excludes them — the player page already merges local data client-side behind an <code>Online only</code> toggle.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Rating is server-data only; local leagues never contribute and the UI says so"><span><b>Server data only; local leagues never contribute, and the UI says so</b><span class="rank">Recommended</span><span class="detail">A rating is a comparison between players, and a number that means something different in each browser is not comparable. One clear rule, one label on the toggle.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Client-side recompute merges local leagues into a personal rating view"><span><b>Client-side recompute merges local leagues into a personal view</b><span class="rank">Second</span><span class="detail">Consistent with how the player page already behaves, but it means shipping the rating engine twice — TypeScript and C# — and keeping the two bit-identical.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Show local matches in the history but never let them move the rating number"><span><b>Local matches visible in history, never moving the number</b><span class="rank">Third</span><span class="detail">Cheap middle ground, though a history that visibly disagrees with the rating invites bug reports.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Is local archiving a real workflow or a demo affordance?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How is the rating stored and recomputed?">
+      <legend>9. How is the rating stored and recomputed?</legend>
+      <p class="why">A rating is order-dependent state, unlike every existing statistic — an edit to a two-year-old tournament changes every later rating, so incremental updates are not safe by default.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Extend the ADR 0040 read model: full deterministic replay inside the same rebuild, new columns on player_statistics, formula version bumped"><span><b>Extend the ADR 0040 read model — full replay in the existing rebuild</b><span class="rank">Recommended</span><span class="detail">Reuses a proven path: rebuild happens in the same transaction as every write, the formula version already guards maths changes, and 177 ms on the 100× dataset leaves ample headroom. Any archive edit self-heals.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Separate rating tables with per-match history rows (rating before/after each match)"><span><b>Separate rating tables with per-match history rows</b><span class="rank">Second</span><span class="detail">Unlocks rating graphs and &quot;+18 after round 3&quot; storytelling; costs a second table, a second migration and a much larger rebuild write.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Compute on read, cached under the ADR 0039 TTL contract"><span><b>Compute on read, cached under the ADR 0039 TTL contract</b><span class="rank">Third</span><span class="detail">No schema change at all, but it re-introduces exactly the O(all data) read that ADR 0040 was written to kill.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Do you want a rating-over-time chart later? That is the only real reason to store history rows now."></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Does the rating become the default sort, and what happens to the metrics it displaces?">
+      <legend>10. Does the rating become the default sort, and what happens to the metrics it displaces?</legend>
+      <p class="why">The goal calls this &quot;the default metric&quot;, which means changing what the rankings page shows first and possibly what a league standings table is ordered by.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Rating becomes the default sort on the global rankings; league standings keep Swiss points, with rating as an extra column"><span><b>Default sort on global rankings; league standings keep Swiss points, rating as an extra column</b><span class="rank">Recommended</span><span class="detail">The global page has no authoritative order today, so a rating is a pure gain there. A league's Swiss standings decide who actually won a season — overwriting that order would be wrong.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Rating becomes the default sort everywhere, including inside a league"><span><b>Default sort everywhere, including inside a league</b><span class="rank">Second</span><span class="detail">Fully consistent with the stated goal, but a league table would then stop showing who won the league.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Rating ships as an opt-in sortable column first; default order changes only after the numbers look right"><span><b>Ship as an opt-in sortable column first, change the default later</b><span class="rank">Third</span><span class="detail">Safest rollout and lets you eyeball the numbers against known players, but it needs a follow-up decision to actually reach the goal.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Which existing columns can be dropped to make room?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Does inactivity change the rating?">
+      <legend>11. Does inactivity change the rating?</legend>
+      <p class="why">The archive spans years; without a rule, a player who stopped playing in 2023 can hold the top spot forever against people still competing.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Rating is frozen, but confidence decays and inactive players drop off the default leaderboard"><span><b>Rating frozen, confidence decays, inactive players drop off the default leaderboard</b><span class="rank">Recommended</span><span class="detail">Never punishes someone for not playing, keeps the archive's historical truth intact, and still puts active players on top. Native behaviour if Glicko-2 wins Q2.</span></span></label>
+        <label class="choice"><input type="checkbox" value="No decay at all — the rating is a permanent record of the archive"><span><b>No decay — the rating is a permanent record</b><span class="rank">Second</span><span class="detail">Simplest and most defensible for an archive product; accept that the leaderboard is a hall of fame, not a current form table.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Active-window ranking: default leaderboard only counts matches from the last N months"><span><b>Active-window leaderboard — only the last N months count</b><span class="rank">Third</span><span class="detail">Sharpest &quot;who is strong now&quot; answer, but it needs a second replay over a moving window and makes yesterday's number unreproducible tomorrow.</span></span></label>
+        <label class="choice"><input type="checkbox" value="True decay: the number itself drifts toward the mean while inactive"><span><b>True decay — the number drifts toward the mean while inactive</b><span class="rank">Fourth</span><span class="detail">Common in ladder games, universally resented, and it makes the rating depend on the date you look at it.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="How old is the oldest archived league that should still count?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What does a player actually see — a raw number, a tier, or a movement?">
+      <legend>12. What does a player actually see — a raw number, a tier, or a movement?</legend>
+      <p class="why">Presentation decides how much of the maths must be explained, and whether a confidence value ever reaches the screen.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A single integer plus a rank position, with confidence only as a provisional badge"><span><b>Single integer + rank position; confidence only as a provisional badge</b><span class="rank">Recommended</span><span class="detail">One number people can quote to each other. The uncertainty still exists internally and drives the badge, but nobody has to read a deviation.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Integer plus the change since the player's last tournament (±N)"><span><b>Integer plus change since the last tournament (±N)</b><span class="rank">Second</span><span class="detail">Far more engaging and the strongest reason to keep rating history — but it requires the history storage from Q9.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Named tiers or divisions derived from rating bands"><span><b>Named tiers or divisions derived from rating bands</b><span class="rank">Third</span><span class="detail">Friendly and forgiving of imprecision, though band boundaries need tuning against a real distribution that does not exist yet.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Rating with an explicit confidence interval, e.g. 1642 ± 85"><span><b>Rating with an explicit confidence interval — 1642 ± 85</b><span class="rank">Fourth</span><span class="detail">Most honest representation, and it makes the provisional gate self-evident; also the hardest to sort and to explain in a table cell.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should the rating appear on the player page, the rankings page, or both?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 1 · Rating model & scope — Shape the player rating metric\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

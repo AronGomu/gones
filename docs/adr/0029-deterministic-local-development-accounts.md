@@ -93,4 +93,4 @@ to create the first administrator of a real deployment.
 - `backend/src/Gones.Infrastructure/Identity/RefreshCookieOptions.cs`
 - `backend/src/Gones.Infrastructure/Identity/AdminBootstrapService.cs` — the one-shot marker
 - `docs/OPERATIONS.md` §"first administrator" — the production path, unchanged
-- Plan `ai-artifacts/PLAN_2026_08_09_feedback-calendar-v1-round-2.md`, ticket T1
+- Plan `artifacts/PLAN_2026_08_09_feedback-calendar-v1-round-2.md`, ticket T1
