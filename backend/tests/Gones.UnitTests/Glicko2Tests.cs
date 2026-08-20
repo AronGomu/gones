@@ -93,9 +93,10 @@ public sealed class Glicko2Tests
     }
 
     /// <summary>
-    /// Assumption 13 and ADR 0043: the margin factor weights the rating sum only, never the sum that
-    /// feeds v, delta, the volatility solve and therefore the new deviation. The two deviations are
-    /// bit-identical, not merely close.
+    /// Assumption 13 and ADR 0043: the margin factor weights the rating sum <c>Sw</c> only, never the
+    /// unweighted <c>S</c> that feeds v, delta, the volatility solve and therefore the new deviation. The
+    /// two deviations agree to ten decimals — far tighter than any leak through the volatility solve
+    /// could hide in, and deliberately not a bit-for-bit claim, which the algebra does not promise.
     /// </summary>
     [Fact]
     public void The_margin_factor_leaves_the_deviation_alone()
@@ -141,14 +142,21 @@ public sealed class Glicko2Tests
         Assert.True(settled.Rating > uncertain.Rating, $"expected {settled.Rating} to beat {uncertain.Rating}");
     }
 
+    /// <summary>
+    /// A finiteness check proves nothing here: <c>SolveVolatility</c> returns <c>exp(lower / 2)</c> of a
+    /// bracketed value, which is finite whether or not the Illinois iteration converged — the three
+    /// <c>IsFinite</c> assertions this replaces stayed green at <c>MaximumIterations = 1</c>. So the
+    /// converged triple is pinned instead: it is the regression anchor for the whole solve, and any
+    /// change to the bracketing, the tolerance or the iteration cap moves it.
+    /// </summary>
     [Fact]
     public void Converges_for_a_long_period()
     {
         var updated = Glicko2.Update(Glicko2.Seed, LongPeriod());
 
-        Assert.True(double.IsFinite(updated.Rating), $"rating was {updated.Rating}");
-        Assert.True(double.IsFinite(updated.Deviation), $"deviation was {updated.Deviation}");
-        Assert.True(double.IsFinite(updated.Volatility), $"volatility was {updated.Volatility}");
+        Assert.Equal(1484.066243830998, updated.Rating, 6);
+        Assert.Equal(69.46693135361231, updated.Deviation, 6);
+        Assert.Equal(0.059996815991065815, updated.Volatility, 8);
     }
 
     [Fact]

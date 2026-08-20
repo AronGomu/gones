@@ -38,8 +38,13 @@ describe('messages', () => {
     expect(translate('fr', 'home.calendar')).toBe('Événements');
   });
 
-  it('no french label still says Classement mondial', () => {
-    const frValues = Object.values(catalogs.fr) as string[];
-    expect(frValues.every((v) => v !== 'Classement mondial')).toBe(true);
+  it('no french label still says mondial', () => {
+    // "Classement Mondial" was renamed to "Classement Global". An exact-equality guard let the aria,
+    // pagination and error strings keep the old word, which a screen reader reads out loud on a table
+    // titled "Classement Global" — so this matches the word wherever it appears, in any inflection.
+    const offenders = (Object.entries(catalogs.fr) as [string, string][])
+      .filter(([, value]) => /mondial/i.test(value))
+      .map(([key, value]) => `${key}: ${value}`);
+    expect(offenders).toEqual([]);
   });
 });

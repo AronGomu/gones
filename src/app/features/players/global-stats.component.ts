@@ -207,7 +207,18 @@ export class GlobalStatsComponent implements OnDestroy {
 
   readonly currentPage = signal(1);
   readonly currentSize = signal<GlobalStatsPageSize>(100);
-  readonly currentSort = signal<GlobalStatsSortCol | undefined>(undefined);
+  private readonly routeParams = signal<{ get(key: string): string | null } | null>(null);
+
+  /**
+   * The sort the URL asks for, filtered through the gate the server applies: `?sort=decayedRating` is
+   * a `400` while `Gones:PlayerStatistics:ExposeDecayedRating` is off. Derived rather than stored so it
+   * re-reads the URL when the catalog lands — the query params arrive before the rows do, so a value
+   * captured at the first emission would refuse the column forever.
+   */
+  readonly currentSort = computed<GlobalStatsSortCol | undefined>(() => {
+    const params = this.routeParams();
+    return params ? parseGlobalStatsQuery(params, { decayedRating: this.showDecayedRating() }).sort : undefined;
+  });
   readonly currentDirection = signal<'asc' | 'desc' | undefined>(undefined);
   readonly searchDraft = signal('');
 
@@ -237,7 +248,7 @@ export class GlobalStatsComponent implements OnDestroy {
       const query = parseGlobalStatsQuery(params);
       this.currentPage.set(query.page);
       this.currentSize.set(query.size);
-      this.currentSort.set(query.sort);
+      this.routeParams.set(params);
       this.currentDirection.set(query.direction);
       this.searchDraft.set(query.search);
     });

@@ -36,10 +36,19 @@ Tournament with an empty date contributes to the statistics and not to the ratin
 ### Input
 
 One update per Match, score 1 / 0.5 / 0, multiplied by a margin-of-victory factor: a 2-0 counts
-×1.25, a 2-1 counts ×1.0. The factor multiplies each Match's term in `Δ` and in the `μ'` sum only —
-`v`, and therefore the new deviation, is computed from the unweighted terms, because `v` depends on
-the opponents' deviations and the expected scores and never on the outcomes. That is what "the Glicko
-score term stays 1 / 0.5 / 0 so the deviation maths stays valid" means in the formula.
+×1.25, a 2-1 counts ×1.0. The engine therefore keeps **two** sums over a period's Matches:
+
+    S  = Σ g(φⱼ) · (sⱼ - Eⱼ)              unweighted
+    Sw = Σ fⱼ · g(φⱼ) · (sⱼ - Eⱼ)         weighted, fⱼ ∈ { 1.0, 1.25 }
+
+The factor reaches the rating and nothing else: `Sw` is read by `μ' = μ + φ'²·Sw` and by no other
+step. Everything that produces the new deviation — `v`, `Δ = v·S`, the volatility solve `σ'`, `φ*`
+and `φ'` — reads the unweighted `S`, because `v` depends on the opponents' deviations and the
+expected scores and never on the outcomes. Routing the factor through `Δ` would leak it into `σ'`,
+hence into `φ'`, and a 2-0 would come out making the engine *less* confident than a 2-1. That is what
+"the Glicko score term stays 1 / 0.5 / 0 so the deviation maths stays valid" means in the formula.
+`Glicko2.Update` is the reference implementation and
+`Glicko2Tests.The_margin_factor_leaves_the_deviation_alone` pins the invariant to ten decimals.
 
 - **Byes are ignored entirely.** A bye is pairing luck, not skill. Swiss standings keep awarding their
   3 points, unchanged.
@@ -60,7 +69,12 @@ shows the server rating unchanged plus a note saying local Matches never affect 
   played. Their Matches still move ranked players' ratings by standard Glicko-2 — their high deviation
   already damps the update, which is exactly why Glicko-2 was chosen.
 - **Inactive:** no completed Tournament in 12 months. The rating is frozen, the deviation keeps
-  growing, and the player is listed below active ranked players with a badge — never hidden.
+  growing, and the player is listed below active ranked players with a badge — never hidden. The
+  growth has a ceiling: the replay applies at most `LeagueRules.MaximumIdleSkips = 24` monthly skips,
+  so a player idle for 24 months and one idle for ten years carry the same deviation. The cap is a
+  deliberate truncation, not a formality — 24 skips from RD 250 reach only ~255, and the 350 clamp
+  would take roughly 553 skips — and it is accepted because it bounds the replay loop while the
+  discarded growth is a few RD points on a number nothing sorts by.
 
 Both are **derived at read time** from the stored `tournamentsPlayed` and `lastPlayedDate` plus the
 request clock, never stored: otherwise a player would go inactive at the next rebuild rather than on

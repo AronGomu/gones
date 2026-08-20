@@ -169,10 +169,17 @@ var app = builder.Build();
 // public read — the League catalog, the Event catalog, the rankings — is anonymous and is compressed
 // (ADR 0042). Outermost so it wraps every endpoint and every error body; it reads no forwarded value,
 // because EnableForHttps makes the request scheme irrelevant to the decision.
+//
+// /api/auth is excluded by path, not by credential, because the credential test cannot see it: a first
+// login hits GET /api/auth/oauth/{provider}/callback carrying neither an Authorization header nor the
+// refresh cookie, and that route answers OAuthFlowResponse — an access token or a completion ticket.
+// Excluding the whole group keeps the invariant "a body holding a session secret is never compressed"
+// true by construction rather than by the current shape of one handler.
 app.UseWhen(
     context => HttpMethods.IsGet(context.Request.Method)
         && !context.Request.Headers.ContainsKey(HeaderNames.Authorization)
-        && !context.Request.Cookies.ContainsKey(RefreshCookie.Name),
+        && !context.Request.Cookies.ContainsKey(RefreshCookie.Name)
+        && !context.Request.Path.StartsWithSegments("/api/auth"),
     branch => branch.UseResponseCompression());
 // Must precede every consumer of the client IP and scheme: correlation logging, HSTS, rate limits.
 if (forwardedProxies.Enabled) app.UseForwardedHeaders();

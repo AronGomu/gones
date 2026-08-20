@@ -880,7 +880,7 @@ Evidence: 66 frozen TS golden cases (registrations, normalizations incl. 82→80
 - [x] Existing League/Result/Live behavior matches TS golden fixtures under PostgreSQL/API. (`npm run acceptance:matrix`: 1 proved row, e.g. `doc09-league-live`; `dotnet test backend/Gones.sln -c Release`)
 - [x] Public Export v4 safe; private migration bundle + atomic CLI verified. (`npm run acceptance:matrix`: 1 proved row, e.g. `doc09-export-migration`; `npm run migration:smoke`)
 - [x] Offline public stale reads work; all writes reject offline. (`npm run acceptance:matrix`: 1 proved row, e.g. `doc09-local-persistence`; `npm run e2e:ci`)
-- [x] Global Rankings page: 14-col table, search/sort/page, server-only source, home card, EN/FR nav. (`npm run acceptance:matrix`: 1 proved row, `doc09-global-stats-page`; `npm run e2e:ci`)
+- [x] Global Rankings page: 12-col table, search/sort/page, server-only source, home card, EN/FR nav. (`npm run acceptance:matrix`: 1 proved row, `doc09-global-stats-page`; `npm run e2e:ci`)
 
 ### Engineering
 

@@ -275,7 +275,10 @@ public sealed class PlayerRatingReplayTests
 
         var replayed = LeagueRules.CalculateGlobalPlayerStatistics(edited, AsOf);
 
-        Assert.Equal(LeagueRules.CalculateGlobalPlayerStatistics(edited, AsOf), replayed);
+        // Only the inequality says anything: comparing the replay to itself with the same arguments is a
+        // pure function compared to a pure function. That the edit lands on a whole-archive replay rather
+        // than an append is covered end to end by
+        // PlayerStatisticsRatingRebuildTests.An_archive_write_recomputes_the_ratings.
         Assert.NotEqual(LeagueRules.CalculateGlobalPlayerStatistics(before, AsOf), replayed);
     }
 
@@ -293,6 +296,37 @@ public sealed class PlayerRatingReplayTests
             $"Idle deviation was {idle["Alice"].RatingDeviation}, fresh was {fresh["Alice"].RatingDeviation}.");
         // Growth widens the interval; it never moves the number.
         Assert.Equal(fresh["Alice"].Rating, idle["Alice"].Rating, 10);
+    }
+
+    /// <summary>
+    /// The other half of rule 8's first sentence: idle growth stops. <c>LeagueRules.MaximumIdleSkips</c>
+    /// is 24, and it truncates real growth rather than merely bounding the loop — the 350 clamp is still
+    /// hundreds of skips away at that point. So 36 idle months must land on exactly the deviation 24 idle
+    /// months produce, while the decayed rating, which reads the uncapped month count, keeps moving.
+    /// </summary>
+    [Fact]
+    public void Stops_growing_the_deviation_past_the_cap()
+    {
+        var data = Data(League("league", Tournament("t1", "2026-03-05", Match("Alice", "Bob", 2, 0))));
+
+        var fresh = Replay(data, new DateOnly(2026, 3, 20));
+        var atCap = Replay(data, new DateOnly(2028, 3, 20));
+        var pastCap = Replay(data, new DateOnly(2029, 3, 20));
+
+        // 24 months of growth is real growth, well short of the 350 clamp.
+        Assert.True(
+            atCap["Alice"].RatingDeviation > fresh["Alice"].RatingDeviation,
+            $"24 idle months gave {atCap["Alice"].RatingDeviation}, fresh was {fresh["Alice"].RatingDeviation}.");
+        Assert.True(
+            atCap["Alice"].RatingDeviation < Glicko2.DefaultDeviation,
+            $"the cap must bite before the clamp, but the deviation was {atCap["Alice"].RatingDeviation}.");
+
+        // 36 months applies the same 24 skips: past the cap the deviation is frozen, not clamped.
+        Assert.Equal(atCap["Alice"].RatingDeviation, pastCap["Alice"].RatingDeviation, 10);
+        Assert.Equal(atCap["Alice"].Rating, pastCap["Alice"].Rating, 10);
+
+        // The decay is not capped, so it is what still separates the two.
+        Assert.NotEqual(atCap["Alice"].DecayedRating, pastCap["Alice"].DecayedRating, 10);
     }
 
     /// <summary>Rule 8, second half: the decayed rating drifts toward 1500 with a 24-month half-life.</summary>

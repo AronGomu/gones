@@ -309,7 +309,11 @@ describe('GlobalStatsComponent template — rating cell', () => {
   });
 
   it('falls back to \u2014 when rating is undefined (stale cache)', () => {
-    expect(source).toMatch(/row\.rating.*\?\?|row\.rating.*undefined|globalStats\.colRating/);
+    // The third alternative of the old regex was `globalStats.colRating`, which matches the column
+    // header — always present — so deleting the whole fallback kept this green. Assert the @else branch
+    // itself: the guard, and the em dash it renders into the same rating-value cell.
+    expect(source).toContain('@if (row.rating !== undefined)');
+    expect(source).toMatch(/@else\s*\{\s*<span[^>]*-rating-value'">\u2014<\/span>\s*\}/);
   });
 
   it('renders the tournamentsPlayed count', () => {
@@ -513,6 +517,32 @@ describe('GlobalStatsComponent — decayed rating column', () => {
     const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: undefined })]));
     await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
     expect(comp.visibleColumnCount()).toBe(12);
+  });
+
+  it('refuses ?sort=decayedRating while the column is off the wire', async () => {
+    // The server answers 400 for this sort while Gones:PlayerStatistics:ExposeDecayedRating is off, and
+    // the rows arrive without the column. The client honours the same gate rather than ordering by a
+    // field that is not there.
+    const { comp } = buildComponent(
+      makeCatalogResult([makeRow({ decayedRating: undefined })]),
+      { sort: 'decayedRating', direction: 'desc' },
+    );
+    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    expect(comp.showDecayedRating()).toBe(false);
+    expect(comp.currentSort()).toBeUndefined();
+    expect(comp.ariaSort('decayedRating')).toBeNull();
+  });
+
+  it('accepts ?sort=decayedRating once the column is on the wire', async () => {
+    const { comp } = buildComponent(
+      makeCatalogResult([makeRow({ decayedRating: 1488 })]),
+      { sort: 'decayedRating', direction: 'desc' },
+    );
+    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    expect(comp.showDecayedRating()).toBe(true);
+    // The gate re-reads the URL when the rows land: the params arrive before the catalog does.
+    expect(comp.currentSort()).toBe('decayedRating');
+    expect(comp.ariaSort('decayedRating')).toBe('descending');
   });
 });
 

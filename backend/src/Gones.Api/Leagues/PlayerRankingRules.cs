@@ -29,6 +29,11 @@ internal static class PlayerRankingRules
     /// <summary>Not rankable yet: last, by Tournaments played and then Matches played.</summary>
     public const int ProvisionalBucket = 2;
 
+    // There is deliberately no Bucket(...) helper. The live ordering has to run inside the EF projection
+    // so Postgres does the paging, and a C# method it cannot translate would be a second definition of
+    // the rule that nothing calls — which is what this class exists to prevent. The three constants above
+    // are the shared part; PublicLeagueEndpoints.OrderGlobalStats composes them.
+
     public static bool IsProvisional(int tournamentsPlayed) => tournamentsPlayed < ProvisionalTournamentThreshold;
 
     /// <summary>
@@ -48,9 +53,4 @@ internal static class PlayerRankingRules
     public static bool IsInactive(string? lastPlayedDate, int tournamentsPlayed, LocalDate today) =>
         !IsProvisional(tournamentsPlayed)
         && (lastPlayedDate is null || string.CompareOrdinal(lastPlayedDate, InactiveCutoff(today)) <= 0);
-
-    public static int Bucket(string? lastPlayedDate, int tournamentsPlayed, LocalDate today) =>
-        IsProvisional(tournamentsPlayed) ? ProvisionalBucket
-        : IsInactive(lastPlayedDate, tournamentsPlayed, today) ? InactiveRankedBucket
-        : ActiveRankedBucket;
 }

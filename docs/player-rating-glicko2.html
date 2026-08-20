@@ -135,23 +135,28 @@ timestamp stops being a problem. Periods replay in date order, ordinal on the IS
 
 <h2>Where the margin factor goes</h2>
 
-<p>The factor multiplies each Match's term in <code>Δ</code> and in the <code>μ'</code> sum.
-<code>v</code> — and therefore the new deviation — uses the <em>unweighted</em> terms, because
-<code>v</code> depends only on the opponents' deviations and the expected scores, never on the
-outcomes. That is what "the Glicko score term stays 1 / 0.5 / 0 so the deviation maths stays valid"
-means once it is written down.</p>
+<p>The engine keeps <strong>two</strong> sums over a period's Matches: the unweighted <code>S</code>
+and the weighted <code>Sw</code>. The factor lands in <code>Sw</code>, and <code>Sw</code> is read by
+<code>μ'</code> and by nothing else. Every step that produces the new deviation — <code>v</code>,
+<code>Δ</code>, the volatility solve, <code>φ*</code>, <code>φ'</code> — uses the <em>unweighted</em>
+terms, because <code>v</code> depends only on the opponents' deviations and the expected scores,
+never on the outcomes. Routing the factor through <code>Δ</code> would leak it into
+<code>σ'</code> and hence into the deviation, and a 2-0 would come out making the engine <em>less</em>
+confident than a 2-1. That is what "the Glicko score term stays 1 / 0.5 / 0 so the deviation maths
+stays valid" means once it is written down.</p>
 
 <pre>g(φ)  = 1 / sqrt(1 + 3φ²/π²)
 E(μ, μⱼ, φⱼ) = 1 / (1 + exp(-g(φⱼ)(μ - μⱼ)))
 
-v = [ Σ g(φⱼ)² · Eⱼ · (1 - Eⱼ) ]⁻¹          ← unweighted
-S = Σ fⱼ · g(φⱼ) · (sⱼ - Eⱼ)                ← fⱼ ∈ { 1.0, 1.25 }
-Δ = v · S
+v  = [ Σ g(φⱼ)² · Eⱼ · (1 - Eⱼ) ]⁻¹         ← unweighted
+S  = Σ g(φⱼ) · (sⱼ - Eⱼ)                    ← unweighted
+Sw = Σ fⱼ · g(φⱼ) · (sⱼ - Eⱼ)               ← weighted, fⱼ ∈ { 1.0, 1.25 }
+Δ  = v · S                                  ← unweighted
 
 σ' solved by Illinois regula falsi, τ = 0.5
 φ* = sqrt(φ² + σ'²)
 φ' = 1 / sqrt(1/φ*² + 1/v)
-μ' = μ + φ'² · S</pre>
+μ' = μ + φ'² · Sw                           ← the only step that reads the factor</pre>
 
 <p>The engine is anchored by Glickman's own worked example: a
 <code>(1500, 200, 0.06)</code> player against <code>(1400, 30)</code> won,
@@ -162,7 +167,7 @@ S = Σ fⱼ · g(φⱼ) · (sⱼ - Eⱼ)                ← fⱼ ∈ { 1.0, 1.25
 
 <div class="bucket">
   <div class="b0"><strong>0 · active ranked</strong><br>5+ Tournaments, played within 12 months. Ordered by rating, descending.</div>
-  <div class="b1"><strong>1 · inactive ranked</strong><br>5+ Tournaments, nothing in 12 months. Rating frozen, deviation still growing. Badged, listed, never hidden. Ordered by rating.</div>
+  <div class="b1"><strong>1 · inactive ranked</strong><br>5+ Tournaments, nothing in 12 months. Rating frozen, deviation still growing — for up to 24 idle months, then flat (<code>LeagueRules.MaximumIdleSkips</code>). Badged, listed, never hidden. Ordered by rating.</div>
   <div class="b2"><strong>2 · provisional</strong><br>Fewer than 5 Tournaments. Rating shown, flagged not rankable. Ordered by tournaments played, then matches played.</div>
 </div>
 

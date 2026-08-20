@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
 import {
   GLOBAL_STATS_PAGE_SIZES,
+  GLOBAL_STATS_GATED_SORT_COLS,
   GLOBAL_STATS_SORTABLE_COLS,
   parseGlobalStatsQuery,
   sortGlobalStatsRows,
@@ -55,7 +56,14 @@ describe('parseGlobalStatsQuery — sanitization', () => {
 
   it('accepts valid sortable columns', () => {
     for (const col of GLOBAL_STATS_SORTABLE_COLS) {
-      expect(parseGlobalStatsQuery(new URLSearchParams(`sort=${col}`)).sort).toBe(col);
+      // Every gated column needs its gate open before it parses; see the decayedRating cases below.
+      expect(parseGlobalStatsQuery(new URLSearchParams(`sort=${col}`), { decayedRating: true }).sort).toBe(col);
+    }
+  });
+
+  it('drops a gated sort column when the gate is shut', () => {
+    for (const col of GLOBAL_STATS_GATED_SORT_COLS) {
+      expect(parseGlobalStatsQuery(new URLSearchParams(`sort=${col}`)).sort).toBeUndefined();
     }
   });
 
@@ -289,8 +297,19 @@ describe('sortGlobalStatsRows', () => {
     expect(names(sortGlobalStatsRows(rows, 'gameWins', 'desc'))).toEqual(['Player2', 'Player3', 'Player1']);
   });
 
-  it('decayedRating is a sortable column', () => {
-    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating')).sort).toBe('decayedRating');
+  it('decayedRating is a sortable column only when the server exposes it', () => {
+    // The server answers 400 for ?sort=decayedRating while Gones:PlayerStatistics:ExposeDecayedRating
+    // is off, so the client must not select an ordering neither surface can serve.
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating'), { decayedRating: true }).sort)
+      .toBe('decayedRating');
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating'), { decayedRating: false }).sort)
+      .toBeUndefined();
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating')).sort).toBeUndefined();
+  });
+
+  it('the gate never touches an ungated column', () => {
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=rating')).sort).toBe('rating');
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=matchWins'), { decayedRating: false }).sort).toBe('matchWins');
   });
 
   it('a null decayed rating sorts last in both directions', () => {

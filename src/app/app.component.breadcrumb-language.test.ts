@@ -93,12 +93,16 @@ describe('breadcrumb retranslates on language change', () => {
     expect(labels[labels.length - 1]).toBe('À propos');
   });
 
-  it('does not clear the breadcrumb while rebuilding', async () => {
+  it('lets the newest rebuild win when two overlap', async () => {
     const { component, settings } = setup('/settings');
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-    expect(component.breadcrumbs().length).toBeGreaterThan(0);
+    expect(component.breadcrumbs().map((c) => c.label)).toContain('Settings');
 
+    // Two rebuilds started back to back without awaiting the first. `breadcrumbs().length > 0` holds by
+    // construction here — nothing ever writes an empty array — so it said nothing about which of the
+    // two won. The last request set `en`, and `updateRouteState`'s request guard is what makes the
+    // English labels the ones that survive.
     await settings.setLanguage('fr');
     capturedEffects.forEach((fn) => fn());
     await settings.setLanguage('en');
@@ -106,6 +110,8 @@ describe('breadcrumb retranslates on language change', () => {
 
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
-    expect(component.breadcrumbs().length).toBeGreaterThan(0);
+    const labels = component.breadcrumbs().map((c) => c.label);
+    expect(labels).toContain('Settings');
+    expect(labels).not.toContain('Paramètres');
   });
 });

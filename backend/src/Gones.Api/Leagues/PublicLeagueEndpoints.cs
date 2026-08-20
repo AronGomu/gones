@@ -231,7 +231,7 @@ internal static class PublicLeagueEndpoints
                         : PlayerRankingRules.ActiveRankedBucket)
                 .ThenByDescending(row => row.TournamentsPlayed < PlayerRankingRules.ProvisionalTournamentThreshold
                     ? 0d
-                    : row.Rating)
+                    : Math.Floor(row.Rating + 0.5))
                 .ThenByDescending(row => row.TournamentsPlayed < PlayerRankingRules.ProvisionalTournamentThreshold
                     ? row.TournamentsPlayed
                     : 0)
@@ -251,9 +251,9 @@ internal static class PublicLeagueEndpoints
             "gameWins" => GlobalSortByCount(query, row => row.GameWins, descending),
             "gameLosses" => GlobalSortByCount(query, row => row.GameLosses, descending),
             "gameWinrate" => GlobalSortByWinrate(query, row => row.GameWinrate, row => row.GameWinrate == null, descending),
-            "rating" => GlobalSortByRating(query, row => row.Rating, descending),
+            "rating" => GlobalSortByRating(query, row => Math.Floor(row.Rating + 0.5), descending),
             "tournamentsPlayed" => GlobalSortByCount(query, row => row.TournamentsPlayed, descending),
-            "decayedRating" when exposeDecayedRating => GlobalSortByRating(query, row => row.DecayedRating, descending),
+            "decayedRating" when exposeDecayedRating => GlobalSortByRating(query, row => Math.Floor(row.DecayedRating + 0.5), descending),
             _ => throw new InvalidOperationException($"Unknown sort: {sort}")
         };
     }
@@ -267,8 +267,14 @@ internal static class PublicLeagueEndpoints
 
     /// <summary>
     /// The winrate twin without the nulls-last branch: a rating is stored on every row, so there is no
-    /// missing value whose placement would flip with the direction. It sorts on the stored double, not
-    /// the integer the wire carries, so two ratings that round to the same number keep their real order.
+    /// missing value whose placement would flip with the direction.
+    ///
+    /// <para>The caller passes the <em>rounded</em> rating, because that is the number the wire carries
+    /// (<see cref="ToGlobalStatsRow"/>) and the number the client-side catalog in
+    /// <c>global-stats-query.ts</c> can therefore sort. Ordering the stored double instead put 1600.4
+    /// above 1600.2 on this endpoint while the catalog, seeing 1600 twice, fell through to the Player
+    /// Name — two rankings surfaces disagreeing on who is at position 1. Rounding here makes the two
+    /// orders the same order.</para>
     /// </summary>
     private static IQueryable<PlayerStatisticsRow> GlobalSortByRating(
         IQueryable<PlayerStatisticsRow> query,
@@ -324,6 +330,12 @@ internal static class PublicLeagueEndpoints
             exposeDecayedRating ? RoundRating(row.DecayedRating) : null);
     }
 
+    /// <summary>
+    /// The one rounding the wire uses. The orderings above sort <c>floor(rating + 0.5)</c> instead, which
+    /// Postgres can compute on the column and which is the same value for every non-negative rating —
+    /// Postgres' own <c>round(double precision)</c> is not, because it breaks ties to even rather than
+    /// away from zero. A Glicko-2 rating below zero needs opponents around 3000 and does not occur.
+    /// </summary>
     private static int RoundRating(double value) => (int)Math.Round(value, MidpointRounding.AwayFromZero);
 
     /// <summary>

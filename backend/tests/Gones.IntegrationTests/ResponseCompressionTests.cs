@@ -106,6 +106,26 @@ public sealed class ResponseCompressionTests : IAsyncLifetime
         Assert.Empty(response.Content.Headers.ContentEncoding);
     }
 
+    /// <summary>
+    /// The credential test cannot protect the auth group: <c>GET /api/auth/oauth/{provider}/callback</c>
+    /// is a first login, so it carries neither an <c>Authorization</c> header nor the refresh cookie, and
+    /// it answers <c>OAuthFlowResponse</c> — an access token or a completion ticket. The group is
+    /// therefore excluded by path, which is what keeps "a body holding a session secret is never
+    /// compressed" (<c>docs/RUNTIME_CONTRACT.md</c>) true by construction. <c>application/problem+json</c>
+    /// is on the compressible list, so this response would carry an encoding without the exclusion.
+    /// </summary>
+    [Fact]
+    public async Task Does_not_compress_an_anonymous_auth_response()
+    {
+        using var client = CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/oauth/google/callback");
+        request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("br"));
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Empty(response.Content.Headers.ContentEncoding);
+    }
+
     [Fact]
     public async Task Sends_no_encoding_on_a_304()
     {

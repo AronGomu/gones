@@ -109,7 +109,7 @@
 
 ## T14 global-stats-api
 
-- [ ] `curl 'http://127.0.0.1:5080/api/leagues-archive/global-player-statistics?page=1&pageSize=100'` against a running server with completed Leagues returns HTTP 200 with all 14 columns (`position`, `playerName`, `playedMatchCount`, `matchWins`, `matchLosses`, `matchDraws`, `matchWinrate`, `playedGameCount`, `gameWins`, `gameLosses`, `gameWinrate`, `nemesis`, `rival`, `mostPlayedArchetype`) plus pagination envelope (`page`, `pageSize`, `totalCount`, `sort`, `direction`).
+- [ ] `curl 'http://127.0.0.1:5080/api/leagues-archive/global-player-statistics?page=1&pageSize=100'` against a running server with completed Leagues returns HTTP 200 with the 14 statistics fields of this ticket (`position`, `playerName`, `playedMatchCount`, `matchWins`, `matchLosses`, `matchDraws`, `matchWinrate`, `playedGameCount`, `gameWins`, `gameLosses`, `gameWinrate`, `nemesis`, `rival`, `mostPlayedArchetype`) plus pagination envelope (`page`, `pageSize`, `totalCount`, `sort`, `direction`).
 - [ ] Confirm route `/api/leagues-archive/global-player-statistics` does not conflict with `/{id}`; `curl '/api/leagues-archive/some-league-id'` still returns the League detail.
 - [ ] Repeat identical request with `If-None-Match` set to the first response ETag; confirm 304 Not Modified.
 - [ ] Active-only and soft-deleted Leagues do not contribute players to global stats.
@@ -118,7 +118,7 @@
 
 ## T15 global-stats-page-home-nav
 
-- [ ] Visit `/global-stats` as anonymous visitor; confirm page loads with 14 column headers in order: #, Player, Matches, MW, ML, MD, M%, Games, GW, GL, G%, Nemesis, Rival, Archetype.
+- [ ] Visit `/global-stats` as anonymous visitor; confirm page loads with 12 column headers in order: #, Player, Rating, Tournaments, Matches, Wins, Losses, Draw, M%, Nemesis, Rival, Archetype (matches). *(updated by round-6 T6 and T16; the game columns were dropped and MW/ML/MD renamed)*
 - [ ] Click a numeric header (e.g. MW); confirm table re-requests with sort=matchWins&direction=desc and Position column reflects new order.
 - [ ] Click same numeric header again; confirm direction toggles to asc.
 - [ ] Click Position, Player, Nemesis, Rival, or Archetype header; confirm no sort request is triggered.
@@ -132,7 +132,7 @@
 - [ ] Click Global Rankings home card; confirm navigation to `/global-stats`.
 - [ ] Confirm home card for Live Tournaments says "Live Tournaments" (not "Running Tournaments"); Live Tournaments list page title also says "Live Tournaments".
 - [ ] Confirm Live Tournaments list page create action says "Create Live Tournament".
-- [ ] Confirm breadcrumb at `/global-stats` reads "Menu > Global Rankings" in English and "Menu > Classement mondial" in French.
+- [ ] Confirm breadcrumb at `/global-stats` reads "Menu > Global Rankings" in English and "Menu > Classement Global" in French. *(renamed by round-6 T4)*
 - [ ] Confirm breadcrumb at `/live-tournaments` reads "Menu > Live Tournaments" in English.
 
 ## T1 event-rename-routes
@@ -652,6 +652,9 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Navigate to `/` in **Français** — confirm the global rankings card title reads **Classement Global** (not Classement mondial).
 - [ ] Navigate to `/` in **Français** — confirm the global rankings card description starts with **Classement global des joueurs** (lowercase 'g', not Classement mondial).
 - [ ] Navigate to `/global-stats` in **Français** — confirm the breadcrumb second segment reads **Classement Global** (not Classement mondial).
+- [ ] Navigate to `/global-stats` in **Français** and inspect the table element — its `aria-label` reads **Tableau du classement global des joueurs** (not "classement mondial"). *(added by T20)*
+- [ ] Navigate to `/global-stats` in **Français** with more rows than one page — the pagination `<nav>` `aria-label` reads **Pages du classement global**. *(added by T20)*
+- [ ] Stop the API (`docker compose stop api`) and reload `/global-stats` in **Français** with no cached copy — the error line reads **Impossible de charger les statistiques globales.** (not "mondiales"). *(added by T20)*
 - [ ] Navigate to `/events` — confirm the breadcrumb still reads **Calendar** (en) / **Calendrier** (fr), unchanged.
 - [ ] Confirm `data-cy="menu-calendar-card-title"` still exists on the events card (hook is stable).
 
@@ -855,7 +858,7 @@ data is reset). The compose service is `postgres` and the role is `gones_migrati
 - [ ] Rebuilding twice on the same day changes nothing: note a few ratings, run `update player_statistics_meta set formula_version = 1;`, `docker compose restart api`, wait, and confirm the same ratings come back identical.
 - [ ] An archive edit self-heals an **old** Tournament: edit the score of a Match in the *earliest* Tournament of a League through the UI, save, and confirm every later rating of both players moved — not just that Tournament's.
 - [ ] Deleting a League removes its players' rows and re-replays the rest (`select count(*) from player_statistics` drops).
-- [ ] **Nothing visible changed.** Open `/global-stats` and confirm the same 14 columns as before — no rating column, no badge, no delta.
+- [ ] **Nothing visible changed.** Open `/global-stats` and confirm the same 12 columns as before this ticket (#, Player, Tournaments, Matches, Wins, Losses, Draw, M%, Nemesis, Rival, Archetype (matches), and no Rating) — no rating column, no badge, no delta.
 - [ ] Open a player page (`/players/<name>`) and confirm the statistics, match history, filters and pagination are exactly as before.
 - [ ] Open `/leagues-archive` and a League's standings and confirm no rating column has appeared.
 - [ ] `curl -s "localhost:5080/api/leagues-archive/global-player-statistics?page=1&size=3"` returns the **old** shape — no `rating`, `tournamentsPlayed`, `lastPlayedDate` or `decayedRating` anywhere in the JSON.
@@ -948,3 +951,42 @@ Run `npm run dev -- --env=demo`.
 - [ ] Switch language to **Français**: the Decayed column header reads **Déclassé**.
 - [ ] `SELECT formula_version FROM player_statistics_meta;` in the DB still returns `2` (no rebuild ran).
 - [ ] Navigate to a player page — `statistics.decayedRating` in the JSON response is an integer.
+
+## T20 review-repairs
+
+Closes the round-6 branch review. Behaviour changes are limited to two: `/api/auth` responses are
+never compressed, and the rankings order the rounded rating rather than the stored double. Everything
+else in this ticket is documents, copy and test strength, so most checks below are "nothing moved".
+
+Run `npm run dev -- --env=demo`. Rebuild the API image first (`docker compose build api worker`) — a
+stale image serves the old compression predicate.
+
+### A — compression never touches an auth response
+
+- [ ] `curl -s -D- -H 'Accept-Encoding: br' 'http://127.0.0.1:5080/api/auth/oauth/google/callback' -o /dev/null` returns **no** `Content-Encoding` header.
+- [ ] `curl -s -D- -H 'Accept-Encoding: br' 'http://127.0.0.1:5080/api/leagues-archive/all' -o /dev/null` still returns `Content-Encoding: br` — the public catalog is unchanged.
+- [ ] `curl -s -D- -H 'Accept-Encoding: br' -H 'Authorization: Bearer nope' 'http://127.0.0.1:5080/api/leagues-archive/all' -o /dev/null` still returns no `Content-Encoding` — the credentialed case is unchanged.
+- [ ] Sign in through the UI with a demo account and confirm the whole flow still works: sign in, refresh the page, sign out.
+
+### D — the rankings order the rating they display
+
+- [ ] Open `/global-stats`. For any two adjacent rows showing the **same** integer rating, confirm the one listed first has the alphabetically earlier Player Name (uppercase before lowercase).
+- [ ] The same pair is in the same order in `curl -s 'localhost:5080/api/leagues-archive/global-player-statistics?page=1&pageSize=100' | jq -r '.items[] | "\(.rating) \(.playerName)"'` — the paged endpoint and the browser-sorted catalog agree row for row.
+- [ ] Click **Rating** to sort ascending and descending; equal displayed ratings still break on the name ascending in **both** directions.
+
+### E — the client refuses a sort the server refuses
+
+- [ ] With the decayed key **off** (default), open `/global-stats?sort=decayedRating&direction=desc`. The table renders in the default order, no Decayed column appears, and no header shows a sort arrow.
+- [ ] Restart with `GONES_PLAYER_STATISTICS__EXPOSE_DECAYED_RATING=true` and reopen the same URL. The Decayed column appears **and** carries the descending sort arrow.
+
+### F — no French label says "mondial"
+
+- [ ] Covered by the three lines added to the round-6 **T4** section above.
+
+### G, B, C — the documents match the build
+
+- [ ] `docs/CONTEXT.md` says the Player Rating **is stored** in eight `player_statistics` columns and that only provisional/inactive are derived at read time.
+- [ ] `docs/adr/0043-glicko2-player-rating.md` and `docs/player-rating-glicko2.html` both describe **two** sums — unweighted `S` into `Δ`/`σ'`/`φ'`, weighted `Sw` into `μ'` only — matching `Glicko2.cs`.
+- [ ] Both documents state the 24-month ceiling on idle deviation growth.
+- [ ] Open `docs/player-rating-glicko2.html` in a browser and confirm the formula block still renders (the `Sw` line did not break the layout).
+- [ ] `npm run acceptance:matrix` exits 0 with the Global Rankings rows reading **12-col**.

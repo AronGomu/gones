@@ -57,14 +57,21 @@ public sealed class LeagueArchiveAggregateReadTests
             document.Tournaments.SelectMany(tournament => tournament.Rounds).SelectMany(round => round.Entries).Select(entry => entry.Id));
     }
 
+    /// <summary>
+    /// <c>Apply</c> writes the envelope and the document in one step, so it cannot produce a
+    /// contradiction and cannot exercise the guard on a read; what it does pin is that a rename is
+    /// visible through <c>ReadDocument</c> without going back through <c>Create</c>. The guard itself
+    /// needs a row rewritten out of band, which is
+    /// <c>LeagueArchiveAggregatePersistenceTests.Read_refuses_a_row_whose_envelope_contradicts_its_document</c>.
+    /// </summary>
     [Fact]
-    public void ReadDocument_still_refuses_a_document_its_envelope_contradicts()
+    public void ReadDocument_sees_an_applied_rename()
     {
         var aggregate = LeagueArchiveAggregate.Create(BigLeague(), Now);
         aggregate.Apply(BigLeague("Renamed"), Now);
 
-        // The envelope validation moved out of Create with the counts; it must still run on a read.
         Assert.Equal("Renamed", aggregate.ReadDocument().Name);
+        Assert.Equal("Renamed", aggregate.Name);
     }
 
     /// <summary>The work a read cannot avoid: parse the stored JSON, canonicalize it, parse that.</summary>

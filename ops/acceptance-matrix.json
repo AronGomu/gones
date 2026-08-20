@@ -2502,7 +2502,7 @@
         {
             "id": "doc09-global-player-stats-api",
             "doc": "09-frontend-angular.md",
-            "capability": "GET /api/leagues-archive/global-player-statistics returns searched, sorted, paged 14-column global stats from completed non-deleted server League aggregates with ETag caching.",
+            "capability": "GET /api/leagues-archive/global-player-statistics returns searched, sorted, paged 12-column global stats from completed non-deleted server League aggregates with ETag caching.",
             "section": "Product",
             "status": "proved",
             "acceptance": [
@@ -2512,7 +2512,7 @@
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/PublicLeagueApiTests.cs",
-                    "detail": "GlobalPlayerStatisticsApiTests: authority, eligibility, identity, default sort, explicit sort, search, paging, ETag 304, validation, 14-column shape"
+                    "detail": "GlobalPlayerStatisticsApiTests: authority, eligibility, identity, default sort, explicit sort, search, paging, ETag 304, validation, 12-column shape"
                 }
             ]
         },
@@ -2664,7 +2664,7 @@
         {
             "id": "doc09-global-stats-page",
             "doc": "09-frontend-angular.md",
-            "capability": "/global-stats page: 14-column searchable/sortable/paged ranking table fed by server Global Player Statistics API; home nav card; breadcrumb EN/FR; dual-source: server completed leagues only, local excluded.",
+            "capability": "/global-stats page: 12-column searchable/sortable/paged ranking table fed by server Global Player Statistics API; home nav card; breadcrumb EN/FR; dual-source: server completed leagues only, local excluded.",
             "section": "Product",
             "status": "proved",
             "acceptance": [
@@ -2938,7 +2938,7 @@
             "id": "product-global-stats-page",
             "section": "Product",
             "status": "proved",
-            "text": "Global Rankings page: 14-col table, search/sort/page, server-only source, home card, EN/FR nav."
+            "text": "Global Rankings page: 12-col table, search/sort/page, server-only source, home card, EN/FR nav."
         }
     ]
 }

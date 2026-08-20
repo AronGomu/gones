@@ -48,17 +48,28 @@ describe('RankingTableComponent columns getter', () => {
     expect(comp.columns.at(-1)).toBe('rating');
   });
 
-  it('the row order is untouched by ratings', () => {
+  it('the informational rating column does not reorder Swiss standings', () => {
     const comp = build();
-    const rows = [makeRow(1, 'Alice'), makeRow(2, 'Bob'), makeRow(3, 'Carol')];
-    comp.rows = rows;
-    // Ratings intentionally reverse the Swiss order (Carol > Bob > Alice by rating)
+    // Swiss order is Alice, Bob, Carol. The ratings invert it: Carol is the strongest player and must
+    // still be last, because the rating column is informational and Swiss points own the order.
+    comp.rows = [makeRow(1, 'Alice'), makeRow(2, 'Bob'), makeRow(3, 'Carol')];
     comp.ratings = new Map([['Carol', 1600], ['Bob', 1550], ['Alice', 1500]]);
-    // columns getter must not touch rows
-    expect(comp.rows).toStrictEqual(rows);
-    expect(comp.rows[0].playerName).toBe('Alice');
-    expect(comp.rows[1].playerName).toBe('Bob');
-    expect(comp.rows[2].playerName).toBe('Carol');
+
+    // Read the columns first: a getter that sorted `rows` in place to line the new column up would do
+    // it here, and comparing `comp.rows` to its own reference afterwards could never see it.
+    expect(comp.columns.at(-1)).toBe('rating');
+
+    // One rendered row per entry of `rows`, in `rows` order, every cell read through the accessors the
+    // template uses. The rating column shows the inverted numbers next to the untouched Swiss ranks.
+    expect(comp.rows.map((row) => [row.rank, comp.playerLabel(row), comp.ratingLabel(row)])).toEqual([
+      [1, 'Alice', '1500'],
+      [2, 'Bob', '1550'],
+      [3, 'Carol', '1600'],
+    ]);
+
+    // Material renders the array it is handed, so the untouched input binding is what makes the order
+    // above the order on screen. A sorted copy behind a getter would pass every assertion but this one.
+    expect(source).toContain('[dataSource]="rows"');
   });
 });
 

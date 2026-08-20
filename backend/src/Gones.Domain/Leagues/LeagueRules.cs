@@ -333,7 +333,15 @@ public static class LeagueRules
         return Math.Max(months, 0);
     }
 
-    /// <summary>The deviation is clamped at 350, so this only bounds the loop.</summary>
+    /// <summary>
+    /// The most monthly idle skips one rebuild will apply. This is a real ceiling on deviation growth,
+    /// not just a loop bound: from RD 250 twenty-four skips reach about 255, and the 350 clamp would
+    /// take roughly 553 of them. Past 24 idle months the deviation stops widening, so a player idle for
+    /// two years and one idle for ten carry the same one. Accepted because the discarded growth is a few
+    /// RD points on a number no ordering reads, while the cap keeps the replay loop bounded no matter how
+    /// old the archive gets. Pinned by <c>PlayerRatingReplayTests.Stops_growing_the_deviation_past_the_cap</c>
+    /// and recorded in ADR 0043.
+    /// </summary>
     private const int MaximumIdleSkips = 24;
 
     private readonly record struct RatedMatch(string TournamentKey, MatchRoundEntry Match);

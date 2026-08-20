@@ -20,6 +20,19 @@ export const GLOBAL_STATS_SORTABLE_COLS = [
 ] as const;
 export type GlobalStatsSortCol = (typeof GLOBAL_STATS_SORTABLE_COLS)[number];
 
+/**
+ * Columns the server only sorts when a configuration key says so. `decayedRating` is answered `400` by
+ * `PublicLeagueEndpoints.GetGlobalPlayerStatisticsAsync` unless
+ * `Gones:PlayerStatistics:ExposeDecayedRating` is on, and the column is absent from the rows when it is
+ * off, so accepting it unconditionally let the client select an ordering neither surface can serve.
+ */
+export const GLOBAL_STATS_GATED_SORT_COLS: readonly GlobalStatsSortCol[] = ['decayedRating'];
+
+/** Which gated columns the caller has evidence the server is exposing. */
+export interface GlobalStatsSortGate {
+  decayedRating?: boolean;
+}
+
 export interface GlobalStatsQuery {
   page: number;
   size: GlobalStatsPageSize;
@@ -28,8 +41,16 @@ export interface GlobalStatsQuery {
   direction?: 'asc' | 'desc';
 }
 
-/** Accepts both `URLSearchParams` (tests) and Angular `ParamMap` (router) — both expose `.get()`. */
-export function parseGlobalStatsQuery(params: { get(key: string): string | null }): GlobalStatsQuery {
+/**
+ * Accepts both `URLSearchParams` (tests) and Angular `ParamMap` (router) — both expose `.get()`.
+ *
+ * `gate` mirrors the server's own allowlist: a gated column is dropped, exactly as an unknown one is,
+ * unless the caller says the server is exposing it.
+ */
+export function parseGlobalStatsQuery(
+  params: { get(key: string): string | null },
+  gate: GlobalStatsSortGate = {}
+): GlobalStatsQuery {
   const rawPage = Number(params.get('page') ?? 1);
   const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1;
 
@@ -41,9 +62,9 @@ export function parseGlobalStatsQuery(params: { get(key: string): string | null 
   const search = (params.get('search') ?? '').trim();
 
   const rawSort = params.get('sort') ?? undefined;
-  const sort: GlobalStatsSortCol | undefined = rawSort !== undefined && (GLOBAL_STATS_SORTABLE_COLS as readonly string[]).includes(rawSort)
-    ? (rawSort as GlobalStatsSortCol)
-    : undefined;
+  const known = rawSort !== undefined && (GLOBAL_STATS_SORTABLE_COLS as readonly string[]).includes(rawSort);
+  const allowed = known && (rawSort !== 'decayedRating' || (gate.decayedRating ?? false));
+  const sort: GlobalStatsSortCol | undefined = allowed ? (rawSort as GlobalStatsSortCol) : undefined;
 
   const rawDir = params.get('direction') ?? undefined;
   const direction: 'asc' | 'desc' | undefined = rawDir === 'asc' || rawDir === 'desc' ? rawDir : undefined;
