@@ -823,3 +823,14 @@ Rebuild the API image first (`docker compose build api`) or you will measure the
 - [ ] Real-browser request (`Accept-Encoding: gzip, deflate, br`) on `/api/leagues-archive/all/documents` returns `Content-Encoding: br` with body ≈ 123 KB — smaller than the gzip-Fastest ceiling of 199 KB.
 - [ ] Open `/leagues-archive`, `/events` and `/global-stats` and confirm every page renders exactly as before — the browser decodes the compressed body with no code change.
 - [ ] Settings → export the full bundle over the compressed `/all/documents` route and confirm the downloaded file is intact and re-importable.
+
+## T13 glicko2-engine
+
+Pure-domain slice: three new classes in `Gones.Domain.Leagues` (`Glicko2`, `Glicko2Decay`,
+`MarginOfVictory`) and their unit tests. **Nothing calls them yet** — no endpoint, no database column,
+no UI, no configuration key. There is nothing a human can click for this ticket; the engine becomes
+observable in T14 (rating-period replay and storage) and visible in T15–T19. The correctness evidence
+is the automated anchor below, not a manual step.
+
+- [ ] `npm run backend:test` passes — in particular `Glicko2Tests.Reproduces_the_published_worked_example`, which reproduces Glickman's own published example: player (1500, 200, 0.06) beats (1400, 30) then loses to (1550, 100) and (1700, 300) → rating 1464.0506705393013, deviation 151.51652412385727, volatility 0.059995984286488495 (the paper prints 1464.06 / 151.52 / 0.05999; it rounds its intermediates to four decimals).
+- [ ] Confirm the app is unchanged: open `/leagues-archive`, `/global-stats` and any player page and check that no rating, badge or column has appeared yet. That absence is the expected outcome of this slice.
