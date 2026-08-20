@@ -365,4 +365,31 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="event-list-search"]').type('Event');
     cy.location('search', { timeout: 5000 }).should('not.contain', 'page=');
   });
+
+  it('past event card hides the ics button and future event card keeps it', () => {
+    const pastEvent = {
+      ...event,
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      slug: 'past-event',
+      title: 'Past Event',
+      startsAtUtc: new Date(Date.now() - 3_600_000).toISOString()
+    };
+    const futureEvent = {
+      ...event,
+      id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+      slug: 'future-event',
+      title: 'Future Event',
+      startsAtUtc: new Date(Date.now() + 86_400_000).toISOString()
+    };
+    cy.intercept('GET', '**/api/events/all*', { items: [pastEvent, futureEvent], generatedAt: '2026-08-08T10:00:00Z', count: 2, truncated: false }).as('icsEvents');
+
+    visit('/events?month=2026-08&view=list');
+    cy.wait('@icsEvents');
+
+    cy.get('[data-cy="event-past-event"]').within(() => {
+      cy.get('[data-cy="event-list-card-ics"]').should('not.exist');
+      cy.get('[data-cy="event-list-card-actions"]').should('exist');
+    });
+    cy.get('[data-cy="event-future-event"] [data-cy="event-list-card-ics"]').should('exist');
+  });
 });

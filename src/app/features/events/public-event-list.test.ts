@@ -10,6 +10,7 @@ import {
   calendarPageCount,
   clampCalendarPage,
   groupEventsByVenueDate,
+  hasEventStarted,
   isPastCalendarDay,
   paginateEvents,
   readEventListQuery,
@@ -275,6 +276,27 @@ describe('eventsByDate', () => {
     const map = eventsByDate([{ ...event, id: 'a', venueStartDate: '2026-03-01' }]);
 
     expect(map.has('2026-03-02')).toBe(false);
+  });
+});
+
+describe('hasEventStarted', () => {
+  const startUtc = '2026-09-01T18:00:00Z';
+  const eventStub = { startsAtUtc: startUtc };
+
+  it('not started before the instant', () => {
+    expect(hasEventStarted(eventStub, new Date('2026-09-01T17:59:59Z'))).toBe(false);
+  });
+
+  it('started at the instant', () => {
+    expect(hasEventStarted(eventStub, new Date('2026-09-01T18:00:00Z'))).toBe(true);
+  });
+
+  it('started after the instant', () => {
+    expect(hasEventStarted(eventStub, new Date('2026-09-01T18:00:01Z'))).toBe(true);
+  });
+
+  it('unparseable start is not started', () => {
+    expect(hasEventStarted({ startsAtUtc: 'not-a-date' }, new Date('2026-09-01T18:00:00Z'))).toBe(false);
   });
 });
 

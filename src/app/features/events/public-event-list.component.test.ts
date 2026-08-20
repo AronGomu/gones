@@ -1110,6 +1110,33 @@ describe('PublicEventListComponent list card', () => {
     expect(hoverRule).toContain('box-shadow: 0 12px 28px');
     expect(hoverRule).toContain('border-color: var(--hot-blood)');
   });
+
+  it('future card keeps the ics button', async () => {
+    const futureEvent: PublicEventView = { ...event, startsAtUtc: '2099-01-01T00:00:00Z' };
+    const { component } = setup({ params: { view: 'list' }, result: { items: [futureEvent] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.showCardIcs(component.allItems()[0])).toBe(true);
+  });
+
+  it('started card drops the ics button', async () => {
+    const pastEvent: PublicEventView = { ...event, startsAtUtc: '2020-01-01T00:00:00Z' };
+    const { component } = setup({ params: { view: 'list' }, result: { items: [pastEvent] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.showCardIcs(component.allItems()[0])).toBe(false);
+  });
+
+  it('started card keeps its actions container outside the ics guard', () => {
+    const actionsIndex = source.indexOf('data-cy="event-list-card-actions"');
+    const icsGuardIndex = source.indexOf('@if (showCardIcs(item))');
+    expect(actionsIndex).toBeGreaterThan(-1);
+    expect(icsGuardIndex).toBeGreaterThan(actionsIndex);
+  });
 });
 
 describe('PublicEventListComponent past day cells', () => {

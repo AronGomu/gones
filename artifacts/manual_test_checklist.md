@@ -680,3 +680,15 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] With multiple players equal on Wins, confirm higher game wins ranks first (tie-break still works).
 - [ ] Confirm the empty-state row (search with no results) spans the full table width (10 columns).
 - [ ] Confirm the Player Stats page (`/players/:name`) still shows the archetype cell as `{name} ({count} matches)` — that page was not changed by this ticket.
+
+## T7 hide-ics-for-started-events
+
+Navigate to `/events?view=list` with a running dev server.
+
+- [ ] Find an event whose start time has already passed (started or running). Confirm its card shows **no Add to calendar** button.
+- [ ] Find an event whose start time is in the future. Confirm its card shows the **Add to calendar** button.
+- [ ] On the same started-event card, confirm the actions container (`div.calendar-event__actions`) still renders (inspect the DOM) — the card grid layout must not collapse.
+- [ ] Click **Add to calendar** on a future event and confirm a `.ics` file download begins and the page stays on `/events`.
+- [ ] Confirm the Register button behaviour is unchanged (shows/hides by capability, unaffected by this ticket).
+- [ ] Switch to **calendar (month) view** (`?view=calendar`). Confirm no ICS button appears there — this ticket only affects the list view.
+- [ ] Open `/events/some-slug` (event detail). Confirm the ICS link in the Participants header still appears for both past and future events — this ticket does not touch the detail page.

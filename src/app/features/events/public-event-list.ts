@@ -138,6 +138,11 @@ export function isPastCalendarDay(date: string, today: string): boolean {
   return date < today;
 }
 
+export function hasEventStarted(event: Pick<PublicEventView, 'startsAtUtc'>, now: Date): boolean {
+  const start = new Date(String(event.startsAtUtc)).getTime();
+  return Number.isFinite(start) && start <= now.getTime();
+}
+
 /**
  * Google Maps search link for a venue, or null when the venue carries no address. The host is
  * fixed and the address — API data — only ever reaches the URL percent-encoded.
