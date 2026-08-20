@@ -93,10 +93,6 @@ export const SEARCH_DEBOUNCE_MS = 300;
               <th (click)="sortBy('matchLosses')" [attr.aria-sort]="ariaSort('matchLosses')" class="sortable-col" data-cy="global-stats-col-match-losses">{{ i18n.t('globalStats.colMatchLosses') }}</th>
               <th (click)="sortBy('matchDraws')" [attr.aria-sort]="ariaSort('matchDraws')" class="sortable-col" data-cy="global-stats-col-match-draws">{{ i18n.t('globalStats.colMatchDraws') }}</th>
               <th (click)="sortBy('matchWinrate')" [attr.aria-sort]="ariaSort('matchWinrate')" class="sortable-col" data-cy="global-stats-col-match-winrate">{{ i18n.t('globalStats.colMatchWinrate') }}</th>
-              <th (click)="sortBy('playedGameCount')" [attr.aria-sort]="ariaSort('playedGameCount')" class="sortable-col" data-cy="global-stats-col-games">{{ i18n.t('globalStats.colGames') }}</th>
-              <th (click)="sortBy('gameWins')" [attr.aria-sort]="ariaSort('gameWins')" class="sortable-col" data-cy="global-stats-col-game-wins">{{ i18n.t('globalStats.colGameWins') }}</th>
-              <th (click)="sortBy('gameLosses')" [attr.aria-sort]="ariaSort('gameLosses')" class="sortable-col" data-cy="global-stats-col-game-losses">{{ i18n.t('globalStats.colGameLosses') }}</th>
-              <th (click)="sortBy('gameWinrate')" [attr.aria-sort]="ariaSort('gameWinrate')" class="sortable-col" data-cy="global-stats-col-game-winrate">{{ i18n.t('globalStats.colGameWinrate') }}</th>
               <th data-cy="global-stats-col-nemesis">{{ i18n.t('globalStats.colNemesis') }}</th>
               <th data-cy="global-stats-col-rival">{{ i18n.t('globalStats.colRival') }}</th>
               <th data-cy="global-stats-col-archetype">{{ i18n.t('globalStats.colArchetype') }}</th>
@@ -105,7 +101,7 @@ export const SEARCH_DEBOUNCE_MS = 300;
           <tbody data-cy="global-stats-tbody">
             @if (!pagedRows().length) {
               <tr data-cy="global-stats-empty-row">
-                <td colspan="14" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
+                <td colspan="10" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
               </tr>
             }
             @for (row of pagedRows(); track row.playerName) {
@@ -117,10 +113,6 @@ export const SEARCH_DEBOUNCE_MS = 300;
                 <td [attr.data-cy]="'global-stats-cell-match-losses-' + row.position">{{ row.matchLosses }}</td>
                 <td [attr.data-cy]="'global-stats-cell-match-draws-' + row.position">{{ row.matchDraws }}</td>
                 <td [attr.data-cy]="'global-stats-cell-match-winrate-' + row.position">{{ formatPct(row.matchWinrate) }}</td>
-                <td [attr.data-cy]="'global-stats-cell-games-' + row.position">{{ row.playedGameCount }}</td>
-                <td [attr.data-cy]="'global-stats-cell-game-wins-' + row.position">{{ row.gameWins }}</td>
-                <td [attr.data-cy]="'global-stats-cell-game-losses-' + row.position">{{ row.gameLosses }}</td>
-                <td [attr.data-cy]="'global-stats-cell-game-winrate-' + row.position">{{ formatPct(row.gameWinrate) }}</td>
                 <td [attr.data-cy]="'global-stats-cell-nemesis-' + row.position">{{ formatOpponent(row.nemesis) }}</td>
                 <td [attr.data-cy]="'global-stats-cell-rival-' + row.position">{{ formatOpponent(row.rival) }}</td>
                 <td [attr.data-cy]="'global-stats-cell-archetype-' + row.position">{{ formatArchetype(row.mostPlayedArchetype) }}</td>
@@ -315,8 +307,6 @@ export class GlobalStatsComponent implements OnDestroy {
   }
 
   formatArchetype(value: PlayerArchetypeUsage | null | undefined): string {
-    return value === null || value === undefined
-      ? '—'
-      : this.i18n.t('player.archetypeMatches', { name: value.name, count: value.matchCount });
+    return value === null || value === undefined ? '—' : `${value.name} (${value.matchCount})`;
   }
 }

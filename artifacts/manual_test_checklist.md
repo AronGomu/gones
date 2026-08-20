@@ -663,3 +663,20 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Confirm the new row wrapper carries `data-cy="global-stats-heading-row"`.
 - [ ] Switch language to **Français** and repeat the wide/narrow layout check — confirm behaviour is the same.
 - [ ] Confirm all other pages that render a sync bar (e.g., `/events`, `/leagues-archive`) are **unaffected** — their layout is unchanged.
+
+## T6 global-rankings-table-columns
+
+- [ ] Open `/global-stats`. Confirm the table has exactly **10** columns: #, Player, Matches, Wins, Losses, Draw, M%, Nemesis, Rival, Archetype (matches).
+- [ ] Confirm no columns named Games, GW, GL, or G% appear anywhere in the table header row.
+- [ ] Confirm the Match Win column header reads **Wins** (not MW).
+- [ ] Confirm the Match Loss column header reads **Losses** (not ML).
+- [ ] Confirm the Match Draw column header reads **Draw** (not MD).
+- [ ] Confirm the Archetype column header reads **Archetype (matches)** (not just Archetype).
+- [ ] With at least one row in the table, confirm the archetype cell shows `{name} ({number})` with no word "matches" — e.g. `Delver (18)`.
+- [ ] With a player that has no archetype, confirm the archetype cell shows **—**.
+- [ ] Switch language to **Français**. Confirm: Wins→Victoires, Losses→Défaites, Draw→Nuls, Archetype (matches)→Archétype (matchs).
+- [ ] In French, confirm the archetype cell still shows `{name} ({number})` (no "matchs" word inside the cell — only the header carries it).
+- [ ] Open `/global-stats?sort=gameWins&direction=desc`. Confirm the table still renders and rows appear reordered by game wins descending (game stats still function as sort keys).
+- [ ] With multiple players equal on Wins, confirm higher game wins ranks first (tie-break still works).
+- [ ] Confirm the empty-state row (search with no results) spans the full table width (10 columns).
+- [ ] Confirm the Player Stats page (`/players/:name`) still shows the archetype cell as `{name} ({count} matches)` — that page was not changed by this ticket.

@@ -36,7 +36,7 @@ function mockCatalog(items = [BASE_ROW]) {
 // ---------------------------------------------------------------------------
 // Headers
 // ---------------------------------------------------------------------------
-describe('Global Stats — 14 column headers', () => {
+describe('Global Stats — 10 column headers', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
     mockCatalog();
@@ -44,9 +44,9 @@ describe('Global Stats — 14 column headers', () => {
     cy.wait('@catalog');
   });
 
-  const HEADERS = ['#', 'Player', 'Matches', 'MW', 'ML', 'MD', 'M%', 'Games', 'GW', 'GL', 'G%', 'Nemesis', 'Rival', 'Archetype'];
+  const HEADERS = ['#', 'Player', 'Matches', 'Wins', 'Losses', 'Draw', 'M%', 'Nemesis', 'Rival', 'Archetype (matches)'];
 
-  it('renders all 14 column headers in order', () => {
+  it('renders all 10 column headers in order', () => {
     cy.get('[data-cy="global-stats-table"]').within(() => {
       cy.get('th').then(($headers) => {
         const texts = [...$headers].map((el) => el.textContent.trim());
@@ -75,12 +75,10 @@ describe('Global Stats — cell formatting', () => {
 
   it('shows percentage as whole number for Alice', () => {
     cy.get('[data-cy="global-stats-cell-match-winrate-1"]').should('have.text', '75%');
-    cy.get('[data-cy="global-stats-cell-game-winrate-1"]').should('have.text', '71%');
   });
 
   it('shows — for null rates on Bob', () => {
     cy.get('[data-cy="global-stats-cell-match-winrate-2"]').should('have.text', '—');
-    cy.get('[data-cy="global-stats-cell-game-winrate-2"]').should('have.text', '—');
   });
 
   it('shows — for null nemesis/rival/archetype on Bob', () => {
@@ -94,8 +92,8 @@ describe('Global Stats — cell formatting', () => {
     cy.get('[data-cy="global-stats-cell-rival-1"]').should('have.text', 'Carol (4-4)');
   });
 
-  it('shows Name (N matches) for archetype column on Alice', () => {
-    cy.get('[data-cy="global-stats-cell-archetype-1"]').should('have.text', 'Delver (18 matches)');
+  it('shows Name (N) for archetype column on Alice', () => {
+    cy.get('[data-cy="global-stats-cell-archetype-1"]').should('have.text', 'Delver (18)');
   });
 });
 

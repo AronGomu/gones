@@ -23,7 +23,7 @@ const source = readFileSync(join(__dirname, 'global-stats.component.ts'), 'utf8'
 // ---------------------------------------------------------------------------
 // Template structure checks
 // ---------------------------------------------------------------------------
-describe('GlobalStatsComponent template — 14 column headers', () => {
+describe('GlobalStatsComponent template — 10 column headers', () => {
   const COL_DATA_CY = [
     'global-stats-col-position',
     'global-stats-col-player',
@@ -32,16 +32,12 @@ describe('GlobalStatsComponent template — 14 column headers', () => {
     'global-stats-col-match-losses',
     'global-stats-col-match-draws',
     'global-stats-col-match-winrate',
-    'global-stats-col-games',
-    'global-stats-col-game-wins',
-    'global-stats-col-game-losses',
-    'global-stats-col-game-winrate',
     'global-stats-col-nemesis',
     'global-stats-col-rival',
     'global-stats-col-archetype',
   ];
 
-  it('contains all 14 column header data-cy values in order', () => {
+  it('contains all 10 column header data-cy values in order', () => {
     for (const cy of COL_DATA_CY) {
       expect(source, `missing: ${cy}`).toContain(`"${cy}"`);
     }
@@ -49,6 +45,16 @@ describe('GlobalStatsComponent template — 14 column headers', () => {
     for (let i = 1; i < indices.length; i++) {
       expect(indices[i], `${COL_DATA_CY[i]} not after ${COL_DATA_CY[i - 1]}`).toBeGreaterThan(indices[i - 1]);
     }
+  });
+
+  it('drops the game columns', () => {
+    expect(source).not.toMatch(/data-cy="global-stats-col-game/);
+    expect(source).not.toContain('data-cy="global-stats-col-games"');
+  });
+
+  it('empty row spans all ten columns', () => {
+    expect(source).toContain('colspan="10"');
+    expect(source).not.toContain('colspan="14"');
   });
 });
 
@@ -59,10 +65,6 @@ describe('GlobalStatsComponent template — sortable headers', () => {
     'global-stats-col-match-losses',
     'global-stats-col-match-draws',
     'global-stats-col-match-winrate',
-    'global-stats-col-games',
-    'global-stats-col-game-wins',
-    'global-stats-col-game-losses',
-    'global-stats-col-game-winrate',
   ];
   const NOT_SORTABLE = [
     'global-stats-col-position',
@@ -233,20 +235,9 @@ describe('GlobalStatsComponent — format helpers', () => {
     expect(comp.formatArchetype(undefined)).toBe('—');
   });
 
-  it('formatArchetype returns localized "Name (N matches)" for a record', () => {
-    const writeLang = (language: 'en' | 'fr') => {
-      localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
-      localStorage.setItem('gones.settings.language', language);
-    };
-
-    writeLang('en');
-    expect(buildComponent().comp.formatArchetype({ name: 'Delver', matchCount: 7 })).toBe('Delver (7 matches)');
-
-    writeLang('fr');
-    expect(buildComponent().comp.formatArchetype({ name: 'Delver', matchCount: 7 })).toBe('Delver (7 matchs)');
-
-    expect(catalogs.en['player.archetypeMatches']).toBe('{name} ({count} matches)');
-    expect(catalogs.fr['player.archetypeMatches']).toBe('{name} ({count} matchs)');
+  it('formatArchetype returns "Name (N)" for a record', () => {
+    const { comp } = buildComponent();
+    expect(comp.formatArchetype({ name: 'Delver', matchCount: 18 })).toBe('Delver (18)');
   });
 });
 
@@ -398,10 +389,6 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
     'globalStats.colMatchLosses',
     'globalStats.colMatchDraws',
     'globalStats.colMatchWinrate',
-    'globalStats.colGames',
-    'globalStats.colGameWins',
-    'globalStats.colGameLosses',
-    'globalStats.colGameWinrate',
     'globalStats.colNemesis',
     'globalStats.colRival',
     'globalStats.colArchetype',
@@ -416,4 +403,23 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
       expect(catalogs.fr[key as keyof typeof catalogs.fr], `fr missing ${key}`).toBeTruthy();
     });
   }
+});
+
+describe('GlobalStatsComponent — match column label values', () => {
+  it('uses Wins, Losses, Draw in English', () => {
+    expect(catalogs.en['globalStats.colMatchWins']).toBe('Wins');
+    expect(catalogs.en['globalStats.colMatchLosses']).toBe('Losses');
+    expect(catalogs.en['globalStats.colMatchDraws']).toBe('Draw');
+  });
+
+  it('uses Victoires, Défaites, Nuls in French', () => {
+    expect(catalogs.fr['globalStats.colMatchWins']).toBe('Victoires');
+    expect(catalogs.fr['globalStats.colMatchLosses']).toBe('Défaites');
+    expect(catalogs.fr['globalStats.colMatchDraws']).toBe('Nuls');
+  });
+
+  it('uses Archetype (matches) / Archétype (matchs) for archetype header', () => {
+    expect(catalogs.en['globalStats.colArchetype']).toBe('Archetype (matches)');
+    expect(catalogs.fr['globalStats.colArchetype']).toBe('Archétype (matchs)');
+  });
 });

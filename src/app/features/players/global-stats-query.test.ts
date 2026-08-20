@@ -212,4 +212,21 @@ describe('sortGlobalStatsRows', () => {
 
     expect(names(rows)).toEqual(['Zoe', 'Ana']);
   });
+
+  it('game statistics still break ties in the default order (Assumption 8 guard)', () => {
+    const rows = [
+      row('Player1', { matchWins: 5, gameWins: 3 }),
+      row('Player2', { matchWins: 5, gameWins: 7 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows))).toEqual(['Player2', 'Player1']);
+  });
+
+  it('game statistics still sortable via ?sort=gameWins param (Assumption 8 guard)', () => {
+    const rows = [
+      row('Player1', { gameWins: 3 }),
+      row('Player2', { gameWins: 7 }),
+      row('Player3', { gameWins: 5 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'gameWins', 'desc'))).toEqual(['Player2', 'Player3', 'Player1']);
+  });
 });
