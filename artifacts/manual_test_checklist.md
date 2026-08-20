@@ -799,8 +799,8 @@ Start the stack with `npm run dev -- --detached --env=demo`, or `--env=stress` w
 
 ## T12 response-compression
 
-Backend slice: the API compresses its own responses — brotli first, gzip as the fallback, both at
-`CompressionLevel.Fastest` — but **only for GET requests that carry no `Authorization` header and no
+Backend slice: the API compresses its own responses — brotli `Optimal` first, gzip `Fastest` as
+the fallback — but **only for GET requests that carry no `Authorization` header and no
 `gones_refresh` cookie**. That narrowing is the BREACH mitigation (ADR 0042): a compressed response
 that carries a session secret next to attacker-influenced input leaks the secret through its own
 length. **No user-visible change** — browsers decompress transparently — so most of what follows is
@@ -819,7 +819,7 @@ Rebuild the API image first (`docker compose build api`) or you will measure the
 - [ ] `curl -s -o /dev/null -D - -H 'Accept-Encoding: br' localhost:5080/api/leagues-archive/does-not-exist` answers `404` with `Content-Type: application/problem+json` **and** `Content-Encoding: br`.
 - [ ] A write (`POST /api/leagues-archive`, any request) prints no `Content-Encoding` — only GETs are compressed.
 - [ ] Sign in, then in DevTools → Network confirm an authenticated read (e.g. `/api/users/me`) has **no** `content-encoding` response header while `/api/events/all` on the same page does.
-- [ ] On the 100× stress dataset, confirm the measured sizes: `/api/leagues-archive/all` ≈ 34 KB identity / 3.5 KB br, `/api/leagues-archive/all/documents` ≈ 1.44 MB identity / 340 KB br / 195 KB gzip.
+- [ ] On the 100× stress dataset, confirm the measured sizes: `/api/leagues-archive/all` ≈ 34 KB identity / 1.5 KB br (Optimal), `/api/leagues-archive/all/documents` ≈ 1.44 MB identity / 123 KB br (Optimal) / 199 KB gzip (Fastest).
+- [ ] Real-browser request (`Accept-Encoding: gzip, deflate, br`) on `/api/leagues-archive/all/documents` returns `Content-Encoding: br` with body ≈ 123 KB — smaller than the gzip-Fastest ceiling of 199 KB.
 - [ ] Open `/leagues-archive`, `/events` and `/global-stats` and confirm every page renders exactly as before — the browser decodes the compressed body with no code change.
 - [ ] Settings → export the full bundle over the compressed `/all/documents` route and confirm the downloaded file is intact and re-importable.
-- [ ] Known gap to re-check when brotli levels are revisited: brotli at `Fastest` is *larger* than gzip at `Fastest` on the big payloads (348 KB vs 198 KB on `/all/documents`), and brotli wins the negotiation for every real browser. Confirm this is still the accepted trade before tuning.

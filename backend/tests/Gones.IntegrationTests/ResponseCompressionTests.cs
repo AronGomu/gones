@@ -22,6 +22,7 @@ namespace Gones.IntegrationTests;
 public sealed class ResponseCompressionTests : IAsyncLifetime
 {
     private const string Path = "/api/leagues-archive/all";
+    private const string DocumentsPath = "/api/leagues-archive/all/documents";
     private static readonly Instant Seeded = Instant.FromUtc(2031, 5, 1, 12, 0);
 
     private readonly PostgreSqlTestContainer postgres = new();
@@ -119,6 +120,42 @@ public sealed class ResponseCompressionTests : IAsyncLifetime
         // A 304 carries no body, so there is nothing to encode and no header to send.
         Assert.Equal(HttpStatusCode.NotModified, replay.StatusCode);
         Assert.Empty(replay.Content.Headers.ContentEncoding);
+    }
+
+    /// <summary>
+    /// A real browser sends <c>Accept-Encoding: gzip, deflate, br</c> and must receive brotli.
+    /// Brotli must be smaller than what gzip Fastest would have produced — brotli Fastest fails this
+    /// because at quality 1 its streaming overhead makes it larger than gzip on realistic payloads.
+    /// </summary>
+    [Fact]
+    public async Task Real_browser_header_selects_brotli_and_it_beats_gzip_Fastest()
+    {
+        await using var database = CreateContext();
+        for (int i = 0; i < 200; i++)
+            database.LeagueArchiveAggregates.Add(
+                LeagueArchiveAggregate.Create(
+                    CompressibleLeague($"ratio-{i}"),
+                    Seeded.Plus(Duration.FromHours(i + 100))));
+        await database.SaveChangesAsync();
+
+        using var client = CreateClient();
+
+        using var gzipRequest = new HttpRequestMessage(HttpMethod.Get, DocumentsPath);
+        gzipRequest.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
+        using var gzipResponse = await client.SendAsync(gzipRequest);
+        Assert.Equal("gzip", gzipResponse.Content.Headers.ContentEncoding.Single());
+        var gzipBodyLength = (await gzipResponse.Content.ReadAsByteArrayAsync()).Length;
+
+        using var realBrowserRequest = new HttpRequestMessage(HttpMethod.Get, DocumentsPath);
+        realBrowserRequest.Headers.TryAddWithoutValidation("Accept-Encoding", "gzip, deflate, br");
+        using var realBrowserResponse = await client.SendAsync(realBrowserRequest);
+        Assert.Equal(HttpStatusCode.OK, realBrowserResponse.StatusCode);
+        Assert.Equal("br", realBrowserResponse.Content.Headers.ContentEncoding.Single());
+
+        var brBodyLength = (await realBrowserResponse.Content.ReadAsByteArrayAsync()).Length;
+        Assert.True(
+            brBodyLength < gzipBodyLength,
+            $"Brotli body ({brBodyLength} B) must be smaller than gzip Fastest ({gzipBodyLength} B) for the real-browser path.");
     }
 
     private static HttpRequestMessage Read(string? acceptEncoding)

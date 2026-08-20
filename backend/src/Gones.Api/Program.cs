@@ -55,8 +55,21 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 // The public catalogs are the payloads that need this (ADR 0042), but compression is cheap for every
-// anonymous read, so it is registered app-wide and narrowed at the middleware below. Fastest rather
-// than Optimal because the bodies are compressed on a request path, not precomputed.
+// anonymous read, so it is registered app-wide and narrowed at the middleware below.
+//
+// Measured against the 100x stress dataset (freshly built image, curl, brotli first in negotiation):
+//   route                              raw         br-Fast   br-Optimal  br-Smallest  gz-Fast   gz-Optimal
+//   /api/leagues-archive/all         34 115       3 612      1 504       1 256       2 873      1 657
+//   /api/leagues-archive/all/docs 1 442 929     348 868    123 021      82 610     198 768    109 404
+//   /api/events/all                 842 128     289 319     97 026      71 010     215 757    134 475
+//
+//   Latency added on /all/docs (5-run median over baseline ~34 ms):
+//   br-Fastest ~2 ms, br-Optimal ~45 ms ✓, br-Smallest ~1 600 ms ✗ (disqualified)
+//
+// Brotli Optimal wins negotiation for real browsers (Accept-Encoding: gzip, deflate, br) and
+// produces 123 021 bytes on /all/docs — 38 % smaller than the gzip-Fastest ceiling (198 768)
+// and 65 % smaller than brotli-Fastest (348 868), which T12 originally shipped. SmallestSize
+// is far slower without a meaningful extra benefit; Gzip stays Fastest as the fallback.
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
@@ -64,7 +77,7 @@ builder.Services.AddResponseCompression(options =>
     options.Providers.Add<GzipCompressionProvider>();
     options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/problem+json"]);
 });
-builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Optimal);
 builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddGonesAuthorization(runtimeConfiguration, builder.Configuration);

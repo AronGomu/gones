@@ -88,9 +88,24 @@ ADR 0017 are mandatory but not sufficient against volumetric abuse.
 
 ### Response compression
 
-`gones-api` compresses its own responses — brotli first, gzip as the fallback, both at the fastest
-level — so the host needs no compression module and must not strip `Accept-Encoding` on the way in or
+`gones-api` compresses its own responses — brotli `Optimal` first, gzip `Fastest` as the fallback —
+so the host needs no compression module and must not strip `Accept-Encoding` on the way in or
 `Content-Encoding` and `Vary` on the way out.
+
+Provider order and levels were chosen by measurement on the 100x stress dataset (1.44 MB documents
+route). A real browser sends `Accept-Encoding: gzip, deflate, br`, which resolves to brotli:
+
+| route | raw | brotli Fastest | brotli Optimal | brotli SmallestSize | gzip Fastest | gzip Optimal |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `/api/leagues-archive/all` | 34 115 | 3 612 | **1 504** | 1 256 | 2 873 | 1 657 |
+| `/api/leagues-archive/all/documents` | 1 442 929 | 348 868 | **123 021** | 82 610 | 198 768 | 109 404 |
+| `/api/events/all` | 842 128 | 289 319 | **97 026** | 71 010 | 215 757 | 134 475 |
+
+Median added latency on `/all/documents` (5 runs, baseline ≈ 34 ms): brotli Fastest +2 ms,
+brotli Optimal +45 ms, brotli SmallestSize +1 600 ms (disqualified). Brotli Optimal was chosen:
+it beats the gzip-Fastest ceiling by 38 % (123 021 vs 198 768 B) and adds only 45 ms — well within
+the ≈150 ms per-request CPU budget. SmallestSize was disqualified by latency; Fastest was
+disqualified by size (348 868 B, 75 % larger than gzip Fastest on the biggest payload).
 
 Compression answers **anonymous GETs only**. A request carrying an `Authorization` header or the
 `gones_refresh` cookie is answered uncompressed, because compressing a response that carries a session
