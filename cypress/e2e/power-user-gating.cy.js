@@ -80,7 +80,7 @@ describe('Power User Event, League and Live gates', () => {
     stubPublicEvents();
     cy.intercept('GET', '**/api/organizer/events?*', { items: [managedEvent], page: 1, pageSize: 20, totalCount: 1 }).as('managedEvents');
     cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague);
-    cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeague], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/leagues-archive\/all(?:\/documents)?$/, { items: [serverLeague], totalCount: 1, truncated: false });
 
     visit('/organizer/events', false);
     cy.wait('@managedEvents');

@@ -40,21 +40,22 @@ public sealed class PublicLeagueApiTests : IAsyncLifetime
         await postgres.DisposeAsync();
     }
 
+    /// <summary>
+    /// The paged League list is deleted with no alias (ADR 0042): it had zero frontend callers once the
+    /// catalog route landed. The retirement shows as 405 rather than 404 because the same path still
+    /// carries <c>POST /api/leagues-archive</c>, so routing matches the path and finds no GET. Faking a
+    /// 404 would mean mapping a GET back on to return one, which is not a deleted route.
+    /// </summary>
     [Fact]
-    public async Task List_detail_and_nested_source_reads_are_public_paged_cacheable_and_tombstone_safe()
+    public async Task Paged_League_list_is_gone()
     {
-        using var list = await Client.GetAsync("/api/leagues-archive?page=1&pageSize=1&status=active&search=API");
-        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
-        Assert.Contains("public", list.Headers.CacheControl!.ToString());
-        Assert.NotNull(list.Headers.ETag);
-        var listBody = await list.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, listBody.GetProperty("pageSize").GetInt32());
-        Assert.Equal(1, listBody.GetProperty("totalCount").GetInt32());
-        var summary = listBody.GetProperty("items")[0];
-        Assert.Equal("api-league", summary.GetProperty("id").GetString());
-        Assert.Equal(1, summary.GetProperty("documentVersion").GetInt64());
-        Assert.False(summary.TryGetProperty("canonicalDocument", out _));
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await Client.GetAsync("/api/leagues-archive?page=1")).StatusCode);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await Client.GetAsync("/api/leagues-archive")).StatusCode);
+    }
 
+    [Fact]
+    public async Task Detail_and_nested_source_reads_are_public_cacheable_and_tombstone_safe()
+    {
         using var detail = await Client.GetAsync("/api/leagues-archive/api-league");
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         Assert.Equal("api-league", (await detail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString());
@@ -73,9 +74,6 @@ public sealed class PublicLeagueApiTests : IAsyncLifetime
         Assert.Equal(1, (await stats.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("playedMatchCount").GetInt32());
 
         Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync("/api/leagues-archive/deleted")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync("/api/leagues-archive?pageSize=101")).StatusCode);
-        using var literalWildcard = await Client.GetAsync("/api/leagues-archive?search=API%25");
-        Assert.Equal(0, (await literalWildcard.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("totalCount").GetInt32());
         Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync($"/api/leagues-archive/{new string('x', LeagueArchiveAggregate.MaximumDocumentIdLength + 1)}")).StatusCode);
     }
 
@@ -425,7 +423,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
     public async Task Existing_league_public_endpoints_unchanged()
     {
         // Verify the global-player-statistics route does not shadow /api/leagues-archive/{id}
-        using var list = await Client.GetAsync("/api/leagues-archive?pageSize=20");
+        using var list = await Client.GetAsync("/api/leagues-archive/all");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         var body = await list.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.TryGetProperty("items", out _));

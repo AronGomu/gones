@@ -66,7 +66,8 @@ public sealed class LeagueArchiveRouteTests : IAsyncLifetime
     [Fact]
     public async Task Archive_list_responds_on_the_new_path()
     {
-        using var list = await Client.GetAsync("/api/leagues-archive");
+        // The archive's list surface is the catalog route: the paged list is retired (ADR 0042).
+        using var list = await Client.GetAsync("/api/leagues-archive/all");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         var body = await list.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Contains(body.GetProperty("items").EnumerateArray(), item => item.GetProperty("id").GetString() == "archive-league");

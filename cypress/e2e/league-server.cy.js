@@ -32,7 +32,7 @@ function mockLeagueServer() {
   // The list page reads the whole archive in one catalog request (ADR 0039), not a summary page plus
   // a detail per League. Registered after the detail route because that pattern also matches `/all`
   // and Cypress gives precedence to the intercept declared last.
-  cy.intercept('GET', /\/api\/leagues-archive\/all$/, req => req.reply({
+  cy.intercept('GET', /\/api\/leagues-archive\/all(?:\/documents)?$/, req => req.reply({
     items: leagues.map(commandResponse),
     totalCount: leagues.length,
     truncated: false

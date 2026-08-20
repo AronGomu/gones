@@ -731,3 +731,28 @@ the role is `gones_migration` (not `db` / `gones`).
 - [ ] Confirm the API still starts and serves `/health/ready` when the backfill is disabled.
 - [ ] Expect the placeholder League ("Unassigned Tournaments") row to have moved to `version = 2` on the first start after the migration — it is seeded by raw SQL, so the backfill stamps it once. Confirm it has not moved again on later starts.
 - [ ] Confirm `GET /api/leagues-archive/all` still returns only `id,name,status,tournaments,documentVersion,updatedAt` per row — this ticket must add no field to the HTTP response.
+
+## T10 slim-league-catalog-api
+
+API-only slice: `GET /api/leagues-archive/all` now returns summary rows, the whole documents moved
+to `GET /api/leagues-archive/all/documents`, and the paged `GET /api/leagues-archive` is deleted.
+The frontend still reads documents (the list page moves to the summary route in T11), so **the UI
+must look and behave exactly as it did before** — that absence of change is most of what to check.
+
+Start the stack with `npm run dev -- --detached --env=demo`. The Postgres service is `postgres` and
+the role is `gones_migration` (not `db` / `gones`).
+
+- [ ] `curl -s localhost:5080/api/leagues-archive/all | head -c 400` — confirm each row has `id, name, status, updatedAt, documentVersion, tournamentCount, playerCount` and **no** `tournaments`.
+- [ ] Confirm each row's `tournamentCount` / `playerCount` equal the two numbers the matching Leagues Archive list card prints in the browser.
+- [ ] `curl -s localhost:5080/api/leagues-archive/all/documents | head -c 400` — confirm each row is a whole document with a `tournaments` array.
+- [ ] Confirm one row of `/all/documents` is byte-identical to `GET /api/leagues-archive/{id}` for the same League.
+- [ ] `curl -s -o /dev/null -w '%{http_code}\n' localhost:5080/api/leagues-archive` — confirm **405** (the path still carries `POST`, so the retired GET is Method Not Allowed, not 404).
+- [ ] Confirm `curl -s -D- -o /dev/null localhost:5080/api/leagues-archive/all` shows `Cache-Control: public, max-age=3600` and an `ETag`, and that `/all/documents` shows the same header with a **different** ETag.
+- [ ] Replay the summary ETag against `/all` with `-H 'If-None-Match: <etag>'` and confirm `304`; replay the **same** ETag against `/all/documents` and confirm `200` (never a 304 with the wrong shape).
+- [ ] Open the Leagues Archive list page and confirm it renders exactly as before — same cards, same counts, same ordering, no new fields.
+- [ ] Open Settings and run the full export. Confirm the downloaded bundle still carries every server League with all its Tournaments, Rounds and Matches.
+- [ ] Import that bundle back and confirm the archive is unchanged.
+- [ ] Open a League detail page, a Tournament page and a player statistics page and confirm all still load.
+- [ ] Confirm the API log shows `Backfilled the catalog counts of N League archive rows to version 1.` (or the "current at version 1" line) **before** the first request is served — the backfill now blocks startup because `/all` reads those columns.
+- [ ] On the 100× stress dataset (`npm run dev:stress:generate` then `npm run dev -- --env=stress --detached`), confirm `curl -s localhost:5080/api/leagues-archive/all | wc -c` is under 60000 while `/all/documents` is still around 1.4 MB.
+- [ ] Confirm the Leagues Archive list page still renders the full stress archive without visible slowdown.

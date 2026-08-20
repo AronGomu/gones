@@ -92,13 +92,13 @@ else
     builder.Services.AddScoped<LeagueCommandService>();
     builder.Services.AddScoped<PlayerNameMaintenanceService>();
     builder.Services.AddSingleton<PlayerStatisticsRebuildService>();
-    // Inserted first on purpose: the web host registers its own hosted service while the builder is
-    // constructed, so appending would start Kestrel before the read model is filled. ADR 0040 wants the
-    // rebuild to finish before the API serves traffic.
+    // Both startup repairs are inserted first on purpose: the web host registers its own hosted service
+    // while the builder is constructed, so appending would start Kestrel before they had run. ADR 0040
+    // wants the read model filled before the API serves traffic, and /api/leagues-archive/all now reads
+    // the denormalized catalog counts, so a request served before that repair would ship zeroed counts
+    // (ADR 0042). Written back to front because each insert goes in front of the previous one.
+    builder.Services.Insert(0, ServiceDescriptor.Singleton<IHostedService, LeagueArchiveCatalogCountsBackfill>());
     builder.Services.Insert(0, ServiceDescriptor.Singleton<IHostedService, PlayerStatisticsStartupRebuild>());
-    // Appended rather than inserted: nothing reads the denormalized catalog counts yet, so this repair
-    // does not have to finish before the API serves traffic (ADR 0042).
-    builder.Services.AddHostedService<LeagueArchiveCatalogCountsBackfill>();
     builder.Services.AddScoped<LiveCommandService>();
     builder.Services.AddSingleton(EventRegistrationOptions.Load(builder.Configuration));
     builder.Services.AddScoped<IOrganizationDeleteDependency, EventOrganizationDeleteDependency>();

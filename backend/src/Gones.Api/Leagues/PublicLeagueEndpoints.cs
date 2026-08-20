@@ -14,8 +14,6 @@ namespace Gones.Api.Leagues;
 
 internal static class PublicLeagueEndpoints
 {
-    public const int DefaultPageSize = 20;
-    public const int MaximumPageSize = 100;
     private const int MaximumSearchLength = 200;
     internal const int MaximumPlayerNameLength = 200;
     private const string AppVersion = "0.1.0";
@@ -55,14 +53,13 @@ internal static class PublicLeagueEndpoints
             .WithName("GetGlobalPlayerStatisticsCatalog")
             .Produces<GlobalPlayerStatisticsCatalogResponse>()
             .Produces(StatusCodes.Status304NotModified);
-        app.MapGet("/api/leagues-archive", ListAsync)
-            .AllowAnonymous()
-            .Produces<PublicLeagueListResponse>()
-            .Produces(StatusCodes.Status304NotModified)
-            .ProducesProblem(StatusCodes.Status400BadRequest);
         app.MapGet("/api/leagues-archive/all", ListCatalogAsync)
             .AllowAnonymous()
             .Produces<PublicLeagueCatalogResponse>()
+            .Produces(StatusCodes.Status304NotModified);
+        app.MapGet("/api/leagues-archive/all/documents", ListDocumentCatalogAsync)
+            .AllowAnonymous()
+            .Produces<PublicLeagueDocumentCatalogResponse>()
             .Produces(StatusCodes.Status304NotModified);
         app.MapGet("/api/leagues-archive/{id}", GetAsync)
             .AllowAnonymous()
@@ -261,56 +258,12 @@ internal static class PublicLeagueEndpoints
         return rebuiltAt?.ToUnixTimeTicks().ToString(CultureInfo.InvariantCulture) ?? "unbuilt";
     }
 
-    private static async Task<IResult> ListAsync(
-        int? page,
-        int? pageSize,
-        string? status,
-        string? search,
-        HttpRequest request,
-        HttpResponse response,
-        GonesDbContext database,
-        CancellationToken cancellationToken)
-    {
-        var pageNumber = page ?? 1;
-        var size = pageSize ?? DefaultPageSize;
-        if (pageNumber < 1) throw Validation("page", "Page must be at least 1.");
-        if (size is < 1 or > MaximumPageSize) throw Validation("pageSize", $"Page size must be between 1 and {MaximumPageSize}.");
-        if (search?.Length > MaximumSearchLength) throw Validation("search", $"Search must be at most {MaximumSearchLength} characters.");
-        if (status is not null && status is not ("active" or "completed")) throw Validation("status", "Status must be active or completed.");
-
-        var query = database.LeagueArchiveAggregates.AsNoTracking().Where(aggregate => aggregate.DeletedAt == null);
-        if (status is not null) query = query.Where(aggregate => aggregate.Status == status);
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var term = EscapeLikePattern(search.Trim());
-            query = query.Where(aggregate => EF.Functions.ILike(aggregate.Name, $"%{term}%", "\\"));
-        }
-
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query
-            .OrderByDescending(aggregate => aggregate.UpdatedAt)
-            .ThenBy(aggregate => aggregate.Id)
-            .Skip((pageNumber - 1) * size)
-            .Take(size)
-            .Select(aggregate => new PublicLeagueSummaryResponse(
-                aggregate.DocumentId,
-                aggregate.Name,
-                aggregate.Status,
-                aggregate.UpdatedAt,
-                aggregate.Version))
-            .ToListAsync(cancellationToken);
-        var etag = HashETag($"{total}:{pageNumber}:{size}:{status}:{search}:{string.Join('|', items.Select(item => $"{item.Id}:{item.DocumentVersion}:{item.UpdatedAt.ToUnixTimeTicks()}"))}");
-        SetPublicCache(response, etag);
-        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        return Results.Ok(new PublicLeagueListResponse(items, pageNumber, size, total));
-    }
-
     /// <summary>
-    /// The whole archive in one cacheable body, the League twin of <c>/api/events/all</c> (ADR 0039).
-    /// Without it the list page had to read the paged summaries and then one detail per League, which
-    /// on a large archive is hundreds of requests for one navigation and trips the public read limiter.
-    /// The summary rows carry neither the Tournaments nor the players the cards count, so paging alone
-    /// cannot answer that page — the documents themselves have to come down.
+    /// The whole archive in one cacheable body, the League twin of <c>/api/events/all</c> (ADR 0039),
+    /// as summary rows rather than whole documents (ADR 0042). The two numbers the list card prints are
+    /// denormalized onto the aggregate, so the rows are projected straight out of Postgres and no
+    /// League document is deserialized to answer this route — ~150 bytes a row against ~7.2 KB.
+    /// The documents themselves live at <c>/api/leagues-archive/all/documents</c>.
     /// </summary>
     private static async Task<IResult> ListCatalogAsync(
         HttpRequest request,
@@ -321,7 +274,73 @@ internal static class PublicLeagueEndpoints
         CancellationToken cancellationToken)
     {
         var ceiling = configuration.GetValue(MaximumCatalogSizeKey, MaximumCatalogSize);
-        var query = database.LeagueArchiveAggregates.AsNoTracking().Where(aggregate => aggregate.DeletedAt == null);
+        var (total, notModified) = await PrepareCatalogAsync("catalog", ceiling, request, response, database, cancellationToken);
+        if (notModified) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        var fetched = await VisibleLeagues(database)
+            .OrderByDescending(aggregate => aggregate.UpdatedAt)
+            .ThenBy(aggregate => aggregate.Id)
+            .Take(ceiling + 1)
+            .Select(aggregate => new PublicLeagueCatalogItemResponse(
+                aggregate.DocumentId,
+                aggregate.Name,
+                aggregate.Status,
+                aggregate.UpdatedAt,
+                aggregate.Version,
+                aggregate.TournamentCount,
+                aggregate.PlayerCount))
+            .ToListAsync(cancellationToken);
+        var truncated = CapToCeiling(fetched, ceiling, total, loggerFactory);
+
+        return Results.Ok(new PublicLeagueCatalogResponse(fetched, total, truncated));
+    }
+
+    /// <summary>
+    /// The same archive as whole documents, which is what the Settings export needs — it is the body
+    /// <see cref="ListCatalogAsync"/> used to return, moved to its own route (ADR 0042). A
+    /// <c>?documents=true</c> flag was rejected: on a <c>public, max-age=3600</c> response it would make
+    /// two different bodies share one ETag namespace and turn the OpenAPI response schema into a union.
+    /// </summary>
+    private static async Task<IResult> ListDocumentCatalogAsync(
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var ceiling = configuration.GetValue(MaximumCatalogSizeKey, MaximumCatalogSize);
+        var (total, notModified) = await PrepareCatalogAsync("documents", ceiling, request, response, database, cancellationToken);
+        if (notModified) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        var fetched = await VisibleLeagues(database)
+            .OrderByDescending(aggregate => aggregate.UpdatedAt)
+            .ThenBy(aggregate => aggregate.Id)
+            .Take(ceiling + 1)
+            .ToListAsync(cancellationToken);
+        var truncated = CapToCeiling(fetched, ceiling, total, loggerFactory);
+
+        return Results.Ok(new PublicLeagueDocumentCatalogResponse(fetched.Select(ToDetail).ToList(), total, truncated));
+    }
+
+    private static IQueryable<LeagueArchiveAggregate> VisibleLeagues(GonesDbContext database) =>
+        database.LeagueArchiveAggregates.AsNoTracking().Where(aggregate => aggregate.DeletedAt == null);
+
+    /// <summary>
+    /// The prologue both <c>/all*</c> routes share: the archive count, the ETag and the caching headers.
+    /// <paramref name="representation"/> is what keeps the two bodies in separate ETag namespaces — the
+    /// stamp is identical for both, so without it a client holding the summary ETag would be answered
+    /// 304 and go on reading a document catalog, or the reverse.
+    /// </summary>
+    private static async Task<(int Total, bool NotModified)> PrepareCatalogAsync(
+        string representation,
+        int ceiling,
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var query = VisibleLeagues(database);
         var total = await query.CountAsync(cancellationToken);
         // Every write bumps `UpdatedAt` to now, so the newest row plus the count identifies the archive:
         // an edit moves the stamp, a create or a soft delete moves the count.
@@ -330,26 +349,23 @@ internal static class PublicLeagueEndpoints
             .ThenBy(aggregate => aggregate.Id)
             .Select(aggregate => new { aggregate.UpdatedAt, aggregate.DocumentId, aggregate.Version })
             .FirstOrDefaultAsync(cancellationToken);
-        var etag = HashETag($"{total}:{stamp?.UpdatedAt}:{stamp?.DocumentId}:{stamp?.Version}:catalog:{ceiling}");
+        var etag = HashETag($"{total}:{stamp?.UpdatedAt}:{stamp?.DocumentId}:{stamp?.Version}:{representation}:{ceiling}");
         response.Headers.ETag = etag;
         response.Headers.CacheControl = CatalogCacheControl;
-        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+        return (total, IsNotModified(request, etag));
+    }
 
-        // One row past the ceiling is what tells a truncated catalog from an archive that ends exactly there.
-        var fetched = await query
-            .OrderByDescending(aggregate => aggregate.UpdatedAt)
-            .ThenBy(aggregate => aggregate.Id)
-            .Take(ceiling + 1)
-            .ToListAsync(cancellationToken);
-        var truncated = fetched.Count > ceiling;
-        var items = (truncated ? fetched.Take(ceiling) : fetched).Select(ToDetail).ToList();
-        if (truncated)
-        {
-            loggerFactory.CreateLogger("Gones.Api.Leagues")
-                .LogWarning("Public League catalog truncated: total={Total} ceiling={Ceiling}", total, ceiling);
-        }
-
-        return Results.Ok(new PublicLeagueCatalogResponse(items, total, truncated));
+    /// <summary>
+    /// Both routes read one row past the ceiling, which is what tells a truncated catalog from an
+    /// archive that ends exactly there. Drops the extra row and reports whether there was one.
+    /// </summary>
+    private static bool CapToCeiling<T>(List<T> fetched, int ceiling, int total, ILoggerFactory loggerFactory)
+    {
+        if (fetched.Count <= ceiling) return false;
+        fetched.RemoveRange(ceiling, fetched.Count - ceiling);
+        loggerFactory.CreateLogger("Gones.Api.Leagues")
+            .LogWarning("Public League catalog truncated: total={Total} ceiling={Ceiling}", total, ceiling);
+        return true;
     }
 
     private static async Task<IResult> GetAsync(
@@ -516,19 +532,6 @@ internal static class PublicLeagueEndpoints
         new(new Dictionary<string, string[]> { [field] = [message] });
 }
 
-internal sealed record PublicLeagueListResponse(
-    IReadOnlyList<PublicLeagueSummaryResponse> Items,
-    int Page,
-    int PageSize,
-    int TotalCount);
-
-internal sealed record PublicLeagueSummaryResponse(
-    string Id,
-    string Name,
-    string Status,
-    Instant UpdatedAt,
-    long DocumentVersion);
-
 internal sealed record PublicLeagueDetailResponse(
     string Id,
     string Name,
@@ -537,7 +540,22 @@ internal sealed record PublicLeagueDetailResponse(
     long DocumentVersion,
     Instant UpdatedAt);
 
+/// <summary>A catalog row: everything the League Archive list card prints, and nothing else (ADR 0042).</summary>
+internal sealed record PublicLeagueCatalogItemResponse(
+    string Id,
+    string Name,
+    string Status,
+    Instant UpdatedAt,
+    long DocumentVersion,
+    int TournamentCount,
+    int PlayerCount);
+
 internal sealed record PublicLeagueCatalogResponse(
+    IReadOnlyList<PublicLeagueCatalogItemResponse> Items,
+    int TotalCount,
+    bool Truncated);
+
+internal sealed record PublicLeagueDocumentCatalogResponse(
     IReadOnlyList<PublicLeagueDetailResponse> Items,
     int TotalCount,
     bool Truncated);

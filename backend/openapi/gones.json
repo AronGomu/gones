@@ -177,115 +177,6 @@
         }
       }
     },
-    "/api/leagues-archive": {
-      "get": {
-        "tags": [
-          "PublicLeagueEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
-              "format": "int32"
-            }
-          },
-          {
-            "name": "pageSize",
-            "in": "query",
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
-              "format": "int32"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublicLeagueListResponse"
-                }
-              }
-            }
-          },
-          "304": {
-            "description": "Not Modified"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "LeagueCommandEndpoints"
-        ],
-        "operationId": "CreateLeagueArchive",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateLeagueRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LeagueCommandResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/leagues-archive/all": {
       "get": {
         "tags": [
@@ -298,6 +189,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PublicLeagueCatalogResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          }
+        }
+      }
+    },
+    "/api/leagues-archive/all/documents": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicLeagueDocumentCatalogResponse"
                 }
               }
             }
@@ -2408,6 +2321,45 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues-archive": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "CreateLeagueArchive",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeagueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
                 }
               }
             }
@@ -12137,6 +12089,56 @@
           }
         }
       },
+      "PublicLeagueCatalogItemResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "updatedAt",
+          "documentVersion",
+          "tournamentCount",
+          "playerCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "tournamentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "playerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "PublicLeagueCatalogResponse": {
         "required": [
           "items",
@@ -12148,7 +12150,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PublicLeagueDetailResponse"
+              "$ref": "#/components/schemas/PublicLeagueCatalogItemResponse"
             }
           },
           "totalCount": {
@@ -12203,36 +12205,19 @@
           }
         }
       },
-      "PublicLeagueListResponse": {
+      "PublicLeagueDocumentCatalogResponse": {
         "required": [
           "items",
-          "page",
-          "pageSize",
-          "totalCount"
+          "totalCount",
+          "truncated"
         ],
         "type": "object",
         "properties": {
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PublicLeagueSummaryResponse"
+              "$ref": "#/components/schemas/PublicLeagueDetailResponse"
             }
-          },
-          "page": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "pageSize": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
           },
           "totalCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -12241,38 +12226,9 @@
               "string"
             ],
             "format": "int32"
-          }
-        }
-      },
-      "PublicLeagueSummaryResponse": {
-        "required": [
-          "id",
-          "name",
-          "status",
-          "updatedAt",
-          "documentVersion"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
           },
-          "name": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "$ref": "#/components/schemas/Instant"
-          },
-          "documentVersion": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int64"
+          "truncated": {
+            "type": "boolean"
           }
         }
       },

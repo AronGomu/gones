@@ -11,9 +11,11 @@ using NodaTime;
 namespace Gones.IntegrationTests;
 
 /// <summary>
-/// The League catalog: the whole archive in one long-lived cacheable body (ADR 0039), so the list page
-/// reads it once instead of one detail request per League. Same shape as <c>/api/events/all</c> — a
-/// configurable ceiling, a <c>truncated</c> flag, an ETag and an hour of public caching.
+/// The League catalog: the whole archive in one long-lived cacheable body (ADR 0039), now as summary
+/// rows rather than whole documents (ADR 0042). A row carries the two numbers the list card prints —
+/// <c>tournamentCount</c> and <c>playerCount</c>, denormalized onto the aggregate — so the endpoint
+/// answers them without deserializing a single League. The whole documents moved to
+/// <c>/api/leagues-archive/all/documents</c>.
 /// </summary>
 public sealed class PublicLeagueCatalogApiTests : IAsyncLifetime
 {
@@ -46,7 +48,7 @@ public sealed class PublicLeagueCatalogApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Returns_every_visible_League_as_a_whole_document()
+    public async Task Returns_every_visible_League_as_a_summary_row()
     {
         using var client = CreateClient();
         using var response = await client.GetAsync(Path);
@@ -62,53 +64,55 @@ public sealed class PublicLeagueCatalogApiTests : IAsyncLifetime
         Assert.Equal(4, body.GetProperty("totalCount").GetInt32());
         Assert.False(body.GetProperty("truncated").GetBoolean());
 
-        // The rows are whole detail documents: this is what removes the per-League follow-up request.
-        var first = items[0];
-        foreach (var field in new[] { "id", "name", "status", "tournaments", "documentVersion", "updatedAt" })
+        foreach (var field in new[] { "id", "name", "status", "updatedAt", "documentVersion", "tournamentCount", "playerCount" })
         {
-            Assert.True(first.TryGetProperty(field, out _), $"missing {field}");
+            Assert.True(items[0].TryGetProperty(field, out _), $"missing {field}");
         }
-        var tournaments = first.GetProperty("tournaments").EnumerateArray().ToArray();
-        Assert.Single(tournaments);
-        Assert.Equal(2, tournaments[0].GetProperty("rounds").EnumerateArray().First().GetProperty("entries").GetArrayLength());
+        Assert.Equal("Catalog Three", items[0].GetProperty("name").GetString());
+        Assert.Equal("completed", items[0].GetProperty("status").GetString());
     }
 
     [Fact]
-    public async Task Matches_the_detail_endpoint_row_for_row()
+    public async Task Omits_the_document_from_every_row()
     {
         using var client = CreateClient();
-        var catalog = await (await client.GetAsync(Path)).Content.ReadFromJsonAsync<JsonElement>();
-        var fromCatalog = catalog.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("id").GetString() == "catalog-one");
-        var fromDetail = await (await client.GetAsync("/api/leagues-archive/catalog-one")).Content.ReadFromJsonAsync<JsonElement>();
+        var body = await (await client.GetAsync(Path)).Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.Equal(fromDetail.GetRawText(), fromCatalog.GetRawText());
+        // The point of the slim catalog: the Tournaments never leave the database on this route.
+        foreach (var item in body.GetProperty("items").EnumerateArray())
+        {
+            Assert.False(item.TryGetProperty("tournaments", out _), $"{item.GetProperty("id").GetString()} still carries its document");
+        }
     }
 
     [Fact]
-    public async Task Caps_and_flags_truncation()
-    {
-        using var client = CreateClient(("Gones:Leagues:MaximumCatalogSize", "2"));
-        using var response = await client.GetAsync(Path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        Assert.Equal(2, body.GetProperty("items").GetArrayLength());
-        Assert.True(body.GetProperty("truncated").GetBoolean());
-        // The count is the whole archive, which is what makes the flag readable.
-        Assert.Equal(4, body.GetProperty("totalCount").GetInt32());
-    }
-
-    [Fact]
-    public async Task Sets_the_cache_headers()
+    public async Task Carries_the_denormalized_counts()
     {
         using var client = CreateClient();
-        using var response = await client.GetAsync(Path);
-        Assert.Equal("public, max-age=3600", response.Headers.CacheControl!.ToString());
-        Assert.NotNull(response.Headers.ETag);
+        var body = await (await client.GetAsync(Path)).Content.ReadFromJsonAsync<JsonElement>();
+        var row = body.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("id").GetString() == "catalog-one");
+
+        // The seeded League runs two Tournaments; Ada plays in both, so the standings hold three rows.
+        Assert.Equal(2, row.GetProperty("tournamentCount").GetInt32());
+        Assert.Equal(3, row.GetProperty("playerCount").GetInt32());
     }
 
     [Fact]
-    public async Task Answers_304()
+    public async Task Keeps_a_summary_row_under_250_bytes()
+    {
+        using var client = CreateClient();
+        var body = await (await client.GetAsync(Path)).Content.ReadFromJsonAsync<JsonElement>();
+        var items = body.GetProperty("items");
+
+        // ~150 bytes a row is the ADR 0042 budget; 250 is the ceiling that catches a document
+        // sneaking back into the row rather than a name a few characters longer.
+        var bytes = items.GetRawText().Length;
+        var count = items.GetArrayLength();
+        Assert.True(bytes / count < 250, $"{bytes / count} bytes a row");
+    }
+
+    [Fact]
+    public async Task Answers_304_on_a_matching_ETag()
     {
         using var client = CreateClient();
         using var first = await client.GetAsync(Path);
@@ -121,6 +125,29 @@ public sealed class PublicLeagueCatalogApiTests : IAsyncLifetime
         // A 304 still carries the caching contract.
         Assert.Equal(etag, replay.Headers.ETag!.ToString());
         Assert.Equal("public, max-age=3600", replay.Headers.CacheControl!.ToString());
+    }
+
+    [Fact]
+    public async Task Sets_the_catalog_cache_control()
+    {
+        using var client = CreateClient();
+        using var response = await client.GetAsync(Path);
+        Assert.Equal("public, max-age=3600", response.Headers.CacheControl!.ToString());
+        Assert.NotNull(response.Headers.ETag);
+    }
+
+    [Fact]
+    public async Task Truncates_at_the_configured_ceiling()
+    {
+        using var client = CreateClient(("Gones:Leagues:MaximumCatalogSize", "2"));
+        using var response = await client.GetAsync(Path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(2, body.GetProperty("items").GetArrayLength());
+        Assert.True(body.GetProperty("truncated").GetBoolean());
+        // The count is the whole archive, which is what makes the flag readable.
+        Assert.Equal(4, body.GetProperty("totalCount").GetInt32());
     }
 
     [Fact]
@@ -176,7 +203,8 @@ public sealed class PublicLeagueCatalogApiTests : IAsyncLifetime
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>()
         .ConfigureGones(postgres.GetConnectionString()).Options);
 
-    private static LeagueDocument CatalogLeague(string id, string name) => new(
+    /// <summary>Two Tournaments and three distinct players, which is what the denormalized counts say.</summary>
+    internal static LeagueDocument CatalogLeague(string id, string name) => new(
         id,
         name,
         "completed",
@@ -185,10 +213,17 @@ public sealed class PublicLeagueCatalogApiTests : IAsyncLifetime
                 [
                     new RoundDocument($"{id}-r1",
                     [
-                        new MatchRoundEntry($"{id}-m1", "1", "Ada", "Bo", 2, 0, "Tempo", "Control"),
-                        new MatchRoundEntry($"{id}-m2", "2", "Cy", "Dot", 2, 1, string.Empty, string.Empty)
+                        new MatchRoundEntry($"{id}-m1", "1", "Ada", "Bo", 2, 0, "Tempo", "Control")
                     ])
                 ],
-                [new PlayerArchetypeDocument("Ada", "Tempo")])
+                [new PlayerArchetypeDocument("Ada", "Tempo")]),
+            new TournamentDocument($"{id}-rematch", id, "Rematch Day", "2031-05-02", "completed",
+                [
+                    new RoundDocument($"{id}-r2",
+                    [
+                        new MatchRoundEntry($"{id}-m2", "1", "Ada", "Cy", 2, 1, string.Empty, string.Empty)
+                    ])
+                ],
+                [])
         ]);
 }

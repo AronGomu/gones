@@ -40,7 +40,7 @@ const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'ac
 /** The list reads the whole archive in one catalog request (ADR 0039); a detail page still reads one. */
 function stubServerLeagueReads() {
   cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague).as('leagueDetail');
-  cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeague], totalCount: 1, truncated: false }).as('leagueList');
+  cy.intercept('GET', /\/api\/leagues-archive\/all(?:\/documents)?$/, { items: [serverLeague], totalCount: 1, truncated: false }).as('leagueList');
 }
 
 function stubSignedIn(globalRole) {

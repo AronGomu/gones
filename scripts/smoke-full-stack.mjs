@@ -18,7 +18,8 @@ await waitFor(frontendUrl, 'frontend');
 await waitFor('http://127.0.0.1:5080/health/live', 'API liveness');
 await waitFor('http://127.0.0.1:5080/health/ready', 'API readiness');
 
-const leagueListResponse = await fetch('http://127.0.0.1:5080/api/leagues-archive?pageSize=100');
+// The paged list is retired (ADR 0042); the summary catalog is the archive's list surface.
+const leagueListResponse = await fetch('http://127.0.0.1:5080/api/leagues-archive/all');
 if (!leagueListResponse.ok) throw new Error(`Seeded League list failed: ${leagueListResponse.status}`);
 const leagueList = await leagueListResponse.json();
 const placeholders = leagueList.items.filter(item => item.id === 'placeholder-league');

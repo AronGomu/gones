@@ -2481,6 +2481,16 @@
                     "gate": "cypress",
                     "target": "cypress/e2e/league-server.cy.js",
                     "detail": "the archive surface still drives the server-backed League journey"
+                },
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/PublicLeagueCatalogApiTests.cs",
+                    "detail": "GET /api/leagues-archive/all is the archive's list surface and ships summary rows under 250 bytes each \u2014 the denormalized counts, no document, and the retired paged route (ADR 0042)"
+                },
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/PublicLeagueDocumentCatalogApiTests.cs",
+                    "detail": "GET /api/leagues-archive/all/documents serves the whole documents the Settings export needs, in its own ETag namespace so a summary ETag can never be answered 304"
                 }
             ]
         },

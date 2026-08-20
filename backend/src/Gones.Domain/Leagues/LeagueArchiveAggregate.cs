@@ -58,7 +58,31 @@ public sealed class LeagueArchiveAggregate : VersionedEntity
         string name,
         string status,
         string canonicalDocument,
-        Instant updatedAt)
+        Instant updatedAt) =>
+        Create(ParseCanonicalDocument(documentId, name, status, canonicalDocument), updatedAt);
+
+    /// <summary>
+    /// The stored document, canonicalized the way a write would store it.
+    ///
+    /// <para>Deliberately not routed through <see cref="FromCanonicalDocument"/>: that path ends in
+    /// <see cref="Create"/>, which derives the catalog counts through a full Swiss standings pass
+    /// (<see cref="LeagueCatalogCounts.From"/>). Every caller that only wants the document — the public
+    /// detail, result, Tournament and export reads, the statistics rebuild over the whole archive, every
+    /// command that edits a League — would pay for standings it throws away. A read stamps nothing, so
+    /// it has no counts to compute.</para>
+    /// </summary>
+    public LeagueDocument ReadDocument()
+    {
+        var document = ParseCanonicalDocument(DocumentId, Name, Status, CanonicalDocument);
+        return LeagueJson.Deserialize<LeagueDocument>(SerializeBounded(document));
+    }
+
+    /// <summary>Validates a stored envelope and its document, and hands back the document itself.</summary>
+    private static LeagueDocument ParseCanonicalDocument(
+        string documentId,
+        string name,
+        string status,
+        string canonicalDocument)
     {
         ValidateString(documentId, nameof(documentId), MaximumDocumentIdLength);
         ValidateString(name, nameof(name), MaximumNameLength);
@@ -79,13 +103,7 @@ public sealed class LeagueArchiveAggregate : VersionedEntity
         ValidateDocument(document);
         if (document.Id != documentId || document.Name != name || document.Status != status)
             throw new ArgumentException("League document metadata does not match its envelope.", nameof(canonicalDocument));
-        return Create(document, updatedAt);
-    }
-
-    public LeagueDocument ReadDocument()
-    {
-        var document = FromCanonicalDocument(DocumentId, Name, Status, CanonicalDocument, UpdatedAt);
-        return LeagueJson.Deserialize<LeagueDocument>(document.CanonicalDocument);
+        return document;
     }
 
     public void Apply(LeagueDocument document, Instant now)
@@ -110,6 +128,7 @@ public sealed class LeagueArchiveAggregate : VersionedEntity
     /// </summary>
     public void RefreshCatalogCounts()
     {
+        // ReadDocument no longer computes the counts, so this is the one read that asks for them.
         var counts = LeagueCatalogCounts.From(ReadDocument());
         TournamentCount = counts.TournamentCount;
         PlayerCount = counts.PlayerCount;

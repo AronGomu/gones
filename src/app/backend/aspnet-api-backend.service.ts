@@ -20,16 +20,19 @@ export class AspNetApiBackend implements LeagueArchiveBackendPort, LiveBackendPo
   /**
    * One request for the whole archive (ADR 0039). It used to page the summaries and then fetch one
    * detail per League, which made a single navigation cost a request per League — hundreds on a large
-   * archive, most of them rejected by the public read limiter. Paging is not an alternative here: the
-   * summary row carries neither the Tournaments nor the players the list page counts.
+   * archive, most of them rejected by the public read limiter.
+   *
+   * Reads the document catalog, which is the whole-document body this method has always returned
+   * (ADR 0042). The Settings export needs those documents; the list page does not, and moves to the
+   * summary route (`client.all()`) in the next commit.
    */
   async listLeagueArchives(): Promise<LeagueArchiveCatalog> {
-    const response = await firstValueFrom(this.client.all());
+    const response = await firstValueFrom(this.client.documents());
     return { leagues: response.items.map(item => this.toPersisted(item)), truncated: response.truncated };
   }
 
   async getLeagueArchive(id: string): Promise<PersistedLeague | null> {
-    try { return this.toPersisted(await firstValueFrom(this.client.leaguesArchive2(id))); }
+    try { return this.toPersisted(await firstValueFrom(this.client.leaguesArchive(id))); }
     catch (error) {
       if (error instanceof ApiProblemError && error.status === 404) return null;
       throw error;

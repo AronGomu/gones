@@ -83,7 +83,7 @@ describe('ASP.NET League command adapter', () => {
    */
   it('lists the whole archive in one request, never one per League', async () => {
     const client = clientMock();
-    client.all = vi.fn(() => of({
+    client.documents = vi.fn(() => of({
       items: [response, { ...response, id: 'league-2', name: 'Second' }],
       totalCount: 2,
       truncated: false
@@ -94,14 +94,27 @@ describe('ASP.NET League command adapter', () => {
 
     expect(catalog.leagues.map((item) => item.id)).toEqual(['league-1', 'league-2']);
     expect(catalog.truncated).toBe(false);
-    expect(client.all).toHaveBeenCalledTimes(1);
+    expect(client.documents).toHaveBeenCalledTimes(1);
     expect(client.leaguesArchive).not.toHaveBeenCalled();
-    expect(client.leaguesArchive2).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The summary catalog (`all`) carries no Tournaments, so reading it here would silently empty every
+   * League this adapter hands back — including the Settings export (ADR 0042).
+   */
+  it('reads the document catalog, not the summary one', async () => {
+    const client = clientMock();
+    client.documents = vi.fn(() => of({ items: [response], totalCount: 1, truncated: false })) as never;
+
+    await new AspNetApiBackend(client).listLeagueArchives();
+
+    expect(client.documents).toHaveBeenCalledTimes(1);
+    expect(client.all).not.toHaveBeenCalled();
   });
 
   it('carries the catalog row cap through to the caller', async () => {
     const client = clientMock();
-    client.all = vi.fn(() => of({ items: [response], totalCount: 9, truncated: true })) as never;
+    client.documents = vi.fn(() => of({ items: [response], totalCount: 9, truncated: true })) as never;
 
     await expect(new AspNetApiBackend(client).listLeagueArchives()).resolves.toMatchObject({ truncated: true });
   });
