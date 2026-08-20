@@ -161,7 +161,7 @@ is why it feels instant. Server-paged endpoints cannot do that without a new end
 <tbody>
 <tr><td>Events</td><td>full catalog</td><td>localStorage</td><td><code>gones.events.catalog</code></td></tr>
 <tr><td>Global Rankings</td><td>full catalog <em>(new endpoint)</em></td><td>localStorage</td><td><code>gones.global-stats.catalog</code></td></tr>
-<tr><td>Leagues Archive</td><td>full catalog <em>(new endpoint)</em></td><td>localStorage</td><td><code>gones.leagues-archive.catalog</code></td></tr>
+<tr><td>Leagues Archive</td><td>full catalog of <em>summary rows</em></td><td>localStorage</td><td><code>gones.leagues-archive.catalog.v2</code></td></tr>
 <tr><td>Player page</td><td>one player, whole history</td><td>localStorage</td><td><code>gones.player.&lt;name&gt;</code></td></tr>
 <tr><td>My Registrations</td><td>server-paged</td><td>IndexedDB</td><td><code>registrations:&lt;page&gt;</code></td></tr>
 <tr><td>Settings</td><td>catalogs</td><td>IndexedDB</td><td><code>settings-catalogs</code></td></tr>
@@ -174,7 +174,18 @@ is why it feels instant. Server-paged endpoints cannot do that without a new end
 <p>A new public catalog endpoint copies <code>/api/events/all</code> exactly: cap 5000 rows
 (config-overridable), a <code>truncated</code> flag in the body, a SHA-256 ETag, and
 <code>Cache-Control: public, max-age=3600</code>. <code>/api/leagues-archive/all</code> caps at 1000
-instead, because a League is a whole document of up to 1 MB rather than a fixed-width row.</p>
+instead, a cap set when a catalog row was a whole League document of up to 1 MB.</p>
+
+<div class="note">
+  <p><strong>The League entry holds summary rows, not documents (ADR 0042).</strong>
+  <code>/api/leagues-archive/all</code> now answers <code>(id, name, status, updatedAt,
+  documentVersion, tournamentCount, playerCount)</code> — roughly 150 bytes a row — and the whole-document
+  body moved to <code>/api/leagues-archive/all/documents</code>, whose one caller is the Settings
+  export. The cache key went with the shape: <code>gones.leagues-archive.catalog.v2</code>. A v1 entry
+  holds fat documents and must never be read back as a summary array, so the bump makes an upgraded
+  browser <em>miss</em> instead of misread, and <code>clearLeagueCatalogCache()</code> clears both keys
+  so the dead v1 row does not sit in the quota forever.</p>
+</div>
 
 <h2>Staleness is not allowed to lie</h2>
 

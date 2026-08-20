@@ -16,6 +16,24 @@ function persisted(league) {
   return { ...league, updatedAt: '2026-08-13T10:00:00Z', eTag: etag(league.documentVersion) };
 }
 
+/** The same League as one row of the slim catalog (ADR 0042): two counts instead of the document. */
+function summarized(league) {
+  const players = new Set();
+  for (const tournament of league.tournaments) {
+    for (const round of tournament.rounds ?? []) {
+      for (const entry of round.entries ?? []) {
+        if (entry.player1Name) players.add(entry.player1Name);
+        if (entry.player2Name) players.add(entry.player2Name);
+      }
+    }
+  }
+  return {
+    id: league.id, name: league.name, status: league.status,
+    updatedAt: '2026-08-13T10:00:00Z', documentVersion: league.documentVersion,
+    tournamentCount: league.tournaments.length, playerCount: players.size
+  };
+}
+
 function seed(win, clearLocal = false) {
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
@@ -125,7 +143,9 @@ describe('Archive Tournament explicit staged editor', () => {
     };
     let batchCalls = 0;
     cy.intercept('GET', /\/api\/leagues-archive\/server-source$/, persisted(source)).as('sourceDetail');
-    cy.intercept('GET', /\/api\/leagues-archive\/all(?:\/documents)?$/, { items: [persisted(source)], totalCount: 1, truncated: false });
+    // Slim rows for the list page, whole documents only for the export route (ADR 0042).
+    cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, { items: [persisted(source)], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [summarized(source)], totalCount: 1, truncated: false });
     cy.intercept('POST', /\/api\/leagues-archive\/server-source\/tournaments-archive\/t1\/edit-batch$/, req => {
       batchCalls += 1;
       expect(req.headers['if-match']).to.eq(etag(4));

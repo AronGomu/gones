@@ -7,6 +7,7 @@ import { leagueCommandError } from '../data/league-archive-command-ux';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from '../data/league-archive-origin';
 import { createMatchRoundEntry, createTournament, getDefaultTournamentName, LeagueStatus, MatchRoundEntry, PersistedLeague, PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME, RoundEntry, TournamentDocument } from '../domain/models';
 import { renamePlayerInLeague } from '../domain/rename-player';
+import { calculateLeagueResult } from '../domain/results';
 import { importRoundEntries } from '../domain/round-import';
 import type { ArchiveTournamentEditBatchCommand, LeagueArchiveBackendPort } from './application-backend';
 import { LOCAL_LEAGUE_DB_NAME, LOCAL_LEAGUE_STORE, LocalLeagueArchiveBackend } from './local-league-archive-backend.service';
@@ -359,6 +360,41 @@ describe('LocalLeagueArchiveBackend', () => {
 
     expect(listed.map((item) => item.name)).toEqual([PLACEHOLDER_LEAGUE_NAME, 'alpha', 'Zulu']);
     expect(listed[0].id).toBe(LOCAL_PLACEHOLDER_LEAGUE_ID);
+  });
+
+  /**
+   * ADR 0042 denormalized both counts onto the server aggregate. This store has no server to ask, so
+   * it derives them from its own documents with `calculateLeagueResult` — the same formula — and the
+   * merged list page cannot tell the two halves apart.
+   */
+  it('summarizes local leagues with the browser formula', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    const tournament = createTournament({ leagueId: 'server-a', name: 'Cup', rounds: [{ entries: [
+      createMatchRoundEntry({ player1Name: 'Alice', player2Name: 'Bob' }),
+      createMatchRoundEntry({ player1Name: 'Carol', player2Name: 'Alice' })
+    ] }] });
+    const restored = await backend.restoreLeagueArchive({ kind: 'league', gonesDataVersion: 4, league: league('server-a', 'Alpha', [tournament]) });
+
+    const catalog = await backend.listLeagueArchiveSummaries();
+
+    const summary = catalog.items.find((item) => item.id === restored.id)!;
+    expect(summary.tournamentCount).toBe(1);
+    expect(summary.playerCount).toBe(3);
+    expect(summary.playerCount).toBe(calculateLeagueResult(restored).rows.length);
+    expect(summary.isLocal).toBe(true);
+    // The browser store has no row cap of its own, so its catalog is never truncated.
+    expect(catalog.truncated).toBe(false);
+  });
+
+  it('summarizing preserves the listing order and seeds the placeholder', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    await backend.createLeagueArchive('Zulu');
+    await backend.createLeagueArchive('alpha');
+
+    const { items } = await backend.listLeagueArchiveSummaries();
+
+    expect(items.map((item) => item.name)).toEqual([PLACEHOLDER_LEAGUE_NAME, 'alpha', 'Zulu']);
+    expect(items.every((item) => item.isLocal)).toBe(true);
   });
 
   it('restoring a single league lands in the local namespace', async () => {
@@ -809,10 +845,11 @@ describe('LocalLeagueArchiveBackend', () => {
       'listLeagueArchives', 'getLeagueArchive', 'createLeagueArchive', 'renameLeagueArchive', 'changeLeagueArchiveStatus', 'deleteLeagueArchive',
       'createArchiveTournament', 'editArchiveTournament', 'deleteArchiveTournament', 'moveArchiveTournament', 'addArchiveRound', 'deleteArchiveRound',
       'importArchiveRound', 'replaceArchiveRound', 'addArchiveEntry', 'editArchiveEntry', 'deleteArchiveEntry', 'updateArchivePlayerArchetype',
-      'renameLeagueArchivePlayerName', 'restoreLeagueArchive', 'restoreFullLeagueArchiveData', 'applyArchiveTournamentEditBatch'
+      'renameLeagueArchivePlayerName', 'restoreLeagueArchive', 'restoreFullLeagueArchiveData', 'applyArchiveTournamentEditBatch',
+      'listLeagueArchiveSummaries'
     ];
 
-    expect(methods).toHaveLength(22);
+    expect(methods).toHaveLength(23);
     for (const method of methods) expect(typeof port[method]).toBe('function');
   });
 

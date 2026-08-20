@@ -21,6 +21,12 @@ const publicEvent = {
   playerCount: 0
 };
 const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00Z' };
+/** The list page reads slim summary rows, not documents (ADR 0042). */
+const serverLeagueSummary = {
+  id: serverLeague.id, name: serverLeague.name, status: serverLeague.status,
+  updatedAt: serverLeague.updatedAt, documentVersion: serverLeague.documentVersion,
+  tournamentCount: 0, playerCount: 0
+};
 const serverLive = {
   id: 'live-power', name: 'Server Power Cup', leagueId: '', tournamentDate: '2026-08-13', type: 'swiss',
   roundCount: 3, customRoundCount: false, paidTrackingEnabled: true, pairingSeed: 1, firstRoundPlayerOrder: [],
@@ -80,7 +86,8 @@ describe('Power User Event, League and Live gates', () => {
     stubPublicEvents();
     cy.intercept('GET', '**/api/organizer/events?*', { items: [managedEvent], page: 1, pageSize: 20, totalCount: 1 }).as('managedEvents');
     cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague);
-    cy.intercept('GET', /\/api\/leagues-archive\/all(?:\/documents)?$/, { items: [serverLeague], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, { items: [serverLeague], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeagueSummary], totalCount: 1, truncated: false });
 
     visit('/organizer/events', false);
     cy.wait('@managedEvents');

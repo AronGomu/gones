@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID, newLocalLeagueId } from '../data/league-archive-origin';
+import { summarizeLeague } from '../data/league-archive-summary';
 import {
   createLeague,
   createRound,
@@ -20,7 +21,7 @@ import {
 import { renamePlayerInLeague } from '../domain/rename-player';
 import { importRoundEntries } from '../domain/round-import';
 import { get, getAll, openDatabase, put, remove, requestResult, runTransaction } from './indexed-db';
-import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueArchiveCatalog, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
+import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueArchiveCatalog, LeagueArchiveSummaryCatalog, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Browser-local League authority (ADR 0028) — the League half of the browser-local store, next to
@@ -62,6 +63,15 @@ export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
       .map((row) => this.persist(row))
       .sort((left, right) => placeholderRank(left) - placeholderRank(right) || left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }));
     return { leagues, truncated: false };
+  }
+
+  /**
+   * The server projects its summary rows in SQL; this store has the documents in hand already, so it
+   * derives the same two counts locally (ADR 0042) rather than inventing a second formula.
+   */
+  async listLeagueArchiveSummaries(): Promise<LeagueArchiveSummaryCatalog> {
+    const { leagues, truncated } = await this.listLeagueArchives();
+    return { items: leagues.map(summarizeLeague), truncated };
   }
 
   async getLeagueArchive(id: string): Promise<PersistedLeague | null> {

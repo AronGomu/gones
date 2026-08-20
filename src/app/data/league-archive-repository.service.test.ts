@@ -12,6 +12,7 @@ import { CachedRead, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from
 import { GlobalRole } from './league-archive-command-ux';
 import { LOCAL_PLACEHOLDER_LEAGUE_ID } from './league-archive-origin';
 import { LeagueArchiveRepository } from './league-archive-repository.service';
+import { summarizeLeague } from './league-archive-summary';
 import { createRoundEntry, PersistedLeague, PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME } from '../domain/models';
 import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
@@ -34,6 +35,7 @@ function fakeBackend(list: PersistedLeague[], byId: Record<string, PersistedLeag
   const resolveOne = vi.fn(async (id: string) => byId[id] ?? list.find((item) => item.id === id) ?? null);
   return {
     listLeagueArchives: vi.fn(async () => ({ leagues: list, truncated: false })),
+    listLeagueArchiveSummaries: vi.fn(async () => ({ items: list.map(summarizeLeague), truncated: false })),
     getLeagueArchive: resolveOne,
     createLeagueArchive: vi.fn(async (name: string) => league('created', name)),
     renameLeagueArchive: vi.fn(async () => league('renamed')),
@@ -186,6 +188,60 @@ describe('LeagueArchiveRepository merged listing', () => {
     const { repository } = setup({ server, local });
 
     await expect(repository.listLeagues()).rejects.toThrowError('serverDown');
+  });
+});
+
+/**
+ * ADR 0042 splits the one read in two: the list page takes summary rows, the Settings export keeps
+ * the documents. Which method each caller reaches is the whole point — an export that quietly
+ * switched to the summary route would write a backup with no Tournaments in it.
+ */
+describe('LeagueArchiveRepository summary listing', () => {
+  it('the server summary list reads the summary catalog, never the documents', async () => {
+    const server = fakeBackend([league('S1'), league('S2')]);
+    const { repository } = setup({ server, local: fakeBackend([]) });
+
+    const summaries = await repository.listServerLeagueSummaries();
+
+    expect(summaries.map((item) => item.id)).toEqual(['S1', 'S2']);
+    expect(summaries.every((item) => !item.isLocal)).toBe(true);
+    expect(server.listLeagueArchiveSummaries).toHaveBeenCalledTimes(1);
+    expect(server.listLeagueArchives).not.toHaveBeenCalled();
+  });
+
+  it('the summary list raises the row cap exactly as the document list did', async () => {
+    const server = fakeBackend([league('S1')]);
+    server.listLeagueArchiveSummaries.mockResolvedValueOnce({ items: [], truncated: true });
+    const { repository } = setup({ server, local: fakeBackend([]) });
+
+    await repository.listServerLeagueSummaries();
+
+    expect(repository.catalogTruncated()).toBe(true);
+  });
+
+  it('the local summary list asks the browser store only', async () => {
+    const server = fakeBackend([league('S1')]);
+    const local = fakeBackend([league(LOCAL_ID)]);
+    const { repository } = setup({ server, local });
+
+    const summaries = await repository.listLocalLeagueSummaries();
+
+    expect(summaries.map((item) => item.id)).toEqual([LOCAL_ID]);
+    expect(local.listLeagueArchiveSummaries).toHaveBeenCalledTimes(1);
+    expect(untouched(server)).toEqual([]);
+  });
+
+  it('export still reads whole documents', async () => {
+    const server = fakeBackend([league('S1')]);
+    const local = fakeBackend([league(LOCAL_ID)]);
+    const { repository } = setup({ server, local });
+
+    await repository.listLeagues();
+
+    expect(server.listLeagueArchives).toHaveBeenCalledTimes(1);
+    expect(server.listLeagueArchiveSummaries).not.toHaveBeenCalled();
+    expect(local.listLeagueArchives).toHaveBeenCalledTimes(1);
+    expect(local.listLeagueArchiveSummaries).not.toHaveBeenCalled();
   });
 });
 

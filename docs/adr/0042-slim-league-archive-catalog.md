@@ -2,8 +2,10 @@
 
 ## Status
 
-Proposed. Planned by T9–T12 in `artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md`. Extends ADR
-0039 (TTL cache contract) and lives alongside ADR 0028 (dual-source League Archive).
+Accepted. Implemented by T9–T12 in `artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md` — T9 the
+denormalized counts, T10 the two routes, T11 the frontend summary path and the `.v2` cache key, T12
+response compression. Extends ADR 0039 (TTL cache contract) and lives alongside ADR 0028
+(dual-source League Archive).
 
 ## Context
 

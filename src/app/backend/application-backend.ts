@@ -1,6 +1,7 @@
 import { InjectionToken, inject } from '@angular/core';
 import { AuthService } from '../auth/auth.service';
 import { DataAuthority, dataAuthority } from '../config/data-authority';
+import { LeagueArchiveSummary } from '../data/league-archive-summary';
 import { LiveTournamentDocument } from '../domain/live-tournament';
 import { LeagueDocument, LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
 import { AspNetApiBackend } from './aspnet-api-backend.service';
@@ -57,8 +58,19 @@ export interface LeagueArchiveCatalog {
   truncated: boolean;
 }
 
+/**
+ * The same store read as `LeagueArchiveCatalog`, one row per League instead of one document (ADR
+ * 0042). The list page needs a name, a status and two numbers; only the Settings export needs the
+ * documents, so the two answers are separate calls rather than one body serving both.
+ */
+export interface LeagueArchiveSummaryCatalog {
+  items: LeagueArchiveSummary[];
+  truncated: boolean;
+}
+
 export interface LeagueArchiveBackendPort {
   listLeagueArchives(): Promise<LeagueArchiveCatalog>;
+  listLeagueArchiveSummaries(): Promise<LeagueArchiveSummaryCatalog>;
   getLeagueArchive(id: string): Promise<PersistedLeague | null>;
   createLeagueArchive(name: string, idempotencyKey?: string): Promise<PersistedLeague>;
   renameLeagueArchive(id: string, expectedVersion: number, name: string): Promise<PersistedLeague>;

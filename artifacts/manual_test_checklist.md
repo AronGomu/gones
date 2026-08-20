@@ -739,6 +739,12 @@ to `GET /api/leagues-archive/all/documents`, and the paged `GET /api/leagues-arc
 The frontend still reads documents (the list page moves to the summary route in T11), so **the UI
 must look and behave exactly as it did before** — that absence of change is most of what to check.
 
+> **Superseded by T11 (see that section below).** T11 has since moved the list page onto `/all`, so
+> the frontend no longer reads documents anywhere but the Settings export. Every API assertion below
+> still holds and is still worth running; only the "the frontend still reads documents" framing is
+> out of date. The "renders exactly as before" checks also still hold — T11 changed the payload, not
+> the rendering.
+
 Start the stack with `npm run dev -- --detached --env=demo`. The Postgres service is `postgres` and
 the role is `gones_migration` (not `db` / `gones`).
 
@@ -756,3 +762,37 @@ the role is `gones_migration` (not `db` / `gones`).
 - [ ] Confirm the API log shows `Backfilled the catalog counts of N League archive rows to version 1.` (or the "current at version 1" line) **before** the first request is served — the backfill now blocks startup because `/all` reads those columns.
 - [ ] On the 100× stress dataset (`npm run dev:stress:generate` then `npm run dev -- --env=stress --detached`), confirm `curl -s localhost:5080/api/leagues-archive/all | wc -c` is under 60000 while `/all/documents` is still around 1.4 MB.
 - [ ] Confirm the Leagues Archive list page still renders the full stress archive without visible slowdown.
+
+## T11 league-archive-list-summary
+
+Frontend slice: the Leagues Archive list page now reads the slim catalog (`GET
+/api/leagues-archive/all`) instead of whole documents, browser-local Leagues compute their own two
+counts, and the TTL cache entry moved to `gones.leagues-archive.catalog.v2`. **No user-visible
+layout change** — the payload changed, not the page — so most of what follows is confirming the
+cards still say exactly what they said before.
+
+Start the stack with `npm run dev -- --detached --env=demo`, or `--env=stress` where a step says so.
+
+- [ ] Open `/leagues-archive` with DevTools → Network open. Confirm one request to `/api/leagues-archive/all` and **zero** requests to `/api/leagues-archive/all/documents`.
+- [ ] Confirm that response body carries `tournamentCount` / `playerCount` per row and **no** `tournaments` array.
+- [ ] Confirm each card's meta line reads the same two numbers it read before this slice (e.g. `2 Tournaments · 3 Players`).
+- [ ] Switch the language to French and confirm the meta line translates (`2 tournois · 3 joueurs`) — the counts go through i18n, not string concatenation.
+- [ ] Confirm a League with exactly one Tournament and one player reads `1 Tournament · 1 Player` (singular, both halves).
+- [ ] In DevTools → Application → Local Storage, confirm `gones.leagues-archive.catalog.v2` exists and holds summary rows.
+- [ ] Confirm **no** `gones.leagues-archive.catalog` (v1, no suffix) key is present.
+- [ ] Upgrade path: manually set a `gones.leagues-archive.catalog` key to any value, reload `/leagues-archive`, and confirm the page fetches fresh (never renders blank or count-less cards from that old row).
+- [ ] Create a League from the list page, then confirm both catalog keys are gone from Local Storage and the new League appears immediately (no 24h wait).
+- [ ] Finalize a Live Tournament, then open `/leagues-archive` and confirm the resulting Archive Tournament is counted in its League's card straight away.
+- [ ] Signed out, create a browser-local League, add one Tournament with one match (Alice vs Bob). Confirm its card reads `1 Tournament · 2 Players` and carries the local badge.
+- [ ] Confirm the browser-local card and a server card sit in the same grid with the same meta format — the merged list must look uniform.
+- [ ] Confirm the empty "Unassigned Tournaments" placeholder is still hidden from the list, and that it appears once it holds at least one Tournament.
+- [ ] With more than 9 Leagues, confirm the name filter still appears and filters **both** halves of the merged list without any network request.
+- [ ] Take the server offline (stop the API) with a fresh cache present and confirm the list still renders from `…catalog.v2` behind the stale banner.
+- [ ] With no cache and the API down, confirm the "server unavailable" notice shows and browser-local Leagues still render.
+- [ ] Click Synchronize and confirm it refetches `/all` (not `/all/documents`) and updates the "last synced" instant.
+- [ ] Settings → export: confirm the full bundle still contains every League with all its Tournaments, Rounds and Matches, and that the request goes to `/all/documents`.
+- [ ] Import that bundle back and confirm the archive is unchanged.
+- [ ] Open a League detail page and a Tournament page from a list card and confirm both still load.
+- [ ] On the 100× stress dataset (`npm run dev:stress:generate` then `npm run dev -- --env=stress --detached`): confirm the `/all` response in DevTools → Network is **under 60 KB** (measured 33.3 KB for 201 rows).
+- [ ] On that same dataset, confirm the list renders all ~200 cards with correct counts and no visible slowdown. There is deliberately **no** pagination control — the whole catalog arrives and the browser slices it.
+- [ ] On that same dataset, confirm `gones.leagues-archive.catalog.v2` in Local Storage is well under the ~5 MB quota (it was ~2.9 MB of documents before this slice).

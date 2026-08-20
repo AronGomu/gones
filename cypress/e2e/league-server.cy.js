@@ -14,6 +14,32 @@ function commandResponse(league) {
   return { ...league, updatedAt: '2026-08-02T00:00:00Z', eTag: etag(league.documentVersion) };
 }
 
+/**
+ * One row of the slim catalog (ADR 0042). The real server denormalizes both counts onto the
+ * aggregate; this stub derives them from its own state so a Tournament created mid-spec shows up in
+ * the numbers the card prints.
+ */
+function catalogItem(league) {
+  const players = new Set();
+  for (const tournament of league.tournaments) {
+    for (const round of tournament.rounds ?? []) {
+      for (const entry of round.entries ?? []) {
+        if (entry.player1Name) players.add(entry.player1Name);
+        if (entry.player2Name) players.add(entry.player2Name);
+      }
+    }
+  }
+  return {
+    id: league.id,
+    name: league.name,
+    status: league.status,
+    updatedAt: '2026-08-02T00:00:00Z',
+    documentVersion: league.documentVersion,
+    tournamentCount: league.tournaments.length,
+    playerCount: players.size
+  };
+}
+
 function mockSession(globalRole = 'Organizer') {
   cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'memory-token', expiresAt: '2030-01-01T01:00:00Z', tokenType: 'Bearer' }).as('refresh');
   cy.intercept('GET', '**/api/users/me', { ...profile, globalRole }).as('profile');
@@ -32,8 +58,17 @@ function mockLeagueServer() {
   // The list page reads the whole archive in one catalog request (ADR 0039), not a summary page plus
   // a detail per League. Registered after the detail route because that pattern also matches `/all`
   // and Cypress gives precedence to the intercept declared last.
-  cy.intercept('GET', /\/api\/leagues-archive\/all(?:\/documents)?$/, req => req.reply({
+  //
+  // Two routes, two bodies (ADR 0042): `/all` answers slim summary rows for the list page, and
+  // `/all/documents` answers whole documents for the Settings export. One widened stub would let the
+  // list read a document body and silently pass with no counts in it.
+  cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, req => req.reply({
     items: leagues.map(commandResponse),
+    totalCount: leagues.length,
+    truncated: false
+  })).as('leagueDocuments');
+  cy.intercept('GET', /\/api\/leagues-archive\/all$/, req => req.reply({
+    items: leagues.map(catalogItem),
     totalCount: leagues.length,
     truncated: false
   })).as('leagueList');
@@ -258,6 +293,32 @@ describe('League server command flows', () => {
     cy.get('[data-cy="leagues-archive-list-grid"]').should('exist');
     cy.get('[data-cy="leagues-archive-list-sync-button"]').click();
     cy.wait('@leagueList');
+  });
+
+  /**
+   * ADR 0042: the card prints the two numbers the catalog carries, and the list never asks for the
+   * documents route at all — that payload is the 1.44 MB this slice exists to stop downloading.
+   */
+  it('prints the catalog counts on the list card and never fetches the documents', () => {
+    const state = mockLeagueServer();
+    state.leagues.push({
+      id: 'league-counted', name: 'Counted League', status: 'active', documentVersion: 1,
+      tournaments: [
+        { id: 'tournament-a', leagueId: 'league-counted', name: 'Day One', tournamentDate: '2026-08-01', status: 'active', playerArchetypes: [], rounds: [{ id: 'round-a', entries: [
+          { kind: 'match', id: 'entry-a', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0 },
+          { kind: 'match', id: 'entry-b', table: '2', player1Name: 'Carol', player2Name: 'Alice', player1Score: 2, player2Score: 1 }
+        ] }] },
+        { id: 'tournament-b', leagueId: 'league-counted', name: 'Day Two', tournamentDate: '2026-08-02', status: 'active', playerArchetypes: [], rounds: [] }
+      ]
+    });
+    mockSession();
+    visit('/leagues-archive');
+    cy.wait('@leagueList');
+
+    cy.contains('[data-cy="leagues-archive-list-item"]', 'Counted League')
+      .find('[data-cy="leagues-archive-list-item-meta"]')
+      .should('have.text', '2 Tournaments · 3 Players');
+    cy.get('@leagueDocuments.all').should('have.length', 0);
   });
 
   it('shows User read-only controls plus explicit 403 and 412 reload recovery', () => {

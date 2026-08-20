@@ -118,6 +118,45 @@ describe('ASP.NET League command adapter', () => {
 
     await expect(new AspNetApiBackend(client).listLeagueArchives()).resolves.toMatchObject({ truncated: true });
   });
+
+  /**
+   * ADR 0042: the list page reads the summary route instead, where the two counts arrive
+   * denormalized. Nothing is recomputed here — the server already derived them from the document.
+   */
+  it('maps a server catalog item to a summary', async () => {
+    const client = clientMock();
+    client.all = vi.fn(() => of({
+      items: [{ id: 'league-1', name: 'League', status: 'active', updatedAt: '2026-08-02T00:00:00Z', documentVersion: 6, tournamentCount: 2, playerCount: 3 }],
+      totalCount: 1,
+      truncated: false
+    })) as never;
+
+    const catalog = await new AspNetApiBackend(client).listLeagueArchiveSummaries();
+
+    expect(catalog.items).toEqual([{
+      id: 'league-1',
+      name: 'League',
+      status: 'active',
+      updatedAt: '2026-08-02T00:00:00Z',
+      documentVersion: 6,
+      tournamentCount: 2,
+      playerCount: 3,
+      isLocal: false
+    }]);
+    expect(client.all).toHaveBeenCalledTimes(1);
+    expect(client.documents).not.toHaveBeenCalled();
+  });
+
+  it('flags a truncated server catalog', async () => {
+    const client = clientMock();
+    client.all = vi.fn(() => of({
+      items: [{ id: 'league-1', name: 'League', status: 'active', updatedAt: '2026-08-02T00:00:00Z', documentVersion: 6, tournamentCount: 0, playerCount: 0 }],
+      totalCount: 9,
+      truncated: true
+    })) as never;
+
+    await expect(new AspNetApiBackend(client).listLeagueArchiveSummaries()).resolves.toMatchObject({ truncated: true });
+  });
 });
 
 const liveDocument = createLiveTournament({ id: 'live-1', name: 'Live', documentVersion: 7, createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' });

@@ -4,7 +4,7 @@ import { ApiProblemError } from '../api/api-boundary';
 import { Client, LeagueCommandResponse, LiveCommandResponse, LiveTournamentDocumentResponse, PublicLeagueDetailResponse, PublicLiveTournamentDetailResponse, LiveTournamentDocument as ApiLiveTournamentDocument } from '../api/generated/gones-api';
 import { LiveTournamentDocument, normalizeLiveTournament } from '../domain/live-tournament';
 import { LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
-import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, BackendMode, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueArchiveCatalog, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
+import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, BackendMode, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueArchiveCatalog, LeagueArchiveSummaryCatalog, LeagueRestoreCommand, LiveBackendPort, LiveFinalizeResult, LivePlayerCommand, LiveScoreCommand, LiveSettingsCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Server-authority adapter. It carries intent commands only: no whole-document League or Live save
@@ -23,12 +23,35 @@ export class AspNetApiBackend implements LeagueArchiveBackendPort, LiveBackendPo
    * archive, most of them rejected by the public read limiter.
    *
    * Reads the document catalog, which is the whole-document body this method has always returned
-   * (ADR 0042). The Settings export needs those documents; the list page does not, and moves to the
-   * summary route (`client.all()`) in the next commit.
+   * (ADR 0042). The Settings export needs those documents; the list page does not and reads
+   * `listLeagueArchiveSummaries()` instead.
    */
   async listLeagueArchives(): Promise<LeagueArchiveCatalog> {
     const response = await firstValueFrom(this.client.documents());
     return { leagues: response.items.map(item => this.toPersisted(item)), truncated: response.truncated };
+  }
+
+  /**
+   * The slim catalog (ADR 0042) — one ~150 byte row per League instead of a whole document, because
+   * the list page only ever printed a name, a status and two numbers. Both counts arrive
+   * denormalized off the aggregate, so nothing here recomputes what the server already derived.
+   */
+  async listLeagueArchiveSummaries(): Promise<LeagueArchiveSummaryCatalog> {
+    const response = await firstValueFrom(this.client.all());
+    return {
+      items: response.items.map(item => ({
+        id: item.id,
+        name: item.name,
+        status: item.status as LeagueStatus,
+        updatedAt: String(item.updatedAt),
+        documentVersion: item.documentVersion,
+        tournamentCount: item.tournamentCount,
+        playerCount: item.playerCount,
+        // Every row from this adapter is a server League by construction; the browser store has its own.
+        isLocal: false
+      })),
+      truncated: response.truncated
+    };
   }
 
   async getLeagueArchive(id: string): Promise<PersistedLeague | null> {

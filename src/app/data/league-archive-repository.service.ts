@@ -6,6 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { getDefaultTournamentName, isUnassignedLeagueName, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
 import { createLeagueTarget } from './league-archive-command-ux';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from './league-archive-origin';
+import { LeagueArchiveSummary } from './league-archive-summary';
 import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
@@ -36,23 +37,32 @@ export class LeagueArchiveRepository {
   readonly catalogTruncated = signal(false);
 
   /**
-   * The union of both stores. A rejected server read degrades to the local list alone and raises the
-   * flag the list page renders; only both stores failing propagates.
-   *
-   * Only the server half goes through the offline read cache (ADR 0031): the browser store is already
-   * offline, and mirroring it would create two answers for one document. A cached answer still raises
-   * `serverUnavailable` — it means exactly what the banner says, that the server was not reached.
+   * The list page's server half (ADR 0042): summary rows, not documents. The row cap still belongs to
+   * the answer, so it is raised here exactly as the document catalog raised it.
    */
-  async listServerLeagues(): Promise<PersistedLeague[]> {
-    const catalog = await this.server.listLeagueArchives();
+  async listServerLeagueSummaries(): Promise<LeagueArchiveSummary[]> {
+    const catalog = await this.server.listLeagueArchiveSummaries();
     this.catalogTruncated.set(catalog.truncated);
-    return catalog.leagues;
+    return catalog.items;
   }
 
   async listLocalLeagues(): Promise<PersistedLeague[]> {
     return (await this.local.listLeagueArchives()).leagues;
   }
 
+  async listLocalLeagueSummaries(): Promise<LeagueArchiveSummary[]> {
+    return (await this.local.listLeagueArchiveSummaries()).items;
+  }
+
+  /**
+   * The union of both stores, in whole documents — the Settings export, which genuinely needs them.
+   * A rejected server read degrades to the local list alone and raises the flag the list page
+   * renders; only both stores failing propagates.
+   *
+   * Only the server half goes through the offline read cache (ADR 0031): the browser store is already
+   * offline, and mirroring it would create two answers for one document. A cached answer still raises
+   * `serverUnavailable` — it means exactly what the banner says, that the server was not reached.
+   */
   async listLeagues(): Promise<PersistedLeague[]> {
     // Only the Leagues are cached, not the catalog envelope: the row cap describes the one answer that
     // reached the server, and a stored copy of it would outlive the read it belongs to.

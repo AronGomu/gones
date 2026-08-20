@@ -10,10 +10,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
 import { canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
-import { isAnyPlaceholderLeagueId, isLocalLeagueId } from '../../data/league-archive-origin';
+import { isAnyPlaceholderLeagueId } from '../../data/league-archive-origin';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { PersistedLeague } from '../../domain/models';
-import { calculateLeagueResult } from '../../domain/results';
+import { LeagueArchiveSummary } from '../../data/league-archive-summary';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -69,7 +68,12 @@ import { clearLeagueCatalogCache, LeagueArchiveCatalogCacheService } from './lea
 })
 export class LeagueArchiveListComponent {
   readonly i18n = inject(I18nService);
-  readonly leagues = signal<PersistedLeague[]>([]);
+  /**
+   * Summary rows, not documents (ADR 0042). Both counts arrive already computed — denormalized off
+   * the server aggregate, derived from the document for a browser-local League — so this page never
+   * holds a Round or a Match again.
+   */
+  readonly leagues = signal<LeagueArchiveSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly creating = signal(false);
@@ -78,13 +82,13 @@ export class LeagueArchiveListComponent {
   readonly power = inject(PowerUserSettingsService);
   /** Power mode applies to both stores; role authority still applies to server leagues. */
   readonly hasUnmanageableServerLeagues = computed(() => !this.power.enabled()
-    || (this.leagues().some((league) => !isLocalLeagueId(league.id)) && !canManageLeagues(this.auth.profile()?.globalRole)));
+    || (this.leagues().some((league) => !league.isLocal) && !canManageLeagues(this.auth.profile()?.globalRole)));
   searchTerm = '';
   readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {
     const search = this.showLeagueFilter() ? this.searchTerm.trim().toLowerCase() : '';
     return this.leagues()
-      .filter((league) => !isAnyPlaceholderLeagueId(league.id) || league.tournaments.length > 0)
+      .filter((league) => !isAnyPlaceholderLeagueId(league.id) || league.tournamentCount > 0)
       .filter((league) => !search || this.leagueDisplayName(league).toLowerCase().includes(search) || league.name.toLowerCase().includes(search));
   });
 
@@ -98,7 +102,7 @@ export class LeagueArchiveListComponent {
     this.loading.set(true);
     const [serverResult, localResult] = await Promise.allSettled([
       this.catalogCache.load(options),
-      this.repo.listLocalLeagues()
+      this.repo.listLocalLeagueSummaries()
     ]);
     this.repo.serverUnavailable.set(
       serverResult.status === 'rejected' || (serverResult.status === 'fulfilled' && serverResult.value.stale)
@@ -122,20 +126,16 @@ export class LeagueArchiveListComponent {
 
   sync(): void { void this.load({ force: true }); }
 
-  playerCount(league: PersistedLeague): number { return calculateLeagueResult(league).rows.length; }
+  isLocal(league: LeagueArchiveSummary): boolean { return league.isLocal; }
 
-  isLocal(league: PersistedLeague): boolean { return isLocalLeagueId(league.id); }
-
-  leagueDisplayName(league: PersistedLeague): string {
+  leagueDisplayName(league: LeagueArchiveSummary): string {
     return isAnyPlaceholderLeagueId(league.id) ? this.i18n.t('liveList.unassigned') : league.name;
   }
 
-  leagueMeta(league: PersistedLeague): string {
-    const tournamentCount = league.tournaments.length;
-    const playerCount = this.playerCount(league);
+  leagueMeta(league: LeagueArchiveSummary): string {
     return this.i18n.t('leagues.meta', {
-      tournaments: this.i18n.plural(tournamentCount, 'leagues.tournamentCount', 'leagues.tournamentCountPlural'),
-      players: this.i18n.plural(playerCount, 'leagues.playerCount', 'leagues.playerCountPlural')
+      tournaments: this.i18n.plural(league.tournamentCount, 'leagues.tournamentCount', 'leagues.tournamentCountPlural'),
+      players: this.i18n.plural(league.playerCount, 'leagues.playerCount', 'leagues.playerCountPlural')
     });
   }
 

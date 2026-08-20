@@ -45,7 +45,9 @@ refetch automatically when the copy is older than 24 hours.
 **Cache shape follows the endpoint, not the privacy.** Public read-mostly pages (Global Rankings,
 Leagues Archive) get full-catalog endpoints mirroring `/api/events/all` — row cap, `truncated` flag,
 SHA-256 ETag, `Cache-Control: public, max-age=3600` — cached once and then filtered, sorted and paged
-in the browser. Private and admin lists stay server-paged, and their cache entry is keyed by the query
+in the browser. The League catalog entry holds **summary rows**, not whole documents, under the key
+`gones.leagues-archive.catalog.v2`; ADR 0042 slimmed the endpoint and bumped the key, because a v1
+entry holds documents and must never be read back as a summary array. Private and admin lists stay server-paged, and their cache entry is keyed by the query
 parameters that produced it (`adminCacheKey(family, params)`).
 
 **Mutation invalidates its own entry.** After a successful write, the page calls
@@ -65,6 +67,10 @@ the cache untouched. The TTL governs navigation; it never governs correctness.
 - A 24-hour-stale copy can be shown to a user whose data another actor changed. The Synchronize
   button is the manual escape hatch, and self-inflicted changes are never stale.
 - Every new data page must join this contract. `AGENT.md` states it as a standing rule.
+- A cached catalog is only as small as the endpoint it mirrors. The League entry was ~2.9 MB of
+  UTF-16 against a ~5 MB quota until ADR 0042 made the endpoint serve summary rows; the `.v2` key
+  bump is what keeps an upgraded browser from reading the old documents back, and
+  `clearLeagueCatalogCache()` drops the dead v1 key rather than leaking it.
 - The Live Tournament list joins it; the Live **runner** does not, and the role-scoped adapter choice
   of ADR 0021 is not touched. When `LocalLiveBackend` is selected the read is already local, and
   `readCached` degrades to a pass-through for anonymous callers.

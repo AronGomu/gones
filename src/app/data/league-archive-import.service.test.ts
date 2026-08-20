@@ -14,6 +14,7 @@ import { GlobalRole } from './league-archive-command-ux';
 import { isLocalLeagueId, LOCAL_LEAGUE_ID_PREFIX } from './league-archive-origin';
 import { LeagueArchiveImportService } from './league-archive-import.service';
 import { LeagueArchiveRepository } from './league-archive-repository.service';
+import { summarizeLeague } from './league-archive-summary';
 import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
@@ -39,6 +40,7 @@ function fakeBackend(namespace: 'server' | 'local') {
   const rows = new Map<string, PersistedLeague>();
   return {
     listLeagueArchives: vi.fn(async () => ({ leagues: [...rows.values()], truncated: false })),
+    listLeagueArchiveSummaries: vi.fn(async () => ({ items: [...rows.values()].map(summarizeLeague), truncated: false })),
     getLeagueArchive: vi.fn(async (id: string) => rows.get(id) ?? null),
     createLeagueArchive: vi.fn(async (name: string) => league('created', name)),
     renameLeagueArchive: vi.fn(async () => league('renamed')),
