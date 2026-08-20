@@ -133,3 +133,6 @@ recomputes it.
 - Out of scope and staying out: rating-driven pairing, archetype-level ratings, player identity
   unification, anti-abuse beyond what the deviation already damps, and Live Tournaments until they
   land in the archive.
+- `Gones:PlayerStatistics:ExposeDecayedRating` (env `GONES_PLAYER_STATISTICS__EXPOSE_DECAYED_RATING`,
+  default `false`) projects the stored `decayedRating` column onto the wire. The column is always
+  computed; the key is presentation only, so flipping it and restarting needs no rebuild. T19.

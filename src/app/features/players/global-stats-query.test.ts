@@ -288,4 +288,18 @@ describe('sortGlobalStatsRows', () => {
     ];
     expect(names(sortGlobalStatsRows(rows, 'gameWins', 'desc'))).toEqual(['Player2', 'Player3', 'Player1']);
   });
+
+  it('decayedRating is a sortable column', () => {
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating')).sort).toBe('decayedRating');
+  });
+
+  it('a null decayed rating sorts last in both directions', () => {
+    const rows = [
+      row('Ana', { decayedRating: undefined }),
+      row('Bo', { decayedRating: 1600 }),
+      row('Cy', { decayedRating: 1400 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'decayedRating', 'asc'))).toEqual(['Cy', 'Bo', 'Ana']);
+    expect(names(sortGlobalStatsRows(rows, 'decayedRating', 'desc'))).toEqual(['Bo', 'Cy', 'Ana']);
+  });
 });

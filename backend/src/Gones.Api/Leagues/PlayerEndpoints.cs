@@ -62,12 +62,13 @@ internal static class PlayerEndpoints
         // neither one loads a document.
         var row = await FindAsync(database, requested, cancellationToken) ?? throw new ResourceNotFoundException();
 
+        var exposeDecayedRating = PlayerStatisticsDecayedRatingExposure.Enabled(configuration);
         var ceiling = configuration.GetValue(MaximumHistorySizeKey, MaximumHistorySize);
         // The statistics half carries the inactive flag, which turns over on a date rather than on a
         // rebuild, so the day belongs in the ETag here for the same reason it does on the rankings.
         var today = clock.GetCurrentInstant().InUtc().Date;
         var etag = PublicLeagueEndpoints.HashETag(
-            $"{await PublicLeagueEndpoints.ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:player:{row.PlayerName}:{ceiling}");
+            $"{await PublicLeagueEndpoints.ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:player:{row.PlayerName}:{ceiling}:{exposeDecayedRating}");
         response.Headers.ETag = etag;
         response.Headers.CacheControl = PlayerCacheControl;
         if (PublicLeagueEndpoints.IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
@@ -80,7 +81,7 @@ internal static class PlayerEndpoints
         // field the rankings gained; `position` is 1 because a response holding one player has one row,
         // and it is not a rank.
         return Results.Ok(new PlayerDetailResponse(
-            PublicLeagueEndpoints.ToGlobalStatsRow(1, row, today),
+            PublicLeagueEndpoints.ToGlobalStatsRow(1, row, today, exposeDecayedRating),
             capped,
             matches.Count,
             truncated));

@@ -933,3 +933,18 @@ Run `npm run dev -- --env=demo`.
 - [ ] Navigate to a Tournament result page (inside a League). Confirm the result table shows exactly 7 columns (no Rating column).
 - [ ] Open a browser-local League (no server connection). The standings table shows **N/A** in every rating cell with no console error.
 - [ ] Switch language to **Français**: the Rating column header reads **Classement**.
+
+## T19 decayed-rating-config-key
+
+### Default stack (key OFF)
+- [ ] `curl -s 'localhost:5080/api/leagues-archive/global-player-statistics?page=1&pageSize=3' | jq '.items[].decayedRating'` prints `null` three times.
+- [ ] Open `/global-stats` — table has exactly 12 columns (no Decayed column).
+- [ ] `?sort=decayedRating` on the rankings endpoint returns HTTP 400.
+
+### Key ON (restart with `GONES_PLAYER_STATISTICS__EXPOSE_DECAYED_RATING=true`)
+- [ ] Same `curl` command now prints integers instead of `null`.
+- [ ] Open `/global-stats` — table now has 13 columns; the **Decayed** column appears immediately after **Rating**.
+- [ ] The Decayed column is clickable/sortable; clicking it toggles the sort arrow.
+- [ ] Switch language to **Français**: the Decayed column header reads **Déclassé**.
+- [ ] `SELECT formula_version FROM player_statistics_meta;` in the DB still returns `2` (no rebuild ran).
+- [ ] Navigate to a player page — `statistics.decayedRating` in the JSON response is an integer.

@@ -105,15 +105,18 @@ internal static class PublicLeagueEndpoints
         HttpRequest request,
         HttpResponse response,
         GonesDbContext database,
+        IConfiguration configuration,
         IClock clock,
         CancellationToken cancellationToken)
     {
         var pageNumber = page ?? 1;
         var size = pageSize ?? GlobalStatsDefaultPageSize;
+        var exposeDecayedRating = PlayerStatisticsDecayedRatingExposure.Enabled(configuration);
         if (pageNumber < 1) throw Validation("page", "Page must be at least 1.");
         if (!GlobalStatsAllowedPageSizes.Contains(size)) throw Validation("pageSize", "Page size must be 10, 25, 50, or 100.");
         if (search?.Length > MaximumSearchLength) throw Validation("search", $"Search must be at most {MaximumSearchLength} characters.");
-        if (sort is not null && !GlobalStatsSortAllowlist.Contains(sort)) throw Validation("sort", "Sort column is not valid.");
+        if (sort is not null && !GlobalStatsSortAllowlist.Contains(sort) && !(sort == "decayedRating" && exposeDecayedRating))
+            throw Validation("sort", "Sort column is not valid.");
         if (direction is not null && direction is not ("asc" or "desc")) throw Validation("direction", "Direction must be asc or desc.");
 
         // ADR 0040: the numbers come from the materialized read model, so Postgres does the filtering,
@@ -126,17 +129,17 @@ internal static class PublicLeagueEndpoints
         // side of a midnight boundary would keep being told 304 against yesterday's buckets.
         var today = clock.GetCurrentInstant().InUtc().Date;
         var normalizedQuery = $"sort={sort}&dir={direction}&search={search?.Trim() ?? string.Empty}&page={pageNumber}&size={size}";
-        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:{total}:{normalizedQuery}");
+        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:{total}:{normalizedQuery}:{exposeDecayedRating}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
 
         var isDescending = !string.Equals(direction, "asc", StringComparison.Ordinal);
         var offset = (pageNumber - 1) * size;
-        var rows = await OrderGlobalStats(query, sort, isDescending, today)
+        var rows = await OrderGlobalStats(query, sort, isDescending, today, exposeDecayedRating)
             .Skip(offset)
             .Take(size)
             .ToListAsync(cancellationToken);
-        var items = rows.Select((row, index) => ToGlobalStatsRow(offset + index + 1, row, today)).ToList();
+        var items = rows.Select((row, index) => ToGlobalStatsRow(offset + index + 1, row, today, exposeDecayedRating)).ToList();
 
         return Results.Ok(new GlobalPlayerStatisticsResponse(items, pageNumber, size, total, sort, direction));
     }
@@ -157,8 +160,9 @@ internal static class PublicLeagueEndpoints
     {
         var ceiling = configuration.GetValue(GlobalStatsMaximumCatalogSizeKey, GlobalStatsMaximumCatalogSize);
         var total = await database.PlayerStatistics.AsNoTracking().CountAsync(cancellationToken);
+        var exposeDecayedRating = PlayerStatisticsDecayedRatingExposure.Enabled(configuration);
         var today = clock.GetCurrentInstant().InUtc().Date;
-        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:{total}:catalog:{ceiling}");
+        var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:{total}:catalog:{ceiling}:{exposeDecayedRating}");
         response.Headers.ETag = etag;
         response.Headers.CacheControl = CatalogCacheControl;
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
@@ -171,7 +175,7 @@ internal static class PublicLeagueEndpoints
             .ToListAsync(cancellationToken);
         var truncated = fetched.Count > ceiling;
         var items = (truncated ? fetched.Take(ceiling) : fetched)
-            .Select((row, index) => ToGlobalStatsRow(index + 1, row, today))
+            .Select((row, index) => ToGlobalStatsRow(index + 1, row, today, exposeDecayedRating))
             .ToList();
         if (truncated)
         {
@@ -207,7 +211,8 @@ internal static class PublicLeagueEndpoints
         IQueryable<PlayerStatisticsRow> query,
         string? sort,
         bool descending,
-        LocalDate today)
+        LocalDate today,
+        bool exposeDecayedRating = false)
     {
         if (sort is null)
         {
@@ -248,6 +253,7 @@ internal static class PublicLeagueEndpoints
             "gameWinrate" => GlobalSortByWinrate(query, row => row.GameWinrate, row => row.GameWinrate == null, descending),
             "rating" => GlobalSortByRating(query, row => row.Rating, descending),
             "tournamentsPlayed" => GlobalSortByCount(query, row => row.TournamentsPlayed, descending),
+            "decayedRating" when exposeDecayedRating => GlobalSortByRating(query, row => row.DecayedRating, descending),
             _ => throw new InvalidOperationException($"Unknown sort: {sort}")
         };
     }
@@ -288,7 +294,7 @@ internal static class PublicLeagueEndpoints
     /// rather than the stored double — a client that prints rating and delta must never be able to
     /// derive a previous rating that disagrees with the one it was sent.
     /// </summary>
-    internal static GlobalPlayerStatisticsRow ToGlobalStatsRow(int position, PlayerStatisticsRow row, LocalDate today)
+    internal static GlobalPlayerStatisticsRow ToGlobalStatsRow(int position, PlayerStatisticsRow row, LocalDate today, bool exposeDecayedRating = false)
     {
         var rating = RoundRating(row.Rating);
         var previousRating = RoundRating(row.PreviousRating);
@@ -315,9 +321,7 @@ internal static class PublicLeagueEndpoints
             row.LastPlayedDate,
             PlayerRankingRules.IsProvisional(row.TournamentsPlayed),
             PlayerRankingRules.IsInactive(row.LastPlayedDate, row.TournamentsPlayed, today),
-            // T19 owns the decay switch. The field is on the wire from here so a client can ship its
-            // reader first, and it stays null until that key turns the stored value on.
-            null);
+            exposeDecayedRating ? RoundRating(row.DecayedRating) : null);
     }
 
     private static int RoundRating(double value) => (int)Math.Round(value, MidpointRounding.AwayFromZero);

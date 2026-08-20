@@ -90,6 +90,9 @@ export const SEARCH_DEBOUNCE_MS = 300;
               <th data-cy="global-stats-col-position">{{ i18n.t('globalStats.colPosition') }}</th>
               <th data-cy="global-stats-col-player">{{ i18n.t('globalStats.colPlayer') }}</th>
               <th (click)="sortBy('rating')" [attr.aria-sort]="ariaSort('rating')" class="sortable-col" data-cy="global-stats-col-rating">{{ i18n.t('globalStats.colRating') }}</th>
+              @if (showDecayedRating()) {
+                <th (click)="sortBy('decayedRating')" [attr.aria-sort]="ariaSort('decayedRating')" class="sortable-col" data-cy="global-stats-col-decayed-rating">{{ i18n.t('globalStats.colDecayedRating') }}</th>
+              }
               <th (click)="sortBy('tournamentsPlayed')" [attr.aria-sort]="ariaSort('tournamentsPlayed')" class="sortable-col" data-cy="global-stats-col-tournaments">{{ i18n.t('globalStats.colTournaments') }}</th>
               <th (click)="sortBy('playedMatchCount')" [attr.aria-sort]="ariaSort('playedMatchCount')" class="sortable-col" data-cy="global-stats-col-matches">{{ i18n.t('globalStats.colMatches') }}</th>
               <th (click)="sortBy('matchWins')" [attr.aria-sort]="ariaSort('matchWins')" class="sortable-col" data-cy="global-stats-col-match-wins">{{ i18n.t('globalStats.colMatchWins') }}</th>
@@ -104,7 +107,7 @@ export const SEARCH_DEBOUNCE_MS = 300;
           <tbody data-cy="global-stats-tbody">
             @if (!pagedRows().length) {
               <tr data-cy="global-stats-empty-row">
-                <td colspan="12" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
+                <td [attr.colspan]="visibleColumnCount()" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
               </tr>
             }
             @for (row of pagedRows(); track row.playerName) {
@@ -124,6 +127,9 @@ export const SEARCH_DEBOUNCE_MS = 300;
                     <span [attr.data-cy]="'global-stats-cell-' + row.position + '-rating-value'">—</span>
                   }
                 </td>
+                @if (showDecayedRating()) {
+                  <td [attr.data-cy]="'global-stats-cell-decayed-rating-' + row.position">{{ row.decayedRating }}</td>
+                }
                 <td [attr.data-cy]="'global-stats-cell-tournaments-' + row.position">{{ row.tournamentsPlayed }}</td>
                 <td [attr.data-cy]="'global-stats-cell-matches-' + row.position">{{ row.playedMatchCount }}</td>
                 <td [attr.data-cy]="'global-stats-cell-match-wins-' + row.position">{{ row.matchWins }}</td>
@@ -195,6 +201,9 @@ export class GlobalStatsComponent implements OnDestroy {
   readonly syncedAt = signal<string | undefined>(undefined);
 
   readonly allRows = signal<GlobalPlayerStatisticsRow[]>([]);
+
+  readonly showDecayedRating = computed(() => this.allRows().some(row => row.decayedRating !== null && row.decayedRating !== undefined));
+  readonly visibleColumnCount = computed(() => this.showDecayedRating() ? 13 : 12);
 
   readonly currentPage = signal(1);
   readonly currentSize = signal<GlobalStatsPageSize>(100);

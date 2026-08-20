@@ -6,6 +6,7 @@ export type GlobalStatsPageSize = (typeof GLOBAL_STATS_PAGE_SIZES)[number];
 
 export const GLOBAL_STATS_SORTABLE_COLS = [
   'rating',
+  'decayedRating',
   'tournamentsPlayed',
   'playedMatchCount',
   'matchWins',
@@ -61,8 +62,8 @@ export function toggleGlobalStatsSort(query: GlobalStatsQuery, col: GlobalStatsS
   return { ...query, sort: col, direction, page: 1 };
 }
 
-/** The two columns a player can legitimately have no value for — a winrate over zero played rows. */
-const GLOBAL_STATS_NULLABLE_COLS: readonly GlobalStatsSortCol[] = ['matchWinrate', 'gameWinrate'];
+/** Columns a player can legitimately have no value for — null sorts last in both directions. */
+const GLOBAL_STATS_NULLABLE_COLS: readonly GlobalStatsSortCol[] = ['matchWinrate', 'gameWinrate', 'decayedRating'];
 
 /**
  * The ranking order the paged endpoint serves, reproduced for the client-side catalog so the two

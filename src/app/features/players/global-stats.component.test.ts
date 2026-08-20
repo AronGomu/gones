@@ -54,8 +54,9 @@ describe('GlobalStatsComponent template — 12 column headers', () => {
     expect(source).not.toContain('data-cy="global-stats-col-games"');
   });
 
-  it('empty row spans all twelve columns', () => {
-    expect(source).toContain('colspan="12"');
+  it('empty row uses a computed colspan bound to visibleColumnCount()', () => {
+    expect(source).toContain('[attr.colspan]="visibleColumnCount()"');
+    expect(source).not.toContain('colspan="12"');
     expect(source).not.toContain('colspan="10"');
   });
 });
@@ -465,6 +466,7 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
     'globalStats.colMatchDraws',
     'globalStats.colMatchWinrate',
     'globalStats.colRating',
+    'globalStats.colDecayedRating',
     'globalStats.colTournaments',
     'globalStats.provisionalBadge',
     'globalStats.inactiveBadge',
@@ -482,6 +484,36 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
       expect(catalogs.fr[key as keyof typeof catalogs.fr], `fr missing ${key}`).toBeTruthy();
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Decayed rating column — conditional display and colspan
+// ---------------------------------------------------------------------------
+
+describe('GlobalStatsComponent — decayed rating column', () => {
+  it('hides the decayed column when every row is undefined', async () => {
+    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: undefined })]));
+    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    expect(comp.showDecayedRating()).toBe(false);
+  });
+
+  it('shows the decayed column when a row carries one', async () => {
+    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: 1488 })]));
+    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    expect(comp.showDecayedRating()).toBe(true);
+  });
+
+  it('spans the empty row across the visible columns', async () => {
+    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: 1488 })]));
+    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    expect(comp.visibleColumnCount()).toBe(13);
+  });
+
+  it('spans the empty row across the visible columns when off', async () => {
+    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: undefined })]));
+    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    expect(comp.visibleColumnCount()).toBe(12);
+  });
 });
 
 describe('GlobalStatsComponent — match column label values', () => {
