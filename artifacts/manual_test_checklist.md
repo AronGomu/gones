@@ -692,3 +692,18 @@ Navigate to `/events?view=list` with a running dev server.
 - [ ] Confirm the Register button behaviour is unchanged (shows/hides by capability, unaffected by this ticket).
 - [ ] Switch to **calendar (month) view** (`?view=calendar`). Confirm no ICS button appears there — this ticket only affects the list view.
 - [ ] Open `/events/some-slug` (event detail). Confirm the ICS link in the Participants header still appears for both past and future events — this ticket does not touch the detail page.
+
+## T8 event-detail-hero-order
+
+Navigate to `/events/{slug}` for any published event with a running dev server.
+
+- [ ] Confirm the hero layout from top to bottom: **organisation name + player count** on one row (kicker left, count right), then the **title**, then the **summary** (if present), then the **natural-language date + starting hour**, then the **address**, then the **organizers** (if present).
+- [ ] Confirm the **title font** is visibly smaller than before — it should no longer dominate the entire page width at desktop viewport (the text sits comfortably alongside the rows below it).
+- [ ] Confirm the **player count** (e.g. "32 joueurs") appears on the **same row** as the organisation name/kicker, flush right — not inside the h1.
+- [ ] Confirm the **date row** shows the date in natural language (e.g. `vendredi 12 septembre 2026`) with no clock time and no timezone in parentheses.
+- [ ] Confirm the **starting hour** appears directly after the date separated by ` - ` (e.g. `Heure de début : 18:00`).
+- [ ] Confirm the **address row** shows **only** the venue address — no timestamp, no timezone, no date.
+- [ ] Switch language to **English**. Confirm the date row reads in English (e.g. `Friday, September 12, 2026`) and the starting-hour label reads `Starting hour : 18:00`.
+- [ ] Navigate to `/events/new` (organizer event creation). Confirm the **preview** section shows the same hero order and same title size.
+- [ ] Confirm the viewer-timezone line (`Your time: …`) only appears when your local timezone differs from the venue timezone — it should sit directly below the date row when visible.
+- [ ] Confirm no broken layout at mobile viewport (375 px): all rows stack cleanly, no horizontal overflow.

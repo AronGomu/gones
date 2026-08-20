@@ -52,7 +52,8 @@ function build(overrides: Partial<PublicEventDetailResponse> = {}): EventDetailV
 const source = readFileSync(join(__dirname, 'event-detail-view.component.ts'), 'utf8');
 const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 const title = source.slice(source.indexOf('<h1 id="event-title"'), source.indexOf('</h1>'));
-const whenWhere = source.slice(source.indexOf('data-cy="event-detail-when-where"'), source.indexOf('</p>', source.indexOf('data-cy="event-detail-when-where"')));
+const whereRow = source.slice(source.indexOf('data-cy="event-detail-where-row"'), source.indexOf('</p>', source.indexOf('data-cy="event-detail-where-row"')));
+const whenRow = source.slice(source.indexOf('data-cy="event-detail-when-row"'), source.indexOf('</p>', source.indexOf('data-cy="event-detail-when-row"')));
 
 describe('EventDetailViewComponent hero', () => {
   it('renders the backend display title without reconstructing format or capacity', () => {
@@ -68,8 +69,8 @@ describe('EventDetailViewComponent hero', () => {
     expect(translate('en', 'event.playerCountPlural', { count: 32 })).toBe('32 players');
     expect(translate('fr', 'event.playerCount', { count: 1 })).toBe('1 joueur');
     expect(translate('fr', 'event.playerCountPlural', { count: 32 })).toBe('32 joueurs');
-    expect(title).toContain('data-cy="event-detail-player-count"');
-    expect(title).toContain('{{ playerCount() }}');
+    expect(source).toContain('data-cy="event-detail-player-count"');
+    expect(source).toContain('{{ playerCount() }}');
     expect(build({ capacity: 1 }).playerCount()).toBe(translate('fr', 'event.playerCount', { count: 1 }));
     expect(build({ capacity: 32 }).playerCount()).toBe(translate('fr', 'event.playerCountPlural', { count: 32 }));
     expect(build({ capacity: undefined }).playerCount()).toBe(translate('fr', 'registration.unlimited'));
@@ -84,18 +85,19 @@ describe('EventDetailViewComponent hero', () => {
     const component = build();
     expect(component.date().primary).toContain('2026');
     expect(component.venue()).toBe('1 Rue Test, 69001, Lyon, France');
-    expect(whenWhere).toContain('data-cy="event-detail-when"');
-    expect(whenWhere).toContain('{{ date().primary }}');
-    expect(whenWhere).toContain('data-cy="event-detail-when-where-separator"');
-    expect(whenWhere).toContain('data-cy="event-detail-where"');
-    expect(whenWhere).toContain('{{ venue() }}');
-    expect(stylesheet).toContain('.event-when-where {');
+    expect(whenRow).toContain('data-cy="event-detail-when"');
+    expect(whenRow).toContain('naturalDate()');
+    expect(whenRow).toContain('data-cy="event-detail-when-separator"');
+    expect(whenRow).toContain('data-cy="event-detail-starting-hour"');
+    expect(whereRow).toContain('data-cy="event-detail-where"');
+    expect(whereRow).toContain('{{ venue() }}');
+    expect(stylesheet).toContain('.event-when,');
   });
 
   it('location renders as a maps link', () => {
     const component = build({ venue: { city: 'Lyon' } } as Partial<PublicEventDetailResponse>);
     expect(component.mapsUrl()).toBe('https://www.google.com/maps/search/?api=1&query=Lyon');
-    const link = whenWhere.slice(whenWhere.indexOf('data-cy="event-detail-where-link"'));
+    const link = whereRow.slice(whereRow.indexOf('data-cy="event-detail-where-link"'));
     expect(link).toContain('[href]="url"');
     expect(link).toContain('target="_blank"');
     expect(link).toContain('rel="noopener noreferrer"');
@@ -108,8 +110,8 @@ describe('EventDetailViewComponent hero', () => {
   it('location stays plain text without an address', () => {
     const component = build({ venue: {} } as Partial<PublicEventDetailResponse>);
     expect(component.mapsUrl()).toBeNull();
-    expect(whenWhere).toContain('@if (mapsUrl(); as url)');
-    expect(whenWhere).toContain('@else { <span data-cy="event-detail-where">{{ venue() }}</span> }');
+    expect(whereRow).toContain('@if (mapsUrl(); as url)');
+    expect(whereRow).toContain('@else { <span data-cy="event-detail-where">{{ venue() }}</span> }');
   });
 
   it('organization fact block is gone', () => {
@@ -125,9 +127,9 @@ describe('EventDetailViewComponent hero', () => {
   });
 
   it('renders the title line', () => {
-    expect(title).toContain('data-cy="event-detail-starting-hour"');
-    expect(title).toContain("i18n.t('event.startingHour')");
-    expect(title).toContain('{{ startTime() }}');
+    expect(whenRow).toContain('data-cy="event-detail-starting-hour"');
+    expect(whenRow).toContain("i18n.t('event.startingHour')");
+    expect(whenRow).toContain('{{ startTime() }}');
     expect(build({ venueStartTime: '14:00:00', capacity: 32 }).startTime()).toBe('14:00');
     expect(build({ venueStartTime: '14:00:00', capacity: 32 }).playerCount()).toContain('32');
   });
@@ -144,7 +146,7 @@ describe('EventDetailViewComponent hero', () => {
 
   it('shows venue time not viewer time', () => {
     expect(build({ venueStartTime: '14:00:00', timeZoneId: 'Europe/Paris' }).startTime()).toBe('14:00');
-    expect(title).toContain('{{ startTime() }}');
+    expect(whenRow).toContain('{{ startTime() }}');
   });
 
   it('links the kicker to the website', () => {
@@ -198,6 +200,69 @@ describe('EventDetailViewComponent hero', () => {
     const component = build({ organization: { ...event.organization, organizers: [] } } as Partial<PublicEventDetailResponse>);
     expect(component.organizers()).toEqual([]);
     expect(source).toContain('@if (organizers().length)');
+  });
+
+  // T8: hero reorder (round 6 feedback)
+  it('hero children in order', () => {
+    const hero = source.slice(source.indexOf('<section class="event-hero panel"'), source.indexOf('</section>', source.indexOf('<section class="event-hero panel"')));
+    const order = ['event-detail-topline', 'event-detail-title', 'event-detail-summary', 'event-detail-when-row', 'event-detail-where-row', 'event-detail-organizers'];
+    const indices = order.map(cy => hero.indexOf(`data-cy="${cy}"`));
+    for (let i = 1; i < indices.length; i++) {
+      expect(indices[i]).toBeGreaterThan(indices[i - 1]);
+    }
+  });
+
+  it('player count sits on the kicker row', () => {
+    const hero = source.slice(source.indexOf('<section class="event-hero panel"'), source.indexOf('</section>', source.indexOf('<section class="event-hero panel"')));
+    const toplineEnd = hero.indexOf('</div>', hero.indexOf('data-cy="event-detail-topline"'));
+    const toplineContent = hero.slice(0, toplineEnd);
+    expect(toplineContent).toContain('data-cy="event-detail-player-count"');
+    const h1End = hero.indexOf('</h1>', hero.indexOf('<h1'));
+    const h1Content = hero.slice(hero.indexOf('<h1'), h1End);
+    expect(h1Content).not.toContain('data-cy="event-detail-player-count"');
+  });
+
+  it('title holds only the title text', () => {
+    expect(title).toContain('data-cy="event-detail-title-text"');
+    expect(title).toContain('{{ event().displayTitle }}');
+    expect(title).not.toContain('event-detail-player-count');
+    expect(title).not.toContain('event-detail-starting-hour');
+  });
+
+  it('date row is natural language', () => {
+    const whenContent = source.slice(source.indexOf('data-cy="event-detail-when-row"'), source.indexOf('</p>', source.indexOf('data-cy="event-detail-when-row"')));
+    expect(whenContent).toContain('data-cy="event-detail-when"');
+    expect(whenContent).toContain('naturalDate()');
+    const component = build({ venueStartDate: '2026-09-12', venueStartTime: '18:00:00' });
+    expect(component.naturalDate()).toContain('septembre');
+    expect(component.naturalDate()).not.toContain(':');
+    expect(component.naturalDate()).not.toContain('(');
+  });
+
+  it('start hour is its own span', () => {
+    const h1End = source.indexOf('</h1>', source.indexOf('<h1 id="event-title"'));
+    const startingHourIdx = source.indexOf('data-cy="event-detail-starting-hour"');
+    expect(startingHourIdx).toBeGreaterThan(h1End);
+    expect(build({ venueStartTime: '18:00:00' }).startTime()).toBe('18:00');
+  });
+
+  it('address row holds only the address', () => {
+    const whereContent = source.slice(source.indexOf('data-cy="event-detail-where-row"'), source.indexOf('</p>', source.indexOf('data-cy="event-detail-where-row"')));
+    expect(whereContent).not.toContain('date()');
+    expect(whereContent).not.toContain('primary');
+    expect(whereContent).toContain('venue()');
+    expect(build().venue()).toBe('1 Rue Test, 69001, Lyon, France');
+  });
+
+  it('viewer time still renders when zones differ', () => {
+    const whenRowIdx = source.indexOf('data-cy="event-detail-when-row"');
+    const viewerIdx = source.indexOf('data-cy="event-detail-fact-date-viewer"');
+    expect(viewerIdx).toBeGreaterThan(whenRowIdx);
+    expect(source).toContain('event-detail-fact-date-viewer');
+  });
+
+  it('no when-where hook survives', () => {
+    expect(source).not.toContain('event-detail-when-where');
   });
 
   it('is the last hero child', () => {

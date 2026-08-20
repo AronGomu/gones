@@ -387,8 +387,12 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .rich-content img, .rich-editor__surface img { max-width: 100%; height: auto; border: 1px solid var(--soot); }
 .event-page { display: grid; gap: 1rem; }
 .event-hero, .event-section { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 2rem); }
-.event-when-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
-.event-player-count { color: var(--dim-ash); font-size: .4em; font-weight: 700; white-space: nowrap; }
+/* Scoped override: the app-wide h1 clamp tops out at 4rem, which dwarfs a hero that now carries four more rows under it (feedback round 6). */
+.event-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.25rem); }
+.event-when, .event-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; margin: 0; }
+.event-hero-topline { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.event-hero-topline .kicker { margin: 0; }
+.event-player-count { color: var(--dim-ash); font-size: .82rem; font-weight: 700; white-space: nowrap; }
 .event-hero-ics { margin-top: .75rem; }
 .event-hero-organizers { margin-top: .6rem; color: var(--dim-ash); font-size: .82rem; font-style: italic; }
 .maps-icon { width: 1em; height: 1em; margin-right: .3rem; vertical-align: -0.125em; }

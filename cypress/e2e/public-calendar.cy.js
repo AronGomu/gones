@@ -221,17 +221,19 @@ describe('public Calendar V1', () => {
     visit('/events/lyon-legacy');
     cy.location('pathname').should('eq', '/events/lyon-legacy');
     cy.wait('@detail');
-    cy.get('[data-cy="public-event-detail"]').should('contain.text', 'Europe/Paris').and('not.contain.text', 'Cancelled');
+    cy.get('[data-cy="public-event-detail"]').should('not.contain.text', 'Cancelled');
     cy.get('gones-server-sanitized-html a').should('have.attr', 'target', '_blank').and('have.attr', 'rel', 'noopener noreferrer');
     // The hero no longer owns the ICS action: it sits in the Participants header (T5).
     cy.get('[data-cy="event-ics"]').should('not.exist');
     cy.get('[data-cy="registration-ics"]').should('have.attr', 'href').and('contain', '/api/events/lyon-legacy.ics');
 
     // The hero is a layout claim, so read the rendered text and geometry rather than the template.
-    cy.get('[data-cy="event-detail-title"]').should('contain.text', 'Legacy — Lyon Legacy').and('contain.text', '32 players');
+    cy.get('[data-cy="event-detail-title"]').should('contain.text', 'Legacy — Lyon Legacy');
+    cy.get('[data-cy="event-detail-player-count"]').should('contain.text', '32 players');
     cy.get('[data-cy="event-detail-status"]').should('not.exist');
     cy.get('[data-cy="event-detail-fact-organization"]').should('not.exist');
-    cy.get('[data-cy="event-detail-when-where"]').should('contain.text', 'Europe/Paris').and('contain.text', '1 Rue Test, 69001, Lyon, France');
+    cy.get('[data-cy="event-detail-when-row"]').should('contain.text', 'August').and('contain.text', '23:30');
+    cy.get('[data-cy="event-detail-where-row"]').should('contain.text', '1 Rue Test, 69001, Lyon, France');
     cy.get('[data-cy="event-detail-actions"]').should('not.exist');
     cy.get('[data-cy="event-detail-organizers"]').should('contain.text', 'adam, zoe');
     cy.get('[data-cy="event-detail-where-link"]')
@@ -240,14 +242,34 @@ describe('public Calendar V1', () => {
       .and('have.attr', 'href', 'https://www.google.com/maps/search/?api=1&query=1%20Rue%20Test%2C%2069001%2C%20Lyon%2C%20France')
       .and('have.attr', 'aria-label', 'Open 1 Rue Test, 69001, Lyon, France in Google Maps');
     cy.get('[data-cy="event-detail-where-link"] svg.maps-icon').should('exist');
-    cy.get('[data-cy="event-detail-when"]').then(($when) => {
-      cy.get('[data-cy="event-detail-where-link"]').then(($where) => {
-        expect($where[0].getBoundingClientRect().top, 'date and location share one row')
-          .to.be.closeTo($when[0].getBoundingClientRect().top, 2);
-      });
-    });
     cy.viewport(375, 812);
     cy.document().then(document => expect(document.documentElement.scrollWidth).to.be.at.most(375));
+  });
+
+  // T8: event hero layout — title font cap + player count right alignment
+  it('event hero title font-size stays under 40px', () => {
+    cy.intercept('GET', '**/api/events/lyon-legacy', { ...event, bodyHtml: '<p>Detail</p>' }).as('detail');
+    cy.viewport(1280, 800);
+    visit('/events/lyon-legacy');
+    cy.wait('@detail');
+    cy.get('[data-cy="event-detail-title"]').then(($title) => {
+      const fontSize = parseFloat($title[0].ownerDocument.defaultView.getComputedStyle($title[0]).fontSize);
+      expect(fontSize, 'title font-size').to.be.at.most(40);
+    });
+  });
+
+  it('player count hugs the right edge of the topline', () => {
+    cy.intercept('GET', '**/api/events/lyon-legacy', { ...event, bodyHtml: '<p>Detail</p>' }).as('detail');
+    cy.viewport(1280, 800);
+    visit('/events/lyon-legacy');
+    cy.wait('@detail');
+    cy.get('[data-cy="event-detail-topline"]').then(($topline) => {
+      cy.get('[data-cy="event-detail-player-count"]').then(($count) => {
+        const toplineRight = $topline[0].getBoundingClientRect().right;
+        const countRight = $count[0].getBoundingClientRect().right;
+        expect(countRight, 'player count right edge').to.be.closeTo(toplineRight, 2);
+      });
+    });
   });
 
   // The card handler sits on an ancestor of the ICS anchor, so "the button still downloads without
