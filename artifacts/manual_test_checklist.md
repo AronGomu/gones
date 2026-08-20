@@ -707,3 +707,27 @@ Navigate to `/events/{slug}` for any published event with a running dev server.
 - [ ] Navigate to `/events/new` (organizer event creation). Confirm the **preview** section shows the same hero order and same title size.
 - [ ] Confirm the viewer-timezone line (`Your time: …`) only appears when your local timezone differs from the venue timezone — it should sit directly below the date row when visible.
 - [ ] Confirm no broken layout at mobile viewport (375 px): all rows stack cleanly, no horizontal overflow.
+
+## T9 league-archive-denormalized-counts
+
+Backend-only slice: three denormalized columns on `league_archive_aggregates`, a migration, and a
+startup backfill. **Nothing in the UI reads these columns yet**, so the app must look and behave
+exactly as it did before — that absence of change is most of what there is to check.
+
+Start the stack with `npm run dev -- --detached --env=demo`. The Postgres service is `postgres` and
+the role is `gones_migration` (not `db` / `gones`).
+
+- [ ] Run `docker compose exec -T postgres psql -U gones_migration -d gones -c "select document_id, tournament_count, player_count, counts_version from league_archive_aggregates order by document_id;"` and confirm every row has `counts_version = 1`.
+- [ ] Open the Leagues Archive list page and confirm each card's Tournament count and player count match the `tournament_count` / `player_count` stored for that League.
+- [ ] Confirm the archive list page renders exactly as before this ticket — no new numbers, badges or layout changes anywhere in the UI.
+- [ ] Open a League detail page and confirm the standings row count equals that League's stored `player_count`.
+- [ ] Create a new League (or add a Tournament to an existing one) and confirm the stored `tournament_count` / `player_count` update immediately, with `counts_version` still `1`.
+- [ ] Rename a League and confirm the counts are unchanged and `counts_version` stays `1`.
+- [ ] Soft-delete a League, then confirm the startup backfill leaves it alone: it must not reappear anywhere in the UI.
+- [ ] Force a repair: run `docker compose exec -T postgres psql -U gones_migration -d gones -c "UPDATE league_archive_aggregates SET tournament_count = 0, player_count = 0, counts_version = 0;"`, then `docker compose restart api`. Confirm the counts return to their correct values.
+- [ ] In `docker compose logs api`, confirm the line `Backfilled the catalog counts of N League archive rows to version 1.` appears after that restart.
+- [ ] Restart the API a second time with no stale rows and confirm the log instead reads `League archive catalog counts are current at version 1; no backfill.`
+- [ ] Set `GONES_LEAGUES__BACKFILL_CATALOG_COUNTS_ON_STARTUP=false`, stale the rows again, restart the API, and confirm the counts stay stale and the log reports the backfill disabled — then unset it.
+- [ ] Confirm the API still starts and serves `/health/ready` when the backfill is disabled.
+- [ ] Expect the placeholder League ("Unassigned Tournaments") row to have moved to `version = 2` on the first start after the migration — it is seeded by raw SQL, so the backfill stamps it once. Confirm it has not moved again on later starts.
+- [ ] Confirm `GET /api/leagues-archive/all` still returns only `id,name,status,tournaments,documentVersion,updatedAt` per row — this ticket must add no field to the HTTP response.

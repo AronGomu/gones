@@ -22,16 +22,34 @@ public sealed class LeagueArchiveAggregate : VersionedEntity
     public Instant? DeletedAt { get; private set; }
     public string CanonicalDocument { get; private set; } = null!;
 
+    /// <summary>
+    /// The two numbers the archive list card prints, denormalized so the catalog can ship summary rows
+    /// instead of whole documents (ADR 0042). <see cref="CountsVersion"/> is the per-row formula version:
+    /// <c>0</c> means never computed, which is what makes a stored <c>0</c> count unambiguous.
+    ///
+    /// <para>A migration that rewrites <c>canonical_document</c> in raw SQL — as
+    /// <c>AddArchiveTournamentStatus</c> does — must also set <c>counts_version = 0</c> on the rows it
+    /// touches if the rewrite can change either number. The startup backfill only visits rows stamped
+    /// with an older version, so a document changed underneath a current stamp stays stale forever.</para>
+    /// </summary>
+    public int TournamentCount { get; private set; }
+    public int PlayerCount { get; private set; }
+    public int CountsVersion { get; private set; }
+
     public static LeagueArchiveAggregate Create(LeagueDocument document, Instant now)
     {
         ValidateDocument(document);
+        var counts = LeagueCatalogCounts.From(document);
         return new LeagueArchiveAggregate
         {
             DocumentId = document.Id,
             Name = document.Name,
             Status = document.Status,
             UpdatedAt = now,
-            CanonicalDocument = SerializeBounded(document)
+            CanonicalDocument = SerializeBounded(document),
+            TournamentCount = counts.TournamentCount,
+            PlayerCount = counts.PlayerCount,
+            CountsVersion = LeagueCatalogCounts.Version
         };
     }
 
@@ -75,10 +93,27 @@ public sealed class LeagueArchiveAggregate : VersionedEntity
         if (DeletedAt is not null) throw new InvalidOperationException("Deleted League aggregate cannot be changed.");
         if (document.Id != DocumentId) throw new ArgumentException("League document ID cannot change.", nameof(document));
         ValidateDocument(document);
+        var counts = LeagueCatalogCounts.From(document);
         Name = document.Name;
         Status = document.Status;
         CanonicalDocument = SerializeBounded(document);
         UpdatedAt = now;
+        TournamentCount = counts.TournamentCount;
+        PlayerCount = counts.PlayerCount;
+        CountsVersion = LeagueCatalogCounts.Version;
+    }
+
+    /// <summary>
+    /// Recomputes the catalog counts from the stored document without touching <see cref="UpdatedAt"/>:
+    /// the row's content did not change, only the numbers derived from it. This is the startup
+    /// backfill's only entry point, so the maths lives in one place.
+    /// </summary>
+    public void RefreshCatalogCounts()
+    {
+        var counts = LeagueCatalogCounts.From(ReadDocument());
+        TournamentCount = counts.TournamentCount;
+        PlayerCount = counts.PlayerCount;
+        CountsVersion = LeagueCatalogCounts.Version;
     }
 
     public void SoftDelete(Instant now)

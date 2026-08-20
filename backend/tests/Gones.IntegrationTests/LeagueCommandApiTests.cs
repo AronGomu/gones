@@ -109,7 +109,16 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
         Assert.True((await Body(deleted)).GetProperty("deleted").GetBoolean());
         Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync("/api/leagues-archive/command-league")).StatusCode);
 
-        using var placeholderDelete = await SendJsonAsync(HttpMethod.Delete, "/api/leagues-archive/placeholder-league", new { }, "Admin", ifMatch: StrongETag.Encode(1));
+        // The placeholder is inserted by a migration rather than by the domain, so the ADR 0042 startup
+        // backfill stamps its catalog counts once and moves its version off 1. Read the version instead
+        // of assuming it, so this still asserts what it means: a valid ETag is refused on its own merits.
+        long placeholderVersion;
+        await using (var database = CreateContext())
+        {
+            placeholderVersion = (await database.LeagueArchiveAggregates.AsNoTracking()
+                .SingleAsync(item => item.DocumentId == LeagueNormalizer.PlaceholderLeagueId)).Version;
+        }
+        using var placeholderDelete = await SendJsonAsync(HttpMethod.Delete, "/api/leagues-archive/placeholder-league", new { }, "Admin", ifMatch: StrongETag.Encode(placeholderVersion));
         Assert.Equal(HttpStatusCode.Conflict, placeholderDelete.StatusCode);
     }
 

@@ -14,10 +14,16 @@ internal sealed class LeagueArchiveAggregateConfiguration : VersionedEntityConfi
         builder.Property(aggregate => aggregate.Name).HasMaxLength(LeagueArchiveAggregate.MaximumNameLength);
         builder.Property(aggregate => aggregate.Status).HasMaxLength(LeagueArchiveAggregate.MaximumStatusLength);
         builder.Property(aggregate => aggregate.CanonicalDocument).HasColumnType("jsonb");
+        builder.Property(aggregate => aggregate.TournamentCount).HasDefaultValue(0);
+        builder.Property(aggregate => aggregate.PlayerCount).HasDefaultValue(0);
+        builder.Property(aggregate => aggregate.CountsVersion).HasDefaultValue(0);
         builder.HasIndex(aggregate => aggregate.DocumentId).IsUnique();
         builder.HasIndex(aggregate => aggregate.Name);
         builder.HasIndex(aggregate => aggregate.Status);
         builder.HasIndex(aggregate => aggregate.Version);
+        // The startup backfill scans for rows stamped with an older formula version; indexed so the
+        // steady-state case (no stale rows) costs an index probe rather than a table scan.
+        builder.HasIndex(aggregate => aggregate.CountsVersion);
         builder.HasIndex(aggregate => new { aggregate.DeletedAt, aggregate.UpdatedAt, aggregate.Id })
             .IsDescending(false, true, false);
         builder.ToTable(table =>
