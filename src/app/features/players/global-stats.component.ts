@@ -30,13 +30,14 @@ export const SEARCH_DEBOUNCE_MS = 300;
   template: `
     <gones-back-button data-cy="global-stats-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
-    <section class="page-heading" data-cy="global-stats-heading">
-      <div data-cy="global-stats-heading-text">
-        <h1 data-cy="global-stats-title">{{ i18n.t('globalStats.title') }}</h1>
-      </div>
-    </section>
-
-    <gones-sync-bar cyPrefix="global-stats" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="onSync()" data-cy="global-stats-sync-bar" />
+    <div class="global-stats-heading-row" data-cy="global-stats-heading-row">
+      <section class="page-heading" data-cy="global-stats-heading">
+        <div data-cy="global-stats-heading-text">
+          <h1 data-cy="global-stats-title">{{ i18n.t('globalStats.title') }}</h1>
+        </div>
+      </section>
+      <gones-sync-bar cyPrefix="global-stats" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="onSync()" data-cy="global-stats-sync-bar" />
+    </div>
 
     <div class="global-stats-controls" data-cy="global-stats-controls">
       <div class="global-stats-search-wrap" data-cy="global-stats-search-wrap">
@@ -141,6 +142,9 @@ export const SEARCH_DEBOUNCE_MS = 300;
     <gones-back-button data-cy="global-stats-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `,
   styles: [`
+    .global-stats-heading-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+    .global-stats-heading-row .page-heading { flex: 1 1 auto; min-width: 0; margin: 0; }
+    .global-stats-heading-row gones-sync-bar { flex: 0 1 auto; }
     .global-stats-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; margin-bottom: 1rem; }
     .global-stats-search-wrap { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; }
     .global-stats-search-field { flex: 1 1 auto; min-width: 0; max-width: 28rem; }

@@ -221,6 +221,58 @@ describe('Global Stats — player link navigation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Heading row layout
+// ---------------------------------------------------------------------------
+describe('Global Stats — heading row', () => {
+  function rect(selector) {
+    return cy.get(selector).then($el => $el[0].getBoundingClientRect());
+  }
+
+  it('title and sync bar share a row on a wide viewport', () => {
+    cy.clearLocalStorage();
+    mockCatalog();
+    cy.viewport(1280, 800);
+    cy.visit('/global-stats');
+    cy.wait('@catalog');
+
+    rect('[data-cy="global-stats-title"]').then(titleRect => {
+      rect('[data-cy="global-stats-sync-button"]').then(syncRect => {
+        expect(syncRect.top).to.be.lessThan(titleRect.bottom);
+        expect(titleRect.top).to.be.lessThan(syncRect.bottom);
+        expect(syncRect.left).to.be.greaterThan(titleRect.right);
+      });
+    });
+  });
+
+  it('title and sync bar stack on a narrow viewport', () => {
+    cy.clearLocalStorage();
+    mockCatalog();
+    cy.viewport(420, 800);
+    cy.visit('/global-stats');
+    cy.wait('@catalog');
+
+    rect('[data-cy="global-stats-title"]').then(titleRect => {
+      rect('[data-cy="global-stats-sync-button"]').then(syncRect => {
+        expect(syncRect.top).to.be.at.least(titleRect.bottom);
+      });
+    });
+  });
+
+  it('heading hooks survive', () => {
+    cy.clearLocalStorage();
+    mockCatalog();
+    cy.viewport(1280, 800);
+    cy.visit('/global-stats');
+    cy.wait('@catalog');
+
+    cy.get('[data-cy="global-stats-heading"]').should('exist');
+    cy.get('[data-cy="global-stats-heading-text"]').should('exist');
+    cy.get('[data-cy="global-stats-title"]').should('exist');
+    cy.get('[data-cy="global-stats-sync-bar"]').should('exist');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Home navigation
 // ---------------------------------------------------------------------------
 describe('Global Stats — home card', () => {

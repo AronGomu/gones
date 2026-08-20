@@ -654,3 +654,12 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Navigate to `/global-stats` in **Français** — confirm the breadcrumb second segment reads **Classement Global** (not Classement mondial).
 - [ ] Navigate to `/events` — confirm the breadcrumb still reads **Calendar** (en) / **Calendrier** (fr), unchanged.
 - [ ] Confirm `data-cy="menu-calendar-card-title"` still exists on the events card (hook is stable).
+
+## T5 global-rankings-heading-row
+
+- [ ] Open `/global-stats` at viewport width ≥ 1024px. Confirm the page title ("Global Rankings" / "Classement Global") and the Synchronise button appear on the **same horizontal row**, title on the left, button on the right.
+- [ ] Resize the browser below 600px (or use DevTools device toolbar). Confirm the title is on its own line and the Synchronise bar appears **below** it (stacked), matching the layout before this ticket.
+- [ ] Confirm all existing hooks still exist: `data-cy="global-stats-heading"`, `data-cy="global-stats-heading-text"`, `data-cy="global-stats-title"`, `data-cy="global-stats-sync-bar"`.
+- [ ] Confirm the new row wrapper carries `data-cy="global-stats-heading-row"`.
+- [ ] Switch language to **Français** and repeat the wide/narrow layout check — confirm behaviour is the same.
+- [ ] Confirm all other pages that render a sync bar (e.g., `/events`, `/leagues-archive`) are **unaffected** — their layout is unchanged.
