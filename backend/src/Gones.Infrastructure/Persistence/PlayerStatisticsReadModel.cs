@@ -24,6 +24,17 @@ public sealed class PlayerStatisticsRow
     public OpponentRecord? Rival { get; init; }
     public PlayerArchetypeUsage? MostPlayedArchetype { get; init; }
 
+    // ADR 0043. Replayed from the archive by the same rebuild that fills everything above, so these are
+    // derived columns like the rest of the row and never edited on their own.
+    public required double Rating { get; init; }
+    public required double RatingDeviation { get; init; }
+    public required double RatingVolatility { get; init; }
+    public required double PreviousRating { get; init; }
+    public required double LastRatingDelta { get; init; }
+    public required int TournamentsPlayed { get; init; }
+    public string? LastPlayedDate { get; init; }
+    public required double DecayedRating { get; init; }
+
     public static PlayerStatisticsRow From(GlobalPlayerStatistics statistics) => new()
     {
         PlayerName = statistics.PlayerName,
@@ -38,7 +49,15 @@ public sealed class PlayerStatisticsRow
         GameWinrate = statistics.GameWinrate,
         Nemesis = statistics.Nemesis,
         Rival = statistics.Rival,
-        MostPlayedArchetype = statistics.MostPlayedArchetype
+        MostPlayedArchetype = statistics.MostPlayedArchetype,
+        Rating = statistics.Rating,
+        RatingDeviation = statistics.RatingDeviation,
+        RatingVolatility = statistics.RatingVolatility,
+        PreviousRating = statistics.PreviousRating,
+        LastRatingDelta = statistics.LastRatingDelta,
+        TournamentsPlayed = statistics.TournamentsPlayed,
+        LastPlayedDate = statistics.LastPlayedDate,
+        DecayedRating = statistics.DecayedRating
     };
 
     public GlobalPlayerStatistics ToGlobalPlayerStatistics() => new(
@@ -54,7 +73,15 @@ public sealed class PlayerStatisticsRow
         GameWinrate,
         Nemesis,
         Rival,
-        MostPlayedArchetype);
+        MostPlayedArchetype,
+        Rating,
+        RatingDeviation,
+        RatingVolatility,
+        PreviousRating,
+        LastRatingDelta,
+        TournamentsPlayed,
+        LastPlayedDate,
+        DecayedRating);
 }
 
 /// <summary>

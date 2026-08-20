@@ -54,6 +54,9 @@
 | league archive | Archived Leagues and their result Tournaments, `/api/leagues-archive` (formerly `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs` |
 | archive tournament | A result Tournament inside the League Archive; carries `status: active \| completed`; statistics count completed ones only (ADR 0040) | `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs` |
 | read model | Materialized `player_statistics` table rebuilt transactionally on every archive write; read by both rankings and the player page (ADR 0040) | `backend/src/Gones.Domain/Leagues/LeagueRules.cs` |
+| rating | The Glicko-2 number stored on `player_statistics`, replayed from every completed Archive Tournament in date order on each rebuild; server data only, never exported (ADR 0043) | `backend/src/Gones.Domain/Leagues/Glicko2.cs` |
+| provisional | A player with fewer than 5 Tournaments played: rating shown but not rankable, sorted to the bottom. Derived at read time from `tournamentsPlayed`, never stored (ADR 0043) | `backend/src/Gones.Domain/Leagues/LeagueRules.cs` |
+| inactive | A player with no completed Tournament in 12 months: rating frozen, deviation still growing, badged and listed below active ranked players. Derived at read time from `lastPlayedDate`, never stored (ADR 0043) | `backend/src/Gones.Domain/Leagues/LeagueRules.cs` |
 
 ## Other
 

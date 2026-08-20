@@ -8,8 +8,12 @@ namespace Gones.Domain.Leagues;
 /// counted field, a changed winrate, a different scope. The stored version is what tells the startup
 /// rebuild that every row it can see was computed by an older formula; forgetting the bump leaves those
 /// rows stale with nothing anywhere to trigger a repair.</para>
+///
+/// <para>Version 2 adds the ADR 0043 Glicko-2 rating: the same rebuild now also replays every completed
+/// Tournament in date order and stores the rating, its deviation and volatility, the previous rating and
+/// last delta, the Tournament count, the last played date and the decayed rating.</para>
 /// </summary>
 public static class PlayerStatisticsFormula
 {
-    public const int Version = 1;
+    public const int Version = 2;
 }

@@ -34,7 +34,9 @@ public sealed class PlayerStatisticsStartupTests : IAsyncLifetime
                     [])]),
             Seeded));
         database.PlayerStatistics.Add(PlayerStatisticsRow.From(
-            new GlobalPlayerStatistics("Ghost", 9, 9, 0, 0, 1, 18, 18, 0, 1, null, null, null)));
+            new GlobalPlayerStatistics("Ghost", 9, 9, 0, 0, 1, 18, 18, 0, 1, null, null, null,
+                Glicko2.DefaultRating, Glicko2.DefaultDeviation, Glicko2.DefaultVolatility,
+                Glicko2.DefaultRating, 0, 0, null, Glicko2.DefaultRating)));
         await database.SaveChangesAsync();
     }
 

@@ -2,8 +2,7 @@
 
 ## Status
 
-Proposed. Planned by T13–T19 in `artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md`. Extends ADR
-0040 (player statistics read model) — it changes what that read model holds and bumps its formula
+Accepted, implemented by T13–T19. Extends ADR 0040 (player statistics read model) — it changes what that read model holds and bumps its formula
 version to 2. Settled by the grill in `artifacts/GRILL_2026_08_19_player-rating/` (round-1.html,
 round-2.html, ANSWERS.md), confirmed by the product owner on 2026-08-19.
 
@@ -97,8 +96,19 @@ count.
 
 A full deterministic replay inside the existing ADR 0040 rebuild transaction, so an edit to an old
 Tournament self-heals. `PlayerStatisticsFormula.Version` goes to **2** in the same commit, which is
-what makes `PlayerStatisticsStartupRebuild` repair every stored row. The rebuild cost is re-measured
-on the 100× dataset against ADR 0040's 1183 rows from 201 Leagues in 177 ms.
+what makes `PlayerStatisticsStartupRebuild` repair every stored row.
+
+**Measured cost.** Same 100× dataset, same shape as ADR 0040 — 1183 rows from 201 Leagues — rebuilt in
+**196 ms** at formula version 2, against ADR 0040's **177 ms** at version 1. Median of three startup
+rebuilds against the running stack (272.11 / 194.78 / 195.62 ms; the first is a cold start straight
+after the seed). So the whole replay — every completed Tournament regrouped into rating periods and
+folded through Glicko-2 — costs about **19 ms**, roughly 11% on top of the counting pass, on a write
+that happens a few times a week. That is why the replay is total rather than incremental: nothing here
+justifies the complexity of working out which players an edit could have moved.
+
+The replay reads one clock, the rebuild's, and only for idle deviation growth and the decayed rating.
+It is a **date** and the idle span is counted in whole months, so rebuilding twice on the same day
+produces byte-identical rows.
 
 The rating is **derived, never exported**: `PUBLIC_EXPORT_V4_LEAGUE_FIELDS` is unchanged and a restore
 recomputes it.

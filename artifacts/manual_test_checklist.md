@@ -834,3 +834,31 @@ is the automated anchor below, not a manual step.
 
 - [ ] `npm run backend:test` passes — in particular `Glicko2Tests.Reproduces_the_published_worked_example`, which reproduces Glickman's own published example: player (1500, 200, 0.06) beats (1400, 30) then loses to (1550, 100) and (1700, 300) → rating 1464.0506705393013, deviation 151.51652412385727, volatility 0.059995984286488495 (the paper prints 1464.06 / 151.52 / 0.05999; it rounds its intermediates to four decimals).
 - [ ] Confirm the app is unchanged: open `/leagues-archive`, `/global-stats` and any player page and check that no rating, badge or column has appeared yet. That absence is the expected outcome of this slice.
+
+## T14 rating-read-model-replay
+
+Storage and computation half of the Player Rating. `player_statistics` gains eight rating columns,
+filled by a full deterministic Glicko-2 replay inside the existing ADR 0040 rebuild transaction, at
+formula version 2. **No endpoint serves them yet and no UI shows them** — the API still answers with
+the old DTO, so every check below that touches a screen is a check that *nothing changed*. The rating
+itself is only observable in the database until T15.
+
+Set-up: `npm run dev:stress:generate`, then `npm run dev -- --env=stress` (the 100× dataset; local
+data is reset). The compose service is `postgres` and the role is `gones_migration`.
+
+- [ ] The API log at startup prints `Rebuilding player statistics: stored formula version (null) is not 2.` followed by `Player statistics rebuilt: 1183 rows from 201 Leagues in <N> ms.` — `docker compose logs api | grep "Player statistics"`.
+- [ ] `docker compose exec postgres psql -U gones_migration -d gones -c "select formula_version from player_statistics_meta"` → `2`.
+- [ ] `docker compose exec postgres psql -U gones_migration -d gones -c "select player_name, round(rating::numeric,2), round(rating_deviation::numeric,2), tournaments_played, last_played_date from player_statistics order by rating desc limit 10"` returns plausible ratings — top around 1900–1950, deviations between roughly 150 and 300, `tournaments_played` at least 1, and a non-null `last_played_date` on every row.
+- [ ] No stored deviation exceeds 350 and none is exactly the 1500/350 seed: `select count(*) filter (where rating_deviation > 350) too_wide, count(*) filter (where rating = 1500 and rating_deviation = 350) at_seed from player_statistics` → `0 | 0`.
+- [ ] The decay is real: pick a player whose `last_played_date` is years old and confirm `decayed_rating` sits between `rating` and 1500, closer to 1500 the older the date. Check one by hand against `1500 + (rating - 1500) * 0.5 ^ (idleMonths / 24)`.
+- [ ] The delta is self-consistent on every row: `select count(*) from player_statistics where abs(last_rating_delta - (rating - previous_rating)) > 1e-9` → `0`.
+- [ ] Rebuilding twice on the same day changes nothing: note a few ratings, run `update player_statistics_meta set formula_version = 1;`, `docker compose restart api`, wait, and confirm the same ratings come back identical.
+- [ ] An archive edit self-heals an **old** Tournament: edit the score of a Match in the *earliest* Tournament of a League through the UI, save, and confirm every later rating of both players moved — not just that Tournament's.
+- [ ] Deleting a League removes its players' rows and re-replays the rest (`select count(*) from player_statistics` drops).
+- [ ] **Nothing visible changed.** Open `/global-stats` and confirm the same 14 columns as before — no rating column, no badge, no delta.
+- [ ] Open a player page (`/players/<name>`) and confirm the statistics, match history, filters and pagination are exactly as before.
+- [ ] Open `/leagues-archive` and a League's standings and confirm no rating column has appeared.
+- [ ] `curl -s "localhost:5080/api/leagues-archive/global-player-statistics?page=1&size=3"` returns the **old** shape — no `rating`, `tournamentsPlayed`, `lastPlayedDate` or `decayedRating` anywhere in the JSON.
+- [ ] `curl -s "localhost:5080/api/players/<name>"` likewise carries no rating field.
+- [ ] Gones Export from Settings still produces a bundle with no rating in it, and restoring that bundle into a clean stack recomputes the ratings from scratch (the rating is derived, never exported).
+- [ ] The full-stack smoke gate still agrees on the migration list: `npm run smoke:full-stack` (or the gate that calls `scripts/smoke-full-stack.mjs`) does not throw `PostgreSQL migrations differ.`

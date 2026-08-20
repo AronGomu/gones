@@ -130,6 +130,15 @@ public sealed record PlayerStatistics(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] PlayerArchetypeUsage? MostPlayedArchetype,
     IReadOnlyList<PlayerMatch> Matches);
 
+/// <summary>
+/// One player's global numbers (ADR 0040), plus their Glicko-2 rating (ADR 0043).
+///
+/// <para>The eight rating members are <see cref="JsonIgnoreAttribute"/>d on purpose. This record's JSON
+/// shape is the frozen TypeScript parity contract in <c>fixtures/league-domain/v1/parity.json</c>, and
+/// the rating is server-only and derived — it is replayed from the archive on every rebuild, never
+/// exported and never restored. The API projects its own DTO from <c>player_statistics</c>, so nothing
+/// downstream reads these through this record's serializer.</para>
+/// </summary>
 public sealed record GlobalPlayerStatistics(
     string PlayerName,
     int PlayedMatchCount,
@@ -143,4 +152,12 @@ public sealed record GlobalPlayerStatistics(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] double? GameWinrate,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] OpponentRecord? Nemesis,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] OpponentRecord? Rival,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] PlayerArchetypeUsage? MostPlayedArchetype);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] PlayerArchetypeUsage? MostPlayedArchetype,
+    [property: JsonIgnore] double Rating,
+    [property: JsonIgnore] double RatingDeviation,
+    [property: JsonIgnore] double RatingVolatility,
+    [property: JsonIgnore] double PreviousRating,
+    [property: JsonIgnore] double LastRatingDelta,
+    [property: JsonIgnore] int TournamentsPlayed,
+    [property: JsonIgnore] string? LastPlayedDate,
+    [property: JsonIgnore] double DecayedRating);

@@ -31,6 +31,11 @@ internal sealed class PlayerStatisticsRowConfiguration : IEntityTypeConfiguratio
         builder.HasIndex(row => row.GameWins);
         builder.HasIndex(row => row.GameLosses);
         builder.HasIndex(row => row.GameWinrate);
+        // ADR 0043 adds eight rating columns and exactly two of them are sortable: the rankings order by
+        // rating, and the provisional bucket orders by tournaments played. The other six are read back
+        // with the row that was already found, so indexing them would only cost write time.
+        builder.HasIndex(row => row.Rating);
+        builder.HasIndex(row => row.TournamentsPlayed);
         builder.HasIndex(row => row.PlayerName)
             .HasDatabaseName("ix_player_statistics_player_name_pattern")
             .HasOperators("text_pattern_ops");
