@@ -923,3 +923,13 @@ Run `npm run dev -- --env=demo`.
 - [ ] Toggle back ON: the local-note paragraph disappears.
 - [ ] Open a player whose name the server does not know (local-only player, no server statistics): all three rating cells show `—` and the status cell shows `Not rated`.
 - [ ] Switch language to **Français**: labels read **Classement**, **Tournois joués**, **État du classement**; statuses read **Classé / Provisoire / Inactif / Non classé**.
+
+## T18 league-standings-rating-column
+
+- [ ] Navigate to a League detail page (server mode). Confirm the standings table has a **Rating** column as the last column after OGW.
+- [ ] The Rating column shows integer ratings (e.g. `1524`) for players present in the global catalog; players absent from the catalog show `N/A`.
+- [ ] The Rating column header is NOT clickable and has no sort arrow.
+- [ ] The row order (by Swiss points) is unchanged; the Rating column is purely informational.
+- [ ] Navigate to a Tournament result page (inside a League). Confirm the result table shows exactly 7 columns (no Rating column).
+- [ ] Open a browser-local League (no server connection). The standings table shows **N/A** in every rating cell with no console error.
+- [ ] Switch language to **Français**: the Rating column header reads **Classement**.

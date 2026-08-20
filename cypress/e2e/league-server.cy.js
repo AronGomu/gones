@@ -321,6 +321,40 @@ describe('League server command flows', () => {
     cy.get('@leagueDocuments.all').should('have.length', 0);
   });
 
+  it('shows a Rating column on the league standings table when the catalog loads', () => {
+    const state = mockLeagueServer();
+    state.leagues.push({
+      id: 'league-ratings', name: 'Ratings League', status: 'active', documentVersion: 1,
+      tournaments: [{
+        id: 't-ratings', leagueId: 'league-ratings', name: 'Cup', tournamentDate: '2026-08-01',
+        status: 'completed', playerArchetypes: [], rounds: [{ id: 'r-1', entries: [
+          { kind: 'match', id: 'e-1', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0 }
+        ] }]
+      }]
+    });
+    mockSession();
+    // Seed the catalog cache directly in localStorage so the rating column is always rendered
+    // regardless of the real API state. A fresh fetchedAt makes the cache hit the non-stale path,
+    // so no network request is needed and the test is deterministic.
+    const seedCatalog = [
+      { position: 1, playerName: 'Alice', rating: 1524, lastRatingDelta: 0, tournamentsPlayed: 5, provisional: false, inactive: false, ratingDeviation: 45, previousRating: 1524, lastPlayedDate: '2026-08-01', decayedRating: null, playedMatchCount: 10, matchWins: 7, matchLosses: 2, matchDraws: 1, matchWinrate: 0.7, playedGameCount: 20, gameWins: 14, gameLosses: 6, gameWinrate: 0.7, nemesis: null, rival: null, mostPlayedArchetype: null },
+      { position: 2, playerName: 'Bob', rating: 1480, lastRatingDelta: 0, tournamentsPlayed: 5, provisional: false, inactive: false, ratingDeviation: 45, previousRating: 1480, lastPlayedDate: '2026-08-01', decayedRating: null, playedMatchCount: 10, matchWins: 5, matchLosses: 4, matchDraws: 1, matchWinrate: 0.5, playedGameCount: 20, gameWins: 10, gameLosses: 10, gameWinrate: 0.5, nemesis: null, rival: null, mostPlayedArchetype: null },
+    ];
+    cy.visit('/leagues-archive/league-ratings', { onBeforeLoad(win) {
+      win.localStorage.setItem('gones.settings.language', 'en');
+      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+      win.localStorage.setItem('gones.settings.power-user', 'true');
+      win.localStorage.setItem('gones.global-stats.catalog', JSON.stringify({
+        items: seedCatalog, fetchedAt: new Date().toISOString(), truncated: false
+      }));
+    } });
+    cy.wait('@leagueDetail');
+    cy.get('[data-cy="leagues-archive-detail-ranking-table"]').within(() => {
+      cy.get('[data-cy="ranking-header-rating"]').should('exist');
+      cy.get('[data-cy="ranking-cell-rating-1"]').should('have.text', '1524');
+    });
+  });
+
   it('shows User read-only controls plus explicit 403 and 412 reload recovery', () => {
     const state = mockLeagueServer();
     state.leagues.push({ id: 'league-role', name: 'Role League', status: 'active', tournaments: [], documentVersion: 1 });

@@ -38,6 +38,7 @@ let nextRankingTableId = 0;
               <ng-container matColumnDef="omw"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-omw">{{ i18n.t('common.omw') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-omw-' + row.rank">{{ formatPercentage(row.opponentsMatchWinPercentage) }}</td></ng-container>
               <ng-container matColumnDef="gw"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-gw">{{ i18n.t('common.gw') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-gw-' + row.rank">{{ formatPercentage(row.gameWinPercentage) }}</td></ng-container>
               <ng-container matColumnDef="ogw"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-ogw">{{ i18n.t('common.ogw') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-ogw-' + row.rank">{{ formatPercentage(row.opponentsGameWinPercentage) }}</td></ng-container>
+              <ng-container matColumnDef="rating"><th mat-header-cell *matHeaderCellDef data-cy="ranking-header-rating">{{ i18n.t('common.rating') }}</th><td mat-cell *matCellDef="let row" [attr.data-cy]="'ranking-cell-rating-' + row.rank">{{ ratingLabel(row) }}</td></ng-container>
               <tr
                 mat-header-row
                 *matHeaderRowDef="columns"
@@ -75,7 +76,11 @@ export class RankingTableComponent {
   readonly i18n = inject(I18nService);
   @Input({ required: true }) rows: RankingRow[] = [];
   @Input() emptyText = '';
-  columns = ['rank', 'player', 'points', 'record', 'omw', 'gw', 'ogw'];
+  @Input() ratings: ReadonlyMap<string, number> | null = null;
+  private static readonly BASE_COLUMNS = ['rank', 'player', 'points', 'record', 'omw', 'gw', 'ogw'];
+  get columns(): string[] {
+    return this.ratings ? [...RankingTableComponent.BASE_COLUMNS, 'rating'] : RankingTableComponent.BASE_COLUMNS;
+  }
   collapsed = false;
   readonly panelId = `ranking-table-panel-${nextRankingTableId++}`;
 
@@ -96,6 +101,11 @@ export class RankingTableComponent {
 
   playerLabel(row: RankingRow): string {
     return formatPlayerWithArchetype(row.playerName, row.archetype ?? '');
+  }
+
+  ratingLabel(row: RankingRow): string {
+    const val = this.ratings?.get(row.playerName);
+    return val !== undefined ? String(val) : this.i18n.t('common.na');
   }
 
   formatPercentage(value: number | null | undefined): string {

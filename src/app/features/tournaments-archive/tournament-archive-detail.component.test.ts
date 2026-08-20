@@ -267,6 +267,15 @@ describe('Tournament completion status badge and toggle', () => {
   });
 });
 
+describe('Tournament result table — no rating column', () => {
+  it('a tournament result table has no rating column', () => {
+    // The ranking table call site in this component must not pass [ratings],
+    // which keeps ratings = null and suppresses the eighth column.
+    expect(sourceText).not.toMatch(/gones-ranking-table[^>]*\[ratings\]/);
+    expect(sourceText).not.toContain('ranking-header-rating');
+  });
+});
+
 describe('Tournament Archive staged editor template and CSS', () => {
   it('uses explicit unique staged actions and no title-only/autosave/immediate repository commands', () => {
     expect(sourceText).toContain('data-cy="tournament-archive-detail-edit"');
