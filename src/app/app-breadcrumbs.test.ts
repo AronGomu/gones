@@ -33,9 +33,9 @@ describe('global-stats breadcrumb', () => {
     expect(crumbs[1].link).toBeUndefined();
   });
 
-  it('labels /global-stats as Classement mondial in FR', async () => {
+  it('labels /global-stats as Classement Global in FR', async () => {
     const crumbs = await buildBreadcrumbs('/global-stats');
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Classement mondial']);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Classement Global']);
   });
 });
 

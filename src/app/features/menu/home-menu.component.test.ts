@@ -79,6 +79,11 @@ describe('HomeMenuComponent template', () => {
     }
   });
 
+  it('home menu calendar card title renders the events label', () => {
+    expect(source).toContain('data-cy="menu-calendar-card-title"');
+    expect(catalogs.en['home.calendar']).toBe('Events');
+  });
+
   it('localizes the About card without forcing French', () => {
     expect(source).not.toMatch(/routerLink="\/about"[^>]*\slang="fr"/);
     expect(catalogs.en['home.about']).toBe('About');

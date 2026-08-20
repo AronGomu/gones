@@ -644,3 +644,13 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Navigate to `/` (menu), confirm breadcrumb reads **Menu** in both languages.
 - [ ] Navigate to `/leagues-archive`, switch to French, confirm breadcrumb reads **Menu / Archives des ligues** without reloading.
 - [ ] Navigate to a league detail page, switch languages, confirm the breadcrumb's league name persists and the parent crumbs translate.
+
+## T4 home-copy-global-rankings-events
+
+- [ ] Navigate to `/` in **English** — confirm the calendar card title reads **Events** (not Calendar).
+- [ ] Navigate to `/` in **Français** — confirm the calendar card title reads **Événements** (not Calendrier).
+- [ ] Navigate to `/` in **Français** — confirm the global rankings card title reads **Classement Global** (not Classement mondial).
+- [ ] Navigate to `/` in **Français** — confirm the global rankings card description starts with **Classement global des joueurs** (lowercase 'g', not Classement mondial).
+- [ ] Navigate to `/global-stats` in **Français** — confirm the breadcrumb second segment reads **Classement Global** (not Classement mondial).
+- [ ] Navigate to `/events` — confirm the breadcrumb still reads **Calendar** (en) / **Calendrier** (fr), unchanged.
+- [ ] Confirm `data-cy="menu-calendar-card-title"` still exists on the events card (hook is stable).

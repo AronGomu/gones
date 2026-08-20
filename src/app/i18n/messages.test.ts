@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { translate } from './messages';
+import { catalogs, translate } from './messages';
 
 describe('messages', () => {
   it('names the archive Leagues Archive', () => {
@@ -16,5 +16,30 @@ describe('messages', () => {
 
   it('says Classement Global', () => {
     expect(translate('fr', 'globalStats.title')).toBe('Classement Global');
+  });
+
+  it('fr home rankings label is Classement Global', () => {
+    expect(translate('fr', 'home.globalStats')).toBe('Classement Global');
+  });
+
+  it('fr rankings breadcrumb label is Classement Global', () => {
+    expect(translate('fr', 'crumb.globalStats')).toBe('Classement Global');
+  });
+
+  it('fr rankings description starts with Classement global des joueurs', () => {
+    expect(translate('fr', 'home.globalStatsDesc')).toMatch(/^Classement global des joueurs/);
+  });
+
+  it('en events card is Events', () => {
+    expect(translate('en', 'home.calendar')).toBe('Events');
+  });
+
+  it('fr events card is Événements', () => {
+    expect(translate('fr', 'home.calendar')).toBe('Événements');
+  });
+
+  it('no french label still says Classement mondial', () => {
+    const frValues = Object.values(catalogs.fr) as string[];
+    expect(frValues.every((v) => v !== 'Classement mondial')).toBe(true);
   });
 });
