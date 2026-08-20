@@ -560,6 +560,8 @@ const en = {
   'leagues.staleCreateTournament': 'This League changed before the Tournament could be created. Reload the latest saved data and try again.',
   'leagues.createTournamentFailed': 'Could not create this Tournament.',
   'leagues.noTournamentDate': 'No Tournament Date',
+  'leagues.paginationAria': 'League archive pages',
+  'leagues.pageStatus': 'Page {page} of {total} ({count} leagues)',
 
   // Archive Tournament completion
   'archive.tournamentActive': 'Active',
@@ -1800,6 +1802,8 @@ const fr: Record<MessageKey, string> = {
   'leagues.staleCreateTournament': 'Cette ligue a changé avant la création du tournoi. Rechargez les données puis réessayez.',
   'leagues.createTournamentFailed': 'Impossible de créer ce tournoi.',
   'leagues.noTournamentDate': 'Pas de date de tournoi',
+  'leagues.paginationAria': 'Pages de l’archive des ligues',
+  'leagues.pageStatus': 'Page {page} sur {total} ({count} ligues)',
 
   'archive.tournamentActive': 'Actif',
   'archive.tournamentCompleted': 'Terminé',

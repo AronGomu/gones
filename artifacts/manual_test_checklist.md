@@ -990,3 +990,23 @@ stale image serves the old compression predicate.
 - [ ] Both documents state the 24-month ceiling on idle deviation growth.
 - [ ] Open `docs/player-rating-glicko2.html` in a browser and confirm the formula block still renders (the `Sw` line did not break the layout).
 - [ ] `npm run acceptance:matrix` exits 0 with the Global Rankings rows reading **12-col**.
+
+## T21 archive-list-browser-pagination
+
+The League Archive list now slices the catalog it already holds. No new request is issued;
+paging is purely client-side. The name filter continues to work across the full merged list and
+resets to page 1 when its value changes.
+
+Start the stack with `npm run dev -- --detached --env=stress` (201 Leagues) or seed at least 26
+Leagues manually so the default page size (25) is exceeded.
+
+- [ ] Open `/leagues-archive` with DevTools → Network open. Confirm exactly one request to `/api/leagues-archive/all`. Navigate to page 2 using the "Next" button and confirm no second network request is made.
+- [ ] Confirm the pagination nav is visible: Previous button, page status text, and Next button.
+- [ ] Confirm Previous is disabled on page 1 and Next is disabled on the last page.
+- [ ] Click Next to advance to page 2; confirm Previous becomes enabled and the displayed cards are different from page 1.
+- [ ] Click Previous to return to page 1; confirm Previous is disabled again.
+- [ ] With more than 9 Leagues loaded, type in the search field to filter down to 3 matches. Confirm all 3 are shown and the paginator disappears (single page).
+- [ ] While on page 2, type in the search field. Confirm the view resets to page 1 and shows the filtered results.
+- [ ] Open `/leagues-archive` with exactly 5 Leagues; confirm the pagination nav is absent (all rows visible).
+- [ ] Signed out with browser-local Leagues, confirm they appear alongside server rows and both kinds paginate together without reordering.
+- [ ] Refresh the page while on page 2; confirm the browser returns to page 1 (no URL persistence required).

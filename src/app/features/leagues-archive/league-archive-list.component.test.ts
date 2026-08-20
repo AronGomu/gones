@@ -21,6 +21,7 @@ import { DeckArchetypeSettingsService, SettingsLanguage } from '../../shared/dec
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { LeagueArchiveCatalogCacheService } from './league-archive-catalog-cache.service';
 import { LeagueArchiveListComponent } from './league-archive-list.component';
+import { catalogs } from '../../i18n/messages';
 
 /**
  * ADR 0028 turns the League list into a heterogeneous grid: the create affordance is offered to
@@ -233,10 +234,232 @@ describe('league archive list behaviour', () => {
     await settled();
     expect(component.showLeagueFilter()).toBe(true);
 
-    component.searchTerm = 'lyon';
+    component.onSearchChange('lyon');
     expect(component.filteredLeagues().map((item) => item.id)).toEqual(['local-1']);
     // The filter is a signal recompute, not a refetch: neither store was asked a second time.
     expect(load).toHaveBeenCalledTimes(1);
     expect(listLocalLeagueSummaries).toHaveBeenCalledTimes(1);
   });
+});
+
+// ---------------------------------------------------------------------------
+// T21: Browser-side pagination
+// ---------------------------------------------------------------------------
+
+function paginationSummary(id: string, overrides: Partial<LeagueArchiveSummary> = {}): LeagueArchiveSummary {
+  return { id, name: id, status: 'active', tournamentCount: 0, playerCount: 0, isLocal: false, ...overrides };
+}
+
+function buildPaginationComponent(serverItems: LeagueArchiveSummary[] = [], localItems: LeagueArchiveSummary[] = []) {
+  const catalogLoad = vi.fn(async () => ({
+    items: serverItems, fetchedAt: new Date().toISOString(), fromCache: false, stale: false, truncated: false
+  }));
+  const catalogCache = { load: catalogLoad } as unknown as LeagueArchiveCatalogCacheService;
+  const repo = {
+    listLocalLeagueSummaries: vi.fn(async () => localItems),
+    serverUnavailable: signal(false),
+    catalogTruncated: signal(false),
+  } as unknown as LeagueArchiveRepository;
+  const auth = { profile: signal(null) } as unknown as AuthService;
+  const router = { navigate: vi.fn(async () => true) } as unknown as Router;
+  const dialog = { open: vi.fn() } as unknown as MatDialog;
+  const power = { enabled: signal(false) } as unknown as PowerUserSettingsService;
+  const injector = Injector.create({
+    providers: [
+      { provide: LeagueArchiveCatalogCacheService, useValue: catalogCache },
+      { provide: LeagueArchiveRepository, useValue: repo },
+      { provide: AuthService, useValue: auth },
+      { provide: Router, useValue: router },
+      { provide: MatDialog, useValue: dialog },
+      { provide: PowerUserSettingsService, useValue: power },
+      { provide: DeckArchetypeSettingsService, useValue: { language: signal<SettingsLanguage>('en') } },
+      I18nService,
+    ],
+  });
+  const comp = runInInjectionContext(injector, () => new LeagueArchiveListComponent(repo, auth, router, dialog));
+  return { comp };
+}
+
+describe('LeagueArchiveListComponent template — pagination controls', () => {
+  it('renders previous and next buttons with data-cy hooks', () => {
+    expect(source).toContain('data-cy="leagues-archive-list-page-previous"');
+    expect(source).toContain('data-cy="leagues-archive-list-page-next"');
+  });
+
+  it('renders a page status element with data-cy hook', () => {
+    expect(source).toContain('data-cy="leagues-archive-list-page-status"');
+  });
+
+  it('renders a pagination nav with data-cy hook', () => {
+    expect(source).toContain('data-cy="leagues-archive-list-pagination"');
+  });
+
+  it('uses pagedLeagues() in the @for loop', () => {
+    expect(source).toContain('pagedLeagues()');
+    expect(source).toMatch(/for.*league of pagedLeagues\(\)/);
+  });
+
+  it('disables previous button when pageIndex <= 1', () => {
+    expect(source).toMatch(/\[disabled\].*pageIndex\(\) ?<= ?1/);
+  });
+
+  it('disables next button when pageIndex >= totalPages', () => {
+    expect(source).toMatch(/\[disabled\].*pageIndex\(\) ?>= ?totalPages\(\)/);
+  });
+
+  it('hides the paginator when there is only one page', () => {
+    expect(source).toMatch(/totalPages\(\) ?> ?1/);
+  });
+
+  it('paginator nav carries an aria-label', () => {
+    const navIdx = source.indexOf('leagues-archive-list-pagination');
+    const vicinity = source.slice(Math.max(0, navIdx - 300), navIdx + 200);
+    expect(vicinity).toMatch(/aria-label/);
+  });
+});
+
+describe('LeagueArchiveListComponent — slices to one page by default', () => {
+  it('shows only the first page when total exceeds default page size', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    const paged = comp.pagedLeagues();
+    const total = comp.totalLeagues();
+    expect(total).toBe(30);
+    expect(paged.length).toBeGreaterThan(0);
+    expect(paged.length).toBeLessThan(30);
+  });
+
+  it('starts on page 1', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    expect(comp.pageIndex()).toBe(1);
+  });
+});
+
+describe('LeagueArchiveListComponent — goPage', () => {
+  it('changes pageIndex and shows different rows', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    const page1Ids = comp.pagedLeagues().map(l => l.id);
+    comp.goPage(2);
+    const page2Ids = comp.pagedLeagues().map(l => l.id);
+
+    expect(comp.pageIndex()).toBe(2);
+    expect(page2Ids.length).toBeGreaterThan(0);
+    expect(page2Ids.every(id => !page1Ids.includes(id))).toBe(true);
+  });
+
+  it('previous is available after moving to page 2', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    comp.goPage(2);
+    expect(comp.pageIndex()).toBeGreaterThan(1);
+  });
+});
+
+describe('LeagueArchiveListComponent — boundary disabled states', () => {
+  it('page 1: previous disabled condition (pageIndex <= 1)', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    expect(comp.pageIndex() <= 1).toBe(true);
+  });
+
+  it('last page: next disabled condition (pageIndex >= totalPages)', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    comp.goPage(comp.totalPages());
+    expect(comp.pageIndex() >= comp.totalPages()).toBe(true);
+  });
+});
+
+describe('LeagueArchiveListComponent — filter then page', () => {
+  it('filtered to 3 rows gives totalPages === 1', async () => {
+    const items = [
+      ...Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`)),
+      paginationSummary('zz-1', { name: 'Zephyr Alpha' }),
+      paginationSummary('zz-2', { name: 'Zephyr Beta' }),
+      paginationSummary('zz-3', { name: 'Zephyr Gamma' }),
+    ];
+    const { comp } = buildPaginationComponent(items);
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    comp.onSearchChange('zephyr');
+    expect(comp.totalLeagues()).toBe(3);
+    expect(comp.totalPages()).toBe(1);
+  });
+});
+
+describe('LeagueArchiveListComponent — filter resets page', () => {
+  it('resets pageIndex to 1 when the filter changes', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 30 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    comp.goPage(2);
+    expect(comp.pageIndex()).toBe(2);
+
+    comp.onSearchChange('server-1');
+    expect(comp.pageIndex()).toBe(1);
+  });
+});
+
+describe('LeagueArchiveListComponent — local + server union pages together', () => {
+  it('combines local and server items and pages them as one list in original order', async () => {
+    const server = Array.from({ length: 15 }, (_, i) => paginationSummary(`server-${i + 1}`));
+    const local = Array.from({ length: 15 }, (_, i) => paginationSummary(`local-${i + 1}`, { isLocal: true }));
+    const { comp } = buildPaginationComponent(server, local);
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    expect(comp.totalLeagues()).toBe(30);
+
+    const page1 = comp.pagedLeagues();
+    expect(page1.length).toBeGreaterThan(0);
+    // Server rows come first in the union (leagues = [...server, ...local])
+    const firstLocalPos = page1.findIndex(l => l.isLocal);
+    const lastServerPos = [...page1].reverse().findIndex(l => !l.isLocal);
+    if (firstLocalPos !== -1 && lastServerPos !== -1) {
+      expect(firstLocalPos).toBeGreaterThan(page1.length - 1 - lastServerPos);
+    }
+  });
+});
+
+describe('LeagueArchiveListComponent — small archive shows no paginator', () => {
+  it('totalPages === 1 when all rows fit on one page', async () => {
+    const { comp } = buildPaginationComponent(
+      Array.from({ length: 5 }, (_, i) => paginationSummary(`server-${i + 1}`))
+    );
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    expect(comp.totalPages()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n coverage for new pagination keys
+// ---------------------------------------------------------------------------
+
+describe('LeagueArchiveListComponent — i18n keys for pagination', () => {
+  const requiredKeys = ['leagues.paginationAria', 'leagues.pageStatus'] as const;
+
+  for (const key of requiredKeys) {
+    it(`has ${key} in both en and fr catalogs`, () => {
+      expect(catalogs.en[key as keyof typeof catalogs.en], `en missing ${key}`).toBeTruthy();
+      expect(catalogs.fr[key as keyof typeof catalogs.fr], `fr missing ${key}`).toBeTruthy();
+    });
+  }
 });

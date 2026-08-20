@@ -321,6 +321,29 @@ describe('League server command flows', () => {
     cy.get('@leagueDocuments.all').should('have.length', 0);
   });
 
+  it('paginates the archive list in the browser and issues the catalog request exactly once', () => {
+    const state = mockLeagueServer();
+    for (let i = 0; i < 30; i++) {
+      state.leagues.push({ id: `paginated-league-${i}`, name: `Paginated League ${i}`, status: 'active', tournaments: [], documentVersion: 1 });
+    }
+    mockSession();
+    visit('/leagues-archive');
+    cy.wait('@leagueList');
+
+    // The paginator is visible because 30 leagues exceed the default page size.
+    cy.get('[data-cy="leagues-archive-list-pagination"]').should('be.visible');
+    cy.get('[data-cy="leagues-archive-list-page-previous"]').should('be.disabled');
+    cy.get('[data-cy="leagues-archive-list-page-next"]').should('not.be.disabled');
+
+    // Clicking next shows a different slice without issuing a second /all request.
+    cy.get('[data-cy="leagues-archive-list-page-next"]').click();
+    cy.get('[data-cy="leagues-archive-list-page-previous"]').should('not.be.disabled');
+    cy.get('[data-cy="leagues-archive-list-page-next"]').should('be.disabled');
+
+    // The entire flow used exactly one catalog request.
+    cy.get('@leagueList.all').should('have.length', 1);
+  });
+
   it('shows a Rating column on the league standings table when the catalog loads', () => {
     const state = mockLeagueServer();
     state.leagues.push({
