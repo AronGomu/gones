@@ -911,3 +911,15 @@ Run `npm run dev -- --env=demo`.
 - [ ] Type a search term that returns zero rows: the empty-state row spans all **12** columns with no layout break.
 - [ ] Switch language to **Français**: the Rating header reads **Classement**, Tournaments reads **Tournois**, the provisional badge reads **PROVISOIRE**, the inactive badge reads **INACTIF**.
 - [ ] A stale-cached row with no rating field (simulate by refreshing with a pre-T16 cache entry via DevTools Application→Local Storage, or by clearing the cache and mocking the API) shows **—** in the Rating cell with no crash.
+
+## T17 player-page-rating
+
+- [ ] Open any player page. Confirm the first stat row shows **Rating**, **Tournaments played**, and **Rating status** cells above the Match Win Rate row.
+- [ ] The Rating cell shows an integer (e.g. `1524`) with a coloured delta (e.g. `+28` in green or `-13` in red). A zero delta shows no `+0` or `-0`.
+- [ ] The Tournaments played cell shows the integer count from the server.
+- [ ] The Rating status cell shows `Ranked`, `Provisional`, or `Inactive` depending on the player's server flags.
+- [ ] With **Only use online data** ON, the rating row shows the server values and the local-note paragraph is absent.
+- [ ] Toggle **Only use online data** OFF when a local League is present: the rating values do not change, and the paragraph "Local matches never affect the rating: it is computed from the server archive only." appears below the stat grid.
+- [ ] Toggle back ON: the local-note paragraph disappears.
+- [ ] Open a player whose name the server does not know (local-only player, no server statistics): all three rating cells show `—` and the status cell shows `Not rated`.
+- [ ] Switch language to **Français**: labels read **Classement**, **Tournois joués**, **État du classement**; statuses read **Classé / Provisoire / Inactif / Non classé**.

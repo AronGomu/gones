@@ -18,6 +18,7 @@ import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchTe
 import { isLocalLeagueId } from '../../data/league-archive-origin';
 import { PlayerDetailCacheService } from './player-detail-cache.service';
 import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, writeMatchPageSize, writeOnlineOnly } from './player-stats-preferences';
+import { formatRatingDelta, formatRatingValue } from './rating-format';
 
 /**
  * One shape for the history whatever produced it: the server's flat rows (ADR 0039 read model) and
@@ -69,6 +70,11 @@ export interface PlayerStatsView {
     </div>
     <section class="page-heading" data-cy="player-heading"><div data-cy="player-heading-text"><p class="kicker" data-cy="player-kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
     <div class="stat-grid" data-cy="player-stat-grid">
+      <div class="stat-grid__row stat-grid__row--three" data-cy="player-stat-row-0">
+        <div class="player-stat-cell" data-cy="player-stat-cell-rating"><p class="player-stat-label" data-cy="player-stat-label-rating">{{ i18n.t('player.rating') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rating"><mat-card-content class="stat-number" data-cy="player-stat-value-rating">{{ formatRatingValue(serverStats()?.rating) }}<span class="rating-delta" [class.rating-delta--up]="(serverStats()?.lastRatingDelta ?? 0) > 0" [class.rating-delta--down]="(serverStats()?.lastRatingDelta ?? 0) < 0" data-cy="player-stat-value-rating-delta">{{ formatRatingDelta(serverStats()?.lastRatingDelta) }}</span></mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-tournaments-played"><p class="player-stat-label" data-cy="player-stat-label-tournaments-played">{{ i18n.t('player.tournamentsPlayed') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-tournaments-played"><mat-card-content class="stat-number" data-cy="player-stat-value-tournaments-played">{{ serverStats() != null ? serverStats()!.tournamentsPlayed : '—' }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-rating-status"><p class="player-stat-label" data-cy="player-stat-label-rating-status">{{ i18n.t('player.ratingStatus') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rating-status"><mat-card-content class="stat-number" data-cy="player-stat-value-rating-status">{{ ratingStatusLabel() }}</mat-card-content></mat-card></div>
+      </div>
       <div class="stat-grid__row stat-grid__row--five" data-cy="player-stat-row-1">
         <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate"><p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="player-stat-value-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-played-matches"><p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="player-stat-value-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card></div>
@@ -89,6 +95,7 @@ export interface PlayerStatsView {
         <div class="player-stat-cell" data-cy="player-stat-cell-rival"><p class="player-stat-label" data-cy="player-stat-label-rival">{{ i18n.t('player.rival') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rival"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-rival">@if (stats().rival; as rival) { <button type="button" class="stat-filter-button stat-filter-button--rival" data-cy="player-stat-filter-rival" (click)="filterByExact(rival.name)">{{ rival.name }}</button> } @else { <span data-cy="player-stat-na-rival">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
       </div>
     </div>
+    @if (showRatingLocalNote()) { <p class="muted" data-cy="player-rating-local-note">{{ i18n.t('player.ratingLocalNote') }}</p> }
     <section class="stack" data-cy="player-matches-section">
       <div class="matches-heading" data-cy="player-matches-heading">
         <h2 data-cy="player-matches-title">{{ i18n.t('player.matches') }}</h2>
@@ -207,6 +214,9 @@ export interface PlayerStatsView {
     .stat-grid__row--three {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+    .rating-delta { margin-left: .35rem; font-size: .78rem; font-weight: 800; }
+    .rating-delta--up { color: oklch(80% 0.15 145); }
+    .rating-delta--down { color: oklch(78% 0.14 25); }
     .player-stat-cell {
       display: grid;
       grid-template-rows: auto var(--player-stat-card-height, 6rem);
@@ -398,6 +408,8 @@ export class PlayerDetailComponent {
     const local = this.localStats();
     return local ? mergeStats(server, local, this.allMatches()) : serverStatsView(server);
   });
+  readonly serverStats = computed<GlobalPlayerStatisticsRow | null>(() => this.serverPayload()?.statistics ?? null);
+  readonly showRatingLocalNote = computed(() => !this.onlineOnly() && this.allMatches().some((m) => m.isLocal));
   readonly matchDrawRate = computed(() => { const s = this.stats(); return s.playedMatchCount > 0 ? s.matchDraws / s.playedMatchCount : null; });
   readonly orderedMatches = computed(() => orderMatches(this.allMatches(), this.newestFirst()));
   readonly filteredMatches = computed(() => {
@@ -458,6 +470,17 @@ export class PlayerDetailComponent {
   }
 
   onSync(): void { void this.loadPlayer({ force: true }); }
+
+  ratingStatusLabel(): string {
+    const s = this.serverStats();
+    if (!s) return this.i18n.t('player.ratingUnrated');
+    if (s.inactive) return this.i18n.t('player.ratingInactive');
+    if (s.provisional) return this.i18n.t('player.ratingProvisional');
+    return this.i18n.t('player.ratingRanked');
+  }
+
+  readonly formatRatingDelta = formatRatingDelta;
+  readonly formatRatingValue = formatRatingValue;
 
   pct(value: number | null): string { return value == null ? this.i18n.t('common.na') : `${(value * 100).toFixed(2)}%`; }
 

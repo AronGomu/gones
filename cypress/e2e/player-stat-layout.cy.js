@@ -12,7 +12,10 @@ const PLAYER_PAYLOAD = {
     position: 1, playerName: 'Alice', playedMatchCount: 20, matchWins: 15, matchLosses: 4, matchDraws: 1,
     matchWinrate: 0.75, playedGameCount: 45, gameWins: 32, gameLosses: 13, gameWinrate: 0.711,
     nemesis: { name: 'Bob', wins: 3, losses: 2 }, rival: { name: 'Carol', wins: 4, losses: 4 },
-    mostPlayedArchetype: { name: 'Delver', matchCount: 18 }
+    mostPlayedArchetype: { name: 'Delver', matchCount: 18 },
+    rating: 1524, ratingDeviation: 120, previousRating: 1496, lastRatingDelta: 28,
+    tournamentsPlayed: 7, lastPlayedDate: '2026-03-05', provisional: false, inactive: false,
+    decayedRating: null
   },
   matches: [{
     kind: 'match', leagueId: 'league-1', leagueName: 'League', tournamentId: 'tournament-1',
@@ -24,6 +27,7 @@ const PLAYER_PAYLOAD = {
 };
 
 const ROWS = [
+  ['rating', 'tournaments-played', 'rating-status'],
   ['match-winrate', 'played-matches', 'match-wins', 'match-losses', 'match-draws'],
   ['game-winrate', 'played-games', 'game-wins', 'game-losses', 'match-draw-rate'],
   ['most-played-archetype', 'nemesis', 'rival']
@@ -72,7 +76,7 @@ function shouldHaveTone(cell, tone) {
 
 /** Top edges of one row's cells, in DOM order. */
 function cellTops(rowIndex) {
-  return cy.get(`[data-cy="player-stat-row-${rowIndex + 1}"] .player-stat-cell`)
+  return cy.get(`[data-cy="player-stat-row-${rowIndex}"] .player-stat-cell`)
     .then(($cells) => [...$cells].map((cell) => Math.round(cell.getBoundingClientRect().top)));
 }
 
@@ -86,10 +90,10 @@ describe('Player Statistics stat grid', () => {
     cy.wait('@playerDetail');
   });
 
-  it('renders three rows of 5, 5 and 3 cells in order', () => {
-    cy.get('[data-cy="player-stat-grid"] > [data-cy^="player-stat-row-"]').should('have.length', 3);
+  it('renders four rows of 3, 5, 5 and 3 cells in order', () => {
+    cy.get('[data-cy="player-stat-grid"] > [data-cy^="player-stat-row-"]').should('have.length', 4);
     ROWS.forEach((expected, index) => {
-      cy.get(`[data-cy="player-stat-row-${index + 1}"] .player-stat-cell`).then(($cells) => {
+      cy.get(`[data-cy="player-stat-row-${index}"] .player-stat-cell`).then(($cells) => {
         expect([...$cells].map((cell) => cell.dataset.cy)).to.deep.equal(expected.map((name) => `player-stat-cell-${name}`));
       });
     });

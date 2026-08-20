@@ -7,6 +7,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { formatRatingDelta } from './rating-format';
 import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { GlobalPlayerStatisticsRow, OpponentRecord, PlayerArchetypeUsage } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
@@ -319,10 +320,7 @@ export class GlobalStatsComponent implements OnDestroy {
     void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(current) });
   }
 
-  formatDelta(value: number | null | undefined): string {
-    if (value === null || value === undefined || value === 0) return '';
-    return value > 0 ? `+${value}` : `${value}`;
-  }
+  formatDelta(value: number | null | undefined): string { return formatRatingDelta(value); }
 
   formatPct(value: number | null | undefined): string {
     return value === null || value === undefined ? '—' : `${Math.round(value * 100)}%`;

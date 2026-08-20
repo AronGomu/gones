@@ -2,6 +2,7 @@ import '@angular/compiler';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { formatRatingDelta } from './rating-format';
 import { createLeague, createTournament, PersistedLeague } from '../../domain/models';
 import { PlayerDetailResponse, PlayerMatchRow } from '../../api/generated/gones-api';
 import { PlayerDetailResult } from './player-detail-cache.service';
@@ -374,6 +375,107 @@ describe('PlayerDetailComponent', () => {
   it('pagination helper clamps unsupported page bounds', () => {
     expect(paginateMatches([1, 2, 3], 0, 2)).toEqual([1, 2]);
     expect(paginateMatches([1, 2, 3], 9, 2)).toEqual([3]);
+  });
+
+  describe('rating row', () => {
+    it('renders the rating row first', () => {
+      const source = readFileSync(join(process.cwd(), 'src/app/features/players/player-detail.component.ts'), 'utf8');
+      const row0Pos = source.indexOf('player-stat-row-0');
+      const row1Pos = source.indexOf('player-stat-row-1');
+      expect(row0Pos).toBeGreaterThan(0);
+      expect(row0Pos).toBeLessThan(row1Pos);
+    });
+
+    it('renders the integer rating', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, rating: 1524 } }) });
+      await settle();
+      expect(player.serverStats()?.rating).toBe(1524);
+    });
+
+    it('renders a positive delta', () => {
+      expect(formatRatingDelta(28)).toBe('+28');
+    });
+
+    it('renders a negative delta', () => {
+      expect(formatRatingDelta(-13)).toBe('-13');
+    });
+
+    it('hides a zero delta', () => {
+      expect(formatRatingDelta(0)).toBe('');
+    });
+
+    it('renders tournaments played', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, tournamentsPlayed: 7 } }) });
+      await settle();
+      expect(player.serverStats()?.tournamentsPlayed).toBe(7);
+    });
+
+    it('status is ranked', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, provisional: false, inactive: false } }) });
+      await settle();
+      expect(player.ratingStatusLabel()).toBe('player.ratingRanked');
+    });
+
+    it('status is provisional', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, provisional: true, inactive: false } }) });
+      await settle();
+      expect(player.ratingStatusLabel()).toBe('player.ratingProvisional');
+    });
+
+    it('status is inactive', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, provisional: false, inactive: true } }) });
+      await settle();
+      expect(player.ratingStatusLabel()).toBe('player.ratingInactive');
+    });
+
+    it('rating ignores the online-only toggle', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, rating: 1524 } }), local: [league('local-league', 'Carol')] });
+      await settle();
+      const onlineRating = player.serverStats()?.rating;
+      player.setOnlineOnly(false);
+      await settle();
+      expect(player.serverStats()?.rating).toBe(onlineRating);
+    });
+
+    it('shows the local note when local matches are merged', async () => {
+      localStorage.clear();
+      const { player } = component({ local: [league('local-league', 'Carol')] });
+      await settle();
+      player.setOnlineOnly(false);
+      await settle();
+      expect(player.showRatingLocalNote()).toBe(true);
+    });
+
+    it('hides the local note when online only', async () => {
+      localStorage.clear();
+      const { player } = component({ local: [league('local-league', 'Carol')] });
+      await settle();
+      expect(player.onlineOnly()).toBe(true);
+      expect(player.showRatingLocalNote()).toBe(false);
+    });
+
+    it('hides the local note with no local matches', async () => {
+      localStorage.clear();
+      const { player } = component();
+      await settle();
+      player.setOnlineOnly(false);
+      await settle();
+      expect(player.showRatingLocalNote()).toBe(false);
+    });
+
+    it('falls back for a player the server does not rate', async () => {
+      localStorage.clear();
+      const { player } = component({ payload: null });
+      await settle();
+      expect(player.serverStats()).toBeNull();
+      expect(player.ratingStatusLabel()).toBe('player.ratingUnrated');
+    });
   });
 
   describe('match card archetypes', () => {
