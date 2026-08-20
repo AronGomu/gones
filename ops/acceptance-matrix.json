@@ -573,6 +573,11 @@
                     "detail": "XSS, CSV injection, open redirect, replay"
                 },
                 {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/ResponseCompressionTests.cs",
+                    "detail": "anonymous GETs answer brotli or gzip while a request carrying an Authorization header or the refresh cookie is answered uncompressed \u2014 the BREACH narrowing of app-wide compression (ADR 0042)"
+                },
+                {
                     "gate": "rehearsal",
                     "target": "scripts/release-rehearsal.mjs",
                     "detail": "forwarded scheme from the trusted proxy is honoured (HSTS emitted)"

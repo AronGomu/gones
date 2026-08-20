@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Gones.Api.Admin;
 using Gones.Api.Errors;
 using Gones.Api.Events;
@@ -19,7 +20,9 @@ using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Net.Http.Headers;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using OpenTelemetry.Metrics;
@@ -51,6 +54,18 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
+// The public catalogs are the payloads that need this (ADR 0042), but compression is cheap for every
+// anonymous read, so it is registered app-wide and narrowed at the middleware below. Fastest rather
+// than Optimal because the bodies are compressed on a request path, not precomputed.
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["application/problem+json"]);
+});
+builder.Services.Configure<BrotliCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
+builder.Services.Configure<GzipCompressionProviderOptions>(options => options.Level = CompressionLevel.Fastest);
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddGonesAuthorization(runtimeConfiguration, builder.Configuration);
 builder.Services.AddExactOriginCors(builder.Configuration);
@@ -136,6 +151,16 @@ else
 }
 
 var app = builder.Build();
+// BREACH: compressing a response that carries a session secret next to attacker-influenced input leaks
+// the secret through the compressed length. Credentialed requests are answered uncompressed; every
+// public read — the League catalog, the Event catalog, the rankings — is anonymous and is compressed
+// (ADR 0042). Outermost so it wraps every endpoint and every error body; it reads no forwarded value,
+// because EnableForHttps makes the request scheme irrelevant to the decision.
+app.UseWhen(
+    context => HttpMethods.IsGet(context.Request.Method)
+        && !context.Request.Headers.ContainsKey(HeaderNames.Authorization)
+        && !context.Request.Cookies.ContainsKey(RefreshCookie.Name),
+    branch => branch.UseResponseCompression());
 // Must precede every consumer of the client IP and scheme: correlation logging, HSTS, rate limits.
 if (forwardedProxies.Enabled) app.UseForwardedHeaders();
 app.UseMiddleware<ApiBoundaryMiddleware>();

@@ -86,6 +86,19 @@ partition. That is the fail-closed default; see ADR 0017 and ADR 0018.
 The proxy is also the only place a global/edge rate limiter can live. The in-process limits in
 ADR 0017 are mandatory but not sufficient against volumetric abuse.
 
+### Response compression
+
+`gones-api` compresses its own responses — brotli first, gzip as the fallback, both at the fastest
+level — so the host needs no compression module and must not strip `Accept-Encoding` on the way in or
+`Content-Encoding` and `Vary` on the way out.
+
+Compression answers **anonymous GETs only**. A request carrying an `Authorization` header or the
+`gones_refresh` cookie is answered uncompressed, because compressing a response that carries a session
+secret next to attacker-influenced input leaks that secret through the compressed length (BREACH).
+A proxy that compresses on the API's behalf would undo that decision, so **the proxy must not add
+compression of its own to `gones-api` responses**. A 304 carries no body and therefore no
+`Content-Encoding`. Asserted by `backend/tests/Gones.IntegrationTests/ResponseCompressionTests.cs`.
+
 ### Persistent PostgreSQL
 
 PostgreSQL 17 with durable storage. Two roles are expected, created by

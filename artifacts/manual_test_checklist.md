@@ -730,7 +730,7 @@ the role is `gones_migration` (not `db` / `gones`).
 - [ ] Set `GONES_LEAGUES__BACKFILL_CATALOG_COUNTS_ON_STARTUP=false`, stale the rows again, restart the API, and confirm the counts stay stale and the log reports the backfill disabled — then unset it.
 - [ ] Confirm the API still starts and serves `/health/ready` when the backfill is disabled.
 - [ ] Expect the placeholder League ("Unassigned Tournaments") row to have moved to `version = 2` on the first start after the migration — it is seeded by raw SQL, so the backfill stamps it once. Confirm it has not moved again on later starts.
-- [ ] Confirm `GET /api/leagues-archive/all` still returns only `id,name,status,tournaments,documentVersion,updatedAt` per row — this ticket must add no field to the HTTP response.
+- [ ] Confirm `GET /api/leagues-archive/all/documents` returns `id,name,status,tournaments,documentVersion,updatedAt` per row and no count field — T9 stored the counts without exposing them. (T10 later moved the whole documents from `/all` to `/all/documents` and gave `/all` the summary shape, so check the documents route here, not `/all`.)
 
 ## T10 slim-league-catalog-api
 
@@ -796,3 +796,30 @@ Start the stack with `npm run dev -- --detached --env=demo`, or `--env=stress` w
 - [ ] On the 100× stress dataset (`npm run dev:stress:generate` then `npm run dev -- --env=stress --detached`): confirm the `/all` response in DevTools → Network is **under 60 KB** (measured 33.3 KB for 201 rows).
 - [ ] On that same dataset, confirm the list renders all ~200 cards with correct counts and no visible slowdown. There is deliberately **no** pagination control — the whole catalog arrives and the browser slices it.
 - [ ] On that same dataset, confirm `gones.leagues-archive.catalog.v2` in Local Storage is well under the ~5 MB quota (it was ~2.9 MB of documents before this slice).
+
+## T12 response-compression
+
+Backend slice: the API compresses its own responses — brotli first, gzip as the fallback, both at
+`CompressionLevel.Fastest` — but **only for GET requests that carry no `Authorization` header and no
+`gones_refresh` cookie**. That narrowing is the BREACH mitigation (ADR 0042): a compressed response
+that carries a session secret next to attacker-influenced input leaks the secret through its own
+length. **No user-visible change** — browsers decompress transparently — so most of what follows is
+confirming the header is there and that nothing broke.
+
+Start the stack with `npm run dev -- --detached --env=demo`, or `--env=stress` where a step says so.
+Rebuild the API image first (`docker compose build api`) or you will measure the previous build.
+
+- [ ] `curl -s -H 'Accept-Encoding: br' -o /dev/null -D - localhost:5080/api/leagues-archive/all | grep -i content-encoding` prints `Content-Encoding: br`.
+- [ ] The same request also prints `Vary: Accept-Encoding`.
+- [ ] The same request with `-H 'Accept-Encoding: gzip'` prints `Content-Encoding: gzip`.
+- [ ] The same request with **no** `Accept-Encoding` prints no `Content-Encoding`.
+- [ ] The same request with `-H 'Authorization: Bearer x'` added prints **no** `Content-Encoding` (still `200`).
+- [ ] The same request with `-H 'Cookie: gones_refresh=x'` added prints **no** `Content-Encoding` (still `200`).
+- [ ] A conditional replay (`-H "If-None-Match: <etag>" -H 'Accept-Encoding: br'`) answers `304` with no `Content-Encoding`.
+- [ ] `curl -s -o /dev/null -D - -H 'Accept-Encoding: br' localhost:5080/api/leagues-archive/does-not-exist` answers `404` with `Content-Type: application/problem+json` **and** `Content-Encoding: br`.
+- [ ] A write (`POST /api/leagues-archive`, any request) prints no `Content-Encoding` — only GETs are compressed.
+- [ ] Sign in, then in DevTools → Network confirm an authenticated read (e.g. `/api/users/me`) has **no** `content-encoding` response header while `/api/events/all` on the same page does.
+- [ ] On the 100× stress dataset, confirm the measured sizes: `/api/leagues-archive/all` ≈ 34 KB identity / 3.5 KB br, `/api/leagues-archive/all/documents` ≈ 1.44 MB identity / 340 KB br / 195 KB gzip.
+- [ ] Open `/leagues-archive`, `/events` and `/global-stats` and confirm every page renders exactly as before — the browser decodes the compressed body with no code change.
+- [ ] Settings → export the full bundle over the compressed `/all/documents` route and confirm the downloaded file is intact and re-importable.
+- [ ] Known gap to re-check when brotli levels are revisited: brotli at `Fastest` is *larger* than gzip at `Fastest` on the big payloads (348 KB vs 198 KB on `/all/documents`), and brotli wins the negotiation for every real browser. Confirm this is still the accepted trade before tuning.
