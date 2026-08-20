@@ -166,6 +166,10 @@ try {
     if (playerStatLayout.status !== 0) process.exitCode = playerStatLayout.status ?? 1;
   }
   if (!process.exitCode) {
+    const headerLayout = runCypress('cypress/e2e/header-layout.cy.js');
+    if (headerLayout.status !== 0) process.exitCode = headerLayout.status ?? 1;
+  }
+  if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const seed = spawnSync(process.execPath, ['scripts/seed-local.mjs'], { stdio: 'inherit' });
       if (seed.status !== 0) {

@@ -616,3 +616,11 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Open `/global-stats` with no `?sort=` in the URL: position 1 is the player with the most Match Wins, ties broken by Game Wins, then Match Draws, then name A→Z — the same first row as the League Archive's own ranking.
 - [ ] Sort by **Game Win Rate** ascending, then descending: a player whose only matches are 0–0 draws (no winrate, shown `N/A`) is listed **last** in both directions, never first.
 - [ ] Sort by any column and find two rows with the same value: their names read A→Z in both the ascending and the descending view.
+
+## T1 header-actions-right-aligned
+
+- [ ] Set browser width to 700px (e.g. DevTools responsive mode) and visit `/`: the **Sign in** button hugs the right edge of the header toolbar.
+- [ ] Same at 640px: the Sign in button still right-aligned.
+- [ ] Sign in (or use DevTools to mock a session), then resize to 700px: the username link and **Logout** button remain at the right edge.
+- [ ] Visit `/settings` at 700px: the **Export Settings** and **Import Settings** buttons appear in the header, and the auth block (Sign in / username / Logout) is still right-most.
+- [ ] Slowly drag the browser window from 800px → 600px → 400px: the auth block stays right-aligned throughout without jumping to the left at any intermediate width.
