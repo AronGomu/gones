@@ -7,6 +7,16 @@ const routesSource = readFileSync(join(repoRoot, 'src', 'app', 'app.routes.ts'),
 
 const AUTH_COMPONENT = 'auth/auth-entry.component';
 
+/**
+ * Pages that *start* their breadcrumb — `buildBreadcrumbs` returns a single item — carry no back
+ * button: the breadcrumb offers nothing to go back to (ADR 0044). Kept in sync with
+ * `app-breadcrumbs.test.ts`, which pins that these are the only two.
+ */
+const BREADCRUMB_ROOT_COMPONENTS = [
+  'features/menu/home-menu.component',
+  'features/admin/admin-home.component'
+];
+
 function parseRoutedComponents(): string[] {
   const pattern = /loadComponent:\s*\(\)\s*=>\s*import\('\.\/([^']+)'\)/g;
   const paths = new Set<string>();
@@ -29,9 +39,17 @@ describe('back-button-coverage', () => {
     expect(routedPaths.length).toBeGreaterThanOrEqual(25);
   });
 
+  it('breadcrumb-root pages carry no back button', () => {
+    for (const path of BREADCRUMB_ROOT_COMPONENTS) {
+      const source = readComponentSource(path);
+      expect(source, `${path} should not contain gones-back-button`).not.toContain('gones-back-button');
+    }
+  });
+
   it('every routed page has a top back button', () => {
+    const nonRootPaths = routedPaths.filter((p) => !BREADCRUMB_ROOT_COMPONENTS.includes(p));
     const missing: string[] = [];
-    for (const path of routedPaths) {
+    for (const path of nonRootPaths) {
       const source = readComponentSource(path);
       if (!source.includes('position="top"')) {
         missing.push(path);
@@ -41,9 +59,9 @@ describe('back-button-coverage', () => {
   });
 
   it('every routed page (except auth) has a bottom back button', () => {
-    const nonAuthPaths = routedPaths.filter((p) => p !== AUTH_COMPONENT);
+    const nonAuthNonRootPaths = routedPaths.filter((p) => p !== AUTH_COMPONENT && !BREADCRUMB_ROOT_COMPONENTS.includes(p));
     const missing: string[] = [];
-    for (const path of nonAuthPaths) {
+    for (const path of nonAuthNonRootPaths) {
       const source = readComponentSource(path);
       if (!source.includes('position="bottom"')) {
         missing.push(path);

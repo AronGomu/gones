@@ -2,8 +2,7 @@
 
 ## Status
 
-Proposed. Planned by T2 in `artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md`. Amends the
-app-wide back-button rule recorded in `AGENT.md`.
+Accepted. Planned by T2 in artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md.
 
 ## Context
 

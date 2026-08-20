@@ -5,14 +5,11 @@ import { LiveTournamentDocument } from '../../domain/live-tournament';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
 import { AuthService } from '../../auth/auth.service';
-import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, BackButtonComponent],
+  imports: [RouterLink],
   template: `
-    <gones-back-button data-cy="home-menu-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
-
     <section class="home-landing" [attr.aria-label]="i18n.t('home.aria')" data-cy="menu-section">
       <nav class="home-destinations" [attr.aria-label]="i18n.t('home.navAria')" data-cy="menu-nav">
         <a class="home-destination home-destination--calendar" routerLink="/events" data-cy="menu-calendar-card">
@@ -48,8 +45,6 @@ import { BackButtonComponent } from '../../shared/back-button.component';
       </nav>
 
     </section>
-
-    <gones-back-button data-cy="home-menu-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class HomeMenuComponent {

@@ -91,8 +91,10 @@ Gates: `npm run e2e:ci`, `npm run acceptance:matrix`, `npm run release:rehearsal
   invalidates its own cache entry and refetches — the TTL governs navigation, never correctness
   (ADR 0039).
 - **Every routed page carries a back button at the top and at the bottom** (`gones-back-button`,
-  `position="top"` and `position="bottom"`). The auth pages are the single exception and keep the top
-  one only. Enforced by `src/app/shared/back-button-coverage.test.ts`.
+  `position="top"` and `position="bottom"`), except the two kinds of page that have nothing to go
+  back to: the pages that *start* a breadcrumb (`/` and `/admin`, which render none) and the auth exception
+  pages (which keep the top one only). Enforced by
+  `src/app/shared/back-button-coverage.test.ts` (ADR 0044).
 - **Logging out returns to sign-in, and signing in returns the user where they were.** Logout
   navigates to `/login?returnUrl=<page where logout was clicked>`; a successful sign-in navigates
   back to it. When the new session lacks the role that page needs, its route guard redirects as

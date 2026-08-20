@@ -209,3 +209,36 @@ describe('header import visibility', () => {
     }
   });
 });
+
+describe('breadcrumb-root detection', () => {
+  it('menu is a breadcrumb root', async () => {
+    const crumbs = await buildBreadcrumbs('/');
+    expect(crumbs).toHaveLength(1);
+  });
+
+  it('admin home is a breadcrumb root', async () => {
+    const crumbs = await buildBreadcrumbs('/admin');
+    expect(crumbs).toHaveLength(1);
+  });
+
+  it('every other listed path is not a root', async () => {
+    const paths = [
+      '/about',
+      '/events',
+      '/settings',
+      '/registrations',
+      '/global-stats',
+      '/players/x',
+      '/leagues-archive',
+      '/live-tournaments',
+      '/admin/users',
+      '/admin/organizations',
+      '/admin/audit',
+      '/login'
+    ];
+    for (const path of paths) {
+      const crumbs = await buildBreadcrumbs(path);
+      expect(crumbs.length, `${path} should not be a breadcrumb root`).toBeGreaterThanOrEqual(2);
+    }
+  });
+});

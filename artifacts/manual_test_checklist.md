@@ -624,3 +624,14 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Sign in (or use DevTools to mock a session), then resize to 700px: the username link and **Logout** button remain at the right edge.
 - [ ] Visit `/settings` at 700px: the **Export Settings** and **Import Settings** buttons appear in the header, and the auth block (Sign in / username / Logout) is still right-most.
 - [ ] Slowly drag the browser window from 800px → 600px → 400px: the auth block stays right-aligned throughout without jumping to the left at any intermediate width.
+
+## T2 back-button-breadcrumb-root
+
+- [ ] Visit `/` (menu page): confirm **no** back button appears at the top or bottom of the page.
+- [ ] Visit `/admin` (admin home): confirm **no** back button appears at the top or bottom of the page.
+- [ ] Visit `/settings`: confirm a back button appears at the **top** and at the **bottom**.
+- [ ] Visit `/events`: confirm a back button appears at the **top** and at the **bottom**.
+- [ ] Visit `/global-stats`: confirm a back button appears at the **top** and at the **bottom**.
+- [ ] Sign out and visit `/login`: confirm the auth-exception rule holds — top back button present, no bottom back button.
+- [ ] Navigate from `/settings` → click the top back button → lands on a previous page or `/`.
+- [ ] Navigate from `/events` → click the bottom back button → lands on a previous page or `/`.
