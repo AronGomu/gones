@@ -1,6 +1,13 @@
 import '@angular/compiler';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+// `effect()` requires ChangeDetectionScheduler which StaticInjector.create() does not provide.
+vi.mock('@angular/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@angular/core')>();
+  return { ...actual, effect: () => ({ destroy: () => {} }) };
+});
+
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { NEVER } from 'rxjs';

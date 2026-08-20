@@ -132,6 +132,7 @@ describe("Settings sections by capability (server mode)", () => {
     cy.get('[data-cy="settings-language-select"]').click({ force: true });
     cy.contains("mat-option", "Français").click({ force: true });
     cy.get('[data-cy="settings-language-status"]').should("contain", "Langue actuelle : Français");
+    cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Paramètres');
     cy.window().then((win) => {
       expect(win.localStorage.getItem("gones.settings.language")).to.equal("fr");
     });

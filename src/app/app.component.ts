@@ -1,4 +1,4 @@
-import { Component, computed, ElementRef, inject, Injector, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, ElementRef, inject, Injector, signal, ViewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -169,6 +169,13 @@ export class AppComponent {
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       this.lastVisited.record(event.urlAfterRedirects);
       void this.updateRouteState(event.urlAfterRedirects);
+    });
+    // Breadcrumb labels are translated when the array is built, not when it is rendered, so a
+    // language change has to rebuild them. `updateRouteState` is already guarded by
+    // `routeStateRequest`, so a rebuild racing a navigation cannot win over the newer one.
+    effect(() => {
+      this.i18n.language();
+      void this.updateRouteState(this.router.url);
     });
   }
 

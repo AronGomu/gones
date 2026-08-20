@@ -635,3 +635,12 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Sign out and visit `/login`: confirm the auth-exception rule holds — top back button present, no bottom back button.
 - [ ] Navigate from `/settings` → click the top back button → lands on a previous page or `/`.
 - [ ] Navigate from `/events` → click the bottom back button → lands on a previous page or `/`.
+
+## T3 breadcrumb-language-refresh
+
+- [ ] Visit `/settings` (English language set). Confirm the breadcrumb reads **Menu / Settings**.
+- [ ] Without reloading, open the language selector on the Settings page and switch to **Français**. Confirm the breadcrumb immediately updates to **Menu / Paramètres** without any page reload or navigation.
+- [ ] Switch back to **English**. Confirm the breadcrumb immediately reads **Menu / Settings** again.
+- [ ] Navigate to `/` (menu), confirm breadcrumb reads **Menu** in both languages.
+- [ ] Navigate to `/leagues-archive`, switch to French, confirm breadcrumb reads **Menu / Archives des ligues** without reloading.
+- [ ] Navigate to a league detail page, switch languages, confirm the breadcrumb's league name persists and the parent crumbs translate.
