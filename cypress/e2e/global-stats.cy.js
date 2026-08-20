@@ -7,6 +7,15 @@
 const BASE_ROW = {
   position: 1,
   playerName: 'Alice',
+  rating: 1524,
+  lastRatingDelta: 0,
+  tournamentsPlayed: 7,
+  provisional: false,
+  inactive: false,
+  ratingDeviation: 45,
+  previousRating: 1524,
+  lastPlayedDate: '2025-01-01',
+  decayedRating: null,
   playedMatchCount: 20,
   matchWins: 15,
   matchLosses: 4,
@@ -36,7 +45,7 @@ function mockCatalog(items = [BASE_ROW]) {
 // ---------------------------------------------------------------------------
 // Headers
 // ---------------------------------------------------------------------------
-describe('Global Stats — 10 column headers', () => {
+describe('Global Stats — 12 column headers', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
     mockCatalog();
@@ -44,9 +53,9 @@ describe('Global Stats — 10 column headers', () => {
     cy.wait('@catalog');
   });
 
-  const HEADERS = ['#', 'Player', 'Matches', 'Wins', 'Losses', 'Draw', 'M%', 'Nemesis', 'Rival', 'Archetype (matches)'];
+  const HEADERS = ['#', 'Player', 'Classement', 'Tournois', 'Matchs', 'Victoires', 'Défaites', 'Nuls', 'M%', 'Nemesis', 'Rival', 'Archétype (matchs)'];
 
-  it('renders all 10 column headers in order', () => {
+  it('renders all 12 column headers in order', () => {
     cy.get('[data-cy="global-stats-table"]').within(() => {
       cy.get('th').then(($headers) => {
         const texts = [...$headers].map((el) => el.textContent.trim());
@@ -55,6 +64,61 @@ describe('Global Stats — 10 column headers', () => {
         }
       });
     });
+  });
+
+  it('rating column header is present', () => {
+    cy.get('[data-cy="global-stats-col-rating"]').should('exist');
+  });
+
+  it('clicking the Rating header navigates to ?sort=rating&direction=desc', () => {
+    cy.get('[data-cy="global-stats-col-rating"]').click();
+    cy.url().should('include', 'sort=rating').and('include', 'direction=desc');
+  });
+});
+
+describe('Global Stats — rating column', () => {
+  it('renders a provisional badge for a provisional player', () => {
+    cy.clearLocalStorage();
+    const rows = [
+      makeRow({ position: 1, playerName: 'NewPlayer', provisional: true, inactive: false, tournamentsPlayed: 2 }),
+    ];
+    mockCatalog(rows);
+    cy.visit('/global-stats');
+    cy.wait('@catalog');
+    cy.get('[data-cy="global-stats-cell-1-rating-provisional"]').should('exist');
+    cy.get('[data-cy="global-stats-cell-1-rating-inactive"]').should('not.exist');
+  });
+
+  it('renders an inactive badge for an inactive player', () => {
+    cy.clearLocalStorage();
+    const rows = [
+      makeRow({ position: 1, playerName: 'OldPlayer', provisional: false, inactive: true }),
+    ];
+    mockCatalog(rows);
+    cy.visit('/global-stats');
+    cy.wait('@catalog');
+    cy.get('[data-cy="global-stats-cell-1-rating-inactive"]').should('exist');
+    cy.get('[data-cy="global-stats-cell-1-rating-provisional"]').should('not.exist');
+  });
+
+  it('renders no badge for an active ranked player', () => {
+    cy.clearLocalStorage();
+    mockCatalog();
+    cy.visit('/global-stats');
+    cy.wait('@catalog');
+    cy.get('[data-cy="global-stats-cell-1-rating-provisional"]').should('not.exist');
+    cy.get('[data-cy="global-stats-cell-1-rating-inactive"]').should('not.exist');
+  });
+
+  it('renders — when rating is undefined (stale cache row)', () => {
+    cy.clearLocalStorage();
+    const rows = [
+      makeRow({ position: 1, rating: undefined, lastRatingDelta: undefined }),
+    ];
+    mockCatalog(rows);
+    cy.visit('/global-stats');
+    cy.wait('@catalog');
+    cy.get('[data-cy="global-stats-cell-1-rating-value"]').should('have.text', '—');
   });
 });
 

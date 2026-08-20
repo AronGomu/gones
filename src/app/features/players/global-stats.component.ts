@@ -88,6 +88,8 @@ export const SEARCH_DEBOUNCE_MS = 300;
             <tr data-cy="global-stats-header-row">
               <th data-cy="global-stats-col-position">{{ i18n.t('globalStats.colPosition') }}</th>
               <th data-cy="global-stats-col-player">{{ i18n.t('globalStats.colPlayer') }}</th>
+              <th (click)="sortBy('rating')" [attr.aria-sort]="ariaSort('rating')" class="sortable-col" data-cy="global-stats-col-rating">{{ i18n.t('globalStats.colRating') }}</th>
+              <th (click)="sortBy('tournamentsPlayed')" [attr.aria-sort]="ariaSort('tournamentsPlayed')" class="sortable-col" data-cy="global-stats-col-tournaments">{{ i18n.t('globalStats.colTournaments') }}</th>
               <th (click)="sortBy('playedMatchCount')" [attr.aria-sort]="ariaSort('playedMatchCount')" class="sortable-col" data-cy="global-stats-col-matches">{{ i18n.t('globalStats.colMatches') }}</th>
               <th (click)="sortBy('matchWins')" [attr.aria-sort]="ariaSort('matchWins')" class="sortable-col" data-cy="global-stats-col-match-wins">{{ i18n.t('globalStats.colMatchWins') }}</th>
               <th (click)="sortBy('matchLosses')" [attr.aria-sort]="ariaSort('matchLosses')" class="sortable-col" data-cy="global-stats-col-match-losses">{{ i18n.t('globalStats.colMatchLosses') }}</th>
@@ -101,13 +103,27 @@ export const SEARCH_DEBOUNCE_MS = 300;
           <tbody data-cy="global-stats-tbody">
             @if (!pagedRows().length) {
               <tr data-cy="global-stats-empty-row">
-                <td colspan="10" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
+                <td colspan="12" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
               </tr>
             }
             @for (row of pagedRows(); track row.playerName) {
               <tr [attr.data-cy]="'global-stats-row-' + row.position">
                 <td [attr.data-cy]="'global-stats-cell-position-' + row.position">{{ row.position }}</td>
                 <td [attr.data-cy]="'global-stats-cell-player-' + row.position"><a [routerLink]="['/players', row.playerName]" [attr.data-cy]="'global-stats-player-link-' + row.position">{{ row.playerName }}</a></td>
+                <td [attr.data-cy]="'global-stats-cell-rating-' + row.position">
+                  @if (row.rating !== undefined) {
+                    <span [attr.data-cy]="'global-stats-cell-' + row.position + '-rating-value'">{{ row.rating }}</span>
+                    <span class="rating-delta" [class.rating-delta--up]="row.lastRatingDelta > 0" [class.rating-delta--down]="row.lastRatingDelta < 0" [attr.data-cy]="'global-stats-cell-' + row.position + '-rating-delta'">{{ formatDelta(row.lastRatingDelta) }}</span>
+                    @if (row.provisional) {
+                      <span class="rating-badge rating-badge--provisional" [attr.aria-label]="i18n.t('globalStats.provisionalAria')" [attr.data-cy]="'global-stats-cell-' + row.position + '-rating-provisional'">{{ i18n.t('globalStats.provisionalBadge') }}</span>
+                    } @else if (row.inactive) {
+                      <span class="rating-badge rating-badge--inactive" [attr.aria-label]="i18n.t('globalStats.inactiveAria')" [attr.data-cy]="'global-stats-cell-' + row.position + '-rating-inactive'">{{ i18n.t('globalStats.inactiveBadge') }}</span>
+                    }
+                  } @else {
+                    <span [attr.data-cy]="'global-stats-cell-' + row.position + '-rating-value'">—</span>
+                  }
+                </td>
+                <td [attr.data-cy]="'global-stats-cell-tournaments-' + row.position">{{ row.tournamentsPlayed }}</td>
                 <td [attr.data-cy]="'global-stats-cell-matches-' + row.position">{{ row.playedMatchCount }}</td>
                 <td [attr.data-cy]="'global-stats-cell-match-wins-' + row.position">{{ row.matchWins }}</td>
                 <td [attr.data-cy]="'global-stats-cell-match-losses-' + row.position">{{ row.matchLosses }}</td>
@@ -153,6 +169,11 @@ export const SEARCH_DEBOUNCE_MS = 300;
     .ranking-table tbody tr:hover { background: color-mix(in oklch, var(--iron) 80%, var(--raised-iron)); }
     .ranking-table a { color: oklch(78% 0.1 230); text-decoration: none; }
     .ranking-table a:hover { text-decoration: underline; }
+    .rating-delta { margin-left: .35rem; font-size: .78rem; font-weight: 800; }
+    .rating-delta--up { color: oklch(80% 0.15 145); }
+    .rating-delta--down { color: oklch(78% 0.14 25); }
+    .rating-badge { margin-left: .35rem; padding: .05rem .3rem; border: 1px solid var(--soot); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--dim-ash); }
+    .rating-badge--inactive { border-color: var(--dim-ash); }
     .global-stats-pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: .75rem; }
     .global-stats-pagination button { border: 1px solid var(--soot); background: var(--black-metal); color: var(--ash); cursor: pointer; min-height: 2.5rem; padding: .45rem .75rem; }
     .global-stats-pagination button:disabled { cursor: default; opacity: .45; }
@@ -296,6 +317,11 @@ export class GlobalStatsComponent implements OnDestroy {
       direction: this.currentDirection(),
     };
     void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(current) });
+  }
+
+  formatDelta(value: number | null | undefined): string {
+    if (value === null || value === undefined || value === 0) return '';
+    return value > 0 ? `+${value}` : `${value}`;
   }
 
   formatPct(value: number | null | undefined): string {

@@ -5,6 +5,8 @@ export const GLOBAL_STATS_PAGE_SIZES = [10, 25, 50, 100] as const;
 export type GlobalStatsPageSize = (typeof GLOBAL_STATS_PAGE_SIZES)[number];
 
 export const GLOBAL_STATS_SORTABLE_COLS = [
+  'rating',
+  'tournamentsPlayed',
   'playedMatchCount',
   'matchWins',
   'matchLosses',
@@ -70,8 +72,9 @@ const GLOBAL_STATS_NULLABLE_COLS: readonly GlobalStatsSortCol[] = ['matchWinrate
  * a missing winrate sorts **last in both directions** (so the null test is applied before the
  * direction, never flipped by it), the Player Name tiebreak is always ascending and **ordinal**
  * (Player Names are exact and case-sensitive under ADR 0040, not browser-locale collated), and no
- * requested sort means `matchWins DESC, gameWins DESC, matchDraws DESC, playerName ASC` rather than
- * whatever order the catalog happened to arrive in.
+ * requested sort means the three-bucket partition from `PublicLeagueEndpoints.OrderGlobalStats`:
+ * bucket 0 (active ranked) → bucket 1 (inactive) → bucket 2 (provisional); within 0 and 1 rating
+ * DESC; within 2 tournamentsPlayed DESC then playedMatchCount DESC; every tie broken by name ASC.
  */
 export function sortGlobalStatsRows<T extends GlobalPlayerStatisticsRow>(
   rows: readonly T[],
@@ -81,11 +84,18 @@ export function sortGlobalStatsRows<T extends GlobalPlayerStatisticsRow>(
   const sign = direction === 'asc' ? 1 : -1;
   const sorted = [...rows];
   if (!sort) {
-    return sorted.sort((left, right) =>
-      compareValues(right.matchWins, left.matchWins)
-      || compareValues(right.gameWins, left.gameWins)
-      || compareValues(right.matchDraws, left.matchDraws)
-      || compareOrdinal(left.playerName, right.playerName));
+    return sorted.sort((left, right) => {
+      const lb = rankingBucket(left);
+      const rb = rankingBucket(right);
+      if (lb !== rb) return lb - rb;
+      if (lb === 2) {
+        return compareValues(right.tournamentsPlayed ?? 0, left.tournamentsPlayed ?? 0)
+          || compareValues(right.playedMatchCount, left.playedMatchCount)
+          || compareOrdinal(left.playerName, right.playerName);
+      }
+      return compareValues(right.rating ?? 0, left.rating ?? 0)
+        || compareOrdinal(left.playerName, right.playerName);
+    });
   }
   const nullable = GLOBAL_STATS_NULLABLE_COLS.includes(sort);
   return sorted.sort((left, right) => {
@@ -97,6 +107,12 @@ export function sortGlobalStatsRows<T extends GlobalPlayerStatisticsRow>(
     }
     return sign * compareValues(leftValue ?? 0, rightValue ?? 0) || compareOrdinal(left.playerName, right.playerName);
   });
+}
+
+function rankingBucket(row: GlobalPlayerStatisticsRow): 0 | 1 | 2 {
+  if (row.provisional ?? false) return 2;
+  if (row.inactive ?? false) return 1;
+  return 0;
 }
 
 function compareValues(left: number, right: number): number {

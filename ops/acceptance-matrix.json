@@ -2635,6 +2635,33 @@
             ]
         },
         {
+            "id": "doc09-player-rating",
+            "doc": "09-frontend-angular.md",
+            "capability": "Glicko-2 player rating replayed from all archived tournament results: one integer rating per player, server data only, provisional under 5 tournaments, inactive after 12 months, three-bucket default order (active → inactive → provisional) in the Global Rankings table.",
+            "section": "Product",
+            "status": "proved",
+            "acceptance": [
+                "product-global-stats-page"
+            ],
+            "evidence": [
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.UnitTests/Glicko2Tests.cs",
+                    "detail": "Glicko-2 rating engine: expected output, win/loss/draw updates, margin-of-victory factor"
+                },
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.UnitTests/PlayerRatingReplayTests.cs",
+                    "detail": "Full replay of ratings from archived match history; provisional/inactive derivation"
+                },
+                {
+                    "gate": "cypress",
+                    "target": "cypress/e2e/global-stats.cy.js",
+                    "detail": "12-column headers, rating sort navigation, provisional/inactive badges, stale-cache fallback"
+                }
+            ]
+        },
+        {
             "id": "doc09-global-stats-page",
             "doc": "09-frontend-angular.md",
             "capability": "/global-stats page: 14-column searchable/sortable/paged ranking table fed by server Global Player Statistics API; home nav card; breadcrumb EN/FR; dual-source: server completed leagues only, local excluded.",

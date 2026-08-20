@@ -23,10 +23,12 @@ const source = readFileSync(join(__dirname, 'global-stats.component.ts'), 'utf8'
 // ---------------------------------------------------------------------------
 // Template structure checks
 // ---------------------------------------------------------------------------
-describe('GlobalStatsComponent template — 10 column headers', () => {
+describe('GlobalStatsComponent template — 12 column headers', () => {
   const COL_DATA_CY = [
     'global-stats-col-position',
     'global-stats-col-player',
+    'global-stats-col-rating',
+    'global-stats-col-tournaments',
     'global-stats-col-matches',
     'global-stats-col-match-wins',
     'global-stats-col-match-losses',
@@ -37,7 +39,7 @@ describe('GlobalStatsComponent template — 10 column headers', () => {
     'global-stats-col-archetype',
   ];
 
-  it('contains all 10 column header data-cy values in order', () => {
+  it('contains all 12 column header data-cy values in order', () => {
     for (const cy of COL_DATA_CY) {
       expect(source, `missing: ${cy}`).toContain(`"${cy}"`);
     }
@@ -52,14 +54,16 @@ describe('GlobalStatsComponent template — 10 column headers', () => {
     expect(source).not.toContain('data-cy="global-stats-col-games"');
   });
 
-  it('empty row spans all ten columns', () => {
-    expect(source).toContain('colspan="10"');
-    expect(source).not.toContain('colspan="14"');
+  it('empty row spans all twelve columns', () => {
+    expect(source).toContain('colspan="12"');
+    expect(source).not.toContain('colspan="10"');
   });
 });
 
 describe('GlobalStatsComponent template — sortable headers', () => {
   const SORTABLE = [
+    'global-stats-col-rating',
+    'global-stats-col-tournaments',
     'global-stats-col-matches',
     'global-stats-col-match-wins',
     'global-stats-col-match-losses',
@@ -251,6 +255,68 @@ describe('GlobalStatsComponent — format helpers', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Rating column — formatDelta helper
+// ---------------------------------------------------------------------------
+
+describe('GlobalStatsComponent — formatDelta', () => {
+  it('returns empty string for zero delta', () => {
+    const { comp } = buildComponent();
+    expect(comp.formatDelta(0)).toBe('');
+  });
+
+  it('returns +N for positive delta', () => {
+    const { comp } = buildComponent();
+    expect(comp.formatDelta(28)).toBe('+28');
+  });
+
+  it('returns -N for negative delta', () => {
+    const { comp } = buildComponent();
+    expect(comp.formatDelta(-13)).toBe('-13');
+  });
+
+  it('returns empty string for null/undefined delta', () => {
+    const { comp } = buildComponent();
+    expect(comp.formatDelta(null)).toBe('');
+    expect(comp.formatDelta(undefined)).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rating column — template structure
+// ---------------------------------------------------------------------------
+
+describe('GlobalStatsComponent template — rating cell', () => {
+  it('renders the integer rating value', () => {
+    expect(source).toContain('row.rating');
+    expect(source).toContain('rating-value');
+  });
+
+  it('renders the rating delta with up/down classes', () => {
+    expect(source).toContain('rating-delta--up');
+    expect(source).toContain('rating-delta--down');
+    expect(source).toContain('formatDelta(row.lastRatingDelta)');
+  });
+
+  it('includes provisional badge with data-cy hook', () => {
+    expect(source).toContain('rating-badge--provisional');
+    expect(source).toContain('rating-provisional');
+  });
+
+  it('includes inactive badge with data-cy hook', () => {
+    expect(source).toContain('rating-badge--inactive');
+    expect(source).toContain('rating-inactive');
+  });
+
+  it('falls back to \u2014 when rating is undefined (stale cache)', () => {
+    expect(source).toMatch(/row\.rating.*\?\?|row\.rating.*undefined|globalStats\.colRating/);
+  });
+
+  it('renders the tournamentsPlayed count', () => {
+    expect(source).toContain('row.tournamentsPlayed');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Cache and catalog loading
 // ---------------------------------------------------------------------------
 
@@ -398,6 +464,10 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
     'globalStats.colMatchLosses',
     'globalStats.colMatchDraws',
     'globalStats.colMatchWinrate',
+    'globalStats.colRating',
+    'globalStats.colTournaments',
+    'globalStats.provisionalBadge',
+    'globalStats.inactiveBadge',
     'globalStats.colNemesis',
     'globalStats.colRival',
     'globalStats.colArchetype',

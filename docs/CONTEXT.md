@@ -460,10 +460,13 @@ _Avoid_: Migration, deployment
 - Byes and roster-only Player Names do not create **Global Player Statistics** rows or affect Global performance
 - Archive Tournaments whose status is `active` do not contribute to **Global Player Statistics**
 - Browser-local League Archive records never contribute to **Global Player Statistics**; the source is always the server
-- **Global Player Statistics** expose 14 columns in fixed order: Position, Player, Matches, MW, ML, MD, M%, Games, GW, GL, G%, Nemesis, Rival, Archetype
+- **Global Player Statistics** expose 12 columns in fixed order: Position, Player, Rating, Tournaments, Matches, MW, ML, MD, M%, Nemesis, Rival, Archetype
 - Position in **Global Player Statistics** is dynamic: it reflects the current sort and search result, not a stored rank
 - **Global Player Statistics** identity is case-sensitive exact Player Name; `Alice` and `alice` are different rows
-- **Global Player Statistics** have no Elo rating in this release
+- **Player Rating** is a Glicko-2 rating replayed from all archived tournament results; one integer per player; server data only, never stored — derived at read time
+- A player is **provisional** when they have fewer than 5 `tournamentsPlayed`; provisional players sort to the bottom of the Global Rankings by `tournamentsPlayed` desc then `playedMatchCount` desc
+- A player is **inactive** when they have no completed tournament in the last 12 months; inactive players sort below active ranked players and above provisional players
+- **Global Player Statistics** default order: active ranked (rating desc) → inactive ranked (rating desc) → provisional (tournamentsPlayed desc, matches desc); every bucket ties broken by Player Name ascending
 - **Global Player Statistics** are browsable at `/global-stats`; the page supports search, sort by numeric column, and pagination (10/25/50/100 per page, default 100)
 - **Global Player Statistics** sort: numeric column click sets descending; second click toggles ascending; ties broken by Player Name ascending
 - Percentages in **Global Player Statistics** display as whole-number percentages; null values display as `—`

@@ -613,7 +613,7 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Open any `/events/<slug>` and click **Add to Calendar** in the Participants header: the browser hands the `.ics` to the OS calendar handler instead of dropping it in Downloads.
 - [ ] Open an Archive Tournament inside a League whose status is **Completed** (mark a League complete first if the demo data has none): no **Mark complete / Reopen** button is rendered, matching the **Edit** button that is already hidden there.
 - [ ] Open the same Archive Tournament inside an **Active** League: the toggle is back and still works.
-- [ ] Open `/global-stats` with no `?sort=` in the URL: position 1 is the player with the most Match Wins, ties broken by Game Wins, then Match Draws, then name A→Z — the same first row as the League Archive's own ranking.
+- [ ] ~~Open `/global-stats` with no `?sort=` in the URL: position 1 is the player with the most Match Wins, ties broken by Game Wins, then Match Draws, then name A→Z.~~ *Superseded by T16: default order is now three-bucket by Glicko-2 rating; see T16 checklist.*
 - [ ] Sort by **Game Win Rate** ascending, then descending: a player whose only matches are 0–0 draws (no winrate, shown `N/A`) is listed **last** in both directions, never first.
 - [ ] Sort by any column and find two rows with the same value: their names read A→Z in both the ascending and the descending view.
 
@@ -666,7 +666,7 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 
 ## T6 global-rankings-table-columns
 
-- [ ] Open `/global-stats`. Confirm the table has exactly **10** columns: #, Player, Matches, Wins, Losses, Draw, M%, Nemesis, Rival, Archetype (matches).
+- [ ] Open `/global-stats`. Confirm the table has exactly **12** columns: #, Player, Rating, Tournaments, Matches, Wins, Losses, Draw, M%, Nemesis, Rival, Archetype (matches). *(updated by T16)*
 - [ ] Confirm no columns named Games, GW, GL, or G% appear anywhere in the table header row.
 - [ ] Confirm the Match Win column header reads **Wins** (not MW).
 - [ ] Confirm the Match Loss column header reads **Losses** (not ML).
@@ -678,7 +678,7 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] In French, confirm the archetype cell still shows `{name} ({number})` (no "matchs" word inside the cell — only the header carries it).
 - [ ] Open `/global-stats?sort=gameWins&direction=desc`. Confirm the table still renders and rows appear reordered by game wins descending (game stats still function as sort keys).
 - [ ] With multiple players equal on Wins, confirm higher game wins ranks first (tie-break still works).
-- [ ] Confirm the empty-state row (search with no results) spans the full table width (10 columns).
+- [ ] Confirm the empty-state row (search with no results) spans the full table width (12 columns). *(updated by T16)*
 - [ ] Confirm the Player Stats page (`/players/:name`) still shows the archetype cell as `{name} ({count} matches)` — that page was not changed by this ticket.
 
 ## T7 hide-ics-for-started-events
@@ -891,3 +891,23 @@ This ticket is API-only. Nothing on the rankings page or the player page changes
 - [ ] Within the same day the ETags are stable and a conditional request still answers `304`.
 - [ ] `/global-stats` still renders, sorts, filters and pages exactly as before — the page ignores the new fields until T16. Note that its client-side default order is still the old `matchWins` one; that mirror is T16's job.
 - [ ] A player page opened from the rankings still shows the same statistics, history, filters and pagination as before.
+
+## T16 global-rankings-rating-column
+
+Run `npm run dev -- --env=demo`.
+
+- [ ] Open `/global-stats`. The table has **12** columns in order: #, Player, Rating, Tournaments, Matches, Wins, Losses, Draw, M%, Nemesis, Rival, Archetype (matches).
+- [ ] The **Rating** column header is clickable. Click it: the URL gains `?sort=rating&direction=desc` and the table reorders with the highest-rated player at position 1.
+- [ ] Click **Rating** again: the direction toggles to `asc` and the lowest-rated player is at position 1.
+- [ ] With no `?sort=` in the URL (or after removing it), confirm the default order is: active ranked players first (by rating desc), then inactive players (by rating desc), then provisional players last (by tournamentsPlayed desc, then matches desc). Position 1 is an active ranked player, not necessarily the one with the most match wins.
+- [ ] The client order for position 1 matches the first row returned by `curl 'localhost:5080/api/leagues-archive/global-player-statistics?page=1&pageSize=25'`.
+- [ ] Find a **provisional** player (fewer than 5 tournaments played — demo data has many). Confirm the Rating cell shows an integer rating value and a `PROVISIONAL` badge (all-caps).
+- [ ] Find an **inactive** player (no tournament in the last 12 months). Confirm the Rating cell shows an integer rating value and an `INACTIVE` badge.
+- [ ] For an active ranked player, confirm no badge appears in the Rating cell.
+- [ ] For any player whose rating improved since last period, confirm a `+N` delta appears in the Rating cell in green (smaller than the rating number).
+- [ ] For any player whose rating dropped, confirm a `−N` delta appears in red.
+- [ ] For a player with zero delta, confirm the delta span is empty (no `+0` or `-0`).
+- [ ] Click the **Tournaments** column header. Confirm `?sort=tournamentsPlayed` is in the URL and the player with the most tournaments is at position 1.
+- [ ] Type a search term that returns zero rows: the empty-state row spans all **12** columns with no layout break.
+- [ ] Switch language to **Français**: the Rating header reads **Classement**, Tournaments reads **Tournois**, the provisional badge reads **PROVISOIRE**, the inactive badge reads **INACTIF**.
+- [ ] A stale-cached row with no rating field (simulate by refreshing with a pre-T16 cache entry via DevTools Application→Local Storage, or by clearing the cache and mocking the API) shows **—** in the Rating cell with no crash.
