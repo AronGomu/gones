@@ -72,15 +72,15 @@ export interface PlayerStatsView {
       <div class="stat-grid__row stat-grid__row--five" data-cy="player-stat-row-1">
         <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate"><p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="player-stat-value-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-played-matches"><p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="player-stat-value-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-wins"><p class="player-stat-label" data-cy="player-stat-label-match-wins">{{ i18n.t('player.matchWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-match-wins">{{ stats().matchWins }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-losses"><p class="player-stat-label" data-cy="player-stat-label-match-losses">{{ i18n.t('player.matchLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-match-losses">{{ stats().matchLosses }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-draws"><p class="player-stat-label" data-cy="player-stat-label-match-draws">{{ i18n.t('player.matchDraws') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draws"><mat-card-content class="stat-number" data-cy="player-stat-value-match-draws">{{ stats().matchDraws }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-wins"><p class="player-stat-label" data-cy="player-stat-label-match-wins">{{ i18n.t('player.matchWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-wins"><mat-card-content class="stat-number stat-number--win" data-cy="player-stat-value-match-wins">{{ stats().matchWins }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-losses"><p class="player-stat-label" data-cy="player-stat-label-match-losses">{{ i18n.t('player.matchLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-losses"><mat-card-content class="stat-number stat-number--loss" data-cy="player-stat-value-match-losses">{{ stats().matchLosses }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-draws"><p class="player-stat-label" data-cy="player-stat-label-match-draws">{{ i18n.t('player.matchDraws') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draws"><mat-card-content class="stat-number stat-number--draw" data-cy="player-stat-value-match-draws">{{ stats().matchDraws }}</mat-card-content></mat-card></div>
       </div>
       <div class="stat-grid__row stat-grid__row--five" data-cy="player-stat-row-2">
         <div class="player-stat-cell" data-cy="player-stat-cell-game-winrate"><p class="player-stat-label" data-cy="player-stat-label-game-winrate">{{ i18n.t('player.gameWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-winrate"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="player-stat-value-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-played-games"><p class="player-stat-label" data-cy="player-stat-label-played-games">{{ i18n.t('player.playedGames') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-games"><mat-card-content class="stat-number" data-cy="player-stat-value-played-games">{{ stats().playedGameCount }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-game-wins"><p class="player-stat-label" data-cy="player-stat-label-game-wins">{{ i18n.t('player.gameWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-game-wins">{{ stats().gameWins }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-game-losses"><p class="player-stat-label" data-cy="player-stat-label-game-losses">{{ i18n.t('player.gameLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-game-losses">{{ stats().gameLosses }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-wins"><p class="player-stat-label" data-cy="player-stat-label-game-wins">{{ i18n.t('player.gameWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-wins"><mat-card-content class="stat-number stat-number--win" data-cy="player-stat-value-game-wins">{{ stats().gameWins }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-losses"><p class="player-stat-label" data-cy="player-stat-label-game-losses">{{ i18n.t('player.gameLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-losses"><mat-card-content class="stat-number stat-number--loss" data-cy="player-stat-value-game-losses">{{ stats().gameLosses }}</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-match-draw-rate"><p class="player-stat-label" data-cy="player-stat-label-match-draw-rate">{{ i18n.t('player.matchDrawRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draw-rate"><mat-card-content class="stat-number" data-cy="player-stat-value-match-draw-rate">{{ pct(matchDrawRate()) }}</mat-card-content></mat-card></div>
       </div>
       <div class="stat-grid__row stat-grid__row--three" data-cy="player-stat-row-3">
@@ -257,9 +257,10 @@ export interface PlayerStatsView {
     }
     .player-stat-card mat-card-content.player-stat-card__name { padding-inline: .75rem; }
     .player-stat-card mat-card-content.stat-number { font-size: clamp(2.2rem, 6vw, 3.6rem); }
-    .player-stat-card mat-card-content.stat-number--high { color: oklch(80% 0.15 145); }
-    .player-stat-card mat-card-content.stat-number--low { color: oklch(78% 0.14 25); }
-    .player-stat-card mat-card-content.stat-number--even { color: #fff; }
+    /* One tone per outcome, shared by the counts and by the winrate either side of 50%. */
+    .player-stat-card mat-card-content.stat-number--win { color: oklch(80% 0.15 145); }
+    .player-stat-card mat-card-content.stat-number--loss { color: oklch(78% 0.14 25); }
+    .player-stat-card mat-card-content.stat-number--draw { color: oklch(91% 0.18 95); }
     .stat-filter-button {
       border: 0;
       background: transparent;
@@ -462,10 +463,11 @@ export class PlayerDetailComponent {
 
   winrateStatClass(value: number | null): string {
     if (value == null) return 'stat-number';
-    const percent = Math.round(value * 100);
-    if (percent > 50) return 'stat-number stat-number--high';
-    if (percent < 50) return 'stat-number stat-number--low';
-    return 'stat-number stat-number--even';
+    // Compare the two decimals the cell paints, so the tone can never contradict the number.
+    const percent = Math.round(value * 10000) / 100;
+    if (percent > 50) return 'stat-number stat-number--win';
+    if (percent < 50) return 'stat-number stat-number--loss';
+    return 'stat-number stat-number--draw';
   }
 
   matchResult(match: PlayerMatchView): 'win' | 'loss' | 'draw' {

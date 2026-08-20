@@ -315,6 +315,18 @@ describe('PlayerDetailComponent', () => {
   // Row structure, cell order and the painted line breaks live in cypress/e2e/player-stat-layout.cy.js:
   // a source regex cannot tell a three-row grid from three rows laid out side by side.
 
+  it('tones a winrate by the two decimals the cell paints', () => {
+    const { player } = component();
+    expect(player.winrateStatClass(null)).toBe('stat-number');
+    expect(player.winrateStatClass(0.5)).toBe('stat-number stat-number--draw');
+    expect(player.winrateStatClass(0.5001)).toBe('stat-number stat-number--win');
+    expect(player.winrateStatClass(0.4999)).toBe('stat-number stat-number--loss');
+    // 50.004% paints as 50.00%, so it stays a draw rather than contradicting the number.
+    expect(player.winrateStatClass(0.500049)).toBe('stat-number stat-number--draw');
+    expect(player.winrateStatClass(1)).toBe('stat-number stat-number--win');
+    expect(player.winrateStatClass(0)).toBe('stat-number stat-number--loss');
+  });
+
   it('computes the draw percentage', async () => {
     localStorage.clear();
     const { player } = component({ payload: serverPayload({ statistics: { ...serverPayload().statistics, playedMatchCount: 10, matchDraws: 2 } }) });
