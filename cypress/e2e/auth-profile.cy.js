@@ -25,8 +25,8 @@ function login() {
 /**
  * `firstVisitHomeGuard` sends a browser that has never completed a first visit to /about, and only
  * '' and '/about' ever record that visit — a session that deep-links straight to /login never does.
- * The sign-out and account-deletion cases below assert the landing page is '/', which is what every
- * browser that has already been to the app sees, so record the completed visit these flows assume.
+ * The account-deletion case below asserts the landing page is '/', which is what every browser that
+ * has already been to the app sees, so record the completed visit these flows assume.
  *
  * Written to the live window rather than to `cy.visit`'s `onBeforeLoad`: on the release topology the
  * ngsw service worker answers the navigation request out of its own cache, the document never travels
@@ -118,8 +118,10 @@ describe('auth and profile', () => {
       expect(storage.toLowerCase()).not.to.contain('accesstoken');
     });
 
+    // Logout lands on the sign-in page carrying a returnUrl (`app.component.ts` `logout()`), not on
+    // the home page. The session is still what this asserts: no logout button survives the sign-out.
     cy.get('[data-cy="logout-button"]').click();
-    cy.location('pathname').should('eq', '/');
+    cy.location('pathname').should('eq', '/login');
     cy.get('[data-cy="logout-button"]').should('not.exist');
   });
 
