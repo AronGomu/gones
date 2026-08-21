@@ -49,11 +49,14 @@ describe('Global Stats — 12 column headers', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
     mockCatalog();
-    cy.visit('/global-stats');
+    cy.visit('/global-stats', { onBeforeLoad(win) {
+      win.localStorage.setItem('gones.settings.language', 'en');
+      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+    } });
     cy.wait('@catalog');
   });
 
-  const HEADERS = ['#', 'Player', 'Classement', 'Tournois', 'Matchs', 'Victoires', 'Défaites', 'Nuls', 'M%', 'Nemesis', 'Rival', 'Archétype (matchs)'];
+  const HEADERS = ['#', 'Player', 'Rating', 'Tournaments', 'Matches', 'Wins', 'Losses', 'Draw', 'M%', 'Nemesis', 'Rival', 'Archetype (matches)'];
 
   it('renders all 12 column headers in order', () => {
     cy.get('[data-cy="global-stats-table"]').within(() => {
