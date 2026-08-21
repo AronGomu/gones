@@ -1,6 +1,7 @@
 import { InjectionToken, inject } from '@angular/core';
 import { AuthService } from '../auth/auth.service';
 import { DataAuthority, dataAuthority } from '../config/data-authority';
+import { LeagueArchiveSummary } from '../data/league-archive-summary';
 import { LiveTournamentDocument } from '../domain/live-tournament';
 import { LeagueDocument, LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
 import { AspNetApiBackend } from './aspnet-api-backend.service';
@@ -35,6 +36,7 @@ export interface ReplaceArchiveRoundIntent {
 
 export interface ArchiveTournamentEditBatchCommand {
   editTournament?: { name: string; tournamentDate: string };
+  status?: LeagueStatus;
   addRounds: AddArchiveRoundIntent[];
   deleteRoundIds: string[];
   replaceRounds: ReplaceArchiveRoundIntent[];
@@ -46,8 +48,29 @@ export interface ArchiveTournamentEditBatchResult {
   destinationLeague: PersistedLeague | null;
 }
 
+/**
+ * A whole store read in one answer. `truncated` is the store admitting it returned less than it holds
+ * — the server catalog has a row cap (ADR 0039), so a caller that may not present a partial archive
+ * as a complete one has something to check.
+ */
+export interface LeagueArchiveCatalog {
+  leagues: PersistedLeague[];
+  truncated: boolean;
+}
+
+/**
+ * The same store read as `LeagueArchiveCatalog`, one row per League instead of one document (ADR
+ * 0042). The list page needs a name, a status and two numbers; only the Settings export needs the
+ * documents, so the two answers are separate calls rather than one body serving both.
+ */
+export interface LeagueArchiveSummaryCatalog {
+  items: LeagueArchiveSummary[];
+  truncated: boolean;
+}
+
 export interface LeagueArchiveBackendPort {
-  listLeagueArchives(): Promise<PersistedLeague[]>;
+  listLeagueArchives(): Promise<LeagueArchiveCatalog>;
+  listLeagueArchiveSummaries(): Promise<LeagueArchiveSummaryCatalog>;
   getLeagueArchive(id: string): Promise<PersistedLeague | null>;
   createLeagueArchive(name: string, idempotencyKey?: string): Promise<PersistedLeague>;
   renameLeagueArchive(id: string, expectedVersion: number, name: string): Promise<PersistedLeague>;

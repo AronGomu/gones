@@ -14,6 +14,7 @@ public sealed class LeaguePlayerNameMaintenanceTests
                 "league-1",
                 "T1",
                 "2026-08-01",
+                "completed",
                 [new RoundDocument("round-1", entries)],
                 [new PlayerArchetypeDocument("Alice", "Burn (Red)"), new PlayerArchetypeDocument("alice", "Elves (Green)")])
         ]);

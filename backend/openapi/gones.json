@@ -154,50 +154,33 @@
         }
       }
     },
-    "/api/leagues-archive": {
+    "/api/leagues-archive/global-player-statistics/all": {
       "get": {
         "tags": [
           "PublicLeagueEndpoints"
         ],
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
-              "format": "int32"
+        "operationId": "GetGlobalPlayerStatisticsCatalog",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalPlayerStatisticsCatalogResponse"
+                }
+              }
             }
           },
-          {
-            "name": "pageSize",
-            "in": "query",
-            "schema": {
-              "pattern": "^-?(?:0|[1-9]\\d*)$",
-              "type": [
-                "integer",
-                "string"
-              ],
-              "format": "int32"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
+          "304": {
+            "description": "Not Modified"
           }
+        }
+      }
+    },
+    "/api/leagues-archive/all": {
+      "get": {
+        "tags": [
+          "PublicLeagueEndpoints"
         ],
         "responses": {
           "200": {
@@ -205,60 +188,35 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicLeagueListResponse"
+                  "$ref": "#/components/schemas/PublicLeagueCatalogResponse"
                 }
               }
             }
           },
           "304": {
             "description": "Not Modified"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
           }
         }
-      },
-      "post": {
+      }
+    },
+    "/api/leagues-archive/all/documents": {
+      "get": {
         "tags": [
-          "LeagueCommandEndpoints"
+          "PublicLeagueEndpoints"
         ],
-        "operationId": "CreateLeagueArchive",
-        "parameters": [
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateLeagueRequest"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
-          "201": {
-            "description": "Created",
+          "200": {
+            "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LeagueCommandResponse"
+                  "$ref": "#/components/schemas/PublicLeagueDocumentCatalogResponse"
                 }
               }
             }
+          },
+          "304": {
+            "description": "Not Modified"
           }
         }
       }
@@ -690,6 +648,59 @@
           },
           "304": {
             "description": "Not Modified"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/players/{playerName}": {
+      "get": {
+        "tags": [
+          "PlayerEndpoints"
+        ],
+        "operationId": "GetPlayer",
+        "parameters": [
+          {
+            "name": "playerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDetailResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
             "description": "Not Found",
@@ -2310,6 +2321,45 @@
               "application/problem+json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leagues-archive": {
+      "post": {
+        "tags": [
+          "LeagueCommandEndpoints"
+        ],
+        "operationId": "CreateLeagueArchive",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeagueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueCommandResponse"
                 }
               }
             }
@@ -6800,69 +6850,6 @@
         }
       }
     },
-    "/api/organizations/{organizationId}/transfer-ownership": {
-      "post": {
-        "tags": [
-          "OrganizationEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "organizationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TransferOrganizationOwnershipRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "204": {
-            "description": "No Content"
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/organizations/{organizationId}/notification-settings": {
       "get": {
         "tags": [
@@ -7374,7 +7361,6 @@
           "isSelf",
           "canClose",
           "blockReason",
-          "soleOwnedOrganizations",
           "otherMembershipOrganizationIds"
         ],
         "type": "object",
@@ -7409,12 +7395,6 @@
               "null",
               "string"
             ]
-          },
-          "soleOwnedOrganizations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminSoleOwnerOrganizationResponse"
-            }
           },
           "otherMembershipOrganizationIds": {
             "type": "array",
@@ -7910,37 +7890,6 @@
           }
         }
       },
-      "AdminSoleOwnerOrganizationResponse": {
-        "required": [
-          "organizationId",
-          "organizationName",
-          "suggestedNewOwnerUserId",
-          "suggestedNewOwnerUsername"
-        ],
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "organizationName": {
-            "type": "string"
-          },
-          "suggestedNewOwnerUserId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "suggestedNewOwnerUsername": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "AdminUserDetailResponse": {
         "required": [
           "id",
@@ -8089,6 +8038,7 @@
         "required": [
           "targetLeagueId",
           "editTournament",
+          "status",
           "addRounds",
           "deleteRoundIds",
           "replaceRounds",
@@ -8110,6 +8060,12 @@
               {
                 "$ref": "#/components/schemas/EditArchiveTournamentIntent"
               }
+            ]
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
             ]
           },
           "addRounds": {
@@ -8325,8 +8281,7 @@
           "name",
           "description",
           "website",
-          "contactEmail",
-          "ownerUserId"
+          "contactEmail"
         ],
         "type": "object",
         "properties": {
@@ -8358,10 +8313,6 @@
               "null",
               "string"
             ]
-          },
-          "ownerUserId": {
-            "type": "string",
-            "format": "uuid"
           }
         }
       },
@@ -8453,8 +8404,7 @@
       },
       "DisableUserRequest": {
         "required": [
-          "confirmedUsername",
-          "ownershipTransfers"
+          "confirmedUsername"
         ],
         "type": "object",
         "properties": {
@@ -8462,15 +8412,6 @@
             "maxLength": 120,
             "minLength": 0,
             "type": "string"
-          },
-          "ownershipTransfers": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/OwnershipTransferBody"
-            }
           }
         }
       },
@@ -8486,6 +8427,12 @@
           },
           "tournamentDate": {
             "type": "string"
+          },
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -9494,6 +9441,33 @@
           }
         }
       },
+      "GlobalPlayerStatisticsCatalogResponse": {
+        "required": [
+          "items",
+          "totalCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlobalPlayerStatisticsRow"
+            }
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "GlobalPlayerStatisticsResponse": {
         "required": [
           "items",
@@ -9564,7 +9538,16 @@
           "gameWinrate",
           "nemesis",
           "rival",
-          "mostPlayedArchetype"
+          "mostPlayedArchetype",
+          "rating",
+          "ratingDeviation",
+          "previousRating",
+          "lastRatingDelta",
+          "tournamentsPlayed",
+          "lastPlayedDate",
+          "provisional",
+          "inactive",
+          "decayedRating"
         ],
         "type": "object",
         "properties": {
@@ -9682,6 +9665,67 @@
                 "$ref": "#/components/schemas/PlayerArchetypeUsage"
               }
             ]
+          },
+          "rating": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ratingDeviation": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "previousRating": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastRatingDelta": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "tournamentsPlayed": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "lastPlayedDate": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "provisional": {
+            "type": "boolean"
+          },
+          "inactive": {
+            "type": "boolean"
+          },
+          "decayedRating": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -10908,23 +10952,6 @@
           }
         }
       },
-      "OwnershipTransferBody": {
-        "required": [
-          "organizationId",
-          "newOwnerUserId"
-        ],
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "newOwnerUserId": {
-            "type": "string",
-            "format": "uuid"
-          }
-        }
-      },
       "PatchUserProfileRequest": {
         "required": [
           "username",
@@ -11055,6 +11082,37 @@
           }
         }
       },
+      "PlayerDetailResponse": {
+        "required": [
+          "statistics",
+          "matches",
+          "totalMatchCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "statistics": {
+            "$ref": "#/components/schemas/GlobalPlayerStatisticsRow"
+          },
+          "matches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerMatchRow"
+            }
+          },
+          "totalMatchCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "PlayerMatch": {
         "required": [
           "kind",
@@ -11102,6 +11160,76 @@
               "string"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "PlayerMatchRow": {
+        "required": [
+          "kind",
+          "leagueId",
+          "leagueName",
+          "tournamentId",
+          "tournamentName",
+          "tournamentDate",
+          "roundIndex",
+          "opponentName",
+          "ownScore",
+          "opponentScore",
+          "ownArchetype",
+          "opponentArchetype"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "leagueId": {
+            "type": "string"
+          },
+          "leagueName": {
+            "type": "string"
+          },
+          "tournamentId": {
+            "type": "string"
+          },
+          "tournamentName": {
+            "type": "string"
+          },
+          "tournamentDate": {
+            "type": "string"
+          },
+          "roundIndex": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "opponentName": {
+            "type": "string"
+          },
+          "ownScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "opponentScore": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ownArchetype": {
+            "type": "string"
+          },
+          "opponentArchetype": {
+            "type": "string"
           }
         }
       },
@@ -11782,7 +11910,8 @@
           "name",
           "description",
           "website",
-          "contactEmail"
+          "contactEmail",
+          "organizers"
         ],
         "type": "object",
         "properties": {
@@ -11810,6 +11939,12 @@
               "null",
               "string"
             ]
+          },
+          "organizers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -12024,6 +12159,83 @@
           }
         }
       },
+      "PublicLeagueCatalogItemResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "updatedAt",
+          "documentVersion",
+          "tournamentCount",
+          "playerCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "tournamentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "playerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "PublicLeagueCatalogResponse": {
+        "required": [
+          "items",
+          "totalCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicLeagueCatalogItemResponse"
+            }
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "PublicLeagueDetailResponse": {
         "required": [
           "id",
@@ -12063,36 +12275,19 @@
           }
         }
       },
-      "PublicLeagueListResponse": {
+      "PublicLeagueDocumentCatalogResponse": {
         "required": [
           "items",
-          "page",
-          "pageSize",
-          "totalCount"
+          "totalCount",
+          "truncated"
         ],
         "type": "object",
         "properties": {
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PublicLeagueSummaryResponse"
+              "$ref": "#/components/schemas/PublicLeagueDetailResponse"
             }
-          },
-          "page": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "pageSize": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
           },
           "totalCount": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -12101,38 +12296,9 @@
               "string"
             ],
             "format": "int32"
-          }
-        }
-      },
-      "PublicLeagueSummaryResponse": {
-        "required": [
-          "id",
-          "name",
-          "status",
-          "updatedAt",
-          "documentVersion"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
           },
-          "name": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "$ref": "#/components/schemas/Instant"
-          },
-          "documentVersion": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int64"
+          "truncated": {
+            "type": "boolean"
           }
         }
       },
@@ -12898,6 +13064,7 @@
           "leagueId",
           "name",
           "tournamentDate",
+          "status",
           "rounds",
           "playerArchetypes"
         ],
@@ -12913,6 +13080,9 @@
             "type": "string"
           },
           "tournamentDate": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           },
           "rounds": {
@@ -12952,18 +13122,6 @@
             "items": {
               "$ref": "#/components/schemas/RankingRow"
             }
-          }
-        }
-      },
-      "TransferOrganizationOwnershipRequest": {
-        "required": [
-          "newOwnerUserId"
-        ],
-        "type": "object",
-        "properties": {
-          "newOwnerUserId": {
-            "type": "string",
-            "format": "uuid"
           }
         }
       },
@@ -13416,6 +13574,9 @@
     },
     {
       "name": "LeagueCommandEndpoints"
+    },
+    {
+      "name": "PlayerEndpoints"
     },
     {
       "name": "PublicLiveEndpoints"

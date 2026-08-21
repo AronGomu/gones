@@ -6,6 +6,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The player statistics rebuild is exercised directly, outside a request, so a test can prove it
+         rolls back with the write it shares a transaction with. -->
+    <InternalsVisibleTo Include="Gones.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />

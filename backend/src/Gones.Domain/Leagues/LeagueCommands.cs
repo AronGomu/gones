@@ -20,18 +20,20 @@ public static class LeagueCommands
         RequireActive(league);
         RequireNewId(league.Tournaments.Select(item => item.Id), tournamentId, nameof(tournamentId));
         RequireMutableName(name, nameof(name));
-        var tournament = new TournamentDocument(tournamentId, league.Id, name.Trim(), tournamentDate?.Trim() ?? string.Empty, [], []);
+        var tournament = new TournamentDocument(tournamentId, league.Id, name.Trim(), tournamentDate?.Trim() ?? string.Empty, "active", [], []);
         return league with { Tournaments = [.. league.Tournaments, tournament] };
     }
 
-    public static LeagueDocument EditTournament(LeagueDocument league, string tournamentId, string name, string tournamentDate)
+    public static LeagueDocument EditTournament(LeagueDocument league, string tournamentId, string name, string tournamentDate, string? status = null)
     {
         RequireActive(league);
         RequireMutableName(name, nameof(name));
+        if (status is not (null or "active" or "completed")) throw new ArgumentException("Tournament status must be active or completed.", nameof(status));
         return ReplaceTournament(league, tournamentId, tournament => tournament with
         {
             Name = name.Trim(),
-            TournamentDate = tournamentDate?.Trim() ?? string.Empty
+            TournamentDate = tournamentDate?.Trim() ?? string.Empty,
+            Status = status ?? tournament.Status
         });
     }
 
@@ -61,7 +63,7 @@ public static class LeagueCommands
 
         var updated = league;
         if (command.EditTournament is not null)
-            updated = EditTournament(updated, tournamentId, command.EditTournament.Name, command.EditTournament.TournamentDate);
+            updated = EditTournament(updated, tournamentId, command.EditTournament.Name, command.EditTournament.TournamentDate, command.EditTournament.Status);
         foreach (var roundId in command.DeleteRoundIds)
             updated = DeleteRound(updated, tournamentId, roundId);
         foreach (var intent in command.AddRounds)
@@ -73,6 +75,11 @@ public static class LeagueCommands
             updated = ReplaceRound(updated, tournamentId, intent.RoundId, intent.Entries, false);
         foreach (var intent in command.UpdateArchetypes)
             updated = UpdateArchetype(updated, tournamentId, intent.PlayerName, intent.Archetype);
+        if (command.Status is not null)
+        {
+            if (command.Status is not ("active" or "completed")) throw new ArgumentException("Tournament status must be active or completed.", nameof(command));
+            updated = ReplaceTournament(updated, tournamentId, tournament => tournament with { Status = command.Status });
+        }
         return updated;
     }
 
@@ -214,6 +221,7 @@ public static class LeagueCommands
                 newLeagueId,
                 tournament.Name,
                 tournament.TournamentDate,
+                tournament.Status,
                 tournament.Rounds.Select(round => new RoundDocument(
                     idFactory(),
                     round.Entries.Select(entry => RemapEntry(entry, idFactory())).ToArray())).ToArray(),
@@ -352,7 +360,7 @@ public static class LeagueCommands
     };
 }
 
-public sealed record EditArchiveTournamentIntent(string Name, string TournamentDate);
+public sealed record EditArchiveTournamentIntent(string Name, string TournamentDate, string? Status = null);
 public sealed record AddArchiveRoundIntent(string RoundId, IReadOnlyList<RoundEntry> Entries);
 public sealed record ReplaceArchiveRoundIntent(string RoundId, IReadOnlyList<RoundEntry> Entries);
 public sealed record UpdateArchiveArchetypeIntent(string PlayerName, string Archetype);
@@ -361,4 +369,5 @@ public sealed record ArchiveTournamentEditBatch(
     IReadOnlyList<AddArchiveRoundIntent> AddRounds,
     IReadOnlyList<string> DeleteRoundIds,
     IReadOnlyList<ReplaceArchiveRoundIntent> ReplaceRounds,
-    IReadOnlyList<UpdateArchiveArchetypeIntent> UpdateArchetypes);
+    IReadOnlyList<UpdateArchiveArchetypeIntent> UpdateArchetypes,
+    string? Status = null);

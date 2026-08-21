@@ -6,6 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { getDefaultTournamentName, isUnassignedLeagueName, LeagueStatus, PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, TournamentDocument } from '../domain/models';
 import { createLeagueTarget } from './league-archive-command-ux';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from './league-archive-origin';
+import { LeagueArchiveSummary } from './league-archive-summary';
 import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
@@ -29,23 +30,55 @@ export class LeagueArchiveRepository {
   readonly serverUnavailable = signal(false);
   /** Last server League detail came from this user's offline cache, not from server. */
   readonly detailStale = signal(false);
+  /**
+   * The last server list hit the catalog row cap (ADR 0039), so it is missing Leagues that exist.
+   * A page may render a capped list; a full export may not present one as a complete backup.
+   */
+  readonly catalogTruncated = signal(false);
 
   /**
-   * The union of both stores. A rejected server read degrades to the local list alone and raises the
-   * flag the list page renders; only both stores failing propagates.
+   * The list page's server half (ADR 0042): summary rows, not documents. The row cap still belongs to
+   * the answer, so it is raised here exactly as the document catalog raised it.
+   */
+  async listServerLeagueSummaries(): Promise<LeagueArchiveSummary[]> {
+    const catalog = await this.server.listLeagueArchiveSummaries();
+    this.catalogTruncated.set(catalog.truncated);
+    return catalog.items;
+  }
+
+  async listLocalLeagues(): Promise<PersistedLeague[]> {
+    return (await this.local.listLeagueArchives()).leagues;
+  }
+
+  async listLocalLeagueSummaries(): Promise<LeagueArchiveSummary[]> {
+    return (await this.local.listLeagueArchiveSummaries()).items;
+  }
+
+  /**
+   * The union of both stores, in whole documents — the Settings export, which genuinely needs them.
+   * A rejected server read degrades to the local list alone and raises the flag the list page
+   * renders; only both stores failing propagates.
    *
    * Only the server half goes through the offline read cache (ADR 0031): the browser store is already
    * offline, and mirroring it would create two answers for one document. A cached answer still raises
    * `serverUnavailable` — it means exactly what the banner says, that the server was not reached.
    */
   async listLeagues(): Promise<PersistedLeague[]> {
-    const serverRead = this.cache.read('leagues', () => this.server.listLeagueArchives());
+    // Only the Leagues are cached, not the catalog envelope: the row cap describes the one answer that
+    // reached the server, and a stored copy of it would outlive the read it belongs to.
+    let truncated = false;
+    const serverRead = this.cache.read('leagues', async () => {
+      const catalog = await this.server.listLeagueArchives();
+      truncated = catalog.truncated;
+      return catalog.leagues;
+    });
     const [server, local] = await Promise.allSettled([serverRead, this.local.listLeagueArchives()]);
     this.serverUnavailable.set(server.status === 'rejected' || (server.status === 'fulfilled' && server.value.stale));
+    if (server.status === 'fulfilled' && !server.value.stale) this.catalogTruncated.set(truncated);
     if (server.status === 'rejected' && local.status === 'rejected') throw server.reason;
     return [
       ...(server.status === 'fulfilled' ? server.value.value : []),
-      ...(local.status === 'fulfilled' ? local.value : [])
+      ...(local.status === 'fulfilled' ? local.value.leagues : [])
     ];
   }
 

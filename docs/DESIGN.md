@@ -228,7 +228,7 @@ Gones should rely mostly on tonal layering, borders, and surface contrast. Shado
 
 ### Event Calendar and Event Detail
 
-The public calendar (`/calendar`) and the event page (`/events/:slug`) carry four rules that are
+The public event list (`/events`) and the event page (`/events/:slug`) carry four rules that are
 design decisions, not component details:
 
 - **Dim a past day with tone, never with `opacity`.** A past day cell darkens its background and

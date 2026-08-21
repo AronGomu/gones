@@ -19,12 +19,6 @@ public static class AccountClosureIdentity
     public static string OpaqueUserName(Guid userId) => OpaqueUsername(userId);
 }
 
-public sealed record SoleOwnerOrganizationImpact(
-    Guid OrganizationId,
-    string OrganizationName,
-    Guid? SuggestedNewOwnerUserId,
-    string? SuggestedNewOwnerUsername);
-
 public sealed record AccountClosureImpact(
     Guid UserId,
     string Username,
@@ -35,7 +29,6 @@ public sealed record AccountClosureImpact(
     bool IsSelf,
     bool CanClose,
     string? BlockReason,
-    IReadOnlyList<SoleOwnerOrganizationImpact> SoleOwnedOrganizations,
     IReadOnlyList<Guid> OtherMembershipOrganizationIds);
 
 public static class AccountClosurePolicy
@@ -45,25 +38,13 @@ public static class AccountClosurePolicy
         Guid subjectUserId,
         string subjectGlobalRole,
         bool subjectAlreadyClosed,
-        int activeAdminCount,
-        IReadOnlyList<Guid> soleOwnedOrganizationIds,
-        IReadOnlySet<Guid> transferOrganizationIds)
+        int activeAdminCount)
     {
+        // Ownership is gone (ADR 0041), so a closure is never refused for an organization's sake: it
+        // just drops the memberships and may leave an organization Draft.
         if (subjectAlreadyClosed) return "already_closed";
         if (actorUserId == subjectUserId) return "self_close";
         if (subjectGlobalRole == GlobalRoles.Admin && activeAdminCount <= 1) return "last_admin";
-
-        foreach (var organizationId in soleOwnedOrganizationIds)
-        {
-            if (!transferOrganizationIds.Contains(organizationId))
-            {
-                return "missing_owner_transfer";
-            }
-        }
-
         return null;
     }
-
-    public static bool RequiresTransfer(IReadOnlyList<Guid> soleOwnedOrganizationIds) =>
-        soleOwnedOrganizationIds.Count > 0;
 }

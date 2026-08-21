@@ -14,14 +14,31 @@ import { I18nService } from '../../i18n/i18n.service';
       @if (!enabled) {
         <p class="error" role="alert" data-cy="admin-home-disabled">{{ i18n.t('admin.disabled') }}</p>
       } @else {
-        <nav class="admin-nav" data-cy="admin-home-nav" [attr.aria-label]="i18n.t('admin.navAria')">
-          <a mat-stroked-button routerLink="/admin/users" data-cy="admin-nav-users">{{ i18n.t('admin.users') }}</a>
-          <a mat-stroked-button routerLink="/admin/organizations" data-cy="admin-nav-organizations">{{ i18n.t('admin.organizations') }}</a>
-          <a mat-stroked-button routerLink="/admin/audit" data-cy="admin-nav-audit">{{ i18n.t('admin.audit') }}</a>
-          <a mat-stroked-button routerLink="/admin/notifications/history" data-cy="admin-nav-notification-history">{{ i18n.t('admin.notificationHistory') }}</a>
-          <a mat-stroked-button routerLink="/admin/notifications/dead-letters" data-cy="admin-nav-notification-dead-letters">{{ i18n.t('admin.notificationDeadLetters') }}</a>
-          <a mat-stroked-button routerLink="/admin/events/deleted" data-cy="admin-nav-deleted-tournaments">{{ i18n.t('eventManage.deletedTitle') }}</a>
-          <a mat-stroked-button routerLink="/organizations" data-cy="admin-nav-public-orgs">{{ i18n.t('org.publicList') }}</a>
+        <nav class="home-destinations admin-destinations" data-cy="admin-home-nav" [attr.aria-label]="i18n.t('admin.navAria')">
+          <a class="home-destination home-destination--settings" routerLink="/admin/users" data-cy="admin-card-users">
+            <strong data-cy="admin-card-users-title">{{ i18n.t('admin.users') }}</strong>
+            <p data-cy="admin-card-users-desc">{{ i18n.t('admin.usersDesc') }}</p>
+          </a>
+          <a class="home-destination home-destination--settings" routerLink="/admin/organizations" data-cy="admin-card-organizations">
+            <strong data-cy="admin-card-organizations-title">{{ i18n.t('admin.organizations') }}</strong>
+            <p data-cy="admin-card-organizations-desc">{{ i18n.t('admin.organizationsDesc') }}</p>
+          </a>
+          <a class="home-destination home-destination--settings" routerLink="/admin/audit" data-cy="admin-card-audit">
+            <strong data-cy="admin-card-audit-title">{{ i18n.t('admin.audit') }}</strong>
+            <p data-cy="admin-card-audit-desc">{{ i18n.t('admin.auditDesc') }}</p>
+          </a>
+          <a class="home-destination home-destination--settings" routerLink="/admin/notifications/history" data-cy="admin-card-notification-history">
+            <strong data-cy="admin-card-notification-history-title">{{ i18n.t('admin.notificationHistory') }}</strong>
+            <p data-cy="admin-card-notification-history-desc">{{ i18n.t('admin.notificationHistoryDesc') }}</p>
+          </a>
+          <a class="home-destination home-destination--settings" routerLink="/admin/notifications/dead-letters" data-cy="admin-card-notification-dead-letters">
+            <strong data-cy="admin-card-notification-dead-letters-title">{{ i18n.t('admin.notificationDeadLetters') }}</strong>
+            <p data-cy="admin-card-notification-dead-letters-desc">{{ i18n.t('admin.notificationDeadLettersDesc') }}</p>
+          </a>
+          <a class="home-destination home-destination--settings" routerLink="/admin/events/deleted" data-cy="admin-card-deleted-events">
+            <strong data-cy="admin-card-deleted-events-title">{{ i18n.t('eventManage.deletedTitle') }}</strong>
+            <p data-cy="admin-card-deleted-events-desc">{{ i18n.t('admin.deletedEventsDesc') }}</p>
+          </a>
         </nav>
       }
     </section>

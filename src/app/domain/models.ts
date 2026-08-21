@@ -69,6 +69,7 @@ export interface TournamentDocument {
   leagueId: string;
   name: string;
   tournamentDate: string;
+  status: LeagueStatus;
   rounds: RoundDocument[];
   playerArchetypes: PlayerArchetypeDocument[];
 }
@@ -138,6 +139,16 @@ export function trimPlayerName(value: unknown): string {
 
 export function normalizeLeagueStatus(status: unknown): LeagueStatus {
   return status === 'completed' || status === 'finished' ? 'completed' : 'active';
+}
+
+/**
+ * Deliberately the opposite default to {@link normalizeLeagueStatus}: an archive document that predates the field
+ * is history, and history is complete. Only the literal `'active'` reads active; a missing, null or unknown value
+ * reads `'completed'`, the same rule the backfill migration applies to stored documents. A newly created tournament
+ * gets its `'active'` at the call site, never here. A League status never cascades — the two flags are independent.
+ */
+export function normalizeTournamentStatus(status: unknown): LeagueStatus {
+  return status === 'active' ? 'active' : 'completed';
 }
 
 export function createGonesData({ leagues = [], calendarEvents = [] }: { leagues?: Partial<LeagueDocument>[]; calendarEvents?: Partial<CalendarEventDocument>[] } = {}): GonesData {
@@ -215,7 +226,7 @@ export function normalizeLeague(league: LeagueInput = {}, options: { idFactory?:
 }
 
 export function createTournament(
-  { id, leagueId = '', name = getDefaultTournamentName(), tournamentDate = '', rounds = [], playerArchetypes }: TournamentInput = {},
+  { id, leagueId = '', name = getDefaultTournamentName(), tournamentDate = '', status, rounds = [], playerArchetypes }: TournamentInput = {},
   { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
 ): TournamentDocument {
   const normalizedRounds = rounds.map((round) => createRound(round, { idFactory }));
@@ -224,6 +235,7 @@ export function createTournament(
     leagueId,
     name: String(name || getDefaultTournamentName()).trim() || getDefaultTournamentName(),
     tournamentDate: String(tournamentDate ?? ''),
+    status: normalizeTournamentStatus(status),
     rounds: normalizedRounds,
     playerArchetypes: normalizePlayerArchetypeDocuments(playerArchetypes ?? derivePlayerArchetypesFromRoundDocuments(normalizedRounds))
   };

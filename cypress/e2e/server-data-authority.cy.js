@@ -55,7 +55,7 @@ describe('server data authority', () => {
     cy.visit('/live-tournaments');
     cy.contains('Ghost Browser Draft').should('not.exist');
 
-    cy.visit('/calendar');
+    cy.visit('/events');
     cy.get('[data-cy="public-calendar"]', { timeout: 15000 }).should('exist');
     cy.contains('Ghost Browser Event').should('not.exist');
 
@@ -67,9 +67,10 @@ describe('server data authority', () => {
     });
   });
 
-  it('redirects the legacy Tournament detail path to the canonical Event page', () => {
+  it('serves the 404 page for the retired /calendar/tournaments/:slug path', () => {
     cy.visit('/calendar/tournaments/ghost-event', { failOnStatusCode: false });
-    cy.location('pathname').should('eq', '/events/ghost-event');
+    cy.location('pathname').should('eq', '/calendar/tournaments/ghost-event');
+    cy.get('[data-cy="not-found"]').should('exist');
   });
 
   it('hides every browser-authority Settings section', () => {

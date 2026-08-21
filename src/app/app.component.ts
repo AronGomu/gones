@@ -1,4 +1,4 @@
-import { Component, computed, ElementRef, inject, Injector, signal, ViewChild } from '@angular/core';
+import { Component, computed, effect, ElementRef, inject, Injector, signal, ViewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,7 +22,10 @@ import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
 import { ApiProblemError } from './api/api-boundary';
 import { BreadcrumbItem, buildBreadcrumbs } from './app-breadcrumbs';
+import { clearLeagueCatalogCache } from './features/leagues-archive/league-archive-catalog-cache.service';
 import { canUsePowerMutation, PowerUserSettingsService } from './shared/power-user-settings.service';
+
+const AUTH_PATHS = ['/login', '/register', '/auth/complete-profile', '/verify-email', '/forgot-password', '/reset-password'];
 
 interface HeaderTournament {
   league: PersistedLeague;
@@ -83,7 +86,9 @@ interface HeaderTournament {
               <a class="toolbar-profile-link" routerLink="/settings/account" data-cy="profile-link">{{ profile.username }}</a>
               <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="logout-button" (click)="logout()">{{ i18n.t('auth.logout') }}</button>
             } @else {
-              <a mat-stroked-button class="secondary-action" routerLink="/login" data-cy="toolbar-sign-in-link" [attr.aria-label]="i18n.t('auth.signInAria')">{{ i18n.t('auth.signIn') }}</a>
+              @if (showSignInLink()) {
+                <a mat-stroked-button class="secondary-action" routerLink="/login" data-cy="toolbar-sign-in-link" [attr.aria-label]="i18n.t('auth.signInAria')">{{ i18n.t('auth.signIn') }}</a>
+              }
             }
           </div>
         }
@@ -127,6 +132,7 @@ export class AppComponent {
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
   readonly isResultPage = computed(() => this.pathOnly(this.currentUrl()).split('/').includes('result'));
+  readonly showSignInLink = computed(() => !AUTH_PATHS.includes(this.pathOnly(this.currentUrl())));
   readonly importing = signal(false);
   readonly settingsImporting = signal(false);
   readonly deletingTournament = signal(false);
@@ -152,10 +158,24 @@ export class AppComponent {
   constructor() {
     void this.updateRouteState(this.router.url);
     window.addEventListener('gones-live-tournament-updated', (event) => this.handleLiveTournamentUpdated(event));
-    window.addEventListener('gones-league-updated', () => void this.updateRouteState(this.router.url));
+    // Every League/Tournament mutation that stays on a League page announces itself here, so this is
+    // the one place the public catalog snapshot is dropped for all of them (ADR 0039). The two header
+    // deletions below clear it directly instead: they navigate away, and re-entering this handler
+    // would rebuild the header from the League that was just deleted.
+    window.addEventListener('gones-league-updated', () => {
+      clearLeagueCatalogCache();
+      void this.updateRouteState(this.router.url);
+    });
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
       this.lastVisited.record(event.urlAfterRedirects);
       void this.updateRouteState(event.urlAfterRedirects);
+    });
+    // Breadcrumb labels are translated when the array is built, not when it is rendered, so a
+    // language change has to rebuild them. `updateRouteState` is already guarded by
+    // `routeStateRequest`, so a rebuild racing a navigation cannot win over the newer one.
+    effect(() => {
+      this.i18n.language();
+      void this.updateRouteState(this.router.url);
     });
   }
 
@@ -183,8 +203,9 @@ export class AppComponent {
   }
 
   async logout(): Promise<void> {
+    const returnUrl = this.currentUrl();
     await this.auth.logout();
-    await this.router.navigate(['/']);
+    await this.router.navigate(['/login'], { queryParams: { returnUrl } });
   }
 
   async resendBanner(): Promise<void> {
@@ -333,6 +354,12 @@ export class AppComponent {
       this.importError.set(this.i18n.t('msg.fullDataExportServerUnavailable'));
       return;
     }
+    // Same rule for the other way a server list can be short of the whole archive: the catalog row cap
+    // (ADR 0039). A capped list is fine to render, never fine to write as a complete backup.
+    if (this.repo.catalogTruncated()) {
+      this.importError.set(this.i18n.t('msg.fullDataExportTruncated'));
+      return;
+    }
     const leagues = merged.filter((league) => !isAnyPlaceholderLeagueId(league.id));
     this.importError.set('');
     saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: [] })), 'gones-full-data.gones.json');
@@ -350,6 +377,7 @@ export class AppComponent {
     if (!confirmed) return;
     try {
       await this.repo.deleteLeague(league.id);
+      clearLeagueCatalogCache();
       this.headerLeague.set(null);
       await this.router.navigate(['/leagues-archive']);
     } catch (error) {
@@ -368,6 +396,7 @@ export class AppComponent {
     this.importError.set('');
     try {
       await this.repo.deleteResultTournament(league, tournament.id);
+      clearLeagueCatalogCache();
       this.headerTournament.set(null);
       await this.router.navigate(['/leagues-archive', league.id]);
     } catch (error) {

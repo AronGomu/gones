@@ -493,6 +493,10 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Contains("Summer Cup", rendered.TextBody, StringComparison.Ordinal);
         Assert.Contains(seed.SubmitterProfile.Username, rendered.TextBody, StringComparison.Ordinal);
         Assert.Contains("organizer-olga", rendered.TextBody, StringComparison.Ordinal);
+        // ADR 0038 deleted /calendar with no redirect, so the calendar link is the live Event list.
+        Assert.Contains("https://app.example/events", rendered.TextBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("/calendar", rendered.TextBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("/calendar", rendered.HtmlBody, StringComparison.Ordinal);
         Assert.DoesNotContain("{{", rendered.TextBody, StringComparison.Ordinal);
         Assert.DoesNotContain("{{", rendered.HtmlBody, StringComparison.Ordinal);
         Assert.NotEmpty(rendered.Subject);

@@ -24,7 +24,7 @@ describe('powerUserGuard', () => {
   });
 
   it.each([
-    ['/events/new', '/calendar'],
+    ['/events/new', '/events'],
     ['/organizer/events/event-1/edit', '/organizer/events'],
     ['/live-tournaments/new', '/live-tournaments']
   ])('redirects %s to %s while disabled', (url, fallback) => {

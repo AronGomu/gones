@@ -7,6 +7,7 @@ import { leagueCommandError } from '../data/league-archive-command-ux';
 import { isAnyPlaceholderLeagueId, isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID } from '../data/league-archive-origin';
 import { createMatchRoundEntry, createTournament, getDefaultTournamentName, LeagueStatus, MatchRoundEntry, PersistedLeague, PLACEHOLDER_LEAGUE_ID, PLACEHOLDER_LEAGUE_NAME, RoundEntry, TournamentDocument } from '../domain/models';
 import { renamePlayerInLeague } from '../domain/rename-player';
+import { calculateLeagueResult } from '../domain/results';
 import { importRoundEntries } from '../domain/round-import';
 import type { ArchiveTournamentEditBatchCommand, LeagueArchiveBackendPort } from './application-backend';
 import { LOCAL_LEAGUE_DB_NAME, LOCAL_LEAGUE_STORE, LocalLeagueArchiveBackend } from './local-league-archive-backend.service';
@@ -222,7 +223,7 @@ describe('LocalLeagueArchiveBackend', () => {
   it('listing an empty store seeds the placeholder', async () => {
     const backend = new LocalLeagueArchiveBackend();
 
-    const listed = await backend.listLeagueArchives();
+    const { leagues: listed } = await backend.listLeagueArchives();
 
     expect(listed).toHaveLength(1);
     expect(listed[0]).toMatchObject({ id: LOCAL_PLACEHOLDER_LEAGUE_ID, name: PLACEHOLDER_LEAGUE_NAME, status: 'active' });
@@ -355,10 +356,45 @@ describe('LocalLeagueArchiveBackend', () => {
     await backend.createLeagueArchive('Zulu');
     await backend.createLeagueArchive('alpha');
 
-    const listed = await backend.listLeagueArchives();
+    const { leagues: listed } = await backend.listLeagueArchives();
 
     expect(listed.map((item) => item.name)).toEqual([PLACEHOLDER_LEAGUE_NAME, 'alpha', 'Zulu']);
     expect(listed[0].id).toBe(LOCAL_PLACEHOLDER_LEAGUE_ID);
+  });
+
+  /**
+   * ADR 0042 denormalized both counts onto the server aggregate. This store has no server to ask, so
+   * it derives them from its own documents with `calculateLeagueResult` — the same formula — and the
+   * merged list page cannot tell the two halves apart.
+   */
+  it('summarizes local leagues with the browser formula', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    const tournament = createTournament({ leagueId: 'server-a', name: 'Cup', rounds: [{ entries: [
+      createMatchRoundEntry({ player1Name: 'Alice', player2Name: 'Bob' }),
+      createMatchRoundEntry({ player1Name: 'Carol', player2Name: 'Alice' })
+    ] }] });
+    const restored = await backend.restoreLeagueArchive({ kind: 'league', gonesDataVersion: 4, league: league('server-a', 'Alpha', [tournament]) });
+
+    const catalog = await backend.listLeagueArchiveSummaries();
+
+    const summary = catalog.items.find((item) => item.id === restored.id)!;
+    expect(summary.tournamentCount).toBe(1);
+    expect(summary.playerCount).toBe(3);
+    expect(summary.playerCount).toBe(calculateLeagueResult(restored).rows.length);
+    expect(summary.isLocal).toBe(true);
+    // The browser store has no row cap of its own, so its catalog is never truncated.
+    expect(catalog.truncated).toBe(false);
+  });
+
+  it('summarizing preserves the listing order and seeds the placeholder', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    await backend.createLeagueArchive('Zulu');
+    await backend.createLeagueArchive('alpha');
+
+    const { items } = await backend.listLeagueArchiveSummaries();
+
+    expect(items.map((item) => item.name)).toEqual([PLACEHOLDER_LEAGUE_NAME, 'alpha', 'Zulu']);
+    expect(items.every((item) => item.isLocal)).toBe(true);
   });
 
   it('restoring a single league lands in the local namespace', async () => {
@@ -384,7 +420,7 @@ describe('LocalLeagueArchiveBackend', () => {
     expect(restored).toHaveLength(2);
     expect(restored.every((item) => isLocalLeagueId(item.id))).toBe(true);
     for (const item of restored) expect(await backend.getLeagueArchive(item.id)).toEqual(item);
-    expect(await backend.listLeagueArchives()).toHaveLength(3);
+    expect((await backend.listLeagueArchives()).leagues).toHaveLength(3);
   });
 
   // Was `a restored server placeholder becomes the local placeholder`: mapping the incoming
@@ -393,7 +429,7 @@ describe('LocalLeagueArchiveBackend', () => {
   // rolled back. That mapping was the data-loss defect, not a feature.
   it('a restored placeholder does not replace the local placeholder', async () => {
     const backend = new LocalLeagueArchiveBackend();
-    const seeded = await backend.listLeagueArchives();
+    const { leagues: seeded } = await backend.listLeagueArchives();
     const orphan = createTournament({ leagueId: PLACEHOLDER_LEAGUE_ID, name: 'Orphan' });
 
     const restored = await backend.restoreFullLeagueArchiveData({
@@ -406,7 +442,7 @@ describe('LocalLeagueArchiveBackend', () => {
     expect(restored[0].tournaments.map((item) => item.name)).toEqual(['Orphan']);
     // The store's own placeholder row is byte-for-byte what it was before the import.
     expect(await backend.getLeagueArchive(LOCAL_PLACEHOLDER_LEAGUE_ID)).toEqual(seeded[0]);
-    const listed = await backend.listLeagueArchives();
+    const { leagues: listed } = await backend.listLeagueArchives();
     expect(listed.filter((item) => item.id === LOCAL_PLACEHOLDER_LEAGUE_ID)).toHaveLength(1);
     expect(listed).toHaveLength(3);
   });
@@ -428,7 +464,7 @@ describe('LocalLeagueArchiveBackend', () => {
     expect(isLocalLeagueId(restored.id)).toBe(true);
     expect(restored.name).toBe('Summer');
     expect(await backend.getLeagueArchive(live.id)).toEqual(live);
-    expect((await backend.listLeagueArchives()).map((item) => item.id)).toContain(live.id);
+    expect((await backend.listLeagueArchives()).leagues.map((item) => item.id)).toContain(live.id);
   });
 
   it('restoring the same bundle twice yields two leagues', async () => {
@@ -455,6 +491,26 @@ describe('LocalLeagueArchiveBackend', () => {
     expect(updated.tournaments[0]).toMatchObject({ name: 'Weekly', tournamentDate: '2026-08-15', leagueId: created.id });
     expect(updated.tournaments[0].id).toBeTruthy();
     expect(updated.documentVersion).toBe(2);
+  });
+
+  it('a newly created tournament is active', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    const created = await backend.createLeagueArchive('Summer');
+
+    const updated = await backend.createArchiveTournament(created.id, created.documentVersion, 'Weekly', '2026-08-15');
+
+    // Only the create path defaults to active; the builder itself defaults a document without the field to completed.
+    expect(updated.tournaments[0].status).toBe('active');
+  });
+
+  it('editing a tournament keeps its status', async () => {
+    const backend = new LocalLeagueArchiveBackend();
+    const created = await backend.createLeagueArchive('Summer');
+    const withTournament = await backend.createArchiveTournament(created.id, created.documentVersion, 'Weekly', '2026-08-15');
+
+    const updated = await backend.editArchiveTournament(created.id, withTournament.tournaments[0].id, withTournament.documentVersion, 'Renamed', '2026-09-01');
+
+    expect(updated.tournaments[0].status).toBe('active');
   });
 
   it('an unnamed tournament gets the default name', async () => {
@@ -706,7 +762,7 @@ describe('LocalLeagueArchiveBackend', () => {
 
   it('moving into the local placeholder is allowed', async () => {
     const { backend, leagueId, tournamentId, version } = await leagueWithRound();
-    const placeholder = (await backend.listLeagueArchives()).find((item) => item.id === LOCAL_PLACEHOLDER_LEAGUE_ID)!;
+    const placeholder = (await backend.listLeagueArchives()).leagues.find((item) => item.id === LOCAL_PLACEHOLDER_LEAGUE_ID)!;
 
     const moved = await backend.moveArchiveTournament(leagueId, tournamentId, version, LOCAL_PLACEHOLDER_LEAGUE_ID, placeholder.documentVersion);
 
@@ -789,10 +845,11 @@ describe('LocalLeagueArchiveBackend', () => {
       'listLeagueArchives', 'getLeagueArchive', 'createLeagueArchive', 'renameLeagueArchive', 'changeLeagueArchiveStatus', 'deleteLeagueArchive',
       'createArchiveTournament', 'editArchiveTournament', 'deleteArchiveTournament', 'moveArchiveTournament', 'addArchiveRound', 'deleteArchiveRound',
       'importArchiveRound', 'replaceArchiveRound', 'addArchiveEntry', 'editArchiveEntry', 'deleteArchiveEntry', 'updateArchivePlayerArchetype',
-      'renameLeagueArchivePlayerName', 'restoreLeagueArchive', 'restoreFullLeagueArchiveData', 'applyArchiveTournamentEditBatch'
+      'renameLeagueArchivePlayerName', 'restoreLeagueArchive', 'restoreFullLeagueArchiveData', 'applyArchiveTournamentEditBatch',
+      'listLeagueArchiveSummaries'
     ];
 
-    expect(methods).toHaveLength(22);
+    expect(methods).toHaveLength(23);
     for (const method of methods) expect(typeof port[method]).toBe('function');
   });
 

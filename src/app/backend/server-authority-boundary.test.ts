@@ -144,20 +144,40 @@ describe('canonical browser store containment', () => {
     expect(filesMatching(/localStorage\??\.(get|set|remove)Item/)).toEqual([
       // Cross-tab marker + generation only; values contain no profile or domain data.
       'src/app/auth/auth-session-coordination.service.ts',
-      // Public read cache (C39) — the 24h full-catalog snapshot, anonymous GET responses only.
-      'src/app/features/calendar/all-events-cache.service.ts',
       // Browser view preference.
-      'src/app/features/calendar/public-calendar.component.ts',
+      'src/app/features/events/public-event-list.component.ts',
       // Public read cache (C39) — anonymous GET responses only, never a mutation source.
-      'src/app/features/calendar/public-event.service.ts',
+      'src/app/features/events/public-event.service.ts',
       // Two Player Statistics display preferences only: source visibility + page size.
       'src/app/features/players/player-stats-preferences.ts',
+      // Public read cache (C39, ADR 0039) — the 24h full-catalog snapshot, public GET responses only.
+      'src/app/shared/catalog-cache.ts',
       // Language + local Deck Archetype preference.
       'src/app/shared/deck-archetype-settings.service.ts',
       // First-visit flag — routes the very first load to /about, never a data source.
       'src/app/shared/first-visit.service.ts',
       // Boolean UI capability preference only; never auth, authority, or domain data.
       'src/app/shared/power-user-settings.service.ts'
+    ]);
+  });
+
+  /**
+   * The allowlist above only sees raw `localStorage` calls, and `catalog-cache.ts` is now the single
+   * file that makes them for public reads — so without this second list a new file could put private
+   * user data in `localStorage` through `writeCatalogEntry` and still pass. `localStorage` outlives
+   * logout and is readable by the next account on this browser, so each importer is named on purpose
+   * and adding one is a deliberate edit here.
+   */
+  it('keeps the public catalog cache helper to its declared importers', () => {
+    expect(filesMatching(/from '[^']*shared\/catalog-cache'/)).toEqual([
+      // Public Event catalog — anonymous GET responses.
+      'src/app/features/events/event-catalog-cache.service.ts',
+      // Public League Archive catalog — anonymous GET responses.
+      'src/app/features/leagues-archive/league-archive-catalog-cache.service.ts',
+      // Public global Player Statistics catalog — anonymous GET responses.
+      'src/app/features/players/global-stats-catalog-cache.service.ts',
+      // Public per-player statistics — anonymous GET responses.
+      'src/app/features/players/player-detail-cache.service.ts'
     ]);
   });
 });

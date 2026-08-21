@@ -132,6 +132,7 @@ describe("Settings sections by capability (server mode)", () => {
     cy.get('[data-cy="settings-language-select"]').click({ force: true });
     cy.contains("mat-option", "Français").click({ force: true });
     cy.get('[data-cy="settings-language-status"]').should("contain", "Langue actuelle : Français");
+    cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Paramètres');
     cy.window().then((win) => {
       expect(win.localStorage.getItem("gones.settings.language")).to.equal("fr");
     });
@@ -139,15 +140,19 @@ describe("Settings sections by capability (server mode)", () => {
     cy.get('[data-cy="settings-language-status"]').should("contain", "Langue actuelle : Français");
   });
 
-  it("signed-in user sees profile link and owned organization notification preferences", () => {
+  it("signed-in user sees profile link and organization notification preferences", () => {
     mockSession("User");
+    // Ownership is gone: every membership is an Organizer, so every organization is listed here.
     mockOrganizations([
-      { id: "org-1", name: "Gones Org", description: null, website: null, contactEmail: null, role: "Owner", createdAt: "2026-01-01T00:00:00Z" },
+      { id: "org-1", name: "Gones Org", description: null, website: null, contactEmail: null, role: "Organizer", createdAt: "2026-01-01T00:00:00Z" },
       { id: "org-2", name: "Other Org", description: null, website: null, contactEmail: null, role: "Organizer", createdAt: "2026-01-01T00:00:00Z" }
     ]);
     cy.intercept("GET", "**/api/organizations/org-1/notification-settings", {
       organizationId: "org-1", notifyOnRegistration: true, notifyOnUnregistration: false, updatedAt: "2026-01-01T00:00:00Z"
     }).as("orgSettings");
+    cy.intercept("GET", "**/api/organizations/org-2/notification-settings", {
+      organizationId: "org-2", notifyOnRegistration: false, notifyOnUnregistration: false, updatedAt: "2026-01-01T00:00:00Z"
+    });
     cy.intercept("PUT", "**/api/organizations/org-1/notification-settings", req => {
       expect(req.body).to.deep.equal({ notifyOnRegistration: true, notifyOnUnregistration: true });
       req.reply({ organizationId: "org-1", ...req.body, updatedAt: "2026-01-02T00:00:00Z" });
@@ -161,10 +166,12 @@ describe("Settings sections by capability (server mode)", () => {
 
     cy.wait("@orgSettings");
     cy.get('[data-cy="settings-org-row"][data-org="Gones Org"]').should("be.visible");
-    cy.get('[data-cy="settings-org-row"][data-org="Other Org"]').should("not.exist");
-    cy.get('[data-cy="settings-org-notify-registration"]').should("be.checked");
-    cy.get('[data-cy="settings-org-notify-unregistration"]').should("not.be.checked").check();
-    cy.get('[data-cy="settings-org-save"]').click();
+    cy.get('[data-cy="settings-org-row"][data-org="Other Org"]').should("be.visible");
+    cy.get('[data-cy="settings-org-row"][data-org="Gones Org"]').within(() => {
+      cy.get('[data-cy="settings-org-notify-registration"]').should("be.checked");
+      cy.get('[data-cy="settings-org-notify-unregistration"]').should("not.be.checked").check();
+      cy.get('[data-cy="settings-org-save"]').click();
+    });
     cy.wait("@saveOrgSettings");
     cy.get('[data-cy="settings-org-status"]').should("contain", "Preferences saved for Gones Org.");
   });

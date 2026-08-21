@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { isLocalLeagueId, LOCAL_PLACEHOLDER_LEAGUE_ID, newLocalLeagueId } from '../data/league-archive-origin';
+import { summarizeLeague } from '../data/league-archive-summary';
 import {
   createLeague,
   createRound,
@@ -20,7 +21,7 @@ import {
 import { renamePlayerInLeague } from '../domain/rename-player';
 import { importRoundEntries } from '../domain/round-import';
 import { get, getAll, openDatabase, put, remove, requestResult, runTransaction } from './indexed-db';
-import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
+import type { ArchiveTournamentEditBatchCommand, ArchiveTournamentEditBatchResult, FullLeagueRestoreCommand, LeagueArchiveBackendPort, LeagueArchiveCatalog, LeagueArchiveSummaryCatalog, LeagueRestoreCommand, MoveResultTournamentResult } from './application-backend';
 
 /**
  * Browser-local League authority (ADR 0028) — the League half of the browser-local store, next to
@@ -53,13 +54,24 @@ export class LeagueConcurrencyError extends Error {
 export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
   private database?: Promise<IDBDatabase>;
 
-  async listLeagueArchives(): Promise<PersistedLeague[]> {
+  /** The browser store has no row cap of its own, so its catalog is never truncated. */
+  async listLeagueArchives(): Promise<LeagueArchiveCatalog> {
     const database = await this.open();
     await this.ensurePlaceholder(database);
     const rows = await getAll<Partial<PersistedLeague>>(database, LOCAL_LEAGUE_STORE);
-    return rows
+    const leagues = rows
       .map((row) => this.persist(row))
       .sort((left, right) => placeholderRank(left) - placeholderRank(right) || left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }));
+    return { leagues, truncated: false };
+  }
+
+  /**
+   * The server projects its summary rows in SQL; this store has the documents in hand already, so it
+   * derives the same two counts locally (ADR 0042) rather than inventing a second formula.
+   */
+  async listLeagueArchiveSummaries(): Promise<LeagueArchiveSummaryCatalog> {
+    const { leagues, truncated } = await this.listLeagueArchives();
+    return { items: leagues.map(summarizeLeague), truncated };
   }
 
   async getLeagueArchive(id: string): Promise<PersistedLeague | null> {
@@ -93,7 +105,7 @@ export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort {
   }
 
   createArchiveTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
-    return this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: [...league.tournaments, createTournament({ leagueId: league.id, name, tournamentDate })] }));
+    return this.mutate(id, expectedVersion, (league) => ({ ...league, tournaments: [...league.tournaments, createTournament({ leagueId: league.id, name, tournamentDate, status: 'active' })] }));
   }
 
   editArchiveTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague> {
@@ -326,7 +338,7 @@ function applyLocalEditBatch(
       || !Array.isArray(command.replaceRounds) || !Array.isArray(command.updateArchetypes)) {
     throw new Error('invalidArchiveTournamentEditBatch');
   }
-  if (!moving && !command.editTournament && command.addRounds.length === 0 && command.deleteRoundIds.length === 0
+  if (!moving && !command.editTournament && !command.status && command.addRounds.length === 0 && command.deleteRoundIds.length === 0
       && command.replaceRounds.length === 0 && command.updateArchetypes.length === 0) {
     throw new Error('emptyArchiveTournamentEditBatch');
   }
@@ -365,6 +377,9 @@ function applyLocalEditBatch(
   };
   for (const intent of command.updateArchetypes) {
     updated = { ...updated, playerArchetypes: upsertArchetype(updated.playerArchetypes, intent.playerName, intent.archetype) };
+  }
+  if (command.status !== undefined) {
+    updated = { ...updated, status: command.status };
   }
   return { ...league, tournaments: league.tournaments.map(item => item.id === tournamentId ? updated : item) };
 }

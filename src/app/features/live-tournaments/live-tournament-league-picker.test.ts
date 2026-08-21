@@ -13,6 +13,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
 import { LOCAL_PLACEHOLDER_LEAGUE_ID } from '../../data/league-archive-origin';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
@@ -49,6 +50,7 @@ async function setup(leagues: PersistedLeague[]) {
     { provide: AuthService, useValue: auth },
     { provide: OnlineStatusService, useValue: { online: signal(true) } },
     { provide: LIVE_BACKEND_MODE, useValue: 'server' },
+    { provide: ServerReadCacheService, useValue: { invalidate: vi.fn(async () => undefined) } },
     { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService

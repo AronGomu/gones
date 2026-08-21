@@ -37,7 +37,7 @@ describe('settings page local sections', () => {
     });
     let stored = [league('local-1', 'Alice'), league('local-2', 'Alice')];
     const localBackend = {
-      listLeagueArchives: vi.fn(async () => stored),
+      listLeagueArchives: vi.fn(async () => ({ leagues: stored, truncated: false })),
       renameLeagueArchivePlayerName: vi.fn(async (id: string) => {
         if (id === 'local-2') throw new Error('write failed');
         stored = stored.map((item) => item.id === id ? league(id, 'Alicia') : item);
@@ -74,7 +74,7 @@ describe('settings page local sections', () => {
     const stored = [league('local-1'), league('local-2')];
     const localBackend = {
       listLeagueArchives: vi.fn()
-        .mockResolvedValueOnce(stored)
+        .mockResolvedValueOnce({ leagues: stored, truncated: false })
         .mockRejectedValueOnce(new Error('reload failed')),
       renameLeagueArchivePlayerName: vi.fn(async (id: string) => {
         if (id === 'local-2') throw new Error('write failed');
@@ -130,5 +130,50 @@ describe('settings page local sections', () => {
     ];
 
     for (const slice of slices) expect(slice).not.toContain('this.client.');
+  });
+});
+
+describe('settings server catalog cache', () => {
+  it('caches the signed-in catalog read via readCached', async () => {
+    const archetypes = [{ id: '1', name: 'Control', deletedAt: undefined }];
+    const readCached = vi.fn().mockResolvedValue({ value: archetypes, fetchedAt: new Date().toISOString(), fromCache: false, stale: false });
+    const component = Object.create(SettingsComponent.prototype) as SettingsComponent;
+    Object.assign(component, {
+      cache: { readCached, invalidate: vi.fn() },
+      client: { listAdminDeckArchetypes: vi.fn() },
+      i18n: { t: (key: string) => key },
+      serverArchetypes: signal([]),
+      settingsSyncedAt: signal<string | undefined>(undefined),
+      settingsStale: signal(false),
+      settingsCatalogLoading: signal(false),
+      archetypeMessage: signal('')
+    });
+
+    await component.loadServerArchetypes();
+
+    expect(readCached).toHaveBeenCalledWith('settings-catalogs', expect.any(Function), {});
+    expect(component.serverArchetypes()).toEqual(archetypes);
+  });
+
+  it('leaves the signed-out path uncached (localCatalog section has no readCached call)', () => {
+    const localSlice = templateBlock('@if (capabilities().localCatalog) {');
+    expect(localSlice).not.toContain('readCached');
+    expect(localSlice).not.toContain('this.cache');
+  });
+
+  it('invalidates after a save and refetches — each mutation method calls invalidate before reload', () => {
+    const mutations = [
+      templateBlock('async addServerArchetype(): Promise<void> {'),
+      templateBlock('async saveServerArchetypeEdit(archetype: AdminDeckArchetypeResponse): Promise<void> {'),
+      templateBlock('async removeServerArchetype(archetype: AdminDeckArchetypeResponse): Promise<void> {'),
+      templateBlock('async restoreServerArchetype(archetype: AdminDeckArchetypeResponse): Promise<void> {'),
+      templateBlock('async importServerArchetypes(event: Event): Promise<void> {')
+    ];
+    for (const slice of mutations) {
+      expect(slice).toContain("this.cache.invalidate('settings-catalogs')");
+      const invalidatePos = slice.indexOf("this.cache.invalidate('settings-catalogs')");
+      const reloadPos = slice.indexOf('this.loadServerArchetypes()');
+      expect(invalidatePos).toBeLessThan(reloadPos);
+    }
   });
 });

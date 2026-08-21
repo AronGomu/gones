@@ -74,6 +74,89 @@ describe('ASP.NET League command adapter', () => {
     expect(client.restoreLeagueArchive).toHaveBeenCalledWith('restore-key', expect.objectContaining({ kind: 'league', gonesDataVersion: 3 }));
     expect(client.restoreFullLeagueArchiveData).toHaveBeenCalledWith('restore-full-key', expect.objectContaining({ kind: 'fullData', gonesDataVersion: 3 }));
   });
+
+  /**
+   * The regression this pins: listing used to page the summaries and then fetch one detail per
+   * League. On the 200-League stress environment that was 200-odd requests for one navigation, and
+   * the public read limiter (120 a minute an IP) rejected most of them, so the page rendered almost
+   * nothing. The count is the assertion — the catalog endpoint answers in exactly one.
+   */
+  it('lists the whole archive in one request, never one per League', async () => {
+    const client = clientMock();
+    client.documents = vi.fn(() => of({
+      items: [response, { ...response, id: 'league-2', name: 'Second' }],
+      totalCount: 2,
+      truncated: false
+    })) as never;
+    const backend = new AspNetApiBackend(client);
+
+    const catalog = await backend.listLeagueArchives();
+
+    expect(catalog.leagues.map((item) => item.id)).toEqual(['league-1', 'league-2']);
+    expect(catalog.truncated).toBe(false);
+    expect(client.documents).toHaveBeenCalledTimes(1);
+    expect(client.leaguesArchive).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The summary catalog (`all`) carries no Tournaments, so reading it here would silently empty every
+   * League this adapter hands back — including the Settings export (ADR 0042).
+   */
+  it('reads the document catalog, not the summary one', async () => {
+    const client = clientMock();
+    client.documents = vi.fn(() => of({ items: [response], totalCount: 1, truncated: false })) as never;
+
+    await new AspNetApiBackend(client).listLeagueArchives();
+
+    expect(client.documents).toHaveBeenCalledTimes(1);
+    expect(client.all).not.toHaveBeenCalled();
+  });
+
+  it('carries the catalog row cap through to the caller', async () => {
+    const client = clientMock();
+    client.documents = vi.fn(() => of({ items: [response], totalCount: 9, truncated: true })) as never;
+
+    await expect(new AspNetApiBackend(client).listLeagueArchives()).resolves.toMatchObject({ truncated: true });
+  });
+
+  /**
+   * ADR 0042: the list page reads the summary route instead, where the two counts arrive
+   * denormalized. Nothing is recomputed here — the server already derived them from the document.
+   */
+  it('maps a server catalog item to a summary', async () => {
+    const client = clientMock();
+    client.all = vi.fn(() => of({
+      items: [{ id: 'league-1', name: 'League', status: 'active', updatedAt: '2026-08-02T00:00:00Z', documentVersion: 6, tournamentCount: 2, playerCount: 3 }],
+      totalCount: 1,
+      truncated: false
+    })) as never;
+
+    const catalog = await new AspNetApiBackend(client).listLeagueArchiveSummaries();
+
+    expect(catalog.items).toEqual([{
+      id: 'league-1',
+      name: 'League',
+      status: 'active',
+      updatedAt: '2026-08-02T00:00:00Z',
+      documentVersion: 6,
+      tournamentCount: 2,
+      playerCount: 3,
+      isLocal: false
+    }]);
+    expect(client.all).toHaveBeenCalledTimes(1);
+    expect(client.documents).not.toHaveBeenCalled();
+  });
+
+  it('flags a truncated server catalog', async () => {
+    const client = clientMock();
+    client.all = vi.fn(() => of({
+      items: [{ id: 'league-1', name: 'League', status: 'active', updatedAt: '2026-08-02T00:00:00Z', documentVersion: 6, tournamentCount: 0, playerCount: 0 }],
+      totalCount: 9,
+      truncated: true
+    })) as never;
+
+    await expect(new AspNetApiBackend(client).listLeagueArchiveSummaries()).resolves.toMatchObject({ truncated: true });
+  });
 });
 
 const liveDocument = createLiveTournament({ id: 'live-1', name: 'Live', documentVersion: 7, createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' });

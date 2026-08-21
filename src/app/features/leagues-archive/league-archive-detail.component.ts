@@ -11,6 +11,7 @@ import { LeagueDocument, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../do
 import { calculateLeagueEndDate, calculateLeagueResult, calculateLeagueStartDate } from '../../domain/results';
 import { I18nService } from '../../i18n/i18n.service';
 import { RankingTableComponent } from '../../shared/ranking-table.component';
+import { GlobalStatsCatalogCacheService } from '../players/global-stats-catalog-cache.service';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
@@ -36,7 +37,7 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
 
       <section class="stack" data-cy="leagues-archive-detail-ranking-section">
         <h2 data-cy="leagues-archive-detail-ranking-title">{{ i18n.t('leagues.ranking') }}</h2>
-        <gones-ranking-table data-cy="leagues-archive-detail-ranking-table" [rows]="result().rows" [emptyText]="i18n.t('leagues.emptyRanking')" />
+        <gones-ranking-table data-cy="leagues-archive-detail-ranking-table" [rows]="result().rows" [emptyText]="i18n.t('leagues.emptyRanking')" [ratings]="ratings()" />
       </section>
 
       <section class="stack" data-cy="leagues-archive-detail-tournaments-section">
@@ -48,6 +49,7 @@ import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/powe
               <span class="tournament-card-copy" data-cy="leagues-archive-detail-tournament-card-copy">
                 <strong data-cy="leagues-archive-detail-tournament-card-name">{{ tournament.name }}</strong>
                 <span data-cy="leagues-archive-detail-tournament-card-date">{{ formatTournamentDate(tournament.tournamentDate) }}</span>
+                <span class="status archive-tournament-status" [class.completed]="tournament.status === 'completed'" data-cy="leagues-archive-detail-tournament-card-status"><span class="status-dot" aria-hidden="true" data-cy="leagues-archive-detail-tournament-card-status-dot"></span>{{ tournament.status === 'completed' ? i18n.t('archive.tournamentCompleted') : i18n.t('archive.tournamentActive') }}</span>
               </span>
               <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-detail-tournament-card-view">{{ i18n.t('common.view') }}</span>
             </a>
@@ -74,6 +76,7 @@ export class LeagueArchiveDetailComponent {
   @ViewChild('leagueNameInput') private leagueNameInput?: ElementRef<HTMLInputElement>;
   @ViewChild('leagueTitleButton') private leagueTitleButton?: ElementRef<HTMLButtonElement>;
 
+  readonly ratings = signal<ReadonlyMap<string, number> | null>(null);
   readonly league = signal<PersistedLeague | null>(null);
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -81,6 +84,7 @@ export class LeagueArchiveDetailComponent {
   readonly error = signal('');
   readonly stale = signal(false);
   private readonly power = inject(PowerUserSettingsService);
+  private readonly catalogCache = inject(GlobalStatsCatalogCacheService);
   /** Power mode never replaces per-league role/origin authority. */
   readonly canManage = computed(() => canUsePowerMutation(this.power.enabled(), canManageLeague(this.league()?.id, this.auth.profile()?.globalRole)));
   leagueNameDraft = '';
@@ -95,6 +99,12 @@ export class LeagueArchiveDetailComponent {
     try { const league = await this.repo.getLeague(id); this.league.set(league); this.leagueNameDraft = league?.name ?? ''; this.titleEditing.set(false); this.stale.set(false); this.error.set(''); }
     catch (error) { logBoundaryError('league-detail.load', error, { leagueId: id }); this.error.set(this.i18n.t('leagues.loadOneFailed')); }
     finally { this.loading.set(false); }
+    try {
+      const { items } = await this.catalogCache.load();
+      this.ratings.set(new Map(items.map(item => [item.playerName, item.rating])));
+    } catch {
+      this.ratings.set(null);
+    }
   }
 
   startDate(league: LeagueDocument): string { return calculateLeagueStartDate(league); }

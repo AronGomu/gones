@@ -1,7 +1,26 @@
 import '@angular/compiler';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+
+// `effect()` requires ChangeDetectionScheduler which StaticInjector.create() does not provide.
+vi.mock('@angular/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@angular/core')>();
+  return { ...actual, effect: () => ({ destroy: () => {} }) };
+});
+
+import { Injector, runInInjectionContext, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { NEVER } from 'rxjs';
+import { describe, expect, it, vi } from 'vitest';
+import { AppComponent } from './app.component';
+import { AuthService } from './auth/auth.service';
+import { LastVisitedUrlService } from './auth/last-visited-url.service';
+import { LeagueArchiveRepository } from './data/league-archive-repository.service';
+import { LiveTournamentRepository } from './data/live-tournament-repository.service';
+import { I18nService } from './i18n/i18n.service';
+import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
+import { PowerUserSettingsService } from './shared/power-user-settings.service';
+import { MatDialog } from '@angular/material/dialog';
 
 // No TestBed / zone.js in this repo (see AGENT.md environment facts) — assert on the template
 // source string instead of a rendered DOM. Precedent: home-menu.component.test.ts.
@@ -57,5 +76,54 @@ describe('AppComponent toolbar auth entry', () => {
     expect(toolbarCloseIndex).toBeGreaterThan(authIndex);
     const tail = source.slice(authIndex, toolbarCloseIndex);
     expect(tail).not.toMatch(/data-cy="app-/);
+  });
+});
+
+function setupApp(initialUrl = '/') {
+  const navigate = vi.fn().mockResolvedValue(true);
+  const logout = vi.fn().mockResolvedValue(undefined);
+  const injector = Injector.create({ providers: [
+    { provide: I18nService, useValue: { t: (k: string) => k } },
+    { provide: Router, useValue: { url: initialUrl, navigate, events: NEVER } },
+    { provide: AuthService, useValue: { logout, profile: signal(null), enabled: false } },
+    { provide: LastVisitedUrlService, useValue: { record: vi.fn(), last: () => '' } },
+    { provide: LeagueArchiveRepository, useValue: { getLeague: vi.fn().mockResolvedValue(null) } },
+    { provide: LiveTournamentRepository, useValue: { get: vi.fn().mockResolvedValue(null) } },
+    { provide: DeckArchetypeSettingsService, useValue: {} },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(false) } },
+    { provide: MatDialog, useValue: {} },
+  ] });
+  const component = runInInjectionContext(injector, () => new AppComponent());
+  return { component, navigate, logout };
+}
+
+describe('AppComponent logout and showSignInLink', () => {
+  it('logout carries the current url as returnUrl', async () => {
+    const { component, navigate, logout } = setupApp();
+    component.currentUrl.set('/registrations');
+    await component.logout();
+    expect(logout).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/registrations' } });
+  });
+
+  it('logout preserves query parameters', async () => {
+    const { component, navigate } = setupApp();
+    component.currentUrl.set('/events?view=list&q=lyon');
+    await component.logout();
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/events?view=list&q=lyon' } });
+  });
+
+  it('hides the sign-in link on auth pages', () => {
+    const { component } = setupApp();
+    for (const path of ['/login', '/register', '/auth/complete-profile', '/verify-email', '/forgot-password', '/reset-password']) {
+      component.currentUrl.set(path);
+      expect(component.showSignInLink(), `expected false for ${path}`).toBe(false);
+    }
+  });
+
+  it('shows the sign-in link elsewhere', () => {
+    const { component } = setupApp();
+    component.currentUrl.set('/events');
+    expect(component.showSignInLink()).toBe(true);
   });
 });

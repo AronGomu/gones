@@ -39,7 +39,7 @@ internal static class OrganizationEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
         // Adding a member is what promotes the account to the global Organizer role, so it is
         // admin-only; removing one and flipping an organization role grant nothing and stay with the
-        // Owner. See AdminMembershipGrantRequiredException.
+        // members. See AdminMembershipGrantRequiredException.
         org.MapPost("/members", AddMemberAsync)
             .RequireAuthorization(AuthorizationPolicies.Admin)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
@@ -52,15 +52,6 @@ internal static class OrganizationEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
         org.MapPut("/members/{userId:guid}/role", ChangeMemberRoleAsync)
-            .AddEndpointFilter<DataAnnotationsValidationFilter>()
-            .Produces(StatusCodes.Status204NoContent)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
-        // A transfer can hand the organization to someone who is not a member yet, which mints a
-        // membership - same reason as POST /members.
-        org.MapPost("/transfer-ownership", TransferOwnershipAsync)
-            .RequireAuthorization(AuthorizationPolicies.Admin)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -191,13 +182,13 @@ internal static class OrganizationEndpoints
     {
         var userId = OrganizationPrincipal.UserId(principal);
         var isAdmin = OrganizationPrincipal.IsAdmin(principal);
-        _ = await access.RequireOwnerAsync(organizationId, userId, isAdmin, cancellationToken);
+        _ = await access.RequireMemberAsync(organizationId, userId, isAdmin, cancellationToken);
 
         var members = await (
             from member in database.OrganizationMembers.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on member.UserId equals profile.UserId
             where member.OrganizationId == organizationId
-            orderby member.Role == OrganizationRoles.Owner ? 0 : 1, profile.NormalizedUsername
+            orderby profile.NormalizedUsername
             select new OrganizationMemberResponse(member.UserId, profile.Username, member.Role, member.CreatedAt)
         ).ToListAsync(cancellationToken);
         return Results.Ok(members);
@@ -262,22 +253,6 @@ internal static class OrganizationEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> TransferOwnershipAsync(
-        Guid organizationId,
-        TransferOrganizationOwnershipRequest request,
-        ClaimsPrincipal principal,
-        OrganizationService organizations,
-        CancellationToken cancellationToken)
-    {
-        await organizations.TransferOwnershipAsync(
-            OrganizationPrincipal.UserId(principal),
-            organizationId,
-            request.NewOwnerUserId,
-            OrganizationPrincipal.IsAdmin(principal),
-            cancellationToken);
-        return Results.NoContent();
-    }
-
     private static async Task<IResult> GetNotificationSettingsAsync(
         Guid organizationId,
         ClaimsPrincipal principal,
@@ -287,7 +262,7 @@ internal static class OrganizationEndpoints
     {
         var userId = OrganizationPrincipal.UserId(principal);
         var isAdmin = OrganizationPrincipal.IsAdmin(principal);
-        _ = await access.RequireOwnerAsync(organizationId, userId, isAdmin, cancellationToken);
+        _ = await access.RequireMemberAsync(organizationId, userId, isAdmin, cancellationToken);
         var settings = await database.OrganizationNotificationSettings.AsNoTracking()
             .SingleOrDefaultAsync(item => item.OrganizationId == organizationId, cancellationToken)
             ?? throw new ResourceNotFoundException();
@@ -370,7 +345,7 @@ internal static class OrganizationEndpoints
             join user in database.Users.AsNoTracking() on member.UserId equals user.Id
             join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
             where member.OrganizationId == organizationId
-            orderby member.Role == OrganizationRoles.Owner ? 0 : 1, profile.NormalizedUsername
+            orderby profile.NormalizedUsername
             select new AdminOrganizationMemberResponse(
                 member.UserId,
                 profile.Username,
@@ -395,7 +370,6 @@ internal static class OrganizationEndpoints
             request.Description,
             request.Website,
             request.ContactEmail,
-            request.OwnerUserId,
             cancellationToken);
         return Results.Created(
             $"/api/admin/organizations/{organization.Id:D}",
@@ -530,8 +504,7 @@ internal sealed record CreateOrganizationRequest(
     [property: Required, StringLength(Organization.MaximumNameLength)] string Name,
     [property: StringLength(Organization.MaximumDescriptionLength)] string? Description,
     [property: StringLength(Organization.MaximumWebsiteLength)] string? Website,
-    [property: StringLength(Organization.MaximumContactEmailLength)] string? ContactEmail,
-    [property: Required] Guid OwnerUserId);
+    [property: StringLength(Organization.MaximumContactEmailLength)] string? ContactEmail);
 
 internal sealed record UpdateOrganizationRequest(
     [property: Required, StringLength(Organization.MaximumNameLength)] string Name,
@@ -545,9 +518,6 @@ internal sealed record AddOrganizationMemberRequest(
 
 internal sealed record ChangeOrganizationMemberRoleRequest(
     [property: Required, StringLength(20)] string Role);
-
-internal sealed record TransferOrganizationOwnershipRequest(
-    [property: Required] Guid NewOwnerUserId);
 
 internal sealed record UpdateOrganizationNotificationSettingsRequest(
     [property: Required] bool NotifyOnRegistration,

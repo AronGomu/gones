@@ -427,4 +427,29 @@ describe('Live Tournament server command flows', () => {
     cy.get('[data-cy="live-tournament-name-input"]').clear().type('Offline Name').blur();
     cy.get('[role="alert"]').should('be.visible').invoke('text').should('match', /offline|hors ligne/i);
   });
+
+  it('renders the sync bar on the list and a reload issues no new list request', () => {
+    cy.viewport(1280, 800);
+    mockSession('Organizer');
+    mockLiveServer();
+
+    // Clear the private cache so this test always issues the first request itself.
+    cy.visit('/live-tournaments', {
+      onBeforeLoad: (win) => {
+        win.indexedDB.deleteDatabase('gones-cache');
+        seedSettings(win);
+      }
+    });
+    cy.window().then((win) => seedSettings(win));
+    cy.reload();
+
+    cy.wait('@liveList');
+    cy.get('[data-cy="live-list-sync-button"]').should('be.visible');
+
+    // Navigate away and back — cache is fresh so no second list request.
+    cy.visit('/');
+    cy.visit('/live-tournaments');
+    cy.get('[data-cy="live-list-sync-button"]').should('be.visible');
+    cy.get('@liveList.all').should('have.length', 1);
+  });
 });

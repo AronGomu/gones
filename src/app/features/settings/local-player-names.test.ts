@@ -13,6 +13,7 @@ function league(id: string, name: string, entries: RoundEntry[]): PersistedLeagu
       leagueId: id,
       name: 'Tournament',
       tournamentDate: '2026-08-10',
+      status: 'completed',
       rounds: [{ id: `${id}-round`, entries }],
       playerArchetypes: []
     }]

@@ -156,6 +156,12 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
             var row = await verification.ScheduledNotifications.SingleAsync(item => item.RegistrationAttemptId == timelyRegistration.Id && item.ScheduledAtUtc == dueAt);
             Assert.Equal(ScheduledNotificationStatus.Enqueued, row.Status);
             Assert.Equal(1, await verification.NotificationOutboxRecords.CountAsync(item => item.DedupeKey == row.DedupeKey));
+
+            // ADR 0038 deleted /calendar/tournaments/:slug with no redirect: the reminder link has to be
+            // the live Event route or the reader lands on the 404 page.
+            var reminder = await verification.NotificationOutboxRecords.AsNoTracking().SingleAsync(item => item.DedupeKey == row.DedupeKey);
+            Assert.Contains($"https://app.example/events/{timelyTournament.Slug}", reminder.TemplateModelJson!, StringComparison.Ordinal);
+            Assert.DoesNotContain("/calendar", reminder.TemplateModelJson!, StringComparison.Ordinal);
         }
 
         var downtimeTournament = await CreateTournamentAsync(new LocalDate(2030, 8, 15));

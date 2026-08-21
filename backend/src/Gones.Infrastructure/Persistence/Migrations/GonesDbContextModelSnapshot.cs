@@ -1320,6 +1320,12 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("canonical_document");
 
+                    b.Property<int>("CountsVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("counts_version");
+
                     b.Property<Instant?>("DeletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
@@ -1336,11 +1342,23 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("name");
 
+                    b.Property<int>("PlayerCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("player_count");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
+
+                    b.Property<int>("TournamentCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("tournament_count");
 
                     b.Property<Instant>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1353,6 +1371,9 @@ namespace Gones.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_league_archive_aggregates");
+
+                    b.HasIndex("CountsVersion")
+                        .HasDatabaseName("ix_league_archive_aggregates_counts_version");
 
                     b.HasIndex("DocumentId")
                         .IsUnique()
@@ -2313,6 +2334,159 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_asp_net_users_global_role", "global_role IN ('User', 'Organizer', 'Admin')");
                         });
+                });
+
+            modelBuilder.Entity("Gones.Infrastructure.Persistence.PlayerStatisticsMeta", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("FormulaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("formula_version");
+
+                    b.Property<Instant>("RebuiltAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rebuilt_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_player_statistics_meta");
+
+                    b.ToTable("player_statistics_meta", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_player_statistics_meta_single_row", "id = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Infrastructure.Persistence.PlayerStatisticsRow", b =>
+                {
+                    b.Property<string>("PlayerName")
+                        .HasColumnType("text")
+                        .HasColumnName("player_name");
+
+                    b.Property<double>("DecayedRating")
+                        .HasColumnType("double precision")
+                        .HasColumnName("decayed_rating");
+
+                    b.Property<int>("GameLosses")
+                        .HasColumnType("integer")
+                        .HasColumnName("game_losses");
+
+                    b.Property<double?>("GameWinrate")
+                        .HasColumnType("double precision")
+                        .HasColumnName("game_winrate");
+
+                    b.Property<int>("GameWins")
+                        .HasColumnType("integer")
+                        .HasColumnName("game_wins");
+
+                    b.Property<string>("LastPlayedDate")
+                        .HasColumnType("text")
+                        .HasColumnName("last_played_date");
+
+                    b.Property<double>("LastRatingDelta")
+                        .HasColumnType("double precision")
+                        .HasColumnName("last_rating_delta");
+
+                    b.Property<int>("MatchDraws")
+                        .HasColumnType("integer")
+                        .HasColumnName("match_draws");
+
+                    b.Property<int>("MatchLosses")
+                        .HasColumnType("integer")
+                        .HasColumnName("match_losses");
+
+                    b.Property<double?>("MatchWinrate")
+                        .HasColumnType("double precision")
+                        .HasColumnName("match_winrate");
+
+                    b.Property<int>("MatchWins")
+                        .HasColumnType("integer")
+                        .HasColumnName("match_wins");
+
+                    b.Property<string>("MostPlayedArchetype")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("most_played_archetype");
+
+                    b.Property<string>("Nemesis")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("nemesis");
+
+                    b.Property<int>("PlayedGameCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("played_game_count");
+
+                    b.Property<int>("PlayedMatchCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("played_match_count");
+
+                    b.Property<double>("PreviousRating")
+                        .HasColumnType("double precision")
+                        .HasColumnName("previous_rating");
+
+                    b.Property<double>("Rating")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rating");
+
+                    b.Property<double>("RatingDeviation")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rating_deviation");
+
+                    b.Property<double>("RatingVolatility")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rating_volatility");
+
+                    b.Property<string>("Rival")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("rival");
+
+                    b.Property<int>("TournamentsPlayed")
+                        .HasColumnType("integer")
+                        .HasColumnName("tournaments_played");
+
+                    b.HasKey("PlayerName")
+                        .HasName("pk_player_statistics");
+
+                    b.HasIndex("GameLosses")
+                        .HasDatabaseName("ix_player_statistics_game_losses");
+
+                    b.HasIndex("GameWinrate")
+                        .HasDatabaseName("ix_player_statistics_game_winrate");
+
+                    b.HasIndex("GameWins")
+                        .HasDatabaseName("ix_player_statistics_game_wins");
+
+                    b.HasIndex("MatchDraws")
+                        .HasDatabaseName("ix_player_statistics_match_draws");
+
+                    b.HasIndex("MatchLosses")
+                        .HasDatabaseName("ix_player_statistics_match_losses");
+
+                    b.HasIndex("MatchWinrate")
+                        .HasDatabaseName("ix_player_statistics_match_winrate");
+
+                    b.HasIndex("MatchWins")
+                        .HasDatabaseName("ix_player_statistics_match_wins");
+
+                    b.HasIndex("PlayedGameCount")
+                        .HasDatabaseName("ix_player_statistics_played_game_count");
+
+                    b.HasIndex("PlayedMatchCount")
+                        .HasDatabaseName("ix_player_statistics_played_match_count");
+
+                    b.HasIndex("PlayerName")
+                        .HasDatabaseName("ix_player_statistics_player_name_pattern");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("PlayerName"), new[] { "text_pattern_ops" });
+
+                    b.HasIndex("Rating")
+                        .HasDatabaseName("ix_player_statistics_rating");
+
+                    b.HasIndex("TournamentsPlayed")
+                        .HasDatabaseName("ix_player_statistics_tournaments_played");
+
+                    b.ToTable("player_statistics", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>

@@ -16,6 +16,7 @@ import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { AdminOrganizationMemberResponse, AdminOrganizationResponse, AdminUserSummaryResponse, Client } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { AdminOrganizationsComponent, MAX_PICKER_USERS } from './admin-organizations.component';
 
@@ -55,42 +56,57 @@ function user(id: string, username: string, globalRole = 'User'): AdminUserSumma
   return { id, email: `${username}@example.test`, emailVerified: true, globalRole, username, firstName: '', lastName: '', isClosed: false, createdAt: '2026-08-01T00:00:00Z' } as unknown as AdminUserSummaryResponse;
 }
 
+function fakeCache(fromCache = false) {
+  return {
+    readCached: vi.fn(async (_key: string, loader: () => Promise<unknown>, _opts = {}) =>
+      fromCache
+        ? { value: { users: [], capReached: false }, fetchedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), fromCache: true, stale: false }
+        : { value: await loader(), fetchedAt: new Date().toISOString(), fromCache: false, stale: false }
+    ),
+    invalidateFamily: vi.fn(async () => undefined)
+  };
+}
+
 interface SetupOptions {
   query?: Record<string, string>;
   organizations?: AdminOrganizationResponse[];
   members?: AdminOrganizationMemberResponse[];
   users?: AdminUserSummaryResponse[];
   totalUsers?: number;
+  cache?: ReturnType<typeof fakeCache>;
 }
 
 function setup(options: SetupOptions = {}) {
   const organizations = options.organizations ?? [org('org-1'), org('org-2', { isDraft: true, memberCount: 0 })];
   const allUsers = options.users ?? [user('u1', 'alice'), user('u2', 'organizer-bob', 'Organizer')];
   const totalUsers = options.totalUsers ?? allUsers.length;
+  const cache = options.cache ?? fakeCache(false);
 
   const organizationsGET3 = vi.fn(() => of({ items: organizations, page: 1, pageSize: 20, totalCount: organizations.length }));
   const membersAll2 = vi.fn(() => of(options.members ?? [member('u1', 'alice')]));
   const membersPOST = vi.fn(() => of({}));
   const membersDELETE = vi.fn(() => of(undefined));
+  const organizationsPOST = vi.fn((_body: Record<string, unknown>) => of(org('org-new')));
   const users = vi.fn((_search: string | undefined, page: number, pageSize: number) =>
     of({ items: allUsers.slice((page - 1) * pageSize, page * pageSize), page, pageSize, totalCount: totalUsers })
   );
 
-  const client = { organizationsGET3, membersAll2, membersPOST, membersDELETE, users } as unknown as Client;
+  const client = { organizationsGET3, membersAll2, membersPOST, membersDELETE, organizationsPOST, users } as unknown as Client;
   const route = { queryParamMap: of(paramMap(options.query ?? {})) } as unknown as ActivatedRoute;
-  const navigate = vi.fn(() => Promise.resolve(true));
+  const navigate = vi.fn((_commands: unknown[], _extras?: { queryParams?: Record<string, unknown> }) => Promise.resolve(true));
   const router = { navigate } as unknown as Router;
 
   const injector = Injector.create({ providers: [
     { provide: Client, useValue: client },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
+    { provide: ServerReadCacheService, useValue: cache },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
   const component = runInInjectionContext(injector, () => new AdminOrganizationsComponent());
-  return { component, organizationsGET3, membersAll2, membersPOST, membersDELETE, users, navigate };
+  return { component, organizationsGET3, membersAll2, membersPOST, membersDELETE, organizationsPOST, users, navigate, cache };
 }
 
 async function flush(times = 6): Promise<void> {
@@ -183,5 +199,200 @@ describe('AdminOrganizationsComponent', () => {
 
     expect(component.selectedId()).toBe('org-2');
     expect(membersAll2).toHaveBeenCalledWith('org-2');
+  });
+});
+
+describe('AdminOrganizationsComponent cache', () => {
+  it('refetches members and list after addMember resolves', async () => {
+    const { component, membersAll2, organizationsGET3, membersPOST } = setup();
+    await flush();
+    component.select(org('org-1'));
+    await flush();
+    const listCallsBefore = organizationsGET3.mock.calls.length;
+    const memberCallsBefore = membersAll2.mock.calls.length;
+
+    await component.addMember(user('u9', 'carol'));
+    await flush();
+
+    expect(membersPOST).toHaveBeenCalledWith('org-1', { userId: 'u9', role: 'Organizer' });
+    expect(membersAll2.mock.calls.length).toBeGreaterThan(memberCallsBefore);
+    expect(organizationsGET3.mock.calls.length).toBeGreaterThan(listCallsBefore);
+    expect(component.error()).toBe('');
+  });
+
+  it('caches the user picker and skips paging on a cache hit', async () => {
+    const cachedPicker = { users: [user('u1', 'alice')], capReached: false };
+    const cache = {
+      readCached: vi.fn(async (_key: string, loader: () => Promise<unknown>) => {
+        if (_key === 'admin-user-picker') {
+          return { value: cachedPicker, fetchedAt: new Date().toISOString(), fromCache: true, stale: false };
+        }
+        return { value: await loader(), fetchedAt: new Date().toISOString(), fromCache: false, stale: false };
+      }),
+      invalidateFamily: vi.fn(async () => undefined)
+    };
+
+    const { users } = setup({ cache });
+    await flush();
+
+    // user picker was served from cache — no paging calls to client.users
+    expect(users).not.toHaveBeenCalled();
+    expect(cache.readCached).toHaveBeenCalledWith('admin-user-picker', expect.any(Function));
+  });
+
+  it('renders a gones-sync-bar with admin-orgs prefix', () => {
+    expect(source).toContain('cyPrefix="admin-orgs"');
+    expect(source).toContain('(sync)="sync()"');
+  });
+});
+
+describe('AdminOrganizationsComponent create form', () => {
+  it('has no owner field', async () => {
+    const { component } = setup();
+    await flush();
+    component.showCreate.set(true);
+
+    expect(source).not.toContain('admin-create-org-owner');
+    expect(source).not.toContain('ownerUserId');
+    expect(Object.keys(component.draft)).toEqual(['name', 'description', 'website', 'contactEmail']);
+  });
+
+  it('creates with a name only', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    await component.create();
+    await flush();
+
+    expect(organizationsPOST).toHaveBeenCalledWith({ name: 'Club', description: '', website: '', contactEmail: '' });
+    expect(Object.keys(organizationsPOST.mock.calls[0][0])).not.toContain('ownerUserId');
+  });
+
+  it('blocks an empty name', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = '   ';
+    await component.create();
+    await flush();
+
+    expect(organizationsPOST).not.toHaveBeenCalled();
+    expect(component.draftErrors().name).toBeTruthy();
+    expect(source).toContain('admin-create-org-name-error');
+  });
+
+  it('accepts empty optional fields', async () => {
+    const { component } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    expect(component.draftErrors()).toEqual({});
+    expect(component.hasDraftErrors()).toBe(false);
+  });
+
+  it('rejects a malformed website', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    component.draft.website = 'not a url';
+    await component.create();
+    await flush();
+
+    expect(component.draftErrors().website).toBeTruthy();
+    expect(organizationsPOST).not.toHaveBeenCalled();
+    expect(source).toContain('admin-create-org-website-error');
+  });
+
+  it('rejects a malformed e-mail', async () => {
+    const { component, organizationsPOST } = setup();
+    await flush();
+
+    component.draft.name = 'Club';
+    component.draft.contactEmail = 'nope';
+    await component.create();
+    await flush();
+
+    expect(component.draftErrors().contactEmail).toBeTruthy();
+    expect(organizationsPOST).not.toHaveBeenCalled();
+    expect(source).toContain('admin-create-org-contact-error');
+  });
+
+  it('cancel closes and clears the form', async () => {
+    const { component } = setup();
+    await flush();
+
+    component.showCreate.set(true);
+    component.draft.name = 'Club';
+    component.cancelCreate();
+
+    expect(component.showCreate()).toBe(false);
+    expect(component.draft.name).toBe('');
+    expect(source).toContain('admin-create-org-cancel');
+  });
+});
+
+describe('AdminOrganizationsComponent filter', () => {
+  it('filters on input', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      await flush();
+      navigate.mockClear();
+
+      component.setSearchDraft('ly');
+      expect(navigate).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(300);
+
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate.mock.calls[0][1]).toMatchObject({ queryParams: expect.objectContaining({ search: 'ly' }) });
+      expect(source).not.toContain('admin-org-search-submit');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('debounces', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      await flush();
+      navigate.mockClear();
+
+      component.setSearchDraft('l');
+      vi.advanceTimersByTime(100);
+      component.setSearchDraft('ly');
+      vi.advanceTimersByTime(100);
+      component.setSearchDraft('lyo');
+      vi.advanceTimersByTime(300);
+
+      expect(navigate).toHaveBeenCalledTimes(1);
+      expect(navigate.mock.calls[0][1]).toMatchObject({ queryParams: expect.objectContaining({ search: 'lyo' }) });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears the pending debounce on destroy', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      await flush();
+      navigate.mockClear();
+
+      component.setSearchDraft('ly');
+      component.ngOnDestroy();
+      vi.advanceTimersByTime(300);
+
+      expect(navigate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('places the create toggle after the filter form with the warning styling', () => {
+    expect(source.indexOf('admin-org-create-toggle')).toBeGreaterThan(source.indexOf('admin-orgs-filters'));
+    expect(source).toMatch(/class="warning-action"[^>]*data-cy="admin-org-create-toggle"/);
   });
 });

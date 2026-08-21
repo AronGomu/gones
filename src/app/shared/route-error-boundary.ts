@@ -2,6 +2,7 @@ import { Component, ErrorHandler, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { RedirectCommand, Router, RouterLink } from '@angular/router';
 import { I18nService } from '../i18n/i18n.service';
+import { BackButtonComponent } from './back-button.component';
 import { logBoundaryError } from './app-logger';
 
 export const ROUTE_ERROR_PATH = '/app-error';
@@ -26,8 +27,10 @@ export class GonesErrorHandler implements ErrorHandler {
 @Component({
   selector: 'gones-route-error',
   standalone: true,
-  imports: [MatButtonModule, RouterLink],
+  imports: [MatButtonModule, RouterLink, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="route-error-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+
     <section class="page stack" role="alert" data-cy="route-error">
       <h1 data-cy="route-error-title">{{ i18n.t('routeError.title') }}</h1>
       <p data-cy="route-error-body">{{ i18n.t('routeError.body') }}</p>
@@ -36,6 +39,8 @@ export class GonesErrorHandler implements ErrorHandler {
         <a mat-stroked-button routerLink="/" data-cy="route-error-home">{{ i18n.t('routeError.home') }}</a>
       </div>
     </section>
+
+    <gones-back-button data-cy="route-error-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class RouteErrorComponent {

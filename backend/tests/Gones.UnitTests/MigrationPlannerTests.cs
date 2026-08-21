@@ -185,6 +185,21 @@ public sealed class MigrationPlannerTests
     }
 
     [Fact]
+    public void Imported_legacy_tournament_reads_completed()
+    {
+        // The bundle predates the Archive Tournament status field, so the import must read it as finished
+        // history rather than reopening it. The planner normalises through LeagueNormalizer, which owns the rule.
+        var bundle = Bundle(InstanceA, "sha256:aa", leaguesJson: $"[{LeagueJsonText("league-1")}]");
+        var evaluation = MigrationPlanner.Evaluate(
+            [bundle], Manifest(("sha256:aa", InstanceA, "authoritative")), Mapping(), Target(), "dry-run", "2026-08-05T10:00:00Z");
+
+        Assert.Empty(evaluation.Report.Errors);
+        var league = Assert.Single(evaluation.Plan.LeaguesToCreate);
+        Assert.Equal("active", league.Status);
+        Assert.Equal("completed", Assert.Single(league.Tournaments).Status);
+    }
+
+    [Fact]
     public void Placeholder_league_tournaments_need_an_explicit_target()
     {
         var placeholderJson = $"{{\"id\":\"{LeagueNormalizer.PlaceholderLeagueId}\",\"name\":\"Unassigned Tournaments\",\"status\":\"active\",\"tournaments\":[{TournamentJsonText("orphan-1", LeagueNormalizer.PlaceholderLeagueId)}]}}";

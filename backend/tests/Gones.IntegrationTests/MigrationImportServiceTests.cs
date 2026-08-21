@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Gones.Api.Leagues;
 using Gones.Application.Migration;
 using Gones.Domain.Catalog;
 using Gones.Domain.Organizations;
@@ -7,6 +8,7 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.MigrationImport;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
 
 namespace Gones.IntegrationTests;
@@ -194,6 +196,57 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
             .RunAsync(Options(inputs, dryRun: false, acceptReportHash: dryRun.Report.ReportHash));
         Assert.Equal(0, recovered.ExitCode);
         Assert.True(recovered.Verification!.Passed, string.Join("; ", recovered.Verification.Failures));
+    }
+
+    /// <summary>
+    /// An import writes League archives, so the ADR 0040 read model it feeds has to move with them.
+    /// <c>PlayerStatisticsRebuildService</c> lives in Gones.Api and this assembly cannot reference it, so
+    /// the import clears the formula stamp inside its own transaction instead: the startup rebuild then
+    /// sees a stale table and repairs it, and the migrator container this runs in always precedes an API
+    /// start. Leaving the stamp in place would also keep the public rankings answering 304 over numbers
+    /// the import moved.
+    /// </summary>
+    [Fact]
+    public async Task An_import_invalidates_the_player_statistics_read_model()
+    {
+        await using var db = await CreateMigratedContextAsync();
+        var seed = await SeedAsync(db);
+        var inputs = WriteInputs(seed);
+        var dryRun = await new MigrationImportService(db, new FixedClock(Now)).RunAsync(Options(inputs, dryRun: true));
+
+        // A current stamp over an empty archive: what an instance looks like the moment before an import.
+        await RebuildAsync();
+        await using (var stamped = CreateContext()) Assert.True(await stamped.PlayerStatisticsMeta.AnyAsync());
+
+        await using var importContext = CreateContext();
+        var outcome = await new MigrationImportService(importContext, new FixedClock(Now))
+            .RunAsync(Options(inputs, dryRun: false, acceptReportHash: dryRun.Report!.ReportHash));
+        Assert.Equal(0, outcome.ExitCode);
+
+        await using (var invalidated = CreateContext())
+        {
+            Assert.False(await invalidated.PlayerStatisticsMeta.AnyAsync());
+            Assert.Equal("unbuilt", await PublicLeagueEndpoints.ReadModelStampAsync(invalidated, CancellationToken.None));
+        }
+
+        // What the next API start does with that stale table: the imported Match is in the numbers.
+        await RebuildAsync();
+        await using var repaired = CreateContext();
+        var alice = await repaired.PlayerStatistics.AsNoTracking().SingleAsync(row => row.PlayerName == "Alice");
+        Assert.Equal(1, alice.PlayedMatchCount);
+        Assert.Equal(1, alice.MatchWins);
+        Assert.True(await repaired.PlayerStatisticsMeta.AnyAsync());
+    }
+
+    /// <summary>The startup repair, run by hand: one transaction, rebuild, save, commit.</summary>
+    private async Task RebuildAsync()
+    {
+        await using var database = CreateContext();
+        await using var transaction = await database.Database.BeginTransactionAsync();
+        await new PlayerStatisticsRebuildService(NullLogger<PlayerStatisticsRebuildService>.Instance)
+            .RebuildAsync(database, CancellationToken.None);
+        await database.SaveChangesAsync();
+        await transaction.CommitAsync();
     }
 
     /// <summary>Row census across every store the import writes, used to prove all-or-none behaviour.</summary>
@@ -405,7 +458,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         db.Organizations.Add(organization);
         if (db.Entry(legacy).State == EntityState.Detached) db.TournamentFormats.Add(legacy);
         await db.SaveChangesAsync();
-        db.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, user.Id, OrganizationRoles.Owner, Now));
+        db.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, user.Id, OrganizationRoles.Organizer, Now));
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         return new SeedRows(user, organization, legacy);

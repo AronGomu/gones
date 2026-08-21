@@ -279,7 +279,7 @@ describe('Organizer Event create, preview, publish', () => {
     }).as('conflictPublish');
     cy.get('[data-cy="event-publish"]').click();
     cy.wait('@conflictPublish');
-    cy.get('[data-cy="event-review-calendar"]').should('have.attr', 'href', '/calendar');
+    cy.get('[data-cy="event-review-calendar"]').should('have.attr', 'href', '/events');
     cy.get('[data-cy="event-back-edit"]').click();
     cy.get('[data-cy="event-title"]').should('have.value', 'Lyon Legacy Open');
   });
@@ -292,7 +292,7 @@ describe('Organizer Event create, preview, publish', () => {
     cy.location('pathname').should('eq', '/events/new');
     cy.wait(['@myOrganizations', '@formats']);
     cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Create Event');
-    cy.get('[data-cy="app-breadcrumb-link-1"]').should('have.text', 'Calendar').and('have.attr', 'href', '/calendar');
+    cy.get('[data-cy="app-breadcrumb-link-1"]').should('have.text', 'Events').and('have.attr', 'href', '/events');
 
     visit('/events/new', 'fr');
     cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Créer un événement');

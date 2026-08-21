@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Gones.Domain.Leagues;
 
 public static class LeagueRules
@@ -124,14 +126,24 @@ public static class LeagueRules
         return FinalizeStatistics(accumulator);
     }
 
-    public static IReadOnlyList<GlobalPlayerStatistics> CalculateGlobalPlayerStatistics(GonesData data)
+    /// <param name="asOf">
+    /// The rebuild clock, which only the rating reads: idle deviation growth and the decayed rating are
+    /// measured from a player's last played date to this day. Defaults to today in UTC. It is a date and
+    /// not an instant because the idle span is counted in whole months, so a rebuild run twice on the
+    /// same day produces byte-identical rows.
+    /// </param>
+    public static IReadOnlyList<GlobalPlayerStatistics> CalculateGlobalPlayerStatistics(GonesData data, DateOnly? asOf = null)
     {
         var accumulators = new Dictionary<string, StatisticsAccumulator>(StringComparer.Ordinal);
         foreach (var league in data.Leagues)
         {
-            if (league.Status != "completed") continue;
             foreach (var tournament in league.Tournaments)
             {
+                // ADR 0040: scope is the Tournament, not the League. A played Match is history, and an
+                // archive is complete per Tournament, not per season — an active League that already ran
+                // a completed Tournament contributes it, and a completed League never drags an
+                // unfinished Tournament in with it.
+                if (tournament.Status != "completed") continue;
                 for (var roundIndex = 0; roundIndex < tournament.Rounds.Count; roundIndex++)
                 {
                     foreach (var entry in tournament.Rounds[roundIndex].Entries)
@@ -144,23 +156,12 @@ public static class LeagueRules
             }
         }
 
+        var ratings = ReplayRatings(data, asOf ?? DateOnly.FromDateTime(DateTime.UtcNow));
+
         return accumulators.Values
             .Select(FinalizeStatistics)
             .Where(stats => stats.PlayedMatchCount > 0)
-            .Select(stats => new GlobalPlayerStatistics(
-                stats.PlayerName,
-                stats.PlayedMatchCount,
-                stats.MatchWins,
-                stats.MatchLosses,
-                stats.MatchDraws,
-                stats.MatchWinrate,
-                stats.PlayedGameCount,
-                stats.GameWins,
-                stats.GameLosses,
-                stats.GameWinrate,
-                stats.Nemesis,
-                stats.Rival,
-                stats.MostPlayedArchetype))
+            .Select(stats => Project(stats, ratings.GetValueOrDefault(stats.PlayerName)))
             .OrderBy(stats => stats.PlayerName, StringComparer.Ordinal)
             .ToArray();
 
@@ -172,6 +173,187 @@ public static class LeagueRules
             accumulators.Add(name, accumulator);
             return accumulator;
         }
+    }
+
+    /// <summary>
+    /// Joins the ADR 0040 counting pass to the ADR 0043 rating. A player with no rated Match — byes only,
+    /// or nothing but 0-0 — has no replay state and keeps the published seed.
+    /// </summary>
+    private static GlobalPlayerStatistics Project(PlayerStatistics stats, RatingState? rating) => new(
+        stats.PlayerName,
+        stats.PlayedMatchCount,
+        stats.MatchWins,
+        stats.MatchLosses,
+        stats.MatchDraws,
+        stats.MatchWinrate,
+        stats.PlayedGameCount,
+        stats.GameWins,
+        stats.GameLosses,
+        stats.GameWinrate,
+        stats.Nemesis,
+        stats.Rival,
+        stats.MostPlayedArchetype,
+        rating?.Rating.Rating ?? Glicko2.Seed.Rating,
+        rating?.Rating.Deviation ?? Glicko2.Seed.Deviation,
+        rating?.Rating.Volatility ?? Glicko2.Seed.Volatility,
+        rating?.PreviousRating ?? Glicko2.Seed.Rating,
+        rating is null ? 0.0 : rating.Rating.Rating - rating.PreviousRating,
+        rating?.Tournaments.Count ?? 0,
+        rating?.LastPlayedDate,
+        rating?.DecayedRating ?? Glicko2.Seed.Rating);
+
+    /// <summary>
+    /// Replays every completed Tournament as Glicko-2 (ADR 0043). The rules, in the order they run:
+    ///
+    /// <list type="number">
+    /// <item><description>Collect every completed Tournament (<c>Status == "completed"</c>) from every League.</description></item>
+    /// <item><description>Group them by <c>TournamentDate</c>. A Tournament with an empty date is skipped
+    /// by the rating — it still counts in the statistics above. Dates replay ascending,
+    /// <see cref="StringComparer.Ordinal"/>, which is date order for ISO strings.</description></item>
+    /// <item><description>Each date is one rating period: every valid <see cref="MatchRoundEntry"/> in every
+    /// Tournament on that date, in document order. <see cref="ByeRoundEntry"/> is skipped entirely, and so
+    /// is a Match scored 0-0.</description></item>
+    /// <item><description>Every Match in the period is evaluated against the ratings held <b>before</b> the
+    /// period started. That is what makes Match order inside a period, and Tournament order inside a date,
+    /// irrelevant — which matters because <c>tournamentDate</c> carries no clock.</description></item>
+    /// <item><description>Each player in the period gets exactly one <see cref="Glicko2.Update"/>, carrying
+    /// one <see cref="Glicko2Result"/> per Match.</description></item>
+    /// <item><description>A player not in the period is left untouched — no <see cref="Glicko2.Skip"/>.
+    /// Idle growth happens once, in rule 8, so a rating does not depend on how many dates happened to exist
+    /// between two appearances in a partially-populated archive.</description></item>
+    /// <item><description><c>PreviousRating</c> is the rating held before the player's most recent period,
+    /// <c>LastPlayedDate</c> is that period's date, and <c>TournamentsPlayed</c> counts the distinct
+    /// completed Tournaments the player had a rated Match in.</description></item>
+    /// <item><description>After the last period, idle growth is applied once per player:
+    /// <see cref="Glicko2.Skip"/> repeated once per whole month since <c>LastPlayedDate</c>, capped at 24
+    /// applications (the deviation is clamped at 350 anyway, so the cap only bounds the loop). The decayed
+    /// rating uses the same month count.</description></item>
+    /// <item><description>A player with zero rated Matches gets no state at all and keeps
+    /// <see cref="Glicko2.Seed"/> with <c>TournamentsPlayed = 0</c> — see <see cref="Project"/>.</description></item>
+    /// </list>
+    /// </summary>
+    private static Dictionary<string, RatingState> ReplayRatings(GonesData data, DateOnly asOf)
+    {
+        var periods = new SortedDictionary<string, List<RatedMatch>>(StringComparer.Ordinal);
+        foreach (var league in data.Leagues)
+        {
+            foreach (var tournament in league.Tournaments)
+            {
+                if (tournament.Status != "completed" || tournament.TournamentDate.Length == 0) continue;
+                foreach (var round in tournament.Rounds)
+                {
+                    foreach (var entry in round.Entries)
+                    {
+                        if (entry is not MatchRoundEntry match || !Validate(match).Valid) continue;
+                        // 0-0 is byte-identical to a Match nobody scored. Scoring it would invent a result.
+                        if (match is { Player1Score: 0, Player2Score: 0 }) continue;
+                        if (!periods.TryGetValue(tournament.TournamentDate, out var matches))
+                        {
+                            matches = [];
+                            periods.Add(tournament.TournamentDate, matches);
+                        }
+                        matches.Add(new RatedMatch($"{league.Id}\u0000{tournament.Id}", match));
+                    }
+                }
+            }
+        }
+
+        var states = new Dictionary<string, RatingState>(StringComparer.Ordinal);
+        foreach (var (date, matches) in periods)
+        {
+            // Insertion-ordered alongside the dictionary: Dictionary does not promise an enumeration
+            // order, and the rating has to be reproducible down to the last bit.
+            var participants = new List<string>();
+            var results = new Dictionary<string, List<Glicko2Result>>(StringComparer.Ordinal);
+            foreach (var (tournamentKey, match) in matches)
+            {
+                var player1 = EnsureState(LeagueNormalizer.TrimPlayerName(match.Player1Name));
+                var player2 = EnsureState(LeagueNormalizer.TrimPlayerName(match.Player2Name));
+                // Read both ratings before either list is touched: rule 4, the whole period sees the same
+                // starting state.
+                var before1 = player1.Rating;
+                var before2 = player2.Rating;
+                Record(player1, before2, match.Player1Score, match.Player2Score);
+                Record(player2, before1, match.Player2Score, match.Player1Score);
+                player1.Tournaments.Add(tournamentKey);
+                player2.Tournaments.Add(tournamentKey);
+            }
+
+            foreach (var playerName in participants)
+            {
+                var state = states[playerName];
+                state.PreviousRating = state.Rating.Rating;
+                state.Rating = Glicko2.Update(state.Rating, results[playerName]);
+                state.LastPlayedDate = date;
+            }
+
+            void Record(RatingState state, Glicko2Rating opponent, int ownScore, int opponentScore)
+            {
+                if (!results.TryGetValue(state.PlayerName, out var list))
+                {
+                    list = [];
+                    results.Add(state.PlayerName, list);
+                    participants.Add(state.PlayerName);
+                }
+                list.Add(new Glicko2Result(
+                    opponent,
+                    MarginOfVictory.Score(ownScore, opponentScore),
+                    MarginOfVictory.Factor(ownScore, opponentScore)));
+            }
+        }
+
+        foreach (var state in states.Values)
+        {
+            var idleMonths = IdleMonths(state.LastPlayedDate, asOf);
+            for (var month = 0; month < Math.Min(idleMonths, MaximumIdleSkips); month++) state.Rating = Glicko2.Skip(state.Rating);
+            state.DecayedRating = Glicko2Decay.Apply(state.Rating.Rating, idleMonths);
+        }
+
+        return states;
+
+        RatingState EnsureState(string playerName)
+        {
+            if (states.TryGetValue(playerName, out var state)) return state;
+            state = new RatingState(playerName);
+            states.Add(playerName, state);
+            return state;
+        }
+    }
+
+    /// <summary>
+    /// Whole months from a played date to the rebuild clock, never negative. A date the archive holds but
+    /// no calendar recognises reads as zero: the rating already replayed it in ordinal order, and guessing
+    /// an idle span from an unparseable string would be worse than not decaying at all.
+    /// </summary>
+    private static int IdleMonths(string? lastPlayedDate, DateOnly asOf)
+    {
+        if (!DateOnly.TryParseExact(lastPlayedDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var played)) return 0;
+        var months = ((asOf.Year - played.Year) * 12) + asOf.Month - played.Month;
+        if (asOf.Day < played.Day) months--;
+        return Math.Max(months, 0);
+    }
+
+    /// <summary>
+    /// The most monthly idle skips one rebuild will apply. This is a real ceiling on deviation growth,
+    /// not just a loop bound: from RD 250 twenty-four skips reach about 255, and the 350 clamp would
+    /// take roughly 553 of them. Past 24 idle months the deviation stops widening, so a player idle for
+    /// two years and one idle for ten carry the same one. Accepted because the discarded growth is a few
+    /// RD points on a number no ordering reads, while the cap keeps the replay loop bounded no matter how
+    /// old the archive gets. Pinned by <c>PlayerRatingReplayTests.Stops_growing_the_deviation_past_the_cap</c>
+    /// and recorded in ADR 0043.
+    /// </summary>
+    private const int MaximumIdleSkips = 24;
+
+    private readonly record struct RatedMatch(string TournamentKey, MatchRoundEntry Match);
+
+    private sealed class RatingState(string playerName)
+    {
+        public string PlayerName { get; } = playerName;
+        public Glicko2Rating Rating { get; set; } = Glicko2.Seed;
+        public double PreviousRating { get; set; } = Glicko2.Seed.Rating;
+        public double DecayedRating { get; set; } = Glicko2.Seed.Rating;
+        public string? LastPlayedDate { get; set; }
+        public HashSet<string> Tournaments { get; } = new(StringComparer.Ordinal);
     }
 
     private static void CollectLeagueStatistics(StatisticsAccumulator accumulator, LeagueDocument league, PlayerStatisticsFilters filters)
@@ -269,11 +451,21 @@ public static class LeagueRules
         return top.Key is null ? null : new PlayerArchetypeUsage(top.Key, top.Value);
     }
 
-    private static string SelectedArchetype(MatchRoundEntry match, int side, TournamentDocument tournament, string playerName)
+    /// <summary>
+    /// The archetype one side of a Match played with: the entry's own value first, then the Tournament
+    /// roster, then empty. Public because the cross-League player history serves the same precedence.
+    /// </summary>
+    public static string SelectedArchetype(MatchRoundEntry match, int side, TournamentDocument tournament, string playerName)
     {
         var matchArchetype = (side == 1 ? match.Player1DeckArchetype : match.Player2DeckArchetype).Trim();
-        if (matchArchetype.Length > 0) return matchArchetype;
-        return tournament.PlayerArchetypes.FirstOrDefault(row => LeagueNormalizer.TrimPlayerName(row.PlayerName) == playerName)?.Archetype.Trim() ?? string.Empty;
+        return matchArchetype.Length > 0 ? matchArchetype : RosterArchetype(tournament, playerName);
+    }
+
+    /// <summary>The archetype the Tournament roster records for a player, or empty when it records none.</summary>
+    public static string RosterArchetype(TournamentDocument tournament, string playerName)
+    {
+        var name = LeagueNormalizer.TrimPlayerName(playerName);
+        return tournament.PlayerArchetypes.FirstOrDefault(row => LeagueNormalizer.TrimPlayerName(row.PlayerName) == name)?.Archetype.Trim() ?? string.Empty;
     }
 
     public static LeagueDocument RenamePlayer(LeagueDocument league, string fromName, string toName)

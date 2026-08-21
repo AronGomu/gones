@@ -42,10 +42,10 @@ function league(id: string, name = `League ${id}`, tournaments: TournamentDocume
   return { id, name, status: 'active', tournaments, documentVersion: 3, updatedAt: '2026-08-09T10:00:00.000Z' };
 }
 
-function setup(leagues: PersistedLeague[], { serverUnavailable = false, signedIn = false }: { serverUnavailable?: boolean; signedIn?: boolean } = {}) {
+function setup(leagues: PersistedLeague[], { serverUnavailable = false, signedIn = false, catalogTruncated = false }: { serverUnavailable?: boolean; signedIn?: boolean; catalogTruncated?: boolean } = {}) {
   saveJsonFileMock.mockClear();
   const listLeagues = vi.fn(async () => leagues);
-  const repo = { listLeagues, getLeague: vi.fn(async () => null), serverUnavailable: signal(serverUnavailable) } as unknown as LeagueArchiveRepository;
+  const repo = { listLeagues, getLeague: vi.fn(async () => null), serverUnavailable: signal(serverUnavailable), catalogTruncated: signal(catalogTruncated) } as unknown as LeagueArchiveRepository;
   const router = { url: '/leagues-archive', events: new Subject<unknown>(), navigate: vi.fn(async () => true) } as unknown as Router;
   const auth = { enabled: true, profile: signal(signedIn ? { id: 'organizer', globalRole: 'Organizer' } : null) } as unknown as AuthService;
   const injector = Injector.create({ providers: [
@@ -146,6 +146,21 @@ describe('AppComponent full data export', () => {
 
     expect(savedBundle().leagues.map((item) => item.id)).toEqual([LOCAL_ID]);
     expect(component.importError()).toBe('');
+  });
+
+  /**
+   * The second way a server list can be short of the whole archive: the catalog row cap (ADR 0039).
+   * The server answered, so `serverUnavailable` is false and the older guard says nothing — but the
+   * bundle would still be missing Leagues, which is the exact failure that guard exists to prevent.
+   * It applies signed out too: the cap is a property of the server answer, not of the session.
+   */
+  it('a full export refuses to write when the server capped the catalog', async () => {
+    const { component } = setup([league(SERVER_ID), league(LOCAL_ID)], { catalogTruncated: true, signedIn: true });
+
+    await component.downloadFullExport();
+
+    expect(saveJsonFileMock).not.toHaveBeenCalled();
+    expect(component.importError()).toBe(component.i18n.t('msg.fullDataExportTruncated'));
   });
 
   it('a full export still writes when the server list succeeded', async () => {

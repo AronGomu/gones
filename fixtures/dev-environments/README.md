@@ -29,7 +29,8 @@ Every optional file is a JSON array. A missing file means an empty list.
 | `live-tournaments.json` | the running tournaments to create |
 
 `empty`, `minimal` and `demo` ship with this repository. Every file above is seeded through the real
-HTTP API and validated by `npm run test`.
+HTTP API and validated by `npm run test`. `stress` ships only its `environment.json`: its data files
+are generated on demand and gitignored (see below).
 
 ## The `demo` environment
 
@@ -55,10 +56,12 @@ into a Docker reset.
 with the same slug is reused instead of created), `sortOrder`.
 
 `organizations.json` — `key` (referenced by `tournaments[].organizationKey`), `name`, `description`,
-`website`, `contactEmail`, `ownerEmail` (an `accounts.json` email; that account becomes the
-organization owner, which is what lets it publish tournaments).
+`website`, `contactEmail`, `memberEmails` (an array of `accounts.json` emails; nobody owns an
+organization, so each of those accounts joins it as an Organizer, which is what lets them publish
+tournaments for it). The seeding admin creates the organization and is stepped back out, so the
+roster is exactly this list — an empty array leaves the organization Draft.
 
-`tournaments.json` — `key`, `organizationKey`, `organizerEmail` (must be the organization's owner),
+`tournaments.json` — `key`, `organizationKey`, `organizerEmail` (must be one of the organization's `memberEmails`),
 `title`, `summary` (50 characters maximum), `bodyHtml` (well-formed markup limited to
 `p`, `br`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, `a`), `streetAddress`, `postalCode`, `city`,
 `country`, `timeZoneId` (IANA), `startsAtLocalOffsetDays` / `startsAtLocalTime` and
@@ -79,7 +82,9 @@ because the seeder restores each one with `POST /api/leagues-archive/restore`. P
 stable literal string, used as the fixture key and by `live-tournaments.json`), `name`, `status`
 (`active` \| `completed`) and `tournaments`. Per Archive Tournament: `id`, `leagueId` (must equal the
 parent League's `id` — the server refuses a Tournament claiming another League), `name`,
-`tournamentDate`, `rounds` and `playerArchetypes` (`playerName` + `archetype`, best taken from
+`tournamentDate`, `status` (`active` \| `completed`; unlike the League field this one defaults to
+`completed` when absent, because an archive document that predates the field is finished history),
+`rounds` and `playerArchetypes` (`playerName` + `archetype`, best taken from
 `src/app/config/legacy-archetype-presets.ts` so the autocomplete recognises them). Per Round: `id`
 and `entries`. A `kind: "match"` entry carries `table`, `player1Name`, `player2Name`, `player1Score`,
 `player2Score`, `player1DeckArchetype`, `player2DeckArchetype`; a `kind: "bye"` entry carries
@@ -112,6 +117,40 @@ each Round), so what lands is a tournament that was actually run.
 | `players` | `name`, `initialWins`, `initialDraws`, `initialLosses`, `archetype`; at least 2 and an even count, so every Round pairs without a Bye |
 | `scoredRounds` | how many Rounds the seeder starts, scores and validates (at most `roundCount`). Scores rotate 2-0, 2-1, 1-1 by table index |
 | `leaveRoundOpen` | `true` starts one more Round and stops, leaving it unscored — that is the "caught mid-round" state |
+
+## The `stress` environment
+
+A hundredfold of `demo`, for judging page design under real weight: **~700 accounts, ~200
+organizations, ~400 formats, ~1600 Events, ~700 registrations, ~200 League Archives** (about 400
+Archive Tournaments over a bounded cast of ~1200 player names, so rankings and player pages have
+depth), **10 running tournaments** and **10 000 audit rows**.
+
+```bash
+npm run dev:stress:generate -- --seed=1   # write the fixtures (seconds)
+npm run dev -- --env=stress               # reset the stack and load them (minutes)
+```
+
+The dataset is **generated, not committed**: several megabytes of JSON that is reproducible from its
+seed is not worth a diff. `fixtures/dev-environments/stress/` holds only `environment.json`;
+everything else there is gitignored, and `npm run dev -- --env=stress` fails on an empty directory
+until the generator has run. The same `--seed` produces byte-identical files on any machine — every
+draw goes through the generator's own seeded PRNG, and nothing in it reads the clock — so `--seed=1`
+is the shared dataset and any other seed is a private one.
+
+Seeding it is not the pure-API path the other environments take. Accounts, organizations and formats
+still go through the real HTTP API, and the running tournaments are still replayed command by command,
+but Events, registrations, League Archives and audit rows are **bulk-inserted as SQL**
+(`scripts/bulk-load-stress.mjs`): sixteen hundred Events through preview-then-publish would take about
+an hour. That path is **test-only** — `fixtures/` is in no image, no release path reads it, and the
+loader refuses to run unless Docker points at a local Unix socket with the Compose `postgres` service
+up. It also bypasses the domain, so every generated row has to already be the shape a real write would
+produce; `npm run test` checks that with the same `validateEnvironment` the seeder runs, and the seed
+itself ends by rebuilding `player_statistics` from every stored League, which fails loudly if one of
+those documents is not one the server can read back.
+
+A seed takes roughly ten to twenty minutes on a warm image, most of it the seven hundred account
+registrations, and the local API's auth and write rate limits are raised further for this environment
+than for the others because of them.
 
 ### Editing it
 

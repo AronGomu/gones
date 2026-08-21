@@ -312,6 +312,7 @@ public static class LiveRules
             tournament.LeagueId,
             name.Length == 0 ? defaultTournamentName : name,
             tournament.TournamentDate,
+            "active",
             rounds,
             NormalizePlayerArchetypeRows(LivePlayerArchetypeRows(tournament)));
     }

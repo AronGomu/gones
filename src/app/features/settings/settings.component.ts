@@ -29,6 +29,8 @@ import { saveJsonFile } from '../../shared/save-json-file';
 import { localPlayerNames, LocalPlayerSummary } from './local-player-names';
 import { settingsCapabilities } from './settings-capabilities';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 
 interface OwnedOrganizationSettings {
   organization: MyOrganizationResponse;
@@ -37,7 +39,7 @@ interface OwnedOrganizationSettings {
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule, MatExpansionModule, MatFormFieldModule, MatInputModule, MatSelectModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="settings-back-button-top" />
     <section class="info-page settings-page" [attr.aria-label]="i18n.t('settings.pageAria')" data-cy="settings-page">
@@ -93,6 +95,7 @@ interface OwnedOrganizationSettings {
       }
 
       @if (capabilities().adminCatalog) {
+        <gones-sync-bar cyPrefix="settings" [syncedAt]="settingsSyncedAt()" [loading]="settingsCatalogLoading()" [stale]="settingsStale()" (sync)="syncSettingsCatalogs()" data-cy="settings-sync-bar" />
         <mat-card class="panel settings-panel settings-archetype-panel-card" data-cy="settings-archetype-card">
           <mat-card-content data-cy="settings-archetype-card-content">
             <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archetype-panel" [expanded]="false">
@@ -462,6 +465,7 @@ export class SettingsComponent {
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly localBackend = inject(LocalLeagueArchiveBackend);
   private readonly client = inject(Client);
+  private readonly cache = inject(ServerReadCacheService);
   private readonly dialog = inject(MatDialog);
   readonly language = this.deckArchetypes.language;
   /** Exposed for the local add form, which enables itself on the normalized name. */
@@ -522,6 +526,9 @@ export class SettingsComponent {
   readonly ownedOrganizations = signal<OwnedOrganizationSettings[]>([]);
   readonly orgSaving = signal(false);
   readonly orgMessage = signal('');
+  readonly settingsSyncedAt = signal<string | undefined>(undefined);
+  readonly settingsStale = signal(false);
+  readonly settingsCatalogLoading = signal(false);
 
 
   private serverCatalogLoaded = false;
@@ -719,14 +726,22 @@ export class SettingsComponent {
     }
   }
 
-  async loadServerArchetypes(): Promise<void> {
+  async loadServerArchetypes(options: { force?: boolean } = {}): Promise<void> {
+    this.settingsCatalogLoading.set(true);
     try {
-      this.serverArchetypes.set(await firstValueFrom(this.client.listAdminDeckArchetypes()));
+      const result = await this.cache.readCached('settings-catalogs', () => firstValueFrom(this.client.listAdminDeckArchetypes()), options);
+      this.serverArchetypes.set(result.value);
+      this.settingsSyncedAt.set(result.fetchedAt);
+      this.settingsStale.set(result.stale);
     } catch (error) {
       logBoundaryError('settings.loadServerArchetypes', error);
       this.archetypeMessage.set(this.i18n.t('settings.loadFailed'));
+    } finally {
+      this.settingsCatalogLoading.set(false);
     }
   }
+
+  syncSettingsCatalogs(): void { void this.loadServerArchetypes({ force: true }); }
 
   canAddNewServerArchetype(): boolean {
     const archetype = normalizeArchetypeName(this.newArchetype());
@@ -744,6 +759,7 @@ export class SettingsComponent {
     try {
       await firstValueFrom(this.client.createDeckArchetype({ name: archetype }));
       this.newArchetype.set('');
+      await this.cache.invalidate('settings-catalogs');
       await this.loadServerArchetypes();
       this.archetypeMessage.set(this.i18n.t('settings.archetypeAdded', { name: archetype }));
     } catch (error) {
@@ -796,6 +812,7 @@ export class SettingsComponent {
     try {
       await firstValueFrom(this.client.renameDeckArchetype(archetype.id, { name: next }));
       this.clearServerEditState(archetype.id);
+      await this.cache.invalidate('settings-catalogs');
       await this.loadServerArchetypes();
       this.archetypeMessage.set(this.i18n.t('settings.archetypeUpdated', { from: archetype.name, to: next }));
     } catch (error) {
@@ -812,6 +829,7 @@ export class SettingsComponent {
     try {
       await firstValueFrom(this.client.deleteDeckArchetype(archetype.id));
       if (this.editingServerArchetype() === archetype.id) this.clearServerEditState(archetype.id);
+      await this.cache.invalidate('settings-catalogs');
       await this.loadServerArchetypes();
       this.archetypeMessage.set(this.i18n.t('settings.archetypeRemoved', { name: archetype.name }));
     } catch (error) {
@@ -827,6 +845,7 @@ export class SettingsComponent {
     this.archetypeSaving.set(true);
     try {
       await firstValueFrom(this.client.restoreDeckArchetype(archetype.id));
+      await this.cache.invalidate('settings-catalogs');
       await this.loadServerArchetypes();
       this.archetypeMessage.set(this.i18n.t('settings.archetypeRestored', { name: archetype.name }));
     } catch (error) {
@@ -859,6 +878,7 @@ export class SettingsComponent {
       }
 
       const result = await firstValueFrom(this.client.importDeckArchetypes({ names }));
+      await this.cache.invalidate('settings-catalogs');
       await this.loadServerArchetypes();
       this.archetypeMessage.set(this.i18n.t('settings.archetypesImportedServer', {
         added: result.added,
@@ -964,7 +984,7 @@ export class SettingsComponent {
   /** Derived from the browser League store (ADR 0032) — there is no local player table to read. */
   async loadLocalPlayers(preserveMessage = false): Promise<void> {
     try {
-      this.localPlayers.set(localPlayerNames(await this.localBackend.listLeagueArchives()));
+      this.localPlayers.set(localPlayerNames((await this.localBackend.listLeagueArchives()).leagues));
     } catch (error) {
       logBoundaryError('settings.loadLocalPlayers', error);
       if (!preserveMessage) this.playerMessage.set(this.i18n.t('settings.loadFailed'));
@@ -991,7 +1011,7 @@ export class SettingsComponent {
     this.playerSaving.set(true);
     let partialRename = false;
     try {
-      for (const league of await this.localBackend.listLeagueArchives()) {
+      for (const league of (await this.localBackend.listLeagueArchives()).leagues) {
         if (!localPlayerNames([league]).some((item) => samePlayerName(item.name, player.name))) continue;
         // One guarded command per league. The returned document carries the next expected version,
         // and each league is written exactly once, so no stale version can be replayed.
@@ -1011,10 +1031,11 @@ export class SettingsComponent {
 
   async loadOwnedOrganizations(): Promise<void> {
     try {
+      // Every membership carries the same Organizer role now, so every organization the account
+      // belongs to exposes its notification preferences here.
       const organizations = await firstValueFrom(this.client.organizationsAll());
-      const owned = organizations.filter((organization) => organization.role === 'Owner');
       const withSettings: OwnedOrganizationSettings[] = [];
-      for (const organization of owned) {
+      for (const organization of organizations) {
         try {
           withSettings.push({ organization, settings: await firstValueFrom(this.client.notificationSettingsGET(organization.id)) });
         } catch (error) {

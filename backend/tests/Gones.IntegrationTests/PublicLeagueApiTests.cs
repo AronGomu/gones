@@ -40,21 +40,22 @@ public sealed class PublicLeagueApiTests : IAsyncLifetime
         await postgres.DisposeAsync();
     }
 
+    /// <summary>
+    /// The paged League list is deleted with no alias (ADR 0042): it had zero frontend callers once the
+    /// catalog route landed. The retirement shows as 405 rather than 404 because the same path still
+    /// carries <c>POST /api/leagues-archive</c>, so routing matches the path and finds no GET. Faking a
+    /// 404 would mean mapping a GET back on to return one, which is not a deleted route.
+    /// </summary>
     [Fact]
-    public async Task List_detail_and_nested_source_reads_are_public_paged_cacheable_and_tombstone_safe()
+    public async Task Paged_League_list_is_gone()
     {
-        using var list = await Client.GetAsync("/api/leagues-archive?page=1&pageSize=1&status=active&search=API");
-        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
-        Assert.Contains("public", list.Headers.CacheControl!.ToString());
-        Assert.NotNull(list.Headers.ETag);
-        var listBody = await list.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, listBody.GetProperty("pageSize").GetInt32());
-        Assert.Equal(1, listBody.GetProperty("totalCount").GetInt32());
-        var summary = listBody.GetProperty("items")[0];
-        Assert.Equal("api-league", summary.GetProperty("id").GetString());
-        Assert.Equal(1, summary.GetProperty("documentVersion").GetInt64());
-        Assert.False(summary.TryGetProperty("canonicalDocument", out _));
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await Client.GetAsync("/api/leagues-archive?page=1")).StatusCode);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await Client.GetAsync("/api/leagues-archive")).StatusCode);
+    }
 
+    [Fact]
+    public async Task Detail_and_nested_source_reads_are_public_cacheable_and_tombstone_safe()
+    {
         using var detail = await Client.GetAsync("/api/leagues-archive/api-league");
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         Assert.Equal("api-league", (await detail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString());
@@ -73,9 +74,6 @@ public sealed class PublicLeagueApiTests : IAsyncLifetime
         Assert.Equal(1, (await stats.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("playedMatchCount").GetInt32());
 
         Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync("/api/leagues-archive/deleted")).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync("/api/leagues-archive?pageSize=101")).StatusCode);
-        using var literalWildcard = await Client.GetAsync("/api/leagues-archive?search=API%25");
-        Assert.Equal(0, (await literalWildcard.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("totalCount").GetInt32());
         Assert.Equal(HttpStatusCode.BadRequest, (await Client.GetAsync($"/api/leagues-archive/{new string('x', LeagueArchiveAggregate.MaximumDocumentIdLength + 1)}")).StatusCode);
     }
 
@@ -117,7 +115,7 @@ public sealed class PublicLeagueApiTests : IAsyncLifetime
         "api-league",
         "API League",
         "active",
-        [new TournamentDocument("result-tournament", "api-league", "Result Tournament", "2026-08-03",
+        [new TournamentDocument("result-tournament", "api-league", "Result Tournament", "2026-08-03", "completed",
             [new RoundDocument("round-1", [new MatchRoundEntry("entry-1", "1", "Alice", "Bob", 2, 1, "Tempo", "Control")])],
             [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")])]);
 
@@ -140,7 +138,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
             database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(ActiveLeague(), Instant.FromUtc(2026, 1, 2, 0, 0)));
             database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(PagingLeague(), Instant.FromUtc(2026, 1, 3, 0, 0)));
             database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(new LeagueDocument("glb-deleted", "Deleted League", "completed",
-                [new TournamentDocument("dt1", "glb-deleted", "Deleted Tournament", "2026-01-01",
+                [new TournamentDocument("dt1", "glb-deleted", "Deleted Tournament", "2026-01-01", "completed",
                     [new RoundDocument("dr1", [new MatchRoundEntry("de1", "1", "DeletedLeaguePlayer", "AnotherDeletedPlayer", 2, 0, "", "")])],
                     [])]), Instant.FromUtc(2026, 1, 4, 0, 0)));
             await database.SaveChangesAsync();
@@ -168,21 +166,25 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Authority_includes_only_completed_nondeleted_leagues()
+    public async Task Authority_includes_only_completed_tournaments_of_nondeleted_leagues()
     {
         using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("public", response.Headers.CacheControl!.ToString());
         Assert.NotNull(response.Headers.ETag);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var names = body.GetProperty("items").EnumerateArray().Select(r => r.GetProperty("playerName").GetString()!).ToHashSet();
+        // Membership is about the whole population, so it is read across every page: the default order
+        // is the ADR 0043 ranking, and page one of a ranking is not a sample of who is in it.
+        var names = await AllPlayerNamesAsync();
         // from glb-completed only
         Assert.Contains("Alice", names);
         Assert.Contains("alice", names);
         // ByePlayer appeared only as a ByeRoundEntry → skipped by CalculateGlobalPlayerStatistics
         Assert.DoesNotContain("ByePlayer", names);
-        // active and deleted league players must be excluded
-        Assert.DoesNotContain("ActiveOnlyPlayer", names);
+        // ADR 0040: the scope is the Tournament, not the League. glb-active is a running League whose
+        // Tournament t3 is completed, so its Matches are history and they count.
+        Assert.Contains("ActiveOnlyPlayer", names);
+        Assert.Contains("AnotherActivePlayer", names);
+        // A deleted League still contributes nothing, whatever its Tournaments say.
         Assert.DoesNotContain("DeletedLeaguePlayer", names);
     }
 
@@ -198,7 +200,9 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
     [Fact]
     public async Task Identity_Alice_and_alice_are_separate_players()
     {
-        using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100");
+        // The search is case-insensitive, so one page holds both spellings whatever the ranking does
+        // with them.
+        using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100&search=Alice");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var names = body.GetProperty("items").EnumerateArray().Select(r => r.GetProperty("playerName").GetString()!).ToList();
         Assert.Contains("Alice", names);
@@ -206,14 +210,33 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         Assert.NotEqual(names.IndexOf("Alice"), names.IndexOf("alice"));
     }
 
+    /// <summary>Every Player Name the paged rankings serve, walked page by page.</summary>
+    private async Task<HashSet<string>> AllPlayerNamesAsync()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        for (var page = 1; ; page++)
+        {
+            using var response = await Client.GetAsync($"/api/leagues-archive/global-player-statistics?page={page}&pageSize=100");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var items = body.GetProperty("items").EnumerateArray()
+                .Select(item => item.GetProperty("playerName").GetString()!)
+                .ToArray();
+            if (items.Length == 0) return names;
+            foreach (var name in items) names.Add(name);
+        }
+    }
+
     [Fact]
-    public async Task Default_sort_is_matchWins_desc_gameWins_desc_matchDraws_desc_name_asc()
+    public async Task Default_sort_echoes_no_sort_and_numbers_positions_within_the_result()
     {
         using var response = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=10");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         var items = body.GetProperty("items").EnumerateArray().ToArray();
-        // Alice has MW=2, should be first in completed league results
-        // Find first item among glb-completed players (search by name to isolate)
+        Assert.NotEmpty(items);
+        // The default order itself is the ADR 0043 three-bucket ranking, covered in
+        // GlobalStatsRatingApiTests; what this asserts is that an unsorted request echoes no sort and
+        // still numbers its own rows.
         using var r2 = await Client.GetAsync("/api/leagues-archive/global-player-statistics?pageSize=100&search=Alice");
         var b2 = await r2.Content.ReadFromJsonAsync<JsonElement>();
         var aliceRow = b2.GetProperty("items").EnumerateArray().First(r => r.GetProperty("playerName").GetString() == "Alice");
@@ -223,7 +246,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         Assert.True(b2.GetProperty("sort").ValueKind == JsonValueKind.Null);
         Assert.True(b2.GetProperty("direction").ValueKind == JsonValueKind.Null);
         Assert.Equal(1, b2.GetProperty("page").GetInt32());
-        // Alice is position 1 (highest MW among Alice results)
+        // Alice leads the two Alice spellings: same bucket, same counts, and the ordinal name tiebreak.
         Assert.Equal(1, aliceRow.GetProperty("position").GetInt32());
     }
 
@@ -422,7 +445,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
     public async Task Existing_league_public_endpoints_unchanged()
     {
         // Verify the global-player-statistics route does not shadow /api/leagues-archive/{id}
-        using var list = await Client.GetAsync("/api/leagues-archive?pageSize=20");
+        using var list = await Client.GetAsync("/api/leagues-archive/all");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         var body = await list.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.TryGetProperty("items", out _));
@@ -440,7 +463,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         "Completed League",
         "completed",
         [
-            new TournamentDocument("t1", "glb-completed", "Tournament One", "2026-01-01",
+            new TournamentDocument("t1", "glb-completed", "Tournament One", "2026-01-01", "completed",
                 [
                     new RoundDocument("r1",
                     [
@@ -459,7 +482,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
                     ])
                 ],
                 [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")]),
-            new TournamentDocument("t2", "glb-completed", "Tournament Two", "2026-01-08",
+            new TournamentDocument("t2", "glb-completed", "Tournament Two", "2026-01-08", "completed",
                 [
                     new RoundDocument("r4",
                     [
@@ -474,7 +497,7 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         "Active League",
         "active",
         [
-            new TournamentDocument("t3", "glb-active", "Active Tournament", "2026-01-01",
+            new TournamentDocument("t3", "glb-active", "Active Tournament", "2026-01-01", "completed",
                 [
                     new RoundDocument("r5",
                     [
@@ -496,6 +519,6 @@ public sealed class PublicLeagueApiTests_GlobalPlayerStatistics : IAsyncLifetime
         // Round 51: Pager0101 beats Pager0001, giving Pager0001 a loss and introducing Pager0101
         rounds.Add(new RoundDocument("pr51", [new MatchRoundEntry("pe51", "1", "Pager0101", "Pager0001", 2, 0, "", "")]));
         return new LeagueDocument("glb-paging", "Paging League", "completed",
-            [new TournamentDocument("pt1", "glb-paging", "Paging Tournament", "2026-01-01", rounds.ToArray(), [])]);
+            [new TournamentDocument("pt1", "glb-paging", "Paging Tournament", "2026-01-01", "completed", rounds.ToArray(), [])]);
     }
 }

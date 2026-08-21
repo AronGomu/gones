@@ -21,6 +21,12 @@ const publicEvent = {
   playerCount: 0
 };
 const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00Z' };
+/** The list page reads slim summary rows, not documents (ADR 0042). */
+const serverLeagueSummary = {
+  id: serverLeague.id, name: serverLeague.name, status: serverLeague.status,
+  updatedAt: serverLeague.updatedAt, documentVersion: serverLeague.documentVersion,
+  tournamentCount: 0, playerCount: 0
+};
 const serverLive = {
   id: 'live-power', name: 'Server Power Cup', leagueId: '', tournamentDate: '2026-08-13', type: 'swiss',
   roundCount: 3, customRoundCount: false, paidTrackingEnabled: true, pairingSeed: 1, firstRoundPlayerOrder: [],
@@ -79,8 +85,9 @@ describe('Power User Event, League and Live gates', () => {
     organizer();
     stubPublicEvents();
     cy.intercept('GET', '**/api/organizer/events?*', { items: [managedEvent], page: 1, pageSize: 20, totalCount: 1 }).as('managedEvents');
-    cy.intercept('GET', /\/api\/leagues-archive\?.*/, { items: [serverLeague], page: 1, pageSize: 100, totalCount: 1 });
     cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague);
+    cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, { items: [serverLeague], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeagueSummary], totalCount: 1, truncated: false });
 
     visit('/organizer/events', false);
     cy.wait('@managedEvents');
@@ -91,7 +98,7 @@ describe('Power User Event, League and Live gates', () => {
     cy.get(`[data-cy="event-row-public-view-${eventId}"]`).should('exist');
 
     cy.visit('/events/new');
-    cy.location('pathname').should('eq', '/calendar');
+    cy.location('pathname').should('eq', '/events');
     cy.visit(`/organizer/events/${eventId}/edit`);
     cy.location('pathname').should('eq', '/organizer/events');
 
@@ -112,11 +119,11 @@ describe('Power User Event, League and Live gates', () => {
   it('keeps Calendar Register available while Power mode is off', () => {
     signedOut();
     stubPublicEvents([publicEvent]);
-    visit('/calendar?view=list&month=2030-08', false);
+    visit('/events?view=list&month=2030-08', false);
 
     cy.wait('@publicEvents');
-    cy.get('[data-cy="calendar-card-register"]').should('be.visible');
-    cy.get('[data-cy="calendar-create-event"]').should('not.exist');
+    cy.get('[data-cy="event-list-card-register"]').should('be.visible');
+    cy.get('[data-cy="event-list-create-event"]').should('not.exist');
   });
 
   it('keeps an anonymous local Live detail readable while mutations are off', () => {

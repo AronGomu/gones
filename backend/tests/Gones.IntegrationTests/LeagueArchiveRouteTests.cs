@@ -42,6 +42,7 @@ public sealed class LeagueArchiveRouteTests : IAsyncLifetime
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });
             database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(FixtureLeague(), Instant.FromUtc(2030, 2, 1, 12, 0)));
+            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(MixedStatusLeague(), Instant.FromUtc(2030, 2, 1, 12, 0)));
             await database.SaveChangesAsync();
         }
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -65,7 +66,8 @@ public sealed class LeagueArchiveRouteTests : IAsyncLifetime
     [Fact]
     public async Task Archive_list_responds_on_the_new_path()
     {
-        using var list = await Client.GetAsync("/api/leagues-archive");
+        // The archive's list surface is the catalog route: the paged list is retired (ADR 0042).
+        using var list = await Client.GetAsync("/api/leagues-archive/all");
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         var body = await list.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Contains(body.GetProperty("items").EnumerateArray(), item => item.GetProperty("id").GetString() == "archive-league");
@@ -140,6 +142,24 @@ public sealed class LeagueArchiveRouteTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Export_round_trips_the_tournament_status()
+    {
+        using var export = await Client.GetAsync("/api/leagues-archive/mixed-status-league/export");
+        Assert.Equal(HttpStatusCode.OK, export.StatusCode);
+        var bundle = await export.Content.ReadFromJsonAsync<JsonElement>();
+        var exported = StatusesByName(bundle.GetProperty("league"));
+        Assert.Equal(new Dictionary<string, string> { ["Completed One"] = "completed", ["Active One"] = "active" }, exported);
+
+        using var restored = await SendJsonAsync(HttpMethod.Post, "/api/leagues-archive/restore", bundle, "Organizer", key: "mixed-status-restore");
+        Assert.Equal(HttpStatusCode.Created, restored.StatusCode);
+        Assert.Equal(exported, StatusesByName(await restored.Content.ReadFromJsonAsync<JsonElement>()));
+    }
+
+    private static Dictionary<string, string> StatusesByName(JsonElement league) =>
+        league.GetProperty("tournaments").EnumerateArray()
+            .ToDictionary(item => item.GetProperty("name").GetString()!, item => item.GetProperty("status").GetString()!);
+
+    [Fact]
     public async Task Restore_still_accepts_an_old_bundle()
     {
         using var parity = JsonDocument.Parse(File.ReadAllText(Path.Combine(FindFixtureDirectory(), "parity.json")));
@@ -186,9 +206,20 @@ public sealed class LeagueArchiveRouteTests : IAsyncLifetime
         "archive-league",
         "Archive League",
         "active",
-        [new TournamentDocument("archive-tournament", "archive-league", "Archive Tournament", "2030-02-01",
+        [new TournamentDocument("archive-tournament", "archive-league", "Archive Tournament", "2030-02-01", "completed",
             [new RoundDocument("archive-round", [new MatchRoundEntry("archive-entry", "1", "Alice", "Bob", 2, 1, "Tempo", "Control")])],
             [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")])]);
+
+    private static LeagueDocument MixedStatusLeague() => new(
+        "mixed-status-league",
+        "Mixed Status League",
+        "active",
+        [
+            new TournamentDocument("mixed-completed", "mixed-status-league", "Completed One", "2030-01-01", "completed",
+                [new RoundDocument("mixed-completed-round", [new MatchRoundEntry("mixed-completed-entry", "1", "Alice", "Bob", 2, 1, "", "")])], []),
+            new TournamentDocument("mixed-active", "mixed-status-league", "Active One", "2030-01-08", "active",
+                [new RoundDocument("mixed-active-round", [new MatchRoundEntry("mixed-active-entry", "1", "Alice", "Carol", 2, 0, "", "")])], [])
+        ]);
 
     private HttpClient Client => client ?? throw new InvalidOperationException("Client not initialized.");
 }

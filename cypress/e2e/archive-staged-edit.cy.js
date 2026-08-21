@@ -16,6 +16,24 @@ function persisted(league) {
   return { ...league, updatedAt: '2026-08-13T10:00:00Z', eTag: etag(league.documentVersion) };
 }
 
+/** The same League as one row of the slim catalog (ADR 0042): two counts instead of the document. */
+function summarized(league) {
+  const players = new Set();
+  for (const tournament of league.tournaments) {
+    for (const round of tournament.rounds ?? []) {
+      for (const entry of round.entries ?? []) {
+        if (entry.player1Name) players.add(entry.player1Name);
+        if (entry.player2Name) players.add(entry.player2Name);
+      }
+    }
+  }
+  return {
+    id: league.id, name: league.name, status: league.status,
+    updatedAt: '2026-08-13T10:00:00Z', documentVersion: league.documentVersion,
+    tournamentCount: league.tournaments.length, playerCount: players.size
+  };
+}
+
 function seed(win, clearLocal = false) {
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
@@ -88,6 +106,32 @@ describe('Archive Tournament explicit staged editor', () => {
     cy.then(() => expect(apiCalls.filter(call => !call.startsWith('GET ')), 'server mutation calls').to.deep.equal([]));
   });
 
+  it('marks a local Tournament complete and can reopen it after reload', () => {
+    visit('/leagues-archive', true);
+
+    cy.get('[data-cy="leagues-archive-list-create-card"]').click();
+    cy.contains('mat-dialog-container', 'New League').within(() => {
+      cy.get('input').type('Completion Test League');
+      cy.contains('button', 'Create League').click();
+    });
+    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
+
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('be.visible');
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').should('contain', 'Mark complete');
+
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('contain', 'Completed');
+
+    cy.reload();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('contain', 'Completed');
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').should('contain', 'Reopen');
+
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('contain', 'Active');
+  });
+
   it('keeps server draft on 412, cancels Reload Latest without loss, then discards after confirmation', () => {
     organizer();
     const source = {
@@ -98,8 +142,10 @@ describe('Archive Tournament explicit staged editor', () => {
       }]
     };
     let batchCalls = 0;
-    cy.intercept('GET', /\/api\/leagues-archive\?.*/, { items: [{ id: source.id, name: source.name, status: source.status, documentVersion: source.documentVersion }], page: 1, pageSize: 100, totalCount: 1 });
     cy.intercept('GET', /\/api\/leagues-archive\/server-source$/, persisted(source)).as('sourceDetail');
+    // Slim rows for the list page, whole documents only for the export route (ADR 0042).
+    cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, { items: [persisted(source)], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [summarized(source)], totalCount: 1, truncated: false });
     cy.intercept('POST', /\/api\/leagues-archive\/server-source\/tournaments-archive\/t1\/edit-batch$/, req => {
       batchCalls += 1;
       expect(req.headers['if-match']).to.eq(etag(4));

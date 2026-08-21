@@ -244,10 +244,15 @@ internal static partial class PublicEventEndpoints
     {
         var row = await LoadDetailAsync(database, slug, cancellationToken);
         var formatsByEvent = await LoadFormatsAsync(database, [row.Id], cancellationToken);
+        var organizers = await database.OrganizationMembers.AsNoTracking()
+            .Where(member => member.OrganizationId == row.OrganizationId)
+            .Join(database.UserProfiles.AsNoTracking(), member => member.UserId, user => user.UserId, (member, user) => user.Username)
+            .ToListAsync(cancellationToken);
+        organizers.Sort(StringComparer.OrdinalIgnoreCase);
         var etag = HashETag($"{row.Id:N}:{row.Version}:{row.UpdatedAt.ToUnixTimeTicks()}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        return Results.Ok(ToDetail(row, formatsByEvent));
+        return Results.Ok(ToDetail(row, formatsByEvent, organizers));
     }
 
     private static async Task<IResult> ListParticipantsAsync(
@@ -297,7 +302,7 @@ internal static partial class PublicEventEndpoints
         var etag = HashETag($"ics:{row.Id:N}:{row.Version}:{row.UpdatedAt.ToUnixTimeTicks()}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        response.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") { FileNameStar = $"{row.Slug}.ics" }.ToString();
+        response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline") { FileNameStar = $"{row.Slug}.ics" }.ToString();
         return Results.Text(BuildIcs(row), "text/calendar; charset=utf-8", Encoding.UTF8);
     }
 
@@ -379,13 +384,14 @@ internal static partial class PublicEventEndpoints
         row.EndsAtUtc,
         row.Capacity,
         row.Status.ToString(),
-        new PublicEventOrganizationResponse(row.OrganizationId, row.OrganizationName, row.OrganizationDescription, row.OrganizationWebsite, row.OrganizationContactEmail),
+        new PublicEventOrganizationResponse(row.OrganizationId, row.OrganizationName, row.OrganizationDescription, row.OrganizationWebsite, row.OrganizationContactEmail, []),
         formats);
     }
 
-    private static PublicEventDetailResponse ToDetail(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent)
+    private static PublicEventDetailResponse ToDetail(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent, IReadOnlyList<string> organizers)
     {
         var summary = ToSummary(row, formatsByEvent);
+        var organization = summary.Organization with { Organizers = organizers };
         return new PublicEventDetailResponse(
             summary.Id,
             summary.Title,
@@ -405,7 +411,7 @@ internal static partial class PublicEventEndpoints
             summary.EndsAtUtc,
             summary.Capacity,
             summary.Status,
-            summary.Organization,
+            organization,
             summary.Formats);
     }
 
@@ -588,7 +594,8 @@ internal sealed record PublicEventOrganizationResponse(
     string Name,
     string? Description,
     string? Website,
-    string? ContactEmail);
+    string? ContactEmail,
+    IReadOnlyList<string> Organizers);
 
 internal sealed record PublicTournamentFormatResponse(
     Guid Id,

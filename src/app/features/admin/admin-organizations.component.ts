@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,39 +12,52 @@ import {
   Client
 } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { ServerReadCacheService } from '../../backend/server-read-cache.service';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { LatestRequest } from '../../shared/async-guards';
-import { pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { adminCacheKey, pagedQueryParams, readPagedQuery, totalPages } from './admin-query';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 export const MAX_PICKER_USERS = 500;
 const PICKER_PAGE_SIZE = 100;
+const SEARCH_DEBOUNCE_MS = 300;
+const ABSOLUTE_URL = /^https?:\/\/\S+$/i;
+const EMAIL_SHAPE = /^\S+@\S+\.\S+$/;
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, BackButtonComponent, SyncBarComponent],
   template: `
+    <gones-back-button data-cy="admin-organizations-back-top" [link]="['/admin']" [label]="i18n.t('admin.back')" position="top" />
+
     <section class="admin-page stack" data-cy="admin-organizations" aria-labelledby="admin-orgs-title">
-      <header class="page-heading" data-cy="admin-orgs-heading"><div data-cy="admin-orgs-heading-text"><p class="kicker" data-cy="admin-orgs-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-orgs-title" data-cy="admin-orgs-title">{{ i18n.t('admin.organizations') }}</h1></div><a mat-stroked-button routerLink="/admin" data-cy="admin-orgs-back">{{ i18n.t('admin.back') }}</a></header>
+      <header class="page-heading" data-cy="admin-orgs-heading"><div data-cy="admin-orgs-heading-text"><p class="kicker" data-cy="admin-orgs-kicker">{{ i18n.t('admin.kicker') }}</p><h1 id="admin-orgs-title" data-cy="admin-orgs-title">{{ i18n.t('admin.organizations') }}</h1></div></header>
+      <gones-sync-bar cyPrefix="admin-orgs" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="admin-orgs-sync-bar" />
 
       <div class="admin-org-workbench" data-cy="admin-org-workbench">
         <div class="stack" data-cy="admin-org-list-pane">
           <form class="filter-bar auth-form" data-cy="admin-orgs-filters" (ngSubmit)="applyFilters()">
             <label for="admin-org-search" data-cy="admin-org-search-label">{{ i18n.t('common.search') }}</label>
-            <input id="admin-org-search" data-cy="admin-org-search" name="search" [(ngModel)]="search" />
+            <input id="admin-org-search" data-cy="admin-org-search" name="search" [ngModel]="search" (ngModelChange)="setSearchDraft($event)" />
             <label data-cy="admin-org-include-deleted-label"><input type="checkbox" data-cy="admin-org-include-deleted" name="includeDeleted" [(ngModel)]="includeDeleted" /> {{ i18n.t('admin.includeDeleted') }}</label>
-            <button mat-flat-button type="submit" data-cy="admin-org-search-submit">{{ i18n.t('common.apply') }}</button>
           </form>
 
-          <button mat-stroked-button type="button" data-cy="admin-org-create-toggle" [attr.aria-expanded]="showCreate()" (click)="showCreate.set(!showCreate())">{{ i18n.t('admin.newOrganization') }}</button>
+          <button mat-flat-button class="warning-action" type="button" data-cy="admin-org-create-toggle" [attr.aria-expanded]="showCreate()" (click)="showCreate.set(!showCreate())">{{ i18n.t('admin.newOrganization') }}</button>
           @if (showCreate()) {
             <mat-card class="panel" data-cy="admin-create-org-card"><mat-card-content data-cy="admin-create-org-card-content">
               <form class="auth-form" data-cy="admin-create-org" (ngSubmit)="create()">
                 <h2 data-cy="admin-create-org-title">{{ i18n.t('admin.createOrganization') }}</h2>
-                <label for="org-name" data-cy="admin-create-org-name-label">{{ i18n.t('org.name') }}</label><input id="org-name" data-cy="admin-create-org-name" name="name" [(ngModel)]="draft.name" required />
-                <label for="org-owner" data-cy="admin-create-org-owner-label">{{ i18n.t('admin.ownerUserId') }}</label><input id="org-owner" data-cy="admin-create-org-owner" name="ownerUserId" [(ngModel)]="draft.ownerUserId" required />
+                <label for="org-name" data-cy="admin-create-org-name-label">{{ i18n.t('org.name') }}</label><input id="org-name" data-cy="admin-create-org-name" name="name" [(ngModel)]="draft.name" />
+                @if (draftErrors().name; as message) { <p class="error" data-cy="admin-create-org-name-error">{{ message }}</p> }
                 <label for="org-description" data-cy="admin-create-org-description-label">{{ i18n.t('org.description') }}</label><textarea id="org-description" data-cy="admin-create-org-description" name="description" [(ngModel)]="draft.description"></textarea>
                 <label for="org-website" data-cy="admin-create-org-website-label">{{ i18n.t('org.website') }}</label><input id="org-website" data-cy="admin-create-org-website" name="website" [(ngModel)]="draft.website" />
+                @if (draftErrors().website; as message) { <p class="error" data-cy="admin-create-org-website-error">{{ message }}</p> }
                 <label for="org-contact" data-cy="admin-create-org-contact-label">{{ i18n.t('org.contactEmail') }}</label><input id="org-contact" data-cy="admin-create-org-contact" name="contactEmail" [(ngModel)]="draft.contactEmail" />
-                <button mat-flat-button type="submit" data-cy="admin-create-org-submit" [disabled]="pending()">{{ i18n.t('common.create') }}</button>
+                @if (draftErrors().contactEmail; as message) { <p class="error" data-cy="admin-create-org-contact-error">{{ message }}</p> }
+                <div class="actions" data-cy="admin-create-org-actions">
+                  <button mat-flat-button type="submit" data-cy="admin-create-org-submit" [disabled]="pending() || hasDraftErrors()">{{ i18n.t('common.create') }}</button>
+                  <button mat-stroked-button type="button" data-cy="admin-create-org-cancel" (click)="cancelCreate()">{{ i18n.t('common.cancel') }}</button>
+                </div>
               </form>
             </mat-card-content></mat-card>
           }
@@ -136,9 +149,11 @@ const PICKER_PAGE_SIZE = 100;
 
       @if (status()) { <p role="status" data-cy="admin-org-status">{{ status() }}</p> }
     </section>
+
+    <gones-back-button data-cy="admin-organizations-back-bottom" [link]="['/admin']" [label]="i18n.t('admin.back')" position="bottom" />
   `
 })
-export class AdminOrganizationsComponent {
+export class AdminOrganizationsComponent implements OnDestroy {
   readonly i18n = inject(I18nService);
   private readonly client = inject(Client);
   private readonly route = inject(ActivatedRoute);
@@ -159,6 +174,8 @@ export class AdminOrganizationsComponent {
   readonly error = signal('');
   readonly status = signal('');
   readonly pages = signal(1);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly maxPickerUsers = MAX_PICKER_USERS;
   readonly selected = computed(() => this.items().find((org) => org.id === this.selectedId()) ?? null);
   readonly filteredUsers = computed(() => {
@@ -169,12 +186,15 @@ export class AdminOrganizationsComponent {
   });
   private readonly latestMembers = new LatestRequest();
   private editDraftId = '';
+  private searchDebounce: ReturnType<typeof setTimeout> | undefined;
   search = '';
   includeDeleted = false;
   page = 1;
   pageSize = 20;
-  draft = { name: '', ownerUserId: '', description: '', website: '', contactEmail: '' };
+  draft = { name: '', description: '', website: '', contactEmail: '' };
   editDraft = { name: '', description: '', website: '', contactEmail: '' };
+
+  private readonly cache = inject(ServerReadCacheService);
 
   constructor() {
     void this.loadUsers();
@@ -191,6 +211,38 @@ export class AdminOrganizationsComponent {
       }
       void this.reload();
     });
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+  }
+
+  /** The filter applies while typing; the debounce keeps a burst of keystrokes to one navigation. */
+  setSearchDraft(value: string): void {
+    this.search = value;
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+    this.searchDebounce = setTimeout(() => this.applyFilters(), SEARCH_DEBOUNCE_MS);
+  }
+
+  // `draft` is a plain object mutated by ngModel, so this is a method rather than a `computed`:
+  // a computed over non-signal state would memoise the first result and never refresh.
+  draftErrors(): { name?: string; website?: string; contactEmail?: string } {
+    const errors: { name?: string; website?: string; contactEmail?: string } = {};
+    if (!this.draft.name.trim()) errors.name = this.i18n.t('org.nameRequired');
+    const website = this.draft.website.trim();
+    if (website && !ABSOLUTE_URL.test(website)) errors.website = this.i18n.t('org.websiteInvalid');
+    const contactEmail = this.draft.contactEmail.trim();
+    if (contactEmail && !EMAIL_SHAPE.test(contactEmail)) errors.contactEmail = this.i18n.t('org.contactEmailInvalid');
+    return errors;
+  }
+
+  hasDraftErrors(): boolean {
+    return Object.keys(this.draftErrors()).length > 0;
+  }
+
+  cancelCreate(): void {
+    this.resetDraft();
+    this.showCreate.set(false);
   }
 
   applyFilters(): void {
@@ -211,13 +263,16 @@ export class AdminOrganizationsComponent {
     void this.router.navigate([], { relativeTo: this.route, queryParams: pagedQueryParams({ search: this.search, page: this.page, pageSize: this.pageSize }, this.queryExtras()) });
   }
 
-  async reload(): Promise<void> {
+  async reload(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     this.error.set('');
     try {
-      const response = await firstValueFrom(this.client.organizationsGET3(this.search || undefined, this.includeDeleted, this.page, this.pageSize));
-      this.items.set(response.items ?? []);
-      this.pages.set(totalPages(response.totalCount ?? 0, response.pageSize || this.pageSize));
+      const key = adminCacheKey('admin-organizations', { search: this.search, includeDeleted: this.includeDeleted, page: this.page, pageSize: this.pageSize });
+      const result = await this.cache.readCached(key, () => firstValueFrom(this.client.organizationsGET3(this.search || undefined, this.includeDeleted, this.page, this.pageSize)), options);
+      this.items.set(result.value.items ?? []);
+      this.pages.set(totalPages(result.value.totalCount ?? 0, result.value.pageSize || this.pageSize));
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
       const selected = this.selected();
       if (selected) this.syncEditDraft(selected);
     } catch {
@@ -227,6 +282,8 @@ export class AdminOrganizationsComponent {
       this.loading.set(false);
     }
   }
+
+  sync(): void { void this.reload({ force: true }); }
 
   async loadMembers(): Promise<void> {
     const organizationId = this.selectedId();
@@ -240,9 +297,10 @@ export class AdminOrganizationsComponent {
     this.membersLoading.set(true);
     this.membersError.set('');
     try {
-      const members = await firstValueFrom(this.client.membersAll2(organizationId));
+      const key = adminCacheKey('admin-organization-members', { organizationId });
+      const result = await this.cache.readCached(key, () => firstValueFrom(this.client.membersAll2(organizationId)));
       if (!this.latestMembers.isCurrent(request)) return;
-      this.members.set(members ?? []);
+      this.members.set(result.value ?? []);
     } catch {
       if (!this.latestMembers.isCurrent(request)) return;
       this.members.set([]);
@@ -258,6 +316,9 @@ export class AdminOrganizationsComponent {
     await this.mutate(async () => {
       await firstValueFrom(this.client.membersPOST(organizationId, { userId: user.id, role: 'Organizer' }));
       this.memberSearch.set('');
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
+      await this.cache.invalidateFamily('admin-user-picker');
       await this.loadMembers();
       await this.reload();
     });
@@ -269,16 +330,22 @@ export class AdminOrganizationsComponent {
     if (!confirm(this.i18n.t('admin.confirmRemoveMember', { username: member.username, name: this.selected()?.name ?? '' }))) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.membersDELETE(organizationId, member.userId));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
+      await this.cache.invalidateFamily('admin-user-picker');
       await this.loadMembers();
       await this.reload();
     });
   }
 
   async create(): Promise<void> {
+    if (this.hasDraftErrors()) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.organizationsPOST({ ...this.draft }));
-      this.draft = { name: '', ownerUserId: '', description: '', website: '', contactEmail: '' };
+      this.resetDraft();
       this.showCreate.set(false);
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
       await this.reload();
     });
   }
@@ -288,6 +355,8 @@ export class AdminOrganizationsComponent {
     if (!org) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.organizationsPUT(org.id, { ...this.editDraft }));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
       await this.reload();
     });
   }
@@ -296,6 +365,8 @@ export class AdminOrganizationsComponent {
     if (!confirm(this.i18n.t('admin.confirmDeleteOrg', { name: org.name }))) return;
     await this.mutate(async () => {
       await firstValueFrom(this.client.organizationsDELETE(org.id));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
       await this.reload();
       // A deleted organization drops out of the list unless "include deleted" is on: clear the
       // selection rather than leave `?organization=` pointing at a row the pane cannot show.
@@ -304,36 +375,47 @@ export class AdminOrganizationsComponent {
   }
 
   async restore(org: AdminOrganizationResponse): Promise<void> {
-    await this.mutate(async () => { await firstValueFrom(this.client.restore(org.id)); await this.reload(); });
+    await this.mutate(async () => {
+      await firstValueFrom(this.client.restore(org.id));
+      await this.cache.invalidateFamily('admin-organizations');
+      await this.cache.invalidateFamily('admin-organization-members');
+      await this.reload();
+    });
   }
 
   // The server caps `pageSize` at 100 and there is no user-search endpoint yet, so the picker holds
   // a bounded prefix of the account list and says so when it is truncated (T13 guardrail).
   private async loadUsers(): Promise<void> {
-    const loaded: AdminUserSummaryResponse[] = [];
-    let page = 1;
-    let totalCount = 0;
     this.usersError.set('');
     this.usersLoading.set(true);
     try {
-      while (loaded.length < MAX_PICKER_USERS) {
-        const response = await firstValueFrom(this.client.users(undefined, page, PICKER_PAGE_SIZE));
-        const batch = response.items ?? [];
-        loaded.push(...batch);
-        totalCount = response.totalCount ?? loaded.length;
-        if (batch.length < PICKER_PAGE_SIZE || loaded.length >= totalCount) break;
-        page += 1;
-      }
+      const result = await this.cache.readCached('admin-user-picker', async () => {
+        const loaded: AdminUserSummaryResponse[] = [];
+        let page = 1;
+        let totalCount = 0;
+        while (loaded.length < MAX_PICKER_USERS) {
+          const response = await firstValueFrom(this.client.users(undefined, page, PICKER_PAGE_SIZE));
+          const batch = response.items ?? [];
+          loaded.push(...batch);
+          totalCount = response.totalCount ?? loaded.length;
+          if (batch.length < PICKER_PAGE_SIZE || loaded.length >= totalCount) break;
+          page += 1;
+        }
+        return { users: loaded.slice(0, MAX_PICKER_USERS), capReached: loaded.length >= MAX_PICKER_USERS && totalCount > MAX_PICKER_USERS };
+      });
+      this.users.set(result.value.users);
+      this.userCapReached.set(result.value.capReached);
     } catch {
       this.users.set([]);
       this.userCapReached.set(false);
       this.usersError.set(this.i18n.t('admin.loadFailed'));
-      return;
     } finally {
       this.usersLoading.set(false);
     }
-    this.users.set(loaded.slice(0, MAX_PICKER_USERS));
-    this.userCapReached.set(loaded.length >= MAX_PICKER_USERS && totalCount > MAX_PICKER_USERS);
+  }
+
+  private resetDraft(): void {
+    this.draft = { name: '', description: '', website: '', contactEmail: '' };
   }
 
   private clearSelection(): void {

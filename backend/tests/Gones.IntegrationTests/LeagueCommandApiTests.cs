@@ -109,7 +109,16 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
         Assert.True((await Body(deleted)).GetProperty("deleted").GetBoolean());
         Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync("/api/leagues-archive/command-league")).StatusCode);
 
-        using var placeholderDelete = await SendJsonAsync(HttpMethod.Delete, "/api/leagues-archive/placeholder-league", new { }, "Admin", ifMatch: StrongETag.Encode(1));
+        // The placeholder is inserted by a migration rather than by the domain, so the ADR 0042 startup
+        // backfill stamps its catalog counts once and moves its version off 1. Read the version instead
+        // of assuming it, so this still asserts what it means: a valid ETag is refused on its own merits.
+        long placeholderVersion;
+        await using (var database = CreateContext())
+        {
+            placeholderVersion = (await database.LeagueArchiveAggregates.AsNoTracking()
+                .SingleAsync(item => item.DocumentId == LeagueNormalizer.PlaceholderLeagueId)).Version;
+        }
+        using var placeholderDelete = await SendJsonAsync(HttpMethod.Delete, "/api/leagues-archive/placeholder-league", new { }, "Admin", ifMatch: StrongETag.Encode(placeholderVersion));
         Assert.Equal(HttpStatusCode.Conflict, placeholderDelete.StatusCode);
     }
 
@@ -178,6 +187,49 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
         Assert.Equal(new[] { replaceRoundId, newRoundId }, tournament.GetProperty("rounds").EnumerateArray().Select(item => item.GetProperty("id").GetString()).ToArray());
         Assert.Contains(tournament.GetProperty("playerArchetypes").EnumerateArray(), item => item.GetProperty("playerName").GetString() == "Bob" && item.GetProperty("archetype").GetString() == "Midrange");
         Assert.Equal(response.Headers.ETag!.Tag, source.GetProperty("eTag").GetString());
+    }
+
+    [Fact]
+    public async Task Tournament_edit_batch_commits_a_status_change()
+    {
+        var route = "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch";
+        var command = new
+        {
+            editTournament = (object?)null,
+            status = "active",
+            addRounds = Array.Empty<object>(),
+            deleteRoundIds = Array.Empty<string>(),
+            replaceRounds = Array.Empty<object>(),
+            updateArchetypes = Array.Empty<object>()
+        };
+
+        using var response = await SendJsonAsync(HttpMethod.Post, route, command, "Organizer", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await Body(response);
+        var tournament = body.GetProperty("sourceLeague").GetProperty("tournaments")[0];
+        Assert.Equal("active", tournament.GetProperty("status").GetString());
+
+        await using var database = CreateContext();
+        var stored = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "command-league");
+        Assert.Equal("active", stored.ReadDocument().Tournaments[0].Status);
+    }
+
+    [Fact]
+    public async Task Tournament_edit_batch_refuses_a_status_change_from_a_plain_User()
+    {
+        var route = "/api/leagues-archive/command-league/tournaments-archive/tournament-1/edit-batch";
+        var command = new
+        {
+            editTournament = (object?)null,
+            status = "active",
+            addRounds = Array.Empty<object>(),
+            deleteRoundIds = Array.Empty<string>(),
+            replaceRounds = Array.Empty<object>(),
+            updateArchetypes = Array.Empty<object>()
+        };
+
+        using var response = await SendJsonAsync(HttpMethod.Post, route, command, "User", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -365,7 +417,7 @@ public sealed class LeagueCommandApiTests : IAsyncLifetime
         id,
         name,
         "active",
-        [new TournamentDocument("tournament-1", id, "Result Tournament", "2030-01-01",
+        [new TournamentDocument("tournament-1", id, "Result Tournament", "2030-01-01", "completed",
             [new RoundDocument("round-1", [new MatchRoundEntry("entry-1", "1", "Alice", "Bob", 2, 1, "Tempo", "Control")])],
             [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")])]);
 

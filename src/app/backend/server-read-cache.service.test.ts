@@ -6,6 +6,7 @@ import { AuthSessionCoordinationService } from '../auth/auth-session-coordinatio
 import { AuthService } from '../auth/auth.service';
 import { installFakeWebLocks } from '../auth/fake-web-locks';
 import { SessionScopeService } from '../auth/session-scope.service';
+import { REGISTRATIONS_CACHE_FAMILY, registrationsCacheKey } from '../features/events/my-registrations';
 import { CachedRead, IndexedDbServerReadCacheStore, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from './server-read-cache.service';
 
 /**
@@ -22,7 +23,9 @@ function fakeStore(seed: Record<string, CachedRead<unknown>> = {}) {
     rows,
     read: vi.fn(async (key: string) => rows.get(key) ?? null),
     write: vi.fn(async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); }),
-    clear: vi.fn(async () => { rows.clear(); })
+    delete: vi.fn(async (key: string) => { rows.delete(key); }),
+    clear: vi.fn(async () => { rows.clear(); }),
+    keys: vi.fn(async () => [...rows.keys()])
   };
 }
 
@@ -47,6 +50,11 @@ function setup(options: { userId?: string | null; store?: Store } = {}) {
 
 function cached(value: unknown): CachedRead<unknown> {
   return { value, cachedAt: '2026-08-09T10:00:00.000Z' };
+}
+
+/** A row this many hours old, for the TTL boundary the fallback-only `read()` never had. */
+function cachedHoursAgo(value: unknown, hours: number): CachedRead<unknown> {
+  return { value, cachedAt: new Date(Date.now() - hours * 60 * 60 * 1000).toISOString() };
 }
 
 beforeEach(() => {
@@ -311,6 +319,183 @@ describe('ServerReadCacheService failure containment', () => {
   });
 });
 
+/**
+ * ADR 0039 amends ADR 0031: the same store also answers a *fresh* navigation while its row is under
+ * the TTL. Everything that made `read()` safe still holds — anonymous callers cache nothing, and a
+ * response that lands after the session moved is answered but never written.
+ */
+describe('ServerReadCacheService readCached', () => {
+  it('serves a fresh row without calling the loader', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo([9], 1) });
+    const { service } = setup({ userId: 'u1', store });
+    const load = vi.fn(async () => [1]);
+
+    const result = await service.readCached('registrations', load);
+
+    expect(load).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ value: [9], fromCache: true, stale: false });
+    expect(result.fetchedAt).toBe(store.rows.get('u1:registrations')?.cachedAt);
+  });
+
+  it('reloads an expired row', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo([9], 25) });
+    const { service } = setup({ userId: 'u1', store });
+    const load = vi.fn(async () => [1]);
+
+    const result = await service.readCached('registrations', load);
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ value: [1], fromCache: false, stale: false });
+    expect(store.rows.get('u1:registrations')?.value).toEqual([1]);
+  });
+
+  it('force always reloads', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo([9], 1) });
+    const { service } = setup({ userId: 'u1', store });
+    const load = vi.fn(async () => [1]);
+
+    const result = await service.readCached('registrations', load, { force: true });
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ value: [1], fromCache: false });
+    expect(store.read).not.toHaveBeenCalled();
+  });
+
+  it('honours a caller TTL', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo([9], 2) });
+    const { service } = setup({ userId: 'u1', store });
+
+    await expect(service.readCached('registrations', async () => [1], { ttlMs: 60 * 60 * 1000 }))
+      .resolves.toMatchObject({ value: [1], fromCache: false });
+  });
+
+  it('falls back to a stale row when the loader rejects', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo([9], 25) });
+    const { service } = setup({ userId: 'u1', store });
+
+    const result = await service.readCached('registrations', () => Promise.reject(new Error('offline')));
+
+    expect(result).toMatchObject({ value: [9], stale: true, fromCache: true });
+  });
+
+  it('rethrows when there is no row', async () => {
+    const { service } = setup({ userId: 'u1' });
+
+    await expect(service.readCached('registrations', () => Promise.reject(new Error('offline')))).rejects.toThrowError('offline');
+  });
+
+  it('never caches for an anonymous caller', async () => {
+    const { service, store } = setup();
+
+    await expect(service.readCached('registrations', async () => [1])).resolves.toMatchObject({ value: [1], fromCache: false, stale: false });
+
+    expect(store.rows.size).toBe(0);
+    expect(store.read).not.toHaveBeenCalled();
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when the user changed mid-flight', async () => {
+    const { service, store, profile } = setup({ userId: 'u1' });
+
+    const pending = service.readCached('registrations', () => Promise.resolve([1]));
+    profile.set({ id: 'u2' } as UserProfileResponse);
+
+    await expect(pending).resolves.toMatchObject({ value: [1], fromCache: false });
+    expect(store.rows.size).toBe(0);
+    expect(store.write).not.toHaveBeenCalled();
+  });
+
+  it('never serves user A rows to user B', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo(['user-a'], 1) });
+    const { service, profile } = setup({ userId: 'u1', store });
+    profile.set({ id: 'u2' } as UserProfileResponse);
+
+    await expect(service.readCached('registrations', async () => ['user-b'])).resolves.toMatchObject({ value: ['user-b'], fromCache: false });
+  });
+
+  it('treats a broken cache as a miss, not a failure', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo([9], 1) });
+    store.read.mockRejectedValueOnce(new Error('indexedDbUnavailable'));
+    const { service } = setup({ userId: 'u1', store });
+
+    await expect(service.readCached('registrations', async () => [1])).resolves.toMatchObject({ value: [1], fromCache: false });
+  });
+});
+
+describe('ServerReadCacheService invalidate', () => {
+  it('drops one row only', async () => {
+    const store = fakeStore({ 'u1:registrations': cached([1]), 'u1:settings': cached([2]) });
+    const { service } = setup({ userId: 'u1', store });
+
+    await service.invalidate('registrations');
+
+    expect([...store.rows.keys()]).toEqual(['u1:settings']);
+  });
+
+  it('forces the next read back to the server', async () => {
+    const store = fakeStore({ 'u1:registrations': cachedHoursAgo([9], 1) });
+    const { service } = setup({ userId: 'u1', store });
+
+    await service.invalidate('registrations');
+
+    await expect(service.readCached('registrations', async () => [1])).resolves.toMatchObject({ value: [1], fromCache: false });
+  });
+
+  it('deletes nothing for an anonymous caller', async () => {
+    const store = fakeStore({ 'u1:registrations': cached([1]) });
+    const { service } = setup({ store });
+
+    await service.invalidate('registrations');
+
+    expect(store.delete).not.toHaveBeenCalled();
+    expect(store.rows.size).toBe(1);
+  });
+
+  it('never turns a broken cache into a failed mutation', async () => {
+    const store = fakeStore({ 'u1:registrations': cached([1]) });
+    store.delete.mockRejectedValueOnce(new Error('indexedDbUnavailable'));
+    const { service } = setup({ userId: 'u1', store });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(service.invalidate('registrations')).resolves.toBeUndefined();
+
+    expect(logged.mock.calls.map(([line]) => String(line)).join()).toContain('server-read-cache.invalidate');
+    logged.mockRestore();
+  });
+});
+
+/**
+ * `invalidateFamily` matches a key that *is* the family or begins `<family>?` and nothing else, so a
+ * paged key shaped any other way makes the call a silent no-op — the mutation looks invalidated and
+ * the page keeps serving the row for the full 24h. These pin the one paged family in the app against
+ * the matcher rather than trusting the two to stay in step.
+ */
+describe('ServerReadCacheService invalidateFamily', () => {
+  it('drops every page My Registrations caches, and nothing else', async () => {
+    const store = fakeStore({
+      [`u1:${registrationsCacheKey(1)}`]: cached([1]),
+      [`u1:${registrationsCacheKey(2)}`]: cached([2]),
+      [`u1:${REGISTRATIONS_CACHE_FAMILY}`]: cached([3]),
+      'u1:registrations-elsewhere': cached([4]),
+      'u2:registrations?page=1': cached([5])
+    });
+    const { service } = setup({ userId: 'u1', store });
+
+    await service.invalidateFamily(REGISTRATIONS_CACHE_FAMILY);
+
+    expect([...store.rows.keys()]).toEqual(['u1:registrations-elsewhere', 'u2:registrations?page=1']);
+  });
+
+  it('deletes nothing for an anonymous caller', async () => {
+    const store = fakeStore({ [`u1:${registrationsCacheKey(1)}`]: cached([1]) });
+    const { service } = setup({ store });
+
+    await service.invalidateFamily(REGISTRATIONS_CACHE_FAMILY);
+
+    expect(store.delete).not.toHaveBeenCalled();
+  });
+});
+
 describe('ServerReadCacheService purge', () => {
   it('drops every row so the next user reads nothing of this one', async () => {
     const { service, store, profile } = setup({ userId: 'u1' });
@@ -370,10 +555,11 @@ class FakeTransaction {
 
   constructor(private readonly storeName: string, private readonly store: FakeObjectStoreState) {}
 
-  objectStore(name: string): { get(key: IDBValidKey): FakeRequest<unknown>; put(value: Record<string, unknown>): FakeRequest<IDBValidKey> } {
+  objectStore(name: string): { get(key: IDBValidKey): FakeRequest<unknown>; put(value: Record<string, unknown>): FakeRequest<IDBValidKey>; delete(key: IDBValidKey): FakeRequest<undefined> } {
     if (name !== this.storeName) throw new DOMException(`Object store ${name} is not in this transaction.`, 'NotFoundError');
     return {
       get: (key) => this.request(() => this.store.rows.get(key)),
+      delete: (key) => this.request(() => { this.store.rows.delete(key); return undefined; }),
       put: (value) => this.request(() => {
         const key = value[this.store.keyPath] as IDBValidKey | undefined;
         if (key === undefined) throw new DOMException(`Missing key path ${this.store.keyPath}.`, 'DataError');
@@ -512,5 +698,17 @@ describe('IndexedDbServerReadCacheStore production lifecycle', () => {
     ]);
     expect(new Set(transactionStoreNames)).toEqual(new Set(['reads']));
     expect(extractedPutKeys).toEqual(['u1:leagues', 'u2:leagues']);
+  });
+
+  it('deletes one row and leaves the rest of the database standing', async () => {
+    const store = new IndexedDbServerReadCacheStore();
+    await store.write('u1:leagues', cached([1]));
+    await store.write('u1:settings', cached([2]));
+
+    await store.delete('u1:leagues');
+
+    await expect(store.read('u1:leagues')).resolves.toBeNull();
+    await expect(store.read('u1:settings')).resolves.toEqual(cached([2]));
+    expect(deletedDatabaseNames).toEqual([]);
   });
 });

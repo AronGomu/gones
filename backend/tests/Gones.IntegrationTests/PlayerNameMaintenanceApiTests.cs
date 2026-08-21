@@ -113,7 +113,14 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.False(noMerge.GetProperty("mergesWithExistingPlayer").GetBoolean());
 
         await using var database = CreateContext();
-        Assert.True(await database.LeagueArchiveAggregates.AllAsync(item => item.Version == 1), "preview must not mutate League documents");
+        // The placeholder is excluded: it is inserted by a migration rather than by the domain, so the
+        // ADR 0042 startup backfill stamps its catalog counts once. The seeded Leagues are what a
+        // preview must leave alone.
+        Assert.True(
+            await database.LeagueArchiveAggregates
+                .Where(item => item.DocumentId != LeagueNormalizer.PlaceholderLeagueId)
+                .AllAsync(item => item.Version == 1),
+            "preview must not mutate League documents");
     }
 
     [Fact]
@@ -123,7 +130,11 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         await using (var database = CreateContext())
         {
-            Assert.True(await database.LeagueArchiveAggregates.AllAsync(item => item.Version == 1), "failed rename must not mutate any League");
+            Assert.True(
+                await database.LeagueArchiveAggregates
+                    .Where(item => item.DocumentId != LeagueNormalizer.PlaceholderLeagueId)
+                    .AllAsync(item => item.Version == 1),
+                "failed rename must not mutate any League");
         }
 
         using var missing = await SendAsync(HttpMethod.Post, "/api/maintenance/player-names/rename", new { fromName = "Nobody Here", toName = "Someone" }, "Organizer");
@@ -165,7 +176,7 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         id,
         name,
         status,
-        [new TournamentDocument($"{id}-t1", id, "Result Tournament", "2030-01-01",
+        [new TournamentDocument($"{id}-t1", id, "Result Tournament", "2030-01-01", "completed",
             [new RoundDocument($"{id}-r1", entries)],
             [])]);
 

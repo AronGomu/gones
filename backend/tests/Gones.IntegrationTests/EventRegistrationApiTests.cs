@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Gones.Api.Organizations;
+using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
@@ -154,6 +155,31 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         var blockers = factory!.Services.GetServices<IOrganizationDeleteDependency>();
         var registrationBlocker = Assert.Single(blockers, blocker => blocker.GetType().Name.Contains("Registration", StringComparison.Ordinal));
         Assert.Contains("active_registration", await registrationBlocker.GetBlockersAsync(seed.Organization.Id, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// ADR 0038 deleted <c>/calendar</c> and <c>/calendar/tournaments/:slug</c> with no redirect, so a
+    /// mail still linking there sends the reader to the 404 page. Confirmation, unregistration, major
+    /// update and cancellation all mail the same builder, so pinning one pins all four.
+    /// </summary>
+    [Fact]
+    public async Task Registration_mail_links_to_the_live_event_route()
+    {
+        var tournament = await CreateTournamentAsync("Mail Link Cup", 10);
+        using var registered = await RegisterAsync(tournament.Id, seed.User.Id, "register-mail-link");
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+
+        await using var database = CreateContext();
+        var mail = await database.NotificationOutboxRecords.AsNoTracking().SingleAsync(item =>
+            item.TournamentId == tournament.Id && item.TemplateKey == NotificationTemplateKeys.Registration);
+        var rendered = new NotificationTemplateRenderer()
+            .Render(mail.Locale, NotificationModelSerializer.Deserialize(mail.TemplateKey, mail.TemplateModelJson!));
+
+        var expected = $"https://app.example/events/{tournament.Slug}";
+        Assert.Contains(expected, rendered.TextBody, StringComparison.Ordinal);
+        Assert.Contains(expected, rendered.HtmlBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("/calendar", rendered.TextBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("/calendar", rendered.HtmlBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -571,7 +597,7 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         database.Organizations.Add(organization);
         if (database.Entry(legacy).State == EntityState.Detached) database.TournamentFormats.Add(legacy);
         await database.SaveChangesAsync();
-        database.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, organizer.Id, OrganizationRoles.Owner, Now));
+        database.OrganizationMembers.Add(OrganizationMember.Create(organization.Id, organizer.Id, OrganizationRoles.Organizer, Now));
         database.OrganizationNotificationSettings.Add(OrganizationNotificationSettings.CreateDefault(organization.Id, Now));
         await database.SaveChangesAsync();
         return new SeedRows(organization, organizer, user, registered, blocked, unverified, legacy);

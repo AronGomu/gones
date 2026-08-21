@@ -138,8 +138,15 @@ export function validateEnvironment(environment) {
   }
 
   for (const organization of organizations) {
-    if (!accountsByEmail.has(normalizeFixtureEmail(organization.ownerEmail))) {
-      problems.push(`${label}: organization ${organization.key} owner ${organization.ownerEmail} is not a seeded account`);
+    // Nobody owns an organization (ADR 0041): a fixture lists the members it wants on the roster.
+    if (!Array.isArray(organization.memberEmails)) {
+      problems.push(`${label}: organization ${organization.key} must declare a memberEmails array`);
+      continue;
+    }
+    for (const email of organization.memberEmails) {
+      if (!accountsByEmail.has(normalizeFixtureEmail(email))) {
+        problems.push(`${label}: organization ${organization.key} member ${email} is not a seeded account`);
+      }
     }
   }
 
@@ -244,6 +251,20 @@ export function localDateTime(offsetDays, time, today = new Date()) {
   const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offsetDays);
   const pad = (value) => String(value).padStart(2, '0');
   return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}T${time}`;
+}
+
+/**
+ * The server's ASCII slug contract for a published Event: the slugified title, then the format slug.
+ * The seeder checks the slug the API answered against this, and the stress bulk loader — which writes
+ * the row itself — has to produce exactly the same string.
+ */
+export function expectedEventSlug(title, formatSlug) {
+  const titleSlug = String(title).normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `${titleSlug}-${formatSlug}`;
 }
 
 /** Splits process.argv.slice(2) for scripts/dev.mjs. */

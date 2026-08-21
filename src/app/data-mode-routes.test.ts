@@ -2,7 +2,7 @@ import '@angular/compiler';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildRoutes, calendarRoutes } from './app.routes';
+import { buildRoutes, eventRoutes } from './app.routes';
 import { organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
 import { firstVisitHomeGuard, markVisitedGuard } from './shared/first-visit.guard';
 import { powerUserGuard } from './shared/power-user.guard';
@@ -31,23 +31,26 @@ function appSourceFiles(directory = join(__dirname)): string[] {
   });
 }
 
-describe('calendar routes', () => {
-  it('serves the Calendar V1 pages plus the retired Tournament detail redirect', () => {
-    expect(calendarRoutes().map((route) => [route.path, Boolean(route.redirectTo)])).toEqual([
-      ['calendar', false],
-      ['events/:slug', false],
-      ['calendar/tournaments/:slug', true]
-    ]);
+describe('event routes', () => {
+  it('exposes the events browse route', () => {
+    expect(buildRoutes({ authV1: true, adminV1: true }).some((route) => route.path === 'events')).toBe(true);
   });
 
-  it('redirects the retired Tournament detail path with its slug encoded', () => {
-    expect(redirectWith('calendar/tournaments/:slug', { slug: 'gones-night' })).toBe('/events/gones-night');
-    expect(redirectWith('calendar/tournaments/:slug', { slug: 'nuit des gonés/1' })).toBe('/events/nuit%20des%20gon%C3%A9s%2F1');
-    expect(routeFor('calendar/tournaments/:slug')?.pathMatch).toBe('full');
+  it('no longer exposes any calendar path', () => {
+    const allPaths = buildRoutes({ authV1: true, adminV1: true }).map((route) => route.path ?? '');
+    expect(allPaths.some((path) => path.startsWith('calendar'))).toBe(false);
+  });
+
+  it('matches events before events/:slug', () => {
+    const routes = buildRoutes({ authV1: true, adminV1: true });
+    const eventsIndex = routes.findIndex((route) => route.path === 'events');
+    const slugIndex = routes.findIndex((route) => route.path === 'events/:slug');
+    expect(eventsIndex).toBeGreaterThan(-1);
+    expect(eventsIndex).toBeLessThan(slugIndex);
   });
 
   it('exposes no browser-store Calendar or Event page', () => {
-    const loaded = calendarRoutes().map((route) => String(route.loadComponent ?? ''));
+    const loaded = eventRoutes().map((route) => String(route.loadComponent ?? ''));
 
     for (const retired of ['features/menu/calendar.component', 'features/events/event-detail.component']) {
       expect(loaded.some((source) => source.includes(retired))).toBe(false);
@@ -57,7 +60,7 @@ describe('calendar routes', () => {
 
 describe('route exposure per capability flag', () => {
   it('always serves the public browsing, League archive, Live and Settings surface', () => {
-    for (const path of ['', 'about', 'calendar', 'events/:slug', 'global-stats', 'leagues-archive', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
+    for (const path of ['', 'about', 'events', 'events/:slug', 'global-stats', 'leagues-archive', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
       expect(paths(noCapabilities)).toContain(path);
     }
   });
@@ -74,8 +77,13 @@ describe('route exposure per capability flag', () => {
     for (const path of ['login', 'profile', 'registrations', 'organizer/events', 'admin', 'admin/events/deleted']) {
       expect(enabled).toContain(path);
     }
-    // The retired Tournament detail path survives only as a redirect into the Event page.
-    expect(buildRoutes(allCapabilities).find((route) => route.path === 'calendar/tournaments/:slug')?.redirectTo).toBeTruthy();
+  });
+
+  it('has no organizations list route', () => {
+    const enabled = paths(allCapabilities);
+
+    expect(enabled).not.toContain('organizations');
+    expect(enabled).toContain('organizations/:id');
   });
 
   it('serves no sessions page, the feature was removed', () => {
@@ -149,6 +157,11 @@ describe('route exposure per capability flag', () => {
     expect(routes.indexOf('events/new')).toBeLessThan(routes.indexOf('events/:slug'));
   });
 
+  it('matches events/new before events/:slug', () => {
+    const routes = buildRoutes(allCapabilities).map((route) => route.path);
+    expect(routes.indexOf('events/new')).toBeLessThan(routes.indexOf('events/:slug'));
+  });
+
   it('redirects both retired create paths to events/new', () => {
     for (const path of ['tournaments/new', 'organizer/tournaments/new']) {
       const route = buildRoutes(allCapabilities).find((route) => route.path === path);
@@ -186,9 +199,9 @@ describe('route exposure per capability flag', () => {
     expect(aboutRoute?.canActivate ?? [], "about should be guarded by markVisitedGuard").toContain(markVisitedGuard);
   });
 
-  it('leaves deep links like /calendar untouched by the first-visit guard', () => {
-    const calendarRoute = buildRoutes(noCapabilities).find((route) => route.path === 'calendar');
-    expect(calendarRoute?.canActivate).toBeUndefined();
+  it('leaves deep links like /events untouched by the first-visit guard', () => {
+    const eventsRoute = buildRoutes(noCapabilities).find((route) => route.path === 'events');
+    expect(eventsRoute?.canActivate).toBeUndefined();
   });
 
   it('serves the archive list route', () => {

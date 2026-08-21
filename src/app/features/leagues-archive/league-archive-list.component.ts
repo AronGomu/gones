@@ -10,38 +10,43 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
 import { canManageLeagues, leagueCommandError } from '../../data/league-archive-command-ux';
-import { isAnyPlaceholderLeagueId, isLocalLeagueId } from '../../data/league-archive-origin';
+import { isAnyPlaceholderLeagueId } from '../../data/league-archive-origin';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { PersistedLeague } from '../../domain/models';
-import { calculateLeagueResult } from '../../domain/results';
+import { LeagueArchiveSummary } from '../../data/league-archive-summary';
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { TextPromptDialogComponent } from '../../shared/dialogs';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { clearLeagueCatalogCache, LeagueArchiveCatalogCacheService } from './league-archive-catalog-cache.service';
+
+const ARCHIVE_PAGE_SIZE = 25;
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, BackButtonComponent],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="leagues-archive-list-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
     <section class="page-heading league-list-heading" data-cy="leagues-archive-list-heading">
       <div data-cy="leagues-archive-list-heading-block"><h1 data-cy="leagues-archive-list-title">{{ i18n.t('leagues.title') }}</h1></div>
     </section>
+    <gones-sync-bar cyPrefix="leagues-archive-list" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="leagues-archive-list-sync-bar" />
     @if (error()) { <p class="error" role="alert" data-cy="leagues-archive-list-error">{{ error() }}</p> }
     <p class="muted" role="status" data-cy="leagues-archive-local-notice">{{ i18n.t('leagues.localNotice') }}</p>
     @if (repo.serverUnavailable()) { <p class="warning" role="status" data-cy="leagues-archive-server-unavailable">{{ i18n.t('leagues.serverUnavailable') }}</p> }
+    @if (repo.catalogTruncated()) { <p class="warning" role="status" data-cy="leagues-archive-truncated">{{ i18n.t('leagues.truncated') }}</p> }
     @if (showLeagueFilter()) {
       <div class="league-toolbar" data-cy="leagues-archive-list-toolbar">
-        <mat-form-field appearance="outline" class="search" data-cy="leagues-archive-list-search-field"><mat-label data-cy="leagues-archive-list-search-label">{{ i18n.t('leagues.search') }}</mat-label><input matInput data-cy="leagues-archive-list-search-input" [(ngModel)]="searchTerm"></mat-form-field>
+        <mat-form-field appearance="outline" class="search" data-cy="leagues-archive-list-search-field"><mat-label data-cy="leagues-archive-list-search-label">{{ i18n.t('leagues.search') }}</mat-label><input matInput data-cy="leagues-archive-list-search-input" [ngModel]="searchTerm()" (ngModelChange)="onSearchChange($event)"></mat-form-field>
       </div>
     }
     @if (loading()) { <mat-spinner diameter="40" data-cy="leagues-archive-list-spinner" /> }
     @else {
       @if (!filteredLeagues().length) { <p class="muted" data-cy="leagues-archive-list-empty">{{ i18n.t('leagues.noneMatch') }}</p> }
       <div class="league-grid" data-cy="leagues-archive-list-grid">
-        @for (league of filteredLeagues(); track league.id) {
+        @for (league of pagedLeagues(); track league.id) {
           <a class="league-card" [routerLink]="['/leagues-archive', league.id]" data-cy="leagues-archive-list-item">
             <span class="status league-card-status" data-cy="leagues-archive-list-item-status" [class.completed]="league.status === 'completed'"><span class="status-dot" aria-hidden="true" data-cy="leagues-archive-list-item-status-dot"></span>{{ league.status === 'completed' ? i18n.t('common.completed') : i18n.t('common.active') }}</span>
             @if (isLocal(league)) { <span class="league-card-local-badge" data-cy="leagues-archive-list-item-local-badge">{{ i18n.t('leagues.localBadge') }}</span> }
@@ -58,6 +63,13 @@ import { PowerUserSettingsService } from '../../shared/power-user-settings.servi
         }
         @if (hasUnmanageableServerLeagues()) { <p class="muted" data-cy="leagues-archive-list-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       </div>
+      @if (totalPages() > 1) {
+        <nav class="leagues-archive-pagination" [attr.aria-label]="i18n.t('leagues.paginationAria')" data-cy="leagues-archive-list-pagination">
+          <button type="button" data-cy="leagues-archive-list-page-previous" [disabled]="pageIndex() <= 1" (click)="goPage(pageIndex() - 1)">{{ i18n.t('common.previous') }}</button>
+          <span aria-live="polite" data-cy="leagues-archive-list-page-status">{{ i18n.t('leagues.pageStatus', { page: pageIndex(), total: totalPages(), count: totalLeagues() }) }}</span>
+          <button type="button" data-cy="leagues-archive-list-page-next" [disabled]="pageIndex() >= totalPages()" (click)="goPage(pageIndex() + 1)">{{ i18n.t('common.next') }}</button>
+        </nav>
+      }
     }
 
     <gones-back-button data-cy="leagues-archive-list-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
@@ -65,48 +77,91 @@ import { PowerUserSettingsService } from '../../shared/power-user-settings.servi
 })
 export class LeagueArchiveListComponent {
   readonly i18n = inject(I18nService);
-  readonly leagues = signal<PersistedLeague[]>([]);
+  /**
+   * Summary rows, not documents (ADR 0042). Both counts arrive already computed — denormalized off
+   * the server aggregate, derived from the document for a browser-local League — so this page never
+   * holds a Round or a Match again.
+   */
+  readonly leagues = signal<LeagueArchiveSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly creating = signal(false);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly stale = signal(false);
   readonly power = inject(PowerUserSettingsService);
   /** Power mode applies to both stores; role authority still applies to server leagues. */
   readonly hasUnmanageableServerLeagues = computed(() => !this.power.enabled()
-    || (this.leagues().some((league) => !isLocalLeagueId(league.id)) && !canManageLeagues(this.auth.profile()?.globalRole)));
-  searchTerm = '';
+    || (this.leagues().some((league) => !league.isLocal) && !canManageLeagues(this.auth.profile()?.globalRole)));
+  readonly searchTerm = signal('');
+  readonly pageIndex = signal(1);
+  readonly pageSize = signal(ARCHIVE_PAGE_SIZE);
   readonly showLeagueFilter = computed(() => this.leagues().length > 9);
   readonly filteredLeagues = computed(() => {
-    const search = this.showLeagueFilter() ? this.searchTerm.trim().toLowerCase() : '';
+    const search = this.showLeagueFilter() ? this.searchTerm().trim().toLowerCase() : '';
     return this.leagues()
-      .filter((league) => !isAnyPlaceholderLeagueId(league.id) || league.tournaments.length > 0)
+      .filter((league) => !isAnyPlaceholderLeagueId(league.id) || league.tournamentCount > 0)
       .filter((league) => !search || this.leagueDisplayName(league).toLowerCase().includes(search) || league.name.toLowerCase().includes(search));
   });
+  readonly totalLeagues = computed(() => this.filteredLeagues().length);
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalLeagues() / this.pageSize())));
+  readonly pagedLeagues = computed(() => {
+    const start = (this.pageIndex() - 1) * this.pageSize();
+    return this.filteredLeagues().slice(start, start + this.pageSize());
+  });
+
+  private readonly catalogCache = inject(LeagueArchiveCatalogCacheService);
 
   constructor(readonly repo: LeagueArchiveRepository, private readonly auth: AuthService, private readonly router: Router, private readonly dialog: MatDialog) {
     void this.load();
   }
 
-  async load(): Promise<void> {
+  async load(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
-    try { this.leagues.set(await this.repo.listLeagues()); }
-    catch (error) { logBoundaryError('league-list.load', error); this.error.set(this.i18n.t('leagues.loadFailed')); }
-    finally { this.loading.set(false); }
+    const [serverResult, localResult] = await Promise.allSettled([
+      this.catalogCache.load(options),
+      this.repo.listLocalLeagueSummaries()
+    ]);
+    this.repo.serverUnavailable.set(
+      serverResult.status === 'rejected' || (serverResult.status === 'fulfilled' && serverResult.value.stale)
+    );
+    if (serverResult.status === 'rejected' && localResult.status === 'rejected') {
+      logBoundaryError('league-list.load', serverResult.reason);
+      this.error.set(this.i18n.t('leagues.loadFailed'));
+      this.loading.set(false);
+      return;
+    }
+    if (serverResult.status === 'fulfilled') {
+      this.syncedAt.set(serverResult.value.fetchedAt);
+      this.stale.set(serverResult.value.stale);
+    }
+    this.leagues.set([
+      ...(serverResult.status === 'fulfilled' ? serverResult.value.items : []),
+      ...(localResult.status === 'fulfilled' ? localResult.value : [])
+    ]);
+    this.loading.set(false);
   }
 
-  playerCount(league: PersistedLeague): number { return calculateLeagueResult(league).rows.length; }
+  sync(): void { void this.load({ force: true }); }
 
-  isLocal(league: PersistedLeague): boolean { return isLocalLeagueId(league.id); }
+  onSearchChange(value: string): void {
+    this.searchTerm.set(value);
+    this.pageIndex.set(1);
+  }
 
-  leagueDisplayName(league: PersistedLeague): string {
+  goPage(page: number): void {
+    this.pageIndex.set(page);
+  }
+
+  isLocal(league: LeagueArchiveSummary): boolean { return league.isLocal; }
+
+  leagueDisplayName(league: LeagueArchiveSummary): string {
     return isAnyPlaceholderLeagueId(league.id) ? this.i18n.t('liveList.unassigned') : league.name;
   }
 
-  leagueMeta(league: PersistedLeague): string {
-    const tournamentCount = league.tournaments.length;
-    const playerCount = this.playerCount(league);
+  leagueMeta(league: LeagueArchiveSummary): string {
     return this.i18n.t('leagues.meta', {
-      tournaments: this.i18n.plural(tournamentCount, 'leagues.tournamentCount', 'leagues.tournamentCountPlural'),
-      players: this.i18n.plural(playerCount, 'leagues.playerCount', 'leagues.playerCountPlural')
+      tournaments: this.i18n.plural(league.tournamentCount, 'leagues.tournamentCount', 'leagues.tournamentCountPlural'),
+      players: this.i18n.plural(league.playerCount, 'leagues.playerCount', 'leagues.playerCountPlural')
     });
   }
 
@@ -117,6 +172,7 @@ export class LeagueArchiveListComponent {
     this.creating.set(true);
     try {
       const league = await this.repo.createLeague(name);
+      clearLeagueCatalogCache();
       this.error.set('');
       await this.router.navigate(['/leagues-archive', league.id]);
     } catch (error) {

@@ -16,11 +16,14 @@ import { PasswordConfirmDialogComponent } from '../../shared/password-confirm-di
 import { GeoOption, GeoService, hasStructuredRegions } from '../../shared/geo.service';
 import { AccountFormValues, accountFormIsDirty, accountFormPayload, accountFormValues } from './account-form';
 import { applyCountry, applyRegion, optionsWithStoredValue } from './location-selection';
+import { BackButtonComponent } from '../../shared/back-button.component';
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule],
+  imports: [FormsModule, RouterLink, MatButtonModule, MatCardModule, MatDialogModule, BackButtonComponent],
   template: `
+    <gones-back-button data-cy="account-settings-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
+
     <section class="profile-page stack" aria-labelledby="account-title" data-cy="account-settings-page">
       <header class="page-heading" data-cy="account-heading"><div data-cy="account-heading-text"><h1 id="account-title" data-cy="account-title">{{ i18n.t('settings.accountTitle') }}</h1></div><div class="actions" data-cy="account-heading-actions"><a mat-stroked-button routerLink="/registrations" data-cy="account-registrations-link">{{ i18n.t('registration.myRegistrations') }}</a></div></header>
 
@@ -112,6 +115,8 @@ import { applyCountry, applyRegion, optionsWithStoredValue } from './location-se
       @if (error()) { <p class="error" role="alert" data-cy="account-error">{{ error() }}</p> }
       @if (status()) { <p class="settings-saved" role="status" aria-live="polite" data-cy="account-status">{{ status() }}</p> }
     </section>
+
+    <gones-back-button data-cy="account-settings-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
   `
 })
 export class AccountSettingsComponent {

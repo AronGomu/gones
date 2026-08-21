@@ -4,15 +4,15 @@ import { LastVisitedUrlService } from './last-visited-url.service';
 describe('LastVisitedUrlService', () => {
   it('records a non-auth url', () => {
     const service = new LastVisitedUrlService();
-    service.record('/calendar?view=list');
-    expect(service.last()).toBe('/calendar?view=list');
+    service.record('/events?view=list');
+    expect(service.last()).toBe('/events?view=list');
   });
 
   it('ignores auth urls', () => {
     const service = new LastVisitedUrlService();
-    service.record('/calendar');
-    service.record('/login?returnUrl=%2Fcalendar');
-    expect(service.last()).toBe('/calendar');
+    service.record('/events');
+    service.record('/login?returnUrl=%2Fevents');
+    expect(service.last()).toBe('/events');
   });
 
   it('ignores every auth path', () => {

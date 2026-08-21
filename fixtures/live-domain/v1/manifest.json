@@ -21,7 +21,7 @@
     }
   },
   "serialization": "JSON.stringify(value, null, 2) + LF",
-  "paritySha256": "a75ab67317270cde9529588fb3259ef224049de72a0d1a54e6d81ef362cc2068",
+  "paritySha256": "ae1e92898deef3a7928f078c8fbc4fcb01a2996ba846e24198bc029969fbd0b3",
   "caseCounts": {
     "registrations": 3,
     "normalizations": 3,

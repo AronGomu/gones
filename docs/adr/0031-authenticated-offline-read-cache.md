@@ -5,6 +5,9 @@
 Accepted. Extends ADR 0020 (server is the data authority) without weakening it. Does not create a
 sync path; ADR 0021 and ADR 0028 still stand.
 
+Amended by ADR 0039: the same store also serves fresh navigations under a 24h TTL. The fallback rule
+below still holds for every caller of `read()`.
+
 ## Context
 
 Gones is an installable PWA. Offline, it answers well for anonymous readers and badly for everyone

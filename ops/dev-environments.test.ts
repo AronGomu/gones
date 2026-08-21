@@ -1,11 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error - the dev account roster is a plain ESM module shared with the seeding script.
 import { DEV_PASSWORD, meetsPasswordPolicy } from '../scripts/dev-accounts.mjs';
 // @ts-expect-error - the environment loader is a plain ESM module shared with the seeding scripts.
-import { DATA_FILES, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from '../scripts/dev-environments.mjs';
+import { DATA_FILES, DEV_ENVIRONMENTS_DIR, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from '../scripts/dev-environments.mjs';
 
 /**
  * ADR 0030 file-driven local development environments.
@@ -61,7 +61,7 @@ interface DevEnvironmentRegistration {
 
 interface DevEnvironmentOrganization {
   key: string;
-  ownerEmail: string;
+  memberEmails: string[];
   [key: string]: unknown;
 }
 
@@ -113,6 +113,13 @@ const slugify = (value: string): string => value
 
 const names = listEnvironmentNames() as string[];
 const dataFiles = DATA_FILES as string[];
+/**
+ * Environments whose data files are written on demand rather than committed (T29). `stress` ships only
+ * its `environment.json`, so the cases below that walk every shipped dataset would otherwise be
+ * asserting over seven empty arrays on one machine and a hundredfold dataset on the next.
+ */
+const generatedEnvironments = ['stress'];
+const shippedNames = names.filter((name) => !generatedEnvironments.includes(name));
 const read = (name: string): DevEnvironment => readEnvironment(name) as DevEnvironment;
 
 function validEnvironment(): Record<string, unknown> {
@@ -125,8 +132,24 @@ function validEnvironment(): Record<string, unknown> {
 
 describe('shipped development environments', () => {
   it('every shipped environment validates', () => {
-    expect(names.length).toBeGreaterThan(0);
-    for (const name of names) expect(validateEnvironment(read(name)), name).toEqual([]);
+    expect(shippedNames.length).toBeGreaterThan(0);
+    for (const name of shippedNames) expect(validateEnvironment(read(name)), name).toEqual([]);
+  });
+
+  it('skips the generated stress environment on purpose', () => {
+    const stress = read('stress');
+
+    // Deliberate, not an accident of a missing directory: the environment is declared, it is the only
+    // name skipped, and everything but its manifest is gitignored because it is regenerated from a seed.
+    expect(names).toContain('stress');
+    expect(shippedNames).not.toContain('stress');
+    expect(generatedEnvironments).toEqual(['stress']);
+    expect(existsSync(join(process.cwd(), DEV_ENVIRONMENTS_DIR as string, 'stress', 'environment.json'))).toBe(true);
+    expect(readFileSync(join(process.cwd(), '.gitignore'), 'utf8')).toContain('/fixtures/dev-environments/stress/*.json');
+    expect(stress.resetDatabase).toBe(true);
+    // Empty when the dataset has not been generated on this machine, the full hundredfold when it has;
+    // either way it is the shape the seeder would accept.
+    expect(validateEnvironment(stress)).toEqual([]);
   });
 
   it('the empty environment seeds nothing', () => {
@@ -144,7 +167,7 @@ describe('shipped development environments', () => {
   });
 
   it('every fixture password meets the server policy', () => {
-    for (const name of names) {
+    for (const name of shippedNames) {
       for (const account of read(name).accounts) {
         expect(meetsPasswordPolicy(account.password ?? DEV_PASSWORD), `${name}/${account.email}`).toBe(true);
       }
@@ -287,8 +310,8 @@ describe('shipped development environments', () => {
     expect(demo.accounts.map((account) => account.role)).toEqual(['Admin', 'Organizer', 'Organizer', 'User', 'User', 'User', 'User']);
     expect(demo.accounts.filter((account) => account.emailConfirmed === false).map((account) => account.email)).toEqual(['user-unverified@gones.test']);
     expect(demo.organizations).toEqual(expect.arrayContaining([
-      expect.objectContaining({ key: 'gones-lyon', ownerEmail: 'organizer-gones-one-registration@gones.test' }),
-      expect.objectContaining({ key: 'aura-league', ownerEmail: 'organizer-aura-live-standings@gones.test' })
+      expect.objectContaining({ key: 'gones-lyon', memberEmails: ['organizer-gones-one-registration@gones.test'] }),
+      expect.objectContaining({ key: 'aura-league', memberEmails: ['organizer-aura-live-standings@gones.test'] })
     ]));
     expect(demo.liveTournaments.map((live) => live.organizerEmail)).toEqual([
       'organizer-gones-one-registration@gones.test',
@@ -386,7 +409,7 @@ describe('environment validation', () => {
   it.each([{ formatKeys: [] }, { formatKeys: ['legacy', 'modern'] }])('rejects Events with $formatKeys formats', ({ formatKeys }) => {
     const fixture = validEnvironment();
     fixture['accounts'] = [{ email: 'o@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }];
-    fixture['organizations'] = [{ key: 'org', ownerEmail: 'o@gones.test' }];
+    fixture['organizations'] = [{ key: 'org', memberEmails: ['o@gones.test'] }];
     fixture['formats'] = [
       { key: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 10 },
       { key: 'modern', name: 'Modern', slug: 'modern', sortOrder: 20 }
@@ -399,7 +422,7 @@ describe('environment validation', () => {
   it('rejects malformed or duplicate split keys', () => {
     const fixture = validEnvironment();
     fixture['accounts'] = [{ email: 'o@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }];
-    fixture['organizations'] = [{ key: 'org', ownerEmail: 'o@gones.test' }];
+    fixture['organizations'] = [{ key: 'org', memberEmails: ['o@gones.test'] }];
     fixture['formats'] = [
       { key: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 10 },
       { key: 'modern', name: 'Modern', slug: 'modern', sortOrder: 20 }
@@ -417,12 +440,12 @@ describe('environment validation', () => {
 
   it('reports renamed account references left dangling', () => {
     const fixture = validEnvironment();
-    fixture['organizations'] = [{ key: 'org', ownerEmail: 'old@gones.test' }];
+    fixture['organizations'] = [{ key: 'org', memberEmails: ['old@gones.test'] }];
     fixture['liveTournaments'] = [{ key: 'live', organizerEmail: 'old@gones.test', leagueKey: null, roundCount: 1, scoredRounds: 0, players: [{ name: 'A' }, { name: 'B' }] }];
     fixture['registrations'] = [{ tournamentKey: 'missing', userEmail: 'old@gones.test' }];
 
     const problems = validateEnvironment(fixture) as string[];
-    expect(problems).toContain('demo: organization org owner old@gones.test is not a seeded account');
+    expect(problems).toContain('demo: organization org member old@gones.test is not a seeded account');
     expect(problems).toContain('demo: running tournament live organizer old@gones.test is not an Organizer');
     expect(problems).toContain('demo: registration missing/old@gones.test is not seedable');
   });
@@ -519,6 +542,10 @@ describe('seeder safety boundaries', () => {
     expect(seedEnvironment).toContain("GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: process.env.GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT || '1000'");
     expect(seedEnvironment).toContain("GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT || '1000'");
     expect(compose).toContain('GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: ${GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT:-}');
+    // The stress environment raises all three buckets, including the admin one its 400-format catalog
+    // would otherwise exhaust after sixty calls (T29). Compose still defaults every name to empty.
+    expect(seedEnvironment).toContain("GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT || '100000'");
+    expect(compose).toContain('GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT: ${GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT:-}');
   });
 
   it('resolves mixed-case fixture email references to the same token key', () => {

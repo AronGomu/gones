@@ -37,10 +37,22 @@ const profile = {
 
 const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00Z' };
 
-/** The list reads a summary page and then each league document, so both GETs are stubbed. */
+/** The same League as the slim catalog sees it (ADR 0042): two denormalized counts, no documents. */
+const serverLeagueSummary = {
+  id: serverLeague.id, name: serverLeague.name, status: serverLeague.status,
+  updatedAt: serverLeague.updatedAt, documentVersion: serverLeague.documentVersion,
+  tournamentCount: 0, playerCount: 0
+};
+
+/**
+ * The list reads the whole archive in one catalog request (ADR 0039); a detail page still reads one.
+ * `/all` and `/all/documents` are stubbed apart (ADR 0042) so the list page gets summary rows and
+ * only the Settings export ever sees a document body.
+ */
 function stubServerLeagueReads() {
-  cy.intercept('GET', /\/api\/leagues-archive\?.*/, { items: [serverLeague], page: 1, pageSize: 100, totalCount: 1 }).as('leagueList');
   cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague).as('leagueDetail');
+  cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, { items: [serverLeague], totalCount: 1, truncated: false }).as('leagueDocuments');
+  cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeagueSummary], totalCount: 1, truncated: false }).as('leagueList');
 }
 
 function stubSignedIn(globalRole) {
@@ -75,6 +87,27 @@ function readLocalLeagueRows() {
     };
   }));
 }
+
+/**
+ * The player page reads `GET /api/players/{playerName}` (ADR 0039 read model) and never downloads a
+ * League document. Browser-local leagues can only ever reach it through the client-side merge, so
+ * the server half is stubbed with one match nobody in this browser has.
+ */
+const serverPlayerPayload = {
+  statistics: {
+    position: 1, playerName: 'Alice', playedMatchCount: 1, matchWins: 1, matchLosses: 0, matchDraws: 0,
+    matchWinrate: 1, playedGameCount: 2, gameWins: 2, gameLosses: 0, gameWinrate: 1,
+    nemesis: null, rival: { name: 'Server Opponent', wins: 1, losses: 0 }, mostPlayedArchetype: null
+  },
+  matches: [{
+    kind: 'match', leagueId: 'server-league-1', leagueName: 'Server League',
+    tournamentId: 'server-tournament-1', tournamentName: 'Server Day 1', tournamentDate: '2026-03-05',
+    roundIndex: 0, opponentName: 'Server Opponent', ownScore: 2, opponentScore: 0,
+    ownArchetype: '', opponentArchetype: ''
+  }],
+  totalMatchCount: 1,
+  truncated: false
+};
 
 function stubSignedOut(leagueApiCalls) {
   cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
@@ -178,6 +211,11 @@ describe('League Archive browser-local flows', () => {
     visit('/leagues-archive');
     cy.contains('[data-cy="leagues-archive-list-item"]', 'Local League').should('exist')
       .find('[data-cy="leagues-archive-list-item-local-badge"]').should('exist');
+    // The counts a browser-local League has no server to ask for: derived here from the one
+    // Tournament and the one Alice-vs-Bob match entered above (ADR 0042).
+    cy.contains('[data-cy="leagues-archive-list-item"]', 'Local League')
+      .find('[data-cy="leagues-archive-list-item-meta"]')
+      .should('have.text', '1 Tournament · 2 Players');
     assertNoErrorBanner();
 
     // The negative assertion the whole spec exists for: every League Archive request the app made
@@ -205,6 +243,11 @@ describe('League Archive browser-local flows', () => {
     cy.get('[data-cy="leagues-archive-server-unavailable"]').should('not.exist');
     cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').should('exist')
       .find('[data-cy="leagues-archive-list-item-local-badge"]').should('not.exist');
+    // Both halves of the merged list print the same meta line, one from the server's denormalized
+    // counts and one computed in this browser (ADR 0042) — the page cannot tell them apart.
+    cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League')
+      .find('[data-cy="leagues-archive-list-item-meta"]')
+      .should('have.text', '0 Tournaments · 0 Players');
     // A server league nobody signed in can manage is what the read-only notice is about.
     cy.get('[data-cy="leagues-archive-list-read-only"]').should('exist');
 
@@ -294,6 +337,74 @@ describe('League Archive browser-local flows', () => {
 
     cy.get('@leagueApi.all').then((calls) => {
       for (const call of calls) expect(call.response.statusCode, `response to ${call.request.url}`).to.eq(401);
+    });
+  });
+
+  it('folds this browser\u2019s matches into the player page only while Online-only is off', () => {
+    cy.viewport(1280, 800);
+
+    const leagueApiCalls = [];
+    stubSignedOut(leagueApiCalls);
+    cy.intercept('GET', /\/api\/players\//, serverPlayerPayload).as('playerDetail');
+
+    visit('/leagues-archive', { clearLocalStore: true });
+    createLocalLeague('Badge League');
+
+    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
+    cy.get('[data-cy="tournament-archive-detail-edit"]').click();
+    cy.get('[data-cy="tournament-archive-detail-add-round"]').click();
+    cy.contains('mat-expansion-panel', 'Round 1').find('mat-expansion-panel-header').click();
+    cy.get('[data-cy="tournament-archive-detail-add-match"]').click();
+    cy.get('[data-cy="tournament-archive-detail-match-player1-input"]').clear().type('Alice');
+    cy.get('[data-cy="tournament-archive-detail-match-player1-score-input"]').clear().type('2');
+    cy.get('[data-cy="tournament-archive-detail-match-player2-input"]').clear().type('Browser Opponent');
+    cy.get('[data-cy="tournament-archive-detail-match-player2-score-input"]').clear().type('1');
+    cy.document().trigger('keydown', { key: 's', code: 'KeyS', ctrlKey: true, force: true });
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.get('[data-cy="tournament-archive-detail-edit"]').should('exist');
+
+    // Statistics count completed Archive Tournaments only — the server read model excludes an active
+    // one, and the browser half now obeys the same rule — so this browser-local Tournament is marked
+    // complete before it may fold into the player page.
+    cy.get('[data-cy="archive-tournament-complete-toggle"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').should('have.length', 1).click();
+    cy.get('[data-cy="archive-tournament-status-badge"]').should('have.class', 'completed');
+
+    // Everything the League Archive pages asked for is history; what matters is what the player
+    // page asks for, so the count is snapshotted here and re-read at the end.
+    cy.then(() => cy.wrap(leagueApiCalls.length).as('leagueCallsBeforePlayerPage'));
+    visit('/players/Alice');
+
+    // Online-only is the default: exactly the server's row, and no League download at all.
+    cy.wait('@playerDetail');
+    cy.get('[data-cy="player-stat-value-played-matches"]').should('have.text', '1');
+    cy.get('[data-cy="match-card"]').should('have.length', 1);
+    cy.get('[data-cy="player-match-local"]').should('not.exist');
+    cy.contains('[data-cy="match-card"]', 'Browser Opponent').should('not.exist');
+    cy.get('[data-cy="player-sync-button"]').should('exist');
+    cy.get('[data-cy="match-own-archetype"]').should('exist');
+    cy.get('[data-cy="match-own-archetype"]').click();
+    cy.get('[data-cy="match-filter-input"]').should('not.have.value', '');
+    cy.get('[data-cy="match-card"]').should('have.length', 1);
+    cy.get('[data-cy="match-filter-clear"]').click();
+
+    // Off: this browser's league is added to the totals and to the history, and marked.
+    cy.get('[data-cy="player-online-only-toggle"]').click();
+    cy.get('[data-cy="player-stat-value-played-matches"]').should('have.text', '2');
+    cy.get('[data-cy="match-card"]').should('have.length', 2);
+    cy.get('[data-cy="player-match-local"]').should('have.length', 1);
+    cy.contains('[data-cy="match-card"]', 'Browser Opponent').find('[data-cy="player-match-local"]').should('exist');
+    cy.contains('[data-cy="match-card"]', 'Server Opponent').find('[data-cy="player-match-local"]').should('not.exist');
+
+    // Back on: the local half disappears and the totals are the server's again — never doubled.
+    cy.get('[data-cy="player-online-only-toggle"]').click();
+    cy.get('[data-cy="player-stat-value-played-matches"]').should('have.text', '1');
+    cy.get('[data-cy="match-card"]').should('have.length', 1);
+    cy.get('[data-cy="player-match-local"]').should('not.exist');
+
+    // The page never asked for a League document; the whole server half came from one player call.
+    cy.get('@leagueCallsBeforePlayerPage').then((before) => {
+      expect(leagueApiCalls.length, 'League Archive requests made from the player page').to.eq(before);
     });
   });
 

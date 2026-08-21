@@ -5,7 +5,7 @@
     "description": "The Lyon club running the Gones League nights.",
     "website": "https://gones-lyon.test",
     "contactEmail": "contact@gones-lyon.test",
-    "ownerEmail": "organizer-gones-one-registration@gones.test"
+    "memberEmails": ["organizer-gones-one-registration@gones.test"]
   },
   {
     "key": "aura-league",
@@ -13,6 +13,6 @@
     "description": "The Auvergne-Rhone-Alpes regional circuit.",
     "website": "https://ligue-aura.test",
     "contactEmail": "contact@ligue-aura.test",
-    "ownerEmail": "organizer-aura-live-standings@gones.test"
+    "memberEmails": ["organizer-aura-live-standings@gones.test"]
   }
 ]

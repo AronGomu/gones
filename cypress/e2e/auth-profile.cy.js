@@ -159,6 +159,18 @@ describe('auth and profile', () => {
     cy.wait('@unlink');
   });
 
+  it('logout sends to /login?returnUrl= and sign-in returns there', () => {
+    login();
+    cy.visit('/registrations');
+    cy.get('[data-cy="logout-button"]').click();
+    cy.location('pathname').should('eq', '/login');
+    cy.location('search').should('eq', '?returnUrl=%2Fregistrations');
+    cy.get('[data-cy="auth-email"]').type(email);
+    cy.get('[data-cy="auth-password"]').type(password, { log: false });
+    cy.get('[data-cy="auth-submit"]').click();
+    cy.location('pathname').should('eq', '/registrations');
+  });
+
   it('deletes a freshly registered throwaway account behind the password-confirmation dialog', () => {
     const throwawayEmail = `cypress.delete.${Date.now()}@example.test`;
     const throwawayUsername = `cy-del-${Date.now()}`;

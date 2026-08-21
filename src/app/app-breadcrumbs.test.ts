@@ -33,9 +33,9 @@ describe('global-stats breadcrumb', () => {
     expect(crumbs[1].link).toBeUndefined();
   });
 
-  it('labels /global-stats as Classement mondial in FR', async () => {
+  it('labels /global-stats as Classement Global in FR', async () => {
     const crumbs = await buildBreadcrumbs('/global-stats');
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Classement mondial']);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Classement Global']);
   });
 });
 
@@ -52,14 +52,14 @@ describe('buildBreadcrumbs', () => {
     expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Paramètres']);
   });
 
-  it('labels the archive list breadcrumb "Ligues (archive)"', async () => {
+  it('labels the archive list breadcrumb "Archives des ligues"', async () => {
     const crumbs = await buildBreadcrumbs('/leagues-archive');
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Ligues (archive)']);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archives des ligues']);
   });
 
   it('links every archive crumb into the renamed segments', async () => {
     const crumbs = await buildBreadcrumbs('/leagues-archive/abc/tournaments-archive/def/result');
-    expect(crumbs[1].label).toBe('Ligues (archive)');
+    expect(crumbs[1].label).toBe('Archives des ligues');
     expect(crumbs[1].link).toEqual(['/leagues-archive']);
     expect(crumbs[2].link).toEqual(['/leagues-archive', 'abc']);
     expect(crumbs[3].link).toEqual(['/leagues-archive', 'abc', 'tournaments-archive', 'def']);
@@ -81,15 +81,32 @@ describe('event breadcrumbs', () => {
   const labels = async (path: string, t?: Translator) => (await buildBreadcrumbs(path, t)).map((item) => item.label);
 
   it('labels the create page "Create Event" in both catalogs', async () => {
-    expect(await labels('/events/new', en)).toEqual(['Menu', 'Calendar', 'Create Event']);
-    expect(await labels('/events/new')).toEqual(['Menu', 'Calendrier', 'Créer un événement']);
+    expect(await labels('/events/new', en)).toEqual(['Menu', 'Events', 'Create Event']);
+    expect(await labels('/events/new')).toEqual(['Menu', 'Événements', 'Créer un événement']);
   });
 
-  it('links the Calendar crumb back to /calendar from an Event page', async () => {
+  it('links the Calendar crumb back to /events from an Event page', async () => {
     const crumbs = await buildBreadcrumbs('/events/gones-night', en);
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Calendar', 'Event']);
-    expect(crumbs[1].link).toEqual(['/calendar']);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Events', 'Event']);
+    expect(crumbs[1].link).toEqual(['/events']);
     expect(crumbs[2].link).toBeUndefined();
+  });
+
+  it('builds the events crumb', async () => {
+    const crumbs = await buildBreadcrumbs('/events');
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Événements']);
+    expect(crumbs[0].link).toEqual(['/']);
+  });
+
+  it('builds the event detail crumb', async () => {
+    const crumbs = await buildBreadcrumbs('/events/lyon-legacy', en);
+    expect(crumbs).toHaveLength(3);
+    expect(crumbs[1].link).toEqual(['/events']);
+  });
+
+  it('treats /calendar as not found', async () => {
+    const crumbs = await buildBreadcrumbs('/calendar');
+    expect(crumbs[crumbs.length - 1].label).toBe('Introuvable');
   });
 
   it('labels every organizer Event page instead of falling through to Not Found', async () => {
@@ -99,9 +116,45 @@ describe('event breadcrumbs', () => {
     }
   });
 
-  it('labels the admin deleted-events page', async () => {
-    expect(await labels('/admin/events/deleted', en)).toEqual(['Menu', 'Deleted Events']);
-    expect(await labels('/admin/events/deleted')).toEqual(['Menu', 'Événements supprimés']);
+  it('roots the admin tree at admin', async () => {
+    expect(await labels('/admin', en)).toEqual(['Admin console']);
+    expect(await labels('/admin')).toEqual(['Console Admin']);
+  });
+
+  it('builds the users crumb', async () => {
+    expect(await labels('/admin/users', en)).toEqual(['Admin console', 'Users']);
+  });
+
+  it('builds the organizations crumb', async () => {
+    expect(await labels('/admin/organizations', en)).toEqual(['Admin console', 'Organizations']);
+  });
+
+  it('builds the audit crumb', async () => {
+    expect(await labels('/admin/audit', en)).toEqual(['Admin console', 'Audit']);
+  });
+
+  it('builds both notification crumbs', async () => {
+    expect(await labels('/admin/notifications/history', en)).toEqual(['Admin console', 'Notification history']);
+    expect(await labels('/admin/notifications/dead-letters', en)).toEqual(['Admin console', 'Dead letters']);
+  });
+
+  it('builds the deleted events crumb', async () => {
+    expect(await labels('/admin/events/deleted', en)).toEqual(['Admin console', 'Deleted Events']);
+    expect(await labels('/admin/events/deleted')).toEqual(['Console Admin', 'Événements supprimés']);
+  });
+
+  it('never shows Menu under admin', async () => {
+    for (const path of ['/admin', '/admin/users', '/admin/organizations', '/admin/audit', '/admin/notifications/history', '/admin/notifications/dead-letters', '/admin/events/deleted']) {
+      const crumbs = await labels(path, en);
+      expect(crumbs, path).not.toContain('Menu');
+    }
+  });
+
+  it('never falls through to not found under admin', async () => {
+    for (const path of ['/admin', '/admin/users', '/admin/organizations', '/admin/audit', '/admin/notifications/history', '/admin/notifications/dead-letters', '/admin/events/deleted']) {
+      const crumbs = await labels(path, en);
+      expect(crumbs, path).not.toContain('Page not found');
+    }
   });
 
   it('labels the renamed event-requests review page', async () => {
@@ -153,6 +206,39 @@ describe('header import visibility', () => {
   it('hides the header import on every other route, the retired /leagues included', async () => {
     for (const url of ['/', '/leagues', '/leagues/abc', '/leagues-archive/abc', '/leagues-archive/abc/tournaments-archive/def', '/settings', '/calendar']) {
       expect(await showHeaderImportAt(url), url).toBe(false);
+    }
+  });
+});
+
+describe('breadcrumb-root detection', () => {
+  it('menu is a breadcrumb root', async () => {
+    const crumbs = await buildBreadcrumbs('/');
+    expect(crumbs).toHaveLength(1);
+  });
+
+  it('admin home is a breadcrumb root', async () => {
+    const crumbs = await buildBreadcrumbs('/admin');
+    expect(crumbs).toHaveLength(1);
+  });
+
+  it('every other listed path is not a root', async () => {
+    const paths = [
+      '/about',
+      '/events',
+      '/settings',
+      '/registrations',
+      '/global-stats',
+      '/players/x',
+      '/leagues-archive',
+      '/live-tournaments',
+      '/admin/users',
+      '/admin/organizations',
+      '/admin/audit',
+      '/login'
+    ];
+    for (const path of paths) {
+      const crumbs = await buildBreadcrumbs(path);
+      expect(crumbs.length, `${path} should not be a breadcrumb root`).toBeGreaterThanOrEqual(2);
     }
   });
 });

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
+using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
@@ -123,6 +124,23 @@ public sealed class PublicEventApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Ics_is_served_inline_with_calendar_content_type_and_valid_body()
+    {
+        using var ics = await Client.GetAsync("/api/events/search-cup.ics");
+        Assert.Equal(HttpStatusCode.OK, ics.StatusCode);
+
+        var disposition = ics.Content.Headers.ContentDisposition!;
+        Assert.Equal("inline", disposition.DispositionType);
+        Assert.Contains("search-cup.ics", disposition.FileNameStar ?? disposition.FileName ?? string.Empty);
+
+        Assert.Equal("text/calendar", ics.Content.Headers.ContentType!.MediaType);
+
+        var body = await ics.Content.ReadAsStringAsync();
+        Assert.Contains("BEGIN:VEVENT", body);
+        Assert.Contains("END:VCALENDAR", body);
+    }
+
+    [Fact]
     public async Task Representative_public_filters_use_calendar_indexes()
     {
         await using var database = CreateContext();
@@ -239,6 +257,51 @@ public sealed class PublicEventApiTests : IAsyncLifetime
             .ConfigureGones(postgres.GetConnectionString())
             .Options;
         return new GonesDbContext(options);
+    }
+
+    [Fact]
+    public async Task Lists_the_organizations_organizers()
+    {
+        await using var database = CreateContext();
+        var userZoe = new ApplicationUser { Id = Guid.NewGuid(), UserName = "zoe@example.test", NormalizedUserName = "ZOE@EXAMPLE.TEST", Email = "zoe@example.test", NormalizedEmail = "ZOE@EXAMPLE.TEST", EmailConfirmed = true, SecurityStamp = Guid.NewGuid().ToString("N"), ConcurrencyStamp = Guid.NewGuid().ToString("N") };
+        var userAdam = new ApplicationUser { Id = Guid.NewGuid(), UserName = "adam@example.test", NormalizedUserName = "ADAM@EXAMPLE.TEST", Email = "adam@example.test", NormalizedEmail = "ADAM@EXAMPLE.TEST", EmailConfirmed = true, SecurityStamp = Guid.NewGuid().ToString("N"), ConcurrencyStamp = Guid.NewGuid().ToString("N") };
+        database.Users.AddRange(userZoe, userAdam);
+        await database.SaveChangesAsync();
+        database.UserProfiles.AddRange(
+            UserProfile.Create(userZoe.Id, "zoe", "Zoe", "Tester", Now),
+            UserProfile.Create(userAdam.Id, "adam", "Adam", "Tester", Now));
+        database.OrganizationMembers.AddRange(
+            OrganizationMember.Create(seed.Alpha.Id, userZoe.Id, OrganizationRoles.Organizer, Now),
+            OrganizationMember.Create(seed.Alpha.Id, userAdam.Id, OrganizationRoles.Organizer, Now));
+        await database.SaveChangesAsync();
+
+        using var detail = await Client.GetAsync("/api/events/search-cup");
+        var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        var organizers = body.GetProperty("organization").GetProperty("organizers").EnumerateArray().Select(el => el.GetString()).ToArray();
+
+        // lists both, alphabetically
+        Assert.Equal(new[] { "adam", "zoe" }, organizers);
+
+        // no member's user e-mail leaks: the organization's own public contactEmail is the only "@" in the payload
+        var organization = body.GetProperty("organization");
+        Assert.Equal("alpha@example.test", organization.GetProperty("contactEmail").GetString());
+        var fieldsWithAnAtSign = organization.EnumerateObject()
+            .Where(property => property.Name != "contactEmail" && property.Value.GetRawText().Contains('@'))
+            .Select(property => property.Name)
+            .ToArray();
+        Assert.Equal(Array.Empty<string>(), fieldsWithAnAtSign);
+    }
+
+    [Fact]
+    public async Task Is_empty_for_a_member_less_organization()
+    {
+        // completed-cup belongs to seed.Beta which has no members
+        using var detail = await Client.GetAsync("/api/events/completed-cup");
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        var organizers = body.GetProperty("organization").GetProperty("organizers");
+        Assert.Equal(JsonValueKind.Array, organizers.ValueKind);
+        Assert.Equal(0, organizers.GetArrayLength());
     }
 
     private static ScheduledTournamentDraft Draft(string title, string slug, LocalDateTime startsAt, string city, string summary, string? bodyHtml) => new(

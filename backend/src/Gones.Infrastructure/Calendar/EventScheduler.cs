@@ -286,7 +286,7 @@ public sealed class TournamentReminderDispatcher(
     }
 
     private Uri TournamentUrl(string slug) =>
-        new(new Uri(options.PublicAppOrigin, UriKind.Absolute), $"/calendar/tournaments/{Uri.EscapeDataString(slug)}");
+        new(new Uri(options.PublicAppOrigin, UriKind.Absolute), $"/events/{Uri.EscapeDataString(slug)}");
 
     private sealed record ReminderRecipient(
         Guid RegistrationAttemptId,

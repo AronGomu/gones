@@ -56,13 +56,13 @@ describe('offline public reads and rejected writes', () => {
 
   it('replays cached public Calendar data offline behind a stale banner', () => {
     cy.intercept('GET', '**/api/events/all*', { items: [event], generatedAt: '2035-03-01T00:00:00Z', count: 1, truncated: false }).as('events');
-    visit('/calendar?month=2035-03&view=list');
+    visit('/events?month=2035-03&view=list');
     cy.wait('@events');
     cy.get('[data-cy="event-lyon-legacy"]').should('contain.text', 'Lyon Legacy');
     cy.get('.calendar-offline-banner').should('not.exist');
 
     cy.intercept('GET', '**/api/events/all*', { forceNetworkError: true }).as('disconnected');
-    visit('/calendar?month=2035-03&view=list', { offline: true });
+    visit('/events?month=2035-03&view=list', { offline: true });
     cy.get('[data-cy="event-lyon-legacy"]').should('contain.text', 'Lyon Legacy');
     cy.get('.calendar-offline-banner').should('be.visible').invoke('text').should('match', /offline|hors ligne/i);
   });
@@ -96,7 +96,7 @@ describe('offline public reads and rejected writes', () => {
     cy.intercept('GET', '**/api/events/all*', { items: [event], generatedAt: '2035-03-01T00:00:00Z', count: 1, truncated: false }).as('events');
     cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'memory-token', expiresAt: '2035-01-01T01:00:00Z', tokenType: 'Bearer' });
     cy.intercept('GET', '**/api/users/me', profile);
-    visit('/calendar?month=2035-03&view=list');
+    visit('/events?month=2035-03&view=list');
     cy.wait('@events');
 
     cy.window().then(win => {

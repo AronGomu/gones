@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Player Rating (Glicko-2)</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a; --blue:#3d6c8f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--public{border-color:var(--green)}
+  .card--private{border-color:var(--rust)}
+  .card--danger{border-color:var(--hot)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--public{border-color:var(--green);color:var(--green)}
+  .tag--private{border-color:var(--rust);color:var(--rust)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  svg{display:block;width:100%;height:auto;margin:1.25rem 0}
+  svg text{font-family:system-ui,sans-serif}
+  .n{fill:var(--panel);stroke:var(--steel);stroke-width:2}
+  .n.pub{stroke:var(--green)} .n.priv{stroke:var(--rust)} .n.hot{stroke:var(--hot)}
+  .ln{fill:none;stroke:var(--steel);stroke-width:2}
+  .ar{fill:var(--steel)}
+  .lb{fill:var(--ash);font-size:12px} .nt{fill:var(--dim);font-size:10px}
+  .gr{fill:var(--green);font-size:10px} .ru{fill:var(--rust);font-size:10px} .ho{fill:var(--hot);font-size:10px}
+  .bucket{display:grid;gap:.5rem;margin:1.25rem 0}
+  .bucket div{border:1px solid var(--steel);border-left-width:4px;background:var(--panel);padding:.7rem .9rem}
+  .bucket .b0{border-left-color:var(--green)}
+  .bucket .b1{border-left-color:var(--rust)}
+  .bucket .b2{border-left-color:var(--dim)}
+  .bucket strong{font-family:var(--mono);font-size:.82rem;letter-spacing:.05em}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Player Rating — Glicko-2</h1>
+  <p class="lede">One number per player, replayed from every rated Match in the server archive. It
+  carries its own confidence, which is what answers the new player and the absent player without
+  inventing rules. Stored, never exported. A restore recomputes it.</p>
+</header>
+
+<h2>Why not match wins</h2>
+
+<p>The Global Rankings sorted by name, then match wins. That answers "who won the most matches", not
+"who is the best player": it rewards volume, ignores who you beat, and has no way to say how sure it
+is about anyone. Glicko-2 carries a deviation and a volatility alongside the rating, so a player with
+four results and a player with four hundred are ranked by the same formula without a special case.</p>
+
+<h2>The constraint that shaped everything: no clock</h2>
+
+<div class="note">
+  <p><strong>Archived Tournaments carry a date, not a timestamp.</strong> Matches inside a Round are
+  unordered, and two Tournaments on the same date have no tiebreak. So a rating that needs a total
+  order over matches cannot be built from this archive.</p>
+</div>
+
+<p><strong>A rating period is one calendar date.</strong> Every completed Tournament on that date folds
+into a single period; every Match in it is evaluated against the ratings held <em>before</em> the
+period started. Match order inside a period therefore cannot change the result, and the missing
+timestamp stops being a problem. Periods replay in date order, ordinal on the ISO string.</p>
+
+<svg viewBox="0 0 900 240" role="img" aria-label="Completed tournaments group by date into rating periods, replayed in order">
+  <rect class="n" x="20" y="20" width="150" height="46" rx="3"/><text class="lb" x="34" y="42">Tournament A</text><text class="nt" x="34" y="58">2026-03-05</text>
+  <rect class="n" x="20" y="80" width="150" height="46" rx="3"/><text class="lb" x="34" y="102">Tournament B</text><text class="nt" x="34" y="118">2026-03-05</text>
+  <rect class="n" x="20" y="140" width="150" height="46" rx="3"/><text class="lb" x="34" y="162">Tournament C</text><text class="nt" x="34" y="178">2026-03-12</text>
+
+  <rect class="n pub" x="250" y="40" width="200" height="66" rx="3"/><text class="lb" x="266" y="66">Period 2026-03-05</text><text class="gr" x="266" y="86">A + B, one update per player</text>
+  <rect class="n pub" x="250" y="130" width="200" height="66" rx="3"/><text class="lb" x="266" y="156">Period 2026-03-12</text><text class="gr" x="266" y="176">C</text>
+
+  <path class="ln" d="M170 43 H244"/><path class="ar" d="M244 38 l10 5 -10 5 z"/>
+  <path class="ln" d="M170 103 H244"/><path class="ar" d="M244 98 l10 5 -10 5 z"/>
+  <path class="ln" d="M170 163 H244"/><path class="ar" d="M244 158 l10 5 -10 5 z"/>
+  <path class="ln" d="M350 106 V126"/><path class="ar" d="M345 126 l5 10 5 -10 z"/>
+
+  <rect class="n" x="520" y="40" width="350" height="156" rx="3"/>
+  <text class="lb" x="536" y="66">Per player, after the last period</text>
+  <text class="nt" x="536" y="90">rating · ratingDeviation · ratingVolatility</text>
+  <text class="nt" x="536" y="110">previousRating · lastRatingDelta</text>
+  <text class="nt" x="536" y="130">tournamentsPlayed · lastPlayedDate</text>
+  <text class="nt" x="536" y="150">decayedRating</text>
+  <text class="ru" x="536" y="176">idle growth applied once, from lastPlayedDate to now</text>
+  <path class="ln" d="M450 163 H514"/><path class="ar" d="M514 158 l10 5 -10 5 z"/>
+</svg>
+
+<h2>What counts, and what does not</h2>
+
+<table>
+  <thead><tr><th>Entry</th><th>Rating</th><th>Statistics</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>2-0</td><td>score 1, factor ×1.25</td><td>counted</td><td>a sweep is more evidence than a squeaker</td></tr>
+    <tr><td>2-1 / 1-0</td><td>score 1, factor ×1.0</td><td>counted</td><td>baseline</td></tr>
+    <tr><td>1-1 / 2-2</td><td>score 0.5, factor ×1.0</td><td>counted</td><td>a scored draw</td></tr>
+    <tr><td>0-0</td><td><span class="tag tag--danger">excluded</span></td><td>counted</td><td>byte-identical to a Match nobody scored; guessing would invent results</td></tr>
+    <tr><td>Bye</td><td><span class="tag tag--danger">excluded</span></td><td>3 Swiss points, unchanged</td><td>pairing luck, not skill</td></tr>
+    <tr><td>Active Tournament</td><td><span class="tag tag--danger">excluded</span></td><td>excluded</td><td>ADR 0040 scope: completed Tournaments only</td></tr>
+    <tr><td>Browser-local League</td><td><span class="tag tag--danger">excluded</span></td><td>merged client-side</td><td>ADR 0028 stores never reach the server</td></tr>
+  </tbody>
+</table>
+
+<h2>Where the margin factor goes</h2>
+
+<p>The engine keeps <strong>two</strong> sums over a period's Matches: the unweighted <code>S</code>
+and the weighted <code>Sw</code>. The factor lands in <code>Sw</code>, and <code>Sw</code> is read by
+<code>μ'</code> and by nothing else. Every step that produces the new deviation — <code>v</code>,
+<code>Δ</code>, the volatility solve, <code>φ*</code>, <code>φ'</code> — uses the <em>unweighted</em>
+terms, because <code>v</code> depends only on the opponents' deviations and the expected scores,
+never on the outcomes. Routing the factor through <code>Δ</code> would leak it into
+<code>σ'</code> and hence into the deviation, and a 2-0 would come out making the engine <em>less</em>
+confident than a 2-1. That is what "the Glicko score term stays 1 / 0.5 / 0 so the deviation maths
+stays valid" means once it is written down.</p>
+
+<pre>g(φ)  = 1 / sqrt(1 + 3φ²/π²)
+E(μ, μⱼ, φⱼ) = 1 / (1 + exp(-g(φⱼ)(μ - μⱼ)))
+
+v  = [ Σ g(φⱼ)² · Eⱼ · (1 - Eⱼ) ]⁻¹         ← unweighted
+S  = Σ g(φⱼ) · (sⱼ - Eⱼ)                    ← unweighted
+Sw = Σ fⱼ · g(φⱼ) · (sⱼ - Eⱼ)               ← weighted, fⱼ ∈ { 1.0, 1.25 }
+Δ  = v · S                                  ← unweighted
+
+σ' solved by Illinois regula falsi, τ = 0.5
+φ* = sqrt(φ² + σ'²)
+φ' = 1 / sqrt(1/φ*² + 1/v)
+μ' = μ + φ'² · Sw                           ← the only step that reads the factor</pre>
+
+<p>The engine is anchored by Glickman's own worked example: a
+<code>(1500, 200, 0.06)</code> player against <code>(1400, 30)</code> won,
+<code>(1550, 100)</code> lost, <code>(1700, 300)</code> lost, yields
+<code>1464.06 / 151.52 / 0.05999</code>. That is a unit test, not a comment.</p>
+
+<h2>Default ranking order — three buckets</h2>
+
+<div class="bucket">
+  <div class="b0"><strong>0 · active ranked</strong><br>5+ Tournaments, played within 12 months. Ordered by rating, descending.</div>
+  <div class="b1"><strong>1 · inactive ranked</strong><br>5+ Tournaments, nothing in 12 months. Rating frozen, deviation still growing — for up to 24 idle months, then flat (<code>LeagueRules.MaximumIdleSkips</code>). Badged, listed, never hidden. Ordered by rating.</div>
+  <div class="b2"><strong>2 · provisional</strong><br>Fewer than 5 Tournaments. Rating shown, flagged not rankable. Ordered by tournaments played, then matches played.</div>
+</div>
+
+<p>Every tie breaks on the ordinal player name, ascending — Player Names are exact and case-sensitive
+(ADR 0040), so the tiebreak collates as <code>C</code>, not by browser locale.</p>
+
+<div class="note">
+  <p><strong>Provisional players still move ranked ratings.</strong> Standard Glicko-2, no special
+  case: their high deviation already damps the update. That damping is the reason Glicko-2 was chosen
+  over Elo in the first place.</p>
+</div>
+
+<div class="note">
+  <p><strong>Both flags are derived at read time</strong> from <code>tournamentsPlayed</code>,
+  <code>lastPlayedDate</code> and the request clock — never stored. Otherwise a player would go
+  inactive at the next rebuild rather than on the day. The rankings ETag therefore carries the request
+  date.</p>
+</div>
+
+<h2>Decay — computed always, shown only when the key is on</h2>
+
+<pre>decayed = 1500 + (rating - 1500) × 0.5 ^ (idleMonths / 24)</pre>
+
+<p>Stored on every rebuild, served only when
+<code>Gones:PlayerStatistics:ExposeDecayedRating</code> is on — the
+<code>Gones:PlayerStatistics:RebuildOnStartup</code> precedent, default <code>false</code>. The column
+is already in the table, so flipping the key needs no rebuild. With the key off, the payload field is
+<code>null</code> and the frontend column simply does not render: the payload is the switch, there is
+no second frontend flag.</p>
+
+<h2>Storage and recomputation</h2>
+
+<div class="flow">
+  <div>eight new columns on <code>player_statistics</code> — no history table</div>
+  <div>filled by a full deterministic replay inside the existing ADR 0040 rebuild transaction</div>
+  <div><code>PlayerStatisticsFormula.Version</code> 1 → 2, which is what triggers the startup repair</div>
+  <div>an edit to a Tournament from two years ago self-heals: the whole archive replays</div>
+  <div>indexes added on <code>rating</code> and <code>tournaments_played</code> only</div>
+  <div>derived, never exported — <code>PUBLIC_EXPORT_V4_LEAGUE_FIELDS</code> is unchanged</div>
+</div>
+
+<h2>Surfaces</h2>
+
+<div class="split">
+  <div class="card card--public">
+    <h3>Global Rankings</h3>
+    <p>Rating with its ±N since the player's own last period, a Tournaments column, provisional and
+    inactive badges. Rating is the default sort. The four game columns left the table but stayed in
+    the payload — they are still the tie-break.</p>
+  </div>
+  <div class="card card--public">
+    <h3>Player page</h3>
+    <p>Same rating and ±N, tournaments played, and the rating's state. With <code>Online only</code>
+    off, the number does not move and a note says local Matches never affect it.</p>
+  </div>
+  <div class="card">
+    <h3>League standings</h3>
+    <p>An <em>informational, non-sorting</em> Rating column. Swiss points still decide the order. A
+    single Tournament's result table is unchanged — it passes no ratings map, so the column does not
+    exist there.</p>
+  </div>
+</div>
+
+<h2>Deliberately out of scope</h2>
+
+<ul>
+  <li>Rating-driven pairing.</li>
+  <li>Archetype- or deck-level ratings.</li>
+  <li>Player identity unification. A rename changes the key; the replay produces the renamed player's
+  rating and no merge logic is added.</li>
+  <li>A rating-over-time chart — it needs the history table this design deliberately skipped. Adding it
+  later means adding the table, not changing this design.</li>
+  <li>Live Tournaments, until they land in the archive.</li>
+</ul>
+
+<footer>
+  ADR <a href="adr/0043-glicko2-player-rating.md">0043</a> · extends
+  <a href="adr/0040-player-statistics-read-model.md">0040</a> · scope boundary
+  <a href="adr/0028-dual-source-league-archive.md">0028</a> ·
+  grill record <code>artifacts/GRILL_2026_08_19_player-rating/ANSWERS.md</code> ·
+  see also <a href="player-statistics-read-model.html">Player Statistics Read Model</a>,
+  <a href="global-stats.html">Global Stats</a>
+</footer>
+
+</div>
+</body>
+</html>

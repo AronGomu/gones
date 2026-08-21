@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Player Statistics Read Model</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a; --blue:#3d6c8f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--old{border-color:var(--hot)}
+  .card--new{border-color:var(--green)}
+  .card--warn{border-color:var(--rust)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--old{border-color:var(--hot);color:var(--hot)}
+  .tag--new{border-color:var(--green);color:var(--green)}
+  .tag--warn{border-color:var(--rust);color:var(--rust)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  svg{display:block;width:100%;height:auto;margin:1.25rem 0}
+  svg text{font-family:system-ui,sans-serif}
+  .n{fill:var(--panel);stroke:var(--steel);stroke-width:2}
+  .n.bad{stroke:var(--hot)} .n.good{stroke:var(--green)} .n.warnb{stroke:var(--rust)}
+  .ln{fill:none;stroke:var(--steel);stroke-width:2} .ln.dash{stroke-dasharray:5 4}
+  .ar{fill:var(--steel)}
+  .lb{fill:var(--ash);font-size:12px} .nt{fill:var(--dim);font-size:10px}
+  .gr{fill:var(--green);font-size:10px} .ru{fill:var(--rust);font-size:10px} .ho{fill:var(--hot);font-size:10px}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Player Statistics Read Model</h1>
+  <p class="lede">Both readers used to recompute everything from whole league documents on every view.
+  Tournaments land a few times a week; pages are viewed constantly. Move the cost to the write:
+  materialize once, read an index. Scope is the completed <strong>Archive Tournament</strong> — a word
+  the domain had to grow first.</p>
+</header>
+
+<h2>What was wrong</h2>
+
+<div class="split">
+  <div class="card card--old">
+    <h3><span class="tag tag--old">O(all data)</span> Global Rankings</h3>
+    <p><code>GET /api/leagues-archive/global-player-statistics</code> loaded <strong>every</strong>
+    completed <code>LeagueArchiveAggregate</code> document into memory, walked every round of every
+    tournament, then filtered, sorted and paged in process. Per request. No cache, no index.</p>
+  </div>
+  <div class="card card--old">
+    <h3><span class="tag tag--old">O(all data)</span> Player page</h3>
+    <p><code>/players/:name</code> called <code>repo.listLeagues()</code>, downloaded the whole corpus
+    to the browser, and ran <code>calculatePlayerStatistics</code> there. Megabytes to a phone, to
+    render twenty numbers and a list.</p>
+  </div>
+  <div class="card card--warn">
+    <h3><span class="tag tag--warn">disagreement</span> Two scopes</h3>
+    <p>Rankings counted <strong>completed leagues</strong>. The player page counted <strong>all</strong>
+    leagues. The same player could hold two different win rates depending on which page you opened.</p>
+  </div>
+</div>
+
+<h2>The word the domain was missing</h2>
+
+<p>The chosen scope is &quot;only completed Tournaments&quot;. That granularity did not exist:</p>
+
+<pre>// before
+public sealed record TournamentDocument(
+    string Id, string LeagueId, string Name, string TournamentDate,
+    IReadOnlyList&lt;RoundDocument&gt; Rounds,
+    IReadOnlyList&lt;PlayerArchetypeDocument&gt; PlayerArchetypes);   // no status, no completedAt
+
+public sealed record LeagueDocument(
+    string Id, string Name, string Status, …);                   // 'active' | 'completed' — here only</pre>
+
+<div class="note warn">
+  <p><strong>Deriving it was not safe.</strong> Match scores are plain integers, so an unscored match
+  and a genuine 0–0 are identical bytes. A rule like &quot;completed when every match has a score&quot;
+  would silently disqualify a real double no-show — and a tournament would vanish from every statistic
+  with no error anywhere.</p>
+  <p style="margin-bottom:0">So the flag is explicit, set by a human, and reversible.</p>
+</div>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Case</th><th>Reads as</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>New tournament created</td><td><code>active</code></td><td>Rounds are still being entered</td></tr>
+<tr><td>Organizer marks complete</td><td><code>completed</code></td><td>Counts from that moment</td></tr>
+<tr><td>Organizer reopens</td><td><code>active</code></td><td>Reversible on purpose</td></tr>
+<tr><td>Field absent from the document</td><td><code>completed</code></td><td>Same rule as the backfill — no existing export loses its statistics</td></tr>
+<tr><td>Parent League completed</td><td><em>no effect</em></td><td>The two flags are independent (no cascade)</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Note this default is the <em>opposite</em> of <code>normalizeLeagueStatus</code>, deliberately: an
+archive is history, and history is finished.</p>
+
+<h2>One writer, three readers</h2>
+
+<svg viewBox="0 0 900 340" role="img" aria-labelledby="rt rd">
+  <title id="rt">Read model write and read paths</title>
+  <desc id="rd">Archive commits, imports, restores and deletes rebuild the player statistics table
+  inside their own transaction. A formula version change triggers a rebuild at API startup. Three
+  readers consume the table: the rankings endpoint, the rankings catalog endpoint and the per-player
+  endpoint. Browser-local leagues never reach the server and are merged client-side instead.</desc>
+
+  <rect class="n warnb" x="20" y="10" width="380" height="60" rx="9"/>
+  <text class="lb" x="38" y="32">Archive write — commit · import · restore · delete</text>
+  <text class="nt" x="38" y="50">a few times a week, so the cost lands where nobody waits</text>
+  <text class="ru" x="38" y="64">rebuild runs INSIDE the same transaction</text>
+
+  <rect class="n warnb" x="500" y="10" width="380" height="60" rx="9"/>
+  <text class="lb" x="518" y="32">API startup</text>
+  <text class="nt" x="518" y="50">PlayerStatisticsFormula.Version ≠ stored version?</text>
+  <text class="ru" x="518" y="64">IHostedService rebuilds before serving traffic</text>
+
+  <path class="ln" d="M210 70 L400 108"/><polygon class="ar" points="400,108 389,105 392,114"/>
+  <path class="ln" d="M690 70 L500 108"/><polygon class="ar" points="500,108 508,114 511,105"/>
+
+  <rect class="n good" x="250" y="110" width="400" height="60" rx="9"/>
+  <text class="lb" x="268" y="132">player_statistics  ·  player_statistics_meta</text>
+  <text class="nt" x="268" y="150">one row per player · indexed on every sortable column · formula version 2</text>
+  <text class="gr" x="268" y="164">scope: completed Archive Tournaments only</text>
+
+  <path class="ln" d="M330 170 L150 214"/><polygon class="ar" points="150,214 160,207 163,217"/>
+  <path class="ln" d="M450 170 L450 214"/><polygon class="ar" points="450,214 445,204 455,204"/>
+  <path class="ln" d="M570 170 L750 214"/><polygon class="ar" points="750,214 737,217 740,207"/>
+
+  <rect class="n" x="20" y="216" width="250" height="56" rx="9"/>
+  <text class="lb" x="38" y="238">rankings — paged</text>
+  <text class="nt" x="38" y="254">SQL page · sort · filter</text>
+  <text class="nt" x="38" y="268">ETag from meta.RebuiltAt</text>
+
+  <rect class="n" x="325" y="216" width="250" height="56" rx="9"/>
+  <text class="lb" x="343" y="238">rankings — /all catalog</text>
+  <text class="nt" x="343" y="254">cap 5000 · truncated flag</text>
+  <text class="nt" x="343" y="268">browser filters locally</text>
+
+  <rect class="n" x="630" y="216" width="250" height="56" rx="9"/>
+  <text class="lb" x="648" y="238">/api/players/{name}</text>
+  <text class="nt" x="648" y="254">stats + FLAT match history</text>
+  <text class="nt" x="648" y="268">ids and names, no documents</text>
+
+  <rect class="n bad" x="630" y="292" width="250" height="40" rx="9"/>
+  <text class="ho" x="648" y="312">local- leagues (ADR 0028)</text>
+  <text class="nt" x="648" y="326">IndexedDB · never reach the server</text>
+  <path class="ln dash" d="M755 292 L755 272"/>
+  <text class="nt" x="330" y="312">Online-only OFF → merged client-side, marked</text>
+</svg>
+
+<h2>Why synchronous, in-transaction</h2>
+
+<div class="split">
+  <div class="card card--new">
+    <h3><span class="tag tag--new">chosen</span> In the write transaction</h3>
+    <p>No staleness window. No scheduler. A failed archive write rolls the statistics back with it, so
+    the table can never disagree with the archive it summarises. One rare operation gets slower.</p>
+  </div>
+  <div class="card">
+    <h3>Rejected: dirty flag, rebuild on read</h3>
+    <p>Keeps the write instant, then hands an unbounded cost to a random unlucky visitor's page
+    load.</p>
+  </div>
+  <div class="card">
+    <h3>Rejected: background job</h3>
+    <p>Smoothest latency, but adds a scheduler dependency and a visible window where an organizer's
+    just-committed results are missing from the rankings.</p>
+  </div>
+</div>
+
+<h2>The repair path</h2>
+
+<p>A rebuild inside the write transaction covers every <em>data</em> change. It covers no
+<em>code</em> change — fix a bug in the win-rate maths and every untouched player keeps the old
+number, with nothing to trigger a repair. The first deploy has the same problem: the table starts
+empty and no archive write is coming.</p>
+
+<div class="flow">
+  <div>startup → read player_statistics_meta.FormulaVersion</div>
+  <div>≠ PlayerStatisticsFormula.Version, or no row → rebuild, update meta, then serve traffic</div>
+  <div>= → skip, serve immediately</div>
+  <div>Gones:PlayerStatistics:RebuildOnStartup = false → never rebuild (escape hatch)</div>
+</div>
+
+<div class="note warn">
+  <p><strong>Bump <code>PlayerStatisticsFormula.Version</code> in the same commit as any change to
+  the statistics maths.</strong> That constant is the only thing standing between a formula fix and a
+  table full of numbers computed by the old one.</p>
+  <p style="margin-bottom:0">Likewise, any path that writes archives <em>outside</em> a domain
+  transaction — the bulk-SQL stress seeder is the only one — must trigger a rebuild explicitly and
+  assert a non-zero row count.</p>
+</div>
+
+<h2>What the browser still does</h2>
+
+<p>The match history ships <strong>flat and whole</strong>: one row per match with league and
+tournament flattened to ids and names, plus both deck archetypes resolved server-side. The browser
+keeps every feature it already had — filter tokens, search highlighting, newest/oldest, page size,
+pagination — because none of that needed the documents, only the rows.</p>
+
+<pre>PlayerMatchRow {
+  kind: 'match' | 'bye';
+  leagueId; leagueName; tournamentId; tournamentName; tournamentDate;
+  roundIndex; opponentName; ownScore; opponentScore;
+  ownArchetype; opponentArchetype;   // "" when unknown, never null
+}</pre>
+
+<h2>What a row holds</h2>
+
+<p>Two groups, filled by the same rebuild in the same transaction. The counting pass came with ADR
+0040 at <strong>formula version 1</strong>; the rating replay came with ADR 0043 and took the table to
+<strong>formula version 2</strong>.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Column</th><th>Group</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>player_name</code></td><td>key</td><td>Exact trimmed name, primary key, plus a <code>text_pattern_ops</code> index for prefix search</td></tr>
+<tr><td><code>played_match_count</code>, <code>match_wins</code>, <code>match_losses</code>, <code>match_draws</code>, <code>match_winrate</code></td><td>v1 counting</td><td>Indexed — sortable rankings columns</td></tr>
+<tr><td><code>played_game_count</code>, <code>game_wins</code>, <code>game_losses</code>, <code>game_winrate</code></td><td>v1 counting</td><td>Indexed — sortable rankings columns</td></tr>
+<tr><td><code>nemesis</code>, <code>rival</code>, <code>most_played_archetype</code></td><td>v1 counting</td><td><code>jsonb</code>, null when there is no answer</td></tr>
+<tr><td><code>rating</code></td><td>v2 rating</td><td>Glicko-2, ADR 0043. <strong>Indexed</strong> — the default rankings order</td></tr>
+<tr><td><code>tournaments_played</code></td><td>v2 rating</td><td>Distinct completed Tournaments with a rated Match. <strong>Indexed</strong> — orders the provisional bucket</td></tr>
+<tr><td><code>rating_deviation</code>, <code>rating_volatility</code></td><td>v2 rating</td><td>Seeded at 350 / 0.06; the deviation is clamped at 350</td></tr>
+<tr><td><code>previous_rating</code>, <code>last_rating_delta</code></td><td>v2 rating</td><td>The rating before the player's most recent rating period, and the move across it</td></tr>
+<tr><td><code>last_played_date</code></td><td>v2 rating</td><td>Date string, null for a player with no rated Match. Read time derives <em>inactive</em> from it</td></tr>
+<tr><td><code>decayed_rating</code></td><td>v2 rating</td><td>Always computed, exposed only by <code>Gones:PlayerStatistics:ExposeDecayedRating</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The six unindexed rating columns are deliberate: they are read back with a row that has already
+been found, so an index on them would only cost rebuild time.</p>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong>Browser-local leagues keep counting.</strong> ADR 0028 archives
+  live only in this browser and never reach the server, so the read model cannot see them. The
+  <code>Online only</code> toggle stays: ON shows the server table verbatim; OFF computes the local
+  half in the browser and merges it into the totals <em>and</em> the history, marking each local
+  match. Derived ratios are recomputed from the merged counts — never averaged from two summaries.</p>
+</div>
+
+<h2>Consequences worth stating out loud</h2>
+
+<ul>
+  <li><strong>Numbers change on first deploy.</strong> Scope moves from league-level to
+  tournament-level completion. That is the decision, not a regression.</li>
+  <li>Rankings and the player page can no longer disagree: they read the same row.</li>
+  <li>An organizer entering rounds over several evenings sees nothing counted until they mark the
+  tournament complete — which is the point.</li>
+  <li>The measured 100× startup-rebuild duration belongs in ADR 0040. If it blows the container start
+  budget, the rebuild moves into the <code>migrator</code> service, which already runs one-shot before
+  the API; the code path is identical. Same dataset, 1183 rows from 201 Leagues:
+  <strong>177 ms</strong> at version 1, <strong>196 ms</strong> at version 2 with the rating replay
+  (ADR 0043).</li>
+</ul>
+
+<footer>
+  <p>ADR 0040 (this read model) · builds on ADR 0022 (archive rename), ADR 0028 (dual-source archive),
+  ADR 0037 (staged archive edits) · cached under ADR 0039 · extended by ADR 0043 (Glicko-2 rating).</p>
+  <p>Planned by T20–T28 in <code>artifacts/PLAN_2026_08_15_feedback-app-wide-round-5.md</code>.</p>
+</footer>
+
+</div>
+</body>
+</html>

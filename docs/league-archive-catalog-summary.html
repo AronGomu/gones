@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Slim League Archive Catalog</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a; --blue:#3d6c8f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--public{border-color:var(--green)}
+  .card--private{border-color:var(--rust)}
+  .card--danger{border-color:var(--hot)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--public{border-color:var(--green);color:var(--green)}
+  .tag--private{border-color:var(--rust);color:var(--rust)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  svg{display:block;width:100%;height:auto;margin:1.25rem 0}
+  svg text{font-family:system-ui,sans-serif}
+  .n{fill:var(--panel);stroke:var(--steel);stroke-width:2}
+  .n.pub{stroke:var(--green)} .n.priv{stroke:var(--rust)} .n.hot{stroke:var(--hot)}
+  .ln{fill:none;stroke:var(--steel);stroke-width:2}
+  .ar{fill:var(--steel)}
+  .lb{fill:var(--ash);font-size:12px} .nt{fill:var(--dim);font-size:10px}
+  .gr{fill:var(--green);font-size:10px} .ru{fill:var(--rust);font-size:10px} .ho{fill:var(--hot);font-size:10px}
+  .bar{height:26px;border:1px solid var(--steel);background:var(--metal);position:relative;margin:.35rem 0 1rem}
+  .bar span{position:absolute;inset:0 auto 0 0;background:var(--blood)}
+  .bar em{position:absolute;right:.5rem;top:2px;font-style:normal;font-size:.78rem;color:var(--ash);font-family:var(--mono)}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Slim League Archive Catalog</h1>
+  <p class="lede">The list page printed two integers per card and paid 1.44 MB for them. Store the two
+  integers. Ship 30 KB. The documents keep their own route, because the export genuinely needs them.</p>
+</header>
+
+<h2>The payload, before and after</h2>
+
+<p>201 Leagues, one navigation to <code>/leagues-archive</code>.</p>
+
+<div class="bar"><span style="width:100%"></span><em>1.44 MB — whole documents</em></div>
+<div class="bar"><span style="width:2%"></span><em>~30 KB — summary rows</em></div>
+
+<table>
+  <thead><tr><th>Route</th><th>Body</th><th>Per row</th><th>201 Leagues</th><th>Caller</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /api/leagues-archive/all</code></td><td>summary rows</td><td>~150 B</td><td>~30 KB</td><td>list page</td></tr>
+    <tr><td><code>GET /api/leagues-archive/all/documents</code></td><td>whole documents</td><td>~7.2 KB</td><td>1.44 MB</td><td>Settings export only</td></tr>
+    <tr><td><code>GET /api/leagues-archive</code></td><td colspan="4">deleted — paged, filtered, zero callers</td></tr>
+  </tbody>
+</table>
+
+<h2>Where the two numbers come from</h2>
+
+<p>The card prints <em>N tournaments · M players</em>. <code>N</code> is
+<code>document.Tournaments.Count</code>. <code>M</code> is
+<code>LeagueRules.CalculateLeagueResult(document).Rows.Count</code> — the Swiss standings row count,
+which the browser was computing itself with <code>calculateLeagueResult</code> after downloading the
+whole document to do it. The backend already had the same function.</p>
+
+<svg viewBox="0 0 900 300" role="img" aria-label="Write path denormalizes the counts; read path projects them">
+  <rect class="n" x="20" y="20" width="180" height="64" rx="3"/>
+  <text class="lb" x="36" y="46">Intent command</text>
+  <text class="nt" x="36" y="66">rename / add tournament / …</text>
+
+  <rect class="n" x="250" y="20" width="230" height="64" rx="3"/>
+  <text class="lb" x="266" y="46">Create / Apply</text>
+  <text class="nt" x="266" y="66">LeagueCatalogCounts.From(document)</text>
+
+  <rect class="n pub" x="530" y="20" width="340" height="64" rx="3"/>
+  <text class="lb" x="546" y="46">league_archive_aggregates</text>
+  <text class="gr" x="546" y="66">canonical_document · tournament_count · player_count · counts_version</text>
+
+  <path class="ln" d="M200 52 H244"/><path class="ar" d="M244 47 l10 5 -10 5 z"/>
+  <path class="ln" d="M480 52 H524"/><path class="ar" d="M524 47 l10 5 -10 5 z"/>
+
+  <rect class="n pub" x="530" y="140" width="340" height="60" rx="3"/>
+  <text class="lb" x="546" y="166">GET /all — SQL projection</text>
+  <text class="gr" x="546" y="186">columns only · no document is deserialized</text>
+
+  <rect class="n" x="530" y="226" width="340" height="60" rx="3"/>
+  <text class="lb" x="546" y="252">GET /all/documents</text>
+  <text class="nt" x="546" y="272">ReadDocument() per row · export path</text>
+
+  <path class="ln" d="M700 84 V134"/><path class="ar" d="M695 134 l5 10 5 -10 z"/>
+  <path class="ln" d="M700 200 V220"/><path class="ar" d="M695 220 l5 10 5 -10 z"/>
+
+  <rect class="n" x="20" y="140" width="440" height="146" rx="3"/>
+  <text class="lb" x="36" y="166">LeagueArchiveCatalogCountsBackfill</text>
+  <text class="nt" x="36" y="188">IHostedService · Gones:Leagues:BackfillCatalogCountsOnStartup</text>
+  <text class="nt" x="36" y="208">WHERE counts_version &lt;&gt; LeagueCatalogCounts.Version</text>
+  <text class="nt" x="36" y="228">RefreshCatalogCounts() · one transaction · logs and continues on failure</text>
+  <text class="nt" x="36" y="256">PlayerCount is the Swiss row count — not expressible in SQL,</text>
+  <text class="nt" x="36" y="272">so the repair is C#, not a migration script.</text>
+  <path class="ln" d="M460 200 H524"/><path class="ar" d="M524 195 l10 5 -10 5 z"/>
+</svg>
+
+<h2>Why not the three obvious fixes</h2>
+
+<div class="split">
+  <div class="card card--danger">
+    <h3><span class="tag tag--danger">refused</span> Compression alone</h3>
+    <p>Gzips 1.44 MB to 103 KB. Still compresses a body that should never have been that size. Kept as
+    an <em>additional</em> win, not as the fix.</p>
+  </div>
+  <div class="card card--danger">
+    <h3><span class="tag tag--danger">refused</span> Diff protocol</h3>
+    <p>The catalog already has an ETag, a 304 and a 24 h browser copy (ADR 0039), so a repeat visit
+    costs zero bytes. A diff only helps the first load — where a diff <em>is</em> a full load. A request
+    body would also kill HTTP caching and need a client-side merge store.</p>
+  </div>
+  <div class="card card--danger">
+    <h3><span class="tag tag--danger">refused</span> Server-side paging</h3>
+    <p>Breaks the client-side name filter and the union with browser-local Leagues (ADR 0028), and the
+    paged summary rows carried no counts anyway. Paging stays in the browser.</p>
+  </div>
+</div>
+
+<h2>Compression, narrowed</h2>
+
+<div class="note warn">
+  <p><strong>BREACH.</strong> Compressing an HTTPS response that carries a session secret alongside
+  attacker-influenced input leaks the secret through the compressed length. So compression is enabled
+  app-wide <em>except</em> for requests that carry credentials: a GET with no
+  <code>Authorization</code> header and no session cookie is compressed; everything else is not.
+  Every payload this document is about — the League catalog, the Event catalog, the rankings — is an
+  anonymous public read.</p>
+</div>
+
+<pre>app.UseWhen(
+    context =&gt; HttpMethods.IsGet(context.Request.Method)
+        &amp;&amp; !context.Request.Headers.ContainsKey(HeaderNames.Authorization)
+        &amp;&amp; !context.Request.Cookies.ContainsKey(RefreshCookie.Name),
+    branch =&gt; branch.UseResponseCompression());</pre>
+
+<h2>Cache contract</h2>
+
+<p>Unchanged in shape, changed in content (ADR 0039).</p>
+
+<div class="flow">
+  <div>localStorage key <code>gones.leagues-archive.catalog.v2</code> — summary rows, 24 h TTL</div>
+  <div>legacy key <code>gones.leagues-archive.catalog</code> — held fat documents; cleared, never read</div>
+  <div>every League/Tournament mutation calls <code>clearLeagueCatalogCache()</code>, which drops both</div>
+  <div>~60 KB of UTF-16 instead of ~2.9 MB against a ~5 MB quota</div>
+</div>
+
+<h2>Consequences worth remembering</h2>
+
+<ul>
+  <li>The counts are denormalized, so they <em>could</em> disagree with the document. Three things stop
+  it: they are written in the same domain call that writes the document, they are never editable on
+  their own, and <code>counts_version</code> gates a self-healing repair.</li>
+  <li>Browser-local Leagues (ADR 0028) compute their own counts client-side, so the merged list is
+  uniform and the local half never needs the server.</li>
+  <li>The export refuses to write a partial bundle: <code>serverUnavailable()</code> and
+  <code>catalogTruncated()</code> both still block it. Those guards move to the documents route.</li>
+  <li><code>PublicLeagueCatalogApiTests</code>' old assertion — a catalog item is byte-identical to the
+  detail item — is gone by design.</li>
+</ul>
+
+<footer>
+  ADR <a href="adr/0042-slim-league-archive-catalog.md">0042</a> · related:
+  <a href="adr/0039-ttl-cache-contract.md">0039</a>, <a href="adr/0028-dual-source-league-archive.md">0028</a> ·
+  see also <a href="ttl-cache-contract.html">TTL Cache Contract</a>,
+  <a href="league-archive-authority.html">League Archive Authority</a>
+</footer>
+
+</div>
+</body>
+</html>

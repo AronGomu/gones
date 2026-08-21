@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { GlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
 import {
   GLOBAL_STATS_PAGE_SIZES,
+  GLOBAL_STATS_GATED_SORT_COLS,
   GLOBAL_STATS_SORTABLE_COLS,
   parseGlobalStatsQuery,
+  sortGlobalStatsRows,
   toggleGlobalStatsSort,
   globalStatsQueryParams,
   type GlobalStatsQuery,
@@ -53,7 +56,14 @@ describe('parseGlobalStatsQuery — sanitization', () => {
 
   it('accepts valid sortable columns', () => {
     for (const col of GLOBAL_STATS_SORTABLE_COLS) {
-      expect(parseGlobalStatsQuery(new URLSearchParams(`sort=${col}`)).sort).toBe(col);
+      // Every gated column needs its gate open before it parses; see the decayedRating cases below.
+      expect(parseGlobalStatsQuery(new URLSearchParams(`sort=${col}`), { decayedRating: true }).sort).toBe(col);
+    }
+  });
+
+  it('drops a gated sort column when the gate is shut', () => {
+    for (const col of GLOBAL_STATS_GATED_SORT_COLS) {
+      expect(parseGlobalStatsQuery(new URLSearchParams(`sort=${col}`)).sort).toBeUndefined();
     }
   });
 
@@ -140,5 +150,175 @@ describe('globalStatsQueryParams round-trip', () => {
     const qs = new URLSearchParams(params as Record<string, string>);
     const parsed = parseGlobalStatsQuery(qs);
     expect(parsed).toEqual(original);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ordering — the client-side catalog must rank exactly as the paged endpoint does
+// ---------------------------------------------------------------------------
+
+function row(playerName: string, overrides: Partial<GlobalPlayerStatisticsRow> = {}): GlobalPlayerStatisticsRow {
+  return {
+    position: 0, playerName, playedMatchCount: 0, matchWins: 0, matchLosses: 0, matchDraws: 0,
+    matchWinrate: 0, playedGameCount: 0, gameWins: 0, gameLosses: 0, gameWinrate: 0,
+    nemesis: undefined, rival: undefined, mostPlayedArchetype: undefined,
+    rating: 1500, ratingDeviation: 350, previousRating: 1500, lastRatingDelta: 0,
+    tournamentsPlayed: 0, lastPlayedDate: undefined, provisional: true, inactive: false,
+    decayedRating: undefined,
+    ...overrides
+  };
+}
+
+const names = (rows: readonly GlobalPlayerStatisticsRow[]): string[] => rows.map((item) => item.playerName);
+
+describe('sortGlobalStatsRows', () => {
+  /**
+   * `PublicLeagueEndpoints.OrderGlobalStats` puts a null winrate last in **both** directions. A
+   * comparator that coerces null to 0 and then negates for `desc` hands ascending order to the very
+   * players the server ranks last — and a 0–0 draw makes a null `gameWinrate` reachable.
+   */
+  it('ranks a missing winrate last whichever direction is asked for', () => {
+    const rows = [
+      row('Ana', { gameWinrate: undefined }),
+      row('Bo', { gameWinrate: 0.25 }),
+      row('Cy', { gameWinrate: 0.75 })
+    ];
+
+    expect(names(sortGlobalStatsRows(rows, 'gameWinrate', 'asc'))).toEqual(['Bo', 'Cy', 'Ana']);
+    expect(names(sortGlobalStatsRows(rows, 'gameWinrate', 'desc'))).toEqual(['Cy', 'Bo', 'Ana']);
+  });
+
+  /** The name tiebreak is always ascending on the server; negating it with the value reversed it. */
+  it('tiebreaks equal values by name ascending in both directions', () => {
+    const rows = [row('Zoe', { matchWins: 4 }), row('Ana', { matchWins: 4 }), row('Mel', { matchWins: 4 })];
+
+    expect(names(sortGlobalStatsRows(rows, 'matchWins', 'desc'))).toEqual(['Ana', 'Mel', 'Zoe']);
+    expect(names(sortGlobalStatsRows(rows, 'matchWins', 'asc'))).toEqual(['Ana', 'Mel', 'Zoe']);
+  });
+
+  /** Ordinal, not the browser locale: Player Names are exact and case-sensitive (ADR 0040). */
+  it('tiebreaks names by code unit, not by locale collation', () => {
+    const rows = [row('a', { matchWins: 1 }), row('B', { matchWins: 1 })];
+
+    expect(names(sortGlobalStatsRows(rows, 'matchWins', 'desc'))).toEqual(['B', 'a']);
+  });
+
+  /** With no `?sort=` the endpoint uses the three-bucket partition: active → inactive → provisional. */
+  it('applies the documented default ordering when no sort is selected', () => {
+    const rows = [
+      row('Abe', { provisional: false, inactive: false, rating: 1400 }),
+      row('Ana', { provisional: false, inactive: false, rating: 1600 }),
+      row('Bo', { provisional: false, inactive: false, rating: 2000 }),
+      row('Cy', { provisional: false, inactive: false, rating: 1800 }),
+      row('Dee', { provisional: false, inactive: false, rating: 1600 }),
+    ];
+    // bucket 0 (active): rating desc, name ASC for ties (Ana < Dee)
+    expect(names(sortGlobalStatsRows(rows))).toEqual(['Bo', 'Cy', 'Ana', 'Dee', 'Abe']);
+  });
+
+  // Three-bucket default order (T16)
+  it('default order puts active ranked players first', () => {
+    const rows = [
+      row('Provisional', { provisional: true, inactive: false, rating: 2000 }),
+      row('Active', { provisional: false, inactive: false, rating: 1600 }),
+      row('Inactive', { provisional: false, inactive: true, rating: 1800 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows))[0]).toBe('Active');
+  });
+
+  it('default order puts inactive ranked players after active ones', () => {
+    const rows = [
+      row('Inactive', { provisional: false, inactive: true, rating: 2000 }),
+      row('Active', { provisional: false, inactive: false, rating: 1600 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows))).toEqual(['Active', 'Inactive']);
+  });
+
+  it('default order puts provisional players last', () => {
+    const rows = [
+      row('Provisional', { provisional: true, inactive: false, rating: 2100 }),
+      row('Inactive', { provisional: false, inactive: true, rating: 1500 }),
+      row('Active', { provisional: false, inactive: false, rating: 1600 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows))).toEqual(['Active', 'Inactive', 'Provisional']);
+  });
+
+  it('default order sorts provisional by tournaments then matches', () => {
+    const rows = [
+      row('Few', { provisional: true, tournamentsPlayed: 2, playedMatchCount: 10 }),
+      row('Many', { provisional: true, tournamentsPlayed: 2, playedMatchCount: 20 }),
+      row('Most', { provisional: true, tournamentsPlayed: 4, playedMatchCount: 5 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows))).toEqual(['Most', 'Many', 'Few']);
+  });
+
+  it('default order breaks ties on the ordinal name', () => {
+    const rows = [
+      row('alice', { provisional: false, inactive: false, rating: 1500 }),
+      row('Alice', { provisional: false, inactive: false, rating: 1500 }),
+    ];
+    // 'A' < 'a' in code-unit order
+    expect(names(sortGlobalStatsRows(rows))).toEqual(['Alice', 'alice']);
+  });
+
+  it('rating is a sortable column', () => {
+    const rows = [
+      row('Low', { rating: 1200, provisional: false, inactive: false }),
+      row('High', { rating: 1800, provisional: false, inactive: false }),
+      row('Mid', { rating: 1500, provisional: false, inactive: false }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'rating', 'asc'))).toEqual(['Low', 'Mid', 'High']);
+    expect(names(sortGlobalStatsRows(rows, 'rating', 'desc'))).toEqual(['High', 'Mid', 'Low']);
+  });
+
+  it('tournamentsPlayed is a sortable column', () => {
+    const rows = [
+      row('Few', { tournamentsPlayed: 2 }),
+      row('Many', { tournamentsPlayed: 8 }),
+      row('None', { tournamentsPlayed: 0 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'tournamentsPlayed', 'desc'))).toEqual(['Many', 'Few', 'None']);
+  });
+
+  it('leaves the input array untouched', () => {
+    const rows = [row('Zoe', { matchWins: 1 }), row('Ana', { matchWins: 2 })];
+
+    sortGlobalStatsRows(rows, 'matchWins', 'desc');
+
+    expect(names(rows)).toEqual(['Zoe', 'Ana']);
+  });
+
+  it('game statistics still sortable via ?sort=gameWins param (Assumption 8 guard)', () => {
+    const rows = [
+      row('Player1', { gameWins: 3 }),
+      row('Player2', { gameWins: 7 }),
+      row('Player3', { gameWins: 5 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'gameWins', 'desc'))).toEqual(['Player2', 'Player3', 'Player1']);
+  });
+
+  it('decayedRating is a sortable column only when the server exposes it', () => {
+    // The server answers 400 for ?sort=decayedRating while Gones:PlayerStatistics:ExposeDecayedRating
+    // is off, so the client must not select an ordering neither surface can serve.
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating'), { decayedRating: true }).sort)
+      .toBe('decayedRating');
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating'), { decayedRating: false }).sort)
+      .toBeUndefined();
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=decayedRating')).sort).toBeUndefined();
+  });
+
+  it('the gate never touches an ungated column', () => {
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=rating')).sort).toBe('rating');
+    expect(parseGlobalStatsQuery(new URLSearchParams('sort=matchWins'), { decayedRating: false }).sort).toBe('matchWins');
+  });
+
+  it('a null decayed rating sorts last in both directions', () => {
+    const rows = [
+      row('Ana', { decayedRating: undefined }),
+      row('Bo', { decayedRating: 1600 }),
+      row('Cy', { decayedRating: 1400 }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'decayedRating', 'asc'))).toEqual(['Cy', 'Bo', 'Ana']);
+    expect(names(sortGlobalStatsRows(rows, 'decayedRating', 'desc'))).toEqual(['Bo', 'Cy', 'Ana']);
   });
 });

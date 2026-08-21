@@ -2,7 +2,7 @@
 
 Gones is an Angular single-page PWA for the public **Event** calendar people register for, for consulting tournament League results, for exporting Gones source-data backups, and for editing League source data.
 
-The calendar record is an Event (`/calendar`, `/events/:slug`, `/events/new`, `/api/events`). "Scheduled tournament" is the retired name for it (ADR 0035); a tournament here is either an archived result or a browser-run Live Tournament.
+The calendar record is an Event (`/events`, `/events/:slug`, `/events/new`, `/api/events`). "Scheduled tournament" is the retired name for it (ADR 0035), and `/calendar` is the retired route — it is gone with no redirect (ADR 0038). A tournament here is either an archived result or a browser-run Live Tournament.
 
 ## Data authority
 
@@ -74,6 +74,32 @@ file, run the command again, and the next seeding picks it up — there is nothi
 | --- | --- |
 | `empty` (default) | nothing. Plain `npm run dev` behaves exactly as it always has: no reset, no seeding. |
 | `minimal` | one verified account per role — `admin@gones.test` (Admin), `organizer@gones.test` (Organizer), `test@gones.test` (User), all with `Gones-dev-pass-123!`. |
+| `demo` | a populated app: 7 accounts, 2 organizations, 4 formats, 16 Events, 7 registrations, 2 League Archives and 2 Live tournaments. What you want to look at any screen with real content. |
+| `stress` | a hundredfold of `demo` for judging pages under weight. Generated, not committed — see below. |
+
+### The `stress` environment (100×)
+
+Two steps, because the fixtures are generated rather than committed:
+
+```bash
+npm run dev:stress:generate -- --seed=1   # write the fixtures (seconds)
+npm run dev -- --env=stress               # reset the stack and load them (~1-2 minutes)
+```
+
+It loads roughly 700 accounts, 200 organizations, 400 formats, 1600 Events, 700 registrations, 200
+League Archives (~400 Archive Tournaments over ~1200 player names, so rankings and player pages have
+depth), 10 running tournaments and 10 000 audit rows.
+
+The same `--seed` produces byte-identical files on any machine — every draw goes through the
+generator's own seeded PRNG and nothing reads the clock — so `--seed=1` is the shared dataset and any
+other seed is a private one. `fixtures/dev-environments/stress/` holds only `environment.json`;
+everything else there is gitignored, and `--env=stress` is refused until the generator has run.
+Unlike the other environments, its Events, registrations, League Archives and audit rows are
+bulk-inserted as SQL rather than driven through the HTTP API — sixteen hundred Events through
+preview-then-publish would take about an hour. That path is test-only and refuses to run unless
+Docker points at a local Unix socket with the Compose `postgres` service up.
+
+Go back to a normal dataset with `npm run dev -- --env=demo`.
 
 An environment that carries data declares `"resetDatabase": true` and therefore runs a backend-only
 inline Compose reset before seeding, so swapping environments never leaves the previous dataset
@@ -110,23 +136,79 @@ The public domain, DNS, CDN, hosting vendor, container registry and live email/O
 
 ## Commands
 
-```bash
-npm run build
-npm run build:pages
-npm run lint
-npm run test
-npm run cy:run
-```
+Every script in `package.json`, grouped by what you reach for it.
 
-Quality and release gates:
+### Running it locally
 
-```bash
-npm run e2e:ci             # full-stack browser suite, both data-authority profiles
-npm run acceptance:matrix  # every V1 capability row and its executable evidence
-npm run release:rehearsal  # isolated release-mode stack: infrastructure plus the V1 role journeys
-npm run backup:rehearsal   # encrypted dump, safe failures, volume loss and restore
-npm run images:verify      # runtime contract of each OCI image
-```
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | API stack in Docker + dev server with hot reload, at `http://127.0.0.1:4200` |
+| `npm run dev -- --env=<name>` | reset the database and load `empty` \| `minimal` \| `demo` \| `stress` first |
+| `npm run dev -- --no-docker` | dev server only, against an API that is already running |
+| `npm run dev -- --detached` | bring the API stack up and exit, without the dev server |
+| `npm run dev -- --no-accounts` | skip the dev-account seeding step |
+| `npm run dev:serve` | `ng serve` alone — no Docker, no seeding |
+| `npm run dev:accounts` | re-seed the two dev accounts on their own |
+| `npm run dev:env -- --env=<name>` | load an environment against a stack already up (no `ng serve`) |
+| `npm run dev:stress:generate -- --seed=1` | write the generated `stress` fixtures |
+| `npm run db:reset` | recreate the local Compose stack and its database from scratch |
+| `npm run db:seed` | apply the deterministic V1 seed to a running stack |
+| `docker compose --profile release up --build` | everything containerised, SPA on `:8081` |
+
+`--env` needs the Docker stack, so it is refused together with `--no-docker`. Stop the stack with
+`docker compose down`, or `docker compose down -v` to drop the data too.
+
+### Checks
+
+| Command | What it does |
+| --- | --- |
+| `npm run test` | Vitest domain and unit suite |
+| `npm run lint` | Angular lint |
+| `npm run typecheck` | `tsc --noEmit` over the app and spec projects |
+| `npm run backend:build` | build the .NET solution, Release |
+| `npm run backend:test` | .NET unit, architecture and integration suites (needs the Docker stack; ~4 minutes) |
+| `npm run cy:run` | Cypress headless |
+| `npm run cy:open` | Cypress interactive |
+| `npm run api:check` | fail if the generated API client has drifted from the OpenAPI document |
+| `npm run api:generate` | regenerate that client |
+
+Run Cypress with `--config screenshotOnRunFailure=false`. On failure the default auto-screenshot times
+out and reports `cy.screenshot() timed out waiting 30000ms` **in place of** the real assertion error,
+which hides what actually broke.
+
+### Smoke tests
+
+| Command | What it covers |
+| --- | --- |
+| `npm run smoke` | full stack end to end |
+| `npm run auth:smoke` | account lifecycle |
+| `npm run notification:smoke` | notification delivery |
+| `npm run scheduler:smoke` | scheduled jobs |
+| `npm run migration:smoke` | the bundle-import CLI |
+
+### Build and release gates
+
+| Command | What it does |
+| --- | --- |
+| `npm run build` | production bundle |
+| `npm run build:pages` | GitHub Pages bundle with its base href |
+| `npm run e2e:ci` | full-stack browser suite in Docker — the only way the auth specs can pass |
+| `npm run acceptance:matrix` | every V1 capability row and its executable evidence |
+| `npm run release:preflight` | pre-release checks |
+| `npm run release:candidate` | reproduce the immutable V1 artifact set |
+| `npm run release:rehearsal` | isolated release-mode stack: infrastructure plus the V1 role journeys |
+| `npm run backup:rehearsal` | encrypted dump, safe failures, volume loss and restore |
+| `npm run images:build` | build the OCI images |
+| `npm run images:verify` | runtime contract of each image |
+| `npm run images:scan` | vulnerability scan |
+| `npm run audit:supply-chain` | dependency and supply-chain audit |
+
+### Generators
+
+| Command | What it writes |
+| --- | --- |
+| `npm run geo:generate` | the geography dataset |
+| `npm run docs:demo-accounts` | `DEMO_ACCOUNTS.md` from the demo fixtures |
 
 The acceptance matrix (`ops/acceptance-matrix.json`) maps every capability in
 `docs/tournament-inscription-calendar-architecture/00..09` to a test or rehearsal that actually runs.

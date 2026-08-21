@@ -14,6 +14,7 @@ import { GlobalRole } from './league-archive-command-ux';
 import { isLocalLeagueId, LOCAL_LEAGUE_ID_PREFIX } from './league-archive-origin';
 import { LeagueArchiveImportService } from './league-archive-import.service';
 import { LeagueArchiveRepository } from './league-archive-repository.service';
+import { summarizeLeague } from './league-archive-summary';
 import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 
 /**
@@ -38,7 +39,8 @@ function fakeBackend(namespace: 'server' | 'local') {
     league(namespace === 'local' ? `${LOCAL_LEAGUE_ID_PREFIX}${incoming.id}-restored` : `${incoming.id}-restored`, incoming.name);
   const rows = new Map<string, PersistedLeague>();
   return {
-    listLeagueArchives: vi.fn(async () => [...rows.values()]),
+    listLeagueArchives: vi.fn(async () => ({ leagues: [...rows.values()], truncated: false })),
+    listLeagueArchiveSummaries: vi.fn(async () => ({ items: [...rows.values()].map(summarizeLeague), truncated: false })),
     getLeagueArchive: vi.fn(async (id: string) => rows.get(id) ?? null),
     createLeagueArchive: vi.fn(async (name: string) => league('created', name)),
     renameLeagueArchive: vi.fn(async () => league('renamed')),
@@ -83,7 +85,9 @@ function setup(role?: GlobalRole) {
   const cacheStore = {
     read: async (key: string) => rows.get(key) ?? null,
     write: async (key: string, entry: CachedRead<unknown>) => { rows.set(key, entry); },
-    clear: async () => { rows.clear(); }
+    delete: async (key: string) => { rows.delete(key); },
+    clear: async () => { rows.clear(); },
+    keys: async () => [...rows.keys()]
   };
   const injector = Injector.create({ providers: [
     { provide: LEAGUE_ARCHIVE_BACKEND, useValue: server },

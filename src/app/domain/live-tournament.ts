@@ -391,6 +391,7 @@ export function finalizeLiveTournament(tournament: LiveTournamentDocument, { idF
     leagueId: tournament.leagueId,
     name: tournament.name,
     tournamentDate: tournament.tournamentDate,
+    status: 'active',
     rounds: tournament.rounds.filter((round) => round.validated).map((round) => createRound({ entries: round.entries.map((item) => withLivePlayerArchetypes(item.entry, tournament)) }, { idFactory })),
     playerArchetypes: livePlayerArchetypeRows(tournament)
   }, { idFactory });

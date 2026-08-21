@@ -6,8 +6,8 @@ const read = (path: string) => readFileSync(join(__dirname, '..', path), 'utf8')
 
 describe('Power User mutation perimeter', () => {
   it('blocks Event publish/edit plus cancel/delete handlers before mutation work', () => {
-    const editor = read('features/calendar/organizer-event-create.component.ts');
-    const list = read('features/calendar/organizer-event-list.component.ts');
+    const editor = read('features/events/organizer-event-create.component.ts');
+    const list = read('features/events/organizer-event-list.component.ts');
 
     expect(editor).toMatch(/async publish\(\)[\s\S]*?if \(!this\.canMutateEvent\(\)\) return;/);
     expect(editor).toMatch(/async saveEdit\(\)[\s\S]*?if \(!this\.canMutateEvent\(\)\) return;/);
@@ -37,7 +37,7 @@ describe('Power User mutation perimeter', () => {
   });
 
   it('keeps Calendar registration handlers independent from Power mode', () => {
-    const calendar = read('features/calendar/public-calendar.component.ts');
+    const calendar = read('features/events/public-event-list.component.ts');
     const registrationSlice = calendar.slice(calendar.indexOf('async registerFromCard'), calendar.indexOf('async refreshVisibleCapabilities'));
 
     expect(registrationSlice).not.toContain('power');

@@ -8,41 +8,94 @@ import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
-import { calculatePlayerStatistics, PlayerMatch } from '../../domain/player-stats';
+import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument, trimPlayerName } from '../../domain/models';
+import { calculatePlayerStatistics, OpponentRecord, PlayerArchetypeUsage, PlayerMatch, PlayerStatistics } from '../../domain/player-stats';
+import { GlobalPlayerStatisticsRow, PlayerDetailResponse, PlayerMatchRow } from '../../api/generated/gones-api';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { I18nService } from '../../i18n/i18n.service';
 import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchText, searchWords } from '../../shared/search-highlight';
 import { isLocalLeagueId } from '../../data/league-archive-origin';
+import { PlayerDetailCacheService } from './player-detail-cache.service';
 import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, writeMatchPageSize, writeOnlineOnly } from './player-stats-preferences';
+import { formatRatingDelta, formatRatingValue } from './rating-format';
+
+/**
+ * One shape for the history whatever produced it: the server's flat rows (ADR 0039 read model) and
+ * the browser-local leagues computed here both land as this, so the template never branches on
+ * origin except to badge it.
+ */
+export interface PlayerMatchView {
+  kind: 'match' | 'bye';
+  leagueId: string;
+  leagueName: string;
+  tournamentId: string;
+  tournamentName: string;
+  tournamentDate: string;
+  roundIndex: number;
+  opponentName: string;
+  ownScore: number;
+  opponentScore: number;
+  ownArchetype: string;
+  opponentArchetype: string;
+  isLocal: boolean;
+}
+
+/** The totals the page renders — the server row alone, or the server row plus the local half. */
+export interface PlayerStatsView {
+  playedMatchCount: number;
+  matchWins: number;
+  matchLosses: number;
+  matchDraws: number;
+  playedGameCount: number;
+  gameWins: number;
+  gameLosses: number;
+  matchWinrate: number | null;
+  gameWinrate: number | null;
+  nemesis: OpponentRecord | null;
+  rival: OpponentRecord | null;
+  mostPlayedArchetype: PlayerArchetypeUsage | null;
+}
 
 @Component({
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatCheckboxModule, MatSelectModule, BackButtonComponent],
+  imports: [FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatCheckboxModule, MatSelectModule, BackButtonComponent, SyncBarComponent],
   template: `
     <div class="player-top-controls" data-cy="player-top-controls">
       <gones-back-button data-cy="player-back-top" [label]="i18n.t('nav.backToPrevious')" position="top" />
-      <mat-checkbox data-cy="player-online-only-toggle" [checked]="onlineOnly()" (change)="setOnlineOnly($event.checked)">{{ i18n.t('player.onlineOnly') }}</mat-checkbox>
+      <div class="player-source-controls" data-cy="player-source-controls">
+        <mat-checkbox data-cy="player-online-only-toggle" [checked]="onlineOnly()" (change)="setOnlineOnly($event.checked)">{{ i18n.t('player.onlineOnly') }}</mat-checkbox>
+        <gones-sync-bar cyPrefix="player" data-cy="player-sync-bar" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="onSync()" />
+      </div>
     </div>
     <section class="page-heading" data-cy="player-heading"><div data-cy="player-heading-text"><p class="kicker" data-cy="player-kicker">{{ i18n.t('player.statsKicker') }}</p><h1 data-cy="player-name">{{ playerName() }}</h1></div></section>
     <div class="stat-grid" data-cy="player-stat-grid">
-      <div class="stat-grid__row stat-grid__row--counts" data-cy="player-stat-row-counts">
-        <div class="player-stat-cell" data-cy="player-stat-cell-played-matches"><p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="player-stat-value-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-wins"><p class="player-stat-label" data-cy="player-stat-label-match-wins">{{ i18n.t('player.matchWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-match-wins">{{ stats().matchWins }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-losses"><p class="player-stat-label" data-cy="player-stat-label-match-losses">{{ i18n.t('player.matchLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-match-losses">{{ stats().matchLosses }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-match-draws"><p class="player-stat-label" data-cy="player-stat-label-match-draws">{{ i18n.t('player.matchDraws') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draws"><mat-card-content class="stat-number" data-cy="player-stat-value-match-draws">{{ stats().matchDraws }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-played-games"><p class="player-stat-label" data-cy="player-stat-label-played-games">{{ i18n.t('player.playedGames') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-games"><mat-card-content class="stat-number" data-cy="player-stat-value-played-games">{{ stats().playedGameCount }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-game-wins"><p class="player-stat-label" data-cy="player-stat-label-game-wins">{{ i18n.t('player.gameWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-wins"><mat-card-content class="stat-number" data-cy="player-stat-value-game-wins">{{ stats().gameWins }}</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-game-losses"><p class="player-stat-label" data-cy="player-stat-label-game-losses">{{ i18n.t('player.gameLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-losses"><mat-card-content class="stat-number" data-cy="player-stat-value-game-losses">{{ stats().gameLosses }}</mat-card-content></mat-card></div>
+      <div class="stat-grid__row stat-grid__row--three" data-cy="player-stat-row-0">
+        <div class="player-stat-cell" data-cy="player-stat-cell-rating"><p class="player-stat-label" data-cy="player-stat-label-rating">{{ i18n.t('player.rating') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rating"><mat-card-content class="stat-number" data-cy="player-stat-value-rating">{{ formatRatingValue(serverStats()?.rating) }}<span class="rating-delta" [class.rating-delta--up]="(serverStats()?.lastRatingDelta ?? 0) > 0" [class.rating-delta--down]="(serverStats()?.lastRatingDelta ?? 0) < 0" data-cy="player-stat-value-rating-delta">{{ formatRatingDelta(serverStats()?.lastRatingDelta) }}</span></mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-tournaments-played"><p class="player-stat-label" data-cy="player-stat-label-tournaments-played">{{ i18n.t('player.tournamentsPlayed') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-tournaments-played"><mat-card-content class="stat-number" data-cy="player-stat-value-tournaments-played">{{ serverStats()?.tournamentsPlayed ?? '—' }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-rating-status"><p class="player-stat-label" data-cy="player-stat-label-rating-status">{{ i18n.t('player.ratingStatus') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rating-status"><mat-card-content class="stat-number" data-cy="player-stat-value-rating-status">{{ ratingStatusLabel() }}</mat-card-content></mat-card></div>
       </div>
-      <div class="stat-grid__row stat-grid__row--metrics" data-cy="player-stat-row-metrics">
+      <div class="stat-grid__row stat-grid__row--five" data-cy="player-stat-row-1">
         <div class="player-stat-cell" data-cy="player-stat-cell-match-winrate"><p class="player-stat-label" data-cy="player-stat-label-match-winrate">{{ i18n.t('player.matchWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-winrate"><mat-card-content [class]="winrateStatClass(stats().matchWinrate)" data-cy="player-stat-value-match-winrate">{{ pct(stats().matchWinrate) }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-played-matches"><p class="player-stat-label" data-cy="player-stat-label-played-matches">{{ i18n.t('player.playedMatches') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-matches"><mat-card-content class="stat-number" data-cy="player-stat-value-played-matches">{{ stats().playedMatchCount }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-wins"><p class="player-stat-label" data-cy="player-stat-label-match-wins">{{ i18n.t('player.matchWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-wins"><mat-card-content class="stat-number stat-number--win" data-cy="player-stat-value-match-wins">{{ stats().matchWins }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-losses"><p class="player-stat-label" data-cy="player-stat-label-match-losses">{{ i18n.t('player.matchLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-losses"><mat-card-content class="stat-number stat-number--loss" data-cy="player-stat-value-match-losses">{{ stats().matchLosses }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-draws"><p class="player-stat-label" data-cy="player-stat-label-match-draws">{{ i18n.t('player.matchDraws') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draws"><mat-card-content class="stat-number stat-number--draw" data-cy="player-stat-value-match-draws">{{ stats().matchDraws }}</mat-card-content></mat-card></div>
+      </div>
+      <div class="stat-grid__row stat-grid__row--five" data-cy="player-stat-row-2">
         <div class="player-stat-cell" data-cy="player-stat-cell-game-winrate"><p class="player-stat-label" data-cy="player-stat-label-game-winrate">{{ i18n.t('player.gameWinRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-winrate"><mat-card-content [class]="winrateStatClass(stats().gameWinrate)" data-cy="player-stat-value-game-winrate">{{ pct(stats().gameWinrate) }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-played-games"><p class="player-stat-label" data-cy="player-stat-label-played-games">{{ i18n.t('player.playedGames') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-played-games"><mat-card-content class="stat-number" data-cy="player-stat-value-played-games">{{ stats().playedGameCount }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-wins"><p class="player-stat-label" data-cy="player-stat-label-game-wins">{{ i18n.t('player.gameWins') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-wins"><mat-card-content class="stat-number stat-number--win" data-cy="player-stat-value-game-wins">{{ stats().gameWins }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-game-losses"><p class="player-stat-label" data-cy="player-stat-label-game-losses">{{ i18n.t('player.gameLosses') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-game-losses"><mat-card-content class="stat-number stat-number--loss" data-cy="player-stat-value-game-losses">{{ stats().gameLosses }}</mat-card-content></mat-card></div>
+        <div class="player-stat-cell" data-cy="player-stat-cell-match-draw-rate"><p class="player-stat-label" data-cy="player-stat-label-match-draw-rate">{{ i18n.t('player.matchDrawRate') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-match-draw-rate"><mat-card-content class="stat-number" data-cy="player-stat-value-match-draw-rate">{{ pct(matchDrawRate()) }}</mat-card-content></mat-card></div>
+      </div>
+      <div class="stat-grid__row stat-grid__row--three" data-cy="player-stat-row-3">
+        <div class="player-stat-cell" data-cy="player-stat-cell-most-played-archetype"><p class="player-stat-label" data-cy="player-stat-label-most-played-archetype">{{ i18n.t('player.mostPlayedArchetype') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-most-played-archetype"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-most-played-archetype">@if (stats().mostPlayedArchetype; as archetype) { <span data-cy="player-stat-archetype">{{ i18n.t('player.archetypeMatches', { name: archetype.name, count: archetype.matchCount }) }}</span> } @else { <span data-cy="player-stat-na-archetype">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-nemesis"><p class="player-stat-label" data-cy="player-stat-label-nemesis">{{ i18n.t('player.nemesis') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-nemesis"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-nemesis">@if (stats().nemesis; as nemesis) { <button type="button" class="stat-filter-button stat-filter-button--nemesis" data-cy="player-stat-filter-nemesis" (click)="filterByExact(nemesis.name)">{{ nemesis.name }}</button> } @else { <span data-cy="player-stat-na-nemesis">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
         <div class="player-stat-cell" data-cy="player-stat-cell-rival"><p class="player-stat-label" data-cy="player-stat-label-rival">{{ i18n.t('player.rival') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-rival"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-rival">@if (stats().rival; as rival) { <button type="button" class="stat-filter-button stat-filter-button--rival" data-cy="player-stat-filter-rival" (click)="filterByExact(rival.name)">{{ rival.name }}</button> } @else { <span data-cy="player-stat-na-rival">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
-        <div class="player-stat-cell" data-cy="player-stat-cell-most-played-archetype"><p class="player-stat-label" data-cy="player-stat-label-most-played-archetype">{{ i18n.t('player.mostPlayedArchetype') }}</p><mat-card class="player-stat-card" data-cy="player-stat-card-most-played-archetype"><mat-card-content class="player-stat-card__name" data-cy="player-stat-value-most-played-archetype">@if (stats().mostPlayedArchetype; as archetype) { <span data-cy="player-stat-archetype">{{ i18n.t('player.archetypeMatches', { name: archetype.name, count: archetype.matchCount }) }}</span> } @else { <span data-cy="player-stat-na-archetype">{{ i18n.t('common.na') }}</span> }</mat-card-content></mat-card></div>
       </div>
     </div>
+    @if (showRatingLocalNote()) { <p class="muted" data-cy="player-rating-local-note">{{ i18n.t('player.ratingLocalNote') }}</p> }
     <section class="stack" data-cy="player-matches-section">
       <div class="matches-heading" data-cy="player-matches-heading">
         <h2 data-cy="player-matches-title">{{ i18n.t('player.matches') }}</h2>
@@ -66,8 +119,9 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
           </mat-select>
         </mat-form-field>
       </div>
+      @if (truncated()) { <p class="warning" role="status" data-cy="player-history-truncated">{{ i18n.t('player.historyTruncated', { shown: serverMatchCount(), total: totalMatchCount() }) }}</p> }
       @if (!filteredMatches().length) { <p class="muted" data-cy="no-matches">{{ i18n.t('player.noMatches') }}</p> }
-      @for (match of pagedMatches(); track match.tournament.id + match.roundIndex + match.opponentName; let matchIndex = $index) {
+      @for (match of pagedMatches(); track match.leagueId + match.tournamentId + match.roundIndex + match.opponentName; let matchIndex = $index) {
         <mat-card
           class="match-card"
           data-cy="match-card"
@@ -77,6 +131,7 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
           [class.match-card--win]="matchResult(match) === 'win'"
           [class.match-card--loss]="matchResult(match) === 'loss'"
           [class.match-card--draw]="matchResult(match) === 'draw'"
+          [class.match-card--local]="match.isLocal"
           (click)="openMatchTournament(match)"
           (keydown.enter)="openMatchTournament(match)"
           (keydown.space)="$event.preventDefault(); openMatchTournament(match)"
@@ -84,9 +139,10 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
           <mat-card-title [attr.data-cy]="'match-card-title-' + matchIndex">
             <span class="match-card__line match-card__line--meta" [attr.data-cy]="'match-card-meta-' + matchIndex">
               <button type="button" class="match-filter-token match-card__date" data-cy="match-date" (click)="filterByExact(matchDateLabel(match), $event)">@for (part of highlightParts(matchDateReadable(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-date-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
-              <button type="button" class="match-filter-token match-card__league" data-cy="match-league" (click)="filterByExact(leagueDisplayName(match.league), $event)">@for (part of highlightParts(leagueDisplayName(match.league)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-league-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
-              <button type="button" class="match-filter-token match-card__tournament" data-cy="match-tournament" (click)="filterByExact(match.tournament.name, $event)">@for (part of highlightParts(match.tournament.name); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-tournament-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+              <button type="button" class="match-filter-token match-card__league" data-cy="match-league" (click)="filterByExact(leagueDisplayName(match), $event)">@for (part of highlightParts(leagueDisplayName(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-league-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+              <button type="button" class="match-filter-token match-card__tournament" data-cy="match-tournament" (click)="filterByExact(match.tournamentName, $event)">@for (part of highlightParts(match.tournamentName); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-tournament-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
               <button type="button" class="match-filter-token match-card__round" data-cy="match-round" (click)="filterByExact(matchRoundLabel(match), $event)">@for (part of highlightParts(matchRoundLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-round-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+              @if (match.isLocal) { <span class="match-card__local-badge" data-cy="player-match-local">{{ i18n.t('player.localMatch') }}</span> }
             </span>
           </mat-card-title>
           <mat-card-content [attr.data-cy]="'match-card-content-' + matchIndex">
@@ -108,6 +164,13 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
                 <span class="match-card__score-separator" [attr.data-cy]="'match-score-separator-' + matchIndex">–</span>
                 <span [class.score-number--loss]="match.ownScore !== match.opponentScore" [attr.data-cy]="'match-score-losing-' + matchIndex">@for (part of highlightParts(matchLosingScore(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-score-losing-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</span>
               </span>
+              <span class="match-card__archetypes" [attr.data-cy]="'match-archetypes-' + matchIndex">
+                <button type="button" class="match-filter-token match-card__archetype match-card__archetype--own" data-cy="match-own-archetype" (click)="filterByExact(ownArchetypeLabel(match), $event)">@for (part of highlightParts(ownArchetypeLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-own-archetype-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+                @if (match.kind !== 'bye') {
+                  <span class="match-card__archetype-vs" [attr.data-cy]="'match-archetype-vs-' + matchIndex">{{ i18n.t('player.archetypeVersus') }}</span>
+                  <button type="button" class="match-filter-token match-card__archetype match-card__archetype--opponent" data-cy="match-opponent-archetype" (click)="filterByExact(opponentArchetypeLabel(match), $event)">@for (part of highlightParts(opponentArchetypeLabel(match)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'match-opponent-archetype-part-' + matchIndex + '-' + $index">{{ part.text }}</span> }</button>
+                }
+              </span>
             </span>
           </mat-card-content>
         </mat-card>
@@ -121,14 +184,17 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
       }
     </section>
     <footer class="live-tournament-footer player-detail-footer" data-cy="player-footer">
-      <gones-back-button data-cy="player-back-footer" [label]="i18n.t('nav.backToPrevious')" position="top" />
+      <gones-back-button data-cy="player-back-bottom" [label]="i18n.t('nav.backToPrevious')" position="bottom" />
       <button mat-stroked-button class="secondary-action live-scroll-top-button" type="button" data-cy="player-scroll-top-button" (click)="scrollToTop()" [attr.aria-label]="i18n.t('live.backToTop')">↑</button>
     </footer>
   `,
   styles: [`
     .player-top-controls { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .player-source-controls { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
     .stat-grid {
       display: grid;
+      /* One row per line: never let an outer auto-fit rule lay the three rows out side by side. */
+      grid-template-columns: minmax(0, 1fr);
       gap: 1rem;
       margin-top: 1.1rem;
       margin-bottom: 1.35rem;
@@ -142,12 +208,15 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
       min-width: 0;
       align-items: stretch;
     }
-    .stat-grid__row--counts {
-      grid-template-columns: repeat(7, minmax(0, 1fr));
-    }
-    .stat-grid__row--metrics {
+    .stat-grid__row--five {
       grid-template-columns: repeat(5, minmax(0, 1fr));
     }
+    .stat-grid__row--three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .rating-delta { margin-left: .35rem; font-size: .78rem; font-weight: 800; }
+    .rating-delta--up { color: oklch(80% 0.15 145); }
+    .rating-delta--down { color: oklch(78% 0.14 25); }
     .player-stat-cell {
       display: grid;
       grid-template-rows: auto var(--player-stat-card-height, 6rem);
@@ -198,9 +267,10 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
     }
     .player-stat-card mat-card-content.player-stat-card__name { padding-inline: .75rem; }
     .player-stat-card mat-card-content.stat-number { font-size: clamp(2.2rem, 6vw, 3.6rem); }
-    .player-stat-card mat-card-content.stat-number--high { color: oklch(80% 0.15 145); }
-    .player-stat-card mat-card-content.stat-number--low { color: oklch(78% 0.14 25); }
-    .player-stat-card mat-card-content.stat-number--even { color: #fff; }
+    /* One tone per outcome, shared by the counts and by the winrate either side of 50%. */
+    .player-stat-card mat-card-content.stat-number--win { color: oklch(80% 0.15 145); }
+    .player-stat-card mat-card-content.stat-number--loss { color: oklch(78% 0.14 25); }
+    .player-stat-card mat-card-content.stat-number--draw { color: oklch(91% 0.18 95); }
     .stat-filter-button {
       border: 0;
       background: transparent;
@@ -224,15 +294,16 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
       word-break: break-word;
     }
     @media (max-width: 1100px) {
-      .stat-grid__row--counts,
-      .stat-grid__row--metrics {
+      .stat-grid__row--five,
+      .stat-grid__row--three {
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
       }
     }
     @media (max-width: 640px) {
       .player-top-controls { align-items: flex-start; flex-direction: column; }
-      .stat-grid__row--counts,
-      .stat-grid__row--metrics { grid-template-columns: 1fr; }
+      .player-source-controls { align-items: flex-start; flex-direction: column; }
+      .stat-grid__row--five,
+      .stat-grid__row--three { grid-template-columns: 1fr; }
     }
     .stat-filter-button:hover, .stat-filter-button:focus-visible { text-decoration: underline; text-underline-offset: .16em; outline: none; }
     .stat-filter-button--nemesis { color: oklch(78% 0.14 25); }
@@ -271,6 +342,8 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
     .match-card--draw { border-color: oklch(72% 0.06 82 / .55); background: linear-gradient(135deg, oklch(28% 0.015 82 / .22), oklch(16% 0.01 29 / .5)); box-shadow: none; }
     .match-card--draw::before { background: oklch(78% 0.08 82 / .55); box-shadow: none; }
     .match-card--draw::after { display: none; }
+    .match-card--local { border-style: dashed; }
+    .match-card__local-badge { border: 1px solid var(--soot); color: var(--dim-ash); padding: .1rem .4rem; font-size: .72rem; font-weight: 900; letter-spacing: .08em; }
     .match-card mat-card-title, .match-card mat-card-content { position: relative; z-index: 1; }
     .match-card mat-card-title { padding-left: 1.75rem; }
     .match-card mat-card-content { padding-top: .35rem; padding-left: 1.75rem; }
@@ -291,6 +364,10 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
     .match-card--win .match-card__result-pill { background: oklch(88% 0.12 145 / .16); color: oklch(88% 0.12 145); }
     .match-card--loss .match-card__result-pill { background: oklch(86% 0.12 25 / .14); color: oklch(88% 0.11 25); }
     .match-card--draw .match-card__result-pill { background: oklch(86% 0.06 82 / .08); color: oklch(86% 0.06 82 / .9); border-color: oklch(86% 0.06 82 / .28); }
+    .match-card__archetypes { display: inline-flex; align-items: center; gap: .4rem; font-size: .95rem; font-weight: 800; }
+    .match-card__archetype--own { color: oklch(80% 0.12 200); }
+    .match-card__archetype--opponent { color: oklch(78% 0.14 25); }
+    .match-card__archetype-vs { color: var(--dim-ash); font-size: .85em; text-transform: lowercase; }
     .match-card__score { color: var(--ash); font-size: 1.18rem; font-weight: 950; white-space: nowrap; }
     .match-card__score-separator { color: var(--dim-ash); margin-inline: .12rem; }
     .score-number--win { color: oklch(82% 0.15 145); }
@@ -300,17 +377,41 @@ import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, wri
 })
 export class PlayerDetailComponent {
   readonly playerName = signal('');
-  readonly leagues = signal<PersistedLeague[]>([]);
   readonly onlineOnly = signal(readOnlineOnly());
-  readonly selectedLeagues = computed(() => this.onlineOnly() ? this.leagues().filter((league) => !isLocalLeagueId(league.id)) : this.leagues());
+  /** The server's answer for this player, or `null` when it knows no played Match for them. */
+  readonly serverPayload = signal<PlayerDetailResponse | null>(null);
+  /** Only ever the browser store (ADR 0028) — the server half already arrived as `serverPayload`. */
+  readonly localLeagues = signal<PersistedLeague[]>([]);
+  readonly loading = signal(false);
+  readonly stale = signal(false);
+  readonly truncated = signal(false);
+  readonly syncedAt = signal<string | undefined>(undefined);
   readonly matchSearch = signal('');
   readonly newestFirst = signal(true);
   readonly matchPageSizes = MATCH_PAGE_SIZES;
   readonly matchPageSize = signal<MatchPageSize>(readMatchPageSize());
   private readonly requestedMatchPage = signal(1);
-  readonly data = computed<GonesData>(() => ({ version: GONES_DATA_VERSION, leagues: this.selectedLeagues(), calendarEvents: [] }));
-  readonly stats = computed(() => calculatePlayerStatistics(this.data(), this.playerName()));
-  readonly orderedMatches = computed(() => orderMatches(this.stats().matches, this.newestFirst()));
+  private localLeaguesLoaded = false;
+  readonly serverMatchCount = computed(() => this.serverPayload()?.matches?.length ?? 0);
+  readonly totalMatchCount = computed(() => this.serverPayload()?.totalMatchCount ?? 0);
+  /** `null` while Online-only is on: nothing browser-local counts, so nothing browser-local is read. */
+  readonly localStats = computed<PlayerStatistics | null>(() => this.onlineOnly()
+    ? null
+    : calculatePlayerStatistics({ version: GONES_DATA_VERSION, leagues: completedTournamentsOnly(this.localLeagues()), calendarEvents: [] } satisfies GonesData, this.playerName()));
+  readonly allMatches = computed<PlayerMatchView[]>(() => {
+    const server = (this.serverPayload()?.matches ?? []).map(toServerMatchView);
+    const local = this.localStats()?.matches ?? [];
+    return [...server, ...local.map((match) => toLocalMatchView(match, this.playerName()))];
+  });
+  readonly stats = computed<PlayerStatsView>(() => {
+    const server = this.serverPayload()?.statistics ?? null;
+    const local = this.localStats();
+    return local ? mergeStats(server, local, this.allMatches()) : serverStatsView(server);
+  });
+  readonly serverStats = computed<GlobalPlayerStatisticsRow | null>(() => this.serverPayload()?.statistics ?? null);
+  readonly showRatingLocalNote = computed(() => !this.onlineOnly() && this.allMatches().some((m) => m.isLocal));
+  readonly matchDrawRate = computed(() => { const s = this.stats(); return s.playedMatchCount > 0 ? s.matchDraws / s.playedMatchCount : null; });
+  readonly orderedMatches = computed(() => orderMatches(this.allMatches(), this.newestFirst()));
   readonly filteredMatches = computed(() => {
     const search = this.matchSearch().trim();
     if (!search) return this.orderedMatches();
@@ -325,56 +426,108 @@ export class PlayerDetailComponent {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     readonly i18n: I18nService,
+    private readonly cache: PlayerDetailCacheService,
   ) {
     this.playerName.set(this.route.snapshot.paramMap.get('playerName') ?? '');
-    void this.repo.listLeagues().then((leagues) => {
-      this.leagues.set(leagues);
-      this.resetMatchPage();
-    });
+    void this.loadPlayer();
+    if (!this.onlineOnly()) void this.loadLocalLeagues();
   }
+
+  private async loadPlayer(options: { force?: boolean } = {}): Promise<void> {
+    this.loading.set(true);
+    try {
+      const result = await this.cache.load(this.playerName(), options);
+      this.serverPayload.set(result.items);
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
+      this.truncated.set(result.truncated);
+      // The route value is whatever was typed or linked; the read model owns the spelling.
+      const canonical = result.items?.statistics?.playerName;
+      if (canonical) this.playerName.set(canonical);
+    } catch {
+      // An unreachable server is what the offline banner says; the local half still renders.
+      this.stale.set(true);
+    } finally {
+      this.loading.set(false);
+      this.resetMatchPage();
+    }
+  }
+
+  /**
+   * Browser-local leagues only, and only once. Filtering on the `local-` prefix is the guard against
+   * counting a server League twice: its matches are already in `serverPayload`.
+   */
+  private async loadLocalLeagues(): Promise<void> {
+    if (this.localLeaguesLoaded) return;
+    this.localLeaguesLoaded = true;
+    try {
+      const leagues = await this.repo.listLocalLeagues();
+      this.localLeagues.set(leagues.filter((league) => isLocalLeagueId(league.id)));
+    } catch {
+      this.localLeaguesLoaded = false;
+    }
+    this.resetMatchPage();
+  }
+
+  onSync(): void { void this.loadPlayer({ force: true }); }
+
+  ratingStatusLabel(): string {
+    const s = this.serverStats();
+    if (!s) return this.i18n.t('player.ratingUnrated');
+    if (s.inactive) return this.i18n.t('player.ratingInactive');
+    if (s.provisional) return this.i18n.t('player.ratingProvisional');
+    return this.i18n.t('player.ratingRanked');
+  }
+
+  readonly formatRatingDelta = formatRatingDelta;
+  readonly formatRatingValue = formatRatingValue;
 
   pct(value: number | null): string { return value == null ? this.i18n.t('common.na') : `${(value * 100).toFixed(2)}%`; }
 
   winrateStatClass(value: number | null): string {
     if (value == null) return 'stat-number';
-    const percent = Math.round(value * 100);
-    if (percent > 50) return 'stat-number stat-number--high';
-    if (percent < 50) return 'stat-number stat-number--low';
-    return 'stat-number stat-number--even';
+    // Compare the two decimals the cell paints, so the tone can never contradict the number.
+    const percent = Math.round(value * 10000) / 100;
+    if (percent > 50) return 'stat-number stat-number--win';
+    if (percent < 50) return 'stat-number stat-number--loss';
+    return 'stat-number stat-number--draw';
   }
 
-  matchResult(match: PlayerMatch): 'win' | 'loss' | 'draw' {
+  matchResult(match: PlayerMatchView): 'win' | 'loss' | 'draw' {
     if (match.ownScore > match.opponentScore) return 'win';
     if (match.ownScore < match.opponentScore) return 'loss';
     return 'draw';
   }
 
-  matchResultLabel(match: PlayerMatch): string {
+  matchResultLabel(match: PlayerMatchView): string {
     if (match.kind === 'bye') return this.i18n.t('player.victory');
     const result = this.matchResult(match);
     return result === 'win' ? this.i18n.t('player.victory') : result === 'loss' ? this.i18n.t('player.defeat') : this.i18n.t('player.draw');
   }
 
-  matchDateLabel(match: PlayerMatch): string { return match.tournament.tournamentDate || this.i18n.t('common.noDate'); }
+  matchDateLabel(match: PlayerMatchView): string { return match.tournamentDate || this.i18n.t('common.noDate'); }
 
-  matchDateReadable(match: PlayerMatch): string {
-    const raw = match.tournament.tournamentDate;
+  matchDateReadable(match: PlayerMatchView): string {
+    const raw = match.tournamentDate;
     if (!raw) return this.i18n.t('common.noDate');
     return this.i18n.formatDate(raw, { dateStyle: 'long' });
   }
 
-  matchRoundLabel(match: PlayerMatch): string { return this.i18n.t('player.roundN', { n: match.roundIndex + 1 }); }
-  leagueDisplayName(league: { id: string; name: string }): string {
-    return league.id === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : league.name;
+  matchRoundLabel(match: PlayerMatchView): string { return this.i18n.t('player.roundN', { n: match.roundIndex + 1 }); }
+  leagueDisplayName(match: PlayerMatchView): string {
+    return match.leagueId === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : match.leagueName;
   }
 
-  matchHeaderLabel(match: PlayerMatch): string { return `${this.matchDateLabel(match)} ${this.leagueDisplayName(match.league)} ${match.tournament.name} ${this.matchRoundLabel(match)}`; }
-  matchWinningScore(match: PlayerMatch): string { return Math.max(match.ownScore, match.opponentScore).toString(); }
-  matchLosingScore(match: PlayerMatch): string { return Math.min(match.ownScore, match.opponentScore).toString(); }
-  matchScoreLabel(match: PlayerMatch): string { return `${this.matchWinningScore(match)}–${this.matchLosingScore(match)}`; }
+  matchHeaderLabel(match: PlayerMatchView): string { return `${this.matchDateLabel(match)} ${this.leagueDisplayName(match)} ${match.tournamentName} ${this.matchRoundLabel(match)}`; }
+  matchWinningScore(match: PlayerMatchView): string { return Math.max(match.ownScore, match.opponentScore).toString(); }
+  matchLosingScore(match: PlayerMatchView): string { return Math.min(match.ownScore, match.opponentScore).toString(); }
+  matchScoreLabel(match: PlayerMatchView): string { return `${this.matchWinningScore(match)}–${this.matchLosingScore(match)}`; }
 
-  matchCardAriaLabel(match: PlayerMatch): string {
-    return this.i18n.t('player.matchCardAria', { result: this.matchResultLabel(match), opponent: match.opponentName, tournament: match.tournament.name, round: this.matchRoundLabel(match) });
+  ownArchetypeLabel(match: PlayerMatchView): string { return match.ownArchetype || this.i18n.t('player.missingArchetype'); }
+  opponentArchetypeLabel(match: PlayerMatchView): string { return match.opponentArchetype || this.i18n.t('player.missingArchetype'); }
+
+  matchCardAriaLabel(match: PlayerMatchView): string {
+    return this.i18n.t('player.matchCardAria', { result: this.matchResultLabel(match), opponent: match.opponentName, tournament: match.tournamentName, round: this.matchRoundLabel(match), own: this.ownArchetypeLabel(match), opponent2: match.kind !== 'bye' ? this.opponentArchetypeLabel(match) : '' });
   }
 
   opponentTone(name: string): 'nemesis' | 'rival' | null {
@@ -388,6 +541,7 @@ export class PlayerDetailComponent {
   setOnlineOnly(value: boolean): void {
     this.onlineOnly.set(value);
     writeOnlineOnly(value);
+    if (!value) void this.loadLocalLeagues();
     this.resetMatchPage();
   }
 
@@ -419,16 +573,16 @@ export class PlayerDetailComponent {
   highlightParts(text: string): HighlightPart[] { return highlightSearchText(text, this.matchSearch()); }
   scrollToTop(): void { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
-  openMatchTournament(match: PlayerMatch): void {
+  openMatchTournament(match: PlayerMatchView): void {
     void this.router.navigate(
-      ['/leagues-archive', match.league.id, 'tournaments-archive', match.tournament.id],
+      ['/leagues-archive', match.leagueId, 'tournaments-archive', match.tournamentId],
       { queryParams: { round: match.roundIndex + 1 } },
     );
   }
 
   private resetMatchPage(): void { this.requestedMatchPage.set(1); }
 
-  private matchSearchText(match: PlayerMatch): string {
+  private matchSearchText(match: PlayerMatchView): string {
     return [
       this.matchHeaderLabel(match),
       this.matchDateReadable(match),
@@ -436,8 +590,24 @@ export class PlayerDetailComponent {
       match.opponentName,
       this.matchResultLabel(match),
       this.matchScoreLabel(match),
+      this.ownArchetypeLabel(match),
+      ...(match.kind !== 'bye' ? [this.opponentArchetypeLabel(match)] : []),
     ].join(' ');
   }
+}
+
+/**
+ * The one statistics rule, applied to the browser half too: only a **completed** Archive Tournament
+ * counts.
+ *
+ * The server read model already excludes an active Tournament, and a browser-local Tournament is
+ * created `active` (ADR 0028), so without this the same document would inflate the played Match
+ * count, the winrates, the Nemesis, the Rival and the most played Archetype on this page while being
+ * invisible on the server. Filtering here rather than inside `calculatePlayerStatistics` keeps the
+ * shared domain function — and its C# twin — identical on both sides of the parity fixtures.
+ */
+export function completedTournamentsOnly(leagues: readonly PersistedLeague[]): PersistedLeague[] {
+  return leagues.map((league) => ({ ...league, tournaments: league.tournaments.filter((tournament) => tournament.status === 'completed') }));
 }
 
 export function paginateMatches<T>(matches: readonly T[], page: number, pageSize: number): T[] {
@@ -447,17 +617,134 @@ export function paginateMatches<T>(matches: readonly T[], page: number, pageSize
   return matches.slice(start, start + pageSize);
 }
 
-function orderMatches(matches: PlayerMatch[], newestFirst: boolean): PlayerMatch[] {
+function orderMatches(matches: PlayerMatchView[], newestFirst: boolean): PlayerMatchView[] {
   return [...matches].sort((a, b) => {
     const direction = newestFirst ? -1 : 1;
     return direction * (matchChronologyValue(a) - matchChronologyValue(b));
   });
 }
 
-function matchChronologyValue(match: PlayerMatch): number {
-  const dateTime = Date.parse(match.tournament.tournamentDate || '');
+function matchChronologyValue(match: PlayerMatchView): number {
+  const dateTime = Date.parse(match.tournamentDate || '');
   const safeDateTime = Number.isNaN(dateTime) ? 0 : dateTime;
   return safeDateTime + match.roundIndex;
+}
+
+function toServerMatchView(row: PlayerMatchRow): PlayerMatchView {
+  return {
+    kind: row.kind === 'bye' ? 'bye' : 'match',
+    leagueId: row.leagueId,
+    leagueName: row.leagueName,
+    tournamentId: row.tournamentId,
+    tournamentName: row.tournamentName,
+    tournamentDate: row.tournamentDate ?? '',
+    roundIndex: row.roundIndex,
+    opponentName: row.opponentName,
+    ownScore: row.ownScore,
+    opponentScore: row.opponentScore,
+    ownArchetype: row.ownArchetype ?? '',
+    opponentArchetype: row.opponentArchetype ?? '',
+    isLocal: false,
+  };
+}
+
+function toLocalMatchView(match: PlayerMatch, playerName: string): PlayerMatchView {
+  return {
+    kind: match.kind,
+    leagueId: match.league.id,
+    leagueName: match.league.name,
+    tournamentId: match.tournament.id,
+    tournamentName: match.tournament.name,
+    tournamentDate: match.tournament.tournamentDate ?? '',
+    roundIndex: match.roundIndex,
+    opponentName: match.opponentName,
+    ownScore: match.ownScore,
+    opponentScore: match.opponentScore,
+    ownArchetype: rosterArchetype(match.tournament, playerName),
+    opponentArchetype: match.kind === 'bye' ? '' : rosterArchetype(match.tournament, match.opponentName),
+    isLocal: true,
+  };
+}
+
+function rosterArchetype(tournament: TournamentDocument, playerName: string): string {
+  const name = trimPlayerName(playerName);
+  return tournament.playerArchetypes?.find((row) => trimPlayerName(row.playerName) === name)?.archetype.trim() ?? '';
+}
+
+/** Online-only: the read model's row is the answer, rendered exactly as it arrived. */
+function serverStatsView(row: GlobalPlayerStatisticsRow | null): PlayerStatsView {
+  return {
+    playedMatchCount: row?.playedMatchCount ?? 0,
+    matchWins: row?.matchWins ?? 0,
+    matchLosses: row?.matchLosses ?? 0,
+    matchDraws: row?.matchDraws ?? 0,
+    playedGameCount: row?.playedGameCount ?? 0,
+    gameWins: row?.gameWins ?? 0,
+    gameLosses: row?.gameLosses ?? 0,
+    matchWinrate: row?.matchWinrate ?? null,
+    gameWinrate: row?.gameWinrate ?? null,
+    nemesis: row?.nemesis ?? null,
+    rival: row?.rival ?? null,
+    mostPlayedArchetype: row?.mostPlayedArchetype ?? null,
+  };
+}
+
+/**
+ * Counts add; ratios do not. Nemesis, Rival and the most played Archetype are recomputed from the
+ * merged history — two "top of my half" summaries cannot be combined into the top of the whole.
+ */
+function mergeStats(server: GlobalPlayerStatisticsRow | null, local: PlayerStatistics, matches: readonly PlayerMatchView[]): PlayerStatsView {
+  const playedMatchCount = (server?.playedMatchCount ?? 0) + local.playedMatchCount;
+  const matchWins = (server?.matchWins ?? 0) + local.matchWins;
+  const playedGameCount = (server?.playedGameCount ?? 0) + local.playedGameCount;
+  const gameWins = (server?.gameWins ?? 0) + local.gameWins;
+  return {
+    playedMatchCount,
+    matchWins,
+    matchLosses: (server?.matchLosses ?? 0) + local.matchLosses,
+    matchDraws: (server?.matchDraws ?? 0) + local.matchDraws,
+    playedGameCount,
+    gameWins,
+    gameLosses: (server?.gameLosses ?? 0) + local.gameLosses,
+    matchWinrate: playedMatchCount ? matchWins / playedMatchCount : null,
+    gameWinrate: playedGameCount ? gameWins / playedGameCount : null,
+    ...summarizeMatches(matches),
+  };
+}
+
+interface OpponentTally extends OpponentRecord { matchCount: number; }
+
+/** Mirrors `finalizeStatistics` in `domain/player-stats`: a Bye is history, never a played Match. */
+function summarizeMatches(matches: readonly PlayerMatchView[]): Pick<PlayerStatsView, 'nemesis' | 'rival' | 'mostPlayedArchetype'> {
+  const opponents = new Map<string, OpponentTally>();
+  const archetypes = new Map<string, number>();
+  for (const match of matches) {
+    if (match.kind !== 'match') continue;
+    const tally = opponents.get(match.opponentName) ?? { name: match.opponentName, wins: 0, losses: 0, matchCount: 0 };
+    if (match.ownScore > match.opponentScore) tally.wins += 1;
+    else if (match.ownScore < match.opponentScore) tally.losses += 1;
+    tally.matchCount += 1;
+    opponents.set(match.opponentName, tally);
+    if (match.ownArchetype) archetypes.set(match.ownArchetype, (archetypes.get(match.ownArchetype) ?? 0) + 1);
+  }
+  const byLosses = topTally(opponents, (tally) => tally.losses, true);
+  const byMatches = topTally(opponents, (tally) => tally.matchCount);
+  const topArchetype = [...archetypes.entries()].sort((left, right) => right[1] - left[1] || compareOrdinal(left[0], right[0]))[0];
+  return {
+    nemesis: byLosses && { name: byLosses.name, wins: byLosses.wins, losses: byLosses.losses },
+    rival: byMatches && { name: byMatches.name, wins: byMatches.wins, losses: byMatches.losses },
+    mostPlayedArchetype: topArchetype ? { name: topArchetype[0], matchCount: topArchetype[1] } : null,
+  };
+}
+
+function topTally(opponents: Map<string, OpponentTally>, value: (tally: OpponentTally) => number, requirePositive = false): OpponentTally | null {
+  const records = [...opponents.values()].filter((tally) => !requirePositive || value(tally) > 0);
+  if (!records.length) return null;
+  return records.sort((left, right) => value(right) - value(left) || compareOrdinal(left.name, right.name))[0];
+}
+
+function compareOrdinal(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function matchHistoryContains(value: string, query: string): boolean {

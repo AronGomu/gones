@@ -34,15 +34,10 @@ export async function buildBreadcrumbs(
   const segments = path.split('/').filter(Boolean);
   if (!segments.length) return [{ label: menu }];
   if (segments[0] === 'about') return [{ label: menu, link: ['/'] }, { label: t('crumb.about'), lang: 'fr' }];
-  if (segments[0] === 'calendar') {
-    // Legacy `/calendar/tournaments/:slug` links redirect to `/events/:slug`; this crumb is only
-    // ever seen for the instant before the redirect resolves.
-    if (segments[1] === 'tournaments' && segments[2]) return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar'), link: ['/calendar'] }, { label: t('crumb.tournament') }];
-    return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar') }];
-  }
   if (segments[0] === 'events') {
+    if (segments.length === 1) return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar') }];
     const label = segments[1] === 'new' ? t('crumb.createEvent') : t('crumb.event');
-    return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar'), link: ['/calendar'] }, { label }];
+    return [{ label: menu, link: ['/'] }, { label: t('crumb.calendar'), link: ['/events'] }, { label }];
   }
   if (segments[0] === 'settings') {
     if (segments[1] === 'account') return [{ label: menu, link: ['/'] }, { label: t('crumb.settings'), link: ['/settings'] }, { label: t('crumb.account') }];
@@ -51,7 +46,16 @@ export async function buildBreadcrumbs(
   if (segments[0] === 'registrations') return [{ label: menu, link: ['/'] }, { label: t('registration.myRegistrations') }];
   if (segments[0] === 'event-requests') return [{ label: menu, link: ['/'] }, { label: t('crumb.eventRequest') }];
   if (segments[0] === 'organizer' && segments[1] === 'events') return [{ label: menu, link: ['/'] }, { label: t('crumb.organizerEvents') }];
-  if (segments[0] === 'admin' && segments[1] === 'events' && segments[2] === 'deleted') return [{ label: menu, link: ['/'] }, { label: t('crumb.deletedEvents') }];
+  if (segments[0] === 'admin') {
+    const root = { label: t('admin.title'), link: ['/admin'] };
+    if (!segments[1]) return [{ label: t('admin.title') }];
+    if (segments[1] === 'users') return [root, { label: t('admin.users') }];
+    if (segments[1] === 'organizations') return [root, { label: t('admin.organizations') }];
+    if (segments[1] === 'audit') return [root, { label: t('admin.audit') }];
+    if (segments[1] === 'notifications') return [root, { label: t(segments[2] === 'dead-letters' ? 'admin.notificationDeadLetters' : 'admin.notificationHistory') }];
+    if (segments[1] === 'events' && segments[2] === 'deleted') return [root, { label: t('crumb.deletedEvents') }];
+    return [root];
+  }
   if (['login', 'register', 'verify-email', 'forgot-password', 'reset-password', 'auth'].includes(segments[0])) return [{ label: menu, link: ['/'] }, { label: t('auth.account') }];
   if (segments[0] === 'players') return [{ label: menu, link: ['/'] }, { label: t('crumb.player') }];
   if (segments[0] === 'global-stats') return [{ label: menu, link: ['/'] }, { label: t('crumb.globalStats') }];

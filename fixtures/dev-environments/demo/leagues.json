@@ -9,6 +9,7 @@
         "leagueId": "demo-league-6",
         "name": "Day 1",
         "tournamentDate": "2026-02-05",
+        "status": "completed",
         "rounds": [
           {
             "id": "demo-gl6-day-1-r1",
@@ -186,6 +187,7 @@
         "leagueId": "demo-league-6",
         "name": "Day 2",
         "tournamentDate": "2026-02-12",
+        "status": "completed",
         "rounds": [
           {
             "id": "demo-gl6-day-2-r1",
@@ -363,6 +365,7 @@
         "leagueId": "demo-league-6",
         "name": "Day 3",
         "tournamentDate": "2026-02-19",
+        "status": "completed",
         "rounds": [
           {
             "id": "demo-gl6-day-3-r1",
@@ -554,6 +557,7 @@
         "leagueId": "demo-league-7",
         "name": "Day 1",
         "tournamentDate": "2026-03-05",
+        "status": "completed",
         "rounds": [
           {
             "id": "demo-gl7-day-1-r1",

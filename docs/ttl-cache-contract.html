@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — TTL Cache Contract</title>
+<style>
+  :root{
+    --black:#0b0a0a; --metal:#141312; --panel:#191817; --steel:#2e2b29;
+    --ash:#e6e1dc; --dim:#a29a93; --blood:#8f1d1d; --hot:#c62828; --rust:#c58a2e; --green:#3f7d4a; --blue:#3d6c8f;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--black);color:var(--ash);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--metal);border:1px solid var(--steel);padding:.08em .35em}
+  pre{background:var(--metal);border:1px solid var(--steel);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--steel);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--metal);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--panel);border:1px solid var(--steel);padding:1.1rem}
+  .card--public{border-color:var(--green)}
+  .card--private{border-color:var(--rust)}
+  .card--danger{border-color:var(--hot)}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--steel);color:var(--dim);margin-right:.3rem}
+  .tag--public{border-color:var(--green);color:var(--green)}
+  .tag--private{border-color:var(--rust);color:var(--rust)}
+  .tag--danger{border-color:var(--hot);color:var(--hot)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--metal);border:1px solid var(--steel);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .note{background:var(--metal);border:1px solid var(--steel);border-left:4px solid var(--rust);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust)}
+  .warn{border-left-color:var(--hot)}
+  .warn strong{color:var(--hot)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  svg{display:block;width:100%;height:auto;margin:1.25rem 0}
+  svg text{font-family:system-ui,sans-serif}
+  .n{fill:var(--panel);stroke:var(--steel);stroke-width:2}
+  .n.pub{stroke:var(--green)} .n.priv{stroke:var(--rust)} .n.hot{stroke:var(--hot)}
+  .ln{fill:none;stroke:var(--steel);stroke-width:2}
+  .ar{fill:var(--steel)}
+  .lb{fill:var(--ash);font-size:12px} .nt{fill:var(--dim);font-size:10px}
+  .gr{fill:var(--green);font-size:10px} .ru{fill:var(--rust);font-size:10px} .ho{fill:var(--hot);font-size:10px}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--steel);color:var(--dim);font-size:.85rem}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>TTL Cache Contract</h1>
+  <p class="lede">Site data changes once a day. Every page that reads the server loads once, keeps the
+  copy 24 hours, and shows a Synchronize button. One contract, two stores — chosen by privacy, not by
+  page. Private rows never touch <code>localStorage</code> and never outlive logout.</p>
+</header>
+
+<h2>Why two stores</h2>
+
+<p>The Events page already worked this way (ADR 0023): whole catalog, <code>localStorage</code>, 24h
+TTL, ETag. The ask was to give every data page that same behaviour. Taken literally that puts
+registration lists, settings and admin user lists in <code>localStorage</code> — where they survive
+logout and the next account on the same browser can read them.</p>
+
+<p>The right store already existed. ADR 0031 built a per-user IndexedDB cache with a cross-tab lock
+and a logout purge. Its contract, though, was <strong>fallback-only</strong>: a row was read only
+after the server read had already failed. It could not serve a fresh navigation. ADR 0039 amends
+that.</p>
+
+<svg viewBox="0 0 900 300" role="img" aria-labelledby="ct cd">
+  <title id="ct">Cache routing by data privacy</title>
+  <desc id="cd">A page read is routed by whether its data is public or private. Public data goes to a
+  localStorage catalog cache with a 24 hour TTL. Private data goes to a per-user IndexedDB store with
+  the same TTL, which logout purges entirely. Both paths present the same sync bar to the user.</desc>
+
+  <rect class="n" x="330" y="10" width="240" height="46" rx="9"/>
+  <text class="lb" x="348" y="32">Page needs server data</text>
+  <text class="nt" x="348" y="48">load once on page load</text>
+
+  <path class="ln" d="M400 56 L200 96"/><polygon class="ar" points="200,96 211,92 208,102"/>
+  <path class="ln" d="M500 56 L700 96"/><polygon class="ar" points="700,96 689,102 692,92"/>
+  <text class="gr" x="230" y="80">public?</text>
+  <text class="ru" x="620" y="80">private?</text>
+
+  <rect class="n pub" x="20" y="98" width="360" height="96" rx="9"/>
+  <text class="lb" x="38" y="120">catalog-cache.ts → localStorage</text>
+  <text class="nt" x="38" y="138">readCatalogEntry · writeCatalogEntry · isCatalogFresh</text>
+  <text class="nt" x="38" y="154">CATALOG_TTL_MS = 24h · ETag revalidation</text>
+  <text class="nt" x="38" y="170">whole catalog cached → filter/sort/page in the browser</text>
+  <text class="gr" x="38" y="188">Events · Global Rankings · Leagues Archive</text>
+
+  <rect class="n priv" x="520" y="98" width="360" height="96" rx="9"/>
+  <text class="lb" x="538" y="120">ServerReadCacheService → IndexedDB</text>
+  <text class="nt" x="538" y="138">readCached(resource, load, {ttlMs, force})</text>
+  <text class="nt" x="538" y="154">key &lt;userId&gt;:&lt;resource&gt; · cross-tab lock</text>
+  <text class="nt" x="538" y="170">server-paged → entry keyed by query params</text>
+  <text class="ru" x="538" y="188">Registrations · Settings · admin · Live list · player</text>
+
+  <path class="ln" d="M200 194 L200 226"/><polygon class="ar" points="200,226 195,216 205,216"/>
+  <path class="ln" d="M700 194 L700 226"/><polygon class="ar" points="700,226 695,216 705,216"/>
+
+  <rect class="n" x="20" y="228" width="360" height="40" rx="9"/>
+  <text class="nt" x="38" y="253">survives logout — it was never private</text>
+
+  <rect class="n hot" x="520" y="228" width="360" height="40" rx="9"/>
+  <text class="ho" x="538" y="253">logout → SessionScopeService drops the whole database</text>
+
+  <rect class="n" x="330" y="278" width="240" height="18" rx="6"/>
+  <text class="nt" x="348" y="291">both render the same gones-sync-bar</text>
+</svg>
+
+<h2>What every page shows</h2>
+
+<div class="split">
+  <div class="card">
+    <h3><code>gones-sync-bar</code></h3>
+    <p>One component, a caller-supplied <code>cyPrefix</code> so each page keeps stable test ids.
+    Renders the &quot;last synced&quot; instant, the Synchronize button, and the offline banner.</p>
+    <pre>&lt;gones-sync-bar
+  cyPrefix="admin-users"
+  [syncedAt]="syncedAt()"
+  [loading]="loading()"
+  [stale]="stale()"
+  (sync)="sync()" /&gt;</pre>
+  </div>
+  <div class="card">
+    <h3>The four states</h3>
+    <ul>
+      <li><span class="tag tag--public">fresh</span> under 24h → served from cache, no request</li>
+      <li><span class="tag">expired</span> over 24h → refetch, cache, render</li>
+      <li><span class="tag">forced</span> Synchronize pressed → refetch regardless</li>
+      <li><span class="tag tag--danger">stale</span> request failed, row exists → render it, flag it</li>
+    </ul>
+    <p>No row and a failed request is the only case that throws.</p>
+  </div>
+</div>
+
+<h2>Catalog or per-query</h2>
+
+<p>&quot;Cache like the Events page&quot; has two meanings, because that page caches the
+<strong>whole</strong> catalog from <code>/api/events/all</code> and does its searching locally. That
+is why it feels instant. Server-paged endpoints cannot do that without a new endpoint.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Page</th><th>Shape</th><th>Store</th><th>Cache key</th></tr></thead>
+<tbody>
+<tr><td>Events</td><td>full catalog</td><td>localStorage</td><td><code>gones.events.catalog</code></td></tr>
+<tr><td>Global Rankings</td><td>full catalog <em>(new endpoint)</em></td><td>localStorage</td><td><code>gones.global-stats.catalog</code></td></tr>
+<tr><td>Leagues Archive</td><td>full catalog of <em>summary rows</em></td><td>localStorage</td><td><code>gones.leagues-archive.catalog.v2</code></td></tr>
+<tr><td>Player page</td><td>one player, whole history</td><td>localStorage</td><td><code>gones.player.&lt;name&gt;</code></td></tr>
+<tr><td>My Registrations</td><td>server-paged</td><td>IndexedDB</td><td><code>registrations:&lt;page&gt;</code></td></tr>
+<tr><td>Settings</td><td>catalogs</td><td>IndexedDB</td><td><code>settings-catalogs</code></td></tr>
+<tr><td>Live list</td><td>full list</td><td>IndexedDB</td><td><code>live-tournaments</code></td></tr>
+<tr><td>Admin users / orgs / audit / …</td><td>server-paged</td><td>IndexedDB</td><td><code>adminCacheKey(family, params)</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>A new public catalog endpoint copies <code>/api/events/all</code> exactly: cap 5000 rows
+(config-overridable), a <code>truncated</code> flag in the body, a SHA-256 ETag, and
+<code>Cache-Control: public, max-age=3600</code>. <code>/api/leagues-archive/all</code> caps at 1000
+instead, a cap set when a catalog row was a whole League document of up to 1 MB.</p>
+
+<div class="note">
+  <p><strong>The League entry holds summary rows, not documents (ADR 0042).</strong>
+  <code>/api/leagues-archive/all</code> now answers <code>(id, name, status, updatedAt,
+  documentVersion, tournamentCount, playerCount)</code> — roughly 150 bytes a row — and the whole-document
+  body moved to <code>/api/leagues-archive/all/documents</code>, whose one caller is the Settings
+  export. The cache key went with the shape: <code>gones.leagues-archive.catalog.v2</code>. A v1 entry
+  holds fat documents and must never be read back as a summary array, so the bump makes an upgraded
+  browser <em>miss</em> instead of misread, and <code>clearLeagueCatalogCache()</code> clears both keys
+  so the dead v1 row does not sit in the quota forever.</p>
+</div>
+
+<h2>Staleness is not allowed to lie</h2>
+
+<div class="note warn">
+  <p><strong>Mutation invalidates its own entry.</strong> An admin who grants a role must not then see
+  the old role for up to a day. After a <em>successful</em> write the page calls
+  <code>invalidate(resource)</code> — or <code>invalidateFamily(family)</code> when paging means many
+  entries hold the same data — and refetches at once.</p>
+  <p style="margin-bottom:0">A <em>rejected</em> write leaves the cache untouched. The TTL governs
+  navigation; it never governs correctness.</p>
+</div>
+
+<div class="flow">
+  <div>mutate() → await action() → <em>throws?</em> → cache untouched, error shown, done</div>
+  <div>mutate() → await action() → ok → invalidateFamily('admin-users') → reload({ force: true })</div>
+</div>
+
+<h2>What the amendment does not change</h2>
+
+<div class="split">
+  <div class="card card--private">
+    <h3><span class="tag tag--private">unchanged</span> Privacy</h3>
+    <p>Rows are still keyed <code>&lt;userId&gt;:&lt;resource&gt;</code>. Every write still happens
+    under <code>withAvailableLock</code> with the session scope re-checked afterwards, so a response
+    landing after logout is answered to its caller and written nowhere. The purge registered with
+    <code>SessionScopeService</code> still drops the whole database.</p>
+  </div>
+  <div class="card card--private">
+    <h3><span class="tag tag--private">unchanged</span> Fallback reads</h3>
+    <p><code>read()</code> keeps its ADR 0031 contract for every existing caller: a row is returned
+    only after the server read has failed. <code>readCached()</code> is a second, additive entry
+    point.</p>
+  </div>
+  <div class="card card--danger">
+    <h3><span class="tag tag--danger">unchanged</span> Authority</h3>
+    <p>A cache is never an authority (ADR 0020). Nothing here is merged into a response, and nothing
+    here is ever sent back to the server. <code>indexedDB</code> stays confined to the three files
+    <code>server-authority-boundary.test.ts</code> allows.</p>
+  </div>
+</div>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong>Live Tournament.</strong> Only the <em>list</em> joins this
+  contract. The runner does not, and the role-scoped adapter choice of ADR 0021 is untouched. When
+  <code>LocalLiveBackend</code> is the selected adapter the read is already local IndexedDB, and
+  <code>readCached</code> degrades to a pass-through for anonymous callers — so no branch is needed in
+  the component.</p>
+</div>
+
+<footer>
+  <p>ADR 0039 (this contract) · amends ADR 0031 (offline read cache) · extends ADR 0023 (full catalog)
+  · bounded by ADR 0020 (server authority), ADR 0021 (Live store), ADR 0028 (dual-source archive).</p>
+  <p>Planned by T7–T11 in <code>artifacts/PLAN_2026_08_15_feedback-app-wide-round-5.md</code>.</p>
+</footer>
+
+</div>
+</body>
+</html>

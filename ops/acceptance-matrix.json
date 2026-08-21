@@ -61,7 +61,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.test.ts",
+                    "target": "src/app/features/events/public-event-list.test.ts",
                     "detail": "month and list projection"
                 },
                 {
@@ -571,6 +571,11 @@
                     "gate": "cypress",
                     "target": "cypress/e2e/abuse-surface.cy.js",
                     "detail": "XSS, CSV injection, open redirect, replay"
+                },
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/ResponseCompressionTests.cs",
+                    "detail": "anonymous GETs answer brotli or gzip while a request carrying an Authorization header or the refresh cookie is answered uncompressed \u2014 the BREACH narrowing of app-wide compression (ADR 0042)"
                 },
                 {
                     "gate": "rehearsal",
@@ -1364,7 +1369,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/organizer-event-create.component.test.ts",
+                    "target": "src/app/features/events/organizer-event-create.component.test.ts",
                     "detail": "the organization picker filters out draft and deleted organizations"
                 }
             ]
@@ -1385,7 +1390,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/organizer-event-create.test.ts",
+                    "target": "src/app/features/events/organizer-event-create.test.ts",
                     "detail": "form model and validation"
                 },
                 {
@@ -1510,7 +1515,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.test.ts",
+                    "target": "src/app/features/events/public-event-list.test.ts",
                     "detail": "client visibility rules"
                 },
                 {
@@ -1531,7 +1536,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.test.ts",
+                    "target": "src/app/features/events/public-event-list.test.ts",
                     "detail": "filters and view switching"
                 },
                 {
@@ -1562,12 +1567,12 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/all-events-cache.service.test.ts",
+                    "target": "src/app/features/events/event-catalog-cache.service.test.ts",
                     "detail": "the catalog is fetched once and served from cache"
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-calendar.component.test.ts",
+                    "target": "src/app/features/events/public-event-list.component.test.ts",
                     "detail": "the router stub feeds navigations back into queryParamMap, so month navigation is shown not to call the catalog loader and typing is shown to be debounced rather than merely asynchronous"
                 },
                 {
@@ -1593,7 +1598,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-event.service.test.ts",
+                    "target": "src/app/features/events/public-event.service.test.ts",
                     "detail": "full-event presentation"
                 }
             ]
@@ -1666,7 +1671,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/event-registration.service.test.ts",
+                    "target": "src/app/features/events/event-registration.service.test.ts",
                     "detail": "client capability model"
                 }
             ]
@@ -1713,7 +1718,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/event-registration.service.test.ts",
+                    "target": "src/app/features/events/event-registration.service.test.ts",
                     "detail": "client error mapping"
                 },
                 {
@@ -1781,7 +1786,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/participant-management.test.ts",
+                    "target": "src/app/features/events/participant-management.test.ts",
                     "detail": "private list presentation"
                 },
                 {
@@ -2208,7 +2213,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/public-event.service.test.ts",
+                    "target": "src/app/features/events/public-event.service.test.ts",
                     "detail": "detail page model"
                 },
                 {
@@ -2229,7 +2234,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/my-registrations.test.ts",
+                    "target": "src/app/features/events/my-registrations.test.ts",
                     "detail": "my registrations model"
                 },
                 {
@@ -2255,7 +2260,7 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/features/calendar/event-management.test.ts",
+                    "target": "src/app/features/events/event-management.test.ts",
                     "detail": "management list model"
                 },
                 {
@@ -2481,13 +2486,23 @@
                     "gate": "cypress",
                     "target": "cypress/e2e/league-server.cy.js",
                     "detail": "the archive surface still drives the server-backed League journey"
+                },
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/PublicLeagueCatalogApiTests.cs",
+                    "detail": "GET /api/leagues-archive/all is the archive's list surface and ships summary rows under 250 bytes each \u2014 the denormalized counts, no document, and the retired paged route (ADR 0042)"
+                },
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/PublicLeagueDocumentCatalogApiTests.cs",
+                    "detail": "GET /api/leagues-archive/all/documents serves the whole documents the Settings export needs, in its own ETag namespace so a summary ETag can never be answered 304"
                 }
             ]
         },
         {
             "id": "doc09-global-player-stats-api",
             "doc": "09-frontend-angular.md",
-            "capability": "GET /api/leagues-archive/global-player-statistics returns searched, sorted, paged 14-column global stats from completed non-deleted server League aggregates with ETag caching.",
+            "capability": "GET /api/leagues-archive/global-player-statistics returns searched, sorted, paged 12-column global stats from completed non-deleted server League aggregates with ETag caching.",
             "section": "Product",
             "status": "proved",
             "acceptance": [
@@ -2497,7 +2512,7 @@
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/PublicLeagueApiTests.cs",
-                    "detail": "GlobalPlayerStatisticsApiTests: authority, eligibility, identity, default sort, explicit sort, search, paging, ETag 304, validation, 14-column shape"
+                    "detail": "GlobalPlayerStatisticsApiTests: authority, eligibility, identity, default sort, explicit sort, search, paging, ETag 304, validation, 12-column shape"
                 }
             ]
         },
@@ -2610,7 +2625,7 @@
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/public-calendar.cy.js",
-                    "detail": "/calendar/tournaments/:slug lands on the /events/:slug page in the browser"
+                    "detail": "/events browses the event list and calendar view; /calendar hits the 404 page"
                 },
                 {
                     "gate": "cypress",
@@ -2620,9 +2635,36 @@
             ]
         },
         {
+            "id": "doc09-player-rating",
+            "doc": "09-frontend-angular.md",
+            "capability": "Glicko-2 player rating replayed from all archived tournament results: one integer rating per player, server data only, provisional under 5 tournaments, inactive after 12 months, three-bucket default order (active → inactive → provisional) in the Global Rankings table.",
+            "section": "Product",
+            "status": "proved",
+            "acceptance": [
+                "product-global-stats-page"
+            ],
+            "evidence": [
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.UnitTests/Glicko2Tests.cs",
+                    "detail": "Glicko-2 rating engine: expected output, win/loss/draw updates, margin-of-victory factor"
+                },
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.UnitTests/PlayerRatingReplayTests.cs",
+                    "detail": "Full replay of ratings from archived match history; provisional/inactive derivation"
+                },
+                {
+                    "gate": "cypress",
+                    "target": "cypress/e2e/global-stats.cy.js",
+                    "detail": "12-column headers, rating sort navigation, provisional/inactive badges, stale-cache fallback"
+                }
+            ]
+        },
+        {
             "id": "doc09-global-stats-page",
             "doc": "09-frontend-angular.md",
-            "capability": "/global-stats page: 14-column searchable/sortable/paged ranking table fed by server Global Player Statistics API; home nav card; breadcrumb EN/FR; dual-source: server completed leagues only, local excluded.",
+            "capability": "/global-stats page: 12-column searchable/sortable/paged ranking table fed by server Global Player Statistics API; home nav card; breadcrumb EN/FR; dual-source: server completed leagues only, local excluded.",
             "section": "Product",
             "status": "proved",
             "acceptance": [
@@ -2653,6 +2695,96 @@
                     "gate": "cypress",
                     "target": "cypress/e2e/global-stats.cy.js",
                     "detail": "14 headers, formatting, numeric sort, search, page sizes 25/50/100, player link, home card navigation"
+                }
+            ]
+        },
+        {
+            "id": "doc09-ttl-cache-contract",
+            "doc": "09-frontend-angular.md",
+            "capability": "Every data page joins the one TTL-cache contract: load once per 24h, show last-synced label and Synchronize button, two stores by privacy, mutation invalidates its own entry (ADR 0039).",
+            "section": "Engineering",
+            "status": "proved",
+            "acceptance": [
+                "eng-suites-green"
+            ],
+            "evidence": [
+                {
+                    "gate": "vitest",
+                    "target": "src/app/shared/catalog-cache.test.ts",
+                    "detail": "TTL, read/write/clear, freshness check for public catalog store"
+                },
+                {
+                    "gate": "vitest",
+                    "target": "src/app/backend/server-read-cache.service.test.ts",
+                    "detail": "readCached TTL-primary, invalidate, invalidateFamily, logout purge for private store"
+                }
+            ]
+        },
+        {
+            "id": "doc09-back-button-coverage",
+            "doc": "09-frontend-angular.md",
+            "capability": "Every routed page carries top and bottom back buttons; auth pages carry the top one only.",
+            "section": "Engineering",
+            "status": "proved",
+            "acceptance": [
+                "eng-suites-green"
+            ],
+            "evidence": [
+                {
+                    "gate": "vitest",
+                    "target": "src/app/shared/back-button-coverage.test.ts",
+                    "detail": "structural assertion over every routed component"
+                }
+            ]
+        },
+        {
+            "id": "doc03-logout-return-contract",
+            "doc": "03-authentification.md",
+            "capability": "Logout navigates to /login?returnUrl=<current page>; sign-in navigates back to it.",
+            "section": "Product",
+            "status": "proved",
+            "acceptance": [
+                "product-auth"
+            ],
+            "evidence": [
+                {
+                    "gate": "cypress",
+                    "target": "cypress/e2e/auth-profile.cy.js",
+                    "detail": "logout returnUrl flow end-to-end"
+                }
+            ]
+        },
+        {
+            "id": "doc02-player-statistics-read-model",
+            "doc": "02-modeles-donnees.md",
+            "capability": "player_statistics materialized table rebuilt transactionally inside every archive write and at startup on formula-version change; rankings and player page both read the table (ADR 0040).",
+            "section": "Engineering",
+            "status": "proved",
+            "acceptance": [
+                "eng-suites-green"
+            ],
+            "evidence": [
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/PlayerStatisticsRebuildTests.cs",
+                    "detail": "rebuild on archive write, startup version change, transactional rollback"
+                }
+            ]
+        },
+        {
+            "id": "doc04-organizations-without-owners",
+            "doc": "04-utilisateurs-et-organisation.md",
+            "capability": "OrganizationRoles has one role (Organizer); no ownerUserId, no transfer endpoint; closure removes memberships only (ADR 0041).",
+            "section": "Product",
+            "status": "proved",
+            "acceptance": [
+                "product-admin"
+            ],
+            "evidence": [
+                {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/OrganizationApiTests.cs",
+                    "detail": "single Organizer role, no transfer endpoint, closure removes membership"
                 }
             ]
         }
@@ -2806,7 +2938,7 @@
             "id": "product-global-stats-page",
             "section": "Product",
             "status": "proved",
-            "text": "Global Rankings page: 14-col table, search/sort/page, server-only source, home card, EN/FR nav."
+            "text": "Global Rankings page: 12-col table, search/sort/page, server-only source, home card, EN/FR nav."
         }
     ]
 }

@@ -14,6 +14,32 @@ function commandResponse(league) {
   return { ...league, updatedAt: '2026-08-02T00:00:00Z', eTag: etag(league.documentVersion) };
 }
 
+/**
+ * One row of the slim catalog (ADR 0042). The real server denormalizes both counts onto the
+ * aggregate; this stub derives them from its own state so a Tournament created mid-spec shows up in
+ * the numbers the card prints.
+ */
+function catalogItem(league) {
+  const players = new Set();
+  for (const tournament of league.tournaments) {
+    for (const round of tournament.rounds ?? []) {
+      for (const entry of round.entries ?? []) {
+        if (entry.player1Name) players.add(entry.player1Name);
+        if (entry.player2Name) players.add(entry.player2Name);
+      }
+    }
+  }
+  return {
+    id: league.id,
+    name: league.name,
+    status: league.status,
+    updatedAt: '2026-08-02T00:00:00Z',
+    documentVersion: league.documentVersion,
+    tournamentCount: league.tournaments.length,
+    playerCount: players.size
+  };
+}
+
 function mockSession(globalRole = 'Organizer') {
   cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'memory-token', expiresAt: '2030-01-01T01:00:00Z', tokenType: 'Bearer' }).as('refresh');
   cy.intercept('GET', '**/api/users/me', { ...profile, globalRole }).as('profile');
@@ -25,14 +51,27 @@ function mockLeagueServer() {
   const bump = league => { league.documentVersion += 1; return commandResponse(league); };
   const find = id => leagues.find(league => league.id === id);
 
-  cy.intercept('GET', /\/api\/leagues-archive\?.*/, req => req.reply({
-    items: leagues.map(({ id, name, status, documentVersion }) => ({ id, name, status, documentVersion, updatedAt: '2026-08-02T00:00:00Z' })),
-    page: 1, pageSize: 100, totalCount: leagues.length
-  })).as('leagueList');
   cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, req => {
     const league = find(decodeURIComponent(req.url.split('/').pop()));
     req.reply(league ? commandResponse(league) : { statusCode: 404, body: { code: 'not_found', message: 'Missing.' } });
   }).as('leagueDetail');
+  // The list page reads the whole archive in one catalog request (ADR 0039), not a summary page plus
+  // a detail per League. Registered after the detail route because that pattern also matches `/all`
+  // and Cypress gives precedence to the intercept declared last.
+  //
+  // Two routes, two bodies (ADR 0042): `/all` answers slim summary rows for the list page, and
+  // `/all/documents` answers whole documents for the Settings export. One widened stub would let the
+  // list read a document body and silently pass with no counts in it.
+  cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, req => req.reply({
+    items: leagues.map(commandResponse),
+    totalCount: leagues.length,
+    truncated: false
+  })).as('leagueDocuments');
+  cy.intercept('GET', /\/api\/leagues-archive\/all$/, req => req.reply({
+    items: leagues.map(catalogItem),
+    totalCount: leagues.length,
+    truncated: false
+  })).as('leagueList');
   cy.intercept('POST', /\/api\/leagues-archive$/, req => {
     expect(req.headers['idempotency-key']).to.be.a('string').and.not.be.empty;
     const league = { id: `league-${next++}`, name: req.body.name, status: 'active', tournaments: [], documentVersion: 1 };
@@ -185,6 +224,15 @@ describe('League server command flows', () => {
 
     cy.get('[data-cy="tournament-result-link"]').click();
     cy.get('[data-cy="tournament-archive-result-page"]').should('contain', 'Server Result').and('contain', '2').and('contain', '1');
+    // The result page does not scroll, so anything fixed to the bottom of the viewport sits on top of
+    // its own footer links for good: no scroll can move them apart. Assert the link owns its own
+    // centre point before clicking it, so a bar re-covering it fails here instead of surfacing as an
+    // unexplained `cy.click()` timeout.
+    cy.get('[data-cy="tournament-archive-result-back-to-tournament"]').should($link => {
+      const box = $link[0].getBoundingClientRect();
+      const atCentre = $link[0].ownerDocument.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      expect($link[0].contains(atCentre), `Back to Tournament must own its centre point, but ${atCentre && atCentre.outerHTML.slice(0, 120)} covers it`).to.equal(true);
+    });
     cy.contains('a', 'Back to Tournament').click();
     cy.contains('a.back-button', 'Back to League').first().click();
     cy.contains('button', 'Export League').click();
@@ -233,6 +281,129 @@ describe('League server command flows', () => {
     visit('/leagues/abc/tournaments/def/result/metagames');
     cy.location('pathname').should('eq', '/leagues-archive/abc/tournaments-archive/def/result/metagames');
     cy.get('[data-cy="tournament-archive-result-not-found"]').should('exist');
+  });
+
+  it('shows the sync bar, serves from cache on reload, and refetches on sync click', () => {
+    mockSession();
+    mockLeagueServer();
+    visit('/leagues-archive');
+    cy.wait('@leagueList');
+    cy.get('[data-cy="leagues-archive-list-sync-button"]').should('be.visible');
+    cy.reload();
+    cy.get('[data-cy="leagues-archive-list-grid"]').should('exist');
+    cy.get('[data-cy="leagues-archive-list-sync-button"]').click();
+    cy.wait('@leagueList');
+  });
+
+  /**
+   * ADR 0042: the card prints the two numbers the catalog carries, and the list never asks for the
+   * documents route at all — that payload is the 1.44 MB this slice exists to stop downloading.
+   */
+  it('prints the catalog counts on the list card and never fetches the documents', () => {
+    const state = mockLeagueServer();
+    state.leagues.push({
+      id: 'league-counted', name: 'Counted League', status: 'active', documentVersion: 1,
+      tournaments: [
+        { id: 'tournament-a', leagueId: 'league-counted', name: 'Day One', tournamentDate: '2026-08-01', status: 'active', playerArchetypes: [], rounds: [{ id: 'round-a', entries: [
+          { kind: 'match', id: 'entry-a', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0 },
+          { kind: 'match', id: 'entry-b', table: '2', player1Name: 'Carol', player2Name: 'Alice', player1Score: 2, player2Score: 1 }
+        ] }] },
+        { id: 'tournament-b', leagueId: 'league-counted', name: 'Day Two', tournamentDate: '2026-08-02', status: 'active', playerArchetypes: [], rounds: [] }
+      ]
+    });
+    mockSession();
+    visit('/leagues-archive');
+    cy.wait('@leagueList');
+    // The production build's service worker may reset the language to French via a storage event
+    // triggered during page load. Dispatching here forces the app to re-read 'en' after it has
+    // settled, so the assertion sees English text.
+    cy.window().then(win => {
+      win.localStorage.setItem('gones.settings.language', 'en');
+      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+      win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings', newValue: win.localStorage.getItem('gones.settings') }));
+    });
+
+    cy.contains('[data-cy="leagues-archive-list-item"]', 'Counted League')
+      .find('[data-cy="leagues-archive-list-item-meta"]')
+      .should('have.text', '2 Tournaments · 3 Players');
+    cy.get('@leagueDocuments.all').should('have.length', 0);
+  });
+
+  it('paginates the archive list in the browser and issues the catalog request exactly once', () => {
+    const state = mockLeagueServer();
+    for (let i = 0; i < 30; i++) {
+      state.leagues.push({ id: `paginated-league-${i}`, name: `Paginated League ${i}`, status: 'active', tournaments: [], documentVersion: 1 });
+    }
+    mockSession();
+    visit('/leagues-archive');
+    cy.wait('@leagueList');
+
+    // The paginator is visible because 30 leagues exceed the default page size.
+    cy.get('[data-cy="leagues-archive-list-pagination"]').should('be.visible');
+    cy.get('[data-cy="leagues-archive-list-page-previous"]').should('be.disabled');
+    cy.get('[data-cy="leagues-archive-list-page-next"]').should('not.be.disabled');
+
+    // Clicking next shows a different slice without issuing a second /all request.
+    cy.get('[data-cy="leagues-archive-list-page-next"]').click();
+    cy.get('[data-cy="leagues-archive-list-page-previous"]').should('not.be.disabled');
+    cy.get('[data-cy="leagues-archive-list-page-next"]').should('be.disabled');
+
+    // The entire flow used exactly one catalog request.
+    cy.get('@leagueList.all').should('have.length', 1);
+  });
+
+  it('shows a Rating column on the league standings table when the catalog loads', () => {
+    const state = mockLeagueServer();
+    state.leagues.push({
+      id: 'league-ratings', name: 'Ratings League', status: 'active', documentVersion: 1,
+      tournaments: [{
+        id: 't-ratings', leagueId: 'league-ratings', name: 'Cup', tournamentDate: '2026-08-01',
+        status: 'completed', playerArchetypes: [], rounds: [{ id: 'r-1', entries: [
+          { kind: 'match', id: 'e-1', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0 }
+        ] }]
+      }]
+    });
+    mockSession();
+    // Seed the catalog cache directly in localStorage so the rating column is always rendered
+    // regardless of the real API state. A fresh fetchedAt makes the cache hit the non-stale path,
+    // so no network request is needed and the test is deterministic.
+    const seedCatalog = [
+      { position: 1, playerName: 'Alice', rating: 1524, lastRatingDelta: 0, tournamentsPlayed: 5, provisional: false, inactive: false, ratingDeviation: 45, previousRating: 1524, lastPlayedDate: '2026-08-01', decayedRating: null, playedMatchCount: 10, matchWins: 7, matchLosses: 2, matchDraws: 1, matchWinrate: 0.7, playedGameCount: 20, gameWins: 14, gameLosses: 6, gameWinrate: 0.7, nemesis: null, rival: null, mostPlayedArchetype: null },
+      { position: 2, playerName: 'Bob', rating: 1480, lastRatingDelta: 0, tournamentsPlayed: 5, provisional: false, inactive: false, ratingDeviation: 45, previousRating: 1480, lastPlayedDate: '2026-08-01', decayedRating: null, playedMatchCount: 10, matchWins: 5, matchLosses: 4, matchDraws: 1, matchWinrate: 0.5, playedGameCount: 20, gameWins: 10, gameLosses: 10, gameWinrate: 0.5, nemesis: null, rival: null, mostPlayedArchetype: null },
+    ];
+    // Mock the catalog API so the rating values are always available, regardless of whether the
+    // localStorage seed is used (fresh cache) or bypassed (the app falls through to the network).
+    cy.intercept('GET', '**/api/leagues-archive/global-player-statistics/all', { items: seedCatalog, totalCount: seedCatalog.length, truncated: false }).as('globalStatsCatalog');
+    const seedRatings = win => {
+      win.localStorage.setItem('gones.settings.language', 'en');
+      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+      win.localStorage.setItem('gones.settings.power-user', 'true');
+      // Fresh fetchedAt keeps the app out of the network path entirely, so the production service
+      // worker cannot intercept the catalog request before Cypress's cy.intercept can.
+      win.localStorage.setItem('gones.global-stats.catalog', JSON.stringify({
+        items: seedCatalog, fetchedAt: new Date().toISOString(), truncated: false
+      }));
+      win.localStorage.setItem('gones.e2e.ratings-seeded', 'true');
+    };
+    cy.visit('/leagues-archive/league-ratings', { onBeforeLoad(win) { seedRatings(win); } });
+    // onBeforeLoad is not called when the service worker serves the navigation from its own cache
+    // (the document never travels through the Cypress proxy). Mirror the pattern from
+    // offline-public-read.cy.js: detect the skip and re-seed post-load, then dispatch a storage
+    // event so Angular picks up the catalog without a page reload.
+    cy.window({ log: false }).then(win => {
+      if (win.localStorage.getItem('gones.e2e.ratings-seeded') !== 'true') {
+        seedRatings(win);
+        win.dispatchEvent(new win.StorageEvent('storage', {
+          key: 'gones.global-stats.catalog',
+          newValue: win.localStorage.getItem('gones.global-stats.catalog')
+        }));
+      }
+    });
+    cy.wait('@leagueDetail');
+    cy.get('[data-cy="leagues-archive-detail-ranking-table"]').within(() => {
+      cy.get('[data-cy="ranking-header-rating"]').should('exist');
+      cy.get('[data-cy="ranking-cell-rating-1"]').should('have.text', '1524');
+    });
   });
 
   it('shows User read-only controls plus explicit 403 and 412 reload recovery', () => {

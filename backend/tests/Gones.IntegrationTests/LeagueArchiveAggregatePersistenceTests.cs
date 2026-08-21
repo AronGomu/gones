@@ -90,6 +90,89 @@ public sealed class LeagueArchiveAggregatePersistenceTests : IAsyncLifetime
             "large", "Large", "active", $"{{\"id\":\"large\",\"name\":\"Large\",\"status\":\"active\",\"tournaments\":[],\"padding\":\"{new string('x', LeagueArchiveAggregate.MaximumDocumentBytes)}\"}}", SystemClock.Instance.GetCurrentInstant()));
     }
 
+    /// <summary>
+    /// First line of defence: Postgres itself refuses the contradiction. <c>Create</c> and <c>Apply</c>
+    /// stamp <c>name</c>, <c>status</c> and <c>canonical_document</c> together, so no sequence of domain
+    /// calls can produce a mismatched row; a raw <c>UPDATE</c> — a migration rewriting the column, a hand
+    /// repair — is the only writer that could, and the check constraint stops it there.
+    /// </summary>
+    [Fact]
+    public async Task Refuses_to_store_an_envelope_that_contradicts_its_document()
+    {
+        await using var database = CreateContext();
+        await database.Database.MigrateAsync();
+        await SeedAsync(database, "constraint-contradicted");
+
+        var rejected = await Assert.ThrowsAsync<PostgresException>(() => RenameEnvelopeAsync(database, "constraint-contradicted"));
+
+        Assert.Equal(PostgresErrorCodes.CheckViolation, rejected.SqlState);
+        Assert.Equal(DocumentMetadataConstraint, rejected.ConstraintName);
+    }
+
+    /// <summary>
+    /// Second line of defence: the domain guard on a read. <c>ReadDocument</c> stopped routing through
+    /// <c>Create</c> when the catalog counts moved out of it (ADR 0042), and this is what says the
+    /// envelope validation did not leave with them.
+    ///
+    /// <para>The check constraint above makes a contradicting row unwritable, so the constraint is
+    /// dropped for the length of this test and put back afterwards. That is not a contrived state: a row
+    /// written before a constraint existed, or restored from a dump that did not carry it, reaches
+    /// <c>ReadDocument</c> exactly like this one — which is the whole reason the domain keeps its own
+    /// check rather than trusting the schema.</para>
+    /// </summary>
+    [Fact]
+    public async Task Read_refuses_a_row_whose_envelope_contradicts_its_document()
+    {
+        await using var database = CreateContext();
+        await database.Database.MigrateAsync();
+        await SeedAsync(database, "read-contradicted");
+
+        await database.Database.ExecuteSqlRawAsync(
+            $"ALTER TABLE league_archive_aggregates DROP CONSTRAINT {DocumentMetadataConstraint}");
+        try
+        {
+            // Out of band: the envelope column moves, the document inside the jsonb does not.
+            await RenameEnvelopeAsync(database, "read-contradicted");
+            database.ChangeTracker.Clear();
+
+            var contradicted = await database.LeagueArchiveAggregates
+                .SingleAsync(item => item.DocumentId == "read-contradicted");
+            Assert.Equal(RenamedEnvelope, contradicted.Name);
+            Assert.Contains("Roundtrip League", contradicted.CanonicalDocument, StringComparison.Ordinal);
+
+            var refused = Assert.Throws<ArgumentException>(contradicted.ReadDocument);
+            Assert.Contains("League document metadata does not match its envelope.", refused.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            await database.Database.ExecuteSqlRawAsync(
+                "DELETE FROM league_archive_aggregates WHERE document_id = 'read-contradicted'");
+            await database.Database.ExecuteSqlRawAsync(
+                $"ALTER TABLE league_archive_aggregates ADD CONSTRAINT {DocumentMetadataConstraint} CHECK ({DocumentMetadataCheck})");
+        }
+    }
+
+    private const string DocumentMetadataConstraint = "ck_league_aggregate_document_metadata";
+
+    private const string DocumentMetadataCheck =
+        "canonical_document ->> 'id' = document_id AND canonical_document ->> 'name' = name AND canonical_document ->> 'status' = status";
+
+    private const string RenamedEnvelope = "Renamed Behind Its Own Back";
+
+    private static async Task SeedAsync(GonesDbContext database, string documentId)
+    {
+        database.LeagueArchiveAggregates.Add(
+            LeagueArchiveAggregate.Create(FixtureLeague(documentId), Instant.FromUtc(2026, 8, 3, 10, 0)));
+        await database.SaveChangesAsync();
+        database.ChangeTracker.Clear();
+    }
+
+    private static Task RenameEnvelopeAsync(GonesDbContext database, string documentId) =>
+        database.Database.ExecuteSqlRawAsync(
+            "UPDATE league_archive_aggregates SET name = {0} WHERE document_id = {1}",
+            RenamedEnvelope,
+            documentId);
+
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>()
         .ConfigureGones(postgres.GetConnectionString()).Options);
 
@@ -97,7 +180,7 @@ public sealed class LeagueArchiveAggregatePersistenceTests : IAsyncLifetime
         id,
         "Roundtrip League",
         "active",
-        [new TournamentDocument("tournament-1", id, "Result Tournament", "2026-08-03",
+        [new TournamentDocument("tournament-1", id, "Result Tournament", "2026-08-03", "completed",
             [new RoundDocument("round-1", [new MatchRoundEntry("entry-1", "1", "Alice", "Bob", 2, 1, "Tempo", "Control")])],
             [new PlayerArchetypeDocument("Alice", "Tempo"), new PlayerArchetypeDocument("Bob", "Control")])]);
 
