@@ -617,6 +617,15 @@ Network tab; 24 h is the TTL these steps prove is no longer allowed to hide a se
 - [ ] Sort by **Game Win Rate** ascending, then descending: a player whose only matches are 0–0 draws (no winrate, shown `N/A`) is listed **last** in both directions, never first.
 - [ ] Sort by any column and find two rows with the same value: their names read A→Z in both the ascending and the descending view.
 
+---
+
+# Round 6 — app-wide feedback (T1–T21)
+
+Ticket numbers restart per round, so the `## T…` headings below are round 6's and are unrelated to
+the identically numbered sections above. Round 6 shipped the header and breadcrumb fixes, the Home /
+Global Rankings / Events copy and layout changes, the slim League Archive catalog, response
+compression, and the Glicko-2 player rating.
+
 ## T1 header-actions-right-aligned
 
 - [ ] Set browser width to 700px (e.g. DevTools responsive mode) and visit `/`: the **Sign in** button hugs the right edge of the header toolbar.
