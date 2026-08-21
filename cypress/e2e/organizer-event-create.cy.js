@@ -292,7 +292,7 @@ describe('Organizer Event create, preview, publish', () => {
     cy.location('pathname').should('eq', '/events/new');
     cy.wait(['@myOrganizations', '@formats']);
     cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Create Event');
-    cy.get('[data-cy="app-breadcrumb-link-1"]').should('have.text', 'Calendar').and('have.attr', 'href', '/events');
+    cy.get('[data-cy="app-breadcrumb-link-1"]').should('have.text', 'Events').and('have.attr', 'href', '/events');
 
     visit('/events/new', 'fr');
     cy.get('[data-cy="breadcrumb-current"]').should('have.text', 'Créer un événement');

@@ -81,20 +81,20 @@ describe('event breadcrumbs', () => {
   const labels = async (path: string, t?: Translator) => (await buildBreadcrumbs(path, t)).map((item) => item.label);
 
   it('labels the create page "Create Event" in both catalogs', async () => {
-    expect(await labels('/events/new', en)).toEqual(['Menu', 'Calendar', 'Create Event']);
-    expect(await labels('/events/new')).toEqual(['Menu', 'Calendrier', 'Créer un événement']);
+    expect(await labels('/events/new', en)).toEqual(['Menu', 'Events', 'Create Event']);
+    expect(await labels('/events/new')).toEqual(['Menu', 'Événements', 'Créer un événement']);
   });
 
   it('links the Calendar crumb back to /events from an Event page', async () => {
     const crumbs = await buildBreadcrumbs('/events/gones-night', en);
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Calendar', 'Event']);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Events', 'Event']);
     expect(crumbs[1].link).toEqual(['/events']);
     expect(crumbs[2].link).toBeUndefined();
   });
 
   it('builds the events crumb', async () => {
     const crumbs = await buildBreadcrumbs('/events');
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Calendrier']);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Événements']);
     expect(crumbs[0].link).toEqual(['/']);
   });
 
