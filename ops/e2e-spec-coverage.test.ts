@@ -25,10 +25,12 @@ function specsOnDisk(): string[] {
 
 function specsRunByGate(): string[] {
   const source = readFileSync(gateScript, 'utf8');
-  const pattern = /runCypress\(\s*'(cypress\/e2e\/[^']+\.cy\.js)'\s*\)/g;
+  const list = /const specs = \[([\s\S]*?)\];/.exec(source);
+  if (!list) throw new Error('scripts/full-stack-ci.mjs no longer declares a `specs` array — this scan would read as empty');
+  const pattern = /'(cypress\/e2e\/[^']+\.cy\.js)'/g;
   const found = new Set<string>();
   let match: RegExpExecArray | null;
-  while ((match = pattern.exec(source)) !== null) found.add(match[1]);
+  while ((match = pattern.exec(list[1])) !== null) found.add(match[1]);
   return [...found].sort();
 }
 

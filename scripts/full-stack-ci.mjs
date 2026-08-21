@@ -46,6 +46,52 @@ function runCypress(spec) {
     : spawnSync(process.execPath, [join('node_modules', 'cypress', 'bin', 'cypress'), ...args], { stdio: 'inherit', env });
 }
 
+// Ordered on purpose. `first-visit.cy.js` runs before every other spec: it is the only one that
+// asserts on a browser that has never visited the app. Each spec keeps its own cypress invocation,
+// which is what keeps `testIsolation` honest. `ops/e2e-spec-coverage.test.ts` keeps this list level
+// with `cypress/e2e/`.
+const specs = [
+  'cypress/e2e/first-visit.cy.js',
+  'cypress/e2e/power-user-gating.cy.js',
+  'cypress/e2e/archive-staged-edit.cy.js',
+  'cypress/e2e/server-data-authority.cy.js',
+  'cypress/e2e/public-calendar.cy.js',
+  'cypress/e2e/event-registration.cy.js',
+  'cypress/e2e/offline-public-read.cy.js',
+  'cypress/e2e/auth-profile.cy.js',
+  'cypress/e2e/auth-session-persistence.cy.js',
+  'cypress/e2e/auth-route-guards.cy.js',
+  'cypress/e2e/league-server.cy.js',
+  'cypress/e2e/league-local.cy.js',
+  'cypress/e2e/settings-server.cy.js',
+  'cypress/e2e/settings-local.cy.js',
+  'cypress/e2e/live-server.cy.js',
+  'cypress/e2e/live-local.cy.js',
+  'cypress/e2e/admin-orgs.cy.js',
+  'cypress/e2e/admin-notification-delivery.cy.js',
+  'cypress/e2e/organizer-event-create.cy.js',
+  'cypress/e2e/organizer-event-management.cy.js',
+  'cypress/e2e/organizer-participants.cy.js',
+  'cypress/e2e/abuse-surface.cy.js',
+  'cypress/e2e/event-proposal.cy.js',
+  'cypress/e2e/accessibility.cy.js',
+  'cypress/e2e/global-stats.cy.js',
+  'cypress/e2e/player-stat-layout.cy.js',
+  'cypress/e2e/header-layout.cy.js'
+];
+
+const specResults = [];
+
+// Printed after the stack comes down, so the whole picture is the last thing in the log instead of
+// something the reader has to scroll back through 27 cypress runs to reconstruct.
+function printSpecSummary() {
+  if (!specResults.length) return;
+  const failed = specResults.filter(result => !result.ok);
+  console.log(`\n=== e2e specs: ${specResults.length - failed.length}/${specResults.length} passed ===`);
+  for (const result of specResults) console.log(`${result.ok ? 'PASS' : 'FAIL'}  ${result.spec}`);
+  if (failed.length) console.log(`failing specs: ${failed.map(result => result.spec).join(' ')}`);
+}
+
 try {
   run(['--profile', 'release', 'up', '--build', '-d', '--wait']);
   const smoke = spawnSync(process.execPath, ['scripts/smoke-full-stack.mjs', '--release'], { stdio: 'inherit' });
@@ -59,115 +105,14 @@ try {
       }
     }
   }
-  // Runs before every other spec: it is the only one that asserts on a browser that has never
-  // visited the app, and `ops/e2e-spec-coverage.test.ts` keeps this list level with `cypress/e2e/`.
+  // Not fail-fast: a failing spec must not hide the specs behind it. Failures accumulate into
+  // `process.exitCode`, so the gate is still red at the end.
   if (!process.exitCode) {
-    const firstVisit = runCypress('cypress/e2e/first-visit.cy.js');
-    if (firstVisit.status !== 0) process.exitCode = firstVisit.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const powerUserGating = runCypress('cypress/e2e/power-user-gating.cy.js');
-    if (powerUserGating.status !== 0) process.exitCode = powerUserGating.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const archiveStagedEdit = runCypress('cypress/e2e/archive-staged-edit.cy.js');
-    if (archiveStagedEdit.status !== 0) process.exitCode = archiveStagedEdit.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const serverAuthority = runCypress('cypress/e2e/server-data-authority.cy.js');
-    if (serverAuthority.status !== 0) process.exitCode = serverAuthority.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const calendarBrowser = runCypress('cypress/e2e/public-calendar.cy.js');
-    if (calendarBrowser.status !== 0) process.exitCode = calendarBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const registrationBrowser = runCypress('cypress/e2e/event-registration.cy.js');
-    if (registrationBrowser.status !== 0) process.exitCode = registrationBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const offlineBrowser = runCypress('cypress/e2e/offline-public-read.cy.js');
-    if (offlineBrowser.status !== 0) process.exitCode = offlineBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const browser = runCypress('cypress/e2e/auth-profile.cy.js');
-    if (browser.status !== 0) process.exitCode = browser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const sessionBrowser = runCypress('cypress/e2e/auth-session-persistence.cy.js');
-    if (sessionBrowser.status !== 0) process.exitCode = sessionBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const routeGuardBrowser = runCypress('cypress/e2e/auth-route-guards.cy.js');
-    if (routeGuardBrowser.status !== 0) process.exitCode = routeGuardBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const leagueBrowser = runCypress('cypress/e2e/league-server.cy.js');
-    if (leagueBrowser.status !== 0) process.exitCode = leagueBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const leagueLocalBrowser = runCypress('cypress/e2e/league-local.cy.js');
-    if (leagueLocalBrowser.status !== 0) process.exitCode = leagueLocalBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const settingsBrowser = runCypress('cypress/e2e/settings-server.cy.js');
-    if (settingsBrowser.status !== 0) process.exitCode = settingsBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const localSettingsBrowser = runCypress('cypress/e2e/settings-local.cy.js');
-    if (localSettingsBrowser.status !== 0) process.exitCode = localSettingsBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const liveBrowser = runCypress('cypress/e2e/live-server.cy.js');
-    if (liveBrowser.status !== 0) process.exitCode = liveBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const liveLocalBrowser = runCypress('cypress/e2e/live-local.cy.js');
-    if (liveLocalBrowser.status !== 0) process.exitCode = liveLocalBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const adminBrowser = runCypress('cypress/e2e/admin-orgs.cy.js');
-    if (adminBrowser.status !== 0) process.exitCode = adminBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const notificationBrowser = runCypress('cypress/e2e/admin-notification-delivery.cy.js');
-    if (notificationBrowser.status !== 0) process.exitCode = notificationBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const organizerEventBrowser = runCypress('cypress/e2e/organizer-event-create.cy.js');
-    if (organizerEventBrowser.status !== 0) process.exitCode = organizerEventBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const organizerEventManagementBrowser = runCypress('cypress/e2e/organizer-event-management.cy.js');
-    if (organizerEventManagementBrowser.status !== 0) process.exitCode = organizerEventManagementBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const organizerParticipantsBrowser = runCypress('cypress/e2e/organizer-participants.cy.js');
-    if (organizerParticipantsBrowser.status !== 0) process.exitCode = organizerParticipantsBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const abuseSurface = runCypress('cypress/e2e/abuse-surface.cy.js');
-    if (abuseSurface.status !== 0) process.exitCode = abuseSurface.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const eventProposalBrowser = runCypress('cypress/e2e/event-proposal.cy.js');
-    if (eventProposalBrowser.status !== 0) process.exitCode = eventProposalBrowser.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const accessibility = runCypress('cypress/e2e/accessibility.cy.js');
-    if (accessibility.status !== 0) process.exitCode = accessibility.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const globalStats = runCypress('cypress/e2e/global-stats.cy.js');
-    if (globalStats.status !== 0) process.exitCode = globalStats.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const playerStatLayout = runCypress('cypress/e2e/player-stat-layout.cy.js');
-    if (playerStatLayout.status !== 0) process.exitCode = playerStatLayout.status ?? 1;
-  }
-  if (!process.exitCode) {
-    const headerLayout = runCypress('cypress/e2e/header-layout.cy.js');
-    if (headerLayout.status !== 0) process.exitCode = headerLayout.status ?? 1;
+    for (const spec of specs) {
+      const result = runCypress(spec);
+      specResults.push({ spec, ok: result.status === 0 });
+      if (result.status !== 0) process.exitCode = result.status ?? 1;
+    }
   }
   if (!process.exitCode) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -180,4 +125,5 @@ try {
   }
 } finally {
   run(['--profile', 'release', 'down', '--volumes', '--remove-orphans'], composeEnv, true);
+  printSpecSummary();
 }
