@@ -314,6 +314,14 @@ describe('League server command flows', () => {
     mockSession();
     visit('/leagues-archive');
     cy.wait('@leagueList');
+    // The production build's service worker may reset the language to French via a storage event
+    // triggered during page load. Dispatching here forces the app to re-read 'en' after it has
+    // settled, so the assertion sees English text.
+    cy.window().then(win => {
+      win.localStorage.setItem('gones.settings.language', 'en');
+      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+      win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings', newValue: win.localStorage.getItem('gones.settings') }));
+    });
 
     cy.contains('[data-cy="leagues-archive-list-item"]', 'Counted League')
       .find('[data-cy="leagues-archive-list-item-meta"]')
@@ -363,14 +371,34 @@ describe('League server command flows', () => {
       { position: 1, playerName: 'Alice', rating: 1524, lastRatingDelta: 0, tournamentsPlayed: 5, provisional: false, inactive: false, ratingDeviation: 45, previousRating: 1524, lastPlayedDate: '2026-08-01', decayedRating: null, playedMatchCount: 10, matchWins: 7, matchLosses: 2, matchDraws: 1, matchWinrate: 0.7, playedGameCount: 20, gameWins: 14, gameLosses: 6, gameWinrate: 0.7, nemesis: null, rival: null, mostPlayedArchetype: null },
       { position: 2, playerName: 'Bob', rating: 1480, lastRatingDelta: 0, tournamentsPlayed: 5, provisional: false, inactive: false, ratingDeviation: 45, previousRating: 1480, lastPlayedDate: '2026-08-01', decayedRating: null, playedMatchCount: 10, matchWins: 5, matchLosses: 4, matchDraws: 1, matchWinrate: 0.5, playedGameCount: 20, gameWins: 10, gameLosses: 10, gameWinrate: 0.5, nemesis: null, rival: null, mostPlayedArchetype: null },
     ];
-    cy.visit('/leagues-archive/league-ratings', { onBeforeLoad(win) {
+    // Mock the catalog API so the rating values are always available, regardless of whether the
+    // localStorage seed is used (fresh cache) or bypassed (the app falls through to the network).
+    cy.intercept('GET', '**/api/leagues-archive/global-player-statistics/all', { items: seedCatalog, totalCount: seedCatalog.length, truncated: false }).as('globalStatsCatalog');
+    const seedRatings = win => {
       win.localStorage.setItem('gones.settings.language', 'en');
       win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
       win.localStorage.setItem('gones.settings.power-user', 'true');
+      // Fresh fetchedAt keeps the app out of the network path entirely, so the production service
+      // worker cannot intercept the catalog request before Cypress's cy.intercept can.
       win.localStorage.setItem('gones.global-stats.catalog', JSON.stringify({
         items: seedCatalog, fetchedAt: new Date().toISOString(), truncated: false
       }));
-    } });
+      win.localStorage.setItem('gones.e2e.ratings-seeded', 'true');
+    };
+    cy.visit('/leagues-archive/league-ratings', { onBeforeLoad(win) { seedRatings(win); } });
+    // onBeforeLoad is not called when the service worker serves the navigation from its own cache
+    // (the document never travels through the Cypress proxy). Mirror the pattern from
+    // offline-public-read.cy.js: detect the skip and re-seed post-load, then dispatch a storage
+    // event so Angular picks up the catalog without a page reload.
+    cy.window({ log: false }).then(win => {
+      if (win.localStorage.getItem('gones.e2e.ratings-seeded') !== 'true') {
+        seedRatings(win);
+        win.dispatchEvent(new win.StorageEvent('storage', {
+          key: 'gones.global-stats.catalog',
+          newValue: win.localStorage.getItem('gones.global-stats.catalog')
+        }));
+      }
+    });
     cy.wait('@leagueDetail');
     cy.get('[data-cy="leagues-archive-detail-ranking-table"]').within(() => {
       cy.get('[data-cy="ranking-header-rating"]').should('exist');
