@@ -340,9 +340,28 @@ describe('Global Stats — heading row', () => {
 // ---------------------------------------------------------------------------
 // Home navigation
 // ---------------------------------------------------------------------------
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
+function seedVisited(win) {
+  win.localStorage.setItem('gones.first-visit.completed', 'true');
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
 describe('Global Stats — home card', () => {
+  // `/` is behind `firstVisitHomeGuard`, which sends a browser with no `gones.first-visit.completed`
+  // key to /about — and `testIsolation` clears that key before every test. So the home card is only
+  // reachable once the key is seeded. `onBeforeLoad` alone is not enough on the release stack: the
+  // ngsw worker can answer the navigation from its own cache, and then the hook never fires. The
+  // SEED_MARKER tells us whether it ran, so we can seed on the live window instead. The guard
+  // evaluates at `canActivate`, not at bootstrap, so a seed only counts from the next navigation on.
   it('home page shows a Global Rankings card that navigates to /global-stats', () => {
+    cy.visit('/', { onBeforeLoad: seedVisited });
+    cy.window({ log: false }).then((win) => {
+      if (win.localStorage.getItem(SEED_MARKER) !== 'true') seedVisited(win);
+    });
+
     cy.visit('/');
+    cy.location('pathname').should('eq', '/');
     cy.get('[data-cy="menu-global-stats-card"]').should('exist').click();
     cy.url().should('include', '/global-stats');
   });

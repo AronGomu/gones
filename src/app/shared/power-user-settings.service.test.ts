@@ -54,6 +54,44 @@ describe('PowerUserSettingsService', () => {
     expect(settings.enabled()).toBe(true);
   });
 
+  it('follows the Power User key when another tab changes it', () => {
+    const browserStorage = storage();
+    vi.stubGlobal('localStorage', browserStorage);
+    const settings = new PowerUserSettingsService();
+
+    browserStorage.setItem(POWER_USER_STORAGE_KEY, 'true');
+    window.dispatchEvent(new StorageEvent('storage', { key: POWER_USER_STORAGE_KEY, newValue: 'true' }));
+    expect(settings.enabled()).toBe(true);
+
+    browserStorage.setItem(POWER_USER_STORAGE_KEY, 'false');
+    window.dispatchEvent(new StorageEvent('storage', { key: POWER_USER_STORAGE_KEY, newValue: 'false' }));
+    expect(settings.enabled()).toBe(false);
+  });
+
+  it('leaves the preference alone when another key changes', () => {
+    const browserStorage = storage({ [POWER_USER_STORAGE_KEY]: 'true' });
+    vi.stubGlobal('localStorage', browserStorage);
+    const settings = new PowerUserSettingsService();
+
+    browserStorage.setItem(POWER_USER_STORAGE_KEY, 'false');
+    window.dispatchEvent(new StorageEvent('storage', { key: 'gones.settings.language', newValue: 'fr' }));
+
+    expect(settings.enabled()).toBe(true);
+  });
+
+  it('keeps this tab active on a storage event when browser storage is unavailable', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => { throw new Error('blocked'); },
+      setItem: () => { throw new Error('blocked'); }
+    });
+    const settings = new PowerUserSettingsService();
+    settings.setEnabled(true);
+
+    window.dispatchEvent(new StorageEvent('storage', { key: POWER_USER_STORAGE_KEY, newValue: 'false' }));
+
+    expect(settings.enabled()).toBe(true);
+  });
+
   it('throws powerUserRequired while disabled', () => {
     vi.stubGlobal('localStorage', storage());
     const settings = new PowerUserSettingsService();

@@ -24,10 +24,13 @@ function mockFormats() {
   cy.intercept('GET', '**/api/formats', [{ id: formatId, name: 'Legacy', slug: 'legacy', sortOrder: 1 }]).as('formats');
 }
 
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
 function seedLanguage(win, language) {
   win.localStorage.setItem('gones.settings.language', language);
   win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
   win.localStorage.setItem('gones.settings.power-user', 'true');
+  win.localStorage.setItem(SEED_MARKER, 'true');
 }
 
 // Breadcrumbs and dialog copy are translated, so the language has to be in localStorage before the
@@ -39,13 +42,22 @@ function seedLanguage(win, language) {
 // follow settings changed in another tab pins it — a same-window write never fires that event on its
 // own. The wait on `gones.settings` is what makes the branch honest: the app persists that key while
 // it boots, so reaching it means the language read below is the one the app actually booted on.
+//
+// The seed carries the same two settings the gated UI needs, so a marker now has to be there too
+// before the seed counts as landed: a skipped hook leaves the app on its default `fr`, which it then
+// persists itself, so a French `visit` used to read its own default back as proof of a seed that
+// never happened and silently left the Power User key unset — with every Power-User-gated control
+// missing. The language still has to match as well, because the marker outlives the visit that wrote
+// it and a later `visit` in the same test may ask for another language. Both keys are announced,
+// because each settings service only listens for its own.
 function visit(path, language = 'en') {
   cy.visit(path, { onBeforeLoad: (win) => seedLanguage(win, language) });
   cy.window().its('localStorage').invoke('getItem', 'gones.settings').should('be.a', 'string');
   cy.window().then((win) => {
-    if (win.localStorage.getItem('gones.settings.language') === language) return;
+    if (win.localStorage.getItem(SEED_MARKER) === 'true' && win.localStorage.getItem('gones.settings.language') === language) return;
     seedLanguage(win, language);
     win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.language', newValue: language }));
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.power-user', newValue: 'true' }));
   });
   cy.document().its('documentElement.lang').should('eq', language);
 }

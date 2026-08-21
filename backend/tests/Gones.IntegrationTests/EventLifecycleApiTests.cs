@@ -348,7 +348,13 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         using var first = responses[0];
         using var second = responses[1];
         Assert.Single(responses, response => response.StatusCode == HttpStatusCode.OK);
-        Assert.Single(responses, response => response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict);
+        // The loser has three legitimate outcomes. Both commands carry different Idempotency-Key
+        // values, so they take different advisory locks and genuinely interleave: either they both
+        // read the row before either committed and the version token rejects the second write
+        // (PreconditionFailed), or the domain refuses the second command (Conflict), or the delete
+        // committed first and the cancel then finds no active row (NotFound) -- the event really is
+        // gone by then, so 404 is correct there. The list stays closed so a 500 still fails.
+        Assert.Single(responses, response => response.StatusCode is HttpStatusCode.PreconditionFailed or HttpStatusCode.Conflict or HttpStatusCode.NotFound);
 
         await using var database = CreateContext();
         Assert.Equal(1, await database.EventLifecycleEntries.CountAsync(item => item.EventId == tournament.Id));

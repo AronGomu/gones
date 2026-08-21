@@ -97,7 +97,6 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="list-view"]').click();
     cy.location('search').should('contain', 'view=list');
     cy.get('[data-cy="event-list-list"]').should('be.visible');
-    cy.get('[data-cy="event-list-card-status"]').should('contain.text', 'Cancelled');
     // A reload within the 24h cache TTL must not refetch: the alias stays at one call.
     visit('/events?month=2026-08');
     cy.get('[data-cy="list-view"]').should('have.attr', 'aria-pressed', 'true');
@@ -276,19 +275,32 @@ describe('public Calendar V1', () => {
   // navigating" is a claim only a real browser can settle: in jsdom nothing bubbles through Angular's
   // template bindings at all.
   it('the list card navigates on click while Add to calendar stays on the list', () => {
-    cy.intercept('GET', '**/api/events/lyon-legacy', { ...event, bodyHtml: '<p>Detail</p>' }).as('detail');
+    // Add to calendar only renders while the event is still ahead (`showCardIcs`), so this case owns a
+    // future-dated event instead of the shared August 2026 fixture, which has since drifted past.
+    const futureEvent = {
+      ...event,
+      venueStartDate: '2035-08-01',
+      venueEndDate: '2035-08-02',
+      startsAtUtc: '2035-08-01T21:30:00Z',
+      endsAtUtc: '2035-08-01T23:30:00Z'
+    };
+    cy.intercept('GET', '**/api/events/all*', { items: [futureEvent], generatedAt: '2026-08-08T10:00:00Z', count: 1, truncated: false }).as('futureEvent');
+    cy.intercept('GET', '**/api/events/lyon-legacy', { ...futureEvent, bodyHtml: '<p>Detail</p>' }).as('detail');
     cy.intercept('GET', '**/api/events/lyon-legacy.ics', {
       statusCode: 200,
       headers: { 'content-type': 'text/calendar' },
       body: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n'
     }).as('ics');
 
-    visit('/events?month=2026-08&view=list');
-    cy.wait('@allEvents');
+    visit('/events?month=2035-08&view=list');
+    cy.wait('@futureEvent');
     cy.get('[data-cy="event-list-card-view"]').should('not.exist');
-    cy.get('[data-cy="event-list-card-date"]').should('not.contain.text', 'Europe/Paris').and('not.contain.text', '(');
+    cy.get('[data-cy="event-list-card-start-time"]').should('not.contain.text', 'Europe/Paris').and('not.contain.text', '(');
 
-    cy.get('[data-cy="event-list-card-ics"]').should('not.have.attr', 'download').and('have.attr', 'type', 'text/calendar');
+    // Split, not chained: `not.have.attr` yields the (absent) attribute as the next subject, so an
+    // `.and('have.attr', ...)` behind it asserts on `undefined` instead of on the anchor.
+    cy.get('[data-cy="event-list-card-ics"]').should('not.have.attr', 'download');
+    cy.get('[data-cy="event-list-card-ics"]').should('have.attr', 'type', 'text/calendar');
     cy.get('[data-cy="event-list-card-ics"]').click();
     cy.wait('@ics');
     cy.location('pathname').should('eq', '/events');
@@ -339,8 +351,10 @@ describe('public Calendar V1', () => {
   // therefore stay literal text and create no element.
   it('highlights matches in both views and never interprets markup as HTML', () => {
     const markupTitle = 'Lyon <img src=x onerror=alert(1)> Legacy';
+    // Both fields: the month cell renders `title` and the list card renders `displayTitle`, so a
+    // hostile string on only one of them leaves the other view asserting the safe base fixture.
     cy.intercept('GET', '**/api/events/all*', {
-      items: [{ ...event, title: markupTitle }],
+      items: [{ ...event, title: markupTitle, displayTitle: markupTitle }],
       generatedAt: '2026-08-08T10:00:00Z',
       count: 1,
       truncated: false

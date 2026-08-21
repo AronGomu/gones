@@ -250,6 +250,39 @@ function seedSettings(win) {
   win.localStorage.setItem('gones.settings.power-user', 'true');
 }
 
+/**
+ * Empties the private read cache (`gones-cache`, store `reads`) on the **live** window.
+ *
+ * `onBeforeLoad` cannot be relied on here: the release build registers the ngsw service worker, which
+ * answers the navigation out of its own cache, so the document never travels through the Cypress
+ * proxy and the hook is never called at all (the same mechanism documented in `auth-profile.cy.js`).
+ * A wipe that only ever ran pre-boot therefore never ran on 8081, and the list was served from the
+ * 24h TTL row an earlier test left behind.
+ *
+ * Rows are cleared rather than the database dropped: `deleteDatabase` fires `versionchange` on the
+ * connection the booted app already holds and stays blocked until it closes, which races the reload.
+ * Opening at the app's own version and store (`server-read-cache.service.ts`) blocks on nothing and
+ * leaves the database in the exact shape the app expects, so the caching under test still works after
+ * the reload.
+ */
+function clearReadCache() {
+  cy.window({ log: false }).then((win) => new Cypress.Promise((resolve, reject) => {
+    const request = win.indexedDB.open('gones-cache', 1);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains('reads')) database.createObjectStore('reads', { keyPath: 'key' });
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction('reads', 'readwrite');
+      transaction.objectStore('reads').clear();
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+    };
+  }));
+}
+
 function visit(path, { clearLocalStore = false } = {}) {
   cy.visit(path, {
     onBeforeLoad: (win) => {
@@ -433,7 +466,8 @@ describe('Live Tournament server command flows', () => {
     mockSession('Organizer');
     mockLiveServer();
 
-    // Clear the private cache so this test always issues the first request itself.
+    // Clear the private cache so this test always issues the first request itself. The pre-boot wipe
+    // still fires under `ng serve`; `clearReadCache()` is what covers the release topology.
     cy.visit('/live-tournaments', {
       onBeforeLoad: (win) => {
         win.indexedDB.deleteDatabase('gones-cache');
@@ -441,6 +475,7 @@ describe('Live Tournament server command flows', () => {
       }
     });
     cy.window().then((win) => seedSettings(win));
+    clearReadCache();
     cy.reload();
 
     cy.wait('@liveList');
@@ -449,6 +484,11 @@ describe('Live Tournament server command flows', () => {
     // Navigate away and back — cache is fresh so no second list request.
     cy.visit('/');
     cy.visit('/live-tournaments');
+    // Settle on the section, not on the sync bar: the bar renders before `load()` resolves, so
+    // counting straight after it reads the alias while a list request may still be in flight and
+    // passes on a count of 1 that a request is about to make 2. The spinner is replaced by the
+    // section only once `load()` has settled, by which point any request it made is recorded.
+    cy.get('[data-cy="live-list-section"]').should('be.visible');
     cy.get('[data-cy="live-list-sync-button"]').should('be.visible');
     cy.get('@liveList.all').should('have.length', 1);
   });

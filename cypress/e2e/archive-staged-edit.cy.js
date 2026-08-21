@@ -1,5 +1,6 @@
 const POWER_KEY = 'gones.settings.power-user';
 const LOCAL_DB = 'gones-leagues';
+const SEED_MARKER = 'gones.e2e.storage-seeded';
 const profile = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', email: 'organizer@example.test', emailVerified: true, globalRole: 'Organizer',
   username: 'organizer-user', firstName: 'Organizer', lastName: 'User', preferredLanguage: 'en', isFirstNamePublic: false,
@@ -38,11 +39,27 @@ function seed(win, clearLocal = false) {
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
   win.localStorage.setItem(POWER_KEY, 'true');
+  win.localStorage.setItem(SEED_MARKER, 'true');
   if (clearLocal) win.indexedDB.deleteDatabase(LOCAL_DB);
 }
 
+// `onBeforeLoad` is not dependable on the release topology: once `ngsw-worker.js` controls the page it
+// answers the navigation out of Cache Storage, that response never passes through the Cypress proxy,
+// and Cypress cannot inject the script that calls the hook — no error, no seed, so every Power User
+// gate below stays shut. The marker is how the skip is detected; re-seeding from the loaded page and
+// raising `storage` the way a browser does for a change made in another tab then covers it. Same
+// technique as `offline-public-read.cy.js`. Every visit here seeds the same two values, so the marker
+// alone settles whether they landed. The local database is deliberately left alone on that branch:
+// deleting it is pre-boot hygiene, and a delete against the connection the running app already holds
+// open blocks instead of completing.
 function visit(path, clearLocal = false) {
   cy.visit(path, { onBeforeLoad: win => seed(win, clearLocal) });
+  cy.window({ log: false }).then(win => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true') return;
+    seed(win);
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings', newValue: win.localStorage.getItem('gones.settings') }));
+    win.dispatchEvent(new win.StorageEvent('storage', { key: POWER_KEY, newValue: 'true' }));
+  });
 }
 
 function signedOut(calls) {
