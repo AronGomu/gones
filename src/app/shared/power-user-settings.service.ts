@@ -8,6 +8,14 @@ export class PowerUserSettingsService {
   private readonly state = signal(readPowerUserSetting());
   readonly enabled: Signal<boolean> = this.state.asReadonly();
 
+  constructor() {
+    // Cross-tab sync, the behaviour the language setting already has: turning Power User mode on in
+    // one tab takes effect in the others, instead of leaving them silently stale until a reload.
+    window.addEventListener('storage', (event) => {
+      if (event.key === POWER_USER_STORAGE_KEY) this.refreshFromStorage();
+    });
+  }
+
   setEnabled(value: boolean): void {
     this.state.set(value);
     try { globalThis.localStorage?.setItem(POWER_USER_STORAGE_KEY, String(value)); }
@@ -16,6 +24,11 @@ export class PowerUserSettingsService {
 
   requireEnabled(): void {
     if (!this.enabled()) throw new Error('powerUserRequired');
+  }
+
+  private refreshFromStorage(): void {
+    try { this.state.set(globalThis.localStorage?.getItem(POWER_USER_STORAGE_KEY) === 'true'); }
+    catch { /* Browser preference remains active for this tab when storage is unavailable. */ }
   }
 }
 

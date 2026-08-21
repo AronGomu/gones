@@ -34,10 +34,21 @@ const serverLive = {
   rounds: [], checkpoints: [], documentVersion: 1, createdAt: '2026-08-13T10:00:00Z', updatedAt: '2026-08-13T10:00:00Z'
 };
 
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
 function seed(win, enabled) {
   win.localStorage.setItem('gones.settings.language', 'en');
   win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
   win.localStorage.setItem(POWER_KEY, String(enabled));
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
+// Announce the seed the way a browser announces a settings change made in another tab: a write from
+// this same window never raises `storage` on its own, and both settings services only re-read when it
+// is raised.
+function announceSeed(win) {
+  win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings', newValue: win.localStorage.getItem('gones.settings') }));
+  win.dispatchEvent(new win.StorageEvent('storage', { key: POWER_KEY, newValue: win.localStorage.getItem(POWER_KEY) }));
 }
 
 function signedOut() {
@@ -49,8 +60,19 @@ function organizer() {
   cy.intercept('GET', '**/api/users/me', profile);
 }
 
+// `onBeforeLoad` is not dependable on the release topology: once `ngsw-worker.js` controls the page
+// it answers the navigation out of Cache Storage, that response never passes through the Cypress
+// proxy, and Cypress cannot inject the script that calls the hook — no error, no seed. The marker is
+// how the skip is detected; re-seeding from the loaded page then covers it. Same technique as
+// `offline-public-read.cy.js`. The marker outlives the visit that wrote it, so the Power User value
+// has to match as well: a later `visit` in the same test may ask for the other one.
 function visit(path, enabled) {
   cy.visit(path, { onBeforeLoad: (win) => seed(win, enabled) });
+  cy.window({ log: false }).then((win) => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true' && win.localStorage.getItem(POWER_KEY) === String(enabled)) return;
+    seed(win, enabled);
+    announceSeed(win);
+  });
 }
 
 function stubPublicEvents(items = []) {

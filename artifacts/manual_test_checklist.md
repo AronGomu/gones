@@ -1019,3 +1019,18 @@ Leagues manually so the default page size (25) is exceeded.
 - [ ] Open `/leagues-archive` with exactly 5 Leagues; confirm the pagination nav is absent (all rows visible).
 - [ ] Signed out with browser-local Leagues, confirm they appear alongside server rows and both kinds paginate together without reordering.
 - [ ] Refresh the page while on page 2; confirm the browser returns to page 1 (no URL persistence required).
+
+## T3 power-user-storage-reactivity
+
+Power User mode is a browser preference, and it now behaves like the language preference: a change
+made in one tab reaches the others straight away instead of leaving them stale until a reload.
+
+Use two tabs of the same browser profile on the same origin (`http://localhost:4200`), signed out is
+enough.
+
+- [ ] Tab A: open `/settings`, leave Power User **off**. Tab B: open `/leagues-archive` and confirm the "New League" create card is absent.
+- [ ] In tab A, tick the Power User checkbox. Switch to tab B **without reloading it**: the create card is now there, and the header import control has appeared.
+- [ ] In tab A, untick the Power User checkbox. Tab B, still without a reload, drops the create card and the import control again.
+- [ ] Tab B: reload once and confirm the visible state matches the toggle in tab A (the reactive state and the persisted state agree).
+- [ ] Toggle Power User on in tab A while tab B sits on a Live tournament detail page: tab B gains its edit affordances without a reload, and the read-only banner disappears.
+- [ ] Open a private/incognito window alongside: toggling Power User there changes nothing in the normal window (the preference stays per browser profile, not shared).
