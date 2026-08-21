@@ -19,6 +19,7 @@ const hostileBody = [
 const event = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
+  displayTitle: 'Lyon Legacy',
   slug: 'lyon-legacy',
   summary: 'Legacy event',
   bodyHtml: hostileBody,

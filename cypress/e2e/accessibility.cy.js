@@ -12,6 +12,7 @@ const orgId = '22222222-2222-2222-2222-222222222222';
 const event = {
   id: '11111111-1111-1111-1111-111111111111',
   title: 'Lyon Legacy',
+  displayTitle: 'Lyon Legacy',
   slug: 'lyon-legacy',
   summary: 'Legacy event',
   bodyHtml: '<p>Welcome to the <strong>event</strong>.</p>',

@@ -1,6 +1,6 @@
 const orgId = '22222222-2222-2222-2222-222222222222';
 const event = {
-  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy event',
+  id: '11111111-1111-1111-1111-111111111111', title: 'Lyon Legacy', displayTitle: 'Lyon Legacy', slug: 'lyon-legacy', summary: 'Legacy event',
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris', venueStartDate: '2035-03-04', venueStartTime: '10:00:00', venueEndDate: '2035-03-04', venueEndTime: '18:00:00',
   startsAtUtc: '2035-03-04T09:00:00Z', endsAtUtc: '2035-03-04T17:00:00Z', capacity: 8, status: 'Published',

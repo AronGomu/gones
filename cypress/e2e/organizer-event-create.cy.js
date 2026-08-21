@@ -18,6 +18,7 @@ const profile = {
 };
 const render = {
   title: 'Lyon Legacy Open',
+  displayTitle: 'Legacy — Lyon Legacy Open',
   slug: 'lyon-legacy-open',
   summary: 'Server-normalized summary',
   bodyHtml: '<p><strong>Server-clean</strong> body.</p>',
@@ -188,7 +189,9 @@ describe('Organizer Event create, preview, publish', () => {
     mockReferences();
     visit();
     openValidPreview();
-    cy.get('[data-cy="event-detail-view"]').should('contain.text', render.summary).and('contain.text', 'Europe/Paris');
+    // The hero prints the natural date and the starting hour, never the IANA zone id, so the preview
+    // is read through the title the detail view actually renders.
+    cy.get('[data-cy="event-detail-view"]').should('contain.text', render.summary).and('contain.text', render.displayTitle);
     cy.get('gones-server-sanitized-html strong').should('contain.text', 'Server-clean');
     cy.get('[data-cy="event-publish"]').should('be.enabled');
 
