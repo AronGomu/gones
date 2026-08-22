@@ -1,3 +1,4 @@
+using Gones.Domain.Leagues;
 using NodaTime;
 
 namespace Gones.Api.Archive;
@@ -22,6 +23,24 @@ internal sealed record ArchiveTournamentSummary(
     Instant UpdatedAt,
     int DocumentVersion,
     int PlayerCount);
+
+/// <summary>
+/// The whole Tournament document: the wire twin of the frontend's <c>PersistedArchiveTournament</c>.
+/// Never stored in a year partition — a partition holds <see cref="ArchiveTournamentSummary"/> rows —
+/// so this is the only shape that carries Rounds and archetypes.
+/// </summary>
+/// <param name="TournamentDate">ISO <c>YYYY-MM-DD</c>, for the same reason as on the summary row.</param>
+/// <param name="SeasonId"><c>null</c> for a standalone Tournament: serialized, never omitted.</param>
+internal sealed record ArchiveTournamentDetailResponse(
+    string Id,
+    string Name,
+    string? SeasonId,
+    string TournamentDate,
+    string Status,
+    IReadOnlyList<RoundDocument> Rounds,
+    IReadOnlyList<PlayerArchetypeDocument> PlayerArchetypes,
+    int DocumentVersion,
+    Instant UpdatedAt);
 
 /// <summary>
 /// One year of the archive. <c>Locked</c> is on the wire here, unlike on a Tournament row, because

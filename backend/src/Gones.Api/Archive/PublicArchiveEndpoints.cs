@@ -3,7 +3,9 @@ using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using Gones.Api.Errors;
+using Gones.Application.Concurrency;
 using Gones.Domain.Archive;
+using Gones.Domain.Leagues;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -20,10 +22,25 @@ namespace Gones.Api.Archive;
 /// about 17,500 Tournaments in a single year, so a client that wanted last month would have paid for a
 /// decade. Their unit of transfer, of caching and of revalidation is one calendar year, and
 /// <c>/api/archive/years</c> is the index that says which years exist.</para>
+///
+/// <para>Beside the catalogs sit the four read-through routes the browser falls back to when its
+/// IndexedDB year partitions cannot answer: one Season's Tournaments, one Tournament document, and
+/// the two derived standings. The client renders the Season read-through and deliberately does not
+/// cache it. Year partitions have exactly one writer — the backfill queue — and a partition is written
+/// and stamped complete in a single IndexedDB transaction, so a year is atomically whole or absent;
+/// caching this response would make a second writer and could leave a half-written year behind. A
+/// detail document is never stored in a partition either: partitions hold summary rows.</para>
 /// </summary>
 internal static class PublicArchiveEndpoints
 {
     private const string CatalogCacheControl = "public, max-age=3600";
+    /// <summary>
+    /// The read-through TTL. One minute rather than the catalogs' hour: a catalog is a whole table the
+    /// client holds and revalidates, while these four bodies are what it reads when it is looking
+    /// straight at a Tournament, and an hour-long HTTP cache would hide an edit behind a request that
+    /// never reaches the server.
+    /// </summary>
+    private const string ReadThroughCacheControl = "public, max-age=60";
     private const string LogCategory = "Gones.Api.Archive";
     /// <summary>Postgres collation that orders text byte by byte, the way <c>StringComparer.Ordinal</c> does.</summary>
     private const string OrdinalCollation = "C";
@@ -48,6 +65,14 @@ internal static class PublicArchiveEndpoints
     /// </summary>
     public const int MaximumTournamentYearSize = 25_000;
     public const string MaximumTournamentYearSizeKey = "Gones:Archive:MaximumTournamentYearSize";
+
+    /// <summary>
+    /// The read-through ceiling for one Season's Tournaments. A Season is a bounded run of events
+    /// rather than an unbounded table, so it sits with the Season catalog rather than with the year
+    /// partition.
+    /// </summary>
+    public const int MaximumSeasonTournamentSize = 5000;
+    public const string MaximumSeasonTournamentSizeKey = "Gones:Archive:MaximumSeasonTournamentSize";
 
     public static void MapPublicArchiveEndpoints(this WebApplication app)
     {
@@ -74,6 +99,34 @@ internal static class PublicArchiveEndpoints
             .WithName("GetArchiveYears")
             .Produces<ArchiveYearsResponse>()
             .Produces(StatusCodes.Status304NotModified);
+        app.MapGet("/api/archive/league-seasons/{seasonId}/tournaments", ListSeasonTournamentsAsync)
+            .AllowAnonymous()
+            .WithName("ArchiveSeasonTournaments")
+            .Produces<ArchiveCatalogResponse<ArchiveTournamentSummary>>()
+            .Produces(StatusCodes.Status304NotModified)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        app.MapGet("/api/archive/league-seasons/{seasonId}/result", GetSeasonResultAsync)
+            .AllowAnonymous()
+            .WithName("ArchiveSeasonResult")
+            .Produces<LeagueResult>()
+            .Produces(StatusCodes.Status304NotModified)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        app.MapGet("/api/archive/tournaments/{tournamentId}", GetTournamentAsync)
+            .AllowAnonymous()
+            .WithName("ArchiveTournamentDetail")
+            .Produces<ArchiveTournamentDetailResponse>()
+            .Produces(StatusCodes.Status304NotModified)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+        app.MapGet("/api/archive/tournaments/{tournamentId}/result", GetTournamentResultAsync)
+            .AllowAnonymous()
+            .WithName("ArchiveTournamentResult")
+            .Produces<TournamentResult>()
+            .Produces(StatusCodes.Status304NotModified)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound);
     }
 
     /// <summary>
@@ -96,6 +149,7 @@ internal static class PublicArchiveEndpoints
             league => (long)league.Version,
             "archive-leagues",
             ceiling,
+            CatalogCacheControl,
             request,
             response,
             cancellationToken);
@@ -139,6 +193,7 @@ internal static class PublicArchiveEndpoints
             season => (long)season.Version + season.TournamentCount + season.PlayerCount + season.CountsVersion,
             "archive-league-seasons",
             ceiling,
+            CatalogCacheControl,
             request,
             response,
             cancellationToken);
@@ -192,6 +247,7 @@ internal static class PublicArchiveEndpoints
             tournament => (long)tournament.Version,
             $"archive-tournaments-year:{requestedYear}",
             ceiling,
+            CatalogCacheControl,
             request,
             response,
             cancellationToken);
@@ -272,6 +328,159 @@ internal static class PublicArchiveEndpoints
     }
 
     /// <summary>
+    /// One Season's Tournaments, fetched straight through. This is the fallback a Season row expands to
+    /// when the client's year partitions cannot cover it; the client renders the body and writes
+    /// nothing, because the backfill queue is the only writer a partition may have.
+    /// </summary>
+    private static async Task<IResult> ListSeasonTournamentsAsync(
+        string seasonId,
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        IConfiguration configuration,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        ValidateRouteValue(seasonId, nameof(seasonId), ArchiveLeagueSeason.MaximumDocumentIdLength);
+        // Existence is proven before anything is stamped, so an unknown Season answers 404 rather than a
+        // cacheable empty page that looks exactly like a Season that simply holds nothing.
+        await EnsureSeasonExistsAsync(database, seasonId, cancellationToken);
+        var ceiling = configuration.GetValue(MaximumSeasonTournamentSizeKey, MaximumSeasonTournamentSize);
+        var visible = VisibleTournamentsOfSeason(database, seasonId);
+        var (total, notModified) = await PrepareCatalogAsync(
+            visible,
+            tournament => (Instant?)tournament.UpdatedAt,
+            tournament => (long)tournament.Version,
+            $"archive-season-tournaments:{seasonId}",
+            ceiling,
+            ReadThroughCacheControl,
+            request,
+            response,
+            cancellationToken);
+        if (notModified) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        // Same slim projection as a year partition row, and for the same reason: the jsonb document
+        // never leaves the database to answer a list. Shaped after the query because LocalDatePattern
+        // has no SQL translation.
+        var fetched = await visible
+            .OrderByDescending(tournament => tournament.TournamentDate)
+            .ThenBy(tournament => EF.Functions.Collate(tournament.DocumentId, OrdinalCollation))
+            .Take(ceiling + 1)
+            .Select(tournament => new
+            {
+                tournament.DocumentId,
+                tournament.Name,
+                tournament.SeasonId,
+                tournament.TournamentDate,
+                tournament.Status,
+                tournament.UpdatedAt,
+                tournament.Version,
+                tournament.PlayerCount
+            })
+            .ToListAsync(cancellationToken);
+        var truncated = CapToCeiling(fetched, ceiling, total, $"season-tournaments:{seasonId}", loggerFactory);
+        var items = fetched
+            .Select(tournament => new ArchiveTournamentSummary(
+                tournament.DocumentId,
+                tournament.Name,
+                tournament.SeasonId,
+                LocalDatePattern.Iso.Format(tournament.TournamentDate),
+                tournament.Status,
+                tournament.UpdatedAt,
+                tournament.Version,
+                tournament.PlayerCount))
+            .ToList();
+
+        return Results.Ok(new ArchiveCatalogResponse<ArchiveTournamentSummary>(items, total, truncated));
+    }
+
+    /// <summary>
+    /// One Season's standings. The only Season route that reads the stored documents: standings are
+    /// computed from Round entries, which the projected columns deliberately do not carry.
+    /// </summary>
+    private static async Task<IResult> GetSeasonResultAsync(
+        string seasonId,
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        CancellationToken cancellationToken)
+    {
+        ValidateRouteValue(seasonId, nameof(seasonId), ArchiveLeagueSeason.MaximumDocumentIdLength);
+        var season = await LoadSeasonAsync(database, seasonId, cancellationToken);
+        var visible = VisibleTournamentsOfSeason(database, seasonId);
+        // A representation of its own, so a client holding the row-list ETag is never answered 304 and
+        // left rendering a standings body it never received.
+        var (_, etag) = await StampAsync(
+            visible,
+            tournament => (Instant?)tournament.UpdatedAt,
+            tournament => (long)tournament.Version,
+            $"archive-season-result:{seasonId}",
+            cancellationToken);
+        SetReadThroughCache(response, etag);
+        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        var tournaments = await visible
+            .OrderBy(tournament => tournament.TournamentDate)
+            .ThenBy(tournament => EF.Functions.Collate(tournament.DocumentId, OrdinalCollation))
+            .ToListAsync(cancellationToken);
+        var league = new LeagueDocument(
+            season.DocumentId,
+            season.Name,
+            season.Status,
+            [.. tournaments.Select(tournament => ArchiveDocumentAdapter.ToLegacyTournament(tournament.ReadDocument(), seasonId))]);
+        // `League` now names the top tier, so a Season's standings must not label themselves one.
+        return Results.Ok(LeagueRules.CalculateLeagueResult(league) with { Scope = "season" });
+    }
+
+    /// <summary>
+    /// The whole Tournament document. Never stored in a year partition — partitions hold summary rows —
+    /// so this is the only route that serves Rounds and archetypes.
+    /// </summary>
+    private static async Task<IResult> GetTournamentAsync(
+        string tournamentId,
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var tournament = await LoadTournamentAsync(database, tournamentId, cancellationToken);
+        // The row's own version rather than a hash, so this ETag is also the If-Match token an edit of
+        // the Tournament the client just read needs.
+        var etag = StrongETag.Encode(tournament.Version);
+        SetReadThroughCache(response, etag);
+        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        var document = tournament.ReadDocument();
+        return Results.Ok(new ArchiveTournamentDetailResponse(
+            document.Id,
+            document.Name,
+            document.SeasonId,
+            LocalDatePattern.Iso.Format(tournament.TournamentDate),
+            document.Status,
+            document.Rounds,
+            document.PlayerArchetypes,
+            tournament.Version,
+            tournament.UpdatedAt));
+    }
+
+    /// <summary>One Tournament's standings, derived rather than stored.</summary>
+    private static async Task<IResult> GetTournamentResultAsync(
+        string tournamentId,
+        HttpRequest request,
+        HttpResponse response,
+        GonesDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var tournament = await LoadTournamentAsync(database, tournamentId, cancellationToken);
+        var etag = HashETag($"{tournament.Version}:archive-tournament-result:{tournamentId}");
+        SetReadThroughCache(response, etag);
+        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+
+        return Results.Ok(LeagueRules.CalculateTournamentResult(
+            ArchiveDocumentAdapter.ToLegacyTournament(tournament.ReadDocument(), tournament.SeasonId ?? string.Empty)));
+    }
+
+    /// <summary>
     /// The years index as a GROUP BY. Exposed so a test can assert the aggregation happens in Postgres:
     /// counting in memory would mean loading every Tournament in the archive to answer a route the
     /// client calls on every session.
@@ -301,6 +510,46 @@ internal static class PublicArchiveEndpoints
         var lastDay = new LocalDate(year, 12, 31);
         return VisibleTournaments(database)
             .Where(tournament => tournament.TournamentDate >= firstDay && tournament.TournamentDate <= lastDay);
+    }
+
+    /// <summary>
+    /// The visible Tournaments of one Season, membership being <c>season_id = seasonId</c> exactly. A
+    /// standalone Tournament carries <c>season_id IS NULL</c> and so belongs to no Season's read-through.
+    /// </summary>
+    private static IQueryable<ArchiveTournament> VisibleTournamentsOfSeason(GonesDbContext database, string seasonId) =>
+        VisibleTournaments(database).Where(tournament => tournament.SeasonId == seasonId);
+
+    /// <summary>Proves a Season is there without paying for its row: the read-through names none of its columns.</summary>
+    private static async Task EnsureSeasonExistsAsync(GonesDbContext database, string seasonId, CancellationToken cancellationToken)
+    {
+        if (!await VisibleSeasons(database).AnyAsync(season => season.DocumentId == seasonId, cancellationToken))
+            throw new ResourceNotFoundException();
+    }
+
+    private static async Task<ArchiveLeagueSeason> LoadSeasonAsync(GonesDbContext database, string seasonId, CancellationToken cancellationToken) =>
+        await VisibleSeasons(database).SingleOrDefaultAsync(season => season.DocumentId == seasonId, cancellationToken)
+            ?? throw new ResourceNotFoundException();
+
+    private static async Task<ArchiveTournament> LoadTournamentAsync(GonesDbContext database, string tournamentId, CancellationToken cancellationToken)
+    {
+        ValidateRouteValue(tournamentId, nameof(tournamentId), ArchiveTournament.MaximumDocumentIdLength);
+        return await VisibleTournaments(database).SingleOrDefaultAsync(tournament => tournament.DocumentId == tournamentId, cancellationToken)
+            ?? throw new ResourceNotFoundException();
+    }
+
+    /// <summary>
+    /// A malformed route id is a bad request, not a missing resource: answering 404 would tell the
+    /// caller the id was merely unknown and invite a retry with the same broken value.
+    /// </summary>
+    private static void ValidateRouteValue(string value, string field, int maximumLength)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > maximumLength)
+        {
+            throw new ApiValidationException(new Dictionary<string, string[]>
+            {
+                [field] = [$"Value must contain 1 to {maximumLength} characters."]
+            });
+        }
     }
 
     /// <summary>
@@ -349,18 +598,36 @@ internal static class PublicArchiveEndpoints
         Expression<Func<TEntity, long>> stampWeight,
         string representation,
         int ceiling,
+        string cacheControl,
         HttpRequest request,
         HttpResponse response,
+        CancellationToken cancellationToken)
+        where TEntity : class
+    {
+        var (total, etag) = await StampAsync(visible, updatedAt, stampWeight, $"{representation}:{ceiling}", cancellationToken);
+        response.Headers.ETag = etag;
+        response.Headers.CacheControl = cacheControl;
+        return (total, IsNotModified(request, etag));
+    }
+
+    /// <summary>
+    /// The count and the ETag over one visible set. Split out of <see cref="PrepareCatalogAsync"/> so
+    /// the Season standings can share the same stamp without inheriting a ceiling: that ceiling decides
+    /// a <c>truncated</c> flag a standings body does not have, and a second copy of this formula is how
+    /// two routes end up disagreeing about when a cached body went stale.
+    /// </summary>
+    private static async Task<(int Total, string ETag)> StampAsync<TEntity>(
+        IQueryable<TEntity> visible,
+        Expression<Func<TEntity, Instant?>> updatedAt,
+        Expression<Func<TEntity, long>> stampWeight,
+        string representation,
         CancellationToken cancellationToken)
         where TEntity : class
     {
         var total = await visible.CountAsync(cancellationToken);
         var newest = await visible.MaxAsync(updatedAt, cancellationToken);
         var weight = await visible.SumAsync(stampWeight, cancellationToken);
-        var etag = HashETag($"{total}:{newest}:{weight}:{representation}:{ceiling}");
-        response.Headers.ETag = etag;
-        response.Headers.CacheControl = CatalogCacheControl;
-        return (total, IsNotModified(request, etag));
+        return (total, HashETag($"{total}:{newest}:{weight}:{representation}"));
     }
 
     /// <summary>
@@ -378,6 +645,12 @@ internal static class PublicArchiveEndpoints
 
     // Copies rather than calls into PublicLeagueEndpoints: that file is deleted when the legacy
     // /api/leagues-archive surface retires, and this one has to survive it.
+    private static void SetReadThroughCache(HttpResponse response, string etag)
+    {
+        response.Headers.ETag = etag;
+        response.Headers.CacheControl = ReadThroughCacheControl;
+    }
+
     private static bool IsNotModified(HttpRequest request, string etag) =>
         request.Headers.IfNoneMatch.Any(value => string.Equals(value, etag, StringComparison.Ordinal));
 

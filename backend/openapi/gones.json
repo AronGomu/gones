@@ -185,6 +185,298 @@
         }
       }
     },
+    "/api/archive/league-seasons/{seasonId}/tournaments": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "ArchiveSeasonTournaments",
+        "parameters": [
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCatalogResponseOfArchiveTournamentSummary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/league-seasons/{seasonId}/result": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "ArchiveSeasonResult",
+        "parameters": [
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeagueResult"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/tournaments/{tournamentId}": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "ArchiveTournamentDetail",
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveTournamentDetailResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "ArchiveTournamentCommandEndpoints"
+        ],
+        "operationId": "ArchiveTournamentEdit",
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditArchiveTournamentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveTournamentCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ArchiveTournamentCommandEndpoints"
+        ],
+        "operationId": "ArchiveTournamentDelete",
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveDeleteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/tournaments/{tournamentId}/result": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "ArchiveTournamentResult",
+        "parameters": [
+          {
+            "name": "tournamentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TournamentResult"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/leagues-archive/global-player-statistics": {
       "get": {
         "tags": [
@@ -3702,88 +3994,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ArchiveTournamentCommandResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/archive/tournaments/{tournamentId}": {
-      "patch": {
-        "tags": [
-          "ArchiveTournamentCommandEndpoints"
-        ],
-        "operationId": "ArchiveTournamentEdit",
-        "parameters": [
-          {
-            "name": "tournamentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditArchiveTournamentRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArchiveTournamentCommandResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "ArchiveTournamentCommandEndpoints"
-        ],
-        "operationId": "ArchiveTournamentDelete",
-        "parameters": [
-          {
-            "name": "tournamentId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArchiveDeleteResponse"
                 }
               }
             }
@@ -9764,6 +9974,63 @@
           }
         }
       },
+      "ArchiveTournamentDetailResponse": {
+        "required": [
+          "id",
+          "name",
+          "seasonId",
+          "tournamentDate",
+          "status",
+          "rounds",
+          "playerArchetypes",
+          "documentVersion",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seasonId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tournamentDate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "rounds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoundDocument"
+            }
+          },
+          "playerArchetypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerArchetypeDocument"
+            }
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        }
+      },
       "ArchiveTournamentDocument": {
         "required": [
           "id",
@@ -15676,6 +15943,9 @@
       "name": "PublicArchiveEndpoints"
     },
     {
+      "name": "ArchiveTournamentCommandEndpoints"
+    },
+    {
       "name": "PublicLeagueEndpoints"
     },
     {
@@ -15710,9 +15980,6 @@
     },
     {
       "name": "ArchiveCommandEndpoints"
-    },
-    {
-      "name": "ArchiveTournamentCommandEndpoints"
     },
     {
       "name": "PlayerNameMaintenanceEndpoints"
