@@ -1337,11 +1337,6 @@
                     "detail": "membership add/remove, organization create and ownership transfer each derive the role; Admin is untouched"
                 },
                 {
-                    "gate": "dotnet",
-                    "target": "backend/tests/Gones.IntegrationTests/OrganizationMembershipHealTests.cs",
-                    "detail": "the one-shot heal demotes org-less Organizers and archives member-less organizations, with one audit row per change"
-                },
-                {
                     "gate": "cypress",
                     "target": "cypress/e2e/admin-orgs.cy.js",
                     "detail": "adding a member from /admin/organizations clears the Draft badge and the roster reports the derived Organizer role"

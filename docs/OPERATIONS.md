@@ -197,34 +197,15 @@ docker compose -f compose.release-test.yaml run --rm migrator database update
 
 ### Membership heal migration
 
-`20260812154508_HealOrganizationMembershipInvariants` is a one-shot data heal, not a schema change.
-It runs with the ordinary migration job (§8) and brings rows that predate the membership rules in
-line with them, once:
+The membership heal was a one-shot data migration, not a schema change: it soft-deleted every
+organization that had been left without members, and demoted every account holding the global
+`Organizer` role without a membership row. It no longer exists as a separate step — the migration
+history was collapsed into a single `InitialCreate` before release and the heal was squashed into it.
+There is nothing left to run, and nothing to re-run.
 
-- every organization with no members is soft-deleted (`deleted_at` set),
-- every account holding the global `Organizer` role with no membership row is set back to `User` and
-  has its security stamp rotated, so the demotion applies on that account's next request.
-
-`Admin` accounts are never touched, no membership is ever created, and no role is ever granted — the
-heal only demotes. One `audit_records` row is written per change (`organization.healed.archived`,
-`organization.healed.demoted`) with a NULL actor.
-
-- **It runs once.** Nothing re-runs it on a schedule. An organization deliberately left without
-  members after this deploy is a Draft and stays one.
-- **It is not reversible row by row**, which is why its `Down` is empty: a healed row is
-  indistinguishable from a row that was always in that state. Nothing is deleted, so a correct run
-  needs no recovery — an organization archived by the heal is restored from `/admin/organizations`
-  like any other, and a demoted account regains `Organizer` as soon as it holds a membership again.
-  A wrong run is recovered from the backup taken in §8 step 1, never from a down-migration.
-- Re-executing the SQL by hand is safe: each statement is guarded by the condition it removes, so a
-  second run changes zero rows and writes zero audit rows.
-- The job locks `organizations`, `organization_members` and `asp_net_users` against writers for the
-  duration, so an API instance that is still up cannot slip a membership write between a change and
-  its audit record. Reads are unaffected. If the lock cannot be taken, the job fails having applied
-  nothing — re-run it.
-
-After the job, `select action, count(*) from audit_records where action like 'organization.healed.%'
-group by action;` is the record of what it did.
+The two invariants it healed are enforced on every runtime write path, so no repair job replaces it:
+an organization with no members is a Draft, and the global `Organizer` role is derived from live
+membership.
 
 ## 9. Importing legacy browser data (the cutover CLI)
 

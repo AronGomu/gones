@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Gones.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GonesDbContext))]
-    [Migration("20260802194522_AddNotificationDeliveryOperations")]
-    partial class AddNotificationDeliveryOperations
+    [Migration("20260822145459_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -26,148 +26,17 @@ namespace Gones.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Gones.Domain.Calendar.NotificationHistory", b =>
+            modelBuilder.Entity("Gones.Domain.Calendar.Event", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("DedupeKey")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("dedupe_key");
-
-                    b.Property<Guid>("OutboxId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("outbox_id");
-
-                    b.Property<Instant>("SentAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("sent_at");
-
-                    b.Property<string>("TemplateKey")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)")
-                        .HasColumnName("template_key");
-
-                    b.Property<Guid?>("TournamentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("tournament_id");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_notification_history");
-
-                    b.HasIndex("OutboxId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_notification_history_outbox_id");
-
-                    b.HasIndex("TournamentId", "SentAt")
-                        .HasDatabaseName("ix_notification_history_tournament_id_sent_at");
-
-                    b.HasIndex("UserId", "SentAt")
-                        .HasDatabaseName("ix_notification_history_user_id_sent_at");
-
-                    b.ToTable("notification_history", (string)null);
-                });
-
-            modelBuilder.Entity("Gones.Domain.Calendar.ScheduledNotification", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Instant>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("DedupeKey")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("dedupe_key");
-
-                    b.Property<Guid?>("OutboxId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("outbox_id");
-
-                    b.Property<Guid>("RegistrationAttemptId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("registration_attempt_id");
-
-                    b.Property<Instant>("ScheduledAtUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("scheduled_at_utc");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("status");
-
-                    b.Property<Guid>("TournamentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("tournament_id");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("type");
-
-                    b.Property<Instant>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id")
-                        .HasName("pk_scheduled_notifications");
-
-                    b.HasIndex("DedupeKey")
-                        .IsUnique()
-                        .HasDatabaseName("ix_scheduled_notifications_dedupe_key");
-
-                    b.HasIndex("OutboxId")
-                        .HasDatabaseName("ix_scheduled_notifications_outbox_id");
-
-                    b.HasIndex("RegistrationAttemptId")
-                        .HasDatabaseName("ix_scheduled_notifications_registration_attempt_id");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_scheduled_notifications_user_id");
-
-                    b.HasIndex("Status", "ScheduledAtUtc", "Id")
-                        .HasDatabaseName("ix_scheduled_notifications_status_scheduled_at_utc_id");
-
-                    b.HasIndex("TournamentId", "RegistrationAttemptId", "Status")
-                        .HasDatabaseName("ix_scheduled_notifications_tournament_id_registration_attempt_~");
-
-                    b.ToTable("scheduled_notifications", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_scheduled_notification_outbox", "(status = 'Enqueued' AND outbox_id IS NOT NULL) OR (status <> 'Enqueued' AND outbox_id IS NULL)");
-
-                            t.HasCheckConstraint("ck_scheduled_notification_status", "status IN ('Planned', 'Enqueued', 'Missed', 'Cancelled')");
-
-                            t.HasCheckConstraint("ck_scheduled_notification_type", "type IN ('Monthly', 'Saturday', 'DayTwo', 'DayOne')");
-                        });
-                });
-
-            modelBuilder.Entity("Gones.Domain.Calendar.ScheduledTournament", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
+                    b.Property<string>("ArchiveTournamentUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("archive_tournament_url");
 
                     b.Property<string>("BodyHtml")
                         .HasMaxLength(10000)
@@ -214,6 +83,11 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.Property<Instant>("EndsAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ends_at_utc");
+
+                    b.Property<string>("LiveTournamentUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)")
+                        .HasColumnName("live_tournament_url");
 
                     b.Property<string>("NormalizedSearchText")
                         .IsRequired()
@@ -295,46 +169,46 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnName("version");
 
                     b.HasKey("Id")
-                        .HasName("pk_scheduled_tournaments");
+                        .HasName("pk_events");
 
                     b.HasIndex("CreatedByUserId")
-                        .HasDatabaseName("ix_scheduled_tournaments_created_by_user_id");
+                        .HasDatabaseName("ix_events_created_by_user_id");
 
                     b.HasIndex("DeletedByUserId")
-                        .HasDatabaseName("ix_scheduled_tournaments_deleted_by_user_id");
+                        .HasDatabaseName("ix_events_deleted_by_user_id");
 
                     b.HasIndex("NormalizedSearchText")
-                        .HasDatabaseName("ix_scheduled_tournaments_normalized_search_text");
+                        .HasDatabaseName("ix_events_normalized_search_text");
 
                     b.HasIndex("OrganizationId")
-                        .HasDatabaseName("ix_scheduled_tournaments_organization_id");
+                        .HasDatabaseName("ix_events_organization_id");
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasDatabaseName("ix_scheduled_tournaments_slug");
+                        .HasDatabaseName("ix_events_slug");
 
                     b.HasIndex("StartsAtUtc")
-                        .HasDatabaseName("ix_scheduled_tournaments_starts_at_utc");
+                        .HasDatabaseName("ix_events_starts_at_utc");
 
                     b.HasIndex("Status")
-                        .HasDatabaseName("ix_scheduled_tournaments_status");
+                        .HasDatabaseName("ix_events_status");
 
                     b.HasIndex("City", "Country")
-                        .HasDatabaseName("ix_scheduled_tournaments_city_country");
+                        .HasDatabaseName("ix_events_city_country");
 
                     b.HasIndex("OrganizationId", "Slug")
-                        .HasDatabaseName("ix_scheduled_tournaments_organization_id_slug");
+                        .HasDatabaseName("ix_events_organization_id_slug");
 
                     b.HasIndex("Status", "EndsAtUtc")
-                        .HasDatabaseName("ix_scheduled_tournaments_status_ends_at_utc");
+                        .HasDatabaseName("ix_events_status_ends_at_utc");
 
                     b.HasIndex("Status", "StartsAtUtc")
-                        .HasDatabaseName("ix_scheduled_tournaments_status_starts_at_utc");
+                        .HasDatabaseName("ix_events_status_starts_at_utc");
 
                     b.HasIndex("VenueStartDate", "VenueStartTime", "Id")
-                        .HasDatabaseName("ix_scheduled_tournaments_venue_start_date_venue_start_time_id");
+                        .HasDatabaseName("ix_events_venue_start_date_venue_start_time_id");
 
-                    b.ToTable("scheduled_tournaments", null, t =>
+                    b.ToTable("events", null, t =>
                         {
                             t.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity IS NULL OR capacity > 0");
 
@@ -348,26 +222,30 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Gones.Domain.Calendar.ScheduledTournamentFormat", b =>
+            modelBuilder.Entity("Gones.Domain.Calendar.EventFormat", b =>
                 {
-                    b.Property<Guid>("ScheduledTournamentId")
+                    b.Property<Guid>("EventId")
                         .HasColumnType("uuid")
-                        .HasColumnName("scheduled_tournament_id");
+                        .HasColumnName("event_id");
 
                     b.Property<Guid>("TournamentFormatId")
                         .HasColumnType("uuid")
                         .HasColumnName("tournament_format_id");
 
-                    b.HasKey("ScheduledTournamentId", "TournamentFormatId")
-                        .HasName("pk_scheduled_tournament_formats");
+                    b.HasKey("EventId", "TournamentFormatId")
+                        .HasName("pk_event_formats");
+
+                    b.HasIndex("EventId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_formats_event_id");
 
                     b.HasIndex("TournamentFormatId")
-                        .HasDatabaseName("ix_scheduled_tournament_formats_tournament_format_id");
+                        .HasDatabaseName("ix_event_formats_tournament_format_id");
 
-                    b.ToTable("scheduled_tournament_formats", (string)null);
+                    b.ToTable("event_formats", (string)null);
                 });
 
-            modelBuilder.Entity("Gones.Domain.Calendar.TournamentLifecycleEvent", b =>
+            modelBuilder.Entity("Gones.Domain.Calendar.EventLifecycleEntry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -377,6 +255,10 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ActorUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("actor_user_id");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
 
                     b.Property<string>("EventType")
                         .IsRequired()
@@ -398,23 +280,19 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("reminder_plan_processed_at");
 
-                    b.Property<Guid>("TournamentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("tournament_id");
-
                     b.HasKey("Id")
-                        .HasName("pk_tournament_lifecycle_events");
+                        .HasName("pk_event_lifecycle_entries");
 
                     b.HasIndex("ActorUserId")
-                        .HasDatabaseName("ix_tournament_lifecycle_events_actor_user_id");
+                        .HasDatabaseName("ix_event_lifecycle_entries_actor_user_id");
 
-                    b.HasIndex("TournamentId", "OccurredAt")
-                        .HasDatabaseName("ix_tournament_lifecycle_events_tournament_id_occurred_at");
+                    b.HasIndex("EventId", "OccurredAt")
+                        .HasDatabaseName("ix_event_lifecycle_entries_event_id_occurred_at");
 
                     b.HasIndex("ReminderPlanAction", "ReminderPlanProcessedAt", "OccurredAt")
-                        .HasDatabaseName("ix_tournament_lifecycle_events_reminder_plan_action_reminder_p~");
+                        .HasDatabaseName("ix_event_lifecycle_entries_reminder_plan_action_reminder_plan_~");
 
-                    b.ToTable("tournament_lifecycle_events", null, t =>
+                    b.ToTable("event_lifecycle_entries", null, t =>
                         {
                             t.HasCheckConstraint("ck_tournament_lifecycle_event_type", "event_type IN ('MajorDetailsUpdated', 'Cancelled', 'Deleted', 'Restored')");
 
@@ -422,12 +300,141 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Gones.Domain.Calendar.TournamentRegistrationAttempt", b =>
+            modelBuilder.Entity("Gones.Domain.Calendar.EventProposal", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Instant?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by_user_id");
+
+                    b.Property<Instant>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubmittedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by_user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_event_proposals");
+
+                    b.HasIndex("DecidedByUserId")
+                        .HasDatabaseName("ix_event_proposals_decided_by_user_id");
+
+                    b.HasIndex("SubmittedByUserId")
+                        .HasDatabaseName("ix_event_proposals_submitted_by_user_id");
+
+                    b.HasIndex("Status", "ExpiresAt")
+                        .HasDatabaseName("ix_event_proposals_status_expires_at");
+
+                    b.ToTable("event_proposals", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_tournament_proposal_decision", "(status = 'Pending' AND decided_at IS NULL AND rejection_reason IS NULL) OR (status <> 'Pending' AND decided_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_tournament_proposal_expiry", "expires_at > created_at");
+
+                            t.HasCheckConstraint("ck_tournament_proposal_status", "status IN ('Pending', 'Approved', 'Rejected')");
+
+                            t.HasCheckConstraint("ck_version_positive", "version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventProposalRecipient", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ProposalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposal_id");
+
+                    b.Property<Instant>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("token_hash")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_event_proposal_recipients");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_proposal_recipients_token_hash");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_event_proposal_recipients_user_id");
+
+                    b.HasIndex("ProposalId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_proposal_recipients_proposal_id_user_id");
+
+                    b.ToTable("event_proposal_recipients", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_tournament_proposal_recipient_token_hash", "token_hash ~ '^[0-9a-f]{64}$'");
+
+                            t.HasCheckConstraint("ck_version_positive", "version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventRegistrationAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
 
                     b.Property<Instant>("RegisteredAt")
                         .HasColumnType("timestamp with time zone")
@@ -451,10 +458,6 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("status_changed_by_user_id");
 
-                    b.Property<Guid>("TournamentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("tournament_id");
-
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
@@ -465,31 +468,219 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnName("version");
 
                     b.HasKey("Id")
-                        .HasName("pk_tournament_registration_attempts");
+                        .HasName("pk_event_registration_attempts");
 
                     b.HasIndex("RegisteredByUserId")
-                        .HasDatabaseName("ix_tournament_registration_attempts_registered_by_user_id");
+                        .HasDatabaseName("ix_event_registration_attempts_registered_by_user_id");
 
                     b.HasIndex("StatusChangedByUserId")
-                        .HasDatabaseName("ix_tournament_registration_attempts_status_changed_by_user_id");
+                        .HasDatabaseName("ix_event_registration_attempts_status_changed_by_user_id");
 
-                    b.HasIndex("TournamentId", "Status")
-                        .HasDatabaseName("ix_tournament_registration_attempts_tournament_id_status");
+                    b.HasIndex("EventId", "Status")
+                        .HasDatabaseName("ix_event_registration_attempts_event_id_status");
 
-                    b.HasIndex("TournamentId", "UserId")
+                    b.HasIndex("EventId", "UserId")
                         .IsUnique()
-                        .HasDatabaseName("ix_tournament_registration_attempts_active")
+                        .HasDatabaseName("ix_event_registration_attempts_active")
                         .HasFilter("status = 'Confirmed'");
 
                     b.HasIndex("UserId", "RegisteredAt", "Id")
-                        .HasDatabaseName("ix_tournament_registration_attempts_user_id_registered_at_id");
+                        .HasDatabaseName("ix_event_registration_attempts_user_id_registered_at_id");
 
-                    b.ToTable("tournament_registration_attempts", null, t =>
+                    b.ToTable("event_registration_attempts", null, t =>
                         {
                             t.HasCheckConstraint("ck_tournament_registration_status", "status IN ('Confirmed', 'CancelledByUser', 'CancelledByTournament', 'RemovedByOrganizer')");
 
                             t.HasCheckConstraint("ck_tournament_registration_status_history", "(status = 'Confirmed' AND status_changed_by_user_id IS NULL AND status_changed_at IS NULL) OR (status <> 'Confirmed' AND status_changed_by_user_id IS NOT NULL AND status_changed_at IS NOT NULL)");
 
+                            t.HasCheckConstraint("ck_version_positive", "version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.NotificationHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("DedupeKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("dedupe_key");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid>("OutboxId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("outbox_id");
+
+                    b.Property<Instant>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<string>("TemplateKey")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("template_key");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notification_history");
+
+                    b.HasIndex("OutboxId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notification_history_outbox_id");
+
+                    b.HasIndex("EventId", "SentAt")
+                        .HasDatabaseName("ix_notification_history_event_id_sent_at");
+
+                    b.HasIndex("UserId", "SentAt")
+                        .HasDatabaseName("ix_notification_history_user_id_sent_at");
+
+                    b.ToTable("notification_history", (string)null);
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.ScheduledNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DedupeKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("dedupe_key");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Guid?>("OutboxId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("outbox_id");
+
+                    b.Property<Guid>("RegistrationAttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("registration_attempt_id");
+
+                    b.Property<Instant>("ScheduledAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scheduled_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_scheduled_notifications");
+
+                    b.HasIndex("DedupeKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_scheduled_notifications_dedupe_key");
+
+                    b.HasIndex("OutboxId")
+                        .HasDatabaseName("ix_scheduled_notifications_outbox_id");
+
+                    b.HasIndex("RegistrationAttemptId")
+                        .HasDatabaseName("ix_scheduled_notifications_registration_attempt_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_scheduled_notifications_user_id");
+
+                    b.HasIndex("EventId", "RegistrationAttemptId", "Status")
+                        .HasDatabaseName("ix_scheduled_notifications_event_id_registration_attempt_id_st~");
+
+                    b.HasIndex("Status", "ScheduledAtUtc", "Id")
+                        .HasDatabaseName("ix_scheduled_notifications_status_scheduled_at_utc_id");
+
+                    b.ToTable("scheduled_notifications", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_scheduled_notification_outbox", "(status = 'Enqueued' AND outbox_id IS NOT NULL) OR (status <> 'Enqueued' AND outbox_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_scheduled_notification_status", "status IN ('Planned', 'Enqueued', 'Missed', 'Cancelled')");
+
+                            t.HasCheckConstraint("ck_scheduled_notification_type", "type IN ('Monthly', 'Saturday', 'DayTwo', 'DayOne')");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Domain.Catalog.DeckArchetype", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Instant?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("normalized_name");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_deck_archetypes");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ix_deck_archetypes_normalized_name");
+
+                    b.HasIndex("DeletedAt", "Name")
+                        .HasDatabaseName("ix_deck_archetypes_deleted_at_name");
+
+                    b.ToTable("deck_archetypes", null, t =>
+                        {
                             t.HasCheckConstraint("ck_version_positive", "version > 0");
                         });
                 });
@@ -1009,9 +1200,9 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<int?>("BirthYear")
-                        .HasColumnType("integer")
-                        .HasColumnName("birth_year");
+                    b.Property<LocalDate?>("BirthDate")
+                        .HasColumnType("date")
+                        .HasColumnName("birth_date");
 
                     b.Property<Instant?>("ClosedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1027,9 +1218,9 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("first_name");
 
-                    b.Property<bool>("IsBirthYearPublic")
+                    b.Property<bool>("IsBirthDatePublic")
                         .HasColumnType("boolean")
-                        .HasColumnName("is_birth_year_public");
+                        .HasColumnName("is_birth_date_public");
 
                     b.Property<bool>("IsFirstNamePublic")
                         .HasColumnType("boolean")
@@ -1053,10 +1244,20 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("last_name");
 
-                    b.Property<string>("Location")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("location");
+                    b.Property<string>("LocationCity")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("location_city");
+
+                    b.Property<string>("LocationCountry")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("location_country");
+
+                    b.Property<string>("LocationRegion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("location_region");
 
                     b.Property<string>("NormalizedUsername")
                         .IsRequired()
@@ -1102,9 +1303,195 @@ namespace Gones.Infrastructure.Persistence.Migrations
 
                     b.ToTable("user_profiles", t =>
                         {
-                            t.HasCheckConstraint("ck_user_profile_birth_year", "birth_year IS NULL OR birth_year >= 1900");
+                            t.HasCheckConstraint("ck_user_profile_birth_date", "birth_date IS NULL OR birth_date >= DATE '1900-01-01'");
 
                             t.HasCheckConstraint("ck_user_profile_language", "preferred_language IN ('fr', 'en')");
+
+                            t.HasCheckConstraint("ck_version_positive", "version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Domain.Leagues.LeagueArchiveAggregate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CanonicalDocument")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("canonical_document");
+
+                    b.Property<int>("CountsVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("counts_version");
+
+                    b.Property<Instant?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("PlayerCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("player_count");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("TournamentCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("tournament_count");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_league_archive_aggregates");
+
+                    b.HasIndex("CountsVersion")
+                        .HasDatabaseName("ix_league_archive_aggregates_counts_version");
+
+                    b.HasIndex("DocumentId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_league_archive_aggregates_document_id");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_league_archive_aggregates_name");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_league_archive_aggregates_status");
+
+                    b.HasIndex("Version")
+                        .HasDatabaseName("ix_league_archive_aggregates_version");
+
+                    b.HasIndex("DeletedAt", "UpdatedAt", "Id")
+                        .IsDescending(false, true, false)
+                        .HasDatabaseName("ix_league_archive_aggregates_deleted_at_updated_at_id");
+
+                    b.ToTable("league_archive_aggregates", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_league_aggregate_document_metadata", "canonical_document ->> 'id' = document_id AND canonical_document ->> 'name' = name AND canonical_document ->> 'status' = status");
+
+                            t.HasCheckConstraint("ck_league_aggregate_document_object", "jsonb_typeof(canonical_document) = 'object'");
+
+                            t.HasCheckConstraint("ck_league_aggregate_document_size", "octet_length(canonical_document::text) <= 1048576");
+
+                            t.HasCheckConstraint("ck_league_aggregate_status", "status IN ('active', 'completed')");
+
+                            t.HasCheckConstraint("ck_version_positive", "version > 0");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Domain.Live.LiveAggregate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CanonicalDocument")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("canonical_document");
+
+                    b.Property<Instant?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("stage");
+
+                    b.Property<string>("TournamentDate")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("tournament_date");
+
+                    b.Property<Instant>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_live_aggregates");
+
+                    b.HasIndex("DocumentId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_live_aggregates_document_id");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_live_aggregates_name");
+
+                    b.HasIndex("Stage")
+                        .HasDatabaseName("ix_live_aggregates_stage");
+
+                    b.HasIndex("TournamentDate")
+                        .HasDatabaseName("ix_live_aggregates_tournament_date");
+
+                    b.HasIndex("Version")
+                        .HasDatabaseName("ix_live_aggregates_version");
+
+                    b.HasIndex("DeletedAt", "UpdatedAt", "Id")
+                        .IsDescending(false, true, false)
+                        .HasDatabaseName("ix_live_aggregates_deleted_at_updated_at_id");
+
+                    b.ToTable("live_aggregates", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_live_aggregate_checkpoint_bound", "jsonb_array_length(canonical_document -> 'checkpoints') <= 80");
+
+                            t.HasCheckConstraint("ck_live_aggregate_document_metadata", "canonical_document ->> 'id' = document_id AND canonical_document ->> 'name' = name AND canonical_document ->> 'tournamentDate' = tournament_date AND canonical_document ->> 'stage' = stage");
+
+                            t.HasCheckConstraint("ck_live_aggregate_document_object", "jsonb_typeof(canonical_document) = 'object'");
+
+                            t.HasCheckConstraint("ck_live_aggregate_document_size", "octet_length(canonical_document::text) <= 1048576");
+
+                            t.HasCheckConstraint("ck_live_aggregate_stage", "stage IN ('registration', 'round', 'standings', 'completed')");
 
                             t.HasCheckConstraint("ck_version_positive", "version > 0");
                         });
@@ -1624,6 +2011,9 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_audit_records");
 
+                    b.HasIndex("ActorId")
+                        .HasDatabaseName("ix_audit_records_actor_id");
+
                     b.HasIndex("OccurredAt")
                         .HasDatabaseName("ix_audit_records_occurred_at");
 
@@ -1636,7 +2026,7 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Gones.Domain.Persistence.ConsumedTournamentPreviewTicket", b =>
+            modelBuilder.Entity("Gones.Domain.Persistence.ConsumedEventPreviewTicket", b =>
                 {
                     b.Property<string>("TicketHash")
                         .HasMaxLength(64)
@@ -1648,12 +2038,12 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnName("expires_at");
 
                     b.HasKey("TicketHash")
-                        .HasName("pk_consumed_tournament_preview_tickets");
+                        .HasName("pk_consumed_event_preview_tickets");
 
                     b.HasIndex("ExpiresAt")
-                        .HasDatabaseName("ix_consumed_tournament_preview_tickets_expires_at");
+                        .HasDatabaseName("ix_consumed_event_preview_tickets_expires_at");
 
-                    b.ToTable("consumed_tournament_preview_tickets");
+                    b.ToTable("consumed_event_preview_tickets");
                 });
 
             modelBuilder.Entity("Gones.Domain.Persistence.IdempotencyRecord", b =>
@@ -1949,6 +2339,159 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Gones.Infrastructure.Persistence.PlayerStatisticsMeta", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("FormulaVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("formula_version");
+
+                    b.Property<Instant>("RebuiltAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rebuilt_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_player_statistics_meta");
+
+                    b.ToTable("player_statistics_meta", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_player_statistics_meta_single_row", "id = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Infrastructure.Persistence.PlayerStatisticsRow", b =>
+                {
+                    b.Property<string>("PlayerName")
+                        .HasColumnType("text")
+                        .HasColumnName("player_name");
+
+                    b.Property<double>("DecayedRating")
+                        .HasColumnType("double precision")
+                        .HasColumnName("decayed_rating");
+
+                    b.Property<int>("GameLosses")
+                        .HasColumnType("integer")
+                        .HasColumnName("game_losses");
+
+                    b.Property<double?>("GameWinrate")
+                        .HasColumnType("double precision")
+                        .HasColumnName("game_winrate");
+
+                    b.Property<int>("GameWins")
+                        .HasColumnType("integer")
+                        .HasColumnName("game_wins");
+
+                    b.Property<string>("LastPlayedDate")
+                        .HasColumnType("text")
+                        .HasColumnName("last_played_date");
+
+                    b.Property<double>("LastRatingDelta")
+                        .HasColumnType("double precision")
+                        .HasColumnName("last_rating_delta");
+
+                    b.Property<int>("MatchDraws")
+                        .HasColumnType("integer")
+                        .HasColumnName("match_draws");
+
+                    b.Property<int>("MatchLosses")
+                        .HasColumnType("integer")
+                        .HasColumnName("match_losses");
+
+                    b.Property<double?>("MatchWinrate")
+                        .HasColumnType("double precision")
+                        .HasColumnName("match_winrate");
+
+                    b.Property<int>("MatchWins")
+                        .HasColumnType("integer")
+                        .HasColumnName("match_wins");
+
+                    b.Property<string>("MostPlayedArchetype")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("most_played_archetype");
+
+                    b.Property<string>("Nemesis")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("nemesis");
+
+                    b.Property<int>("PlayedGameCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("played_game_count");
+
+                    b.Property<int>("PlayedMatchCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("played_match_count");
+
+                    b.Property<double>("PreviousRating")
+                        .HasColumnType("double precision")
+                        .HasColumnName("previous_rating");
+
+                    b.Property<double>("Rating")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rating");
+
+                    b.Property<double>("RatingDeviation")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rating_deviation");
+
+                    b.Property<double>("RatingVolatility")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rating_volatility");
+
+                    b.Property<string>("Rival")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("rival");
+
+                    b.Property<int>("TournamentsPlayed")
+                        .HasColumnType("integer")
+                        .HasColumnName("tournaments_played");
+
+                    b.HasKey("PlayerName")
+                        .HasName("pk_player_statistics");
+
+                    b.HasIndex("GameLosses")
+                        .HasDatabaseName("ix_player_statistics_game_losses");
+
+                    b.HasIndex("GameWinrate")
+                        .HasDatabaseName("ix_player_statistics_game_winrate");
+
+                    b.HasIndex("GameWins")
+                        .HasDatabaseName("ix_player_statistics_game_wins");
+
+                    b.HasIndex("MatchDraws")
+                        .HasDatabaseName("ix_player_statistics_match_draws");
+
+                    b.HasIndex("MatchLosses")
+                        .HasDatabaseName("ix_player_statistics_match_losses");
+
+                    b.HasIndex("MatchWinrate")
+                        .HasDatabaseName("ix_player_statistics_match_winrate");
+
+                    b.HasIndex("MatchWins")
+                        .HasDatabaseName("ix_player_statistics_match_wins");
+
+                    b.HasIndex("PlayedGameCount")
+                        .HasDatabaseName("ix_player_statistics_played_game_count");
+
+                    b.HasIndex("PlayedMatchCount")
+                        .HasDatabaseName("ix_player_statistics_played_match_count");
+
+                    b.HasIndex("PlayerName")
+                        .HasDatabaseName("ix_player_statistics_player_name_pattern");
+
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("PlayerName"), new[] { "text_pattern_ops" });
+
+                    b.HasIndex("Rating")
+                        .HasDatabaseName("ix_player_statistics_rating");
+
+                    b.HasIndex("TournamentsPlayed")
+                        .HasDatabaseName("ix_player_statistics_tournaments_played");
+
+                    b.ToTable("player_statistics", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.Property<int>("Id")
@@ -2030,20 +2573,140 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.ToTable("asp_net_user_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("Gones.Domain.Calendar.Event", b =>
+                {
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_events_asp_net_users_created_by_user_id");
+
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("DeletedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_events_asp_net_users_deleted_by_user_id");
+
+                    b.HasOne("Gones.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_events_organizations_organization_id");
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventFormat", b =>
+                {
+                    b.HasOne("Gones.Domain.Calendar.Event", null)
+                        .WithMany("Formats")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_formats_events_event_id");
+
+                    b.HasOne("Gones.Domain.Catalog.TournamentFormat", null)
+                        .WithMany()
+                        .HasForeignKey("TournamentFormatId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_formats_tournament_formats_tournament_format_id");
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventLifecycleEntry", b =>
+                {
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_lifecycle_entries_asp_net_users_actor_user_id");
+
+                    b.HasOne("Gones.Domain.Calendar.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_lifecycle_entries_events_event_id");
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventProposal", b =>
+                {
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_event_proposals_asp_net_users_decided_by_user_id");
+
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_proposals_asp_net_users_submitted_by_user_id");
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventProposalRecipient", b =>
+                {
+                    b.HasOne("Gones.Domain.Calendar.EventProposal", null)
+                        .WithMany("Recipients")
+                        .HasForeignKey("ProposalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_proposal_recipients_event_proposals_proposal_id");
+
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_proposal_recipients_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventRegistrationAttempt", b =>
+                {
+                    b.HasOne("Gones.Domain.Calendar.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_registration_attempts_events_event_id");
+
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RegisteredByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_registration_attempts_asp_net_users_registered_by_user_~");
+
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("StatusChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_event_registration_attempts_asp_net_users_status_changed_by_u~");
+
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_registration_attempts_asp_net_users_user_id");
+                });
+
             modelBuilder.Entity("Gones.Domain.Calendar.NotificationHistory", b =>
                 {
+                    b.HasOne("Gones.Domain.Calendar.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_notification_history_events_event_id");
+
                     b.HasOne("Gones.Domain.Notifications.NotificationOutboxRecord", null)
                         .WithMany()
                         .HasForeignKey("OutboxId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_notification_history_notification_outbox_outbox_id");
-
-                    b.HasOne("Gones.Domain.Calendar.ScheduledTournament", null)
-                        .WithMany()
-                        .HasForeignKey("TournamentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_notification_history_scheduled_tournaments_tournament_id");
 
                     b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
@@ -2054,25 +2717,25 @@ namespace Gones.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Gones.Domain.Calendar.ScheduledNotification", b =>
                 {
+                    b.HasOne("Gones.Domain.Calendar.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_scheduled_notifications_events_event_id");
+
                     b.HasOne("Gones.Domain.Notifications.NotificationOutboxRecord", null)
                         .WithMany()
                         .HasForeignKey("OutboxId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_scheduled_notifications_notification_outbox_outbox_id");
 
-                    b.HasOne("Gones.Domain.Calendar.TournamentRegistrationAttempt", null)
+                    b.HasOne("Gones.Domain.Calendar.EventRegistrationAttempt", null)
                         .WithMany()
                         .HasForeignKey("RegistrationAttemptId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
-                        .HasConstraintName("fk_scheduled_notifications_tournament_registration_attempts_re~");
-
-                    b.HasOne("Gones.Domain.Calendar.ScheduledTournament", null)
-                        .WithMany()
-                        .HasForeignKey("TournamentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_scheduled_notifications_scheduled_tournaments_tournament_id");
+                        .HasConstraintName("fk_scheduled_notifications_event_registration_attempts_registr~");
 
                     b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
@@ -2080,93 +2743,6 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_scheduled_notifications_asp_net_users_user_id");
-                });
-
-            modelBuilder.Entity("Gones.Domain.Calendar.ScheduledTournament", b =>
-                {
-                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_scheduled_tournaments_asp_net_users_created_by_user_id");
-
-                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("DeletedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_scheduled_tournaments_asp_net_users_deleted_by_user_id");
-
-                    b.HasOne("Gones.Domain.Organizations.Organization", null)
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_scheduled_tournaments_organizations_organization_id");
-                });
-
-            modelBuilder.Entity("Gones.Domain.Calendar.ScheduledTournamentFormat", b =>
-                {
-                    b.HasOne("Gones.Domain.Calendar.ScheduledTournament", null)
-                        .WithMany("Formats")
-                        .HasForeignKey("ScheduledTournamentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_scheduled_tournament_formats_scheduled_tournaments_schedule~");
-
-                    b.HasOne("Gones.Domain.Catalog.TournamentFormat", null)
-                        .WithMany()
-                        .HasForeignKey("TournamentFormatId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_scheduled_tournament_formats_tournament_formats_tournament_~");
-                });
-
-            modelBuilder.Entity("Gones.Domain.Calendar.TournamentLifecycleEvent", b =>
-                {
-                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("ActorUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_tournament_lifecycle_events_asp_net_users_actor_user_id");
-
-                    b.HasOne("Gones.Domain.Calendar.ScheduledTournament", null)
-                        .WithMany()
-                        .HasForeignKey("TournamentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_tournament_lifecycle_events_scheduled_tournaments_tournamen~");
-                });
-
-            modelBuilder.Entity("Gones.Domain.Calendar.TournamentRegistrationAttempt", b =>
-                {
-                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("RegisteredByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_tournament_registration_attempts_asp_net_users_registered_by_~");
-
-                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("StatusChangedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("fk_tournament_registration_attempts_asp_net_users_status_changed~");
-
-                    b.HasOne("Gones.Domain.Calendar.ScheduledTournament", null)
-                        .WithMany()
-                        .HasForeignKey("TournamentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_tournament_registration_attempts_scheduled_tournaments_tour~");
-
-                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_tournament_registration_attempts_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("Gones.Domain.Identity.AccountActionToken", b =>
@@ -2310,6 +2886,15 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_organization_notification_settings_organizations_organizati~");
                 });
 
+            modelBuilder.Entity("Gones.Domain.Persistence.AuditRecord", b =>
+                {
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_audit_records_asp_net_users_actor_id");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
@@ -2340,9 +2925,14 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_asp_net_user_tokens_asp_net_users_user_id");
                 });
 
-            modelBuilder.Entity("Gones.Domain.Calendar.ScheduledTournament", b =>
+            modelBuilder.Entity("Gones.Domain.Calendar.Event", b =>
                 {
                     b.Navigation("Formats");
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventProposal", b =>
+                {
+                    b.Navigation("Recipients");
                 });
 #pragma warning restore 612, 618
         }

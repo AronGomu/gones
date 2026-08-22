@@ -1034,3 +1034,29 @@ enough.
 - [ ] Tab B: reload once and confirm the visible state matches the toggle in tab A (the reactive state and the persisted state agree).
 - [ ] Toggle Power User on in tab A while tab B sits on a Live tournament detail page: tab B gains its edit affordances without a reload, and the read-only banner disappears.
 - [ ] Open a private/incognito window alongside: toggling Power User there changes nothing in the normal window (the preference stays per browser profile, not shared).
+
+## T1 reset-and-squash
+
+The 35 accumulated EF migrations were collapsed into a single `InitialCreate` that produces the same
+schema, and every local store holding archive data was emptied. Nothing about the product changed —
+no route, no response shape, no domain rule — so this pass is looking for the *absence* of breakage,
+plus an archive that is genuinely empty.
+
+An empty archive is the expected, correct state between now and T13. It is not a bug to report.
+
+Start from a freshly reset stack (`npm run db:reset`), then in the browser clear the client stores
+once: DevTools console → `localStorage.clear(); indexedDB.deleteDatabase('gones-leagues');` → hard
+reload (Ctrl+Shift+R). Clearing `localStorage` signs you out; that is expected.
+
+- [ ] Open `/leagues-archive`. It renders the empty-list state, with no error toast and no red error in the DevTools console.
+- [ ] In the DevTools console run `indexedDB.databases().then(d => console.log(d.map(x => x.name)))`. Confirm `gones-leagues` is absent, and that `gones-live` is still listed (Live data is deliberately untouched).
+- [ ] In the DevTools console run `Object.keys(localStorage).filter(k => k.includes('archive'))`. Confirm it prints `[]`.
+- [ ] Sign in. Confirm sign-in works and lands you back in the app.
+- [ ] Load `/events`. The calendar renders and existing events are listed — the table rename survived the squash.
+- [ ] Load `/global-stats`. The page renders. Player statistics are empty, which is correct: the archive they are derived from is empty.
+- [ ] Open a Live tournament from the Live section and confirm it still loads with its data intact — the squash must not have touched `gones-live`.
+- [ ] Create a new archive League from `/leagues-archive` (Power User mode on), save it, and reload. It persists — writes still work against the new schema.
+- [ ] Delete that League again and confirm the list returns to the empty state.
+- [ ] Open the event-create form and confirm the format picker offers `Legacy` — the carried `tournament_formats` seed row survived the squash.
+- [ ] Open a deck-archetype picker (for example while recording a Live result) and confirm the preset archetype list is populated, including `Reanimator (Rakdos)` — the carried 49-row `deck_archetypes` seed survived.
+- [ ] In `/admin/organizations`, confirm existing organizations still list and their member rosters render.

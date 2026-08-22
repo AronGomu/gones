@@ -10,9 +10,11 @@ namespace Gones.ArchitectureTests;
 /// Every integration class calls <c>MigrateAsync()</c> against a container that starts empty and no
 /// <c>Down</c> is ever executed, so a migration that destroys existing rows is indistinguishable from
 /// one that preserves them: on an empty database both leave the same schema and nothing to lose. The
-/// hand-correction in <c>20260809122735_RenameLeagueArchiveTables.cs</c> — EF scaffolds a
-/// <c>DropTable</c> + <c>CreateTable</c> pair for an entity-type rename, and applying that scaffold
-/// would silently drop every archived League — was therefore encoded nowhere but in a comment.
+/// hand-correction that made the point — EF scaffolds a <c>DropTable</c> + <c>CreateTable</c> pair for
+/// an entity-type rename, and applying that scaffold would silently drop every archived League — was
+/// encoded nowhere but in a comment. The T1 squash folded that migration, and every other, into the
+/// single <c>InitialCreate</c>, so no committed migration renames a table today; rules (a) and (b)
+/// below stay armed for the next one that does.
 ///
 /// Two source rules close the named failure without building a data-preservation harness:
 ///
@@ -80,9 +82,11 @@ public sealed class MigrationSafetyTests
     {
         var violations = new List<string>();
         var renameMigrations = 0;
+        var scanned = 0;
 
         foreach (var path in MigrationSources())
         {
+            scanned++;
             var source = File.ReadAllText(path);
             var renamed = RenameTablePattern
                 .Matches(source)
@@ -106,8 +110,10 @@ public sealed class MigrationSafetyTests
             }
         }
 
-        // The rule is only meaningful while a rename migration exists to be checked.
-        Assert.True(renameMigrations > 0, "No committed migration renames a table; this guard is scanning nothing.");
+        // T1 squashed the history into a single InitialCreate, so no committed migration renames a table
+        // any more and `renameMigrations` is legitimately 0. The scan-count sentinel keeps the guard from
+        // passing because it read no files, which is the failure the old sentinel was really guarding.
+        Assert.True(scanned > 0, "No migration sources found; this guard is scanning nothing.");
         Assert.Empty(violations);
     }
 
@@ -124,6 +130,15 @@ public sealed class MigrationSafetyTests
             context.Database.HasPendingModelChanges(),
             "The model has changes no migration carries. Run `dotnet ef migrations add <Name>` — and if the change "
             + "renames an entity or a table, hand-correct the scaffold to a rename instead of a drop-and-create.");
+    }
+
+    [Fact]
+    public void The_migration_history_is_a_single_initial_create()
+    {
+        var migrations = MigrationSources().Select(Path.GetFileNameWithoutExtension).ToArray();
+
+        var single = Assert.Single(migrations);
+        Assert.Matches(@"^\d{14}_InitialCreate$", single);
     }
 
     private static string UpBody(string source)

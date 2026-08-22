@@ -20,7 +20,7 @@ public sealed class PersistenceKernelTests : IAsyncLifetime
     {
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
-        Assert.Contains(await db.Database.GetAppliedMigrationsAsync(), migration => migration.EndsWith("_InitialPersistence", StringComparison.Ordinal));
+        Assert.Contains(await db.Database.GetAppliedMigrationsAsync(), migration => migration.EndsWith("_InitialCreate", StringComparison.Ordinal));
         Assert.Equal("uuid", await ScalarAsync(db, "SELECT data_type FROM information_schema.columns WHERE table_name = 'schema_versions' AND column_name = 'id'"));
         Assert.Equal("timestamp with time zone", await ScalarAsync(db, "SELECT data_type FROM information_schema.columns WHERE table_name = 'schema_versions' AND column_name = 'applied_at'"));
         Assert.Equal("jsonb", await ScalarAsync(db, "SELECT udt_name FROM information_schema.columns WHERE table_name = 'idempotency_records' AND column_name = 'response_body'"));
@@ -33,7 +33,7 @@ public sealed class PersistenceKernelTests : IAsyncLifetime
         Assert.Empty(await db.Database.GetAppliedMigrationsAsync());
 
         await db.Database.MigrateAsync();
-        Assert.Contains(await db.Database.GetAppliedMigrationsAsync(), migration => migration.EndsWith("_InitialPersistence", StringComparison.Ordinal));
+        Assert.Contains(await db.Database.GetAppliedMigrationsAsync(), migration => migration.EndsWith("_InitialCreate", StringComparison.Ordinal));
     }
 
     [Fact]
