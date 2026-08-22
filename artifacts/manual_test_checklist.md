@@ -1060,3 +1060,28 @@ reload (Ctrl+Shift+R). Clearing `localStorage` signs you out; that is expected.
 - [ ] Open the event-create form and confirm the format picker offers `Legacy` — the carried `tournament_formats` seed row survived the squash.
 - [ ] Open a deck-archetype picker (for example while recording a Live result) and confirm the preset archetype list is populated, including `Reanimator (Rakdos)` — the carried 49-row `deck_archetypes` seed survived.
 - [ ] In `/admin/organizations`, confirm existing organizations still list and their member rosters render.
+
+## T2 three-tier-schema
+
+The backend foundation for the three-tier archive — League → LeagueSeason → Tournament. This slice adds
+domain aggregates, the EF mapping and one migration creating three empty tables. **Nothing reads or
+writes them yet**, and no route, response shape or screen changed. So this pass is looking for the
+*absence* of breakage, plus proof that the three tables really exist.
+
+Three empty archive tables and an archive that still shows only `Unassigned Tournaments` are the
+expected, correct state at this point. Neither is a bug to report.
+
+Start from a freshly reset stack (`npm run db:reset`).
+
+- [ ] Run `docker compose exec -T postgres psql -U gones_migration -d gones -Atc 'select "MigrationId" from "__EFMigrationsHistory" order by "MigrationId";'`. It prints exactly two lines: `20260822145459_InitialCreate` then `20260822183905_RebuildArchiveThreeTier`.
+- [ ] Run `docker compose exec -T postgres psql -U gones_migration -d gones -c '\d archive_leagues' -c '\d archive_league_seasons' -c '\d archive_tournaments'`. All three tables exist, each with `document_id | text | not null` as its primary key.
+- [ ] In that same output, confirm `archive_tournaments` has `tournament_date | date | not null`, `document | jsonb | not null`, and a nullable `season_id` — a Tournament is allowed to stand alone with no Season.
+- [ ] In that same output, confirm the foreign keys read `league_id` → `archive_leagues(document_id)` and `season_id` → `archive_league_seasons(document_id)`, and that neither says `ON DELETE CASCADE`.
+- [ ] Run `docker compose exec -T postgres psql -U gones_migration -d gones -Atc 'select (select count(*) from archive_leagues), (select count(*) from archive_league_seasons), (select count(*) from archive_tournaments);'`. It prints `0|0|0` — the tables are created empty on purpose and stay empty until a later slice fills them.
+- [ ] Open `/leagues-archive` in the browser. The list renders exactly as it did before this change, with no error toast and no red error in the DevTools console.
+- [ ] With Power User mode on, create an archive League from `/leagues-archive`, save it, and reload. It persists — the legacy archive surface is untouched by this slice and must keep working.
+- [ ] Delete that League again and confirm the list returns to its previous state.
+- [ ] Open an existing archive League and its Tournament detail page. Standings, player counts and dates all render as before.
+- [ ] Load `/global-stats` and confirm it renders — player statistics are derived from the legacy archive and must be unaffected.
+- [ ] Open a Live tournament and confirm it loads with its data intact.
+- [ ] Load `/events` and confirm the calendar renders with existing events.

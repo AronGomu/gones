@@ -133,12 +133,15 @@ public sealed class MigrationSafetyTests
     }
 
     [Fact]
-    public void The_migration_history_is_a_single_initial_create()
+    public void The_migration_history_starts_from_the_squashed_initial_create()
     {
         var migrations = MigrationSources().Select(Path.GetFileNameWithoutExtension).ToArray();
 
-        var single = Assert.Single(migrations);
-        Assert.Matches(@"^\d{14}_InitialCreate$", single);
+        Assert.NotEmpty(migrations);
+        Assert.Matches(@"^\d{14}_InitialCreate$", migrations[0]);
+        // Everything after the baseline is a migration the archive rebuild adds. A second InitialCreate
+        // would mean a re-squash landed on top of the first one instead of replacing it.
+        Assert.DoesNotContain(migrations.Skip(1), name => name?.EndsWith("_InitialCreate", StringComparison.Ordinal) == true);
     }
 
     private static string UpBody(string source)

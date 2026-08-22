@@ -1,3 +1,4 @@
+using Gones.Domain.Archive;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
@@ -46,6 +47,9 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<ScheduledNotification> ScheduledNotifications => Set<ScheduledNotification>();
     public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();
     public DbSet<LeagueArchiveAggregate> LeagueArchiveAggregates => Set<LeagueArchiveAggregate>();
+    public DbSet<ArchiveLeague> ArchiveLeagues => Set<ArchiveLeague>();
+    public DbSet<ArchiveLeagueSeason> ArchiveLeagueSeasons => Set<ArchiveLeagueSeason>();
+    public DbSet<ArchiveTournament> ArchiveTournaments => Set<ArchiveTournament>();
     public DbSet<PlayerStatisticsRow> PlayerStatistics => Set<PlayerStatisticsRow>();
     public DbSet<PlayerStatisticsMeta> PlayerStatisticsMeta => Set<PlayerStatisticsMeta>();
     public DbSet<LiveAggregate> LiveAggregates => Set<LiveAggregate>();
