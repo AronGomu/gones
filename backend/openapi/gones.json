@@ -120,6 +120,71 @@
         }
       }
     },
+    "/api/archive/tournaments/all": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "GetArchiveTournamentYearCatalog",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCatalogResponseOfArchiveTournamentSummary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/years": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "GetArchiveYears",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveYearsResponse"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          }
+        }
+      }
+    },
     "/api/leagues-archive/global-player-statistics": {
       "get": {
         "tags": [
@@ -9212,6 +9277,33 @@
           }
         }
       },
+      "ArchiveCatalogResponseOfArchiveTournamentSummary": {
+        "required": [
+          "items",
+          "totalCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveTournamentSummary"
+            }
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "ArchiveCommandResponse": {
         "required": [
           "id",
@@ -9795,6 +9887,101 @@
                 "$ref": "#/components/schemas/LeagueCommandResponse"
               }
             ]
+          }
+        }
+      },
+      "ArchiveTournamentSummary": {
+        "required": [
+          "id",
+          "name",
+          "seasonId",
+          "tournamentDate",
+          "status",
+          "updatedAt",
+          "documentVersion",
+          "playerCount"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seasonId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tournamentDate": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "playerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ArchiveYearEntry": {
+        "required": [
+          "year",
+          "locked",
+          "tournamentCount"
+        ],
+        "type": "object",
+        "properties": {
+          "year": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "tournamentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "ArchiveYearsResponse": {
+        "required": [
+          "years"
+        ],
+        "type": "object",
+        "properties": {
+          "years": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveYearEntry"
+            }
           }
         }
       },

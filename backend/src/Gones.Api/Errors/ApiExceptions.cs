@@ -31,6 +31,15 @@ public sealed class ConcurrencyConflictException(string? currentETag = null, lon
 public sealed class ResourceConflictException(string code = "conflict")
     : ApiException(code, "Request conflicts with current resource state.", StatusCodes.Status409Conflict);
 /// <summary>
+/// A malformed archive query string. Separate from <see cref="ApiValidationException"/> because that
+/// one answers with a field map for a submitted form, while a bad query parameter has no field to map
+/// and the browser cache keys its retry decision on the code alone. Separate from the framework's own
+/// binding failure because <c>UseStatusCodePages</c> labels that <c>malformed_request</c>, which says
+/// nothing about which parameter was wrong.
+/// </summary>
+public sealed class ArchiveInvalidRequestException(string safeMessage)
+    : ApiException("invalid_request", safeMessage, StatusCodes.Status400BadRequest);
+/// <summary>
 /// The account still owns rows behind a restricting foreign key, so it cannot be hard-deleted.
 /// <see cref="Relations"/> names the offending <c>table.column</c> pairs so a caller can say what
 /// has to be handed over first instead of guessing.
