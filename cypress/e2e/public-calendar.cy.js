@@ -195,6 +195,110 @@ describe('public Calendar V1', () => {
     });
   });
 
+  // Filtering writes `q` to the URL through the same query-param navigation as month navigation, so
+  // the router's scroll restoration puts the reader back at the top of the page 300 ms after the last
+  // keystroke. The reader reaches that state by scrolling the page while the search box keeps focus,
+  // which is why the keystroke here is typed without scrolling the input back into view. The filter
+  // matches every August event, so the grid is identical on both sides of it and the navigation is
+  // the only thing left that can move the page.
+  it('keeps the window scroll position when filtering the calendar', () => {
+    cy.intercept('GET', '**/api/events/all*', { items: busyMonthItems, generatedAt: '2026-08-08T10:00:00Z', count: busyMonthItems.length, truncated: false }).as('busyMonths');
+    cy.viewport(1024, 500);
+    visit('/events?month=2026-08&view=calendar');
+    cy.wait('@busyMonths');
+    cy.get('[data-cy="public-month-grid"]').should('be.visible');
+
+    cy.get('[data-cy="event-list-search"]').focus();
+    cy.scrollTo(0, 400);
+    cy.window().its('scrollY').should('be.greaterThan', 100);
+    cy.window().then(win => {
+      const before = win.scrollY;
+      cy.get('[data-cy="event-list-search"]').type('Busy 2026-08', { scrollBehavior: false, force: true });
+      cy.location('search').should('contain', 'q=Busy');
+      cy.get('[data-cy="event-list-month-day-event-busy-2026-08-15-0"]').should('exist');
+      // The URL write is debounced and the router schedules its scroll after the navigation resolves,
+      // so only the settled position says anything.
+      cy.wait(500);
+      cy.window().then(w => expect(w.scrollY).to.be.closeTo(before, 10));
+    });
+  });
+
+  /**
+   * Viewport-relative `top` of everything on the page that is not a result. Viewport-relative rather
+   * than document-relative so one snapshot covers both ways the page can move under a reader: a
+   * layout shift above the element, and a scroll jump under it.
+   *
+   * Everything the month grid precedes is dropped, which is one rule rather than a list: the event
+   * chips and the cells that size to them are inside it, and the empty state and the bottom back
+   * button come after it. All three are the results, or follow their height, and the filter is
+   * *supposed* to change them. The grid element itself is kept — its top edge is the boundary
+   * everything above it has to hold.
+   *
+   * Keyed by `data-cy` plus ordinal, so a duplicated identifier cannot quietly collapse two elements
+   * into one comparison, and compared with `deep.equal`, so an element that appears or disappears
+   * above that boundary fails as loudly as one that moves.
+   */
+  function chromeRects(win) {
+    const grid = win.document.querySelector('[data-cy="public-month-grid"]');
+    const seen = new Map();
+    const rects = {};
+    for (const element of win.document.querySelectorAll('[data-cy]')) {
+      const name = element.getAttribute('data-cy');
+      if (element !== grid && (grid.compareDocumentPosition(element) & win.Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+      const ordinal = seen.get(name) ?? 0;
+      seen.set(name, ordinal + 1);
+      rects[`${name}#${ordinal}`] = Math.round(element.getBoundingClientRect().top);
+    }
+    return rects;
+  }
+
+  // The reported symptom, verbatim: type `g`, then `o`, and a gap opens between the title and the
+  // input, and between the view tabs and Previous. `.info-page` is a CSS grid, so the min-height the
+  // search pins on it while the results narrow was handed to `align-content`, which spread it across
+  // every row gap on the page. Only a real browser can settle this — jsdom has no layout — and the
+  // assertion is per-keystroke because the pin is taken and released around each one.
+  it('holds every element but the events still while typing in the filter', () => {
+    cy.intercept('GET', '**/api/events/all*', { items: busyMonthItems, generatedAt: '2026-08-08T10:00:00Z', count: busyMonthItems.length, truncated: false }).as('busyMonths');
+    cy.viewport(1024, 500);
+    visit('/events?month=2026-08&view=calendar');
+    cy.wait('@busyMonths');
+    cy.get('[data-cy="public-month-grid"]').should('be.visible');
+
+    cy.get('[data-cy="event-list-search"]').focus();
+    cy.scrollTo(0, 400);
+    cy.window().its('scrollY').should('be.greaterThan', 100);
+    cy.window().then(win => {
+      const before = chromeRects(win);
+
+      cy.get('[data-cy="event-list-search"]').type('g', { scrollBehavior: false, force: true });
+      cy.window().then(w => expect(chromeRects(w), 'after the first keystroke').to.deep.equal(before));
+
+      cy.get('[data-cy="event-list-search"]').type('o', { scrollBehavior: false, force: true });
+      cy.window().then(w => expect(chromeRects(w), 'after the second keystroke').to.deep.equal(before));
+
+      // Past the debounce and the scroll the router schedules after the navigation resolves, so this
+      // reads the settled page rather than a frame that happens to still look right.
+      cy.location('search').should('contain', 'q=go');
+      cy.wait(500);
+      cy.window().then(w => expect(chromeRects(w), 'once the search settled').to.deep.equal(before));
+    });
+  });
+
+  // The pin the search takes on the page height has to come back off once the search settles, or the
+  // page keeps the height of the widest result set it ever showed. It is released from the navigation
+  // rather than a `requestAnimationFrame` precisely so that a hidden tab still releases it.
+  it('releases the pinned page height once the search settles', () => {
+    cy.intercept('GET', '**/api/events/all*', { items: busyMonthItems, generatedAt: '2026-08-08T10:00:00Z', count: busyMonthItems.length, truncated: false }).as('busyMonths');
+    cy.viewport(1024, 500);
+    visit('/events?month=2026-08&view=calendar');
+    cy.wait('@busyMonths');
+    cy.get('[data-cy="public-month-grid"]').should('be.visible');
+
+    cy.get('[data-cy="event-list-search"]').type('Busy 2026-08-15', { scrollBehavior: false });
+    cy.location('search').should('contain', 'q=Busy');
+    cy.get('[data-cy="public-calendar"]').should('have.css', 'min-height', '0px');
+  });
+
   it('caps same-day events at three and reports overflow', () => {
     const sameDay = Array.from({ length: 4 }, (_, index) => ({
       ...event,

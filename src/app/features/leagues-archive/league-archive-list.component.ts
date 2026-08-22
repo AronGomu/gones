@@ -37,9 +37,14 @@ const ARCHIVE_PAGE_SIZE = 25;
     <p class="muted" role="status" data-cy="leagues-archive-local-notice">{{ i18n.t('leagues.localNotice') }}</p>
     @if (repo.serverUnavailable()) { <p class="warning" role="status" data-cy="leagues-archive-server-unavailable">{{ i18n.t('leagues.serverUnavailable') }}</p> }
     @if (repo.catalogTruncated()) { <p class="warning" role="status" data-cy="leagues-archive-truncated">{{ i18n.t('leagues.truncated') }}</p> }
-    @if (showLeagueFilter()) {
+    @if (showLeagueFilter() || power.enabled()) {
       <div class="league-toolbar" data-cy="leagues-archive-list-toolbar">
-        <mat-form-field appearance="outline" class="search" data-cy="leagues-archive-list-search-field"><mat-label data-cy="leagues-archive-list-search-label">{{ i18n.t('leagues.search') }}</mat-label><input matInput data-cy="leagues-archive-list-search-input" [ngModel]="searchTerm()" (ngModelChange)="onSearchChange($event)"></mat-form-field>
+        @if (showLeagueFilter()) {
+          <mat-form-field appearance="outline" class="search" data-cy="leagues-archive-list-search-field"><mat-label data-cy="leagues-archive-list-search-label">{{ i18n.t('leagues.search') }}</mat-label><input matInput data-cy="leagues-archive-list-search-input" [ngModel]="searchTerm()" (ngModelChange)="onSearchChange($event)"></mat-form-field>
+        }
+        @if (power.enabled()) {
+          <button mat-flat-button class="create-action-button league-create-button" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="leagues-archive-list-create-button">{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.createArchive') }}</button>
+        }
       </div>
     }
     @if (loading()) { <mat-spinner diameter="40" data-cy="leagues-archive-list-spinner" /> }
@@ -54,12 +59,6 @@ const ARCHIVE_PAGE_SIZE = 25;
             <p data-cy="leagues-archive-list-item-meta">{{ leagueMeta(league) }}</p>
             <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-item-view">{{ i18n.t('common.view') }}</span>
           </a>
-        }
-        @if (power.enabled()) {
-          <button class="league-card league-create-card" type="button" [disabled]="creating()" (click)="createLeague()" data-cy="leagues-archive-list-create-card">
-            <h2 data-cy="leagues-archive-list-create-card-title">{{ creating() ? i18n.t('common.creating') : i18n.t('leagues.newLeague') }}</h2>
-            <span class="card-view-action" aria-hidden="true" data-cy="leagues-archive-list-create-card-action">{{ i18n.t('common.create') }}</span>
-          </button>
         }
         @if (hasUnmanageableServerLeagues()) { <p class="muted" data-cy="leagues-archive-list-read-only">{{ i18n.t('leagues.readOnly') }}</p> }
       </div>

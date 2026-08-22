@@ -50,10 +50,22 @@ function templateBlock(opening: string): string {
 
 describe('league archive list template', () => {
   it('offers create only after browser Power User opt-in, without adding a role gate', () => {
-    expect(source.match(/data-cy="leagues-archive-list-create-card"/g)).toHaveLength(1);
-    expect(templateBlock('@if (power.enabled()) {')).toContain('data-cy="leagues-archive-list-create-card"');
+    expect(source.match(/data-cy="leagues-archive-list-create-button"/g)).toHaveLength(1);
+    expect(templateBlock('@if (power.enabled()) {')).toContain('data-cy="leagues-archive-list-create-button"');
     expect(source).not.toContain('@if (canManage())');
     expect(source).not.toMatch(/readonly canManage = computed/);
+  });
+
+  /**
+   * The create affordance is a toolbar button beside the search filter, not a grid card — and the
+   * toolbar itself outlives the filter, which only appears past ten Leagues. Rendering the button
+   * inside the filter guard would take create away from every small archive.
+   */
+  it('creates from the toolbar next to the search filter, never from a grid card', () => {
+    expect(templateBlock('@if (showLeagueFilter() || power.enabled()) {')).toContain('data-cy="leagues-archive-list-create-button"');
+    expect(templateBlock('@if (showLeagueFilter()) {')).not.toContain('data-cy="leagues-archive-list-create-button"');
+    expect(source).not.toContain('leagues-archive-list-create-card');
+    expect(source).not.toContain('league-create-card');
   });
 
   it('the read-only notice is about server leagues only', () => {

@@ -59,7 +59,7 @@ const SEARCH_DEBOUNCE_MS = 300;
       <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="event-list-back-top" />
       <gones-sync-bar cyPrefix="event-list" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="sync()" data-cy="event-list-sync-bar" />
     </div>
-    <section class="info-page public-calendar-page" aria-labelledby="public-calendar-title" data-cy="public-calendar">
+    <section #calendarPage class="info-page public-calendar-page" [style.min-height.px]="pageMinHeight()" aria-labelledby="public-calendar-title" data-cy="public-calendar">
       <header class="section-header" data-cy="event-list-header">
         <div data-cy="event-list-header-text"><h1 id="public-calendar-title" data-cy="event-list-title">{{ i18n.t('event.publicTitle') }}</h1></div>
       </header>
@@ -159,6 +159,7 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   private loadId = 0;
   private capabilityGeneration = 0;
   @ViewChild('monthGrid') private monthGrid?: ElementRef<HTMLElement>;
+  @ViewChild('calendarPage') private calendarPage?: ElementRef<HTMLElement>;
 
   readonly skeletons = Array.from({ length: 6 });
   readonly weekdays = computed(() => {
@@ -173,6 +174,9 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   // Pins the grid height for the duration of a month change so the document cannot shrink under the
   // scroll position that is about to be restored.
   readonly gridMinHeight = signal<number | null>(null);
+  // Pins the whole page for the duration of a search, which narrows both views rather than only the
+  // grid, so the document cannot shrink under the reader between the keystroke and the URL write.
+  readonly pageMinHeight = signal<number | null>(null);
   readonly truncated = signal(false);
   readonly loading = signal(true);
   readonly stale = signal(false);
@@ -224,10 +228,29 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
     if (this.searchDebounce) clearTimeout(this.searchDebounce);
   }
 
+  /**
+   * Two separate things move the page under a reader who types while scrolled down, and the fix has
+   * to answer both. The results narrow on the keystroke, so the document shrinks and the browser
+   * clamps the scroll position down with it — pinning the page height holds it still until the
+   * search settles. Then the debounced URL write is a query-param navigation on the same route, so
+   * the router's `scrollPositionRestoration: 'enabled'` treats it as a fresh page and scrolls to the
+   * top; `scroll: 'manual'` opts that one navigation out, exactly as month navigation does.
+   */
   setSearchDraft(value: string): void {
+    this.pageMinHeight.set(this.calendarPage?.nativeElement.offsetHeight ?? null);
     this.searchDraft.set(value);
     if (this.searchDebounce) clearTimeout(this.searchDebounce);
-    this.searchDebounce = setTimeout(() => { void this.navigate({ ...this.query(), q: this.searchDraft(), page: 1 }); }, SEARCH_DEBOUNCE_MS);
+    this.searchDebounce = setTimeout(() => { void this.commitSearch(); }, SEARCH_DEBOUNCE_MS);
+  }
+
+  /**
+   * The pin is released here rather than from a `requestAnimationFrame`: the results settled on the
+   * keystroke 300 ms ago, so there is no later layout to wait for, and a hidden tab never runs the
+   * frame callback at all — which would strand the page at the pinned height.
+   */
+  private async commitSearch(): Promise<void> {
+    await this.navigate({ ...this.query(), q: this.searchDraft(), page: 1 }, { scroll: 'manual' });
+    this.pageMinHeight.set(null);
   }
 
   sync(): void { void this.load({ force: true }); }

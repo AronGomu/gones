@@ -344,6 +344,52 @@ describe('PublicEventListComponent', () => {
     expect(component.gridMinHeight()).toBeNull();
   });
 
+  // The debounced `q` write is the same query-param navigation as month navigation, so it hits the
+  // same `scrollPositionRestoration: 'enabled'` and drops the reader on the top of the page.
+  it('committing a search opts the URL write out of the router scroll restoration', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component, navigate } = setup();
+      stubScrolling(800);
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+      navigate.mockClear();
+
+      component.setSearchDraft('lyon');
+      await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS);
+
+      const [, extras] = navigate.mock.calls[0] as [unknown, { scroll?: string }];
+      expect(extras.scroll).toBe('manual');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // The filter narrows the results on the keystroke, well before the URL write: without the pin the
+  // document shrinks under the reader on every character typed, and the browser clamps the scroll
+  // position down with it. The pin is taken on the keystroke and released once the search settles.
+  // No `requestAnimationFrame` is stubbed here on purpose: a hidden tab never runs the callback, so
+  // a release that needed one would strand the page at the pinned height.
+  it('holds the page height from the keystroke until the search settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const { component } = setup();
+      component.ngOnInit();
+      await Promise.resolve();
+      await Promise.resolve();
+      (component as unknown as { calendarPage?: { nativeElement: { offsetHeight: number } } }).calendarPage = { nativeElement: { offsetHeight: 940 } };
+
+      component.setSearchDraft('lyon');
+      expect(component.pageMinHeight()).toBe(940);
+
+      await vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS);
+      expect(component.pageMinHeight()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('hides the create button when anonymous', () => {
     const { component } = setup({ profile: null });
     expect(component.canCreateEvent()).toBe(false);

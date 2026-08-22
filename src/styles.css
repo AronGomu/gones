@@ -166,6 +166,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .league-list-heading { margin-bottom: .75rem; }
 .league-toolbar { display: flex; align-items: flex-start; gap: .75rem; flex-wrap: wrap; }
 .league-toolbar .search { flex: 1 1 320px; }
+.league-create-button { min-height: 48px; padding-inline: 1.2rem !important; border-radius: 0 !important; letter-spacing: .03em; }
 .home-landing { display: grid; gap: clamp(2rem, 5vw, 5rem); }
 .info-hero h1 { max-width: 12ch; letter-spacing: -.045em; }
 .info-hero p { max-width: 62ch; margin: 0; color: var(--dim-ash); font-size: clamp(1.05rem, 1.5vw, 1.3rem); line-height: 1.65; }
@@ -1202,7 +1203,11 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 }
 
 /* Public Calendar V1 */
-.public-calendar-page { gap: 1rem; }
+/* `align-content` matters only while the search pins a min-height on this grid: without it the rows
+   stretch to fill the pin and every gap on the page widens as the results narrow. */
+/* `align-content` matters only while the search pins a min-height on this grid: without it the rows
+   stretch to fill the pin and every gap on the page widens as the results narrow. */
+.public-calendar-page { gap: 1rem; align-content: start; }
 .public-calendar-page, .public-calendar-page * { min-width: 0; }
 .calendar-view-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
 .calendar-view-tabs button { min-height: 44px; }
