@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Scoped Player Ratings</title>
+<style>
+  :root{
+    /* Verbatim from src/styles.css. This document introduces no palette of its own. */
+    --forge: oklch(8% 0.02 30);
+    --black-metal: oklch(10% 0.03 30);
+    --iron: oklch(17% 0.045 31);
+    --raised-iron: oklch(22% 0.055 33);
+    --soot: oklch(31% 0.055 38);
+    --ash: oklch(93% 0.018 72);
+    --dim-ash: oklch(76% 0.036 68);
+    --steel: oklch(62% 0.03 70);
+    --blood: oklch(49% 0.24 27);
+    --hot-blood: oklch(57% 0.25 27);
+    --create-green: oklch(52% 0.16 145);
+    --rust-plate: oklch(30% 0.06 38);
+    /* Readable-on-dark mixes of the tokens above — no new hue, only lightness. */
+    --rust-ink: color-mix(in oklch, var(--rust-plate) 36%, var(--ash));
+    --green-ink: color-mix(in oklch, var(--create-green) 76%, var(--ash));
+    --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:dark}
+  body{margin:0;background:var(--forge);color:var(--ash);
+       font:16px/1.65 Inter,Roboto,system-ui,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot-blood);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim-ash);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--black-metal);border:1px solid var(--soot);padding:.08em .35em}
+  pre{background:var(--black-metal);border:1px solid var(--soot);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  pre code{background:none;border:0;padding:0;font-size:1em}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--soot);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--black-metal);color:var(--dim-ash);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  tbody tr:nth-child(even){background:color-mix(in oklch, var(--iron) 45%, transparent)}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--iron);border:1px solid var(--soot);padding:1.1rem}
+  .card--good{border-color:var(--create-green)}
+  .card--warn{border-color:var(--rust-plate)}
+  .card--danger{border-color:var(--hot-blood)}
+  .card h3{margin-top:0}
+  .card p:last-child{margin-bottom:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--soot);color:var(--dim-ash);margin-right:.3rem}
+  .tag--good{border-color:var(--create-green);color:var(--green-ink)}
+  .tag--warn{border-color:var(--rust-plate);color:var(--rust-ink)}
+  .tag--danger{border-color:var(--hot-blood);color:var(--hot-blood)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--black-metal);border:1px solid var(--soot);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .flow div.ok{border-left-color:var(--create-green)}
+  .flow div.no{border-left-color:var(--hot-blood)}
+  .note{background:var(--black-metal);border:1px solid var(--soot);border-left:4px solid var(--rust-plate);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust-ink)}
+  .note p:last-child{margin-bottom:0}
+  .warn{border-left-color:var(--hot-blood)}
+  .warn strong{color:var(--hot-blood)}
+  .good{border-left-color:var(--create-green)}
+  .good strong{color:var(--green-ink)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  svg{display:block;width:100%;height:auto;margin:1.25rem 0}
+  svg text{font-family:Inter,Roboto,system-ui,sans-serif}
+  .n{fill:var(--iron);stroke:var(--soot);stroke-width:2}
+  .n.good{stroke:var(--create-green)} .n.warnb{stroke:var(--rust-plate)} .n.hot{stroke:var(--hot-blood)}
+  .n.flat{fill:var(--black-metal)}
+  .ln{fill:none;stroke:var(--steel);stroke-width:2} .ln.dash{stroke-dasharray:5 4}
+  .ar{fill:var(--steel)}
+  .lb{fill:var(--ash);font-size:13px;font-weight:700}
+  .nt{fill:var(--dim-ash);font-size:10.5px}
+  .gr{fill:var(--green-ink);font-size:10.5px}
+  .ru{fill:var(--rust-ink);font-size:10.5px}
+  .ho{fill:var(--hot-blood);font-size:10.5px}
+  /* The scope badge, built from the same tokens the app's .status chip uses. */
+  .badge{display:inline-flex;align-items:center;gap:.5rem;border:1px solid var(--soot);
+         background:var(--iron);color:var(--dim-ash);padding:.35rem .6rem;font-size:.85rem;font-weight:700}
+  .badge .dot{display:inline-block;width:.58rem;height:.58rem;flex:0 0 .58rem;border-radius:999px;
+              background:var(--create-green);
+              box-shadow:0 0 0 2px color-mix(in oklch, var(--create-green) 22%, transparent),
+                         0 0 12px color-mix(in oklch, var(--create-green) 62%, transparent)}
+  .badge--scoped .dot{background:var(--hot-blood);
+              box-shadow:0 0 0 2px color-mix(in oklch, var(--hot-blood) 22%, transparent),
+                         0 0 12px color-mix(in oklch, var(--hot-blood) 62%, transparent)}
+  .badge-row{display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--soot);color:var(--dim-ash);font-size:.85rem}
+  footer p{color:var(--dim-ash);max-width:none}
+  a{color:var(--hot-blood)}
+  a:hover,a:focus-visible{color:var(--ash)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Scoped Player Ratings</h1>
+  <p class="lede">A Glicko-2 rating is the end of a replay, not a sum of matches. You cannot filter a
+  global rating down to one League — you have to replay that League on its own. So the read model
+  stops being one row per player and becomes one row per <strong>scope</strong> per player, keyed
+  <code>(scope_kind, scope_id, player_name)</code>, and the rankings filter selects a key instead of
+  narrowing a result.</p>
+</header>
+
+<h2>Why a filter cannot be a filter</h2>
+
+<p>The obvious design is a <code>WHERE league_id = …</code> on the rankings query. It works for
+counting columns and is wrong for every other one.</p>
+
+<div class="split">
+  <div class="card card--danger">
+    <h3><span class="tag tag--danger">impossible</span> Rating</h3>
+    <p>Glicko-2 is path-dependent. The rating after a Match depends on the deviation the player
+    carried <em>into</em> it, which depends on every earlier rating period. Drop the Tournaments
+    outside the League and every remaining update was computed against the wrong prior. There is no
+    arithmetic that recovers the League-only rating from the global one.</p>
+  </div>
+  <div class="card card--danger">
+    <h3><span class="tag tag--danger">wrong</span> Winrate</h3>
+    <p><code>match_winrate</code> is a ratio, and ratios do not filter. Narrowing to a League means
+    recounting wins and played matches inside it and dividing again — averaging the global ratio
+    against anything is a different number that happens to look plausible.</p>
+  </div>
+  <div class="card card--warn">
+    <h3><span class="tag tag--warn">misleading</span> Matches · Tournaments</h3>
+    <p>These two <em>could</em> be filtered if the read model kept per-match rows — it does not, by
+    design (ADR 0040 moved the cost to the write). Serving a scoped rating beside a global match
+    count would put two different scopes in one row, which is exactly the disagreement ADR 0040 was
+    written to end.</p>
+  </div>
+</div>
+
+<div class="note good">
+  <p style="margin-bottom:0"><strong>So every displayed number is recomputed within the scope.</strong>
+  Rating, deviation, volatility, previous rating and last delta; matches played, wins, losses, draws
+  and match winrate; games and game winrate; tournaments played; last played date; nemesis, rival and
+  most-played archetype. A <code>league</code> row is what that player's career would look like if
+  that League were the whole world.</p>
+</div>
+
+<h2>The key</h2>
+
+<p><code>player_statistics</code> keeps every column it has (see
+<code>backend/src/Gones.Infrastructure/Persistence/PlayerStatisticsReadModel.cs</code>) and gains two
+in front of them. The primary key stops being <code>player_name</code> alone.</p>
+
+<pre><code>ALTER TABLE player_statistics ADD COLUMN scope_kind text NOT NULL DEFAULT 'global';
+ALTER TABLE player_statistics ADD COLUMN scope_id   text NOT NULL DEFAULT '';
+
+ALTER TABLE player_statistics DROP CONSTRAINT pk_player_statistics;
+ALTER TABLE player_statistics ADD CONSTRAINT pk_player_statistics
+  PRIMARY KEY (scope_kind, scope_id, player_name);
+
+ALTER TABLE player_statistics ADD CONSTRAINT ck_player_statistics_scope_kind
+  CHECK (scope_kind IN ('global','league','season'));</code></pre>
+
+<pre><code>// backend/src/Gones.Infrastructure/Persistence/PlayerStatisticsReadModel.cs
+public sealed class PlayerStatisticsRow
+{
+    public required string ScopeKind { get; init; }   // "global" | "league" | "season"
+    public required string ScopeId { get; init; }     // "" when global
+    public required string PlayerName { get; init; }
+    // … every existing column, unchanged
+}</code></pre>
+
+<div class="scroll">
+<table>
+<thead><tr><th><code>scope_kind</code></th><th><code>scope_id</code></th><th>Covers</th></tr></thead>
+<tbody>
+<tr><td><code>global</code></td><td><code>''</code> — empty string, exactly when global</td><td>every completed Tournament in the archive, standalone ones included</td></tr>
+<tr><td><code>league</code></td><td>the League <code>document_id</code></td><td>every completed Tournament whose Season belongs to that League</td></tr>
+<tr><td><code>season</code></td><td>the LeagueSeason <code>document_id</code></td><td>every completed Tournament attached to that Season</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong><code>scope_id</code> is <code>''</code>, never null.</strong>
+  A nullable component in a primary key is a constraint Postgres will not enforce the way this table
+  needs. The empty string is a real value, is unique per <code>scope_kind = 'global'</code>, and makes
+  the global row addressable by the same three-column lookup as every other row — no special case in
+  the query, no <code>IS NULL</code> branch.</p>
+</div>
+
+<h2>One rebuild, one row per scope per player</h2>
+
+<p>The writer does not change shape. <code>PlayerStatisticsRebuildService</code> still rewrites the
+whole table wholesale, still inside the caller's transaction, still without calling
+<code>SaveChangesAsync</code> itself — so a failed archive write rolls the statistics back with it and
+the table can never disagree with the archive it summarises. What changes is how many rows come out
+of one pass.</p>
+
+<svg viewBox="0 0 900 380" role="img" aria-labelledby="sct scd">
+  <title id="sct">The rebuild fans one pass out into three kinds of scope</title>
+  <desc id="scd">An archive write transaction triggers the player statistics rebuild, which emits a
+  global scope covering every completed Tournament, one league scope per League covering the
+  Tournaments of its Seasons, and one season scope per LeagueSeason. All of them land in
+  player_statistics keyed by scope kind, scope id and player name. A standalone Tournament belongs to
+  no League and no Season, so it contributes to the global scope only.</desc>
+
+  <rect class="n warnb" x="250" y="8" width="400" height="60" rx="3"/>
+  <text class="lb" x="268" y="32">Archive write transaction</text>
+  <text class="ru" x="268" y="52">PlayerStatisticsRebuildService — wholesale, in-transaction</text>
+
+  <path class="ln" d="M420 68 L172 106"/><polygon class="ar" points="162,108 175,100 177,111"/>
+  <path class="ln" d="M450 68 V104"/><polygon class="ar" points="450,112 444,100 456,100"/>
+  <path class="ln" d="M480 68 L728 106"/><polygon class="ar" points="738,108 723,111 725,100"/>
+
+  <rect class="n good" x="20" y="112" width="270" height="100" rx="3"/>
+  <text class="lb" x="38" y="136">scope_kind = 'global'</text>
+  <text class="gr" x="38" y="158">scope_id = ''</text>
+  <text class="nt" x="38" y="178">every completed Tournament</text>
+  <text class="nt" x="38" y="196">attached and standalone alike</text>
+
+  <rect class="n" x="315" y="112" width="270" height="100" rx="3"/>
+  <text class="lb" x="333" y="136">scope_kind = 'league'</text>
+  <text class="nt" x="333" y="158">scope_id = &lt;leagueId&gt;</text>
+  <text class="nt" x="333" y="178">Tournaments of every Season</text>
+  <text class="nt" x="333" y="196">that belongs to that League</text>
+
+  <rect class="n" x="610" y="112" width="270" height="100" rx="3"/>
+  <text class="lb" x="628" y="136">scope_kind = 'season'</text>
+  <text class="nt" x="628" y="158">scope_id = &lt;seasonId&gt;</text>
+  <text class="nt" x="628" y="178">Tournaments attached</text>
+  <text class="nt" x="628" y="196">to that Season</text>
+
+  <path class="ln" d="M155 212 L288 248"/><polygon class="ar" points="298,251 283,252 286,241"/>
+  <path class="ln" d="M450 212 V244"/><polygon class="ar" points="450,252 444,240 456,240"/>
+  <path class="ln" d="M745 212 L612 248"/><polygon class="ar" points="602,251 614,241 617,252"/>
+
+  <rect class="n good" x="150" y="252" width="600" height="76" rx="3"/>
+  <text class="lb" x="168" y="278">player_statistics</text>
+  <text class="gr" x="168" y="298">PRIMARY KEY (scope_kind, scope_id, player_name)</text>
+  <text class="nt" x="168" y="318">rating · matches · tournaments · winrate — all computed inside the scope</text>
+
+  <text class="ho" x="20" y="356">a standalone Tournament belongs to no League and no Season — it feeds the global row and nothing else</text>
+</svg>
+
+<p>Row count grows with participation, not with the square of anything: a player appears once
+globally, once per League they played in, and once per Season of those Leagues. A player who only
+ever entered standalone Tournaments has exactly one row.</p>
+
+<div class="note warn">
+  <p><strong>Bump <code>PlayerStatisticsFormula.Version</code> in the same commit.</strong> The
+  constant is at <code>backend/src/Gones.Domain/Leagues/PlayerStatisticsFormula.cs</code> and reads
+  <code>2</code> today — version 1 was the ADR 0040 counting pass, version 2 added the ADR 0043
+  Glicko-2 replay. Scoping is a change to what the maths covers, so it takes the next number, and that
+  is the only thing that makes <code>PlayerStatisticsStartupRebuild</code> repair rows already in the
+  table. Forgetting the bump leaves a database full of unscoped rows with nothing anywhere to trigger
+  a repair.</p>
+  <p style="margin-bottom:0">The rebuild also still takes its transaction-scoped advisory lock before
+  the <code>DELETE FROM player_statistics</code>. Two transactions editing different parts of the
+  archive both rewrite the whole table; without the lock the loser's delete is evaluated against a
+  pre-commit snapshot and it re-inserts the same keys on top of the winner's rows — a duplicate key
+  on <code>pk_player_statistics</code>, which turns a legal archive write into a 500. A wider primary
+  key does not change that; it widens the key that collides.</p>
+</div>
+
+<h2>Standalone Tournaments feed the global scope only</h2>
+
+<p>A Tournament with <code>seasonId: null</code> belongs to no Season, and because a Tournament has no
+<code>leagueId</code> column at all, it belongs to no League either. There is no league row and no
+season row for it to feed. It counts globally and nowhere else — not in a catch-all scope, not under
+a placeholder id.</p>
+
+<div class="flow">
+  <div class="ok">tournament.seasonId != null → global row · league row (via season.leagueId) · season row</div>
+  <div class="no">tournament.seasonId == null → global row only</div>
+</div>
+
+<p>The practical reading: switching the rankings from <em>All Leagues</em> to any single League can
+only ever <strong>lose</strong> matches, never gain them, and a player whose whole record is
+standalone events disappears from every scoped view. That is correct, and the scope badge is what
+stops it being surprising.</p>
+
+<h2>Single-select, at both levels</h2>
+
+<p>The filter offers <strong>All or exactly one</strong> League, and <strong>All or exactly one</strong>
+Season. There is no multi-select, and the reason is structural rather than a UI preference: a scope is
+a stored row key. Two Leagues selected at once name a scope that was never rebuilt, so the server
+would have to merge two rating rows at read time — the exact operation the first section of this
+document says does not exist. A multi-select control would promise a number the read model cannot
+produce.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>URL on <code>/global-stats</code></th><th>Sends</th><th>Reads</th></tr></thead>
+<tbody>
+<tr><td><code>league=all&amp;season=all</code></td><td><code>scopeKind=global</code></td><td>the <code>('global','')</code> rows</td></tr>
+<tr><td><code>league=&lt;id&gt;&amp;season=all</code></td><td><code>scopeKind=league&amp;scopeId=&lt;id&gt;</code></td><td>the <code>('league',&lt;id&gt;)</code> rows</td></tr>
+<tr><td><code>league=&lt;id&gt;&amp;season=&lt;id&gt;</code></td><td><code>scopeKind=season&amp;scopeId=&lt;seasonId&gt;</code></td><td>the <code>('season',&lt;id&gt;)</code> rows</td></tr>
+<tr><td><code>league=all&amp;season=&lt;id&gt;</code></td><td><code>scopeKind=season&amp;scopeId=&lt;seasonId&gt;</code></td><td>the <code>('season',&lt;id&gt;)</code> rows — a Season names its League by itself</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>The Season selection is the narrower scope, so when both are set the Season wins; the League select
+then acts as what it is, a way to shorten the Season list. Two selects collapse to exactly one
+<code>(scopeKind, scopeId)</code> pair, always — which is the invariant that lets the whole feature be
+a primary-key lookup.</p>
+
+<h2>The scope badge</h2>
+
+<p>The rankings page states its scope in words, next to the table, at all times. Without it, a
+narrowed board is indistinguishable from a broken one: the ratings move, the player list shrinks, and
+nothing on screen says why.</p>
+
+<div class="badge-row">
+  <span class="badge"><span class="dot"></span> All Leagues · all Seasons</span>
+  <span class="badge badge--scoped"><span class="dot"></span> Ligue Lyonnaise · all Seasons</span>
+  <span class="badge badge--scoped"><span class="dot"></span> Ligue Lyonnaise · 2026</span>
+</div>
+
+<p>It is built from the app's existing <code>.status</code> / <code>.status-dot</code> chip
+(<code>src/styles.css:42-45</code>) and uses the same two tokens the rest of the app uses for that
+distinction — <code>--create-green</code> for the unrestricted default,
+<code>--hot-blood</code> once a scope narrows the board. The badge names both levels even when one is
+<em>All</em>, so the global state reads as a deliberate choice rather than an absence.</p>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong>An unknown scope is an empty page, not an error.</strong>
+  <code>scopeKind=league</code> or <code>season</code> with a <code>scopeId</code> that has no rows
+  answers <code>200</code> with an empty page. A League that exists but whose Tournaments are all
+  still <code>active</code> is a legitimate, common state — a <code>404</code> there would tell the
+  user the League is missing when it is merely young. A <code>scopeKind</code> outside
+  <code>global | league | season</code> is a <code>400 validation_failed</code>, because that one is a
+  caller bug.</p>
+</div>
+
+<h2>Query contract</h2>
+
+<pre><code>GET /api/archive/global-player-statistics
+      ?scopeKind=global|league|season     default `global`
+      &amp;scopeId=&lt;string&gt;                   required unless scopeKind=global; ignored when global
+      &amp;page=1&amp;pageSize=25
+      &amp;sort=rating|name|matches|wins|losses|winrate|tournaments
+      &amp;direction=asc|desc
+      &amp;search=&lt;substring&gt;
+
+GET /api/archive/global-player-statistics/all?scopeKind=&amp;scopeId=</code></pre>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Parameter</th><th>Values</th><th>Default</th><th>Invalid ⇒</th></tr></thead>
+<tbody>
+<tr><td><code>scopeKind</code></td><td><code>global</code> · <code>league</code> · <code>season</code></td><td><code>global</code></td><td><code>400 validation_failed</code></td></tr>
+<tr><td><code>scopeId</code></td><td>a League or Season <code>document_id</code></td><td>—</td><td>required unless global; unknown id ⇒ <code>200</code> empty page</td></tr>
+<tr><td><code>page</code></td><td>≥ 1</td><td><code>1</code></td><td><code>400 validation_failed</code></td></tr>
+<tr><td><code>pageSize</code></td><td><code>10 | 25 | 50 | 100</code></td><td><code>100</code></td><td><code>400 validation_failed</code></td></tr>
+<tr><td><code>sort</code></td><td><code>rating · name · matches · wins · losses · winrate · tournaments</code></td><td>rating, three-bucket default order</td><td><code>400 validation_failed</code></td></tr>
+<tr><td><code>direction</code></td><td><code>asc</code> · <code>desc</code></td><td><code>desc</code></td><td><code>400 validation_failed</code></td></tr>
+<tr><td><code>search</code></td><td>substring of the player name, ≤ 200 chars</td><td>empty</td><td><code>400 validation_failed</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <p><strong>The URL says <code>dir</code>; the wire says <code>direction</code>.</strong> Archive
+  tabs and <code>/global-stats</code> agree on <code>?dir=</code> in the address bar, while the query
+  parameter sent to the API stays <code>direction</code> — which is what the endpoint binds today
+  (<code>backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs:104</code>, <code>string?
+  direction</code>). The rankings page currently writes <code>direction=</code> into its own URL
+  (<code>src/app/features/players/global-stats-query.ts:196</code>, asserted at
+  <code>cypress/e2e/global-stats.cy.js:76-78</code>); renaming it is a user-visible URL change to a
+  shipped page, accepted because Gones is unreleased and has no users.</p>
+  <p><strong>Two page-size defaults, both deliberate.</strong> The rankings
+  keep <code>pageSize=100</code>, which is what
+  <code>PublicLeagueEndpoints.GlobalStatsDefaultPageSize</code> is today. The archive table tabs
+  default to <code>size=25</code>. Different surfaces, different reading habits.</p>
+  <p style="margin-bottom:0"><strong>The <code>sort</code> vocabulary above is the short one.</strong>
+  The shipped endpoint allowlists the column names verbatim —
+  <code>playedMatchCount</code>, <code>matchWins</code>, <code>matchLosses</code>,
+  <code>matchDraws</code>, <code>matchWinrate</code>, <code>playedGameCount</code>,
+  <code>gameWins</code>, <code>gameLosses</code>, <code>gameWinrate</code>, <code>rating</code>,
+  <code>tournamentsPlayed</code>, plus <code>decayedRating</code> when
+  <code>Gones:PlayerStatistics:ExposeDecayedRating</code> is on
+  (<code>PublicLeagueEndpoints.cs:36-41</code>). The scoped route takes the shorter names, so the
+  mapping between the two lives at the endpoint and the game-level columns keep their existing keys
+  unless something explicitly retires them.</p>
+</div>
+
+<h3>Response, caching and the catalog twin</h3>
+
+<p>The body is the <strong>existing</strong> paged global-statistics response, field for field —
+<code>{ items, page, pageSize, totalCount, sort, direction }</code> over
+<code>GlobalPlayerStatisticsRow</code>. Only the scope selection is new. Both rankings routes serve
+<code>Cache-Control: public, max-age=60</code> with an ETag and a 304; the catalog twin is capped by
+the existing <code>Gones:GlobalStats:MaximumCatalogSize</code>, default <code>5000</code>.</p>
+
+<div class="flow">
+  <div>ETag ⊇ read-model stamp · request date · totalCount · normalized query · decayed-rating flag</div>
+  <div class="ok">the request date is in there because provisional and inactive are derived at read time</div>
+  <div class="ok">the scope pair joins the normalized query — two scopes must never share an ETag</div>
+</div>
+
+<p>Provisional (fewer than 5 Tournaments played) and inactive (no completed Tournament in 12 months)
+stay derived at read time from <code>tournaments_played</code> and <code>last_played_date</code> plus
+the request clock, per ADR 0043 — and they are now derived <em>per scope</em>, which is the honest
+answer: a player with forty global Tournaments and two in this League is provisional in this League.
+The default three-bucket order is unchanged: active ranked by rating desc, then inactive ranked, then
+provisional by tournaments played then matches played, every tie broken on the ordinal player
+name.</p>
+
+<h2>Consequences worth stating out loud</h2>
+
+<ul>
+  <li><strong>The same player holds several ratings at once, and they are all correct.</strong> A
+  global 1712 and a League 1588 are answers to two different questions. The badge is what keeps the
+  page from looking like it contradicts itself.</li>
+  <li><strong>A scoped rating is a smaller replay, so it is a less confident one.</strong> Fewer
+  rating periods mean a higher deviation, and a player ranked in the global board can be provisional
+  in a League board. Nothing hides that; the provisional badge is per scope like everything else.</li>
+  <li><strong>Rebuild cost scales with the number of scopes, not with archive size alone.</strong> The
+  measured baseline is 1183 rows from 201 Leagues in 196 ms at formula version 2. Every League and
+  every Season adds a replay over its own subset — the sum of the subsets is bounded by the archive
+  walked once per tier, but the constant is real and belongs in the ADR that lands this.</li>
+  <li><strong>The existing single-column indexes no longer serve a scoped ordering on their own.</strong>
+  <code>PlayerStatisticsReadModelConfigurations.cs</code> indexes each sortable column singly —
+  <code>rating</code>, <code>tournaments_played</code>, the nine counting columns — which was exactly
+  right for a table that was always read whole. A scoped query filters on the composite key prefix
+  first, so the ordering index must be reached after that filter. Worth measuring against a seeded
+  stress environment before deciding whether any of them needs a <code>(scope_kind, scope_id, …)</code>
+  prefix.</li>
+  <li><strong>Browser-local records still never reach the read model.</strong> ADR 0028 archives live
+  only in this browser and are never sent to a server, so no scope of any kind can see them. The
+  <code>Online only</code> toggle keeps its ADR 0043 behaviour: the rating shown is the server's, and
+  local Matches never move it.</li>
+</ul>
+
+<footer>
+  <p>Re-keys the read model of ADR <a href="adr/0040-player-statistics-read-model.md">0040</a> and the
+  Glicko-2 replay of <a href="adr/0043-glicko2-player-rating.md">0043</a>; bounded by
+  <a href="adr/0028-dual-source-league-archive.md">0028</a> (browser-local archives never contribute)
+  and <a href="adr/0039-ttl-cache-contract.md">0039</a> (public catalog caching).</p>
+  <p>See also <a href="archive-three-tier.html">Three-Tier Archive</a>,
+  <a href="player-statistics-read-model.html">Player Statistics Read Model</a>,
+  <a href="player-rating-glicko2.html">Glicko-2 Player Rating</a>,
+  <a href="global-stats.html">Global Rankings</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>

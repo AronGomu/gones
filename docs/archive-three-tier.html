@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones — Three-Tier Archive</title>
+<style>
+  :root{
+    /* Verbatim from src/styles.css. This document introduces no palette of its own. */
+    --forge: oklch(8% 0.02 30);
+    --black-metal: oklch(10% 0.03 30);
+    --iron: oklch(17% 0.045 31);
+    --raised-iron: oklch(22% 0.055 33);
+    --soot: oklch(31% 0.055 38);
+    --ash: oklch(93% 0.018 72);
+    --dim-ash: oklch(76% 0.036 68);
+    --steel: oklch(62% 0.03 70);
+    --blood: oklch(49% 0.24 27);
+    --hot-blood: oklch(57% 0.25 27);
+    --create-green: oklch(52% 0.16 145);
+    --rust-plate: oklch(30% 0.06 38);
+    /* Readable-on-dark mixes of the tokens above — no new hue, only lightness. */
+    --rust-ink: color-mix(in oklch, var(--rust-plate) 36%, var(--ash));
+    --green-ink: color-mix(in oklch, var(--create-green) 76%, var(--ash));
+    --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:dark}
+  body{margin:0;background:var(--forge);color:var(--ash);
+       font:16px/1.65 Inter,Roboto,system-ui,sans-serif;}
+  .wrap{max-width:1080px;margin:0 auto;padding:2.5rem 1.25rem 5rem}
+  header.top{border-bottom:2px solid var(--blood);padding-bottom:1.25rem;margin-bottom:2.25rem}
+  .kick{margin:0 0 .4rem;color:var(--hot-blood);text-transform:uppercase;letter-spacing:.14em;font-weight:800;font-size:.78rem}
+  h1{margin:0;font-size:2rem;letter-spacing:.01em}
+  h2{margin:2.75rem 0 .9rem;font-size:1.3rem;border-left:4px solid var(--blood);padding-left:.7rem}
+  h3{margin:1.75rem 0 .6rem;font-size:1.02rem;color:var(--ash)}
+  p{color:var(--ash);max-width:76ch}
+  .lede{color:var(--dim-ash);font-size:1.05rem;max-width:76ch}
+  code,kbd{font-family:var(--mono);font-size:.88em;background:var(--black-metal);border:1px solid var(--soot);padding:.08em .35em}
+  pre{background:var(--black-metal);border:1px solid var(--soot);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.84rem;line-height:1.55}
+  pre code{background:none;border:0;padding:0;font-size:1em}
+  table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--soot);padding:.6rem .7rem;text-align:left;vertical-align:top}
+  th{background:var(--black-metal);color:var(--dim-ash);text-transform:uppercase;letter-spacing:.08em;font-size:.74rem}
+  tbody tr:nth-child(even){background:color-mix(in oklch, var(--iron) 45%, transparent)}
+  .scroll{overflow-x:auto}
+  .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1rem;margin:1.5rem 0}
+  .card{background:var(--iron);border:1px solid var(--soot);padding:1.1rem}
+  .card--good{border-color:var(--create-green)}
+  .card--warn{border-color:var(--rust-plate)}
+  .card--danger{border-color:var(--hot-blood)}
+  .card h3{margin-top:0}
+  .card p:last-child{margin-bottom:0}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.72rem;letter-spacing:.06em;
+       padding:.15rem .5rem;border:1px solid var(--soot);color:var(--dim-ash);margin-right:.3rem}
+  .tag--good{border-color:var(--create-green);color:var(--green-ink)}
+  .tag--warn{border-color:var(--rust-plate);color:var(--rust-ink)}
+  .tag--danger{border-color:var(--hot-blood);color:var(--hot-blood)}
+  .flow{display:grid;gap:.55rem;margin:1.25rem 0;font-family:var(--mono);font-size:.83rem}
+  .flow div{background:var(--black-metal);border:1px solid var(--soot);border-left:3px solid var(--blood);padding:.55rem .8rem}
+  .flow div.ok{border-left-color:var(--create-green)}
+  .flow div.no{border-left-color:var(--hot-blood)}
+  .note{background:var(--black-metal);border:1px solid var(--soot);border-left:4px solid var(--rust-plate);padding:.9rem 1.1rem;margin:1.5rem 0}
+  .note strong{color:var(--rust-ink)}
+  .note p:last-child{margin-bottom:0}
+  .warn{border-left-color:var(--hot-blood)}
+  .warn strong{color:var(--hot-blood)}
+  .good{border-left-color:var(--create-green)}
+  .good strong{color:var(--green-ink)}
+  ul{max-width:76ch}
+  li{margin:.35rem 0}
+  svg{display:block;width:100%;height:auto;margin:1.25rem 0}
+  svg text{font-family:Inter,Roboto,system-ui,sans-serif}
+  .n{fill:var(--iron);stroke:var(--soot);stroke-width:2}
+  .n.good{stroke:var(--create-green)} .n.warnb{stroke:var(--rust-plate)} .n.hot{stroke:var(--hot-blood)}
+  .n.flat{fill:var(--black-metal)}
+  .ln{fill:none;stroke:var(--steel);stroke-width:2} .ln.dash{stroke-dasharray:5 4}
+  .ar{fill:var(--steel)}
+  .lb{fill:var(--ash);font-size:13px;font-weight:700}
+  .nt{fill:var(--dim-ash);font-size:10.5px}
+  .gr{fill:var(--green-ink);font-size:10.5px}
+  .ru{fill:var(--rust-ink);font-size:10.5px}
+  .ho{fill:var(--hot-blood);font-size:10.5px}
+  footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--soot);color:var(--dim-ash);font-size:.85rem}
+  footer p{color:var(--dim-ash);max-width:none}
+  a{color:var(--hot-blood)}
+  a:hover,a:focus-visible{color:var(--ash)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <p class="kick">Gones · Architecture</p>
+  <h1>Three-Tier Archive</h1>
+  <p class="lede">The Archive was one flat tier of League documents. It is now three rows in three
+  tables — <strong>League → LeagueSeason → Tournament</strong> — and a Tournament is a first-class
+  record that can stand alone with no parent at all. The browser keeps two IndexedDB databases,
+  because an authority and a cache must never share a delete button.</p>
+</header>
+
+<h2>The three tiers</h2>
+
+<p>Yesterday's flat <code>League</code> is today's <strong>LeagueSeason</strong>. A new
+<strong>League</strong> tier sits above it and groups Seasons; it has no page of its own, only a
+column and a filter. A <strong>Tournament</strong> used to live inside its League's document and now
+owns a row, a version and an id of its own.</p>
+
+<p>The two parent links are deliberately asymmetric, and that asymmetry is the whole model:</p>
+
+<svg viewBox="0 0 900 470" role="img" aria-labelledby="t3t t3d">
+  <title id="t3t">League, LeagueSeason and Tournament, and how a Tournament finds its League</title>
+  <desc id="t3d">A LeagueSeason has a mandatory non-null league_id pointing at exactly one League.
+  A Tournament has an optional, nullable season_id, so it may be attached to one Season or stand
+  alone with season_id null. A Tournament has no league_id column at any tier; its League is derived
+  by joining through season_id to the Season's league_id.</desc>
+
+  <path class="ln dash" d="M120 360 H56 V54 H240"/>
+  <polygon class="ar" points="250,54 238,48 238,60"/>
+  <text class="nt" x="68" y="200">derived League:</text>
+  <text class="nt" x="68" y="216">seasonId →</text>
+  <text class="nt" x="68" y="232">season.leagueId</text>
+
+  <rect class="n" x="250" y="20" width="360" height="76" rx="3"/>
+  <text class="lb" x="268" y="46">League</text>
+  <text class="nt" x="268" y="66">archive_leagues · document_id · name · created_at</text>
+  <text class="nt" x="268" y="84">no route of its own — a column and a filter</text>
+
+  <path class="ln" d="M430 160 V104"/>
+  <polygon class="ar" points="430,96 424,108 436,108"/>
+  <text class="gr" x="444" y="124">leagueId — MANDATORY, exactly one</text>
+  <text class="ho" x="444" y="141">409 archive_league_not_empty while Seasons remain</text>
+
+  <rect class="n good" x="250" y="160" width="360" height="96" rx="3"/>
+  <text class="lb" x="268" y="186">LeagueSeason</text>
+  <text class="gr" x="268" y="206">archive_league_seasons · league_id NOT NULL</text>
+  <text class="nt" x="268" y="224">status · tournament_count · player_count</text>
+  <text class="nt" x="268" y="242">first_tournament_date · last_tournament_date</text>
+
+  <path class="ln" d="M300 300 L396 262"/>
+  <polygon class="ar" points="404,259 390,258 394,270"/>
+  <text class="gr" x="140" y="288">seasonId — OPTIONAL (0..1)</text>
+  <text class="ru" x="610" y="288">no edge — seasonId is null</text>
+
+  <rect class="n" x="120" y="300" width="340" height="112" rx="3"/>
+  <text class="lb" x="138" y="326">Tournament — attached</text>
+  <text class="nt" x="138" y="346">archive_tournaments · season_id = '&lt;seasonId&gt;'</text>
+  <text class="ho" x="138" y="366">NO league_id column, at any tier</text>
+  <text class="nt" x="138" y="386">document jsonb: rounds + playerArchetypes</text>
+  <text class="nt" x="138" y="404">its own documentVersion — it locks itself</text>
+
+  <rect class="n warnb" x="500" y="300" width="360" height="112" rx="3"/>
+  <text class="lb" x="518" y="326">Tournament — standalone</text>
+  <text class="ru" x="518" y="346">season_id IS NULL — belongs to no Season</text>
+  <text class="nt" x="518" y="366">creatable · listable · editable · deletable</text>
+  <text class="ru" x="518" y="386">feeds the global rating scope only</text>
+  <text class="nt" x="518" y="404">PATCH …/season { seasonId: null } detaches it</text>
+
+  <rect class="n flat" x="250" y="430" width="360" height="30" rx="3"/>
+  <text class="nt" x="268" y="450">the League of a Tournament is one join, never a stored column</text>
+</svg>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong>Why no <code>leagueId</code> on a Tournament.</strong> Storing it
+  would create a second path to the same fact, and the two paths would eventually disagree — move a
+  Season to another League and every Tournament under it silently keeps the old one. One edge per
+  parent link, and the League is a join. The cost is that Tab 2 must resolve a League name through
+  the Season catalog it already holds; that catalog is in IndexedDB, so the join is local and free.</p>
+</div>
+
+<h3>The shapes</h3>
+
+<p>New file <code>src/app/domain/archive-models.ts</code>, beside the untouched
+<code>src/app/domain/models.ts</code> — the legacy <code>LeagueDocument</code> with its nested
+<code>tournaments[]</code> keeps compiling until the legacy surface is retired.</p>
+
+<pre><code>export const ARCHIVE_DATA_VERSION = 5;
+export const SUPPORTED_ARCHIVE_IMPORT_VERSIONS = [5] as const;
+
+interface ArchiveLeagueDocument   { id; name; createdAt; }                 // no tournaments[]
+interface LeagueSeasonDocument    { id; name; leagueId: string; status; }  // leagueId mandatory
+interface ArchiveTournamentDocument {
+  id; name;
+  seasonId: string | null;        // null ⇒ standalone. There is no leagueId.
+  tournamentDate: string;         // ISO 8601 date, YYYY-MM-DD
+  status: LeagueStatus;
+  rounds: RoundDocument[];
+  playerArchetypes: PlayerArchetypeDocument[];
+}</code></pre>
+
+<p>Neither parent tier carries a <code>tournaments[]</code> array. Tournaments are fetched as their
+own rows. <code>LeagueStatus</code>, <code>RoundDocument</code>, <code>RoundEntry</code>,
+<code>PlayerArchetypeDocument</code> and <code>CalendarEventDocument</code> are
+<em>re-exported</em> from <code>models.ts</code>, never re-declared — a second
+<code>export type LeagueStatus</code> beside the re-export is a duplicate identifier that does not
+compile.</p>
+
+<h3>The tables</h3>
+
+<pre><code>archive_leagues        (document_id PK, name, created_at, updated_at, version, deleted_at)
+archive_league_seasons (document_id PK, league_id NOT NULL REFERENCES archive_leagues,
+                        name, status, updated_at, version, deleted_at,
+                        tournament_count, player_count,
+                        first_tournament_date, last_tournament_date, counts_version)
+archive_tournaments    (document_id PK, season_id NULL REFERENCES archive_league_seasons,
+                        name, tournament_date, status, document jsonb,
+                        updated_at, version, deleted_at, player_count, counts_version)
+
+ix_archive_league_seasons_league_id       (league_id)
+ix_archive_tournaments_season_id          (season_id)
+ix_archive_tournaments_tournament_date    (tournament_date DESC)</code></pre>
+
+<p><code>document</code> holds <code>rounds</code> and <code>playerArchetypes</code> as JSON, the way
+<code>LeagueArchiveAggregate</code> stores its canonical document today. Every other column is
+projected so a catalog query never deserializes JSON — that is the point of ADR 0042 and it survives
+the rebuild intact. C# type names are <code>Archive</code>-prefixed throughout
+(<code>ArchiveLeague</code>, <code>ArchiveLeagueSeason</code>, <code>ArchiveTournament</code> in
+<code>Gones.Domain.Archive</code>) because a bare <code>League</code> collides with
+<code>Gones.Domain.Leagues.LeagueArchiveAggregate</code> and with the Live tournament. The TypeScript
+side keeps the unprefixed <code>LeagueSeasonDocument</code>, because its module has nothing to
+collide with.</p>
+
+<h2>Read surface</h2>
+
+<p>Every route below is an anonymous public GET with an ETag and a 304, compressed under the ADR 0042
+rule — compress a GET that carries no <code>Authorization</code> header and no session cookie, and
+nothing else.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Route</th><th>Answers</th><th>Cache-Control</th><th>Cap · order</th></tr></thead>
+<tbody>
+<tr><td><code>GET /api/archive/leagues/all</code></td>
+    <td><code>ArchiveCatalogResponse&lt;ArchiveLeagueSummary&gt;</code></td>
+    <td><code>public, max-age=3600</code></td>
+    <td>2000 · <code>Gones:Archive:MaximumLeagueCatalogSize</code><br><code>updatedAt DESC, id ASC</code></td></tr>
+<tr><td><code>GET /api/archive/league-seasons/all</code></td>
+    <td><code>ArchiveCatalogResponse&lt;ArchiveLeagueSeasonSummary&gt;</code></td>
+    <td><code>public, max-age=3600</code></td>
+    <td>5000 · <code>Gones:Archive:MaximumSeasonCatalogSize</code><br><code>updatedAt DESC, id ASC</code></td></tr>
+<tr><td><code>GET /api/archive/tournaments/all?year=YYYY</code></td>
+    <td><code>ArchiveCatalogResponse&lt;ArchiveTournamentSummary&gt;</code></td>
+    <td><code>public, max-age=3600</code></td>
+    <td>25000 · <code>Gones:Archive:MaximumTournamentYearSize</code><br><code>tournamentDate DESC, id ASC</code></td></tr>
+<tr><td><code>GET /api/archive/years</code></td>
+    <td><code>ArchiveYearsResponse</code> — <code>{ year, locked, tournamentCount }[]</code></td>
+    <td><code>public, max-age=3600</code></td>
+    <td>—<br>ascending by year</td></tr>
+<tr><td><code>GET /api/archive/league-seasons/{seasonId}/tournaments</code></td>
+    <td><code>ArchiveCatalogResponse&lt;ArchiveTournamentSummary&gt;</code></td>
+    <td><code>public, max-age=3600</code></td>
+    <td>5000 · <code>Gones:Archive:MaximumSeasonTournamentSize</code><br><code>tournamentDate DESC, id ASC</code></td></tr>
+<tr><td><code>GET /api/archive/tournaments/{tournamentId}</code></td>
+    <td>the detail document — <code>rounds</code> + <code>playerArchetypes</code></td>
+    <td><code>public, max-age=60</code></td><td>—</td></tr>
+<tr><td><code>GET /api/archive/tournaments/{tournamentId}/result</code></td>
+    <td>computed Swiss standings for one Tournament</td>
+    <td><code>public, max-age=60</code></td><td>—</td></tr>
+<tr><td><code>GET /api/archive/league-seasons/{seasonId}/result</code></td>
+    <td>computed standings across a Season</td>
+    <td><code>public, max-age=60</code></td><td>—</td></tr>
+<tr><td><code>GET /api/archive/global-player-statistics</code><br>
+        <code>?scopeKind=&amp;scopeId=&amp;page=&amp;pageSize=&amp;sort=&amp;direction=&amp;search=</code></td>
+    <td>paged scoped rankings, default <code>pageSize=100</code></td>
+    <td><code>public, max-age=60</code></td><td>—</td></tr>
+<tr><td><code>GET /api/archive/global-player-statistics/all?scopeKind=&amp;scopeId=</code></td>
+    <td>the whole scoped read model in one body</td>
+    <td><code>public, max-age=60</code></td>
+    <td>5000 · <code>Gones:GlobalStats:MaximumCatalogSize</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <p><strong><code>Cache-Control</code> is per surface, not uniform.</strong> Catalogs and the years
+  index sit at an hour because they are bulk reads whose staleness the client already manages. Detail,
+  result and rankings routes sit at 60 seconds, matching the legacy detail routes
+  (<code>PublicLeagueEndpoints.cs:20</code>, <code>private const string PublicCacheControl =
+  "public, max-age=60"</code>). An organizer's edit must not stay invisible in an HTTP cache for an
+  hour.</p>
+  <p style="margin-bottom:0"><strong><code>year</code> is required</strong> on
+  <code>/tournaments/all</code>. Missing or non-integer is a <code>400</code>. There is no
+  &quot;all years&quot; mode — that is what the backfill queue is for. The 25000 ceiling comes from
+  the measured mtgtop8 peak of roughly 17,500 tournaments in one calendar year, plus headroom, and
+  follows the existing idiom: a <code>Take(ceiling + 1)</code> and a <code>CapToCeiling</code> that
+  turns the extra row into the <code>truncated</code> flag
+  (<code>PublicLeagueEndpoints.cs:379-398</code>).</p>
+</div>
+
+<h3>What a summary row does not carry</h3>
+
+<div class="split">
+  <div class="card card--warn">
+    <h3><span class="tag tag--warn">absent</span> <code>locked</code></h3>
+    <p><code>ArchiveTournamentSummary</code> has no <code>locked</code> field. A row cached today as
+    unlocked becomes locked tomorrow with no refetch to tell it, so the client derives the flag from
+    <code>tournamentDate</code>. <code>ArchiveYearEntry.locked</code> <em>is</em> on the wire, because
+    <code>/api/archive/years</code> is fetched every session and never cached across days.</p>
+  </div>
+  <div class="card card--warn">
+    <h3><span class="tag tag--warn">absent</span> <code>rounds</code> · <code>playerArchetypes</code></h3>
+    <p>A catalog row is not a document. The detail body is served by
+    <code>GET /api/archive/tournaments/{id}</code> and is <strong>never</strong> written into a year
+    partition — the partition holds fixed-width summary rows and stays small enough to keep 25,000 of
+    them in a browser.</p>
+  </div>
+</div>
+
+<h2>Write surface</h2>
+
+<p>One organizer-gated route group, mirroring
+<code>backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs:23</code>
+(<code>app.MapGroup(…).RequireAuthorization(AuthorizationPolicies.Organizer)</code>).</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Route</th><th>Effect</th><th>Response</th></tr></thead>
+<tbody>
+<tr><td><code>POST /api/archive/leagues</code></td><td>create a League</td><td><code>201 ArchiveCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/leagues/{leagueId}/name</code></td><td>rename</td><td><code>200 ArchiveCommandResponse</code></td></tr>
+<tr><td><code>DELETE /api/archive/leagues/{leagueId}</code></td><td>delete — refused while any Season references it</td><td><code>200 ArchiveDeleteResponse</code> · <code>409</code></td></tr>
+<tr><td><code>POST /api/archive/league-seasons</code></td><td>create a Season under a League</td><td><code>201 ArchiveCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/league-seasons/{seasonId}/name</code></td><td>rename</td><td><code>200 ArchiveCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/league-seasons/{seasonId}/status</code></td><td><code>active</code> ⇄ <code>completed</code></td><td><code>200 ArchiveCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/league-seasons/{seasonId}/league</code></td><td>move the Season to another League</td><td><code>200 ArchiveCommandResponse</code></td></tr>
+<tr><td><code>DELETE /api/archive/league-seasons/{seasonId}</code></td><td><strong>detaches</strong> its Tournaments (<code>seasonId = null</code>); never cascades</td><td><code>200 ArchiveDeleteResponse</code></td></tr>
+<tr><td><code>POST /api/archive/tournaments</code></td><td>create, attached or standalone</td><td><code>201 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/tournaments/{tournamentId}</code></td><td>edit name, date, status</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/tournaments/{tournamentId}/season</code></td><td><code>{ "seasonId": string | null }</code> — move, or detach to standalone</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>DELETE /api/archive/tournaments/{tournamentId}</code></td><td>soft delete</td><td><code>200 ArchiveDeleteResponse</code></td></tr>
+<tr><td><code>POST /api/archive/tournaments/{id}/rounds</code></td><td>add a Round</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>DELETE /api/archive/tournaments/{id}/rounds/{roundId}</code></td><td>delete a Round</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>POST /api/archive/tournaments/{id}/rounds/{roundId}/import</code></td><td>import pairings into a Round</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>POST /api/archive/tournaments/{id}/rounds/{roundId}/replace</code></td><td>replace a Round wholesale</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>POST /api/archive/tournaments/{id}/rounds/{roundId}/entries</code></td><td>add an entry</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/tournaments/{id}/rounds/{roundId}/entries/{entryId}</code></td><td>edit an entry</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>DELETE /api/archive/tournaments/{id}/rounds/{roundId}/entries/{entryId}</code></td><td>delete an entry</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>PATCH /api/archive/tournaments/{id}/archetypes/{playerName}</code></td><td>set one player's archetype</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>POST /api/archive/tournaments/{id}/edit-batch</code></td><td>apply a staged edit batch (ADR 0037)</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>POST /api/archive/tournaments/{id}/players/rename</code></td><td>rename a player inside one Tournament</td><td><code>200 ArchiveTournamentCommandResponse</code></td></tr>
+<tr><td><code>POST /api/archive/restore</code></td><td>restore one record from a bundle</td><td><code>201</code> · <strong>exempt from the lock</strong></td></tr>
+<tr><td><code>POST /api/archive/restore-full</code></td><td>bulk historical import</td><td><code>201</code> · <strong>exempt from the lock</strong></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note good">
+  <p><strong>Tournament commands answer with the document.</strong>
+  <code>ArchiveTournamentCommandResponse</code> is a superset of <code>ArchiveCommandResponse</code>
+  that carries the authoritative document back, because ADR 0037 requires a successful staged save to
+  adopt the server's document without a second round trip. <code>DELETE</code> is the exception and
+  keeps returning <code>ArchiveDeleteResponse</code>.</p>
+  <p style="margin-bottom:0"><strong>Restore is exempt from the lock</strong> because a bulk historical
+  import mints new ids and rewrites no protected row. Gating it would make every backfill of pre-2025
+  data an Admin-only operation, which is the opposite of what the lock is for.</p>
+</div>
+
+<h3>Errors</h3>
+
+<p>Wire codes follow the repo vocabulary, which is snake_case API-wide — see
+<code>backend/src/Gones.Api/Errors/ApiExceptions.cs</code>, where
+<code>ValidationException</code> emits <code>validation_failed</code>,
+<code>ResourceNotFoundException</code> emits <code>not_found</code> and the concurrency exception
+emits <code>stale_version</code>.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Situation</th><th>HTTP</th><th>wire <code>code</code></th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>stale <code>If-Match</code> / <code>documentVersion</code></td><td><code>412</code></td><td><code>stale_version</code></td><td>existing</td></tr>
+<tr><td>id absent or soft-deleted</td><td><code>404</code></td><td><code>not_found</code></td><td>existing</td></tr>
+<tr><td>validation failure — blank name, missing <code>year</code>, bad <code>scopeKind</code></td><td><code>400</code></td><td><code>validation_failed</code></td><td>existing</td></tr>
+<tr><td>write to a locked Tournament by a non-Admin</td><td><code>409</code></td><td><code>archive_tournament_locked</code></td><td>new</td></tr>
+<tr><td>delete a League that still has Seasons</td><td><code>409</code></td><td><code>archive_league_not_empty</code></td><td>new</td></tr>
+<tr><td>authenticated, lacking the capability</td><td><code>403</code></td><td colspan="2">the existing forbidden path</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong>The browser-local mirror stays camelCase, on purpose.</strong>
+  <code>ArchiveConcurrencyError</code> carries the message <code>'staleArchiveDocument'</code>,
+  because that string never crosses a wire — it is thrown by the IndexedDB authority in the same tab
+  that catches it. It renames today's <code>LeagueConcurrencyError</code> /
+  <code>'staleLeagueDocument'</code> pair at
+  <code>src/app/backend/local-league-archive-backend.service.ts:44-51</code>. The UX classifier keys
+  on <strong>HTTP status first, message second</strong>, so both authorities produce one conflict
+  experience.</p>
+</div>
+
+<h2>Two databases in the browser</h2>
+
+<p>An authority and a cache never share a database. The rule sounds abstract until you write the
+Settings button that empties the cache: with one database, &quot;purge the cache&quot; is one
+mistyped store name away from deleting records the user authored in this browser and that exist
+nowhere else.</p>
+
+<svg viewBox="0 0 900 330" role="img" aria-labelledby="dbt dbd">
+  <title id="dbt">The two IndexedDB databases and what may delete them</title>
+  <desc id="dbd">gones-archive-local holds records authored in this browser and is an authority under
+  ADR 0028; nothing but the user deleting a record removes anything from it. gones-archive-cache
+  holds public server catalogs under the ADR 0039 TTL contract and may be dropped whole at any time
+  by the Settings resynchronize control.</desc>
+
+  <text class="ho" x="450" y="30" text-anchor="middle">an authority and a cache never share a database</text>
+  <path class="ln dash" d="M450 46 V236"/>
+
+  <rect class="n good" x="20" y="60" width="400" height="152" rx="3"/>
+  <text class="lb" x="38" y="86">gones-archive-local — AUTHORITY</text>
+  <text class="gr" x="38" y="108">v1 · stores: leagues · league-seasons · tournaments</text>
+  <text class="nt" x="38" y="128">records authored in this browser (ADR 0028)</text>
+  <text class="nt" x="38" y="148">`local-` id prefix · never sent to a server</text>
+  <text class="nt" x="38" y="168">never locked · no TTL · not a copy of anything</text>
+  <text class="nt" x="38" y="192">written by local-archive-backend.service.ts</text>
+
+  <rect class="n warnb" x="480" y="60" width="400" height="152" rx="3"/>
+  <text class="lb" x="498" y="86">gones-archive-cache — CACHE</text>
+  <text class="ru" x="498" y="108">v1 · stores: leagues · league-seasons · year-partitions · meta</text>
+  <text class="nt" x="498" y="128">public server catalogs, 24 h TTL (ADR 0039)</text>
+  <text class="nt" x="498" y="148">keys: 'catalog' · 'catalog' · year (number) · string</text>
+  <text class="nt" x="498" y="168">a cache is never an authority (ADR 0020)</text>
+  <text class="nt" x="498" y="192">written by archive-cache.service.ts + archive-backfill-queue.ts</text>
+
+  <path class="ln" d="M220 212 V234"/><polygon class="ar" points="220,242 214,230 226,230"/>
+  <path class="ln" d="M680 212 V234"/><polygon class="ar" points="680,242 674,230 686,230"/>
+
+  <rect class="n" x="20" y="244" width="400" height="66" rx="3"/>
+  <text class="gr" x="38" y="270">untouched by every cache purge and every resync</text>
+  <text class="nt" x="38" y="292">its only delete is the user deleting that record</text>
+
+  <rect class="n hot" x="480" y="244" width="400" height="66" rx="3"/>
+  <text class="ho" x="498" y="270">Settings → Resynchronize everything</text>
+  <text class="nt" x="498" y="292">clearAll() drops every store, then restart() refills</text>
+</svg>
+
+<p>Both names are constants, not string literals at call sites:</p>
+
+<pre><code>LOCAL_ARCHIVE_DB_NAME  = 'gones-archive-local';   LOCAL_ARCHIVE_DB_VERSION  = 1;
+  LOCAL_LEAGUE_STORE = 'leagues'  ·  LOCAL_LEAGUE_SEASON_STORE = 'league-seasons'
+  LOCAL_TOURNAMENT_STORE = 'tournaments'
+
+ARCHIVE_CACHE_DB_NAME  = 'gones-archive-cache';   ARCHIVE_CACHE_DB_VERSION  = 1;
+  CACHE_LEAGUE_STORE = 'leagues'              key: 'catalog'
+  CACHE_SEASON_STORE = 'league-seasons'       key: 'catalog'
+  CACHE_YEAR_PARTITION_STORE = 'year-partitions'   key: year (number)
+  CACHE_META_STORE   = 'meta'                 key: string</code></pre>
+
+<div class="note warn">
+  <p><strong>Opening an IndexedDB database is an ADR decision, and the test enforces it.</strong>
+  <code>src/app/backend/server-authority-boundary.test.ts</code> walks the source tree for
+  <code>/\bindexedDB\b|\bIDB[A-Z]\w*/</code> and <code>toEqual</code>s the result against a literal
+  array — today <code>indexed-db.ts</code>, <code>local-league-archive-backend.service.ts</code>,
+  <code>local-live-backend.service.ts</code> and <code>server-read-cache.service.ts</code>. Naming a
+  file there before it exists turns the suite red, so the allowlist is filled in step with the files:
+  <code>local-archive-backend.service.ts</code> first, then
+  <code>archive-cache.service.ts</code> and <code>archive-backfill-queue.ts</code> together.</p>
+  <p style="margin-bottom:0"><code>archive-cache.service.ts</code> also joins the
+  <code>shared/catalog-cache</code> importer allowlist in that same file, because it reuses
+  <code>CATALOG_TTL_MS</code>.</p>
+</div>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong>What is left in <code>localStorage</code>.</strong> Language,
+  view preference, table filters, sort and page size, and the existing auth coordination keys. No
+  catalog. The <code>src/app/shared/catalog-cache.ts</code> helpers stay in place for the
+  Calendar/Event catalog, which this rebuild does not touch, and the archive reuses only their
+  <code>CATALOG_TTL_MS</code> constant — <code>24 * 60 * 60 * 1000</code>, declared at
+  <code>src/app/shared/catalog-cache.ts:12</code>.</p>
+</div>
+
+<h2>Year partitions and the single writer</h2>
+
+<p>The Tournament catalog is not one body. It is one body <em>per calendar year</em>, keyed by the
+year number, and a partition is written by exactly one component.</p>
+
+<pre><code>interface ArchiveYearPartition {
+  year: number;
+  completedAt: string | undefined;   // ABSENT ⇒ the year is not cached. Never write a partial one.
+  rowCount: number;                  // the server's uncapped totalCount
+  items: ArchiveTournamentSummary[];
+}</code></pre>
+
+<div class="split">
+  <div class="card card--good">
+    <h3><span class="tag tag--good">invariant</span> One writer</h3>
+    <p>Only <code>src/app/backend/archive-backfill-queue.ts</code> writes the
+    <code>year-partitions</code> store. Every other caller reads it. A second writer would need a
+    cross-tab lock to stay coherent; one writer needs none.</p>
+  </div>
+  <div class="card card--good">
+    <h3><span class="tag tag--good">invariant</span> One transaction</h3>
+    <p>The items and the <code>completedAt</code> stamp are written in a
+    <strong>single</strong> IndexedDB transaction. A year is therefore atomically whole or absent —
+    a crash mid-fetch leaves no record at all, never half of one, and no reader ever has to ask
+    whether what it found is finished.</p>
+  </div>
+  <div class="card card--warn">
+    <h3><span class="tag tag--warn">derived</span> Truncation</h3>
+    <p>There is no <code>truncated</code> field on the partition. <code>rowCount</code> holds the
+    server's uncapped <code>totalCount</code>, so a cache-served year re-raises the row-cap warning
+    by comparing <code>items.length &lt; rowCount</code>. One fact, stored once.</p>
+  </div>
+</div>
+
+<div class="flow">
+  <div class="ok">enqueue(year) → GET /api/archive/tournaments/all?year=YYYY → one txn: put(items + completedAt)</div>
+  <div class="no">fetch throws / tab closes → nothing was put → the year stays absent → re-enqueued next visit</div>
+  <div>drain(loader) walks the queue · restart() re-runs it from empty after a Settings resync</div>
+</div>
+
+<h2>Expanding a Season row</h2>
+
+<p>Tab 1 expands one level, from a Season to its Tournaments. The expansion has to answer from the
+cache when it honestly can and go to the server when it cannot — and it must never write what it gets
+from the server into the cache, because a Season slice is not a partition.</p>
+
+<svg viewBox="0 0 900 300" role="img" aria-labelledby="ext exd">
+  <title id="ext">Season expansion decision flow</title>
+  <desc id="exd">On expanding a Season the client computes the span of years between its first and
+  last tournament dates. If every one of those years is cached, complete and locked, it renders from
+  IndexedDB and issues no request. Otherwise it reads through to the season tournaments endpoint,
+  renders the answer and does not cache it.</desc>
+
+  <rect class="n" x="250" y="8" width="400" height="58" rx="3"/>
+  <text class="lb" x="268" y="32">Season row expanded</text>
+  <text class="nt" x="268" y="54">years = [ year(firstTournamentDate) .. year(lastTournamentDate) ]</text>
+
+  <text class="nt" x="450" y="88" text-anchor="middle">every one of those years cached &amp;&amp; complete &amp;&amp; locked?</text>
+
+  <path class="ln" d="M400 66 L226 112"/><polygon class="ar" points="216,116 228,106 231,117"/>
+  <path class="ln" d="M500 66 L674 112"/><polygon class="ar" points="684,116 669,117 672,106"/>
+  <text class="gr" x="150" y="108">YES</text>
+  <text class="ru" x="726" y="108">NO — any year missing, unlocked or stale</text>
+
+  <rect class="n good" x="20" y="120" width="400" height="118" rx="3"/>
+  <text class="lb" x="38" y="146">render from IndexedDB · issue no request</text>
+  <text class="gr" x="38" y="168">complete = the partition carries completedAt</text>
+  <text class="nt" x="38" y="188">locked = the year cannot gain or change a row any more</text>
+  <text class="nt" x="38" y="206">filter the partitions by seasonId, locally</text>
+  <text class="nt" x="38" y="224">works offline, and stays correct while it does</text>
+
+  <rect class="n warnb" x="480" y="120" width="400" height="118" rx="3"/>
+  <text class="lb" x="498" y="146">read through to the server</text>
+  <text class="ru" x="498" y="168">GET /api/archive/league-seasons/{id}/tournaments</text>
+  <text class="nt" x="498" y="188">render it — and do NOT cache the result</text>
+  <text class="nt" x="498" y="206">a Season slice is not a partition; caching it would</text>
+  <text class="nt" x="498" y="224">create a second, unversioned copy of the same rows</text>
+
+  <rect class="n flat" x="250" y="250" width="400" height="44" rx="3"/>
+  <text class="nt" x="268" y="272">a missing year is enqueued in the backfill queue,</text>
+  <text class="nt" x="268" y="288">never fetched inline by the expansion</text>
+</svg>
+
+<h3>Freshness rules</h3>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Year partition state</th><th>Action</th><th>Request?</th></tr></thead>
+<tbody>
+<tr><td>cached &amp;&amp; locked</td><td>serve local</td><td><span class="tag tag--good">none</span></td></tr>
+<tr><td>cached &amp;&amp; !locked &amp;&amp; age &lt; 24 h</td><td>serve local</td><td><span class="tag tag--good">none</span></td></tr>
+<tr><td>cached &amp;&amp; !locked &amp;&amp; age ≥ 24 h</td><td>refetch that year</td><td><span class="tag tag--warn">one</span></td></tr>
+<tr><td>not cached</td><td>enqueue in the backfill queue</td><td><span class="tag tag--warn">deferred</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>A <em>locked</em> year is never refetched, and that is the deliberate trade: an Admin editing
+locked history is invisible to a browser that already has the year until someone asks for it. The
+escape hatch is the <strong>Resynchronize everything</strong> control in Settings, inside a
+collapsed-by-default section — it clears every cache store and re-runs the backfill queue. The
+staleness is accepted; the button is why it is acceptable.</p>
+
+<div class="note">
+  <p style="margin-bottom:0"><strong>One invalidation funnel.</strong> Every archive mutation goes
+  through <code>ArchiveRepository.invalidateArchiveCaches(): Promise&lt;void&gt;</code>, which clears
+  the <code>gones-archive-cache</code> stores and dispatches
+  <code>window.dispatchEvent(new CustomEvent('gones-archive-updated'))</code>. That renames today's
+  <code>gones-league-updated</code> event, dispatched from the legacy archive detail components and
+  listened for in <code>src/app/app.component.ts</code>. A coverage test asserts every mutating
+  method on the repository calls it — the invalidation worked before, but nothing proved it stayed
+  wired.</p>
+</div>
+
+<h2>The 365-day lock</h2>
+
+<p>A Tournament stops accepting non-Admin writes 365 days after the day it was played. The rule is
+<strong>derived, never stored</strong>: there is no <code>locked</code> column, no
+<code>lockedAt</code> timestamp and no job that flips a flag at midnight.</p>
+
+<pre><code>export const ARCHIVE_LOCK_WINDOW_DAYS = 365;
+export function isArchiveTournamentLocked(tournamentDate: string, now = new Date()): boolean;
+
+// C# mirror
+public static class ArchiveLockRule {
+    public const int LockWindowDays = 365;
+    public static bool IsLocked(LocalDate tournamentDate, LocalDate today);
+}</code></pre>
+
+<div class="split">
+  <div class="card">
+    <h3>The boundary, exactly</h3>
+    <p><code>locked ⇔ (now − tournamentDate) &gt; 365 days</code>, compared on whole
+    <strong>UTC calendar days</strong>. Played exactly 365 days ago: <strong>not</strong> locked.
+    366 days ago: <strong>locked</strong>. Both stacks implement the same comparison so a client that
+    hides the edit button and a server that rejects the write never disagree by a day.</p>
+  </div>
+  <div class="card card--good">
+    <h3>Browser-local records never lock</h3>
+    <p>A record with a <code>local-</code> id prefix lives only in this browser and has no server to
+    protect it from. Locking it would take a user's own data away from them for no benefit.</p>
+  </div>
+  <div class="card card--warn">
+    <h3>The 🔒 marker is visible</h3>
+    <p>Locked rows carry the marker in the table, not just in a rejected save. A Season is locked when
+    <em>every</em> one of its Tournaments is locked — an unlocked child means the Season still accepts
+    work.</p>
+  </div>
+</div>
+
+<h2>Concurrency and the denormalized counters</h2>
+
+<p><strong>Concurrency is per Tournament.</strong> Each row guards itself with its own
+<code>documentVersion</code>. Editing a Tournament does <em>not</em> bump its Season's version, and
+does not bump its League's — two organizers editing two Tournaments in the same Season never collide,
+which is precisely why Tournament became a row instead of an array element.</p>
+
+<div class="note warn">
+  <p><strong>Archive rows do not derive <code>VersionedEntity</code>, and that is load-bearing.</strong>
+  The key is <code>document_id text PRIMARY KEY</code> with a plain <code>version integer</code>
+  mapped <code>.IsConcurrencyToken()</code> — the precedent is <code>PlayerStatisticsRow</code>, which
+  does not derive it either. <code>GonesDbContext.IncrementVersions</code>
+  (<code>GonesDbContext.cs:78-85</code>) only auto-bumps entries it can walk as
+  <code>ChangeTracker.Entries&lt;VersionedEntity&gt;()</code>, so <strong>every archive row write must
+  increment <code>version</code> explicitly</strong>. Forgetting it does not fail loudly; it silently
+  disables optimistic concurrency for that path.</p>
+  <p style="margin-bottom:0">On the wire, <code>documentVersion</code> is an <code>int</code>, not a
+  <code>long</code>.</p>
+</div>
+
+<p>The Season carries four denormalized counters — <code>tournamentCount</code>,
+<code>playerCount</code>, <code>firstTournamentDate</code>, <code>lastTournamentDate</code> — plus a
+<code>counts_version</code>. They are recomputed <strong>inside the same transaction as the Tournament
+write that changed them</strong>, exactly as ADR 0042 already does for
+<code>TournamentCount</code> / <code>PlayerCount</code> / <code>CountsVersion</code> on
+<code>LeagueArchiveAggregate</code> (see <code>RefreshCatalogCounts()</code> at
+<code>backend/src/Gones.Domain/Leagues/LeagueArchiveAggregate.cs:129-135</code>).</p>
+
+<div class="flow">
+  <div class="ok">PATCH a Tournament → validate lock → check documentVersion → write row (version + 1)</div>
+  <div class="ok">… same transaction → recompute the parent Season's four counters + counts_version</div>
+  <div class="no">version mismatch → 412 stale_version → nothing written, counters untouched</div>
+  <div class="no">tournamentDate older than 365 d, actor is not Admin → 409 archive_tournament_locked</div>
+</div>
+
+<p>Three things keep a denormalized counter honest, and they are the same three ADR 0042 relies on:
+it is written by the domain call that writes the row, it is never editable on its own, and
+<code>counts_version</code> gates a self-healing repair for the case a formula changes under existing
+rows.</p>
+
+<h2>Consequences worth stating out loud</h2>
+
+<ul>
+  <li><strong>The League tier is our own construct.</strong> Public archives expose no series or
+  season field — a real mtgtop8 event record carries title, venue, format, star rating, player count,
+  date and decklists, and nothing else. So <code>LeagueSeason.name</code> is a free string with no
+  integer-year column: calendar years are the common case, but Pro Tour 1996–2012 ran August-to-August
+  seasons named <code>1996–97</code>, and a stored year would have to lie about them.</li>
+  <li><strong>A standalone Tournament has no League name to print.</strong> Tab 2's second line is
+  empty for it — not <em>Unassigned</em>, not a placeholder row. The retired
+  <code>PLACEHOLDER_LEAGUE_ID</code> / <code>Unassigned Tournaments</code> pair existed only because
+  the old model had nowhere else to put a parentless Tournament.</li>
+  <li><strong>Two surfaces, two page-size defaults, both deliberate.</strong> The archive tabs default
+  to <code>size=25</code> (choices <code>25 | 50 | 100</code>); the rankings keep their existing
+  <code>pageSize=100</code>.</li>
+  <li><strong>Every read route is anonymous.</strong> Nothing in this document is behind a session, so
+  the whole archive is readable offline once cached, and the ADR 0042 compression rule applies to all
+  of it.</li>
+  <li><strong>The sort-direction URL parameter is <code>dir</code> everywhere</strong> — archive tabs
+  and <code>/global-stats</code> alike. The <em>wire</em> query parameter sent to the API stays
+  <code>direction</code>, which is what <code>PublicLeagueEndpoints</code> binds today. The rankings
+  page currently writes <code>direction=</code> into its own URL
+  (<code>src/app/features/players/global-stats-query.ts:196</code>, asserted at
+  <code>cypress/e2e/global-stats.cy.js:76-78</code>); that is a user-visible URL change to an existing
+  page, accepted because Gones is unreleased and has no users.</li>
+</ul>
+
+<footer>
+  <p>Bounded by ADR <a href="adr/0020-retire-the-legacy-browser-data-authority.md">0020</a> (a cache is
+  never an authority), <a href="adr/0028-dual-source-league-archive.md">0028</a> (browser-local archive
+  authority), <a href="adr/0037-power-user-staged-archive-edits.md">0037</a> (staged edits),
+  <a href="adr/0039-ttl-cache-contract.md">0039</a> (TTL cache contract) and
+  <a href="adr/0042-slim-league-archive-catalog.md">0042</a> (slim catalog rows, denormalized
+  counters, narrowed compression). Supersedes the flat model of
+  <a href="adr/0022-rename-the-archived-league-feature.md">0022</a>.</p>
+  <p>See also <a href="archive-scoped-ratings.html">Scoped Player Ratings</a>,
+  <a href="ttl-cache-contract.html">TTL Cache Contract</a>,
+  <a href="league-archive-catalog-summary.html">Slim League Archive Catalog</a>,
+  <a href="league-archive-authority.html">League Archive Authority</a>,
+  <a href="archive-staged-edit.html">Staged Archive Edits</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>
