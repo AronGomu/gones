@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archive rebuild — year locking, backfill, final naming</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; --good:#4ade80; --warn:#f87171; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .node.done { border-color:var(--good); color:var(--good); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-node.good { stroke:var(--good); } .svg-node.warn { stroke:var(--warn); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-line.dash { stroke-dasharray:4 4; } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); } .svg-good { fill:var(--good); } .svg-warn { fill:var(--warn); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    fieldset.fix { border-color:var(--accent-2); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .why.hot { color:var(--accent-2); }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    code { background:#100d08; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:.86em; color:var(--accent); }
+    pre { margin:10px 0 0; padding:12px; overflow:auto; border:1px solid var(--line); border-radius:8px; background:#100d08; font-size:.79rem; line-height:1.5; color:var(--muted); }
+    pre code { background:none; border:0; padding:0; color:inherit; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { padding:18px 20px; margin:0 0 20px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; background:var(--panel); }
+    .facts.ok { border-left-color:var(--good); } .facts.warn { border-left-color:var(--warn); }
+    .facts h2 { font-size:.8rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+    .facts.ok h2 { color:var(--good); } .facts.warn h2 { color:var(--warn); }
+    .facts ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; } .facts li { margin:6px 0; }
+    .facts p { color:var(--muted); font-size:.9rem; margin:6px 0; }
+    .settled { display:flex; flex-wrap:wrap; gap:7px; margin:0 0 28px; }
+    .chip { padding:5px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--muted); font-size:.78rem; }
+    .chip b { color:var(--good); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 5 · Year locking + Backfill + Final naming</span>
+    <h1>Archive rebuild — year locking, backfill, final naming</h1>
+    <p class="lede">Last round. Your Q2 precision introduced <b>data locking</b>, a mechanism this codebase has nothing like — it needs six decisions before it is writable as a contract. Then the final naming, and the plan gets written.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <span class="node"><b>Archive rebuild</b></span>
+    <span class="arrow">→</span>
+    <span class="node done">Storage ✓</span>
+    <span class="node done">Hierarchy ✓</span>
+    <span class="node done">Ratings ✓</span>
+    <span class="node done">Table ✓</span>
+    <span class="node done">Reset ✓</span>
+    <span class="arrow">→</span>
+    <span class="node active">Locking</span>
+    <span class="node active">Backfill</span>
+    <span class="node active">Naming</span>
+  </nav>
+
+  <div class="settled">
+    <span class="chip"><b>✓</b> Tab 1 = Seasons + League column</span>
+    <span class="chip"><b>✓</b> Rolling window + async backfill</span>
+    <span class="chip"><b>✓</b> All public catalogs → IndexedDB</span>
+    <span class="chip"><b>✓</b> Season select: All or exactly one</span>
+    <span class="chip"><b>✓</b> <code>(scope_kind, scope_id, player_name)</code></span>
+    <span class="chip"><b>✓</b> Squash EF migrations</span>
+    <span class="chip"><b>✓</b> Separate leagues catalog</span>
+    <span class="chip"><b>✓</b> Derived season dates</span>
+    <span class="chip"><b>✓</b> 3 Seasons variants + rankings mockup</span>
+  </div>
+
+  <section class="facts ok">
+    <h2>Two answers that resolved cleanly — recorded, not re-asked</h2>
+    <ul>
+      <li><b>Q4-C removed the combinatorial gap entirely.</b> "All or exactly one" for both selects means every selectable scope is <code>global</code>, one <code>league</code>, or one <code>season</code> — and all three are precisely what Q5-A's <code>scope_kind</code> stores. There is now no selectable scope without a stored rating, and no on-demand replay anywhere. The two answers fit together exactly.</li>
+      <li><b>Q6-C, squashing the EF migration history, is noted as chosen with the tradeoff stated.</b> It rewrites committed migration files. It will be done as a new commit that deletes the old migration set and adds the squashed one — never by rewriting git history. Flagging once; you have picked it twice.</li>
+    </ul>
+  </section>
+
+  <section class="facts warn">
+    <h2>Why locking needs its own round</h2>
+    <p>Your precision: <em>"After a full year—365 days—the data should be locked so that only the admin can update it directly in the database… Data locked locally never needs to be refetched again in the same browser… you can remove from the request all data that has been locked, which optimizes the fetching."</em></p>
+    <p>The intent is clear and the optimisation is real. But there is <b>no lock, freeze or immutability concept anywhere in this codebase</b> — I checked the whole domain and API layer; the only hits are unrelated Live-tournament pairing locks. So every part of it is new, and one part is a trap: <b>"locked data is never refetched" plus "an admin can still change it" means an admin edit can never reach any browser that already cached that year.</b> Q4 is the escape hatch, and it is not optional.</p>
+  </section>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>The two independent loads you described</b>Current year blocks the page; everything older streams in behind it.</figcaption>
+      <svg viewBox="0 0 380 210" role="img" aria-labelledby="t-l t-l-d">
+        <title id="t-l">Two independent fetch paths</title>
+        <desc id="t-l-d">On load the app fetches the current year synchronously so the page can render, then asynchronously backfills every older year into IndexedDB. Older years become locked and are never refetched once stored.</desc>
+        <text class="svg-label" x="8" y="16">App start</text>
+        <rect class="svg-node active" x="8" y="26" width="170" height="44" rx="8"/>
+        <text class="svg-note" x="18" y="44">1 · fetch current year</text>
+        <text class="svg-accent" x="18" y="60">blocking — page renders</text>
+        <rect class="svg-node" x="202" y="26" width="170" height="44" rx="8"/>
+        <text class="svg-note" x="212" y="44">2 · backfill older years</text>
+        <text class="svg-note" x="212" y="60">async — never blocks nav</text>
+        <path class="svg-line dash" d="M178 48 L202 48"/>
+        <path class="svg-line" d="M93 70 L93 92 M287 70 L287 92"/>
+        <rect class="svg-node good" x="8" y="92" width="364" height="34" rx="8"/>
+        <text class="svg-note" x="18" y="106">IndexedDB — one entry per year</text>
+        <text class="svg-good" x="18" y="120">2024 locked · 2025 locked · 2026 live</text>
+        <line class="svg-line dash" x1="8" y1="140" x2="372" y2="140"/>
+        <text class="svg-note" x="8" y="158">locked year present locally → excluded from every later request</text>
+        <text class="svg-warn" x="8" y="176">…so an admin edit to 2024 can never reach this browser</text>
+        <text class="svg-accent" x="8" y="194">→ Q4 adds a cheap stamp index that makes it reachable</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>What "365 days" could mean</b>Three different clocks, three different lock dates.</figcaption>
+      <svg viewBox="0 0 380 210" role="img" aria-labelledby="t-c t-c-d">
+        <title id="t-c">Candidate lock clocks</title>
+        <desc id="t-c-d">A calendar year locks on the first of January after it ends. A rolling window locks any row whose date is more than 365 days old. A per-row clock locks each tournament individually 365 days after it was played.</desc>
+        <text class="svg-label" x="8" y="16">A · calendar year + grace</text>
+        <rect class="svg-node good" x="8" y="24" width="230" height="24" rx="6"/>
+        <text class="svg-note" x="16" y="40">2025 · locks 2027-01-01</text>
+        <text class="svg-good" x="248" y="40">whole partition</text>
+        <text class="svg-note" x="8" y="60">one flag per year · matches the cache entry exactly</text>
+        <line class="svg-line dash" x1="8" y1="72" x2="372" y2="72"/>
+        <text class="svg-label" x="8" y="90">B · rolling 365 days</text>
+        <rect class="svg-node warn" x="8" y="98" width="180" height="24" rx="6"/>
+        <text class="svg-note" x="16" y="114">older than 365d → locked</text>
+        <rect class="svg-node" x="192" y="98" width="46" height="24" rx="6"/>
+        <text class="svg-note" x="200" y="114">live</text>
+        <text class="svg-warn" x="248" y="114">splits a year</text>
+        <text class="svg-note" x="8" y="134">a year is half locked · cache entry no longer atomic</text>
+        <line class="svg-line dash" x1="8" y1="146" x2="372" y2="146"/>
+        <text class="svg-label" x="8" y="164">C · per tournament</text>
+        <rect class="svg-node warn" x="8" y="172" width="60" height="22" rx="6"/>
+        <text class="svg-note" x="14" y="187">t1 lock</text>
+        <rect class="svg-node" x="72" y="172" width="60" height="22" rx="6"/>
+        <text class="svg-note" x="78" y="187">t2 live</text>
+        <rect class="svg-node warn" x="136" y="172" width="60" height="22" rx="6"/>
+        <text class="svg-note" x="142" y="187">t3 lock</text>
+        <text class="svg-warn" x="208" y="187">per-row flag</text>
+        <text class="svg-note" x="8" y="206">finest control · no partition is ever wholly done</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="What is the unit of locking?">
+      <legend>1. What is the unit of locking?</legend>
+      <p class="why">"Locked" has to attach to something. The cache entry is a year, so a lock that does not align with a year makes the entry partly-stale — which is the one state the optimisation cannot express.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. The year partition: a whole year locks at once, on 1 January after it has been complete for a full year (2025 locks 2027-01-01). Lock unit == cache unit."><span><b>A. The whole year partition, on a calendar boundary</b><span class="rank">Recommended</span><span class="detail">The lock unit is the cache unit, so "locked" and "stored" are the same yes/no and the request-exclusion is a plain list of year numbers. Year <code>Y</code> locks on <code>1 Jan (Y+2)</code>, which is your 365-day grace expressed on the boundary the partition already uses.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Rolling 365 days from each Tournament's date, so a year can be partly locked"><span><b>B. Rolling 365 days per Tournament date</b><span class="rank">Second</span><span class="detail">Closest to your words and locks data as early as possible. A year is then partly locked and partly live, so a cached year can no longer be excluded wholesale and the optimisation mostly evaporates.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Per Season: a Season locks 365 days after its last Tournament"><span><b>C. Per Season, 365 days after its last Tournament</b><span class="rank">Third</span><span class="detail">Matches the domain — a season really is done when it is done. Seasons cross calendar years, so the lock cuts across the partition and a Season gaining a late Tournament silently unlocks it.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If A: is the grace exactly one calendar year, or should 2025 lock on 2026-01-01 instead?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What does 'locked' mean on the server?">
+      <legend>2. What does "locked" mean on the server?</legend>
+      <p class="why">You said only an admin can update locked data "directly in the database". That could mean the API refuses those writes, or that it is a convention nothing enforces. Only the first is testable.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. The API refuses every mutation targeting a locked year with 409 Conflict and a problem-details code archiveYearLocked; no role bypasses it; changes are made by direct SQL only"><span><b>A. The API refuses locked writes — 409 <code>archiveYearLocked</code>, no role bypass</b><span class="rank">Recommended</span><span class="detail">Exactly your sentence, made enforceable: the API is closed, so "admin edits the database directly" is literally the only path and no client can ever mutate a year it has cached as immutable. Testable in one integration test.<pre><code>409 Conflict
+{ "type": ".../archive-year-locked",
+  "title": "Archive year is locked",
+  "code": "archiveYearLocked",
+  "year": 2024 }</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. The API refuses locked writes for everyone except Admin, who can still mutate through the normal endpoints"><span><b>B. Refused for everyone except Admin, who keeps the normal endpoints</b><span class="rank">Second</span><span class="detail">Far more usable — fixing a typo in a 2024 result does not need a DBA. But then locked data does change through the API, so the "never refetch" rule needs the Q4 escape hatch to be genuinely reliable rather than a backstop.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Advisory only: the UI hides mutation controls on locked years, the API still accepts them"><span><b>C. Advisory only — UI hides the controls</b><span class="rank">Third</span><span class="detail">Cheapest, and reversible if the rule turns out wrong. It is not a lock: any client that skips the UI can still write, so the immutability the cache depends on is not actually guaranteed.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Does the lock also block creating a NEW tournament dated into a locked year, or only editing existing ones?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Does locking apply to the browser-local archive too?">
+      <legend>3. Does locking apply to the browser-local archive?</legend>
+      <p class="why">Round 1 Q10 kept the dual-source rule: browser-local Seasons and Tournaments exist alongside server ones. Locking is a server-authority idea, so its meaning for local rows has to be stated.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. No — local rows are never locked; the lock is a server-authority rule and local data is always editable and always read fresh from IndexedDB"><span><b>A. No — local rows are never locked</b><span class="rank">Recommended</span><span class="detail">Locking exists to let a browser trust a cached copy of <em>someone else's</em> data. Local rows have no remote to diverge from and are already the source of truth, so freezing them would only stop a user editing their own records for no benefit.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Yes — the same 365-day rule freezes local rows, for one consistent rule across both stores"><span><b>B. Yes — the same rule applies to both stores</b><span class="rank">Second</span><span class="detail">One rule to explain and one code path. Users lose the ability to correct their own old records with no way to appeal, since there is no admin for a browser store.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should locked server years still be visually marked in the UI — a lock icon on the row — or is the lock invisible until you try to edit?"></textarea></label>
+    </fieldset>
+
+    <fieldset class="fix" data-question="How does an admin change to a locked year ever reach a browser that already cached it?">
+      <legend>4. How does an admin change reach an already-cached locked year?</legend>
+      <p class="why hot">The trap. "Locked years are never refetched in this browser" plus "an admin can still change them" means a corrected 2024 result is invisible forever to everyone who visited before the fix. This needs a cheap escape hatch, or locking becomes a permanent-divergence bug.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. A tiny year-index endpoint fetched on every load: [{year, locked, stamp, rowCount}]. The client refetches only years whose stamp changed. Locked-and-unchanged years cost one integer comparison."><span><b>A. A tiny year-index endpoint, fetched every load</b><span class="rank">Recommended</span><span class="detail">Delivers both halves of what you asked for. It <em>is</em> the request optimisation — one small response replaces sending any locked payload — and it is the escape hatch, because an admin's direct SQL edit moves that year's stamp and exactly one year gets refetched. A few hundred bytes regardless of archive size.<pre><code>GET /api/archive/years
+→ { years: [ { year: 2024, locked: true,
+               stamp: "8f3a…", rowCount: 1840 },
+             { year: 2026, locked: false,
+               stamp: "1c90…", rowCount: 612 } ] }</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. A single global archive generation counter; any bump invalidates every locked year at once"><span><b>B. One global generation counter</b><span class="rank">Second</span><span class="detail">Simplest possible server side — one integer. Any edit to any year re-downloads every year, which throws away the optimisation the moment it is used.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. A manual 'Resynchronize everything' button in the sync bar; no automatic detection"><span><b>C. A manual "Resynchronize everything" button</b><span class="rank">Third</span><span class="detail">Zero server work and it fits the existing sync-bar affordance. Correctness then depends on a user suspecting staleness and acting on it, which they have no way to detect.</span></span></label>
+        <label class="choice"><input type="checkbox" value="D. Accept it: locked means locked, admin edits require users to clear their browser data"><span><b>D. Accept permanent divergence</b><span class="rank">Fourth</span><span class="detail">No mechanism at all. A wrong result stays wrong on every browser that saw it, and the only fix is telling people to clear site data.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should the year index also drive the year selector's list of available years? That is my assumption — it means one call populates the control and validates the cache."></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How does the async backfill behave?">
+      <legend>5. How does the async backfill behave?</legend>
+      <p class="why">You specified it must not impair navigation and must be independent of the current-year fetch. Order, visibility and failure behaviour still need pinning.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Newest-to-oldest, one year at a time, starting after the current year resolves; a quiet progress line in the sync bar; a failed year is retried on next app start; navigation never blocked and no spinner"><span><b>A. Newest first, one year at a time, quiet progress in the sync bar</b><span class="rank">Recommended</span><span class="detail">Newest-first because that is what a user is most likely to look at next. Sequential rather than parallel keeps it off the critical path for the live year's requests. It reports in the existing <code>gones-sync-bar</code> rather than a new UI, and a year that fails is simply retried next start — it is a cache fill, never an error the page renders.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Same, but all missing years fetched in parallel"><span><b>B. Same, but all missing years in parallel</b><span class="rank">Second</span><span class="detail">Fills the cache fastest on a good connection. A first run on a large archive opens many concurrent requests and competes with the interactive year for bandwidth — the thing you said must not happen.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Lazy: fetch an older year only when the user first selects it, no background backfill"><span><b>C. Lazy — fetch a year only when selected</b><span class="rank">Third</span><span class="detail">Least bandwidth and nothing is downloaded that is never looked at. Selecting an old year then means waiting for it, which is exactly the stall the backfill exists to remove.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should the backfill run on every app start, or only when the year index shows years missing from the cache?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What are the final route and segment names?">
+      <legend>6. Final route and segment names</legend>
+      <p class="why">You asked to rename the API and URL routes to <code>leagueSeason</code>. This codebase spells every route segment in kebab-case — <code>/api/leagues-archive</code>, <code>/api/live-tournaments</code>, <code>/api/event-proposals</code> — so the literal camelCase form would be the only exception in the app.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Kebab-case, consistent with every existing route: /archive/league-seasons, /archive/league-seasons/:seasonId, /api/archive/league-seasons/all. TypeScript symbols stay camelCase LeagueSeason."><span><b>A. Kebab-case segments, camelCase symbols</b><span class="rank">Recommended</span><span class="detail">Your rename, spelled the way this app spells every other route. URLs stay lowercase and hyphenated; the types, components and fields are <code>LeagueSeason</code> / <code>seasonId</code> as you asked.<pre><code>UI   /archive/league-seasons          (tab 1)
+     /archive/league-seasons/:seasonId
+     /archive/tournaments             (tab 2)
+     /archive/tournaments/:tournamentId
+API  /api/archive/league-seasons/all?year=YYYY
+     /api/archive/tournaments/all?year=YYYY
+     /api/archive/leagues/all
+     /api/archive/years</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Literal camelCase in the URL: /archive/leagueSeasons, /api/archive/leagueSeasons/all"><span><b>B. Literal camelCase in URLs</b><span class="rank">Second</span><span class="detail">Exactly what you wrote, and the URL then matches the type name character for character. It would be the only camelCase route in the app, and mixed-case paths are a known source of case-sensitivity bugs.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Shorter kebab: /archive/seasons and /api/archive/seasons/all, with LeagueSeason kept as the type name"><span><b>C. Shorter <code>/seasons</code>, <code>LeagueSeason</code> as the type</b><span class="rank">Third</span><span class="detail">Shortest to read and type, and unambiguous in context since the only seasons here are league seasons. Route and type no longer share a name, which is the mismatch ADR 0035 exists to avoid.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should the tab be labelled 'League Seasons', 'Seasons', or 'Leagues' in the UI? And what should /archive redirect to?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 5 · Year locking + Backfill + Final naming — Archive rebuild\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

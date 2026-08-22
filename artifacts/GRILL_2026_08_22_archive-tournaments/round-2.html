@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archive rebuild — storage split, API contracts, migration</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; --good:#4ade80; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .node.done { border-color:var(--good); color:var(--good); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-node.good { stroke:var(--good); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-line.dash { stroke-dasharray:4 4; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); } .svg-good { fill:var(--good); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    code { background:#100d08; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:.86em; color:var(--accent); }
+    pre { margin:10px 0 0; padding:12px; overflow:auto; border:1px solid var(--line); border-radius:8px; background:#100d08; font-size:.8rem; line-height:1.5; color:var(--muted); }
+    pre code { background:none; border:0; padding:0; color:inherit; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { padding:18px 20px; margin:0 0 20px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; background:var(--panel); }
+    .facts.ok { border-left-color:var(--good); }
+    .facts h2 { font-size:.8rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+    .facts.ok h2 { color:var(--good); }
+    .facts ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; } .facts li { margin:5px 0; }
+    .settled { display:flex; flex-wrap:wrap; gap:7px; margin:0 0 32px; }
+    .chip { padding:5px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--muted); font-size:.78rem; }
+    .chip b { color:var(--good); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 2 · Storage split + API contracts + Migration</span>
+    <h1>Archive rebuild — storage split, API contracts, migration</h1>
+    <p class="lede">Round 1 settled the shape. This round settles the shapes an implementer would otherwise invent: where a Tournament row actually lives, its routes and schemas, the migration, and the exact table contract. Answer all eleven and the plan can be written.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <span class="node"><b>Archive rebuild</b></span>
+    <span class="arrow">→</span>
+    <span class="node done">Data model ✓</span>
+    <span class="node done">Tab shell ✓</span>
+    <span class="node done">Rename ✓</span>
+    <span class="arrow">→</span>
+    <span class="node active">Storage split</span>
+    <span class="node active">API contracts</span>
+    <span class="node active">Migration</span>
+    <span class="node active">Table contract</span>
+  </nav>
+
+  <div class="settled">
+    <span class="chip"><b>✓</b> New <code>ArchiveTournamentAggregate</code>, <code>leagueId: string | null</code></span>
+    <span class="chip"><b>✓</b> Tournaments tab lists all</span>
+    <span class="chip"><b>✓</b> Row expands, Name links</span>
+    <span class="chip"><b>✓</b> 6 columns</span>
+    <span class="chip"><b>✓</b> Full rename + API alias</span>
+    <span class="chip"><b>✓</b> Client-side everything</span>
+    <span class="chip"><b>✓</b> Placeholder retired</span>
+    <span class="chip"><b>✓</b> <code>/archive/leagues</code> + <code>/archive/tournaments</code></span>
+    <span class="chip"><b>✓</b> Local standalone Tournaments</span>
+    <span class="chip"><b>✓</b> 2–3 prototype variants</span>
+  </div>
+
+  <section class="facts ok">
+    <h2>Your Q7 verification — answered: yes, it already resynchronizes</h2>
+    <ul>
+      <li><b>Public catalog.</b> Mutations dispatch the window event <code>gones-league-updated</code>; <code>app.component.ts:165</code> listens and calls <code>clearLeagueCatalogCache()</code>, so the next visit refetches. Verified covered: League rename (<code>league-archive-detail.component.ts:145</code>), create-tournament (<code>:169</code>), Tournament edit batch move and non-move paths (<code>tournament-archive-detail.component.ts:467,471,520</code>), League create (<code>league-archive-list.component.ts:174</code>), League + Tournament delete from the header (<code>app.component.ts:380,399</code>), Live finalize (<code>live-tournament-runner.component.ts:662</code>).</li>
+      <li><b>Private export cache.</b> <code>listLeagues()</code> uses <code>ServerReadCacheService.read()</code>, which is fallback-only: the server is always tried first and the cache is served only if that read fails. Nothing to invalidate; a stale copy can only appear offline, which is what the banner says.</li>
+      <li><b>The real risk, carried into the plan.</b> This is a loose window-event convention with <b>no test enforcing coverage</b> — there is no equivalent of <code>back-button-coverage.test.ts</code>. Adding a second aggregate adds a second cache key that every existing mutation site must also clear, and a ticket that forgets fails silently for 24 hours. <b>Q11 below decides what to do about it.</b></li>
+    </ul>
+  </section>
+
+  <section class="facts">
+    <h2>Sizing facts resolved for this round — do not re-answer</h2>
+    <ul>
+      <li>Caps today: League catalog ceiling <b>1000</b>; each League may hold up to <b>1000</b> Tournaments. Worst case is 10⁶ Tournament rows against your "fetch everything" answer. Stress fixture targets ~200 Leagues.</li>
+      <li>Global rankings catalog ceiling is <b>5000</b> — the nearest precedent for a Tournament cap.</li>
+      <li>Tournament ids are <code>crypto.randomUUID()</code> in the app, but <em>not</em> guaranteed unique by schema: test factories emit <code>id-1</code>, <code>id-2</code>, and imported bundles carry whatever they were written with.</li>
+      <li><code>GONES_DATA_VERSION = 4</code>; <code>SUPPORTED_IMPORT_DATA_VERSIONS = [1,2,3,4]</code>.</li>
+      <li>ADR 0043 replays "every completed Archive Tournament in date order" into Glicko-2; ADR 0040 materializes the result into <code>player_statistics</code>.</li>
+    </ul>
+  </section>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Q1 is the fork</b>Does the League document keep its tournaments, or become a header?</figcaption>
+      <svg viewBox="0 0 380 250" role="img" aria-labelledby="t-fork t-fork-d">
+        <title id="t-fork">Storage split options</title>
+        <desc id="t-fork-d">Option A leaves attached tournaments inside the League document and uses the new aggregate only for standalone ones, producing two storage shapes. Option B lifts every tournament into the new aggregate and reduces the League document to a header row.</desc>
+        <text class="svg-label" x="10" y="16">A · dual storage</text>
+        <rect class="svg-node" x="10" y="26" width="170" height="46" rx="8"/>
+        <text class="svg-note" x="20" y="44">LeagueDocument</text>
+        <text class="svg-note" x="20" y="60">tournaments[] ← attached live here</text>
+        <rect class="svg-node active" x="10" y="84" width="170" height="46" rx="8"/>
+        <text class="svg-note" x="20" y="102">ArchiveTournamentAggregate</text>
+        <text class="svg-note" x="20" y="118">standalone only</text>
+        <path class="svg-line dash" d="M95 130 L95 152"/>
+        <rect class="svg-node" x="10" y="152" width="170" height="42" rx="8"/>
+        <text class="svg-note" x="20" y="170">Tournaments tab must</text>
+        <text class="svg-note" x="20" y="184">union two shapes</text>
+        <text class="svg-note" x="20" y="212">small migration</text>
+        <text class="svg-note" x="20" y="228">two write paths forever</text>
+
+        <text class="svg-label" x="200" y="16">B · one home</text>
+        <rect class="svg-node" x="200" y="26" width="170" height="46" rx="8"/>
+        <text class="svg-note" x="210" y="44">LeagueArchiveAggregate</text>
+        <text class="svg-note" x="210" y="60">header only: name, status</text>
+        <rect class="svg-node active" x="200" y="84" width="170" height="46" rx="8"/>
+        <text class="svg-note" x="210" y="102">ArchiveTournamentAggregate</text>
+        <text class="svg-note" x="210" y="118">every tournament, leagueId nullable</text>
+        <path class="svg-line" d="M285 130 L285 152"/>
+        <rect class="svg-node good" x="200" y="152" width="170" height="42" rx="8"/>
+        <text class="svg-note" x="210" y="170">one row shape,</text>
+        <text class="svg-note" x="210" y="184">one query, one write path</text>
+        <text class="svg-note" x="210" y="212">large migration</text>
+        <text class="svg-note" x="210" y="228">rewrites every command endpoint</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>The six-column table</b>Column 4 is the only cell that differs per tab.</figcaption>
+      <svg viewBox="0 0 380 250" role="img" aria-labelledby="t-tab t-tab-d">
+        <title id="t-tab">Six column table across both tabs</title>
+        <desc id="t-tab-d">Both tabs share last updated, last tournament date, name, players and status. Column four is tournament count on the Leagues tab and parent league name, blank when standalone, on the Tournaments tab. A league row expands to show its child tournaments.</desc>
+        <rect class="svg-node" x="8" y="8" width="364" height="26" rx="6"/>
+        <text class="svg-note" x="14" y="25">Updated</text>
+        <text class="svg-note" x="76" y="25">Last played</text>
+        <text class="svg-note" x="152" y="25">Name</text>
+        <text class="svg-accent" x="236" y="25" font-size="10">#Tourn | League</text>
+        <text class="svg-note" x="316" y="25">Players</text>
+        <text class="svg-note" x="352" y="25">St.</text>
+        <rect class="svg-node active" x="8" y="42" width="364" height="26" rx="6"/>
+        <text class="svg-note" x="14" y="59">2026-08-20</text>
+        <text class="svg-note" x="76" y="59">2026-08-17</text>
+        <text class="svg-accent" x="152" y="59">▾ Ligue Lyon</text>
+        <text class="svg-note" x="248" y="59">12</text>
+        <text class="svg-note" x="320" y="59">84</text>
+        <text class="svg-good" x="352" y="59" font-size="10">act</text>
+        <rect class="svg-node" x="24" y="76" width="348" height="22" rx="5"/>
+        <text class="svg-note" x="32" y="91">└ Étape 12 · 2026-08-17 · 24 players · completed</text>
+        <rect class="svg-node" x="24" y="104" width="348" height="22" rx="5"/>
+        <text class="svg-note" x="32" y="119">└ Étape 11 · 2026-07-20 · 22 players · completed</text>
+        <rect class="svg-node" x="8" y="134" width="364" height="26" rx="6"/>
+        <text class="svg-note" x="14" y="151">2026-06-02</text>
+        <text class="svg-note" x="76" y="151">2026-05-30</text>
+        <text class="svg-accent" x="152" y="151">▸ Circuit Paris</text>
+        <text class="svg-note" x="248" y="151">8</text>
+        <text class="svg-note" x="320" y="151">61</text>
+        <text class="svg-note" x="352" y="151" font-size="10">done</text>
+        <text class="svg-note" x="8" y="182">Tournaments tab — column 4 is the parent League, empty when standalone:</text>
+        <rect class="svg-node" x="8" y="192" width="364" height="24" rx="6"/>
+        <text class="svg-note" x="14" y="208">2026-08-18</text>
+        <text class="svg-note" x="76" y="208">2026-08-17</text>
+        <text class="svg-note" x="152" y="208">Étape 12</text>
+        <text class="svg-note" x="236" y="208">Ligue Lyon</text>
+        <text class="svg-note" x="320" y="208">24</text>
+        <text class="svg-note" x="352" y="208" font-size="10">done</text>
+        <rect class="svg-node active" x="8" y="222" width="364" height="24" rx="6"/>
+        <text class="svg-note" x="14" y="238">2026-04-11</text>
+        <text class="svg-note" x="76" y="238">2026-04-10</text>
+        <text class="svg-note" x="152" y="238">Open Grenoble</text>
+        <text class="svg-accent" x="236" y="238" font-size="10">(empty)</text>
+        <text class="svg-note" x="320" y="238">31</text>
+        <text class="svg-note" x="352" y="238" font-size="10">done</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="Do attached Tournaments move out of the League document too, or only standalone ones live in the new aggregate?">
+      <legend>1. Do attached Tournaments move out of the League document too?</legend>
+      <p class="why">Q1-A said "new top-level aggregate" but not whether it holds <em>every</em> Tournament or only the orphans. This single answer decides the migration size, the number of write paths, and whether the Tournaments tab queries one source or unions two.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Only standalone Tournaments live in the new aggregate; attached ones stay inside LeagueDocument.tournaments"><span><b>A. Only standalone in the new aggregate; attached stay inside <code>LeagueDocument.tournaments</code></b><span class="rank">Recommended</span><span class="detail">Small migration — only the <code>placeholder-league</code> children move. Every existing League command endpoint, the optimistic-concurrency version, the export bundle and the staged-edit batch keep working untouched. Cost: two storage shapes forever, and the Tournaments tab projects both into one row type.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Every Tournament moves to the new aggregate; LeagueArchiveAggregate becomes a header row"><span><b>B. Every Tournament moves; the League becomes a header row</b><span class="rank">Second</span><span class="detail">The clean model: one row shape, one query, one write path, and the Tournaments tab is a plain select. Cost is the largest in this plan — it rewrites all ~20 League command endpoints, the document-version concurrency scheme, the export bundle and the statistics rebuild, and the 1 MB-per-document bound stops meaning anything.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Only standalone in the new aggregate, but a read-model view unifies both for the Tournaments tab"><span><b>C. A over storage, plus a unified read model for the tab</b><span class="rank">Third</span><span class="detail">A's cheap write path with B's single query shape, by materializing an <code>archive_tournaments</code> read view the way ADR 0040 does for <code>player_statistics</code>. Adds a third thing to keep in sync on every write.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If A: is a standalone Tournament's document version independent of any League? Can a Tournament be moved from standalone into a League and back?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How is a Tournament identified, and is its id globally unique?">
+      <legend>2. How is a Tournament identified?</legend>
+      <p class="why">A Tournament row on its own tab needs a stable, linkable identity. Today ids are only unique <em>within</em> a League document, and imported bundles can carry colliding ones — a flat route would then be ambiguous.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Tournament id is globally unique; migration rewrites collisions; uniqueness enforced by a DB constraint"><span><b>A. Globally unique id, enforced by a unique constraint</b><span class="rank">Recommended</span><span class="detail">Makes <code>/archive/tournaments/:id</code> unambiguous forever. The migration detects collisions and rewrites the losing side; import rewrites on collision too. Costs a collision-handling branch in the importer.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Composite identity: (leagueId, tournamentId), with null leagueId for standalone"><span><b>B. Composite <code>(leagueId, tournamentId)</code>, null league for standalone</b><span class="rank">Second</span><span class="detail">No migration risk, matches today's semantics exactly. But every Tournament link carries two params, and standalone rows key on a null — which most routers and unique indexes handle badly.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. New server-assigned surrogate key; the old document id becomes a non-unique display field"><span><b>C. Server-assigned surrogate key; old id demoted to a display field</b><span class="rank">Third</span><span class="detail">Strongest guarantee, and never rewrites user data. But every existing bookmark, every <code>archiveTournamentUrl</code> on an Event and every export cross-reference needs a translation table.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If A: on collision during import, rewrite the incoming id or reject the bundle?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What are the API routes and response schemas for the Tournament catalog?">
+      <legend>3. API routes and response schema for the Tournament catalog</legend>
+      <p class="why">You chose the full rename with an alias, so the new namespace has to be named exactly once, here. This is the contract every ticket will quote verbatim.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. /api/archive/leagues/all + /api/archive/tournaments/all, mirroring the existing catalog envelope; /api/leagues-archive/** aliased"><span><b>A. <code>/api/archive/leagues/all</code> + <code>/api/archive/tournaments/all</code></b><span class="rank">Recommended</span><span class="detail">Symmetric with the tab routes, and both reuse the proven catalog envelope — row cap, <code>truncated</code> flag, SHA-256 ETag, <code>Cache-Control: public, max-age=3600</code>. Every <code>/api/leagues-archive/**</code> path stays as an alias.<pre><code>GET /api/archive/tournaments/all → 200
+{ items: ArchiveTournamentCatalogItem[],
+  totalCount: number, truncated: boolean }
+
+ArchiveTournamentCatalogItem {
+  id: string
+  name: string
+  leagueId: string | null
+  leagueName: string | null
+  tournamentDate: string      // ISO date, "" when unset
+  updatedAt: string           // ISO instant
+  status: 'active' | 'completed'
+  playerCount: number
+  documentVersion: number
+}</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. One combined /api/archive/all returning both leagues and tournaments in a single body"><span><b>B. One combined <code>/api/archive/all</code> returning both collections</b><span class="rank">Second</span><span class="detail">One fetch, one ETag, one cache entry, one invalidation — a good fit for "initial request fetches everything". But the two tabs then share a cap and a truncation flag, and the Leagues tab pays for tournament rows it never renders.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Keep /api/leagues-archive/all as the only catalog and add tournaments to its response"><span><b>C. Extend the existing <code>/api/leagues-archive/all</code> body</b><span class="rank">Third</span><span class="detail">Smallest backend diff. Contradicts the rename you chose and forces another ETag-namespace bump on a route that already had one for ADR 0042.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Corrections to the schema above — field names, nullability, date formats? Is leagueName denormalized onto the row, or joined client-side from the leagues catalog?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What is the canonical UI route for a Tournament, and what redirects?">
+      <legend>4. Canonical UI route for a Tournament</legend>
+      <p class="why">A Tournament reachable from both tabs needs one canonical URL, or the same page gets two addresses and the breadcrumb cannot decide what it is under.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Flat /archive/tournaments/:tournamentId for every Tournament; breadcrumb derives the League from the row"><span><b>A. Flat <code>/archive/tournaments/:tournamentId</code> for every Tournament</b><span class="rank">Recommended</span><span class="detail">One address per Tournament, attached or not. The breadcrumb reads the parent from the loaded record, so it still shows Archive → Ligue Lyon → Étape 12. Requires Q2-A global uniqueness. Old nested paths redirect by dropping the league segment.<pre><code>/archive/tournaments/:tournamentId
+/archive/tournaments/:tournamentId/result
+/archive/tournaments/:tournamentId/result/metagames</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Nested /archive/leagues/:leagueId/tournaments/:tournamentId for attached, flat for standalone"><span><b>B. Nested when attached, flat when standalone</b><span class="rank">Second</span><span class="detail">Closest to today's URLs and the least redirect work. But one page has two shapes, moving a Tournament between Leagues changes its URL, and every link site must know which form to build.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Nested for everything, with a synthetic 'standalone' league segment"><span><b>C. Nested always, with a synthetic <code>standalone</code> segment</b><span class="rank">Third</span><span class="detail">Uniform URLs with no schema change — but it reintroduces the placeholder League you just retired, as a URL instead of a row.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Keep the /leagues-archive/:lid/tournaments-archive/:tid redirects permanently, or drop them with no alias the way ADR 0038 dropped /calendar?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What is the Tournament catalog cap under fetch-everything?">
+      <legend>5. What is the Tournament catalog cap?</legend>
+      <p class="why">"Fetch everything on the first request" needs a ceiling, because 1000 Leagues × up to 1000 Tournaments is a 10⁶-row worst case against a ~5 MB <code>localStorage</code> quota — the exact pressure ADR 0042 was written to remove.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. 5000 rows, same as the rankings catalog, with the truncated flag and warning banner"><span><b>A. 5000 rows, same as the rankings catalog</b><span class="rank">Recommended</span><span class="detail">Reuses a ceiling this codebase already ships, warns through the existing <code>truncated</code> flag and banner, and at ~180 bytes a row lands near 0.9 MB — comfortable against the quota. Far above the ~200-League stress fixture.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. 10000 rows, accepting a larger cached body"><span><b>B. 10000 rows</b><span class="rank">Second</span><span class="detail">More headroom before anyone sees a truncation banner; roughly 1.8 MB of UTF-16 in <code>localStorage</code>, which is a real fraction of the budget the Events and rankings catalogs also draw on.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Same 1000 as the League catalog"><span><b>C. 1000, same as the League catalog</b><span class="rank">Third</span><span class="detail">Tiny payload, but Tournaments outnumber Leagues by roughly an order of magnitude, so this is the option most likely to truncate in real use.</span></span></label>
+        <label class="choice"><input type="checkbox" value="D. No cap; page the tournaments server-side after all"><span><b>D. No cap — page Tournaments server-side after all</b><span class="rank">Fourth</span><span class="detail">The only option with no ceiling, but it reverses your Q7 answer for one tab and breaks the dual-source merge, which cannot be paged by a server that does not see local rows.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="When truncated, which rows survive — most recently updated, or most recently played?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Do standalone Tournaments feed ratings and Global Rankings?">
+      <legend>6. Do standalone Tournaments feed ratings and Global Rankings?</legend>
+      <p class="why">ADR 0043 replays "every completed Archive Tournament in date order" into Glicko-2. Today every one of those sits in a League, so the rebuild walks Leagues. Standalone Tournaments either join that walk or silently do not count.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Yes — identical treatment; the rebuild walks both sources in date order"><span><b>A. Yes — identical treatment, rebuild walks both sources</b><span class="rank">Recommended</span><span class="detail">Preserves today's behaviour exactly: tournaments in the placeholder League already count, and retiring it must not silently delete rating history. The rebuild merges both sources into one date-ordered stream.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. No — only league-attached Tournaments count toward ratings"><span><b>B. No — only league-attached Tournaments count</b><span class="rank">Second</span><span class="detail">Defensible as "ranked play happens in leagues", but it changes every existing player's rating the moment the migration runs, and the Tournaments tab would then show results that visibly do not add up.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Per-Tournament opt-in flag, defaulting to counted"><span><b>C. Per-Tournament <code>ranked</code> flag, default counted</b><span class="rank">Third</span><span class="detail">Most control — a casual side event can be excluded. New field, new UI, new rebuild branch, and a new way for two surfaces to disagree about a player's record.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Does the Global Rankings 'tournamentsPlayed' count include standalone ones? Local browser Tournaments stay excluded from server rankings either way — confirm?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What happens to the export bundle and GONES_DATA_VERSION?">
+      <legend>7. Export bundle and <code>GONES_DATA_VERSION</code></legend>
+      <p class="why">Gones Export / Restore is the backup path, and <code>GonesData</code> currently has exactly two collections — <code>leagues</code> and <code>calendarEvents</code>. Standalone Tournaments have nowhere to go in a v4 bundle.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Bump to version 5: add a top-level tournaments[] array; v4 import maps placeholder-league children into it"><span><b>A. Bump to v5 — add a top-level <code>tournaments[]</code></b><span class="rank">Recommended</span><span class="detail">Mirrors the storage model exactly, and <code>SUPPORTED_IMPORT_DATA_VERSIONS</code> already carries every older version, so a v4 bundle still restores — its <code>placeholder-league</code> children are lifted into <code>tournaments[]</code> by the same rule the DB migration uses.<pre><code>GonesData {
+  version: 5
+  leagues: LeagueDocument[]
+  tournaments: TournamentDocument[]   // leagueId === null
+  calendarEvents: CalendarEventDocument[]
+}</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Stay on v4; keep exporting standalone Tournaments inside a synthetic placeholder league"><span><b>B. Stay on v4 with a synthetic placeholder League in the bundle</b><span class="rank">Second</span><span class="detail">Old and new Gones read each other's backups with no version work at all. But the retired concept survives in every file, and a round-trip export→import silently recreates it.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Bump to v5 and drop v1-v3 import support at the same time"><span><b>C. Bump to v5 and drop v1–v3 import support</b><span class="rank">Third</span><span class="detail">Removes three legacy code paths while the file is open. Unrelated to this feature and irreversible for anyone holding an old backup.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should a v5 export be readable by an older Gones build, or is one-way acceptable?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Power-user create and move semantics with a nullable leagueId">
+      <legend>8. Power-user create and move semantics</legend>
+      <p class="why">The repository already has <code>moveTournament(tournamentId, fromLeagueId, toLeagueId)</code>. A nullable League makes "move to no League" a new, reachable state, and "create a standalone Tournament" needs a home in the UI.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Create button on the Tournaments tab creates standalone; move accepts null on both ends to attach and detach"><span><b>A. Create-standalone on the Tournaments tab; move accepts <code>null</code> on both ends</b><span class="rank">Recommended</span><span class="detail">Each tab creates the thing it lists, and one symmetric command covers attach, detach and re-parent — <code>moveTournament(id, from: string | null, to: string | null)</code>. Mirrors the existing power-user create button on the Leagues list.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Create standalone only; attaching to a League is done from the League page"><span><b>B. Create standalone only; attach from the League page</b><span class="rank">Second</span><span class="detail">Keeps each page's mutations local to what it owns. Detaching then has no obvious home, and the user has to guess which page owns the relationship.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. No new create path; standalone Tournaments only arise from migration and from Live finalize"><span><b>C. No new create path at all</b><span class="rank">Third</span><span class="detail">Smallest surface, and the Live runner already produces unassigned Tournaments. But nobody can archive a one-off tournament by hand, which is close to the point of the feature.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Where does Live-finalize send a tournament now that the placeholder League is retired — straight to standalone?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What does an expanded League row render?">
+      <legend>9. What does an expanded League row render?</legend>
+      <p class="why">The expanded child rows are a new surface with no precedent in the codebase, and "all related tournaments" does not say which columns or how many.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Child rows reuse the Tournaments-tab columns, indented, League column suppressed; all children, no inner paging"><span><b>A. Child rows reuse the Tournaments-tab columns, indented</b><span class="rank">Recommended</span><span class="detail">One row renderer for both tabs — the parent-League cell is simply suppressed because it is implied. Every child renders, no inner paging; a League is capped at 1000 Tournaments but realistically holds tens.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Compact child rows: date, name, players, status only"><span><b>B. Compact children — date, name, players, status</b><span class="rank">Second</span><span class="detail">Visually lighter and easier to fit on mobile, at the cost of a second row renderer to build and keep in sync.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Child rows plus a 'view all in Tournaments tab' link, capped at the 10 most recent"><span><b>C. Ten most recent children plus a "view all" link</b><span class="rank">Third</span><span class="detail">Bounds the expanded height on a large League. Adds a cap the user did not ask for and a second navigation concept.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Are child rows themselves clickable to open the Tournament? Multiple Leagues expanded at once, or accordion? Does expansion survive paging and reload?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Column order, sortable set, default sort, URL state">
+      <legend>10. Column order, sortable set, default sort, URL state</legend>
+      <p class="why">Your six columns need one fixed order and one default sort, or the two tabs and the prototype variants will each pick differently. Level 5 cannot leave this to the implementer.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Name first, then Last played, Updated, Tournaments|League, Players, Status. Default sort: Last played desc. All six sortable. Sort/page/search in the query string."><span><b>A. Name first; default sort Last played desc</b><span class="rank">Recommended</span><span class="detail">Order: <code>Name · Last played · Updated · #Tournaments|League · Players · Status</code>. People scan an archive by name, and the most recent competition is the most relevant. All six sortable, state in the query string like Global Rankings.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Your literal spec order: Updated, Last played, Name, Tournaments|League, Players, Status. Default sort: Updated desc."><span><b>B. Your literal spec order, default sort Updated desc</b><span class="rank">Second</span><span class="detail">Exactly as written in the brief and identical to today's catalog ordering, so nothing about the default list changes. A date-first table reads oddly when the name is the identity.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Name, Last played, Updated, Tournaments|League, Players, Status with default sort Name asc"><span><b>C. Same order as A, default sort Name ascending</b><span class="rank">Third</span><span class="detail">Most predictable to scan and stable across reloads, but buries whatever happened last week under the alphabet.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Page-size options — fixed 25 like today, or the 10/25/50/100 selector Global Rankings uses? Should the search box match tournament names on the Leagues tab too?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Should cache invalidation coverage be enforced by a test?">
+      <legend>11. Should cache-invalidation coverage be enforced by a test?</legend>
+      <p class="why">This is the residual risk from your Q7 verification. The wiring works today, but nothing proves it stays working, and this rebuild doubles the number of cache keys every mutation must clear.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Yes — one coverage test asserting every archive mutation clears both catalogs, modelled on back-button-coverage.test.ts"><span><b>A. Yes — a coverage test over every archive mutation</b><span class="rank">Recommended</span><span class="detail">Same enforcement pattern ADR 0044 already uses for back buttons. Turns a convention into a gate, and a forgotten invalidation fails in CI instead of failing silently for a day. Costs one ticket.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Yes, and centralize first: route every archive mutation through one repository method that invalidates, so there is one site instead of many"><span><b>B. Centralize first, then test</b><span class="rank">Second</span><span class="detail">Removes the failure mode instead of detecting it — <code>LeagueArchiveRepository.freshMutation()</code> already wraps every write and could clear both catalogs itself. Larger refactor, touches call sites this feature otherwise would not.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. No — keep the window-event convention, note the risk in the ADR"><span><b>C. No — keep the convention, log the risk</b><span class="rank">Third</span><span class="detail">Zero cost now. The next feature that adds a mutation site inherits the same trap.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Anything else you want gated by a test in this rebuild?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 2 · Storage split + API contracts + Migration — Archive rebuild\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

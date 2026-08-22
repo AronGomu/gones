@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archive rebuild — partial-cache reads and the backfill race</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; --good:#4ade80; --warn:#f87171; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .node.done { border-color:var(--good); color:var(--good); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-node.good { stroke:var(--good); } .svg-node.warn { stroke:var(--warn); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-line.dash { stroke-dasharray:4 4; } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); } .svg-good { fill:var(--good); } .svg-warn { fill:var(--warn); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    fieldset.fix { border-color:var(--accent-2); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .why.hot { color:var(--accent-2); }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    code { background:#100d08; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:.86em; color:var(--accent); }
+    pre { margin:10px 0 0; padding:12px; overflow:auto; border:1px solid var(--line); border-radius:8px; background:#100d08; font-size:.79rem; line-height:1.5; color:var(--muted); }
+    pre code { background:none; border:0; padding:0; color:inherit; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { padding:18px 20px; margin:0 0 20px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; background:var(--panel); }
+    .facts.ok { border-left-color:var(--good); } .facts.warn { border-left-color:var(--warn); }
+    .facts h2 { font-size:.8rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+    .facts.ok h2 { color:var(--good); } .facts.warn h2 { color:var(--warn); }
+    .facts ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; } .facts li { margin:6px 0; }
+    .facts p { color:var(--muted); font-size:.9rem; margin:6px 0; }
+    table.mini { width:100%; border-collapse:collapse; margin-top:10px; font-size:.84rem; }
+    table.mini th, table.mini td { padding:5px 9px; border:1px solid var(--line); text-align:left; color:var(--muted); }
+    table.mini th { color:var(--text); background:var(--panel-2); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 6 · Partial cache reads + the backfill race</span>
+    <h1>Partial-cache reads and the backfill race</h1>
+    <p class="lede">You found a real gap. A Season spans years, Tournaments are partitioned <em>by</em> year, so expanding a Season can demand a partition that has not landed yet — and a second fetch path writing the same partition as the background backfill is a genuine race. Five questions and the spec is closed.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <span class="node"><b>Archive rebuild</b></span>
+    <span class="arrow">→</span>
+    <span class="node done">Model ✓</span>
+    <span class="node done">Table ✓</span>
+    <span class="node done">Ratings ✓</span>
+    <span class="node done">Locking ✓</span>
+    <span class="node done">Naming ✓</span>
+    <span class="arrow">→</span>
+    <span class="node active">Partial reads</span>
+    <span class="node active">Write ownership</span>
+  </nav>
+
+  <section class="facts warn">
+    <h2>Your three questions, restated as the gap they expose</h2>
+    <p><b>1 · Is there a specific request to fetch a missing Tournament?</b> The spec never said. Today it only has a year-partition fetch, so an expanded Season whose Tournaments live in an unloaded year has no defined behaviour at all.</p>
+    <p><b>2 · Does that request write to IndexedDB, and does it conflict with the backfill?</b> This is the sharp one. If an on-demand fetch writes the same year partition the background backfill is also writing, there are <b>two writers with no ordering</b> — and worse, it breaks the invariant the whole cache rests on: that a year partition is <b>atomically present or absent</b>. A partially-filled 2023 that the client believes is complete would silently hide Tournaments forever.</p>
+    <p><b>3 · If the Tournament is already local, is the API still called?</b> Partly settled, never stated: a locked Tournament is never refetched, and an unlocked one follows the ADR 0039 TTL — cached under 24h, refetched beyond. Q5 states it explicitly.</p>
+  </section>
+
+  <section class="facts ok">
+    <h2>Measured before proposing — Seasons do not need partitioning</h2>
+    <p>Half of this problem disappears if the <b>Seasons</b> catalog is fetched whole rather than by year, the way the Leagues catalog already is. A Season row measures <b>270 chars / 540 B UTF-16</b>, 300 / 600 B with a <code>tournamentYears</code> field added:</p>
+    <table class="mini">
+      <tr><th>scale</th><th>seasons</th><th>payload</th></tr>
+      <tr><td>mtgtop8, 10 tournaments/season</td><td>9,000</td><td>5.15 MiB</td></tr>
+      <tr><td>mtgtop8, 20 tournaments/season</td><td>4,500</td><td>2.57 MiB</td></tr>
+      <tr><td>mtgtop8, 30 tournaments/season</td><td>3,000</td><td>1.72 MiB</td></tr>
+      <tr><td>Gones-realistic</td><td>200–1,000</td><td>0.11–0.57 MiB</td></tr>
+    </table>
+    <p>All comfortable in IndexedDB, which has no 5 MiB cap. Seasons are 10–30× fewer than Tournaments by construction, so partitioning them buys little and costs the "which year is this Season in?" question — a Season spanning Dec 2025 to Mar 2026 has no single answer. <b>Q1 proposes dropping it.</b></p>
+  </section>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>The race, if a second path writes</b>Two writers, no ordering, a silently incomplete partition.</figcaption>
+      <svg viewBox="0 0 380 200" role="img" aria-labelledby="t-race t-race-d">
+        <title id="t-race">Two writers to one year partition</title>
+        <desc id="t-race-d">A background backfill and an on-demand fetch both write the year 2023 partition. Whichever finishes last overwrites the other, and the partition can be marked complete while holding only part of the data.</desc>
+        <rect class="svg-node warn" x="8" y="14" width="160" height="38" rx="8"/>
+        <text class="svg-note" x="18" y="32">background backfill</text>
+        <text class="svg-note" x="18" y="46">writes year 2023 (all rows)</text>
+        <rect class="svg-node warn" x="212" y="14" width="160" height="38" rx="8"/>
+        <text class="svg-note" x="222" y="32">on-demand season fetch</text>
+        <text class="svg-note" x="222" y="46">writes year 2023 (12 rows)</text>
+        <path class="svg-line" d="M88 52 L88 78 M292 52 L292 78"/>
+        <path class="svg-line" d="M88 78 L292 78"/>
+        <path class="svg-line" d="M190 78 L190 96"/>
+        <rect class="svg-node warn" x="90" y="96" width="200" height="34" rx="8"/>
+        <text class="svg-note" x="100" y="112">IndexedDB · year 2023 entry</text>
+        <text class="svg-warn" x="100" y="126">last writer wins</text>
+        <text class="svg-warn" x="8" y="152">→ partition flagged complete while holding 12 of 1,840 rows</text>
+        <text class="svg-warn" x="8" y="168">→ never refetched, because 2023 is locked</text>
+        <text class="svg-warn" x="8" y="184">→ missing Tournaments are invisible forever</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>The fix: one queue, reprioritized</b>The on-demand path <em>is</em> the backfill path.</figcaption>
+      <svg viewBox="0 0 380 200" role="img" aria-labelledby="t-fix t-fix-d">
+        <title id="t-fix">Single writer with a priority queue</title>
+        <desc id="t-fix-d">A user opening a season that needs year 2023 pushes 2023 to the front of the single backfill queue rather than starting a second fetch. One writer remains, so the partition stays atomic.</desc>
+        <rect class="svg-node active" x="8" y="14" width="364" height="34" rx="8"/>
+        <text class="svg-note" x="18" y="30">user expands a Season needing year 2023</text>
+        <text class="svg-accent" x="18" y="44">→ enqueue 2023 at the FRONT, await it</text>
+        <path class="svg-line" d="M190 48 L190 66"/>
+        <rect class="svg-node good" x="8" y="66" width="364" height="40" rx="8"/>
+        <text class="svg-note" x="18" y="83">single backfill queue — one writer</text>
+        <text class="svg-good" x="18" y="98">[2023 ⚡] [2025] [2024] [2022] …</text>
+        <path class="svg-line" d="M190 106 L190 124"/>
+        <rect class="svg-node good" x="90" y="124" width="200" height="34" rx="8"/>
+        <text class="svg-note" x="100" y="140">IndexedDB · year 2023 entry</text>
+        <text class="svg-good" x="100" y="154">written once, atomically</text>
+        <text class="svg-good" x="8" y="178">no second endpoint · no race · partition stays atomic</text>
+        <text class="svg-note" x="8" y="194">already-queued year is deduplicated, never fetched twice</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="Is the Seasons catalog year-partitioned, or fetched whole like Leagues?">
+      <legend>1. Is the Seasons catalog year-partitioned?</legend>
+      <p class="why">Round 4 froze <code>/api/archive/league-seasons/all?year=YYYY</code>, but a Season spanning December to March has no single year, and the measurements above say partitioning buys almost nothing here.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Fetched whole, like Leagues: no year parameter. Only the Tournaments catalog is year-partitioned."><span><b>A. Fetched whole, like Leagues — drop the year parameter</b><span class="rank">Recommended</span><span class="detail">Only Tournaments are partitioned. Every Season and League row is always local, so tab 1 renders completely and instantly, always — the only thing that can ever be missing is a Season's <em>children</em>. It also deletes the "which year does a cross-year Season belong to" problem outright. 0.1–0.6 MiB at Gones scale.<pre><code>GET /api/archive/leagues/all           whole
+GET /api/archive/league-seasons/all    whole
+GET /api/archive/tournaments/all?year= partitioned</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Keep it year-partitioned by lastTournamentDate's year; a Season appears in exactly one partition"><span><b>B. Keep partitioning, keyed on <code>lastTournamentDate</code>'s year</b><span class="rank">Second</span><span class="detail">Bounds the Seasons payload too, and every catalog then behaves identically. A Season that gains a Tournament in a new year silently moves partitions, which can duplicate or lose it in a cache that already holds the old one.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Keep partitioning, but a multi-year Season appears in every partition it touches"><span><b>C. Partitioned, a Season repeated in every year it touches</b><span class="rank">Third</span><span class="detail">Whichever year you load, the Seasons you can see are complete. The same Season is then stored several times and must be de-duplicated on read, and its counts can disagree between copies.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Anything that would make the Seasons catalog large enough to need partitioning after all?"></textarea></label>
+    </fieldset>
+
+    <fieldset class="fix" data-question="What happens when a user opens a Season whose Tournaments are in an unloaded year?">
+      <legend>2. Opening a Season whose Tournaments are not loaded yet</legend>
+      <p class="why hot">Your central question. Three fundamentally different answers, and they differ most in whether a second write path exists at all.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. No second endpoint: the needed year jumps to the front of the single backfill queue, the row shows a skeleton until it lands, then renders. One writer, partition stays atomic."><span><b>A. No second endpoint — jump the queue</b><span class="rank">Recommended</span><span class="detail">The on-demand path <em>is</em> the backfill path, reordered. Opening a Season needing 2023 pushes 2023 to the front of the queue and awaits it; an already-queued or in-flight year is deduplicated rather than fetched twice. One writer, so the race in Q3 cannot occur and a year partition is always atomically whole. Cost: fetching a whole year to show twelve rows — one request, ~1 MiB at Gones scale.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. A dedicated GET /api/archive/league-seasons/{id}/tournaments endpoint that fetches exactly that Season's Tournaments"><span><b>B. A dedicated per-Season Tournaments endpoint</b><span class="rank">Second</span><span class="detail">Smallest possible payload and the fastest expand. It creates the second write path your question is about, and it breaks the atomic-partition invariant: after it runs, year 2023 holds some rows but not all, and nothing in the model can express that.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Same dedicated endpoint, but treated as read-through: render the result, never write it to IndexedDB"><span><b>C. Dedicated endpoint, read-through, never cached</b><span class="rank">Third</span><span class="detail">Also avoids the race — by never writing, so there is exactly one writer again. Fast expands, no partition corruption, and the backfill eventually caches the year properly. Cost: re-expanding the same Season refetches until the backfill arrives.</span></span></label>
+        <label class="choice"><input type="checkbox" value="D. Disable expansion for Seasons whose years are not loaded yet, with a tooltip"><span><b>D. Disable expansion until the year has landed</b><span class="rank">Fourth</span><span class="detail">Trivial and completely safe. Makes the UI visibly worse for the first minutes of every cold start, which is exactly when a new user is forming an impression.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="While waiting: skeleton rows, a spinner in the expanded area, or the row stays collapsed until data arrives?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How does the client know which years a Season needs?">
+      <legend>3. How does the client know which years a Season needs?</legend>
+      <p class="why">Whatever Q2 chooses, the client must know <em>which</em> partitions to demand before it can demand them. A Season currently carries <code>lastTournamentDate</code> and <code>tournamentCount</code> — enough to know rows are missing, not enough to know where they are.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Add tournamentYears: number[] to the Season catalog row — the exact set of years its Tournaments fall in"><span><b>A. Add <code>tournamentYears: number[]</code> to the Season row</b><span class="rank">Recommended</span><span class="detail">Exact, tiny and cheap: +30 chars a row, and the client computes needed partitions as a set difference against what it holds. It also lets the UI show "12 tournaments, 2 in a year not yet loaded" instead of guessing.<pre><code>ArchiveLeagueSeasonCatalogItem {
+  …
+  tournamentCount: number
+  tournamentYears: number[]   // e.g. [2025, 2026]
+}</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Add firstTournamentDate alongside lastTournamentDate; the client infers the year range between them"><span><b>B. Add <code>firstTournamentDate</code>, infer the range</b><span class="rank">Second</span><span class="detail">Reuses a date the Season page wants to display anyway. A Season with a 2019 Tournament and a 2026 one would demand eight partitions to find two rows.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Nothing added: compare the local Tournament count for that Season against tournamentCount, and if short, load every unloaded year"><span><b>C. Add nothing — if the count is short, load everything</b><span class="rank">Third</span><span class="detail">No schema change and always correct. One expand on a cold cache can trigger the entire archive download, which is the thing the partitioning exists to prevent.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should the Tournaments tab use the same mechanism to know whether its own view is complete?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What owns writes to a year partition?">
+      <legend>4. What owns writes to a year partition?</legend>
+      <p class="why">The invariant your question threatens. Whatever Q2 chooses, this states plainly who may write a partition and what "this year is cached" means — so a partially-filled year can never be mistaken for a complete one.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Exactly one writer — the backfill queue. A year entry is written in a single IndexedDB transaction and only then marked complete; a partition is atomically whole or absent, never partial."><span><b>A. One writer, one transaction, atomic completeness flag</b><span class="rank">Recommended</span><span class="detail">The rule that makes everything else safe. A year is written whole in one <code>readwrite</code> transaction and its completeness flag is set inside that same transaction, so a crash or a closed tab leaves the year absent rather than half-present. Mirrors how the ADR 0037 local edit-batch already does one atomic IndexedDB transaction.<pre><code>archiveYear { year, completedAt, rowCount, items[] }
+// completedAt set in the same transaction as items
+// absent completedAt ⇒ treat the year as not cached</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Multiple writers allowed, but each row is upserted by id and a year is complete only when its rowCount matches the server's"><span><b>B. Multiple writers, row-level upsert, count-checked completeness</b><span class="rank">Second</span><span class="detail">Permits the fast per-Season path of Q2-B without corrupting anything, since completeness is verified against a count rather than assumed. The count must come from somewhere authoritative and stay correct as the year changes, which is a second thing to keep in sync.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Last-write-wins on the whole year entry, no completeness flag"><span><b>C. Last-write-wins, no completeness flag</b><span class="rank">Third</span><span class="detail">Simplest to write. It is exactly the failure drawn in the diagram above — a 12-row 2023 overwriting a 1,840-row 2023, then locked and never refetched.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should a partially-written year left by a closed tab be detected and retried on next start, or is absence sufficient?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="If the Tournament is already local, is the API called anyway?">
+      <legend>5. If the Tournament is already local, is the API called?</legend>
+      <p class="why">Your third question. The pieces are settled — locked rows are never refetched, ADR 0039 gives unlocked data a 24-hour TTL — but the combination has never been written down as one rule.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Locked year present locally: never call the API. Unlocked year: serve the cache if under 24h, refetch beyond. Opening a Tournament detail never calls the API when its row is already cached and locked."><span><b>A. Locked → never call. Unlocked → the 24h TTL decides.</b><span class="rank">Recommended</span><span class="detail">One rule covering both, and it is just the two decisions you already made, composed. A locked year is immutable by definition so a request could only return what is already held; an unlocked year is live and follows the same TTL contract every other page joins.<pre><code>cached && locked            → local, no request
+cached && !locked && <24h   → local, no request
+cached && !locked && ≥24h   → refetch the year
+!cached                     → enqueue the year, await</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Always call the API for a Tournament detail view, cache only the list"><span><b>B. Always call for a detail view; cache only the list</b><span class="rank">Second</span><span class="detail">A detail page is then never stale, which matters most for a Tournament being actively edited. Every open costs a round trip, including for locked history that provably cannot have changed.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Never call once cached, for locked or unlocked; only Synchronize and the 24h list refresh update anything"><span><b>C. Never call once cached, at any age</b><span class="rank">Third</span><span class="detail">Fewest requests possible and entirely predictable. An active Tournament edited by someone else stays stale until a manual sync, which is a real regression against today's behaviour.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Does opening a Tournament detail need more than the catalog row — rounds and entries are not in the catalog. Fetch those on demand, or partition them by year too?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 6 · Partial cache reads + the backfill race — Archive rebuild\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

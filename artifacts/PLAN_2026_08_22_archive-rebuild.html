@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan — Archive Rebuild · Gones</title>
+<style>
+:root{
+  --forge:oklch(8% 0.02 30);--black-metal:oklch(10% 0.03 30);--iron:oklch(17% 0.045 31);
+  --raised-iron:oklch(22% 0.055 33);--soot:oklch(31% 0.055 38);--ash:oklch(93% 0.018 72);
+  --dim-ash:oklch(76% 0.036 68);--steel:oklch(62% 0.03 70);--blood:oklch(49% 0.24 27);
+  --hot-blood:oklch(57% 0.25 27);--create-green:oklch(52% 0.16 145);--create-green-hot:oklch(60% 0.17 145);
+  --rust-plate:oklch(30% 0.06 38);--link:oklch(86% 0.18 28);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100dvh;
+  background:radial-gradient(circle at 18% 0%,oklch(23% 0.08 28/.36),transparent 30rem),linear-gradient(180deg,oklch(11% 0.028 28),oklch(7% 0.018 30) 48rem),var(--forge);
+  color:var(--ash);font-family:Inter,Roboto,system-ui,sans-serif;font-size:15px;line-height:1.6}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+code,kbd{font-family:ui-monospace,"JetBrains Mono",Menlo,monospace;font-size:.88em;background:var(--black-metal);
+  border:1px solid var(--soot);padding:.08em .35em;color:var(--dim-ash)}
+pre{background:var(--black-metal);border:1px solid var(--soot);padding:14px 16px;overflow-x:auto;margin:0 0 16px}
+pre code{background:none;border:0;padding:0;color:var(--dim-ash);font-size:.85rem;line-height:1.55}
+.wrap{width:min(1220px,calc(100% - 34px));margin:0 auto;padding:30px 0 90px}
+header.doc{display:grid;gap:12px;padding-bottom:22px;border-bottom:1px solid var(--soot);margin-bottom:26px}
+.eyebrow{color:var(--hot-blood);font-size:.72rem;font-weight:800;letter-spacing:.15em;text-transform:uppercase}
+h1{margin:0;font-size:clamp(1.9rem,4.4vw,3rem);line-height:1.05;letter-spacing:-.035em}
+.lede{margin:0;max-width:82ch;color:var(--dim-ash)}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.pill{padding:4px 11px;border:1px solid var(--soot);background:var(--iron);color:var(--dim-ash);font-size:.75rem;font-weight:700}
+.pill.hot{border-color:color-mix(in oklch,var(--hot-blood) 55%,var(--soot));color:var(--hot-blood)}
+.pill.ok{border-color:color-mix(in oklch,var(--create-green) 55%,var(--soot));color:var(--create-green-hot)}
+h2{margin:44px 0 14px;font-size:1.45rem;letter-spacing:-.02em;padding-bottom:8px;border-bottom:1px solid var(--rust-plate)}
+h3{margin:26px 0 10px;font-size:1.08rem;letter-spacing:-.01em;color:var(--ash)}
+p{margin:0 0 14px;max-width:88ch}
+ul,ol{margin:0 0 16px;padding-left:1.25rem;max-width:88ch}li{margin:.3rem 0}
+.grid2{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+.card{border:1px solid var(--soot);background:var(--iron);padding:16px 18px}
+.card h4{margin:0 0 8px;font-size:.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--hot-blood)}
+.card.ok h4{color:var(--create-green-hot)}
+.card p:last-child,.card ul:last-child{margin-bottom:0}
+.table-wrap{overflow-x:auto;border:1px solid var(--soot);margin:0 0 18px}
+table{width:100%;border-collapse:collapse;background:var(--iron);font-size:.87rem}
+thead th{padding:.6rem .7rem;background:var(--black-metal);border-bottom:1px solid var(--soot);color:var(--dim-ash);
+  font-size:.7rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;text-align:left;white-space:nowrap}
+td{padding:.6rem .7rem;border-bottom:1px solid color-mix(in oklch,var(--soot) 55%,transparent);vertical-align:top}
+tbody tr:nth-child(even){background:color-mix(in oklch,var(--raised-iron) 48%,var(--iron))}
+td.id{font-weight:800;color:var(--hot-blood);white-space:nowrap}
+td.dep{color:var(--steel);white-space:nowrap;font-size:.82rem}
+.note{margin:0 0 18px;padding:14px 17px;border:1px solid var(--soot);border-left:3px solid var(--hot-blood);background:var(--iron);color:var(--dim-ash)}
+.note.ok{border-left-color:var(--create-green)}
+.note.warn{border-left-color:var(--hot-blood);background:color-mix(in oklch,var(--blood) 11%,var(--iron))}
+.note b,.note strong{color:var(--ash)}
+.note :last-child{margin-bottom:0}
+.rule{display:grid;grid-template-columns:auto 1fr;gap:0 14px;padding:11px 0;border-bottom:1px solid color-mix(in oklch,var(--soot) 50%,transparent)}
+.rule:last-child{border-bottom:0}
+.rule .rid{font-weight:900;color:var(--hot-blood);font-size:.82rem;letter-spacing:.04em}
+.rule .rbody{color:var(--dim-ash);font-size:.9rem}
+.rule .rbody b{color:var(--ash)}
+svg{max-width:100%;height:auto;display:block}
+.flow{border:1px solid var(--soot);background:var(--black-metal);padding:18px;margin:0 0 18px;overflow-x:auto}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:.78rem;color:var(--steel)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:11px;height:11px;border:1px solid var(--soot)}
+.toc{border:1px solid var(--soot);background:var(--iron);padding:14px 18px;margin:0 0 26px}
+.toc ol{margin:0;padding-left:1.1rem;columns:2;column-gap:34px}
+.toc li{margin:.22rem 0;font-size:.9rem}
+footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--soot);color:var(--steel);font-size:.82rem}
+@media(max-width:700px){.toc ol{columns:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <span class="eyebrow">Gones · Implementation plan · 2026-08-22</span>
+  <h1>Archive Rebuild</h1>
+  <p class="lede">Three tiers replace the flat League. Tournament becomes a first-class record that may stand alone. The card grid becomes a paginated, sortable, expandable table across two tabs. Global Rankings gains a scope filter backed by stored per-scope Glicko-2 ratings.</p>
+  <div class="meta">
+    <span class="pill hot">19 tickets</span>
+    <span class="pill">6 ADRs</span>
+    <span class="pill">2 architecture docs</span>
+    <span class="pill">TDD mandatory per ticket</span>
+    <span class="pill ok">spec level 5</span>
+    <span class="pill">not started</span>
+  </div>
+</header>
+
+<div class="toc">
+  <ol>
+    <li><a href="#goal">Goal &amp; success</a></li>
+    <li><a href="#scope">Scope</a></li>
+    <li><a href="#model">The model</a></li>
+    <li><a href="#strategy">Expand → migrate → contract</a></li>
+    <li><a href="#flow">Ticket flow</a></li>
+    <li><a href="#order">All 19 tickets</a></li>
+    <li><a href="#contracts">Frozen contracts</a></li>
+    <li><a href="#read">Read paths &amp; caching</a></li>
+    <li><a href="#table">Table treatment — Variant B</a></li>
+    <li><a href="#arb">Arbitration log</a></li>
+    <li><a href="#holes">Scope holes closed</a></li>
+    <li><a href="#docs">Documents produced</a></li>
+  </ol>
+</div>
+
+<h2 id="goal">Goal &amp; success</h2>
+<p>Rebuild the Archive on three tiers — <b>League → LeagueSeason → Tournament</b>. Today's flat <code>League</code> becomes <code>LeagueSeason</code>; a new <code>League</code> tier groups Seasons; <code>Tournament</code> becomes top-level and may stand alone. <code>leagues-archive</code> → <code>archive</code> everywhere.</p>
+<div class="note ok">
+<b>Success is observable, not asserted.</b> Every line below is a check, not an opinion.
+<ul>
+<li><code>/archive/league-seasons</code> lists one row per Season, expands one level to its Tournaments.</li>
+<li><code>/archive/tournaments</code> lists every Tournament, standalone ones included.</li>
+<li>A Tournament with <code>seasonId: null</code> is creatable, listable, editable, deletable.</li>
+<li><code>/global-stats?league=&lt;id&gt;&amp;season=&lt;id&gt;</code> serves ratings read from <code>player_statistics</code>, never replayed.</li>
+<li>A Tournament older than 365 days refuses non-Admin writes with <code>409 archive_tournament_locked</code>.</li>
+<li>All public catalogs live in IndexedDB; <code>localStorage</code> keeps language, view preference, filters.</li>
+<li><code>npm run test &amp;&amp; npm run typecheck &amp;&amp; npm run lint &amp;&amp; npm run backend:test &amp;&amp; npm run e2e:ci</code> green.</li>
+</ul>
+</div>
+
+<h2 id="scope">Scope</h2>
+<div class="grid2">
+  <div class="card ok">
+    <h4>In</h4>
+    <ul>
+      <li>Three C# aggregates, three tables, squashed EF history.</li>
+      <li>New <code>/api/archive/**</code> read + command surface.</li>
+      <li><code>player_statistics</code> re-keyed <code>(scope_kind, scope_id, player_name)</code>.</li>
+      <li>Frontend rename, IndexedDB catalogs, year partitions, backfill queue.</li>
+      <li>Variant B table on both tabs; read-through Season expansion.</li>
+      <li>Export v5, four flat collections; v1–v4 import dropped.</li>
+      <li>Centralized cache invalidation + coverage test; manual resync.</li>
+      <li>Three-tier fixtures, seed + stress generator.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Out</h4>
+    <ul>
+      <li>Data migration. All archive data is deleted; no users exist.</li>
+      <li>A League detail page. League is a column and a filter, never a route.</li>
+      <li>Multi-select scope. League and Season are each All-or-exactly-one.</li>
+      <li>Series/season auto-detection from event-name strings.</li>
+      <li>Live Tournament, Calendar/Event, Organization, auth surfaces.</li>
+      <li>Any change to <code>/api/maintenance/player-names*</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<h2 id="model">The model</h2>
+<div class="flow">
+<svg viewBox="0 0 900 300" role="img" aria-label="League to LeagueSeason to Tournament, with a standalone Tournament">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="oklch(62% 0.03 70)"/>
+    </marker>
+    <marker id="aro" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="oklch(57% 0.25 27)"/>
+    </marker>
+  </defs>
+  <g font-family="Inter,system-ui,sans-serif">
+    <rect x="30" y="30" width="200" height="72" fill="oklch(22% 0.055 33)" stroke="oklch(31% 0.055 38)"/>
+    <text x="46" y="58" fill="oklch(93% 0.018 72)" font-size="17" font-weight="800">League</text>
+    <text x="46" y="80" fill="oklch(62% 0.03 70)" font-size="12">id · name · createdAt</text>
+
+    <rect x="340" y="30" width="220" height="88" fill="oklch(22% 0.055 33)" stroke="oklch(31% 0.055 38)"/>
+    <text x="356" y="58" fill="oklch(93% 0.018 72)" font-size="17" font-weight="800">LeagueSeason</text>
+    <text x="356" y="80" fill="oklch(62% 0.03 70)" font-size="12">leagueId — mandatory</text>
+    <text x="356" y="98" fill="oklch(62% 0.03 70)" font-size="12">counts · first/last date</text>
+
+    <rect x="670" y="30" width="200" height="88" fill="oklch(22% 0.055 33)" stroke="oklch(31% 0.055 38)"/>
+    <text x="686" y="58" fill="oklch(93% 0.018 72)" font-size="17" font-weight="800">Tournament</text>
+    <text x="686" y="80" fill="oklch(62% 0.03 70)" font-size="12">seasonId — optional</text>
+    <text x="686" y="98" fill="oklch(62% 0.03 70)" font-size="12">tournamentDate · rounds</text>
+
+    <line x1="340" y1="66" x2="240" y2="66" stroke="oklch(62% 0.03 70)" stroke-width="2" marker-end="url(#ar)"/>
+    <text x="252" y="56" fill="oklch(76% 0.036 68)" font-size="11.5" font-weight="700">1 — mandatory</text>
+
+    <line x1="670" y1="66" x2="570" y2="66" stroke="oklch(57% 0.25 27)" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#aro)"/>
+    <text x="580" y="56" fill="oklch(57% 0.25 27)" font-size="11.5" font-weight="700">0..1 — optional</text>
+
+    <rect x="670" y="185" width="200" height="72" fill="oklch(17% 0.045 31)" stroke="oklch(57% 0.25 27)" stroke-dasharray="5 3"/>
+    <text x="686" y="212" fill="oklch(93% 0.018 72)" font-size="15" font-weight="800">Standalone</text>
+    <text x="686" y="234" fill="oklch(57% 0.25 27)" font-size="12.5" font-family="monospace">seasonId: null</text>
+
+    <line x1="770" y1="185" x2="770" y2="122" stroke="oklch(49% 0.24 27)" stroke-width="2" stroke-dasharray="4 4"/>
+
+    <rect x="30" y="185" width="530" height="72" fill="oklch(10% 0.03 30)" stroke="oklch(30% 0.06 38)"/>
+    <text x="46" y="211" fill="oklch(76% 0.036 68)" font-size="13" font-weight="700">A Tournament carries no leagueId.</text>
+    <text x="46" y="234" fill="oklch(62% 0.03 70)" font-size="12.5">Its League is derived by joining through seasonId. Standalone ⇒ no League.</text>
+  </g>
+</svg>
+<div class="legend">
+  <span><span class="sw" style="background:oklch(22% 0.055 33)"></span>tier</span>
+  <span><span class="sw" style="background:oklch(17% 0.045 31);border-color:oklch(57% 0.25 27)"></span>standalone</span>
+  <span><span class="sw" style="background:oklch(62% 0.03 70)"></span>mandatory edge</span>
+  <span><span class="sw" style="background:oklch(57% 0.25 27)"></span>optional edge</span>
+</div>
+</div>
+<p><b>Tab 1 lists Seasons</b> (one row each, League as a column, one expansion level to Tournaments). <b>Tab 2 lists Tournaments.</b> There is deliberately <b>no League page</b>. <code>placeholder-league</code> / "Unassigned Tournaments" is retired — <code>seasonId: null</code> replaces it.</p>
+
+<h2 id="strategy">Expand → migrate → contract</h2>
+<div class="note">
+<b>Why every commit still compiles.</b> T2–T9 build the new <code>/api/archive/**</code> surface <em>beside</em> the old one. The legacy aggregate, endpoints, components and specs are deleted only at <b>T19</b>, when nothing calls them. <b>No compatibility shim is ever written</b> — old code merely survives until unused, so nothing is built to be thrown away.
+</div>
+<div class="note warn">
+<b>Accepted consequence.</b> Between T2 and T13 the archive is <em>empty</em> and the legacy pages render an empty list. That is expected, not a bug. It is only acceptable because Gones is unreleased, has no production environment and no users.
+</div>
+
+<h2 id="flow">Ticket flow</h2>
+<div class="flow">
+<svg viewBox="0 0 980 470" role="img" aria-label="Dependency graph of the nineteen tickets">
+ <defs>
+  <marker id="e" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+   <path d="M0,0 L10,5 L0,10 z" fill="oklch(31% 0.055 38)"/>
+  </marker>
+ </defs>
+ <g font-family="Inter,system-ui,sans-serif" font-size="11.5" font-weight="700">
+  <g stroke="oklch(31% 0.055 38)" stroke-width="1.4" fill="none" marker-end="url(#e)">
+   <path d="M104,44 L150,44"/>
+   <path d="M254,44 L300,44"/><path d="M404,44 L450,44"/>
+   <path d="M204,62 L204,96 L300,96"/>
+   <path d="M204,62 L204,148 L300,148"/>
+   <path d="M204,62 L204,200 L300,200"/>
+   <path d="M404,96 L430,96 L430,148 L450,148"/>
+   <path d="M404,96 L430,96 L430,200 L450,200"/>
+   <path d="M554,44 L590,44 L590,252 L300,252 L300,268"/>
+   <path d="M204,62 L204,304 L300,304"/>
+   <path d="M404,304 L450,304"/>
+   <path d="M404,304 L425,304 L425,356 L450,356"/>
+   <path d="M404,200 L420,200 L420,356 L450,356"/>
+   <path d="M554,356 L600,356"/>
+   <path d="M554,148 L575,148 L575,392 L600,392"/>
+   <path d="M754,392 L800,392"/>
+   <path d="M754,392 L775,392 L775,440 L800,440"/>
+   <path d="M900,410 L900,440"/>
+  </g>
+  <g>
+   <rect x="30" y="28" width="74" height="32" fill="oklch(22% 0.055 33)" stroke="oklch(57% 0.25 27)"/><text x="42" y="48" fill="oklch(93% 0.018 72)">T1 reset</text>
+   <rect x="150" y="28" width="104" height="32" fill="oklch(22% 0.055 33)" stroke="oklch(57% 0.25 27)"/><text x="160" y="48" fill="oklch(93% 0.018 72)">T2 schema</text>
+   <rect x="300" y="28" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="310" y="48" fill="oklch(76% 0.036 68)">T3 cmds L/S</text>
+   <rect x="450" y="28" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="460" y="48" fill="oklch(76% 0.036 68)">T4 cmds+lock</text>
+   <rect x="300" y="80" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="310" y="100" fill="oklch(76% 0.036 68)">T5 catalogs</text>
+   <rect x="450" y="132" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="460" y="152" fill="oklch(76% 0.036 68)">T6 years</text>
+   <rect x="450" y="184" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="460" y="204" fill="oklch(76% 0.036 68)">T7 read-thru</text>
+   <rect x="300" y="132" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="310" y="152" fill="oklch(76% 0.036 68)">T8 ratings</text>
+   <rect x="300" y="184" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="310" y="204" fill="oklch(76% 0.036 68)">T9 fixtures</text>
+   <rect x="300" y="288" width="104" height="32" fill="oklch(22% 0.055 33)" stroke="oklch(52% 0.16 145)"/><text x="310" y="308" fill="oklch(93% 0.018 72)">T10 domain</text>
+   <rect x="450" y="288" width="104" height="32" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="460" y="308" fill="oklch(76% 0.036 68)">T11 export</text>
+   <rect x="450" y="340" width="104" height="32" fill="oklch(22% 0.055 33)" stroke="oklch(52% 0.16 145)"/><text x="460" y="360" fill="oklch(93% 0.018 72)">T12 IDB cache</text>
+   <rect x="600" y="340" width="104" height="32" fill="oklch(22% 0.055 33)" stroke="oklch(52% 0.16 145)"/><text x="610" y="360" fill="oklch(93% 0.018 72)">T13 Seasons</text>
+   <rect x="600" y="376" width="104" height="32" fill="oklch(22% 0.055 33)" stroke="oklch(52% 0.16 145)"/><text x="610" y="396" fill="oklch(93% 0.018 72)">T14 Tourn.tab</text>
+   <rect x="800" y="316" width="100" height="30" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="810" y="335" fill="oklch(76% 0.036 68)">T15 scope</text>
+   <rect x="800" y="352" width="100" height="30" fill="oklch(17% 0.045 31)" stroke="oklch(31% 0.055 38)"/><text x="810" y="371" fill="oklch(76% 0.036 68)">T16 cache inv</text>
+   <rect x="800" y="388" width="100" height="30" fill="oklch(17% 0.045 31)" stroke="oklch(52% 0.16 145)"/><text x="810" y="407" fill="oklch(76% 0.036 68)">T17 staged</text>
+   <rect x="800" y="424" width="100" height="30" fill="oklch(17% 0.045 31)" stroke="oklch(52% 0.16 145)"/><text x="810" y="443" fill="oklch(76% 0.036 68)">T18 local</text>
+   <rect x="920" y="370" width="50" height="72" fill="oklch(22% 0.055 33)" stroke="oklch(57% 0.25 27)"/>
+   <text x="932" y="400" fill="oklch(93% 0.018 72)">T19</text><text x="928" y="418" fill="oklch(57% 0.25 27)" font-size="10">retire</text>
+  </g>
+ </g>
+</svg>
+<div class="legend">
+  <span><span class="sw" style="background:oklch(22% 0.055 33);border-color:oklch(57% 0.25 27)"></span>destructive / irreversible</span>
+  <span><span class="sw" style="background:oklch(22% 0.055 33);border-color:oklch(52% 0.16 145)"></span>foundation others build on</span>
+  <span><span class="sw" style="background:oklch(17% 0.045 31)"></span>standard slice</span>
+</div>
+</div>
+
+<h2 id="order">All 19 tickets</h2>
+<p>Each is one commit-sized functional slice. The app compiles and runs after every one. TDD is mandatory; every ticket carries a level-5 interface contract and is self-contained — a worker reads only its own file.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>ID</th><th>Title</th><th>Depends</th><th>Commit outcome</th></tr></thead>
+<tbody>
+<tr><td class="id">T1</td><td>Reset the archive, squash migration history</td><td class="dep">—</td><td>Empty archive, one <code>InitialCreate</code>, <code>migration:smoke</code> green</td></tr>
+<tr><td class="id">T2</td><td>Three-tier schema and domain aggregates</td><td class="dep">T1</td><td>Three tables + aggregates + derived lock rule; legacy still serving</td></tr>
+<tr><td class="id">T3</td><td>League and LeagueSeason command endpoints</td><td class="dep">T2</td><td>Leagues and Seasons creatable, renamable, deletable over HTTP</td></tr>
+<tr><td class="id">T4</td><td>Tournament commands with derived locking</td><td class="dep">T3</td><td>Standalone + attached Tournaments writable; <code>409</code> lock enforced</td></tr>
+<tr><td class="id">T5</td><td>Whole-catalog reads (owns shared DTOs)</td><td class="dep">T2</td><td><code>/leagues/all</code> + <code>/league-seasons/all</code> serve slim rows with ETag</td></tr>
+<tr><td class="id">T6</td><td>Year-partitioned catalog + years index</td><td class="dep">T2, T5</td><td><code>/tournaments/all?year=</code> + <code>/years</code> serve partitions</td></tr>
+<tr><td class="id">T7</td><td>Read-through Season tournaments + detail</td><td class="dep">T2, T5</td><td>Uncached reads for Season children and one Tournament</td></tr>
+<tr><td class="id">T8</td><td>Per-scope Glicko-2 read model + endpoint</td><td class="dep">T4</td><td><code>player_statistics</code> re-keyed by scope; scoped query works</td></tr>
+<tr><td class="id">T9</td><td>Three-tier fixtures, seeding, stress generator</td><td class="dep">T4, T8</td><td><code>dev:env</code> and <code>dev:stress:generate</code> emit three tiers</td></tr>
+<tr><td class="id">T10</td><td>Frontend domain + browser-local archive</td><td class="dep">T2</td><td><code>archive-models.ts</code> + <code>gones-archive-local</code> store</td></tr>
+<tr><td class="id">T11</td><td>Export bundle v5 and the import gate</td><td class="dep">T10</td><td>Four flat collections at v5; v1–v4 refused</td></tr>
+<tr><td class="id">T12</td><td>IndexedDB cache, year partitions, backfill queue</td><td class="dep">T10, T6</td><td>Catalogs served from IndexedDB; one writer owns partitions</td></tr>
+<tr><td class="id">T13</td><td>Archive shell, routes, League Seasons tab</td><td class="dep">T12, T5, T3</td><td>Variant B table renders, sortable + paginated</td></tr>
+<tr><td class="id">T14</td><td>Tournaments tab and Season expansion</td><td class="dep">T13, T7</td><td>All Tournaments listed; a Season row expands</td></tr>
+<tr><td class="id">T15</td><td>Global Rankings scope filter</td><td class="dep">T8, T13</td><td>Scoped ratings; badge states the scope</td></tr>
+<tr><td class="id">T16</td><td>Cache invalidation + manual resynchronize</td><td class="dep">T13, T14</td><td>One method, structural coverage test, Settings control</td></tr>
+<tr><td class="id">T17</td><td>Archive staged-edit UI on the new surface</td><td class="dep">T14, T4</td><td>ADR 0037 staged edits work on <code>/archive/**</code></td></tr>
+<tr><td class="id">T18</td><td>Browser-local records unioned into both tabs</td><td class="dep">T14, T10</td><td>Local records appear beside server ones (ADR 0028)</td></tr>
+<tr><td class="id">T19</td><td>Retire the legacy surface, refresh the docs</td><td class="dep">T17,T18,T15,T16,T11,T9</td><td>Old routes 404, legacy gone, docs updated, e2e green</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="contracts">Frozen contracts</h2>
+<p>Every signature crossing a ticket boundary was decided <b>before</b> any ticket was written, because nineteen writers ran in parallel and could not negotiate.</p>
+
+<h3>Domain shapes</h3>
+<pre><code>interface ArchiveLeagueDocument  { id, name, createdAt }
+interface LeagueSeasonDocument   { id, name, leagueId, status }
+interface ArchiveTournamentDocument {
+  id, name, seasonId: string | null, tournamentDate, status,
+  rounds[], playerArchetypes[]
+}
+// no leagueId on a Tournament — League is derived through seasonId
+
+export const ARCHIVE_LOCK_WINDOW_DAYS = 365;
+function isArchiveTournamentLocked(tournamentDate: string, now?: Date): boolean;
+// locked ⇔ (now − date) &gt; 365 whole UTC days. 365 is NOT locked, 366 IS.
+// local- records are never locked.</code></pre>
+
+<h3>Read surface</h3>
+<pre><code>GET /api/archive/leagues/all                        whole,  max-age=3600
+GET /api/archive/league-seasons/all                 whole,  max-age=3600
+GET /api/archive/tournaments/all?year=YYYY          partitioned, year REQUIRED
+GET /api/archive/years                              max-age=3600
+GET /api/archive/league-seasons/{id}/tournaments    read-through, never cached
+GET /api/archive/tournaments/{id}                   detail,  max-age=60
+GET /api/archive/global-player-statistics?scopeKind=&amp;scopeId=&amp;page=&amp;pageSize=&amp;sort=&amp;direction=&amp;search=</code></pre>
+
+<h3>Row caps</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Config key</th><th>Default</th><th>Applies to</th></tr></thead>
+<tbody>
+<tr><td><code>Gones:Archive:MaximumLeagueCatalogSize</code></td><td>2 000</td><td><code>/leagues/all</code></td></tr>
+<tr><td><code>Gones:Archive:MaximumSeasonCatalogSize</code></td><td>5 000</td><td><code>/league-seasons/all</code></td></tr>
+<tr><td><code>Gones:Archive:MaximumTournamentYearSize</code></td><td>25 000</td><td><code>/tournaments/all?year=</code></td></tr>
+<tr><td><code>Gones:Archive:MaximumSeasonTournamentSize</code></td><td>5 000</td><td><code>/league-seasons/{id}/tournaments</code></td></tr>
+</tbody>
+</table>
+</div>
+<div class="note"><b>Where 25 000 comes from.</b> Research measured mtgtop8's peak at roughly <b>17 500 tournaments in a single year</b>, plus headroom. The earlier ×2 whole-archive figure of 180 000 predates year-partitioning and no longer applies — a cap now bounds one year, not the lifetime.</div>
+
+<h3>Persistence</h3>
+<pre><code>archive_leagues         (document_id text PK, name, created_at, updated_at, version int, deleted_at)
+archive_league_seasons  (document_id text PK, league_id FK NOT NULL, name, status,
+                         tournament_count, player_count, first/last_tournament_date, counts_version)
+archive_tournaments     (document_id text PK, season_id FK NULL, name, tournament_date,
+                         status, document jsonb, player_count, counts_version)
+
+player_statistics  PRIMARY KEY (scope_kind, scope_id, player_name)
+                   scope_kind ∈ ('global','league','season');  scope_id = '' iff global</code></pre>
+
+<h2 id="read">Read paths &amp; caching</h2>
+<div class="grid2">
+<div class="card">
+<h4>Season expand</h4>
+<pre style="margin:0"><code>years = [year(first) .. year(last)]
+
+all cached && complete && locked
+   → render from IndexedDB, no request
+otherwise
+   → GET .../league-seasons/{id}/tournaments
+   → render, do NOT cache</code></pre>
+</div>
+<div class="card">
+<h4>Year freshness</h4>
+<pre style="margin:0"><code>cached && locked          → local, no request
+cached && !locked && &lt;24h → local, no request
+cached && !locked && ≥24h → refetch the year
+!cached                   → enqueue in backfill</code></pre>
+</div>
+</div>
+<div class="note ok">
+<b>The single-writer invariant.</b> Only the backfill queue writes year partitions, and a partition is written <em>and</em> stamped <code>completedAt</code> in <b>one</b> IndexedDB transaction. A year is therefore atomically whole or absent — a crash mid-fetch leaves no record, never half of one. Read-through deliberately does not cache, which is precisely what preserves this.
+</div>
+<div class="note">
+<b>Two databases, not one.</b> <code>gones-archive-local</code> is the browser-authored <em>authority</em> (ADR 0028); <code>gones-archive-cache</code> is the public <em>cache</em> (ADR 0039). Mixing an authority with a cache in one database makes "purge the cache" unsafe.
+</div>
+
+<h2 id="table">Table treatment — Variant B</h2>
+<p>Chosen from three prototyped variants. Four visual columns carry six values, each pair stacked in one cell.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Header</th><th>Line 1</th><th>Line 2</th><th>Sorts on</th></tr></thead>
+<tbody>
+<tr><td><code>Season / League</code></td><td>Season name — the link</td><td>League name</td><td><code>name</code></td></tr>
+<tr><td><code>Last played / Updated</code></td><td><code>lastTournamentDate</code></td><td><code>updatedAt</code></td><td><code>lastPlayed</code></td></tr>
+<tr><td><code>Tourn. / Players</code></td><td><code>tournamentCount</code></td><td><code>playerCount</code></td><td><code>tournaments</code></td></tr>
+<tr><td><code>Status</code></td><td>chip + 🔒 when locked</td><td>—</td><td><code>status</code></td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><b>Won:</b> no horizontal scroll on mobile; the League name is never truncated.</li>
+<li><b>Traded away:</b> a single column can no longer be scanned vertically.</li>
+<li>A paired header sorts on its <b>first</b> value; all seven keys stay reachable through an explicit sort select.</li>
+<li>The name cell is the link; the rest of the row toggles expansion. Children render as one compact continuous clickable line.</li>
+<li>On Tab 2 the League line is <b>empty</b> for a standalone Tournament.</li>
+</ul>
+
+<h2 id="arb">Arbitration log</h2>
+<p>Nineteen writers inspected the codebase and overturned parts of the brief. Twenty rulings were issued; these are the ones that changed the plan rather than a detail.</p>
+<div class="card" style="padding:6px 18px">
+  <div class="rule"><span class="rid">R1</span><span class="rbody">The legacy table is <b><code>league_archive_aggregates</code></b>, not <code>league_aggregates</code> — renamed by <code>20260809122735_RenameLeagueArchiveTables</code>.</span></div>
+  <div class="rule"><span class="rid">R2</span><span class="rbody">The <code>placeholder-league</code> row <b>cannot die at T1</b>. <code>InitialCreate</code> re-seeds it, <code>Delete</code> refuses it, <code>MigrationImportService</code> calls <code>SingleAsync</code> on it, and <code>seed-local.mjs</code> throws without it — which would break <code>npm run db:reset</code>, the very command T1 mandates. It retires at T19.</span></div>
+  <div class="rule"><span class="rid">R3</span><span class="rbody">Wire error codes follow the repo's existing snake_case, not the brief's camelCase: <code>stale_version</code>, <code>not_found</code>, <code>validation_failed</code>, plus new <code>archive_tournament_locked</code> and <code>archive_league_not_empty</code>. The <b>browser-local</b> mirror keeps camelCase — it is a local string, not a wire code.</span></div>
+  <div class="rule"><span class="rid">R6</span><span class="rbody">Archive rows do <b>not</b> derive <code>VersionedEntity</code>. Load-bearing consequence: <code>IncrementVersions</code> only auto-bumps that base, so every archive write must increment <code>version</code> explicitly.</span></div>
+  <div class="rule"><span class="rid">R11</span><span class="rbody">Three writers guessed three different repository method names. T12 owns the file and wins: <code>listLeagues</code>, <code>listLeagueSeasons</code>, <code>listYears</code>, <code>listTournaments</code>, <code>listSeasonTournaments</code>.</span></div>
+  <div class="rule"><span class="rid">R13</span><span class="rbody">The IndexedDB allowlist is an exact array checked against a real directory walk, so it fills in <b>two</b> steps — naming a file before it exists turns the suite red.</span></div>
+  <div class="rule"><span class="rid">R15</span><span class="rbody">The URL sort param becomes <code>dir</code> everywhere, including <code>/global-stats</code> which ships <code>direction</code> today. A user-visible URL change, accepted because there are no users. The <em>wire</em> parameter stays <code>direction</code>.</span></div>
+  <div class="rule"><span class="rid">R17</span><span class="rbody"><code>fixtures/league-domain/v1/</code> is a TypeScript↔C# <b>parity corpus</b>, not a bundle sample. It is <b>re-pointed</b> at the new shapes, not deleted — losing cross-stack parity proof was not an acceptable trade.</span></div>
+  <div class="rule"><span class="rid">R20</span><span class="rbody">Live Tournaments validate <code>leagueId</code> against the archive aggregates. Dropping the legacy table forces re-pointing that reference in the same commit, or live seeding breaks.</span></div>
+  <div class="rule"><span class="rid">R21</span><span class="rbody">Endpoint operation names are <b>noun-first</b> (<code>ArchiveTournamentApplyEditBatch</code>). The legacy <code>ApplyArchiveTournamentEditBatch</code> already exists and two endpoints sharing a <code>WithName</code> throws at startup.</span></div>
+  <div class="rule"><span class="rid">R22</span><span class="rbody">T2's entities are renamed <b><code>ArchiveLeague</code> / <code>ArchiveLeagueSeason</code> / <code>ArchiveTournament</code></b>. T2 declared the bare names while T5, T6 and T7 were all written against the prefixed ones — every downstream read endpoint would have failed to compile.</span></div>
+  <div class="rule"><span class="rid">R23</span><span class="rbody">T5 <b>solely owns</b> <code>backend/src/Gones.Api/Archive/ArchiveResponses.cs</code>. T5, T6 and T7 each declared <code>ArchiveCatalogResponse&lt;T&gt;</code>, and two of them declared <code>ArchiveTournamentSummary</code> — duplicate declarations are compile errors.</span></div>
+  <div class="rule"><span class="rid">R24</span><span class="rbody"><code>TournamentDate</code> on the wire is a <b><code>string</code></b>, not a <code>LocalDate</code>. T6 and T7 declared the same record with different types; T6 wins on evidence — a <code>LocalDate</code> DTO member surfaces as an opaque interface in the generated client at <code>gones-api.ts:10826</code>.</span></div>
+  <div class="rule"><span class="rid">R25</span><span class="rbody"><code>DocumentVersion</code> is <b><code>int</code></b> everywhere, matching the DDL's <code>version integer</code>. T3, T4, T6 and T7 had used <code>long</code>, which belongs to the <code>VersionedEntity</code> base the archive rows deliberately do not derive.</span></div>
+</div>
+<div class="note warn" style="margin-top:18px">
+<b>How these five were found.</b> R1–R21 were issued while tickets were still being written, so only tickets authored <em>after</em> a ruling picked it up. R22–R25 came from a second sweep that actually diffed every producer's declared shape against every consumer's — and found four breaks the first pass had ruled on correctly but never propagated. <b>Nine tickets now carry an arbitration override block</b> (T2, T3, T4, T6, T7, T13, T14, T15, T19) which wins over the body beneath it.
+</div>
+
+<h2 id="holes">Scope holes closed</h2>
+<div class="note warn">
+A ticket writer caught two gaps that would otherwise have shipped broken. Both became tickets, and retiring the legacy surface moved from T17 to T19 as a result.
+<ul>
+<li><b>T17 — staged-edit UI.</b> Nothing rebuilt ADR 0037's power-user staged-edit surface on <code>/archive/**</code>, so deleting the legacy editor would have left <code>archive-staged-edit.cy.js</code> without a subject.</li>
+<li><b>T18 — browser-local union.</b> Nothing joined the records T10 creates into either tab, silently breaking ADR 0028's dual-source rule.</li>
+</ul>
+</div>
+
+<h2 id="docs">Documents produced</h2>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Document</th><th>Decides</th></tr></thead>
+<tbody>
+<tr><td><code>docs/adr/0045-three-tier-archive.md</code></td><td>Three tiers, standalone Tournaments, per-Tournament concurrency. Supersedes 0022's vocabulary; amends 0028, 0042.</td></tr>
+<tr><td><code>docs/adr/0046-derived-tournament-locking.md</code></td><td>365-day lock derived from the date, never stored.</td></tr>
+<tr><td><code>docs/adr/0047-archive-rebuild-without-migration.md</code></td><td>Destroy and rebuild, squashed history, export v5. Amends 0020, 0022.</td></tr>
+<tr><td><code>docs/adr/0048-archive-catalogs-in-indexeddb.md</code></td><td>Catalogs to IndexedDB, year partitions, single writer. Amends 0023, 0031, 0039.</td></tr>
+<tr><td><code>docs/adr/0049-per-scope-player-ratings.md</code></td><td>Stored per-scope Glicko-2; single-select filter. Amends 0040, 0043.</td></tr>
+<tr><td><code>docs/adr/0050-retire-the-legacy-archive-surface.md</code></td><td>Expand-then-contract; no alias, no redirect. Supersedes 0022.</td></tr>
+<tr><td><code>docs/archive-three-tier.html</code></td><td>Architecture: model, API surface, caching, read paths, locking.</td></tr>
+<tr><td><code>docs/archive-scoped-ratings.html</code></td><td>Architecture: the per-scope read model and its query contract.</td></tr>
+</tbody>
+</table>
+</div>
+
+<footer>
+Plan index: <code>artifacts/PLAN_2026_08_22_archive-rebuild.md</code> · 19 ticket files under <code>artifacts/PLAN_2026_08_22_archive-rebuild/</code> · Gones is unreleased: no production environment, no users, local data resettable · <b>Implementation has not started.</b>
+</footer>
+
+</div>
+</body>
+</html>

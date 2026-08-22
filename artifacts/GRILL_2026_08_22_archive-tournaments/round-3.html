@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archive rebuild — league hierarchy, ranking scope, concurrency</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; --good:#4ade80; --warn:#f87171; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .node.done { border-color:var(--good); color:var(--good); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-node.good { stroke:var(--good); } .svg-node.warn { stroke:var(--warn); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-line.dash { stroke-dasharray:4 4; } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); } .svg-good { fill:var(--good); } .svg-warn { fill:var(--warn); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .why.hot { color:var(--accent-2); }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    code { background:#100d08; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:.86em; color:var(--accent); }
+    pre { margin:10px 0 0; padding:12px; overflow:auto; border:1px solid var(--line); border-radius:8px; background:#100d08; font-size:.79rem; line-height:1.5; color:var(--muted); }
+    pre code { background:none; border:0; padding:0; color:inherit; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { padding:18px 20px; margin:0 0 20px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; background:var(--panel); }
+    .facts.ok { border-left-color:var(--good); } .facts.warn { border-left-color:var(--warn); }
+    .facts h2 { font-size:.8rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+    .facts.ok h2 { color:var(--good); } .facts.warn h2 { color:var(--warn); }
+    .facts ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; } .facts li { margin:5px 0; }
+    .facts p { color:var(--muted); font-size:.9rem; }
+    .settled { display:flex; flex-wrap:wrap; gap:7px; margin:0 0 28px; }
+    .chip { padding:5px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--muted); font-size:.78rem; }
+    .chip b { color:var(--good); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 3 · League hierarchy + Ranking scope + Concurrency</span>
+    <h1>Archive rebuild — league hierarchy, ranking scope, concurrency</h1>
+    <p class="lede">Your Q6 answer opened a branch that did not exist in rounds 1–2: a <b>League</b> is now a group of <b>League Seasons</b>, and Global Rankings gets a scope filter. That is a third tier and a second read model. This round settles it, plus the concurrency contract that Q1-B broke.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <span class="node"><b>Archive rebuild</b></span>
+    <span class="arrow">→</span>
+    <span class="node done">Storage ✓</span>
+    <span class="node done">API ✓</span>
+    <span class="node done">Table ✓</span>
+    <span class="arrow">→</span>
+    <span class="node active">Hierarchy</span>
+    <span class="node active">Ranking scope</span>
+    <span class="node active">Concurrency</span>
+    <span class="node active">Phasing</span>
+  </nav>
+
+  <div class="settled">
+    <span class="chip"><b>✓</b> Every Tournament its own row</span>
+    <span class="chip"><b>✓</b> Globally unique tournament id</span>
+    <span class="chip"><b>✓</b> <code>/api/archive/*/all</code></span>
+    <span class="chip"><b>✓</b> Flat <code>/archive/tournaments/:id</code></span>
+    <span class="chip"><b>✓</b> History back button</span>
+    <span class="chip"><b>✓</b> v5 export, v1–v3 dropped</span>
+    <span class="chip"><b>✓</b> Compact clickable child rows</span>
+    <span class="chip"><b>✓</b> Name-first, Last-played desc</span>
+    <span class="chip"><b>✓</b> Centralized invalidation + test</span>
+    <span class="chip">⏳ Cap — research running</span>
+  </div>
+
+  <section class="facts warn">
+    <h2>Scope check — read this before answering</h2>
+    <p>Rounds 1–2 already committed a large plan: a new Tournament aggregate, every Tournament lifted out of the League document, a full <code>leagues-archive → archive</code> rename with API aliases, a data migration, a v5 export format with v1–v3 dropped, a six-column two-tab table refont, and centralized cache invalidation. Q6 adds a <b>third entity tier</b> and a <b>scoped ranking read model</b> on top of that. Question 1 is whether that all ships as one plan or as two — everything else in this round is worth answering either way, because a phase-2 plan still needs the contracts frozen now so phase 1 does not paint them into a corner.</p>
+  </section>
+
+  <section class="facts">
+    <h2>Facts resolved for this round — do not re-answer</h2>
+    <ul>
+      <li><b>Every archive command is versioned against the League today.</b> All ~15 signatures in <code>application-backend.ts:76-96</code> take the League's <code>expectedVersion</code> and return a <code>PersistedLeague</code> — e.g. <code>addArchiveRound(id, tournamentId, expectedVersion)</code>. Q1-B makes the Tournament its own row, so every one of these changes shape. Q10 settles how.</li>
+      <li><b>ADR 0037's edit-batch is explicitly League-versioned.</b> Source <code>If-Match</code> is mandatory, <code>Target-If-Match</code> accompanies a move, and the server "locks source/target rows in deterministic League-id order". A Tournament with its own version changes what is locked and what 412s.</li>
+      <li><b>ADR 0043 replays every completed Archive Tournament in date order</b> to derive one Glicko-2 rating per player, materialized by ADR 0040 into <code>player_statistics</code> — a table with <b>one row per player</b>. A per-League ranking has no place to live in that shape. Q7 is where that is decided.</li>
+      <li>Rating fields on that read model: <code>rating</code>, <code>ratingDeviation</code>, <code>previousRating</code>, <code>tournamentsPlayed</code>, <code>lastPlayedDate</code>, plus the derived <code>provisional</code> (&lt;5 tournaments) and <code>inactive</code> (no completed tournament in 12 months) flags.</li>
+      <li>Global Rankings already ships a search box, a sortable header, a 10/25/50/100 page-size selector and query-string state — the filter controls in Q8 join an existing control row, they do not create one.</li>
+      <li><code>docs/CONTEXT.md</code> is the language contract and <code>docs/GLOSSARY.md</code> the shared vocabulary; both define "League" with today's meaning. Q3 decides how much of that vocabulary is rewritten.</li>
+    </ul>
+  </section>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>The tier that Q6 added</b>Every arrow is a nullable parent — the open questions are which ones.</figcaption>
+      <svg viewBox="0 0 380 240" role="img" aria-labelledby="t-h t-h-d">
+        <title id="t-h">Three tier archive hierarchy</title>
+        <desc id="t-h-d">A League groups League Seasons, a League Season groups Tournaments, and a Tournament holds rounds. Whether a Season may have no League, and whether a Tournament points at a Season or a League, are the open questions.</desc>
+        <rect class="svg-node active" x="90" y="10" width="200" height="40" rx="8"/>
+        <text class="svg-label" x="104" y="28">League <tspan class="svg-note">(new — a group)</tspan></text>
+        <text class="svg-note" x="104" y="42">id · name</text>
+        <path class="svg-line dash" d="M190 50 L190 74"/>
+        <text class="svg-warn" x="196" y="66" font-size="10">Q2 · optional parent?</text>
+        <rect class="svg-node active" x="90" y="74" width="200" height="40" rx="8"/>
+        <text class="svg-label" x="104" y="92">LeagueSeason <tspan class="svg-note">(= today's League)</tspan></text>
+        <text class="svg-note" x="104" y="106">id · name · status · leagueId?</text>
+        <path class="svg-line dash" d="M190 114 L190 138"/>
+        <text class="svg-warn" x="196" y="130" font-size="10">Q5 · points here or higher?</text>
+        <rect class="svg-node good" x="90" y="138" width="200" height="40" rx="8"/>
+        <text class="svg-label" x="104" y="156">Tournament <tspan class="svg-note">(own row, Q1-B)</tspan></text>
+        <text class="svg-note" x="104" y="170">id · name · date · status · players</text>
+        <path class="svg-line" d="M190 178 L190 200"/>
+        <rect class="svg-node" x="90" y="200" width="200" height="32" rx="8"/>
+        <text class="svg-note" x="104" y="220">rounds[] · entries[] · archetypes[]</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>Q7 is the expensive one</b>One rating per player, or one per scope?</figcaption>
+      <svg viewBox="0 0 380 240" role="img" aria-labelledby="t-r t-r-d">
+        <title id="t-r">Scoped ranking options</title>
+        <desc id="t-r-d">Option A filters the existing single global rating table down to players who competed in the chosen scope, keeping global ratings. Option B recomputes Glicko-2 per scope, multiplying the read model rows by the number of scopes.</desc>
+        <text class="svg-label" x="10" y="16">A · filter the view</text>
+        <rect class="svg-node good" x="10" y="26" width="170" height="52" rx="8"/>
+        <text class="svg-note" x="20" y="44">player_statistics</text>
+        <text class="svg-note" x="20" y="58">1 row per player</text>
+        <text class="svg-good" x="20" y="72">unchanged</text>
+        <path class="svg-line" d="M95 78 L95 100"/>
+        <rect class="svg-node" x="10" y="100" width="170" height="44" rx="8"/>
+        <text class="svg-note" x="20" y="118">show only players who</text>
+        <text class="svg-note" x="20" y="132">played in that scope</text>
+        <text class="svg-note" x="10" y="166">rating stays GLOBAL</text>
+        <text class="svg-note" x="10" y="182">positions renumbered 1..n</text>
+        <text class="svg-good" x="10" y="204">no new table</text>
+        <text class="svg-good" x="10" y="220">client-side, no endpoint</text>
+
+        <text class="svg-label" x="200" y="16">B · recompute per scope</text>
+        <rect class="svg-node warn" x="200" y="26" width="170" height="52" rx="8"/>
+        <text class="svg-note" x="210" y="44">player_statistics</text>
+        <text class="svg-note" x="210" y="58">1 row per player × scope</text>
+        <text class="svg-warn" x="210" y="72">new scope column + PK</text>
+        <path class="svg-line" d="M285 78 L285 100"/>
+        <rect class="svg-node" x="200" y="100" width="170" height="44" rx="8"/>
+        <text class="svg-note" x="210" y="118">replay Glicko-2 once</text>
+        <text class="svg-note" x="210" y="132">per scope combination</text>
+        <text class="svg-note" x="200" y="166">true in-league rating</text>
+        <text class="svg-warn" x="200" y="182">arbitrary season subsets</text>
+        <text class="svg-warn" x="200" y="204">= combinatorial scopes</text>
+        <text class="svg-warn" x="200" y="220">rebuild cost × N</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+
+    <fieldset data-question="Does the whole hierarchy ship in this plan, or is it phased?">
+      <legend>1. Does the whole hierarchy ship in this plan, or is it phased?</legend>
+      <p class="why hot">Rounds 1–2 are already a big plan. The League-group tier and the scoped ranking are a second feature riding along. This decides how many tickets I write now — but I will freeze every contract either way, so a phase 2 is never blocked by phase 1's shape.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Two plans: phase 1 = archive rebuild as settled in rounds 1-2, phase 2 = league group tier + scoped ranking. Phase 1 schema leaves the seam ready."><span><b>A. Two plans — rebuild now, hierarchy next</b><span class="rank">Recommended</span><span class="detail">Phase 1 ships the archive rebuild already specified and lands a working app sooner. Its schema deliberately leaves the seam: the season table gets its nullable <code>leagueId</code> column from day one, so phase 2 adds the group tier and the ranking filter without a second migration of the same rows.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. One plan covering everything, hierarchy included"><span><b>B. One plan, everything at once</b><span class="rank">Second</span><span class="detail">One migration, one rename, one vocabulary change, one set of e2e updates — no intermediate state where the word "League" means two things in two places. Much longer before anything is shippable, and a bigger blast radius per ticket.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. One plan, but the ranking scope filter alone is deferred to phase 2"><span><b>C. One plan; defer only the ranking filter</b><span class="rank">Third</span><span class="detail">The hierarchy is a data-model change that is cheapest to do inside the migration you are already running; the ranking filter is a separable read-side feature. Splits along the natural seam — at the cost of shipping a tier the UI does not yet exploit.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If phased: is phase 2 a plan I write now alongside phase 1, or one you come back for later?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Is the League group tier mandatory or optional for a Season?">
+      <legend>2. Must every Season belong to a League?</legend>
+      <p class="why">Exactly the question Q1 answered for Tournaments, one tier up. If the parent is optional the model is uniform — every tier has a nullable parent — and a one-off season needs no ceremony.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Optional — leagueId is nullable on a Season, mirroring the nullable leagueId on a Tournament"><span><b>A. Optional — <code>leagueId: string | null</code> on a Season</b><span class="rank">Recommended</span><span class="detail">Uniform with the tier below it: standalone Tournament, standalone Season, same rule, same routing, same "empty cell" rendering. A one-off competition needs no wrapper it will never use.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Mandatory — every Season belongs to a League; migration auto-creates one per existing League"><span><b>B. Mandatory — every Season has a League</b><span class="rank">Second</span><span class="detail">The hierarchy is always complete, so the ranking filter never has an "ungrouped" bucket and every breadcrumb has three levels. Costs an auto-created wrapper League for each of today's Leagues, most of which will hold exactly one season forever.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Can a Tournament attach directly to a League, skipping the Season tier? Or is Season the only legal parent?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Naming: reuse 'League' for the new group, or pick a new word?">
+      <legend>3. Naming — reuse "League" for the group, or a new word?</legend>
+      <p class="why hot">You said the group is called "League" and today's League becomes "League Season". That redefines a word used across <code>docs/CONTEXT.md</code>, the glossary, ~20 API routes, every component name and every test — <em>on top of</em> the <code>leagues-archive → archive</code> rename already agreed. There is a cheaper way to get the same hierarchy.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. As you said: 'League' becomes the group, today's League is renamed 'LeagueSeason' everywhere, including symbols, routes and docs"><span><b>A. As you said — "League" is the group, today's becomes "LeagueSeason"</b><span class="rank">Recommended</span><span class="detail">Matches how people actually talk: "the league" is the ongoing competition, "the 2026 season" is one run of it. Every existing <code>League*</code> symbol, route and doc line that means a season gets renamed. Big, mechanical, and done once — combine it with the <code>archive</code> rename so the codebase is disturbed a single time.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. New word for the group — 'Circuit' or 'Series' — and today's League keeps its name and every symbol"><span><b>B. New word for the group; today's League keeps its name</b><span class="rank">Second</span><span class="detail">Same hierarchy, a fraction of the diff: <code>Circuit → League → Tournament</code> adds one new entity and renames nothing. Nothing existing shifts meaning, so no doc, route, symbol or test churns. The cost is that "League" keeps meaning the narrower thing, which is not how you described it.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. 'League' becomes the group in the UI and docs only; code symbols keep saying League for the season"><span><b>C. Rename in UI and docs only; code keeps the old symbols</b><span class="rank">Third</span><span class="detail">Cheapest visible change. Guarantees that the code and the vocabulary contract disagree permanently, which is the exact failure ADR 0035 was written to fix for "scheduled tournament".</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If A: French label for a League Season? Existing UI strings say 'Ligue' / 'League' — what replaces them at each tier?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What do the Archive tabs list, and how many tabs are there?">
+      <legend>4. What do the Archive tabs list now?</legend>
+      <p class="why">Round 1 settled two tabs over a two-tier model. A third tier has to appear somewhere, and it changes what column 4 counts and what a row expands into.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Two tabs still: Leagues tab lists Leagues (groups) and expands to Seasons, which expand to Tournaments; Tournaments tab unchanged"><span><b>A. Two tabs, two levels of expansion</b><span class="rank">Recommended</span><span class="detail">Keeps the shell you already approved. A League row expands to its Seasons, a Season row expands to its Tournaments — the same compact clickable child-row style at both depths. Column 4 on the Leagues tab counts seasons for a League and tournaments for a Season.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Three tabs: Leagues, Seasons, Tournaments — each a flat table, single-level expansion"><span><b>B. Three tabs — Leagues, Seasons, Tournaments</b><span class="rank">Second</span><span class="detail">Every tier gets a flat, searchable, sortable table of its own, and no row nests more than one level. The Archive stops being "leagues and tournaments" and becomes a three-way browser, which is more navigation than you asked for.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Two tabs: Leagues tab lists Seasons as today, with the League name as a column and a group-by toggle"><span><b>C. Two tabs; the Leagues tab lists Seasons with a League column</b><span class="rank">Third</span><span class="detail">Least disruption to the settled six-column contract — the group is just another column, exactly like the parent-League column on the Tournaments tab. But a League with no season of its own is then invisible.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If A: what does column 4 show on a League row — season count, or total tournaments across its seasons? And do the six columns stay the same at both levels?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Does a Tournament point at a Season or at a League?">
+      <legend>5. Does a Tournament point at a Season or at a League?</legend>
+      <p class="why">Q3 of round 2 froze the Tournament catalog row as carrying <code>leagueId</code> and nothing else. With three tiers that field needs a target, and column 4 of the Tournaments tab needs to know which name it prints.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Tournament.seasonId points at a Season; the League is derived transitively; column 4 shows the Season name"><span><b>A. <code>seasonId</code> → Season; the League is derived</b><span class="rank">Recommended</span><span class="detail">One parent pointer per tier, no redundancy, nothing that can contradict itself. The League is a join away and the client already holds both catalogs, so deriving it is free.<pre><code>ArchiveTournamentCatalogItem {
+  id: string
+  name: string
+  seasonId: string | null   // null = standalone
+  tournamentDate: string
+  updatedAt: string
+  status: 'active' | 'completed'
+  playerCount: number
+  documentVersion: number
+}</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Tournament carries both seasonId and leagueId, denormalized"><span><b>B. Carry both <code>seasonId</code> and <code>leagueId</code></b><span class="rank">Second</span><span class="detail">The ranking filter can select by League without a join, which matters if scoped ranking ever moves server-side. Two fields that can disagree, and every re-parent has to update both.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. A Tournament may attach to either tier: parentId plus a parentKind discriminator"><span><b>C. <code>parentId</code> + <code>parentKind: 'league' | 'season'</code></b><span class="rank">Third</span><span class="detail">Most flexible — a one-off league-level event needs no throwaway season. Every consumer must branch on the discriminator, and "which tier is this under" becomes a runtime question everywhere.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Column 4 on the Tournaments tab — Season name, League name, or 'League — Season'? Empty when standalone either way, per round 2."></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What does the migration do with today's Leagues?">
+      <legend>6. What does the migration do with today's Leagues?</legend>
+      <p class="why">Every existing League becomes a Season. Whether each also gets a wrapper League decides what the Leagues tab shows the morning after the migration, and whether the ranking filter has anything in its dropdown.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Each existing League becomes an ungrouped Season (leagueId null); no wrapper Leagues are invented; grouping is a later manual act"><span><b>A. Each becomes an <em>ungrouped</em> Season; no invented wrappers</b><span class="rank">Recommended</span><span class="detail">The migration asserts only what is true — nobody has said which of today's Leagues are seasons of the same competition, and guessing by name would merge things that merely rhyme. Grouping becomes a deliberate power-user act. Requires Q2-A.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Each existing League becomes a Season wrapped in its own new single-season League of the same name"><span><b>B. Each gets its own wrapper League of the same name</b><span class="rank">Second</span><span class="detail">The hierarchy is complete from day one and the ranking filter is populated immediately. Creates a pile of one-season Leagues that duplicate their season's name until someone merges them by hand — and required if you pick Q2-B.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Group by name heuristic: Leagues whose names share a stem minus a year become seasons of one League"><span><b>C. Group by a name heuristic (shared stem minus the year)</b><span class="rank">Third</span><span class="detail">Produces the intended structure automatically for names like "Ligue Lyon 2025" / "Ligue Lyon 2026". Silently wrong for anything that does not follow that convention, and a wrong merge is far more annoying to undo than a missing one.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Does a Season carry explicit start/end dates, or are they derived from its tournaments the way calculateLeagueStartDate does today?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="League-scoped ranking: recomputed Glicko-2 or a filtered view of global ratings?">
+      <legend>7. Scoped ranking — recomputed rating, or filtered view?</legend>
+      <p class="why hot">The single most consequential question in this round. ADR 0040's <code>player_statistics</code> holds <b>one row per player</b> and ADR 0043 derives that rating by replaying every completed Tournament in date order. "Ranking for a specific league" can mean two very different things, and one of them multiplies that table.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Filtered view: keep one global rating per player; the filter narrows which players are listed and renumbers positions. Counts (matches, tournaments, winrate) recomputed for the scope, rating stays global."><span><b>A. Filtered view — global rating, scoped counts</b><span class="rank">Recommended</span><span class="detail">The filter selects <em>who</em> is listed, not <em>how they are rated</em>: rating stays the one comparable global number, positions renumber 1..n, and matches/tournaments/winrate are recomputed for the selected scope. No new table, no extra rebuild, works client-side over the catalog you already fetch — so arbitrary season subsets cost nothing.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Recomputed: replay Glicko-2 over only the selected scope, producing a true in-league rating"><span><b>B. Recomputed — a true in-league Glicko-2 rating</b><span class="rank">Second</span><span class="detail">The honest answer to "who is best in this league", since a rating earned elsewhere does not transfer. But your season multi-select means the scope is an arbitrary <em>subset</em> of seasons, so the number of scopes is combinatorial — it cannot be precomputed per scope, and computing it on demand means replaying the archive per request.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Recomputed but only at whole-League granularity, materialized per League; the season multi-select then only filters counts"><span><b>C. Recomputed per whole League, materialized; seasons filter counts only</b><span class="rank">Third</span><span class="detail">Bounded middle ground — one extra <code>player_statistics</code> row per (player, league), rebuilt with the rest. Real per-league ratings without a combinatorial explosion. But then the season checkboxes change the counts and not the rating, which is subtle to explain in the UI.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="If A: should the rating column be labelled or badged to make clear it is a global rating shown inside a scoped table?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Ranking filter UI contract, defaults and URL state">
+      <legend>8. Ranking filter — UI contract, defaults, URL state</legend>
+      <p class="why">You described a League select that reveals a season multi-select. Level 5 needs the default state, the empty-selection meaning and the query-string shape written down, or three implementers build three behaviours.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. League select defaults to 'All leagues'; choosing one reveals a season multi-select with every season pre-checked; unchecking all falls back to all; state in the query string as ?league=<id>&seasons=<id,id>"><span><b>A. Default "All leagues"; seasons all pre-checked; state in the query string</b><span class="rank">Recommended</span><span class="detail">Nothing is hidden by default, and picking a League shows its whole history until you narrow it. Unchecking everything means "all seasons" rather than an empty table, so the page can never look broken. Shareable and reload-safe.<pre><code>?league=&lt;leagueId&gt;&seasons=&lt;id&gt;,&lt;id&gt;
+       &sort=rating&dir=desc&page=1&size=100&search=</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Same, but seasons start unchecked and an empty selection means all seasons"><span><b>B. Same, but seasons start unchecked</b><span class="rank">Second</span><span class="detail">A shorter URL in the common case and less visual noise on open. "Nothing checked" and "everything checked" then render the same table, which reads as a bug the first time you see it.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Single combined select of League and Season, no multi-select"><span><b>C. One combined League-or-Season select, no multi-select</b><span class="rank">Third</span><span class="detail">Much simpler control and URL. Drops the "combine these three seasons" capability, which was the specific thing you asked for.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should ungrouped Seasons appear in the League select as their own entries? Should the filter also exist on the player detail page?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="UI and API routes for the two league tiers">
+      <legend>9. UI and API routes for the two league tiers</legend>
+      <p class="why">Round 2 froze <code>/archive/tournaments/:id</code> and <code>/api/archive/tournaments/all</code>. The two tiers above need the same treatment, named once, here.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. /archive/leagues/:leagueId and /archive/seasons/:seasonId; API /api/archive/leagues/all and /api/archive/seasons/all; old /leagues-archive/:id redirects to /archive/seasons/:id"><span><b>A. Flat per tier, mirroring the Tournament route</b><span class="rank">Recommended</span><span class="detail">Every tier is flat and addressable, consistent with the flat Tournament route you chose. Crucially, today's <code>/leagues-archive/:leagueId</code> redirects to <code>/archive/seasons/:id</code> — because that record <em>is</em> a season now — so old bookmarks land on the right page rather than a same-named group.<pre><code>UI   /archive/leagues            (tab)
+     /archive/leagues/:leagueId
+     /archive/tournaments        (tab)
+     /archive/seasons/:seasonId
+     /archive/tournaments/:tournamentId
+API  /api/archive/leagues/all
+     /api/archive/seasons/all
+     /api/archive/tournaments/all</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Nested: /archive/leagues/:leagueId/seasons/:seasonId"><span><b>B. Nested — <code>/archive/leagues/:leagueId/seasons/:seasonId</code></b><span class="rank">Second</span><span class="detail">The URL states the hierarchy, so a breadcrumb needs no lookup. Breaks for an ungrouped season, and re-parenting a season changes its address.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. One /archive/seasons/all endpoint that embeds its league, no separate leagues catalog"><span><b>C. Seasons catalog embeds its League; no separate leagues route</b><span class="rank">Third</span><span class="detail">One fewer endpoint and one fewer cache key to invalidate. Contradicts round 2's decision to ship keys rather than denormalized names, and a League with no seasons cannot appear at all.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Corrections to the route list above? Should /archive/leagues/:id be a page in its own right, or only an expansion in the table?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What does optimistic concurrency guard after the Tournament split?">
+      <legend>10. What does optimistic concurrency guard now?</legend>
+      <p class="why hot">Q1-B broke a contract nobody has replaced yet. Today every archive command takes the <em>League's</em> <code>expectedVersion</code> and returns a <code>PersistedLeague</code>; ADR 0037's edit-batch sends a mandatory source <code>If-Match</code> and locks League rows. With Tournaments as their own rows, all ~15 signatures change shape.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Tournament-scoped: every tournament command takes the Tournament's expectedVersion and returns the Tournament; edit-batch If-Match is the Tournament's; season/league commands version their own row only"><span><b>A. Tournament-scoped versions</b><span class="rank">Recommended</span><span class="detail">Each row guards itself, which is what having its own row means. Concurrency gets <em>finer</em>: two people editing two Tournaments of one League stop colliding, where today they 412 each other. A move takes both the Tournament version and the target Season version.<pre><code>editArchiveTournament(tournamentId, expectedVersion, …)
+  → PersistedTournament
+applyArchiveTournamentEditBatch(
+  tournamentId, expectedVersion,
+  command, target?: { seasonId, expectedVersion })
+  → { tournament, sourceSeason?, targetSeason? }</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Season-scoped: keep versioning against the parent Season so the current 412 semantics survive unchanged"><span><b>B. Season-scoped — keep today's 412 semantics</b><span class="rank">Second</span><span class="detail">Smallest behavioural change and the existing staged-edit tests keep meaning what they meant. But a standalone Tournament has no season to version against, so it needs a special case immediately.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Both: Tournament version for content edits, Season version additionally required for re-parenting"><span><b>C. Both — Tournament for content, Season for re-parenting</b><span class="rank">Third</span><span class="detail">Precisely guards each kind of change against exactly what it touches. Two versions to thread through every call site and every 412 message.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Does the staged edit-batch stay one atomic save across Tournament + Season rows? Should a Tournament edit still bump the parent Season's updatedAt, so the table's 'Updated' column reacts?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What is the v5 export bundle shape with three tiers?">
+      <legend>11. The v5 export bundle with three tiers</legend>
+      <p class="why">Round 2 settled v5 with v1–v3 dropped, but the shape it settled had two tiers. Backup and restore is the one path where getting the shape wrong loses data, so it gets stated explicitly.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Four flat collections mirroring the tables, joined by id: leagues, leagueSeasons, tournaments, calendarEvents"><span><b>A. Four flat collections, joined by id</b><span class="rank">Recommended</span><span class="detail">The bundle mirrors the storage model exactly, so export and restore are dumps and loads with no reshaping — the place where subtle data loss usually hides.<pre><code>GonesData {
+  version: 5
+  leagues: LeagueDocument[]          // groups
+  leagueSeasons: LeagueSeasonDocument[]
+  tournaments: TournamentDocument[]  // all, seasonId nullable
+  calendarEvents: CalendarEventDocument[]
+}</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Nested: leagues contain seasons contain tournaments, standalone items in sibling arrays"><span><b>B. Nested, with sibling arrays for standalone items</b><span class="rank">Second</span><span class="detail">Human-readable and close to today's v4 file. Two ways to express the same tournament depending on parentage, which is exactly how round-trip bugs get in.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Flat collections plus a denormalized parent name on each row, for readability"><span><b>C. Flat plus denormalized parent names</b><span class="rank">Third</span><span class="detail">A backup a human can read without joining. Reintroduces the denormalized name you removed from the wire in round 2, and a restore has to decide which field wins when they disagree.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Since v1-v3 are dropped: should restoring an unsupported bundle fail with a clear error, or attempt a best-effort read?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 3 · League hierarchy + Ranking scope + Concurrency — Archive rebuild\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

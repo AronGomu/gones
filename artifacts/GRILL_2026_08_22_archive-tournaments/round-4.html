@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archive rebuild — year partitioning, scoped ratings, contradictions</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; --good:#4ade80; --warn:#f87171; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .node.done { border-color:var(--good); color:var(--good); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-node.good { stroke:var(--good); } .svg-node.warn { stroke:var(--warn); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-line.dash { stroke-dasharray:4 4; } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); } .svg-good { fill:var(--good); } .svg-warn { fill:var(--warn); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    fieldset.fix { border-color:var(--accent-2); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .why.hot { color:var(--accent-2); }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    code { background:#100d08; border:1px solid var(--line); border-radius:5px; padding:1px 5px; font-size:.86em; color:var(--accent); }
+    pre { margin:10px 0 0; padding:12px; overflow:auto; border:1px solid var(--line); border-radius:8px; background:#100d08; font-size:.79rem; line-height:1.5; color:var(--muted); }
+    pre code { background:none; border:0; padding:0; color:inherit; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    .facts { padding:18px 20px; margin:0 0 20px; border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:12px; background:var(--panel); }
+    .facts.ok { border-left-color:var(--good); } .facts.warn { border-left-color:var(--warn); }
+    .facts h2 { font-size:.8rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+    .facts.ok h2 { color:var(--good); } .facts.warn h2 { color:var(--warn); }
+    .facts ul { margin:0; padding-left:20px; color:var(--muted); font-size:.9rem; } .facts li { margin:6px 0; }
+    .facts p { color:var(--muted); font-size:.9rem; margin:6px 0; }
+    table.mini { width:100%; border-collapse:collapse; margin-top:10px; font-size:.84rem; }
+    table.mini th, table.mini td { padding:5px 9px; border:1px solid var(--line); text-align:left; color:var(--muted); }
+    table.mini th { color:var(--text); background:var(--panel-2); }
+    .settled { display:flex; flex-wrap:wrap; gap:7px; margin:0 0 28px; }
+    .chip { padding:5px 11px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--muted); font-size:.78rem; }
+    .chip b { color:var(--good); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 4 · Year partitioning + Scoped ratings + Contradictions</span>
+    <h1>Archive rebuild — year partitioning, scoped ratings, contradictions</h1>
+    <p class="lede">Your year-partition idea solves the storage problem, and dropping the migration removes a whole class of tickets. Three of your round-3 answers contradict their own precisions — I have arbitrated all three below and need a yes/no. Then the last contracts, and the plan can be written.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <span class="node"><b>Archive rebuild</b></span>
+    <span class="arrow">→</span>
+    <span class="node done">Storage ✓</span>
+    <span class="node done">Hierarchy ✓</span>
+    <span class="node done">Concurrency ✓</span>
+    <span class="node done">Export ✓</span>
+    <span class="arrow">→</span>
+    <span class="node active">Fetch partition</span>
+    <span class="node active">Rating scopes</span>
+    <span class="node active">Arbitrations</span>
+  </nav>
+
+  <div class="settled">
+    <span class="chip"><b>✓</b> One plan, sequential tickets</span>
+    <span class="chip"><b>✓</b> League → Season mandatory</span>
+    <span class="chip"><b>✓</b> Full <code>LeagueSeason</code> rename</span>
+    <span class="chip"><b>✓</b> <code>seasonId</code> only, no league FK</span>
+    <span class="chip"><b>✓</b> No migration — wipe and rebuild</span>
+    <span class="chip"><b>✓</b> Stored per-scope ratings</span>
+    <span class="chip"><b>✓</b> Tournament-scoped versions</span>
+    <span class="chip"><b>✓</b> Four flat export collections</span>
+    <span class="chip"><b>✓</b> IndexedDB migration allowed</span>
+  </div>
+
+  <section class="facts ok">
+    <h2>Two answers that removed a lot of work — recorded, not re-asked</h2>
+    <ul>
+      <li><b>"No migration. Delete all current data."</b> This deletes an entire class of tickets: no placeholder-League lifting, no tournament-id collision rewriting (round 2 Q2's migration half), no v4→v5 bundle mapping, no <code>counts_version</code> backfill. It is consistent with <code>AGENT.md</code>, which already states Gones is unreleased with no production environment and that local data may be reset without migration guarantees. Q6 below confirms the blast radius, because "delete everything" also takes the dev fixtures and every seeded demo account with it.</li>
+      <li><b>Year-partitioned fetching.</b> Yes, it is possible, and it is the right answer — it turns an unbounded catalog into a bounded one. Combined with your IndexedDB approval the storage problem disappears entirely: even mtgtop8's peak year (~17,500 tournaments ≈ 9.9 MiB at the measured 564 B/row) is comfortable in IndexedDB, which has no 5 MiB cap and stores structured clones rather than UTF-16 strings. Q2 settles the exact contract.</li>
+    </ul>
+  </section>
+
+  <section class="facts warn">
+    <h2>Three contradictions I arbitrated — confirm or correct in Q1, Q8, Q4</h2>
+    <p><b>1 · Round 3 Q4 — you ticked A, but said C three times.</b> Option A was "the Leagues tab lists Leagues (groups) and expands to Seasons, which expand to Tournaments". Your precision said <em>"don't list the league, but only the league seasons, and expanding a row shows the tournament from that league season"</em>. Your Q2 precision said <em>"they see it organized by seasons of the league. Each row lists a single season, and a new column shows the league"</em>. Your Q9 precision said <em>"there is no dedicated page to see leagues"</em>. All three describe <b>option C</b>: one tab listing Seasons, with a League column, expanding one level to Tournaments. <b>I have taken C.</b> Q1 confirms.</p>
+    <p><b>2 · Round 3 Q9 — you ticked A and C, which are mutually exclusive.</b> A ships a separate <code>/api/archive/leagues/all</code> catalog and a <code>/archive/leagues/:leagueId</code> page; C has no separate leagues catalog at all. Your precision ("no dedicated page to see leagues") kills A's page but does not settle whether the League <em>list</em> still needs its own endpoint — the ranking filter's League select has to get names from somewhere. <b>Q8 settles it.</b></p>
+    <p><b>3 · Round 3 Q7 vs Q8 — the combinatorial gap I flagged is still open.</b> Q7-B stores a recomputed rating <em>per League Season and per League</em>, which is bounded and fine. But Q8-A lets the user check an <em>arbitrary subset</em> of seasons — and there is no stored rating for "seasons 2, 4 and 7 combined". <b>Q4 settles what that subset shows.</b></p>
+  </section>
+
+  <section class="facts">
+    <h2>Facts resolved for this round — do not re-answer</h2>
+    <ul>
+      <li><code>player_statistics</code> is keyed on <code>PlayerName</code> alone (<code>PlayerStatisticsReadModelConfigurations.cs:13</code>). Per-scope rows need a composite key — <code>(scope_kind, scope_id, player_name)</code>.</li>
+      <li>Row multiplication is <b>bounded and mild</b>: a player who competed in 3 Seasons across 2 Leagues holds 1 global + 3 season + 2 league = <b>6 rows</b>. Rebuild cost is ~3× today's, because each Tournament is replayed into exactly three scopes.</li>
+      <li>The rebuild is already transactional and whole-archive (<code>PlayerStatisticsRebuildService.RebuildAsync</code>), so adding scopes changes its size, not its shape or its guarantees.</li>
+      <li><code>catalog-cache.ts</code> is <code>localStorage</code>-only by construction and its header says so; ADR 0039 states "public data caches in <code>localStorage</code>". Moving the archive catalog to IndexedDB amends that clause.</li>
+      <li><code>server-authority-boundary.test.ts:107-111</code> allowlists <code>indexedDB</code> to exactly three files: <code>indexed-db.ts</code>, <code>local-league-archive-backend.service.ts</code>, <code>local-live-backend.service.ts</code>. A new public catalog store adds a fourth and the test must be updated deliberately, not incidentally.</li>
+      <li>Measured row sizes, real schema: Tournament catalog row <b>282 chars / 564 B UTF-16</b>; Season row <b>270 chars / 540 B</b>.</li>
+    </ul>
+  </section>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Year partitioning turns an unbounded fetch into a bounded one</b>Measured against mtgtop8's real intake.</figcaption>
+      <svg viewBox="0 0 380 210" role="img" aria-labelledby="t-y t-y-d">
+        <title id="t-y">Year partitioned catalog sizes</title>
+        <desc id="t-y-d">Fetching the whole archive needs ninety-seven mebibytes at the doubled ceiling and breaks localStorage. Fetching one year needs about ten mebibytes at mtgtop8 peak rate and about one at a realistic Gones rate, both of which fit comfortably in IndexedDB.</desc>
+        <text class="svg-label" x="8" y="16">Whole archive vs one year, at 564 B/row</text>
+        <rect class="svg-node warn" x="8" y="28" width="364" height="26" rx="6"/>
+        <text class="svg-note" x="16" y="45">180,000 rows · all years</text>
+        <text class="svg-warn" x="250" y="45">96.8 MiB — breaks localStorage</text>
+        <rect class="svg-node warn" x="8" y="60" width="200" height="26" rx="6"/>
+        <text class="svg-note" x="16" y="77">90,000 · all years today</text>
+        <text class="svg-warn" x="250" y="77">48.4 MiB — breaks localStorage</text>
+        <rect class="svg-node active" x="8" y="92" width="70" height="26" rx="6"/>
+        <text class="svg-note" x="16" y="109">17,500 · 1 yr peak</text>
+        <text class="svg-accent" x="250" y="109">9.9 MiB — IndexedDB only</text>
+        <rect class="svg-node good" x="8" y="124" width="22" height="26" rx="6"/>
+        <text class="svg-note" x="38" y="141">~2,000 · 1 yr Gones-scale</text>
+        <text class="svg-good" x="250" y="141">1.1 MiB — fits anywhere</text>
+        <line class="svg-line dash" x1="8" y1="160" x2="372" y2="160"/>
+        <text class="svg-note" x="8" y="176">localStorage ceiling at measured row size: 9,295 rows unshared,</text>
+        <text class="svg-note" x="8" y="190">~4,600 at a 50% share of the origin quota</text>
+        <text class="svg-good" x="8" y="204">IndexedDB: no 5 MiB cap, structured clones not UTF-16 strings</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>Rating scopes are bounded — subsets are not</b>Q4 decides what an arbitrary season subset shows.</figcaption>
+      <svg viewBox="0 0 380 210" role="img" aria-labelledby="t-s t-s-d">
+        <title id="t-s">Stored rating scopes versus arbitrary subsets</title>
+        <desc id="t-s-d">Ratings are stored for the global scope, for each league and for each season, which is a small bounded number of rows per player. An arbitrary subset of seasons has no stored row, so it must either be computed on demand, disallowed, or fall back to filtering.</desc>
+        <text class="svg-label" x="8" y="16">Stored — bounded</text>
+        <rect class="svg-node good" x="8" y="26" width="110" height="30" rx="7"/>
+        <text class="svg-note" x="18" y="45">global · 1 row</text>
+        <rect class="svg-node good" x="128" y="26" width="110" height="30" rx="7"/>
+        <text class="svg-note" x="138" y="45">per league · L rows</text>
+        <rect class="svg-node good" x="248" y="26" width="124" height="30" rx="7"/>
+        <text class="svg-note" x="258" y="45">per season · S rows</text>
+        <text class="svg-good" x="8" y="76">player in 3 seasons / 2 leagues → 6 rows · rebuild ≈ 3×</text>
+        <line class="svg-line dash" x1="8" y1="88" x2="372" y2="88"/>
+        <text class="svg-label" x="8" y="108">Not stored — the gap</text>
+        <rect class="svg-node warn" x="8" y="118" width="364" height="34" rx="7"/>
+        <text class="svg-note" x="18" y="132">?seasons=s2,s4,s7 — an arbitrary subset</text>
+        <text class="svg-warn" x="18" y="146">no stored row exists for this combination</text>
+        <text class="svg-note" x="8" y="170">2ⁿ possible subsets → cannot be precomputed</text>
+        <text class="svg-note" x="8" y="186">options: compute on demand · restrict UI to one scope ·</text>
+        <text class="svg-note" x="8" y="200">show stored per-season rows · fall back to filtering</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+
+    <fieldset class="fix" data-question="ARBITRATION: the first tab lists League Seasons with a League column, expanding one level to Tournaments. Confirm?">
+      <legend>1. Confirm the arbitration: the first tab lists <em>Seasons</em></legend>
+      <p class="why hot">You ticked round-3 Q4-A but described option C in three separate precisions. I have taken C. This is the single most structural thing in the plan, so it gets an explicit confirm rather than a silent assumption.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Confirmed: tab 1 lists League Seasons, one row each, with a League column; expanding a row shows that Season's Tournaments; no League page exists"><span><b>A. Confirmed — tab 1 lists Seasons, League is a column, one level of expansion</b><span class="rank">Recommended</span><span class="detail">Matches all three of your precisions and keeps the six-column contract settled in round 1 almost intact: column 4 becomes the League name, exactly like the Tournaments tab's parent column. No League page, no two-level nesting.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. No — I meant A literally: tab 1 lists Leagues, expanding to Seasons, expanding again to Tournaments"><span><b>B. No — I meant it literally: Leagues → Seasons → Tournaments, two levels</b><span class="rank">Second</span><span class="detail">The group tier gets a visible home and the hierarchy is legible at a glance. Costs a two-level expansion component and reopens what column 4 counts at each depth.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="What should tab 1 be called, given it lists Seasons? 'Leagues', 'Seasons', or 'League Seasons'?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What is the year-partitioned fetch contract?">
+      <legend>2. The year-partitioned fetch contract</legend>
+      <p class="why">Your idea, and the right one. It needs an exact shape: what the parameter is, what "the year" of a multi-year Season means, and what happens when a search should reach beyond the loaded year.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. ?year=YYYY on both catalogs, defaulting to the latest year with data; one IndexedDB cache entry per year; a year selector in the toolbar; searching offers an explicit 'search all years' action that fetches the remaining years on demand"><span><b>A. <code>?year=YYYY</code>, one cache entry per year, explicit "search all years"</b><span class="rank">Recommended</span><span class="detail">Each year is independently fetched, cached and invalidated, so a year already held is never refetched. The default is the newest year that has data. Search is scoped to loaded years with a visible action to widen it, so the table never silently hides a result.<pre><code>GET /api/archive/tournaments/all?year=2026
+GET /api/archive/seasons/all?year=2026
+→ { items, totalCount, truncated,
+    availableYears: number[] }</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Same, but searching automatically fetches every year the first time the user types"><span><b>B. Same, but search auto-fetches every year on first keystroke</b><span class="rank">Second</span><span class="detail">Search always tells the truth with no extra control to discover. The first keystroke can trigger a very large fetch, which is the cost the partitioning exists to avoid.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Rolling window: fetch the latest N years at once, older years on demand"><span><b>C. Rolling window of the latest N years</b><span class="rank">Third</span><span class="detail">Cross-year comparison works out of the box, which a strict single-year view makes awkward. N is another number to justify and the payload is N× a single year.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Which date decides a row's year — tournamentDate, or updatedAt? A Season spanning Dec 2025 to Mar 2026 belongs to which year, or does it appear in both?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Where does the public archive catalog cache live now?">
+      <legend>3. Where does the public archive catalog cache live?</legend>
+      <p class="why">You approved IndexedDB. ADR 0039 currently says public data caches in <code>localStorage</code>, and the boundary test allowlists <code>indexedDB</code> to exactly three files — so this needs to be a deliberate, documented amendment rather than a quiet fourth import.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. New public IndexedDB store for the archive catalog only; ADR amends 0039's public-data clause; boundary allowlist grows by one file; other public catalogs stay in localStorage"><span><b>A. A public IndexedDB store for the archive catalog only</b><span class="rank">Recommended</span><span class="detail">Smallest correct change. Events and rankings catalogs are small and keep working exactly as they do; only the one catalog that outgrew the quota moves. A new ADR amends 0039's public-data clause and the allowlist grows by exactly one documented file. The store is public, so logout must <em>not</em> purge it — unlike the private ADR 0031 store.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Move every public catalog to IndexedDB; localStorage keeps only language, view preference and filters"><span><b>B. Move every public catalog to IndexedDB</b><span class="rank">Second</span><span class="detail">One mechanism for all public caching instead of two, and no future page ever hits the same wall. Touches the Events and rankings caches, which this feature otherwise has no business changing.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Reuse the existing gones-cache database with a public, never-purged store alongside the private per-user one"><span><b>C. Reuse <code>gones-cache</code> with a public, never-purged store</b><span class="rank">Third</span><span class="detail">One database, one open path, no new allowlist entry. Puts public never-purged rows in the database whose entire contract is "logout drops it whole" — the exact confusion ADR 0031 was written to prevent.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Database and store names? Suggested: gones-archive-catalog / catalogs, keyed by year."></textarea></label>
+    </fieldset>
+
+    <fieldset class="fix" data-question="What rating does an arbitrary multi-season selection show?">
+      <legend>4. What does an arbitrary season subset show?</legend>
+      <p class="why hot">Q7-B stores ratings per Season and per League — bounded, fine. Q8-A lets the user tick any subset of seasons, and "seasons 2, 4 and 7 combined" has no stored row and cannot get one: there are 2ⁿ subsets.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Whole-League selection shows the stored League rating; any partial subset shows stored per-season counts aggregated, with the League rating shown and badged as league-scoped"><span><b>A. Stored League rating; subsets aggregate counts, rating stays league-scoped</b><span class="rank">Recommended</span><span class="detail">Everything displayed is a number that was actually computed. Counts — matches, tournaments, winrate — sum cleanly across any subset of seasons, so they are always exact; the rating is the League's stored one, badged so nobody reads it as a subset rating. No on-demand replay, no 2ⁿ problem.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Compute the subset rating on demand by replaying Glicko-2 over just those seasons, cached by the subset key"><span><b>B. Compute the subset rating on demand, cache by subset key</b><span class="rank">Second</span><span class="detail">Every displayed rating is exactly right for what is selected. Each new combination costs a replay, the cache key space is unbounded, and it converts a read-only page into one that can trigger heavy server work from a checkbox.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Restrict the UI: the season control is single-select, so every selectable scope has a stored rating"><span><b>C. Make the season control single-select</b><span class="rank">Third</span><span class="detail">Removes the contradiction entirely — every selectable scope has a stored row and every number is exact. Drops the multi-select you specifically asked for.</span></span></label>
+        <label class="choice"><input type="checkbox" value="D. Subsets show counts only; the rating column is blanked when the selection is a partial subset"><span><b>D. Blank the rating column on partial subsets</b><span class="rank">Fourth</span><span class="detail">Never shows a number that could mislead. A ranking table with no rating is hard to justify as a ranking.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should positions renumber 1..n within the selection, or keep the scope's stored positions?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What is the scoped read model schema?">
+      <legend>5. The scoped read-model schema</legend>
+      <p class="why">Storing a rating per Season and per League changes <code>player_statistics</code>'s primary key and its rebuild. This is the contract the backend tickets quote verbatim.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. One table with a scope discriminator: composite PK (scope_kind, scope_id, player_name), scope_kind in ('global','league','season'), scope_id empty for global"><span><b>A. One table, composite PK <code>(scope_kind, scope_id, player_name)</code></b><span class="rank">Recommended</span><span class="detail">One table, one rebuild, one query shape — the existing global endpoint becomes a <code>scope_kind = 'global'</code> filter and every other surface differs only by its scope. Indexes per scope keep the rankings query as fast as it is now.<pre><code>player_statistics
+  scope_kind  text  -- 'global' | 'league' | 'season'
+  scope_id    text  -- '' when global
+  player_name text
+  PRIMARY KEY (scope_kind, scope_id, player_name)
+  -- every existing derived column unchanged</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Three tables: player_statistics, player_statistics_by_league, player_statistics_by_season"><span><b>B. Three separate tables</b><span class="rank">Second</span><span class="detail">Each table keeps a narrow key and the global one is untouched, so today's queries and indexes need no thought. Three schemas, three rebuild paths and three near-identical mappers to keep in step.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. One table keyed (scope_id, player_name) with global stored under a reserved scope_id such as '*'"><span><b>C. One table, reserved sentinel <code>scope_id</code> for global</b><span class="rank">Third</span><span class="detail">Simpler key than A with the same single-table benefit. A magic string that must never collide with a real id is a trap the discriminator in A avoids for one extra column.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Are 'provisional' (<5 tournaments) and 'inactive' (12 months idle) derived per scope, or from the global row? A player can be provisional in a league but not globally."></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How far does 'delete all current data' reach?">
+      <legend>6. How far does "delete all current data" reach?</legend>
+      <p class="why">You said there is no user and no migration is needed. That is a clean simplification, and it is also a destructive action, so the plan should state its exact blast radius rather than let a ticket discover it.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Archive tables only: leagues/seasons/tournaments/player_statistics dropped and recreated. Accounts, organizations, events and registrations survive. Dev fixtures regenerated. Browser-local archive stores cleared on version bump."><span><b>A. Archive tables only — accounts and events survive</b><span class="rank">Recommended</span><span class="detail">Scopes the destruction to what the rebuild actually reshapes. Demo accounts, organizations, Events and registrations keep working, so the rest of the app stays testable throughout. Dev fixtures are regenerated and the browser-local archive store is cleared by a database version bump, since its shape changes too.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Full reset: drop the whole database, re-run every migration from empty, re-seed accounts and fixtures"><span><b>B. Full database reset</b><span class="rank">Second</span><span class="detail">Guarantees no stale row anywhere and lets the archive tables be created as if they had always looked this way. Everyone re-seeds accounts and loses any local test state not captured in a fixture.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Squash the EF migration history too, so the archive tables have no historical migration trail"><span><b>C. Also squash the EF migration history</b><span class="rank">Third</span><span class="detail">Leaves the cleanest possible schema history for a project that has not shipped. Rewrites committed migration files, which is a bigger irreversible step than the data reset itself.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Does GONES_DATA_VERSION still go to 5, or reset to 1 now that no bundle needs to be readable? Should the importer reject every version but the current one?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How is the required League select on the Season page defaulted?">
+      <legend>7. The required League select on the Season page</legend>
+      <p class="why">You specified it defaults to "the latest league created by the same organizer or admin". That rule needs a definition for the cases it does not cover, or three implementers will pick three fallbacks.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Default to the most recently created League by the current user; if they have none, no default and the field is empty and required; a Create League action sits inline in the select"><span><b>A. Most recent League by the current user; empty when they have none, with an inline Create League</b><span class="rank">Recommended</span><span class="detail">Matches your rule and answers the first-run case without a dead end: a user with no League gets an empty required field and can create one without leaving the page. Ordered by creation time, not name.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Same, but fall back to the most recently created League by anyone when the user has none"><span><b>B. Same, falling back to anyone's most recent League</b><span class="rank">Second</span><span class="detail">There is always a default, so the form is never blocked. It also silently proposes attaching your Season to a stranger's League, which is the kind of default that gets accepted by accident.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. No default at all; always an explicit choice"><span><b>C. No default — always an explicit choice</b><span class="rank">Third</span><span class="detail">Nothing is ever attached to the wrong League by inattention. Costs a deliberate selection every single time, which is exactly the friction your rule was designed to remove.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Local (browser) Seasons: may they attach to a server League, or only to local Leagues? Round 2 Q8 said the picker offers both — confirm that still holds now the League tier is mandatory."></textarea></label>
+    </fieldset>
+
+    <fieldset class="fix" data-question="Is there a separate Leagues catalog endpoint, given there is no League page?">
+      <legend>8. Is there a separate Leagues catalog endpoint?</legend>
+      <p class="why hot">Round 3 Q9: you ticked A and C, which contradict. Your precision removed the League <em>page</em>, but the ranking filter's League select and the Seasons table's League column both still need League names from somewhere.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Keep a separate /api/archive/leagues/all catalog: a tiny id+name list, cached like the others, joined client-side by both the Seasons table and the ranking filter"><span><b>A. Keep a small separate <code>/api/archive/leagues/all</code></b><span class="rank">Recommended</span><span class="detail">Consistent with round 2's decision to ship keys and join in the browser rather than denormalize names onto rows. The League list is tiny — Grand Prix totalled 702 events across 23 years, so the group tier is orders of magnitude smaller than the tournament count — and it is the one list that must be complete regardless of which year is loaded.<pre><code>GET /api/archive/leagues/all
+→ { items: [{ id, name, seasonCount, updatedAt }],
+    totalCount, truncated }</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. No separate endpoint: the seasons catalog embeds leagueId and leagueName on each row"><span><b>B. No separate endpoint — embed <code>leagueName</code> on each Season row</b><span class="rank">Second</span><span class="detail">One fewer endpoint and one fewer cache entry to invalidate. Reintroduces the denormalized name you removed in round 2, and with year partitioning the League select would only ever list Leagues that have a Season in the loaded year.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Is the Leagues catalog year-partitioned too, or always fetched whole? Whole is my assumption, since the ranking filter must list every League."></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What fields does a League and a League Season carry?">
+      <legend>9. What fields do a League and a Season carry?</legend>
+      <p class="why">Three tiers exist now and only the Tournament's fields are frozen. The Seasons table renders six columns, so the Season shape has to supply them, and the League needs enough to be selectable and displayable.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. League: id, name, createdAt, updatedAt, documentVersion. Season: id, name, leagueId (required), status, updatedAt, documentVersion, tournamentCount, playerCount, lastTournamentDate. Season dates derived from its Tournaments, never stored."><span><b>A. Status on the Season only; Season dates derived from its Tournaments</b><span class="rank">Recommended</span><span class="detail">The Season carries everything the six columns print and nothing else; a League is a name you group by. Dates stay derived exactly as <code>calculateLeagueStartDate</code> does today, so a Season's span can never contradict the Tournaments inside it.<pre><code>League       { id, name, createdAt, updatedAt,
+               documentVersion }
+LeagueSeason { id, name, leagueId, status,
+               updatedAt, documentVersion,
+               tournamentCount, playerCount,
+               lastTournamentDate }</code></pre></span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Same, plus explicit startDate and endDate stored on the Season"><span><b>B. Same, plus stored <code>startDate</code> / <code>endDate</code> on the Season</b><span class="rank">Second</span><span class="detail">A Season can declare its intended span before any Tournament exists, which is how people actually plan one. Two sources of truth for a date range, and they drift the moment a Tournament lands outside the declared window.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Same as A, plus a status on the League as well, derived from its Seasons"><span><b>C. Same as A, plus a derived status on the League</b><span class="rank">Third</span><span class="detail">The League row can show active/completed like everything else. It is a fourth derived value to keep correct for a tier that currently has no page to render it on.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Must a League name be unique? Must a Season name be unique within its League? What are the max lengths — 200 like today's League name?"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How many prototype variants, and of which screen?">
+      <legend>10. The prototype variants — which screen, how many?</legend>
+      <p class="why">Round 1 Q11 chose two or three competing HTML variants. Now that the model has three tiers, an expandable Seasons table and a filtered rankings page, "the archive main menu" could mean several screens. This decides what I build before the plan freezes the layout.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A. Three variants of the Seasons tab only — the hardest screen — each showing the six columns, an expanded row, and empty/loading/truncated states. One file, three variants side by side."><span><b>A. Three variants of the Seasons tab, one file</b><span class="rank">Recommended</span><span class="detail">The Seasons tab is where every hard decision lands — six columns, a League column, an expanding row with compact clickable children, a year selector and a search. Settle it and the Tournaments tab is the same table minus the expansion. One file, three variants, each with empty, loading and truncated states.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B. Three variants of the Seasons tab plus one mockup of the filtered Global Rankings"><span><b>B. Three Seasons variants plus one filtered-rankings mockup</b><span class="rank">Second</span><span class="detail">Also pins the League select, the season multi-select and how a scoped rating is badged — the surface Q4 just decided. More to build and review before the plan is written.</span></span></label>
+        <label class="choice"><input type="checkbox" value="C. Two variants of the Seasons tab only"><span><b>C. Two variants of the Seasons tab</b><span class="rank">Third</span><span class="detail">A genuine comparison at the smallest cost. Two options tend to become a coin flip where three force an argument about why.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Should the variants use the real dark-metal / blood-red theme from src/styles.css, or be a standalone approximation?"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 4 · Year partitioning + Scoped ratings + Contradictions — Archive rebuild\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

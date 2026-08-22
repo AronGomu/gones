@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gones Archive — table prototypes</title>
+<style>
+:root{
+  --forge:oklch(8% 0.02 30);--black-metal:oklch(10% 0.03 30);--iron:oklch(17% 0.045 31);
+  --raised-iron:oklch(22% 0.055 33);--soot:oklch(31% 0.055 38);--ash:oklch(93% 0.018 72);
+  --dim-ash:oklch(76% 0.036 68);--steel:oklch(62% 0.03 70);--blood:oklch(49% 0.24 27);
+  --hot-blood:oklch(57% 0.25 27);--create-green:oklch(52% 0.16 145);--create-green-hot:oklch(60% 0.17 145);
+  --rust-plate:oklch(30% 0.06 38);--link:oklch(86% 0.18 28);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;min-height:100dvh;overflow-x:hidden;
+  background:radial-gradient(circle at 20% 0%,oklch(23% 0.08 28/.38),transparent 28rem),linear-gradient(180deg,oklch(11% 0.028 28),oklch(7% 0.018 30) 44rem),var(--forge);
+  color:var(--ash);font-family:Inter,Roboto,system-ui,sans-serif;font-size:15px;line-height:1.5}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:28px 0 80px}
+
+/* ---------- doc chrome ---------- */
+.doc-head{display:grid;gap:10px;margin-bottom:22px}
+.eyebrow{color:var(--hot-blood);font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+h1{margin:0;font-size:clamp(1.7rem,4vw,2.6rem);line-height:1.1;letter-spacing:-.03em}
+.lede{margin:0;max-width:76ch;color:var(--dim-ash);font-size:.95rem}
+.note{margin:14px 0 0;padding:13px 16px;border:1px solid var(--soot);border-left:3px solid var(--hot-blood);background:var(--iron);color:var(--dim-ash);font-size:.87rem}
+.note b{color:var(--ash)}
+.switcher{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;gap:6px;margin:22px 0 20px;padding:10px;border:1px solid var(--soot);background:oklch(5% .015 30);backdrop-filter:blur(8px)}
+.switcher button{padding:9px 15px;border:1px solid var(--soot);background:var(--iron);color:var(--dim-ash);
+  font:inherit;font-size:.86rem;font-weight:700;cursor:pointer;transition:.16s}
+.switcher button:hover{background:var(--raised-iron);color:var(--ash)}
+.switcher button[aria-selected=true]{border-color:var(--hot-blood);background:color-mix(in oklch,var(--blood) 26%,var(--iron));color:var(--ash)}
+.switcher .sep{flex:1}
+.panel{display:none}
+.panel.on{display:block}
+.vhead{margin:0 0 4px;font-size:1.35rem;letter-spacing:-.02em}
+.vsub{margin:0 0 20px;color:var(--dim-ash);font-size:.9rem;max-width:74ch}
+.tradeoff{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 22px}
+.tag{padding:4px 10px;border:1px solid var(--soot);background:var(--iron);color:var(--dim-ash);font-size:.75rem;font-weight:700}
+.tag.good{border-color:color-mix(in oklch,var(--create-green) 55%,var(--soot));color:var(--create-green-hot)}
+.tag.bad{border-color:color-mix(in oklch,var(--hot-blood) 55%,var(--soot));color:var(--hot-blood)}
+
+/* ---------- shared app chrome ---------- */
+.page-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin:0 0 14px}
+.page-heading h2{margin:0;font-size:1.55rem;letter-spacing:-.02em}
+.sync-bar{display:flex;align-items:center;gap:.7rem;color:var(--steel);font-size:.8rem}
+.sync-bar button{padding:7px 13px;border:1px solid var(--soot);background:var(--iron);color:var(--dim-ash);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+.sync-bar button:hover{background:var(--raised-iron);color:var(--ash)}
+.tabs{display:flex;gap:2px;margin:0 0 16px;border-bottom:1px solid var(--soot)}
+.tabs a{padding:11px 18px;border:1px solid transparent;border-bottom:0;color:var(--steel);font-size:.9rem;font-weight:700}
+.tabs a:hover{color:var(--ash);text-decoration:none}
+.tabs a.sel{border-color:var(--soot);background:var(--iron);color:var(--ash);position:relative;top:1px}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 14px}
+.field{display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--soot);background:var(--iron)}
+.field label{color:var(--steel);font-size:.74rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.field input,.field select{border:0;background:transparent;color:var(--ash);font:inherit;font-size:.88rem;outline:0;min-width:8ch}
+.field select{cursor:pointer}
+.field input::placeholder{color:var(--steel)}
+.grow{flex:1;min-width:190px}
+.grow input{width:100%}
+.btn-create{margin-left:auto;padding:9px 15px;border:1px solid color-mix(in oklch,var(--create-green) 60%,var(--soot));background:color-mix(in oklch,var(--create-green) 20%,var(--iron));color:var(--ash);font:inherit;font-size:.85rem;font-weight:800;cursor:pointer}
+.btn-create:hover{background:color-mix(in oklch,var(--create-green) 32%,var(--iron))}
+.statusline{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 10px;color:var(--steel);font-size:.82rem}
+.warnbar{margin:0 0 12px;padding:10px 13px;border:1px solid color-mix(in oklch,var(--hot-blood) 45%,var(--soot));background:color-mix(in oklch,var(--blood) 12%,var(--iron));color:var(--dim-ash);font-size:.84rem}
+.warnbar b{color:var(--ash)}
+.table-wrap{overflow-x:auto;border:1px solid var(--soot)}
+table{width:100%;border-collapse:collapse;background:var(--iron)}
+thead th{padding:.62rem .7rem;border-bottom:1px solid var(--soot);color:var(--dim-ash);font-size:.72rem;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;text-align:left;white-space:nowrap;background:var(--black-metal)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--ash)}
+th .arw{opacity:.28;margin-left:5px;font-size:.85em}
+th[aria-sort] .arw{opacity:1;color:var(--hot-blood)}
+.num{text-align:right}
+tbody td{padding:.62rem .7rem;border-bottom:1px solid color-mix(in oklch,var(--soot) 55%,transparent);vertical-align:middle;white-space:nowrap}
+tbody tr.row:nth-child(4n+1){background:var(--iron)}
+tbody tr.row:nth-child(4n+3){background:color-mix(in oklch,var(--raised-iron) 52%,var(--iron))}
+tbody tr.row{cursor:pointer;transition:background .16s ease}
+tbody tr.row:hover{background:color-mix(in oklch,var(--blood) 13%,var(--raised-iron))}
+.chev{display:inline-block;width:1em;color:var(--steel);transition:transform .18s ease}
+tr.row.open .chev{transform:rotate(90deg);color:var(--hot-blood)}
+.nm{color:var(--link);font-weight:700}
+.lg{color:var(--dim-ash)}
+.dim{color:var(--steel)}
+.status{display:inline-flex;align-items:center;gap:.42rem;border:1px solid var(--soot);background:var(--black-metal);color:var(--dim-ash);padding:.24rem .5rem;font-size:.75rem;font-weight:700}
+.status.completed{color:var(--steel)}
+.status-dot{display:inline-block;width:.5rem;height:.5rem;border-radius:999px;background:var(--create-green);
+  box-shadow:0 0 0 2px color-mix(in oklch,var(--create-green) 22%,transparent),0 0 10px color-mix(in oklch,var(--create-green) 62%,transparent)}
+.status.completed .status-dot{background:var(--hot-blood);box-shadow:0 0 0 2px color-mix(in oklch,var(--hot-blood) 22%,transparent),0 0 10px color-mix(in oklch,var(--hot-blood) 62%,transparent)}
+.lock{color:var(--steel);font-size:.78rem;margin-left:.4rem}
+/* expanded children — compact, one continuous clickable line */
+tr.kids>td{padding:0;background:var(--black-metal);border-bottom:1px solid var(--soot)}
+.kidlist{padding:.35rem .7rem .5rem 2.1rem}
+.kid{display:block;padding:.36rem .5rem;color:var(--dim-ash);font-size:.85rem;border-left:2px solid var(--rust-plate);padding-left:.75rem;margin:.1rem 0}
+.kid:hover{background:color-mix(in oklch,var(--blood) 14%,transparent);color:var(--ash);text-decoration:none;border-left-color:var(--hot-blood)}
+.kid b{color:var(--link);font-weight:700}
+.kid .sep{color:var(--soot);margin:0 .45rem}
+.kid.readthru{opacity:.55;font-style:italic}
+.pager{display:flex;align-items:center;justify-content:center;gap:1rem;margin:14px 0 0;color:var(--steel);font-size:.84rem}
+.pager button{padding:7px 13px;border:1px solid var(--soot);background:var(--iron);color:var(--dim-ash);font:inherit;font-size:.82rem;font-weight:700;cursor:pointer}
+.pager button:disabled{opacity:.35;cursor:not-allowed}
+.pager button:not(:disabled):hover{background:var(--raised-iron);color:var(--ash)}
+.empty{padding:2.6rem 1rem;text-align:center;color:var(--steel)}
+.empty strong{display:block;margin-bottom:.4rem;color:var(--dim-ash);font-size:1rem}
+.skel{height:.72rem;background:linear-gradient(90deg,var(--raised-iron),var(--soot),var(--raised-iron));background-size:200% 100%;animation:sh 1.3s linear infinite}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.states{display:grid;gap:16px;margin-top:26px}
+.state-lab{margin:0 0 8px;color:var(--hot-blood);font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+
+/* variant B — two-line */
+.b-name{display:flex;flex-direction:column;gap:.12rem;white-space:normal}
+.b-name .sub{color:var(--steel);font-size:.78rem}
+.b-meta{color:var(--dim-ash);font-size:.82rem}
+/* variant C — accent bar */
+.c-tbl tbody td{border-bottom:0;padding:.72rem .7rem}
+.c-tbl tbody tr.row{background:var(--iron);box-shadow:inset 3px 0 0 var(--rust-plate)}
+.c-tbl tbody tr.row:hover{background:var(--raised-iron);box-shadow:inset 3px 0 0 var(--hot-blood)}
+.c-tbl tbody tr.row.act{box-shadow:inset 3px 0 0 var(--create-green)}
+.c-tbl tbody tr.spacer td{padding:0;height:5px;background:transparent}
+.c-nums{display:inline-flex;gap:1.1rem;align-items:baseline}
+.c-nums span{display:inline-flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.c-nums em{font-style:normal;color:var(--steel);font-size:.66rem;letter-spacing:.07em;text-transform:uppercase}
+.c-nums b{font-size:.98rem;font-weight:800}
+
+/* rankings mockup */
+.scope{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px;padding:12px;border:1px solid var(--soot);background:var(--iron)}
+.badge{display:inline-flex;align-items:center;gap:.4rem;padding:.28rem .6rem;border:1px solid color-mix(in oklch,var(--hot-blood) 50%,var(--soot));background:color-mix(in oklch,var(--blood) 16%,var(--iron));color:var(--ash);font-size:.75rem;font-weight:800}
+.prov{color:var(--steel);font-size:.72rem;font-weight:700;margin-left:.35rem}
+.delta.up{color:var(--create-green-hot)}
+.delta.dn{color:var(--hot-blood)}
+.rk{font-weight:900;color:var(--ash)}
+@media(max-width:640px){.wrap{width:calc(100% - 20px)}.switcher{position:static}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="doc-head">
+  <span class="eyebrow">Gones · Archive rebuild · Prototypes</span>
+  <h1>Archive table — three variants</h1>
+  <p class="lede">Same data, same six columns, same behaviour contract — three different treatments of the League Seasons tab, plus the filtered Global Rankings. Real theme tokens from <code>src/styles.css</code>, not an approximation. Click any row to expand it.</p>
+  <div class="note">
+    <b>What is identical across all three</b> — column order <code>Name · Last played · Updated · #Tournaments · Players · Status</code>; default sort Last played descending; the Name cell is the link and the rest of the row toggles expansion; expanded children are one continuous clickable line; year selector; search; query-string state.
+    <b>What differs</b> — density, how the numbers are grouped, and how much the row separates from its neighbours.
+  </div>
+</div>
+
+<nav class="switcher" role="tablist">
+  <button role="tab" aria-selected="true" data-p="a">A · Dense grid</button>
+  <button role="tab" aria-selected="false" data-p="b">B · Two-line rows</button>
+  <button role="tab" aria-selected="false" data-p="c">C · Spaced panels</button>
+  <span class="sep"></span>
+  <button role="tab" aria-selected="false" data-p="r">Global Rankings · scoped</button>
+  <button role="tab" aria-selected="false" data-p="s">Edge states</button>
+</nav>
+
+<!-- ============ VARIANT A ============ -->
+<section class="panel on" id="p-a">
+  <h3 class="vhead">Variant A — Dense grid</h3>
+  <p class="vsub">The Global Rankings table, reused. Tight rows, hard column alignment, zebra striping. Maximum rows per screen; the most "data tool" of the three.</p>
+  <div class="tradeoff">
+    <span class="tag good">most rows visible</span><span class="tag good">consistent with /global-stats</span>
+    <span class="tag good">easiest to scan a column</span><span class="tag bad">6 columns is tight on mobile</span>
+    <span class="tag bad">rows blur together at a glance</span>
+  </div>
+
+  <div class="page-heading">
+    <h2>Archive</h2>
+    <div class="sync-bar"><span>Last synced 2 hours ago</span><button>Synchronize</button></div>
+  </div>
+  <div class="tabs"><a href="#" class="sel">League Seasons</a><a href="#">Tournaments</a></div>
+  <div class="toolbar">
+    <div class="field grow"><label>Search</label><input placeholder="Season or league name…"></div>
+    <div class="field"><label>Year</label><select><option>2026</option><option>2025</option><option>2024</option><option>All loaded</option></select></div>
+    <div class="field"><label>Rows</label><select><option>25</option><option>50</option><option>100</option></select></div>
+    <button class="btn-create">+ New Season</button>
+  </div>
+  <div class="statusline"><span>Page 1 of 3 · 61 seasons</span><span class="dim">Backfilling 2023… 4 of 7 years cached</span></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th class="sortable">Name<span class="arw">↕</span></th>
+        <th class="sortable" aria-sort="descending">Last played<span class="arw">↓</span></th>
+        <th class="sortable">Updated<span class="arw">↕</span></th>
+        <th class="sortable">League<span class="arw">↕</span></th>
+        <th class="sortable num">Tourn.<span class="arw">↕</span></th>
+        <th class="sortable num">Players<span class="arw">↕</span></th>
+        <th class="sortable">Status<span class="arw">↕</span></th>
+      </tr></thead>
+      <tbody id="a-body"></tbody>
+    </table>
+  </div>
+  <div class="pager"><button disabled>Previous</button><span>Page 1 of 3</span><button>Next</button></div>
+</section>
+
+<!-- ============ VARIANT B ============ -->
+<section class="panel" id="p-b">
+  <h3 class="vhead">Variant B — Two-line rows</h3>
+  <p class="vsub">Name and League stack in one cell; the two dates share a cell. Four visual columns instead of six, so nothing is squeezed and mobile needs no horizontal scroll — at the cost of column alignment you can scan straight down.</p>
+  <div class="tradeoff">
+    <span class="tag good">no horizontal scroll on mobile</span><span class="tag good">name gets room to breathe</span>
+    <span class="tag good">league always visible, never truncated</span><span class="tag bad">cannot scan a column vertically</span>
+    <span class="tag bad">sorting by a stacked field is less obvious</span>
+  </div>
+
+  <div class="page-heading">
+    <h2>Archive</h2>
+    <div class="sync-bar"><span>Last synced 2 hours ago</span><button>Synchronize</button></div>
+  </div>
+  <div class="tabs"><a href="#" class="sel">League Seasons</a><a href="#">Tournaments</a></div>
+  <div class="toolbar">
+    <div class="field grow"><label>Search</label><input placeholder="Season or league name…"></div>
+    <div class="field"><label>Year</label><select><option>2026</option><option>2025</option><option>2024</option><option>All loaded</option></select></div>
+    <button class="btn-create">+ New Season</button>
+  </div>
+  <div class="statusline"><span>Page 1 of 3 · 61 seasons</span><span class="dim">Backfilling 2023… 4 of 7 years cached</span></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th class="sortable">Season / League<span class="arw">↕</span></th>
+        <th class="sortable" aria-sort="descending">Last played / Updated<span class="arw">↓</span></th>
+        <th class="sortable num">Tourn. / Players<span class="arw">↕</span></th>
+        <th class="sortable">Status<span class="arw">↕</span></th>
+      </tr></thead>
+      <tbody id="b-body"></tbody>
+    </table>
+  </div>
+  <div class="pager"><button disabled>Previous</button><span>Page 1 of 3</span><button>Next</button></div>
+</section>
+
+<!-- ============ VARIANT C ============ -->
+<section class="panel" id="p-c">
+  <h3 class="vhead">Variant C — Spaced panels</h3>
+  <p class="vsub">Each row is a separated slab with a status-coloured left edge — green active, rust completed. Numbers cluster with small labels rather than sitting in their own columns. Fewest rows per screen, clearest single row.</p>
+  <div class="tradeoff">
+    <span class="tag good">status readable without reading</span><span class="tag good">rows never blur together</span>
+    <span class="tag good">numbers self-labelling, survives mobile</span><span class="tag bad">~40% fewer rows per screen</span>
+    <span class="tag bad">column-scanning mostly lost</span>
+  </div>
+
+  <div class="page-heading">
+    <h2>Archive</h2>
+    <div class="sync-bar"><span>Last synced 2 hours ago</span><button>Synchronize</button></div>
+  </div>
+  <div class="tabs"><a href="#" class="sel">League Seasons</a><a href="#">Tournaments</a></div>
+  <div class="toolbar">
+    <div class="field grow"><label>Search</label><input placeholder="Season or league name…"></div>
+    <div class="field"><label>Year</label><select><option>2026</option><option>2025</option><option>2024</option><option>All loaded</option></select></div>
+    <div class="field"><label>Sort</label><select><option>Last played ↓</option><option>Name ↑</option><option>Updated ↓</option><option>Players ↓</option></select></div>
+    <button class="btn-create">+ New Season</button>
+  </div>
+  <div class="statusline"><span>Page 1 of 3 · 61 seasons</span><span class="dim">Backfilling 2023… 4 of 7 years cached</span></div>
+
+  <div class="table-wrap">
+    <table class="c-tbl">
+      <thead><tr>
+        <th>Season</th><th>League</th><th>Dates</th><th class="num">Counts</th><th>Status</th>
+      </tr></thead>
+      <tbody id="c-body"></tbody>
+    </table>
+  </div>
+  <div class="pager"><button disabled>Previous</button><span>Page 1 of 3</span><button>Next</button></div>
+</section>
+
+<!-- ============ RANKINGS ============ -->
+<section class="panel" id="p-r">
+  <h3 class="vhead">Global Rankings — scoped filter</h3>
+  <p class="vsub">League select and Season select are each <b>All or exactly one</b>, so every selectable scope has a stored Glicko-2 rating. Positions renumber 1..n within the scope. The badge states which scope the rating was computed in, so a scoped number is never mistaken for the global one.</p>
+  <div class="tradeoff">
+    <span class="tag good">every shown rating actually computed</span><span class="tag good">no on-demand replay</span>
+    <span class="tag good">scope stated, never implied</span><span class="tag bad">cannot combine arbitrary seasons</span>
+  </div>
+
+  <div class="page-heading">
+    <h2>Global Rankings</h2>
+    <div class="sync-bar"><span>Last synced 2 hours ago</span><button>Synchronize</button></div>
+  </div>
+  <div class="scope">
+    <div class="field"><label>League</label><select id="r-league"><option>All leagues</option><option selected>Ligue Lyon</option><option>Circuit Rhône-Alpes</option><option>MTGones Open</option></select></div>
+    <div class="field"><label>Season</label><select id="r-season"><option>All seasons</option><option selected>Ligue Lyon 2026</option><option>Ligue Lyon 2025</option><option>Ligue Lyon 2024</option></select></div>
+    <div class="field grow"><label>Search</label><input placeholder="Player name…"></div>
+    <span class="badge">◆ Rating scope: Ligue Lyon 2026</span>
+  </div>
+  <div class="statusline"><span>Page 1 of 1 · 18 ranked players in this scope</span><span class="dim">?league=lyon&amp;season=lyon-2026&amp;sort=rating&amp;dir=desc</span></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th class="num">#</th><th>Player</th>
+        <th class="sortable num" aria-sort="descending">Rating<span class="arw">↓</span></th>
+        <th class="num">Δ</th>
+        <th class="sortable num">Tourn.<span class="arw">↕</span></th>
+        <th class="sortable num">Matches<span class="arw">↕</span></th>
+        <th class="sortable num">W<span class="arw">↕</span></th>
+        <th class="sortable num">L<span class="arw">↕</span></th>
+        <th class="sortable num">Winrate<span class="arw">↕</span></th>
+        <th>Archetype</th>
+      </tr></thead>
+      <tbody id="r-body"></tbody>
+    </table>
+  </div>
+  <div class="note" style="margin-top:14px"><b>Note the counts.</b> Matches, tournaments and winrate are recomputed inside the scope — these are not the player's global numbers filtered down, they are their record <em>in this season</em>. The rating likewise comes from the <code>('season','lyon-2026',…)</code> row of <code>player_statistics</code>, not the global one.</div>
+</section>
+
+<!-- ============ STATES ============ -->
+<section class="panel" id="p-s">
+  <h3 class="vhead">Edge states</h3>
+  <p class="vsub">The states the table has to survive. Shown in variant A's treatment; all three behave identically.</p>
+
+  <div class="states">
+    <div>
+      <p class="state-lab">Loading — skeleton, no spinner, layout does not jump</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Last played</th><th>Updated</th><th>League</th><th class="num">Tourn.</th><th class="num">Players</th><th>Status</th></tr></thead>
+        <tbody id="s-load"></tbody>
+      </table></div>
+    </div>
+
+    <div>
+      <p class="state-lab">Empty — search matched nothing</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Last played</th><th>Updated</th><th>League</th><th class="num">Tourn.</th><th class="num">Players</th><th>Status</th></tr></thead>
+        <tbody><tr><td colspan="7"><div class="empty"><strong>No season matches “vintage”</strong>Try a different search, or switch the year filter — only 2026 and 2025 are cached so far.</div></td></tr></tbody>
+      </table></div>
+    </div>
+
+    <div>
+      <p class="state-lab">Truncated — server row cap hit</p>
+      <div class="warnbar"><b>Showing the first 5,000 of 6,214 tournaments.</b> This archive is larger than one catalog request returns. Narrow the year or search to reach the rest.</div>
+    </div>
+
+    <div>
+      <p class="state-lab">Read-through — expanding a Season whose years are not cached</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Last played</th><th>Updated</th><th>League</th><th class="num">Tourn.</th><th class="num">Players</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr class="row open"><td><span class="chev">▸</span> <a href="#" class="nm">Ligue Lyon 2019</a></td><td>2019-11-24</td><td>2019-12-02</td><td class="lg">Ligue Lyon</td><td class="num">9</td><td class="num">57</td><td><span class="status completed"><span class="status-dot"></span>Completed</span><span class="lock" title="Locked — older than 365 days">🔒</span></td></tr>
+          <tr class="kids"><td colspan="7"><div class="kidlist">
+            <span class="kid readthru">Fetching 9 tournaments from the server — 2019 is not cached in this browser…</span>
+          </div></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note" style="margin-top:10px">Rendered from <code>GET /api/archive/league-seasons/{id}/tournaments</code>, <b>not written to IndexedDB</b> — that keeps the backfill queue the single writer and the year partition atomic. The 🔒 marks a locked Season: every one of its Tournaments is older than 365 days, so only an Admin can change them.</div>
+    </div>
+  </div>
+</section>
+
+<div class="note" style="margin-top:34px">
+  <b>To choose:</b> pick A, B or C, or mix — e.g. “C's left accent bar on A's density”. The Rankings mockup is not a variant; it is the one agreed design and is here for review. Nothing here is frozen until you say so.
+</div>
+
+</div>
+
+<script>
+const SEASONS=[
+ {n:"Ligue Lyon 2026",lg:"Ligue Lyon",lp:"2026-08-17",up:"2026-08-18",t:12,p:84,st:"active",lock:false,
+  kids:[["2026-08-17","Étape 12 — Modern",24,"completed"],["2026-07-20","Étape 11 — Modern",22,"completed"],["2026-06-15","Étape 10 — Modern",26,"completed"],["2026-05-18","Étape 9 — Modern",19,"completed"]]},
+ {n:"Circuit Rhône-Alpes 2026",lg:"Circuit Rhône-Alpes",lp:"2026-08-09",up:"2026-08-11",t:6,p:118,st:"active",lock:false,
+  kids:[["2026-08-09","Manche Grenoble",41,"completed"],["2026-06-21","Manche Chambéry",38,"completed"],["2026-04-12","Manche Annecy",39,"completed"]]},
+ {n:"MTGones Open 2026",lg:"MTGones Open",lp:"2026-07-05",up:"2026-07-06",t:3,p:96,st:"active",lock:false,
+  kids:[["2026-07-05","Open d'été",52,"completed"],["2026-03-15","Open de printemps",44,"active"]]},
+ {n:"Ligue Lyon 2025",lg:"Ligue Lyon",lp:"2025-12-14",up:"2026-01-08",t:14,p:91,st:"completed",lock:false,
+  kids:[["2025-12-14","Étape 14 — Modern",27,"completed"],["2025-11-16","Étape 13 — Modern",25,"completed"],["2025-10-19","Étape 12 — Modern",23,"completed"]]},
+ {n:"Circuit Rhône-Alpes 2025",lg:"Circuit Rhône-Alpes",lp:"2025-11-30",up:"2025-12-02",t:7,p:134,st:"completed",lock:false,
+  kids:[["2025-11-30","Manche Valence",47,"completed"],["2025-09-14","Manche Saint-Étienne",43,"completed"]]},
+ {n:"Ligue Lyon 2024",lg:"Ligue Lyon",lp:"2024-12-08",up:"2024-12-15",t:13,p:78,st:"completed",lock:true,
+  kids:[["2024-12-08","Étape 13 — Modern",21,"completed"],["2024-11-10","Étape 12 — Modern",24,"completed"]]},
+ {n:"Coupe de Bourgogne 2024",lg:"Coupe de Bourgogne",lp:"2024-10-20",up:"2024-10-22",t:5,p:62,st:"completed",lock:true,
+  kids:[["2024-10-20","Finale Dijon",34,"completed"],["2024-08-25","Qualif Beaune",28,"completed"]]}
+];
+const RANK=[
+ {p:"Aurélien Vasseur",r:1742,d:+18,t:11,m:47,w:32,l:11,wr:"68.1%",a:"Izzet Murktide"},
+ {p:"Camille Fontaine",r:1698,d:+7,t:12,m:52,w:33,l:14,wr:"63.5%",a:"Amulet Titan"},
+ {p:"Théo Marchand",r:1671,d:-12,t:10,m:44,w:27,l:13,wr:"61.4%",a:"Hammer Time"},
+ {p:"Salomé Bertrand",r:1655,d:+23,t:12,m:50,w:30,l:16,wr:"60.0%",a:"Rakdos Scam"},
+ {p:"Nadia Lemoine",r:1620,d:-4,t:9,m:38,w:22,l:13,wr:"57.9%",a:"Yawgmoth"},
+ {p:"Youssef Barreau",r:1588,d:+11,t:11,m:45,w:25,l:17,wr:"55.6%",a:"Living End"},
+ {p:"Margaux Delcourt",r:1541,d:-9,t:8,m:33,w:17,l:14,wr:"51.5%",a:"Tron"},
+ {p:"Ilan Moreau",r:1503,d:+2,t:3,m:12,w:6,l:5,wr:"50.0%",a:"Burn",prov:true}
+];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const st=s=>s==='active'?'<span class="status"><span class="status-dot"></span>Active</span>':'<span class="status completed"><span class="status-dot"></span>Completed</span>';
+const lk=s=>s.lock?'<span class="lock" title="Locked — every tournament older than 365 days">🔒</span>':'';
+function kidsRow(s,span){
+  return '<tr class="kids" hidden><td colspan="'+span+'"><div class="kidlist">'+
+    s.kids.map(k=>'<a class="kid" href="#"><b>'+esc(k[1])+'</b><span class="sep">·</span>'+k[0]+
+      '<span class="sep">·</span>'+k[2]+' players<span class="sep">·</span>'+k[3]+'</a>').join('')+
+    (s.kids.length<s.t?'<a class="kid" href="#"><b>Show all '+s.t+' tournaments</b></a>':'')+
+    '</div></td></tr>';
+}
+// A
+document.getElementById('a-body').innerHTML=SEASONS.map(s=>
+ '<tr class="row"><td><span class="chev">▸</span> <a href="#" class="nm">'+esc(s.n)+'</a></td>'+
+ '<td>'+s.lp+'</td><td class="dim">'+s.up+'</td><td class="lg">'+esc(s.lg)+'</td>'+
+ '<td class="num">'+s.t+'</td><td class="num">'+s.p+'</td><td>'+st(s.st)+lk(s)+'</td></tr>'+kidsRow(s,7)).join('');
+// B
+document.getElementById('b-body').innerHTML=SEASONS.map(s=>
+ '<tr class="row"><td><span class="b-name"><span><span class="chev">▸</span> <a href="#" class="nm">'+esc(s.n)+'</a></span>'+
+ '<span class="sub">'+esc(s.lg)+'</span></span></td>'+
+ '<td class="b-meta">'+s.lp+'<br><span class="dim">upd. '+s.up+'</span></td>'+
+ '<td class="num b-meta">'+s.t+' tourn.<br><span class="dim">'+s.p+' players</span></td>'+
+ '<td>'+st(s.st)+lk(s)+'</td></tr>'+kidsRow(s,4)).join('');
+// C
+document.getElementById('c-body').innerHTML=SEASONS.map(s=>
+ '<tr class="row'+(s.st==='active'?' act':'')+'"><td><span class="chev">▸</span> <a href="#" class="nm">'+esc(s.n)+'</a></td>'+
+ '<td class="lg">'+esc(s.lg)+'</td>'+
+ '<td class="dim" style="font-size:.84rem">'+s.lp+' <span style="color:var(--soot)">/</span> '+s.up+'</td>'+
+ '<td class="num"><span class="c-nums"><span><em>Tourn</em><b>'+s.t+'</b></span><span><em>Players</em><b>'+s.p+'</b></span></span></td>'+
+ '<td>'+st(s.st)+lk(s)+'</td></tr>'+kidsRow(s,5)+'<tr class="spacer"><td colspan="5"></td></tr>').join('');
+// rankings
+document.getElementById('r-body').innerHTML=RANK.map((x,i)=>
+ '<tr class="row"><td class="num rk">'+(i+1)+'</td>'+
+ '<td><a href="#" class="nm">'+esc(x.p)+'</a>'+(x.prov?'<span class="prov">provisional</span>':'')+'</td>'+
+ '<td class="num"><b>'+x.r+'</b></td>'+
+ '<td class="num delta '+(x.d>=0?'up':'dn')+'">'+(x.d>=0?'+':'')+x.d+'</td>'+
+ '<td class="num">'+x.t+'</td><td class="num">'+x.m+'</td><td class="num">'+x.w+'</td><td class="num">'+x.l+'</td>'+
+ '<td class="num">'+x.wr+'</td><td class="lg">'+esc(x.a)+'</td></tr>').join('');
+// loading skeleton
+document.getElementById('s-load').innerHTML=Array.from({length:5},(_,i)=>
+ '<tr class="row"><td><div class="skel" style="width:'+(58+i*7)+'%"></div></td>'+
+ '<td><div class="skel" style="width:76%"></div></td><td><div class="skel" style="width:76%"></div></td>'+
+ '<td><div class="skel" style="width:64%"></div></td><td><div class="skel" style="width:42%"></div></td>'+
+ '<td><div class="skel" style="width:42%"></div></td><td><div class="skel" style="width:70%"></div></td></tr>').join('');
+
+// expand: row toggles, Name link navigates
+document.addEventListener('click',e=>{
+  const a=e.target.closest('a.nm');
+  if(a){e.preventDefault();alert('Navigate → /archive/league-seasons/:seasonId\n\nThe Name cell is the link. The rest of the row toggles expansion.');return;}
+  if(e.target.closest('a.kid')){e.preventDefault();alert('Navigate → /archive/tournaments/:tournamentId\n\nThe whole child line is one link.');return;}
+  const row=e.target.closest('tr.row');
+  if(!row||!row.parentElement.closest('#p-a,#p-b,#p-c'))return;
+  const kids=row.nextElementSibling;
+  if(!kids||!kids.classList.contains('kids'))return;
+  row.classList.toggle('open');kids.hidden=!kids.hidden;
+});
+// variant switcher
+document.querySelectorAll('.switcher button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.switcher button').forEach(x=>x.setAttribute('aria-selected',x===b));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.p));
+  window.scrollTo({top:0,behavior:'smooth'});
+}));
+</script>
+</body>
+</html>
