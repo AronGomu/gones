@@ -334,6 +334,68 @@ public sealed class ArchiveAggregateTests
     }
 
     [Fact]
+    public void ApplyAndMove_edits_and_moves_in_exactly_one_bump()
+    {
+        var tournament = ArchiveTournament.Create(
+            Tournament("t1", "s1", "2026-05-04", Match("m1", "Ada", "Bo", 2, 0)),
+            Now);
+
+        tournament.ApplyAndMove(
+            Tournament("t1", "s1", "2026-06-05", Match("m1", "Ada", "Bo", 2, 0), Match("m2", "Cy", "Dot", 0, 2)) with { Name = "Renamed" },
+            "s2",
+            Later);
+
+        Assert.Equal("s2", tournament.SeasonId);
+        Assert.Equal("s2", tournament.ReadDocument().SeasonId);
+        Assert.Equal("Renamed", tournament.Name);
+        Assert.Equal(new LocalDate(2026, 6, 5), tournament.TournamentDate);
+        Assert.Equal(4, tournament.PlayerCount);
+        Assert.Equal(2, tournament.Version);
+        Assert.Equal(Later, tournament.UpdatedAt);
+    }
+
+    [Fact]
+    public void ApplyAndMove_detaches_and_edits_in_exactly_one_bump()
+    {
+        var tournament = ArchiveTournament.Create(
+            Tournament("t1", "s1", "2026-05-04", Match("m1", "Ada", "Bo", 2, 0)),
+            Now);
+
+        tournament.ApplyAndMove(Tournament("t1", "s1", "2026-05-04", Match("m1", "Ada", "Bo", 2, 0)) with { Name = "Renamed" }, null, Later);
+
+        Assert.Null(tournament.SeasonId);
+        // The document key is dropped rather than nulled, or the metadata check constraint would abort.
+        Assert.Null(tournament.ReadDocument().SeasonId);
+        Assert.Equal("Renamed", tournament.Name);
+        Assert.Equal(2, tournament.Version);
+    }
+
+    [Fact]
+    public void ApplyAndMove_with_nothing_to_change_bumps_nothing()
+    {
+        var document = Tournament("t1", "s1", "2026-05-04", Match("m1", "Ada", "Bo", 2, 0));
+        var tournament = ArchiveTournament.Create(document, Now);
+
+        tournament.ApplyAndMove(document, "s1", Later);
+
+        Assert.Equal(1, tournament.Version);
+        Assert.Equal(Now, tournament.UpdatedAt);
+    }
+
+    [Fact]
+    public void ApplyAndMove_rejects_a_document_ID_change()
+    {
+        var tournament = ArchiveTournament.Create(
+            Tournament("t1", "s1", "2026-05-04", Match("m1", "Ada", "Bo", 2, 0)),
+            Now);
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => tournament.ApplyAndMove(Tournament("t2", "s1", "2026-05-04", Match("m1", "Ada", "Bo", 2, 0)), "s2", Later));
+
+        Assert.StartsWith("Tournament document ID cannot change.", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MoveToSeason_rewrites_the_stored_document()
     {
         var tournament = ArchiveTournament.Create(

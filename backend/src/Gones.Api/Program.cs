@@ -120,6 +120,7 @@ else
     builder.Services.AddScoped<OrganizerParticipantService>();
     builder.Services.AddScoped<LeagueCommandService>();
     builder.Services.AddScoped<ArchiveCommandService>();
+    builder.Services.AddScoped<ArchiveTournamentCommandService>();
     builder.Services.AddScoped<PlayerNameMaintenanceService>();
     builder.Services.AddSingleton<PlayerStatisticsRebuildService>();
     // Both startup repairs are inserted first on purpose: the web host registers its own hosted service
@@ -241,6 +242,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapPublicLeagueEndpoints();
     app.MapLeagueCommandEndpoints();
     app.MapArchiveCommandEndpoints();
+    app.MapArchiveTournamentCommandEndpoints();
     app.MapPlayerNameMaintenanceEndpoints();
     app.MapPlayerEndpoints();
     app.MapPublicLiveEndpoints();

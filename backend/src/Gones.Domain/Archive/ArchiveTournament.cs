@@ -65,14 +65,34 @@ public sealed class ArchiveTournament
             throw new ArgumentException("Tournament document ID cannot change.", nameof(document));
         if (ArchiveValidation.NormalizeSeasonId(document.SeasonId, MaximumDocumentIdLength) != SeasonId)
             throw new ArgumentException("Tournament Season ID cannot change; use MoveToSeason.", nameof(document));
+        ApplyAndMove(document, SeasonId, now);
+    }
+
+    /// <summary>
+    /// Edits content and Season together, in a single version bump. <see cref="Apply"/> plus
+    /// <see cref="MoveToSeason"/> would bump twice, and one staged edit batch that both edits and moves
+    /// a Tournament owes its caller exactly one bump (ADR 0037). <see cref="Apply"/> delegates here with
+    /// the current Season, so there is one write path and one idempotency rule.
+    /// </summary>
+    /// <param name="seasonId">The Season to end up in; <c>null</c> detaches to standalone.</param>
+    public void ApplyAndMove(ArchiveTournamentDocument document, string? seasonId, Instant now)
+    {
+        EnsureWritable();
+        if (document.Id != DocumentId)
+            throw new ArgumentException("Tournament document ID cannot change.", nameof(document));
         ValidateDocument(document);
         var date = ParseTournamentDate(document.TournamentDate);
-        var normalized = document with { SeasonId = SeasonId };
+        // The stored JSON and the season_id column move together, or
+        // ck_archive_tournament_document_metadata rejects the write. LeagueJson omits a null, so a
+        // detach drops the key rather than nulling it.
+        var target = ArchiveValidation.NormalizeSeasonId(seasonId, MaximumDocumentIdLength);
+        var normalized = document with { SeasonId = target };
         var canonical = SerializeBounded(normalized);
         // A replayed command is idempotent: nothing changed, so nothing is bumped.
-        if (canonical == Document && normalized.Name == Name && date == TournamentDate && normalized.Status == Status)
+        if (canonical == Document && normalized.Name == Name && date == TournamentDate && normalized.Status == Status && target == SeasonId)
             return;
 
+        SeasonId = target;
         Name = normalized.Name;
         TournamentDate = date;
         Status = normalized.Status;
