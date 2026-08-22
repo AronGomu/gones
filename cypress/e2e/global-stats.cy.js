@@ -45,7 +45,7 @@ function mockCatalog(items = [BASE_ROW]) {
 // ---------------------------------------------------------------------------
 // Headers
 // ---------------------------------------------------------------------------
-describe('Global Stats — 12 column headers', () => {
+describe('Global Stats — 11 column headers', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
     mockCatalog();
@@ -56,9 +56,9 @@ describe('Global Stats — 12 column headers', () => {
     cy.wait('@catalog');
   });
 
-  const HEADERS = ['#', 'Player', 'Rating', 'Tournaments', 'Matches', 'Wins', 'Losses', 'Draw', 'M%', 'Nemesis', 'Rival', 'Archetype (matches)'];
+  const HEADERS = ['#', 'Player', 'Rating', 'Tournaments', 'Matches', 'Wins', 'Losses', 'Draw', 'M%', 'Rival', 'Archetype (matches)'];
 
-  it('renders all 12 column headers in order', () => {
+  it('renders all 11 column headers in order', () => {
     cy.get('[data-cy="global-stats-table"]').within(() => {
       cy.get('th').then(($headers) => {
         const texts = [...$headers].map((el) => el.textContent.trim());
@@ -148,14 +148,12 @@ describe('Global Stats — cell formatting', () => {
     cy.get('[data-cy="global-stats-cell-match-winrate-2"]').should('have.text', '—');
   });
 
-  it('shows — for null nemesis/rival/archetype on Bob', () => {
-    cy.get('[data-cy="global-stats-cell-nemesis-2"]').should('have.text', '—');
+  it('shows — for null rival/archetype on Bob', () => {
     cy.get('[data-cy="global-stats-cell-rival-2"]').should('have.text', '—');
     cy.get('[data-cy="global-stats-cell-archetype-2"]').should('have.text', '—');
   });
 
-  it('shows Name (W-L) for opponent columns on Alice', () => {
-    cy.get('[data-cy="global-stats-cell-nemesis-1"]').should('have.text', 'Bob (3-2)');
+  it('shows Name (W-L) for the rival column on Alice', () => {
     cy.get('[data-cy="global-stats-cell-rival-1"]').should('have.text', 'Carol (4-4)');
   });
 

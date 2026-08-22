@@ -4,6 +4,7 @@ import {
   GLOBAL_STATS_PAGE_SIZES,
   GLOBAL_STATS_GATED_SORT_COLS,
   GLOBAL_STATS_SORTABLE_COLS,
+  globalStatsPageWindow,
   parseGlobalStatsQuery,
   sortGlobalStatsRows,
   toggleGlobalStatsSort,
@@ -271,6 +272,57 @@ describe('sortGlobalStatsRows', () => {
     expect(names(sortGlobalStatsRows(rows, 'rating', 'desc'))).toEqual(['High', 'Mid', 'Low']);
   });
 
+  /**
+   * Clicking Rating must not lift an unranked newcomer over the ranked table: the provisional bucket
+   * stays last whichever direction is asked for, exactly as `PublicLeagueEndpoints.GlobalSortByRating`
+   * orders it.
+   */
+  it('keeps provisional players last on a rating sort in both directions', () => {
+    const rows = [
+      row('Newcomer', { provisional: true, rating: 2100 }),
+      row('Low', { rating: 1200, provisional: false, inactive: false }),
+      row('High', { rating: 1800, provisional: false, inactive: false }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'rating', 'desc'))).toEqual(['High', 'Low', 'Newcomer']);
+    expect(names(sortGlobalStatsRows(rows, 'rating', 'asc'))).toEqual(['Low', 'High', 'Newcomer']);
+  });
+
+  it('orders the provisional block by the rating that was asked for', () => {
+    const rows = [
+      row('ProvLow', { provisional: true, rating: 1300 }),
+      row('ProvHigh', { provisional: true, rating: 1700 }),
+      row('Ranked', { rating: 1400, provisional: false, inactive: false }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'rating', 'desc'))).toEqual(['Ranked', 'ProvHigh', 'ProvLow']);
+    expect(names(sortGlobalStatsRows(rows, 'rating', 'asc'))).toEqual(['Ranked', 'ProvLow', 'ProvHigh']);
+  });
+
+  /** Only the provisional bucket is pinned: an idle ranked player still sorts on the rating itself. */
+  it('leaves inactive ranked players inside the rating order', () => {
+    const rows = [
+      row('Idle', { rating: 2000, provisional: false, inactive: true }),
+      row('Playing', { rating: 1600, provisional: false, inactive: false }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'rating', 'desc'))).toEqual(['Idle', 'Playing']);
+  });
+
+  it('keeps provisional players last on a decayed rating sort too', () => {
+    const rows = [
+      row('Newcomer', { provisional: true, decayedRating: 2100 }),
+      row('Ranked', { decayedRating: 1400, provisional: false, inactive: false }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'decayedRating', 'desc'))).toEqual(['Ranked', 'Newcomer']);
+  });
+
+  /** The pin is a rating rule: every other column still orders on the value alone. */
+  it('does not pin provisional players on a non-rating sort', () => {
+    const rows = [
+      row('Newcomer', { provisional: true, matchWins: 9 }),
+      row('Ranked', { matchWins: 2, provisional: false, inactive: false }),
+    ];
+    expect(names(sortGlobalStatsRows(rows, 'matchWins', 'desc'))).toEqual(['Newcomer', 'Ranked']);
+  });
+
   it('tournamentsPlayed is a sortable column', () => {
     const rows = [
       row('Few', { tournamentsPlayed: 2 }),
@@ -320,5 +372,35 @@ describe('sortGlobalStatsRows', () => {
     ];
     expect(names(sortGlobalStatsRows(rows, 'decayedRating', 'asc'))).toEqual(['Cy', 'Bo', 'Ana']);
     expect(names(sortGlobalStatsRows(rows, 'decayedRating', 'desc'))).toEqual(['Bo', 'Cy', 'Ana']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Page window
+// ---------------------------------------------------------------------------
+describe('globalStatsPageWindow', () => {
+  it('lists every page when there is no run to elide', () => {
+    expect(globalStatsPageWindow(1, 1)).toEqual([1]);
+    expect(globalStatsPageWindow(2, 4)).toEqual([1, 2, 3, 4]);
+    expect(globalStatsPageWindow(3, 5)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('elides the run between the first page and the current neighbourhood', () => {
+    expect(globalStatsPageWindow(9, 20)).toEqual([1, 'gap', 8, 9, 10, 'gap', 20]);
+  });
+
+  it('keeps the edges adjacent rather than printing a gap over one page', () => {
+    expect(globalStatsPageWindow(3, 20)).toEqual([1, 2, 3, 4, 'gap', 20]);
+    expect(globalStatsPageWindow(18, 20)).toEqual([1, 'gap', 17, 18, 19, 20]);
+  });
+
+  it('never repeats the first or the last page', () => {
+    expect(globalStatsPageWindow(1, 20)).toEqual([1, 2, 'gap', 20]);
+    expect(globalStatsPageWindow(20, 20)).toEqual([1, 'gap', 19, 20]);
+  });
+
+  it('clamps a page outside the range', () => {
+    expect(globalStatsPageWindow(0, 3)).toEqual([1, 2, 3]);
+    expect(globalStatsPageWindow(99, 3)).toEqual([1, 2, 3]);
   });
 });

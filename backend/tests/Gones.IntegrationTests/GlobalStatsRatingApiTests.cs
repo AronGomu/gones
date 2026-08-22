@@ -221,11 +221,36 @@ public sealed class GlobalStatsRatingApiTests : IAsyncLifetime
         Assert.Equal("rating", body.GetProperty("sort").GetString());
 
         var items = body.GetProperty("items").EnumerateArray().ToArray();
-        var ratings = items.Select(item => item.GetProperty("rating").GetInt32()).ToArray();
-        Assert.Equal(ratings.Order().ToArray(), ratings);
-        // Buckets are ignored on an explicit sort: the lowest-rated player is provisional and leads.
-        Assert.Equal("ProvTiedMore", items[0].GetProperty("playerName").GetString());
-        Assert.Equal("Inactive2000", items[^1].GetProperty("playerName").GetString());
+        // A rating under five Tournaments is not comparable to a ranked one, so the provisional block
+        // stays at the bottom of an explicit rating sort too; each block is ordered by the rating asked
+        // for. Ascending, that puts the lowest ranked player first and the highest provisional one last.
+        var ranked = items.TakeWhile(item => !item.GetProperty("provisional").GetBoolean()).ToArray();
+        var provisional = items.Skip(ranked.Length).ToArray();
+        Assert.All(provisional, item => Assert.True(item.GetProperty("provisional").GetBoolean()));
+        Assert.Equal(Ratings(ranked).Order().ToArray(), Ratings(ranked));
+        Assert.Equal(Ratings(provisional).Order().ToArray(), Ratings(provisional));
+        Assert.Equal("IdleTwelve", items[0].GetProperty("playerName").GetString());
+        Assert.Equal("Inactive2000", ranked[^1].GetProperty("playerName").GetString());
+        Assert.Equal("Provisional1900", items[^1].GetProperty("playerName").GetString());
+    }
+
+    [Fact]
+    public async Task Keeps_provisional_players_last_on_a_descending_rating_sort()
+    {
+        using var response = await Client.GetAsync($"{Path}?pageSize=100&sort=rating&direction=desc");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        var items = body.GetProperty("items").EnumerateArray().ToArray();
+        var ranked = items.TakeWhile(item => !item.GetProperty("provisional").GetBoolean()).ToArray();
+        var provisional = items.Skip(ranked.Length).ToArray();
+        Assert.All(provisional, item => Assert.True(item.GetProperty("provisional").GetBoolean()));
+        // A 1900 provisional rating outranks every ranked player but one and still sorts below all of
+        // them — the pin is not a side effect of the direction.
+        Assert.Equal("Inactive2000", items[0].GetProperty("playerName").GetString());
+        Assert.Equal("Provisional1900", provisional[0].GetProperty("playerName").GetString());
+        Assert.Equal(Ratings(ranked).OrderDescending().ToArray(), Ratings(ranked));
+        Assert.Equal(Ratings(provisional).OrderDescending().ToArray(), Ratings(provisional));
     }
 
     [Fact]
@@ -333,6 +358,9 @@ public sealed class GlobalStatsRatingApiTests : IAsyncLifetime
             .Single(item => item.GetProperty("playerName").GetString() == playerName)
             .Clone();
     }
+
+    private static int[] Ratings(IEnumerable<JsonElement> rows) =>
+        [.. rows.Select(row => row.GetProperty("rating").GetInt32())];
 
     private async Task<string[]> DefaultNamesAsync()
     {

@@ -23,7 +23,7 @@ const source = readFileSync(join(__dirname, 'global-stats.component.ts'), 'utf8'
 // ---------------------------------------------------------------------------
 // Template structure checks
 // ---------------------------------------------------------------------------
-describe('GlobalStatsComponent template — 12 column headers', () => {
+describe('GlobalStatsComponent template — 11 column headers', () => {
   const COL_DATA_CY = [
     'global-stats-col-position',
     'global-stats-col-player',
@@ -34,12 +34,11 @@ describe('GlobalStatsComponent template — 12 column headers', () => {
     'global-stats-col-match-losses',
     'global-stats-col-match-draws',
     'global-stats-col-match-winrate',
-    'global-stats-col-nemesis',
     'global-stats-col-rival',
     'global-stats-col-archetype',
   ];
 
-  it('contains all 12 column header data-cy values in order', () => {
+  it('contains all 11 column header data-cy values in order', () => {
     for (const cy of COL_DATA_CY) {
       expect(source, `missing: ${cy}`).toContain(`"${cy}"`);
     }
@@ -52,6 +51,11 @@ describe('GlobalStatsComponent template — 12 column headers', () => {
   it('drops the game columns', () => {
     expect(source).not.toMatch(/data-cy="global-stats-col-game/);
     expect(source).not.toContain('data-cy="global-stats-col-games"');
+  });
+
+  it('drops the nemesis column', () => {
+    expect(source).not.toContain('global-stats-col-nemesis');
+    expect(source).not.toContain('global-stats-cell-nemesis-');
   });
 
   it('empty row uses a computed colspan bound to visibleColumnCount()', () => {
@@ -74,7 +78,6 @@ describe('GlobalStatsComponent template — sortable headers', () => {
   const NOT_SORTABLE = [
     'global-stats-col-position',
     'global-stats-col-player',
-    'global-stats-col-nemesis',
     'global-stats-col-rival',
     'global-stats-col-archetype',
   ];
@@ -125,13 +128,47 @@ describe('GlobalStatsComponent template — search form and paging', () => {
     expect(source).toContain('data-cy="global-stats-page-size-select"');
   });
 
-  it('contains Previous and Next buttons', () => {
-    expect(source).toContain('data-cy="global-stats-page-previous"');
-    expect(source).toContain('data-cy="global-stats-page-next"');
+  it('paginates by page number alone — no first, previous, next or last buttons', () => {
+    expect(source).not.toContain('global-stats-page-previous');
+    expect(source).not.toContain('global-stats-page-next');
+    expect(source).not.toContain('global-stats-page-first');
+    expect(source).not.toContain('global-stats-page-last');
+    expect(source).not.toContain("i18n.t('common.previous')");
+    expect(source).not.toContain("i18n.t('common.next')");
   });
 
   it('contains a page status element', () => {
     expect(source).toContain('data-cy="global-stats-page-status"');
+  });
+
+  it('renders one numbered button per windowed page', () => {
+    expect(source).toContain("@for (item of pageWindow(); track $index)");
+    expect(source).toContain("'global-stats-page-number-' + place + '-' + item");
+    expect(source).toContain("'global-stats-page-gap-' + place + '-' + $index");
+  });
+
+  it('renders the same pagination above and below the table from one template', () => {
+    expect(source.match(/<ng-template #paginationNav/g)).toHaveLength(1);
+    const top = source.indexOf("$implicit: 'top'");
+    const table = source.indexOf('data-cy="global-stats-table-wrap"');
+    const bottom = source.indexOf("$implicit: 'bottom'");
+    expect(top).toBeGreaterThan(-1);
+    expect(top).toBeLessThan(table);
+    expect(bottom).toBeGreaterThan(table);
+  });
+
+  it('announces the page only once — the status span belongs to the bottom copy', () => {
+    expect(source.match(/data-cy="global-stats-page-status"/g)).toHaveLength(1);
+    expect(source).toContain("@if (place === 'bottom')");
+  });
+
+  it('separates the top pagination from the table', () => {
+    expect(source).toContain("[class.global-stats-pagination--top]=\"place === 'top'\"");
+    expect(source).toMatch(/\.global-stats-pagination--top \{[^}]*margin-bottom/);
+  });
+
+  it('marks the current numbered button with aria-current', () => {
+    expect(source).toContain("[attr.aria-current]");
   });
 
   it('contains a table-wrap container', () => {
@@ -434,6 +471,40 @@ describe('GlobalStatsComponent — sorting without a request', () => {
   });
 });
 
+describe('GlobalStatsComponent — numbered pagination', () => {
+  it('windows the pages around the current one', async () => {
+    const rows = Array.from({ length: 200 }, (_, i) =>
+      makeRow({ playerName: `Player ${i + 1}`, position: i + 1 })
+    );
+    const { comp } = buildComponent(makeCatalogResult(rows));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    comp.currentSize.set(10);
+    expect(comp.totalPages()).toBe(20);
+    expect(comp.pageWindow()).toEqual([1, 2, 'gap', 20]);
+
+    comp.currentPage.set(9);
+    expect(comp.pageWindow()).toEqual([1, 'gap', 8, 9, 10, 'gap', 20]);
+  });
+
+  it('jumps to the last page without calling load again', async () => {
+    const rows = Array.from({ length: 200 }, (_, i) =>
+      makeRow({ playerName: `Player ${i + 1}`, position: i + 1 })
+    );
+    const { comp, load, router } = buildComponent(makeCatalogResult(rows));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    comp.currentSize.set(10);
+    const callCountBefore = load.mock.calls.length;
+    comp.goPage(comp.totalPages());
+
+    expect(load.mock.calls.length).toBe(callCountBefore);
+    expect(router.navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: expect.objectContaining({ page: 20 }) }));
+  });
+});
+
 describe('GlobalStatsComponent — paging without a request', () => {
   it('pages without calling load again', async () => {
     const rows = Array.from({ length: 15 }, (_, i) =>
@@ -460,6 +531,7 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
     'globalStats.pageSizeLabel',
     'globalStats.paginationAria',
     'globalStats.pageStatus',
+    'globalStats.pageAria',
     'globalStats.noResults',
     'globalStats.truncatedWarning',
     'globalStats.colPosition',
@@ -474,7 +546,6 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
     'globalStats.colTournaments',
     'globalStats.provisionalBadge',
     'globalStats.inactiveBadge',
-    'globalStats.colNemesis',
     'globalStats.colRival',
     'globalStats.colArchetype',
     'crumb.globalStats',
@@ -510,13 +581,13 @@ describe('GlobalStatsComponent — decayed rating column', () => {
   it('spans the empty row across the visible columns', async () => {
     const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: 1488 })]));
     await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
-    expect(comp.visibleColumnCount()).toBe(13);
+    expect(comp.visibleColumnCount()).toBe(12);
   });
 
   it('spans the empty row across the visible columns when off', async () => {
     const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: undefined })]));
     await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
-    expect(comp.visibleColumnCount()).toBe(12);
+    expect(comp.visibleColumnCount()).toBe(11);
   });
 
   it('refuses ?sort=decayedRating while the column is off the wire', async () => {

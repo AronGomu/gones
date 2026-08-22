@@ -83,8 +83,39 @@ export function toggleGlobalStatsSort(query: GlobalStatsQuery, col: GlobalStatsS
   return { ...query, sort: col, direction, page: 1 };
 }
 
+/**
+ * The page numbers the pagination renders, with `'gap'` standing for an elided run. The first page,
+ * the last page and the current page's two neighbours are always offered, so both ends of the ranking
+ * stay one click away however deep the reader is.
+ */
+export function globalStatsPageWindow(page: number, totalPages: number): (number | 'gap')[] {
+  const current = Math.min(Math.max(page, 1), totalPages);
+  const wanted = new Set<number>([1, totalPages]);
+  for (let candidate = current - 1; candidate <= current + 1; candidate++) {
+    if (candidate >= 1 && candidate <= totalPages) wanted.add(candidate);
+  }
+  const pages = [...wanted].sort((left, right) => left - right);
+  const window: (number | 'gap')[] = [];
+  pages.forEach((value, index) => {
+    // A gap over a single page would be wider than the page it hides, so print the page instead.
+    const previous = pages[index - 1];
+    if (index > 0 && value - previous === 2) window.push(value - 1);
+    else if (index > 0 && value - previous > 2) window.push('gap');
+    window.push(value);
+  });
+  return window;
+}
+
 /** Columns a player can legitimately have no value for — null sorts last in both directions. */
 const GLOBAL_STATS_NULLABLE_COLS: readonly GlobalStatsSortCol[] = ['matchWinrate', 'gameWinrate', 'decayedRating'];
+
+/**
+ * Columns that rank players, and therefore keep the provisional bucket at the bottom whichever
+ * direction is asked for: a rating under five Tournaments is not comparable to a ranked one, so
+ * clicking Rating must not lift a newcomer over the table. Every other column sorts on its value
+ * alone.
+ */
+const GLOBAL_STATS_RATING_COLS: readonly GlobalStatsSortCol[] = ['rating', 'decayedRating'];
 
 /**
  * The ranking order the paged endpoint serves, reproduced for the client-side catalog so the two
@@ -92,7 +123,8 @@ const GLOBAL_STATS_NULLABLE_COLS: readonly GlobalStatsSortCol[] = ['matchWinrate
  *
  * Three details are copied deliberately from `PublicLeagueEndpoints.OrderGlobalStats`:
  * a missing winrate sorts **last in both directions** (so the null test is applied before the
- * direction, never flipped by it), the Player Name tiebreak is always ascending and **ordinal**
+ * direction, never flipped by it), a rating sort keeps the provisional bucket last in both directions
+ * and orders it by the same rating, the Player Name tiebreak is always ascending and **ordinal**
  * (Player Names are exact and case-sensitive under ADR 0040, not browser-locale collated), and no
  * requested sort means the three-bucket partition from `PublicLeagueEndpoints.OrderGlobalStats`:
  * bucket 0 (active ranked) → bucket 1 (inactive) → bucket 2 (provisional); within 0 and 1 rating
@@ -120,9 +152,14 @@ export function sortGlobalStatsRows<T extends GlobalPlayerStatisticsRow>(
     });
   }
   const nullable = GLOBAL_STATS_NULLABLE_COLS.includes(sort);
+  const provisionalLast = GLOBAL_STATS_RATING_COLS.includes(sort);
   return sorted.sort((left, right) => {
     const leftValue = left[sort] as number | null | undefined;
     const rightValue = right[sort] as number | null | undefined;
+    if (provisionalLast) {
+      const bucket = compareValues(Number(left.provisional ?? false), Number(right.provisional ?? false));
+      if (bucket) return bucket;
+    }
     if (nullable) {
       const missing = compareValues(Number(leftValue == null), Number(rightValue == null));
       if (missing) return missing;

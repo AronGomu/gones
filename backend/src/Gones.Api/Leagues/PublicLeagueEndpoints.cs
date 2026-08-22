@@ -275,13 +275,23 @@ internal static class PublicLeagueEndpoints
     /// above 1600.2 on this endpoint while the catalog, seeing 1600 twice, fell through to the Player
     /// Name — two rankings surfaces disagreeing on who is at position 1. Rounding here makes the two
     /// orders the same order.</para>
+    ///
+    /// <para>The provisional bucket is pinned last before the column is read, in both directions: a
+    /// rating under <see cref="PlayerRankingRules.ProvisionalTournamentThreshold"/> Tournaments is not
+    /// comparable to a ranked one, so clicking Rating must not lift a newcomer over the table it is not
+    /// ranked in. Inside each block the requested rating still decides. This is the one bucket rule an
+    /// explicit sort keeps — inactive players stay in the rating order with everyone else.</para>
     /// </summary>
     private static IQueryable<PlayerStatisticsRow> GlobalSortByRating(
         IQueryable<PlayerStatisticsRow> query,
         Expression<Func<PlayerStatisticsRow, double>> column,
-        bool descending) =>
-        (descending ? query.OrderByDescending(column) : query.OrderBy(column))
+        bool descending)
+    {
+        var provisionalLast = query.OrderBy(row =>
+            row.TournamentsPlayed < PlayerRankingRules.ProvisionalTournamentThreshold ? 1 : 0);
+        return (descending ? provisionalLast.ThenByDescending(column) : provisionalLast.ThenBy(column))
             .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation));
+    }
 
     private static IQueryable<PlayerStatisticsRow> GlobalSortByWinrate(
         IQueryable<PlayerStatisticsRow> query,

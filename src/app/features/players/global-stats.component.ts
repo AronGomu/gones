@@ -1,4 +1,5 @@
 import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,6 +17,7 @@ import {
   GlobalStatsPageSize,
   GlobalStatsSortCol,
   GlobalStatsQuery,
+  globalStatsPageWindow,
   globalStatsQueryParams,
   parseGlobalStatsQuery,
   sortGlobalStatsRows,
@@ -27,7 +29,7 @@ export const SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   standalone: true,
-  imports: [RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent, SyncBarComponent],
+  imports: [NgTemplateOutlet, RouterLink, FormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSelectModule, BackButtonComponent, SyncBarComponent],
   template: `
     <gones-back-button data-cy="global-stats-back-top" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" />
 
@@ -83,6 +85,10 @@ export const SEARCH_DEBOUNCE_MS = 300;
         <span aria-live="polite" data-cy="global-stats-count-status">{{ i18n.t('globalStats.pageStatus', { page: currentPage(), total: totalPages(), count: totalCount() }) }}</span>
       </div>
 
+      @if (totalCount()) {
+        <ng-container *ngTemplateOutlet="paginationNav; context: { $implicit: 'top' }" />
+      }
+
       <div class="table-wrap" data-cy="global-stats-table-wrap">
         <table class="ranking-table" [attr.aria-label]="i18n.t('globalStats.aria')" data-cy="global-stats-table">
           <thead data-cy="global-stats-thead">
@@ -99,7 +105,6 @@ export const SEARCH_DEBOUNCE_MS = 300;
               <th (click)="sortBy('matchLosses')" [attr.aria-sort]="ariaSort('matchLosses')" class="sortable-col" data-cy="global-stats-col-match-losses">{{ i18n.t('globalStats.colMatchLosses') }}</th>
               <th (click)="sortBy('matchDraws')" [attr.aria-sort]="ariaSort('matchDraws')" class="sortable-col" data-cy="global-stats-col-match-draws">{{ i18n.t('globalStats.colMatchDraws') }}</th>
               <th (click)="sortBy('matchWinrate')" [attr.aria-sort]="ariaSort('matchWinrate')" class="sortable-col" data-cy="global-stats-col-match-winrate">{{ i18n.t('globalStats.colMatchWinrate') }}</th>
-              <th data-cy="global-stats-col-nemesis">{{ i18n.t('globalStats.colNemesis') }}</th>
               <th data-cy="global-stats-col-rival">{{ i18n.t('globalStats.colRival') }}</th>
               <th data-cy="global-stats-col-archetype">{{ i18n.t('globalStats.colArchetype') }}</th>
             </tr>
@@ -136,7 +141,6 @@ export const SEARCH_DEBOUNCE_MS = 300;
                 <td [attr.data-cy]="'global-stats-cell-match-losses-' + row.position">{{ row.matchLosses }}</td>
                 <td [attr.data-cy]="'global-stats-cell-match-draws-' + row.position">{{ row.matchDraws }}</td>
                 <td [attr.data-cy]="'global-stats-cell-match-winrate-' + row.position">{{ formatPct(row.matchWinrate) }}</td>
-                <td [attr.data-cy]="'global-stats-cell-nemesis-' + row.position">{{ formatOpponent(row.nemesis) }}</td>
                 <td [attr.data-cy]="'global-stats-cell-rival-' + row.position">{{ formatOpponent(row.rival) }}</td>
                 <td [attr.data-cy]="'global-stats-cell-archetype-' + row.position">{{ formatArchetype(row.mostPlayedArchetype) }}</td>
               </tr>
@@ -146,13 +150,35 @@ export const SEARCH_DEBOUNCE_MS = 300;
       </div>
 
       @if (totalCount()) {
-        <nav class="global-stats-pagination" [attr.aria-label]="i18n.t('globalStats.paginationAria')" data-cy="global-stats-pagination">
-          <button type="button" data-cy="global-stats-page-previous" [disabled]="currentPage() <= 1" (click)="goPage(currentPage() - 1)">{{ i18n.t('common.previous') }}</button>
-          <span data-cy="global-stats-page-status" aria-live="polite">{{ i18n.t('globalStats.pageStatus', { page: currentPage(), total: totalPages(), count: totalCount() }) }}</span>
-          <button type="button" data-cy="global-stats-page-next" [disabled]="currentPage() >= totalPages()" (click)="goPage(currentPage() + 1)">{{ i18n.t('common.next') }}</button>
-        </nav>
+        <ng-container *ngTemplateOutlet="paginationNav; context: { $implicit: 'bottom' }" />
       }
     }
+
+    <ng-template #paginationNav let-place>
+      <nav class="global-stats-pagination" [class.global-stats-pagination--top]="place === 'top'" [attr.aria-label]="i18n.t('globalStats.paginationAria')" [attr.data-cy]="'global-stats-pagination-' + place">
+        <span class="global-stats-page-numbers" [attr.data-cy]="'global-stats-page-numbers-' + place">
+          @for (item of pageWindow(); track $index) {
+            @if (item === 'gap') {
+              <span class="global-stats-page-gap" aria-hidden="true" [attr.data-cy]="'global-stats-page-gap-' + place + '-' + $index">…</span>
+            } @else {
+              <button
+                type="button"
+                class="global-stats-page-number"
+                [class.is-current]="item === currentPage()"
+                [attr.aria-current]="item === currentPage() ? 'page' : null"
+                [attr.aria-label]="i18n.t('globalStats.pageAria', { page: item })"
+                [attr.data-cy]="'global-stats-page-number-' + place + '-' + item"
+                (click)="goPage(item)"
+              >{{ item }}</button>
+            }
+          }
+        </span>
+        <!-- One live region for the page, and the status bar above the table already owns the top one. -->
+        @if (place === 'bottom') {
+          <span data-cy="global-stats-page-status" aria-live="polite">{{ i18n.t('globalStats.pageStatus', { page: currentPage(), total: totalPages(), count: totalCount() }) }}</span>
+        }
+      </nav>
+    </ng-template>
 
     <gones-back-button data-cy="global-stats-back-bottom" [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" />
   `,
@@ -163,7 +189,9 @@ export const SEARCH_DEBOUNCE_MS = 300;
     .global-stats-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; margin-bottom: 1rem; }
     .global-stats-search-wrap { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; }
     .global-stats-search-field { flex: 1 1 auto; min-width: 0; max-width: 28rem; }
-    .global-stats-size-field { width: 9rem; }
+    /* Wide enough for Material's 180px infix plus the outline padding, so 'Rows per page' — and the
+       longer French 'Lignes par page' — reads in full instead of being clipped by the field. */
+    .global-stats-size-field { width: 14rem; }
     .global-stats-status-bar { color: var(--dim-ash); font-size: .88rem; font-weight: 800; margin-bottom: .5rem; }
     .table-wrap { width: 100%; overflow-x: auto; }
     .ranking-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
@@ -181,9 +209,14 @@ export const SEARCH_DEBOUNCE_MS = 300;
     .rating-delta--down { color: oklch(78% 0.14 25); }
     .rating-badge { margin-left: .35rem; padding: .05rem .3rem; border: 1px solid var(--soot); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--dim-ash); }
     .rating-badge--inactive { border-color: var(--dim-ash); }
-    .global-stats-pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: .75rem; }
+    .global-stats-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .75rem; }
+    .global-stats-pagination--top { margin-bottom: 1rem; }
     .global-stats-pagination button { border: 1px solid var(--soot); background: var(--black-metal); color: var(--ash); cursor: pointer; min-height: 2.5rem; padding: .45rem .75rem; }
     .global-stats-pagination button:disabled { cursor: default; opacity: .45; }
+    .global-stats-page-numbers { display: flex; align-items: center; gap: .25rem; }
+    .global-stats-page-number { min-width: 2.5rem; font-variant-numeric: tabular-nums; }
+    .global-stats-page-number.is-current { border-color: var(--hot-blood); color: var(--ash); font-weight: 900; }
+    .global-stats-page-gap { color: var(--dim-ash); padding: 0 .15rem; }
   `]
 })
 export class GlobalStatsComponent implements OnDestroy {
@@ -203,7 +236,7 @@ export class GlobalStatsComponent implements OnDestroy {
   readonly allRows = signal<GlobalPlayerStatisticsRow[]>([]);
 
   readonly showDecayedRating = computed(() => this.allRows().some(row => row.decayedRating !== null && row.decayedRating !== undefined));
-  readonly visibleColumnCount = computed(() => this.showDecayedRating() ? 13 : 12);
+  readonly visibleColumnCount = computed(() => this.showDecayedRating() ? 12 : 11);
 
   readonly currentPage = signal(1);
   readonly currentSize = signal<GlobalStatsPageSize>(100);
@@ -240,6 +273,7 @@ export class GlobalStatsComponent implements OnDestroy {
 
   readonly totalCount = computed(() => this.filteredRows().length);
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.currentSize())));
+  readonly pageWindow = computed(() => globalStatsPageWindow(this.currentPage(), this.totalPages()));
 
   readonly pageSizes = GLOBAL_STATS_PAGE_SIZES;
 
