@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Gones.Api.Admin;
+using Gones.Api.Archive;
 using Gones.Api.Errors;
 using Gones.Api.Events;
 using Gones.Api.Health;
@@ -118,6 +119,7 @@ else
     builder.Services.AddScoped<EventRegistrationNotificationService>();
     builder.Services.AddScoped<OrganizerParticipantService>();
     builder.Services.AddScoped<LeagueCommandService>();
+    builder.Services.AddScoped<ArchiveCommandService>();
     builder.Services.AddScoped<PlayerNameMaintenanceService>();
     builder.Services.AddSingleton<PlayerStatisticsRebuildService>();
     // Both startup repairs are inserted first on purpose: the web host registers its own hosted service
@@ -238,6 +240,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapPublicCatalogEndpoints();
     app.MapPublicLeagueEndpoints();
     app.MapLeagueCommandEndpoints();
+    app.MapArchiveCommandEndpoints();
     app.MapPlayerNameMaintenanceEndpoints();
     app.MapPlayerEndpoints();
     app.MapPublicLiveEndpoints();

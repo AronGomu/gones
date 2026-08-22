@@ -1085,3 +1085,48 @@ Start from a freshly reset stack (`npm run db:reset`).
 - [ ] Load `/global-stats` and confirm it renders — player statistics are derived from the legacy archive and must be unaffected.
 - [ ] Open a Live tournament and confirm it loads with its data intact.
 - [ ] Load `/events` and confirm the calendar renders with existing events.
+
+## T3 league-season-commands
+
+Eight organizer-gated write routes under `/api/archive` — create/rename/delete a League, and
+create/rename/restatus/re-parent/delete a LeagueSeason. **There is still no UI for any of this**: T13
+wires the screens. So this pass is done with `curl`, and it is looking for two things — that the new
+routes behave, and that the legacy `/api/leagues-archive/**` surface is completely unmoved.
+
+An archive that still shows only `Unassigned Tournaments` in the browser is the expected, correct state
+at this point, not a bug to report.
+
+Start from a stack running this branch (`npm run dev -- --detached`, which enables auth), then
+`npm run dev:accounts` to seed `admin@gones.test` (Admin) and `test@gones.test` (User), password
+`Gones-dev-pass-123!`. Get a token with:
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:5080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@gones.test","password":"Gones-dev-pass-123!","deviceLabel":"manual"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')
+```
+
+- [ ] `curl -si -X POST http://127.0.0.1:5080/api/archive/leagues -H 'Content-Type: application/json' -d '{"name":"Ligue de Lyon"}'` with **no** Authorization header returns `401` and a body whose `code` is `unauthorized`.
+- [ ] The same call with a `test@gones.test` token returns `403` and `"code":"forbidden"` — a plain User cannot write the archive.
+- [ ] The same call with `$TOKEN` returns `201`, an `ETag: "AAAAAAAAAAE="` header, a `Location:` header of the form `/api/archive/leagues/<uuid>`, and a body carrying `"documentVersion":1` and an `eTag` identical to the header. Keep that id as `LID`.
+- [ ] Repeat the create with `{"name":"  Ligue de Lyon  "}`. The stored name is trimmed: the response is `201` and a later read shows `Ligue de Lyon`, not the padded string. Delete this second League afterwards.
+- [ ] `POST /api/archive/leagues` with `{"name":"   "}` returns `400` with `"code":"validation_failed"` and an `errors.name` entry. Same for a name longer than 200 characters.
+- [ ] `POST /api/archive/league-seasons` with `{"leagueId":"does-not-exist","name":"X"}` returns `404` with `"code":"not_found"` — a Season cannot be created under a League that is not there.
+- [ ] `POST /api/archive/league-seasons` with `{"leagueId":"<LID>","name":"Saison 2026"}` returns `201`, an `ETag: "AAAAAAAAAAE="`, and a `Location:` of `/api/archive/league-seasons/<uuid>`. Keep that id as `SID`. Confirm with psql that its `status` defaulted to `active`: `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select status, league_id from archive_league_seasons where document_id = '<SID>';"`.
+- [ ] `POST /api/archive/league-seasons` with `{"leagueId":"<LID>","name":"Bad","status":"archived"}` returns `400` `validation_failed` — only `active` and `completed` are accepted.
+- [ ] `DELETE /api/archive/leagues/<LID>` with `-H 'If-Match: "AAAAAAAAAAE="'` returns `409` with `"code":"archive_league_not_empty"`, and psql shows `deleted_at` still NULL and `version` still `1` on that League — a refused delete changes nothing.
+- [ ] `PATCH /api/archive/leagues/<LID>/name` with `-H 'If-Match: "AAAAAAAAAGM="'` (a deliberately wrong version) and `{"name":"Nope"}` returns `412` with `"code":"stale_version"`.
+- [ ] The same PATCH with **no** `If-Match` header at all also returns `412` `stale_version` — the header is mandatory, not optional.
+- [ ] The same PATCH with the correct `If-Match: "AAAAAAAAAAE="` returns `200`, `"documentVersion":2`, and an `ETag: "AAAAAAAAAAI="`. Re-sending that exact request now returns `412`, because version 1 no longer matches.
+- [ ] `PATCH /api/archive/league-seasons/<SID>/status` with `{"status":"completed"}` and `If-Match: "AAAAAAAAAAE="` returns `200` and `"documentVersion":2`.
+- [ ] `PATCH /api/archive/league-seasons/<SID>/league` with `{"leagueId":"<a second League id>"}` and the Season's current `If-Match` returns `200`. Then confirm with psql that **neither** League's `version` moved: `docker compose exec -T postgres psql -U gones_migration -d gones -Atc 'select document_id, version from archive_leagues;'`. Moving a Season must never bump a League.
+- [ ] `PATCH /api/archive/league-seasons/<SID>/league` with `{"leagueId":"does-not-exist"}` returns `404` `not_found`, and the Season's `version` is unchanged.
+- [ ] `DELETE /api/archive/league-seasons/<SID>` with the Season's current `If-Match` returns `200` with `"deleted":true`. psql shows the row still present with a non-NULL `deleted_at` — deletes are soft, the row is a tombstone.
+- [ ] Repeat that DELETE with the new ETag. It returns `404` `not_found` — a second delete of the same id is not an error path that mutates anything.
+- [ ] `DELETE /api/archive/leagues/<LID>` now succeeds with `200`, `"deleted":true` and `"documentVersion":2`, because its only Season is gone.
+- [ ] Detach check, if you can put a Tournament under a Season by hand: insert a row into `archive_tournaments` with `season_id` set to a live Season, then delete that Season. The Tournament row must **still exist**, with `season_id` NULL, its `version` bumped by exactly 1, and `document ->> 'seasonId'` also NULL. Deleting a Season never deletes Tournament data.
+- [ ] Open `/leagues-archive` in the browser. It renders exactly as before, with no error toast and no red error in the DevTools console.
+- [ ] With Power User mode on, create an archive League from `/leagues-archive`, save it, reload, then delete it. The legacy archive surface is untouched by this slice and must keep working end to end.
+- [ ] Open an existing archive League and one of its Tournament detail pages. Standings, player counts and dates render as before.
+- [ ] Load `/global-stats`, open a Live tournament, and load `/events`. All three render normally — none of them is touched by this slice.

@@ -342,6 +342,44 @@ export interface IClient {
      */
     restoreFullLeagueArchiveData(idempotency_Key: string | undefined, body: FullDataRestoreRequest): Observable<FullRestoreResponse>;
     /**
+     * @return Created
+     */
+    archiveLeagueCreate(body: CreateArchiveLeagueRequest): Observable<ArchiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueRename(leagueId: string, if_Match: string | undefined, body: RenameArchiveLeagueRequest): Observable<ArchiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueDelete(leagueId: string, if_Match: string | undefined): Observable<ArchiveDeleteResponse>;
+    /**
+     * @return Created
+     */
+    archiveLeagueSeasonCreate(body: CreateArchiveLeagueSeasonRequest): Observable<ArchiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonRename(seasonId: string, if_Match: string | undefined, body: RenameArchiveLeagueSeasonRequest): Observable<ArchiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonChangeStatus(seasonId: string, if_Match: string | undefined, body: ChangeArchiveLeagueSeasonStatusRequest): Observable<ArchiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonMoveToLeague(seasonId: string, if_Match: string | undefined, body: MoveArchiveLeagueSeasonRequest): Observable<ArchiveCommandResponse>;
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonDelete(seasonId: string, if_Match: string | undefined): Observable<ArchiveDeleteResponse>;
+    /**
      * @param search (optional)
      * @return OK
      */
@@ -5059,6 +5097,460 @@ export class Client implements IClient {
             let result201: any = null;
             result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as FullRestoreResponse;
             return _observableOf(result201);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    archiveLeagueCreate(body: CreateArchiveLeagueRequest): Observable<ArchiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/archive/leagues";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueCreate(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueCreate(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCommandResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueCreate(response: HttpResponseBase): Observable<ArchiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCommandResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueRename(leagueId: string, if_Match: string | undefined, body: RenameArchiveLeagueRequest): Observable<ArchiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/archive/leagues/{leagueId}/name";
+        if (leagueId === undefined || leagueId === null)
+            throw new globalThis.Error("The parameter 'leagueId' must be defined.");
+        url_ = url_.replace("{leagueId}", encodeURIComponent("" + leagueId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueRename(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueRename(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCommandResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueRename(response: HttpResponseBase): Observable<ArchiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueDelete(leagueId: string, if_Match: string | undefined): Observable<ArchiveDeleteResponse> {
+        let url_ = this.baseUrl + "/api/archive/leagues/{leagueId}";
+        if (leagueId === undefined || leagueId === null)
+            throw new globalThis.Error("The parameter 'leagueId' must be defined.");
+        url_ = url_.replace("{leagueId}", encodeURIComponent("" + leagueId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueDelete(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueDelete(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveDeleteResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveDeleteResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueDelete(response: HttpResponseBase): Observable<ArchiveDeleteResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveDeleteResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return Created
+     */
+    archiveLeagueSeasonCreate(body: CreateArchiveLeagueSeasonRequest): Observable<ArchiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/archive/league-seasons";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueSeasonCreate(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueSeasonCreate(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCommandResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueSeasonCreate(response: HttpResponseBase): Observable<ArchiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCommandResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonRename(seasonId: string, if_Match: string | undefined, body: RenameArchiveLeagueSeasonRequest): Observable<ArchiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/archive/league-seasons/{seasonId}/name";
+        if (seasonId === undefined || seasonId === null)
+            throw new globalThis.Error("The parameter 'seasonId' must be defined.");
+        url_ = url_.replace("{seasonId}", encodeURIComponent("" + seasonId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueSeasonRename(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueSeasonRename(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCommandResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueSeasonRename(response: HttpResponseBase): Observable<ArchiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonChangeStatus(seasonId: string, if_Match: string | undefined, body: ChangeArchiveLeagueSeasonStatusRequest): Observable<ArchiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/archive/league-seasons/{seasonId}/status";
+        if (seasonId === undefined || seasonId === null)
+            throw new globalThis.Error("The parameter 'seasonId' must be defined.");
+        url_ = url_.replace("{seasonId}", encodeURIComponent("" + seasonId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueSeasonChangeStatus(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueSeasonChangeStatus(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCommandResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueSeasonChangeStatus(response: HttpResponseBase): Observable<ArchiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonMoveToLeague(seasonId: string, if_Match: string | undefined, body: MoveArchiveLeagueSeasonRequest): Observable<ArchiveCommandResponse> {
+        let url_ = this.baseUrl + "/api/archive/league-seasons/{seasonId}/league";
+        if (seasonId === undefined || seasonId === null)
+            throw new globalThis.Error("The parameter 'seasonId' must be defined.");
+        url_ = url_.replace("{seasonId}", encodeURIComponent("" + seasonId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("patch", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueSeasonMoveToLeague(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueSeasonMoveToLeague(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCommandResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCommandResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueSeasonMoveToLeague(response: HttpResponseBase): Observable<ArchiveCommandResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCommandResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param if_Match (optional)
+     * @return OK
+     */
+    archiveLeagueSeasonDelete(seasonId: string, if_Match: string | undefined): Observable<ArchiveDeleteResponse> {
+        let url_ = this.baseUrl + "/api/archive/league-seasons/{seasonId}";
+        if (seasonId === undefined || seasonId === null)
+            throw new globalThis.Error("The parameter 'seasonId' must be defined.");
+        url_ = url_.replace("{seasonId}", encodeURIComponent("" + seasonId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "If-Match": if_Match !== undefined && if_Match !== null ? "" + if_Match : "",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processArchiveLeagueSeasonDelete(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processArchiveLeagueSeasonDelete(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveDeleteResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveDeleteResponse>;
+        }));
+    }
+
+    protected processArchiveLeagueSeasonDelete(response: HttpResponseBase): Observable<ArchiveDeleteResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveDeleteResponse;
+            return _observableOf(result200);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -10174,6 +10666,24 @@ export interface AdminUserSummaryResponse {
     [key: string]: any;
 }
 
+export interface ArchiveCommandResponse {
+    id: string;
+    documentVersion: number;
+    updatedAt: Instant;
+    eTag: string;
+
+    [key: string]: any;
+}
+
+export interface ArchiveDeleteResponse {
+    id: string;
+    deleted: boolean;
+    documentVersion: number;
+    eTag: string;
+
+    [key: string]: any;
+}
+
 export interface ArchiveTournamentEditBatchRequest {
     targetLeagueId: string | undefined;
     editTournament: EditArchiveTournamentIntent | undefined;
@@ -10201,6 +10711,12 @@ export interface BlockOrganizationUserRequest {
     [key: string]: any;
 }
 
+export interface ChangeArchiveLeagueSeasonStatusRequest {
+    status: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface ChangeLeagueStatusRequest {
     status: string;
 
@@ -10220,6 +10736,20 @@ export interface CompleteOAuthRequest {
     firstName: string;
     lastName: string;
     deviceLabel: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface CreateArchiveLeagueRequest {
+    name: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface CreateArchiveLeagueSeasonRequest {
+    leagueId: string | undefined;
+    name: string | undefined;
+    status: string | undefined;
 
     [key: string]: any;
 }
@@ -10837,6 +11367,12 @@ export interface LoginRequest {
     [key: string]: any;
 }
 
+export interface MoveArchiveLeagueSeasonRequest {
+    leagueId: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface MoveResultTournamentRequest {
     targetLeagueId: string;
 
@@ -11399,6 +11935,18 @@ export interface RegisterRequest {
     lastName: string;
     returnUrl: string | undefined;
     rateLimitAccount?: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface RenameArchiveLeagueRequest {
+    name: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface RenameArchiveLeagueSeasonRequest {
+    name: string | undefined;
 
     [key: string]: any;
 }

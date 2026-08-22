@@ -3237,6 +3237,328 @@
         }
       }
     },
+    "/api/archive/leagues": {
+      "post": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueCreate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArchiveLeagueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/leagues/{leagueId}/name": {
+      "patch": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueRename",
+        "parameters": [
+          {
+            "name": "leagueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameArchiveLeagueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/leagues/{leagueId}": {
+      "delete": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueDelete",
+        "parameters": [
+          {
+            "name": "leagueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveDeleteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/league-seasons": {
+      "post": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueSeasonCreate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArchiveLeagueSeasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/league-seasons/{seasonId}/name": {
+      "patch": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueSeasonRename",
+        "parameters": [
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameArchiveLeagueSeasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/league-seasons/{seasonId}/status": {
+      "patch": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueSeasonChangeStatus",
+        "parameters": [
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeArchiveLeagueSeasonStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/league-seasons/{seasonId}/league": {
+      "patch": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueSeasonMoveToLeague",
+        "parameters": [
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveArchiveLeagueSeasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/archive/league-seasons/{seasonId}": {
+      "delete": {
+        "tags": [
+          "ArchiveCommandEndpoints"
+        ],
+        "operationId": "ArchiveLeagueSeasonDelete",
+        "parameters": [
+          {
+            "name": "seasonId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveDeleteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/maintenance/player-names": {
       "get": {
         "tags": [
@@ -8034,6 +8356,62 @@
           }
         }
       },
+      "ArchiveCommandResponse": {
+        "required": [
+          "id",
+          "documentVersion",
+          "updatedAt",
+          "eTag"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "eTag": {
+            "type": "string"
+          }
+        }
+      },
+      "ArchiveDeleteResponse": {
+        "required": [
+          "id",
+          "deleted",
+          "documentVersion",
+          "eTag"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "eTag": {
+            "type": "string"
+          }
+        }
+      },
       "ArchiveTournamentEditBatchRequest": {
         "required": [
           "targetLeagueId",
@@ -8145,6 +8523,20 @@
           }
         }
       },
+      "ChangeArchiveLeagueSeasonStatusRequest": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ChangeLeagueStatusRequest": {
         "required": [
           "status"
@@ -8206,6 +8598,48 @@
           "deviceLabel": {
             "maxLength": 100,
             "minLength": 0,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateArchiveLeagueRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateArchiveLeagueSeasonRequest": {
+        "required": [
+          "leagueId",
+          "name",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "leagueId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
             "type": [
               "null",
               "string"
@@ -10561,6 +10995,20 @@
           }
         }
       },
+      "MoveArchiveLeagueSeasonRequest": {
+        "required": [
+          "leagueId"
+        ],
+        "type": "object",
+        "properties": {
+          "leagueId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "MoveResultTournamentRequest": {
         "required": [
           "targetLeagueId"
@@ -12759,6 +13207,34 @@
           }
         }
       },
+      "RenameArchiveLeagueRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RenameArchiveLeagueSeasonRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "RenameLeagueRequest": {
         "required": [
           "name"
@@ -13601,6 +14077,9 @@
     },
     {
       "name": "ExternalOAuthEndpoints"
+    },
+    {
+      "name": "ArchiveCommandEndpoints"
     },
     {
       "name": "PlayerNameMaintenanceEndpoints"
