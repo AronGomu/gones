@@ -28,6 +28,14 @@ export interface IClient {
      */
     listDeckArchetypes(): Observable<PublicDeckArchetypeResponse[]>;
     /**
+     * @return OK
+     */
+    getArchiveLeagueCatalog(): Observable<ArchiveCatalogResponseOfArchiveLeagueSummary>;
+    /**
+     * @return OK
+     */
+    getArchiveLeagueSeasonCatalog(): Observable<ArchiveCatalogResponseOfArchiveLeagueSeasonSummary>;
+    /**
      * @param page (optional)
      * @param pageSize (optional)
      * @param search (optional)
@@ -966,6 +974,114 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicDeckArchetypeResponse[];
             return _observableOf(result200);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    getArchiveLeagueCatalog(): Observable<ArchiveCatalogResponseOfArchiveLeagueSummary> {
+        let url_ = this.baseUrl + "/api/archive/leagues/all";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetArchiveLeagueCatalog(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetArchiveLeagueCatalog(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCatalogResponseOfArchiveLeagueSummary>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCatalogResponseOfArchiveLeagueSummary>;
+        }));
+    }
+
+    protected processGetArchiveLeagueCatalog(response: HttpResponseBase): Observable<ArchiveCatalogResponseOfArchiveLeagueSummary> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCatalogResponseOfArchiveLeagueSummary;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    getArchiveLeagueSeasonCatalog(): Observable<ArchiveCatalogResponseOfArchiveLeagueSeasonSummary> {
+        let url_ = this.baseUrl + "/api/archive/league-seasons/all";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetArchiveLeagueSeasonCatalog(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetArchiveLeagueSeasonCatalog(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveCatalogResponseOfArchiveLeagueSeasonSummary>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveCatalogResponseOfArchiveLeagueSeasonSummary>;
+        }));
+    }
+
+    protected processGetArchiveLeagueSeasonCatalog(response: HttpResponseBase): Observable<ArchiveCatalogResponseOfArchiveLeagueSeasonSummary> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveCatalogResponseOfArchiveLeagueSeasonSummary;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -11692,6 +11808,22 @@ export interface AdminUserSummaryResponse {
     [key: string]: any;
 }
 
+export interface ArchiveCatalogResponseOfArchiveLeagueSeasonSummary {
+    items: ArchiveLeagueSeasonSummary[];
+    totalCount: number;
+    truncated: boolean;
+
+    [key: string]: any;
+}
+
+export interface ArchiveCatalogResponseOfArchiveLeagueSummary {
+    items: ArchiveLeagueSummary[];
+    totalCount: number;
+    truncated: boolean;
+
+    [key: string]: any;
+}
+
 export interface ArchiveCommandResponse {
     id: string;
     documentVersion: number;
@@ -11723,6 +11855,31 @@ export interface ArchiveLeagueSeasonDocument {
     name: string;
     leagueId: string;
     status: string;
+
+    [key: string]: any;
+}
+
+export interface ArchiveLeagueSeasonSummary {
+    id: string;
+    name: string;
+    leagueId: string;
+    status: string;
+    updatedAt: Instant;
+    documentVersion: number;
+    tournamentCount: number;
+    playerCount: number;
+    firstTournamentDate: LocalDate | undefined;
+    lastTournamentDate: LocalDate | undefined;
+
+    [key: string]: any;
+}
+
+export interface ArchiveLeagueSummary {
+    id: string;
+    name: string;
+    createdAt: Instant;
+    updatedAt: Instant;
+    documentVersion: number;
 
     [key: string]: any;
 }

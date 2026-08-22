@@ -74,6 +74,52 @@
         }
       }
     },
+    "/api/archive/leagues/all": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "GetArchiveLeagueCatalog",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCatalogResponseOfArchiveLeagueSummary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          }
+        }
+      }
+    },
+    "/api/archive/league-seasons/all": {
+      "get": {
+        "tags": [
+          "PublicArchiveEndpoints"
+        ],
+        "operationId": "GetArchiveLeagueSeasonCatalog",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveCatalogResponseOfArchiveLeagueSeasonSummary"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified"
+          }
+        }
+      }
+    },
     "/api/leagues-archive/global-player-statistics": {
       "get": {
         "tags": [
@@ -9112,6 +9158,60 @@
           }
         }
       },
+      "ArchiveCatalogResponseOfArchiveLeagueSeasonSummary": {
+        "required": [
+          "items",
+          "totalCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveLeagueSeasonSummary"
+            }
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ArchiveCatalogResponseOfArchiveLeagueSummary": {
+        "required": [
+          "items",
+          "totalCount",
+          "truncated"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveLeagueSummary"
+            }
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "ArchiveCommandResponse": {
         "required": [
           "id",
@@ -9207,6 +9307,114 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "ArchiveLeagueSeasonSummary": {
+        "required": [
+          "id",
+          "name",
+          "leagueId",
+          "status",
+          "updatedAt",
+          "documentVersion",
+          "tournamentCount",
+          "playerCount",
+          "firstTournamentDate",
+          "lastTournamentDate"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "leagueId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "tournamentCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "playerCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "firstTournamentDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              }
+            ]
+          },
+          "lastTournamentDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LocalDate"
+              }
+            ]
+          }
+        }
+      },
+      "ArchiveLeagueSummary": {
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "updatedAt",
+          "documentVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Instant"
+          },
+          "documentVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -15276,6 +15484,9 @@
     },
     {
       "name": "AdminEndpoints"
+    },
+    {
+      "name": "PublicArchiveEndpoints"
     },
     {
       "name": "PublicLeagueEndpoints"

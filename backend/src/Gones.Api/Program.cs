@@ -239,6 +239,7 @@ if (runtimeConfiguration.Features.AuthV1)
 if (!string.IsNullOrWhiteSpace(connectionString))
 {
     app.MapPublicCatalogEndpoints();
+    app.MapPublicArchiveEndpoints();
     app.MapPublicLeagueEndpoints();
     app.MapLeagueCommandEndpoints();
     app.MapArchiveCommandEndpoints();
