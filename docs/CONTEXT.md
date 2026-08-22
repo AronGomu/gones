@@ -460,7 +460,7 @@ _Avoid_: Migration, deployment
 - Byes and roster-only Player Names do not create **Global Player Statistics** rows or affect Global performance
 - Archive Tournaments whose status is `active` do not contribute to **Global Player Statistics**
 - Browser-local League Archive records never contribute to **Global Player Statistics**; the source is always the server
-- **Global Player Statistics** expose 12 columns in fixed order, labelled: `#`, Player, Rating, Tournaments, Matches, Wins, Losses, Draw, M%, Nemesis, Rival, Archetype (matches) — plus a 13th `Decayed` column shown only when `Gones:PlayerStatistics:ExposeDecayedRating` is on
+- **Global Player Statistics** expose 11 columns in fixed order, labelled: `#`, Player, Rating, Tournaments, Matches, Wins, Losses, Draw, M%, Rival, Archetype (matches) — plus a 12th `Decayed` column shown only when `Gones:PlayerStatistics:ExposeDecayedRating` is on. Nemesis stays on the wire and on the Player Statistics page, but has no Global Rankings column
 - Position in **Global Player Statistics** is dynamic: it reflects the current sort and search result, not a stored rank
 - **Global Player Statistics** identity is case-sensitive exact Player Name; `Alice` and `alice` are different rows
 - **Player Rating** is a Glicko-2 rating replayed from all archived tournament results; one integer on the wire per player; server data only. The rating **is stored**, in eight `player_statistics` columns (`rating`, `ratingDeviation`, `ratingVolatility`, `previousRating`, `lastRatingDelta`, `tournamentsPlayed`, `lastPlayedDate`, `decayedRating`) rewritten by the transactional rebuild (ADR 0040/0043); only **provisional** and **inactive** are derived at read time from those columns plus the request clock
@@ -469,8 +469,9 @@ _Avoid_: Migration, deployment
 - **Global Player Statistics** default order: active ranked (rating desc) → inactive ranked (rating desc) → provisional (tournamentsPlayed desc, matches desc); every bucket ties broken by Player Name ascending
 - **Global Player Statistics** are browsable at `/global-stats`; the page supports search, sort by numeric column, and pagination (10/25/50/100 per page, default 100)
 - **Global Player Statistics** sort: numeric column click sets descending; second click toggles ascending; ties broken by Player Name ascending
+- Sorting **Global Player Statistics** by Rating (or by `Decayed`) keeps **provisional** players below every ranked player in both directions, ordered by that same rating among themselves; **inactive** players stay inside the rating order. Every other column sorts on its value alone
 - Percentages in **Global Player Statistics** display as whole-number percentages; null values display as `—`
-- Nemesis and Rival cells in **Global Player Statistics** display as `Name (W-L)`; Archetype displays as `Name (N matches)`
+- Rival cells in **Global Player Statistics** display as `Name (W-L)`; Archetype displays as `Name (N matches)`
 - **Power User** mode is a browser-local opt-in that reveals advanced mutation controls; it never grants server authority and never hides home cards or browse destinations including **Global Player Statistics**
 - Gones is unreleased with no production environment; local data may be reset or reshaped without production migration guarantees until the release-state note in `AGENT.md` is explicitly replaced
 - An **Event** has exactly one active Tournament Format; the optional `liveTournamentUrl` and `archiveTournamentUrl` are navigation strings, not data authority links

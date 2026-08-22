@@ -49,7 +49,7 @@ describe('server data authority', () => {
 
   it('reads League, Live and Calendar from the API and ignores a canonical browser store', () => {
     visitWithGhostStores('/leagues-archive');
-    cy.get('[data-cy="leagues-archive-list-create-card"], [data-cy="leagues-archive-list-item"], [data-cy="leagues-archive-list-read-only"]', { timeout: 15000 }).should('exist');
+    cy.get('[data-cy="leagues-archive-list-create-button"], [data-cy="leagues-archive-list-item"], [data-cy="leagues-archive-list-read-only"]', { timeout: 15000 }).should('exist');
     cy.contains('Ghost Browser League').should('not.exist');
 
     cy.visit('/live-tournaments');
@@ -104,7 +104,7 @@ describe('server data authority', () => {
     cy.window().then((win) => {
       const seeded = { frontend: win.localStorage.getItem(STORE_KEY), live: win.localStorage.getItem(LIVE_STORE_KEY) };
 
-      cy.get('[data-cy="leagues-archive-list-create-card"]').click();
+      cy.get('[data-cy="leagues-archive-list-create-button"]').click();
       cy.contains('mat-dialog-container', 'New League').within(() => {
         cy.get('input').type('Server Authority League');
         cy.contains('button', 'Create League').click();

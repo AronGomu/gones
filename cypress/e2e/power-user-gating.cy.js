@@ -88,7 +88,7 @@ describe('Power User Event, League and Live gates', () => {
     visit('/leagues-archive', false);
 
     cy.get('[data-cy="leagues-archive-list-grid"]').should('exist');
-    cy.get('[data-cy="leagues-archive-list-create-card"]').should('not.exist');
+    cy.get('[data-cy="leagues-archive-list-create-button"]').should('not.exist');
     cy.get('[data-cy="app-leagues-import-button"]').should('not.exist');
     cy.get('[data-cy="app-full-data-export-button"]').should('be.visible');
 
@@ -98,7 +98,7 @@ describe('Power User Event, League and Live gates', () => {
     cy.window().then((win) => expect(win.localStorage.getItem(POWER_KEY)).to.eq('true'));
 
     cy.visit('/leagues-archive');
-    cy.get('[data-cy="leagues-archive-list-create-card"]').should('exist');
+    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
     cy.get('[data-cy="app-leagues-import-button"]').should('exist');
     cy.get('[data-cy="app-full-data-export-button"]').should('exist');
   });
@@ -126,10 +126,10 @@ describe('Power User Event, League and Live gates', () => {
 
     cy.visit('/leagues-archive');
     cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').should('exist');
-    cy.get('[data-cy="leagues-archive-list-create-card"]').should('not.exist');
+    cy.get('[data-cy="leagues-archive-list-create-button"]').should('not.exist');
     cy.window().then((win) => win.localStorage.setItem(POWER_KEY, 'true'));
     cy.reload();
-    cy.get('[data-cy="leagues-archive-list-create-card"]').should('exist');
+    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
 
     cy.visit('/organizer/events');
     cy.wait('@managedEvents');

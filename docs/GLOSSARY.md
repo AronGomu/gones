@@ -62,7 +62,7 @@
 
 | word | short description | ref in code |
 | ---- | ----------------- | ----------- |
-| stress environment | Hundredfold `demo` dataset, generated and loaded with `npm run dev -- --env=stress`; deterministic from `--seed` (T29) | `fixtures/dev-environments/stress/` |
+| stress environment | Simulated French circuit — weekly locals, monthly Opens, régionaux, one national — generated and loaded with `npm run dev -- --env=stress`; deterministic from `--seed` (T29) | `fixtures/dev-environments/stress/` |
 | adr | Numbered architecture decision records, the binding rules | `docs/adr/` |
 | matrix | Executable V1 acceptance rows with per-gate evidence | `ops/acceptance-matrix.json` |
 | contract | Vendor-neutral runtime contract every host must satisfy | `docs/RUNTIME_CONTRACT.md` |

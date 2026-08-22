@@ -67,7 +67,7 @@ function stubSignedIn(globalRole) {
  * the click.
  */
 function createLocalLeague(name) {
-  cy.get('[data-cy="leagues-archive-list-create-card"]').click();
+  cy.get('[data-cy="leagues-archive-list-create-button"]').click();
   cy.contains('mat-dialog-container', 'New League').should('exist').within(() => {
     cy.get('input').type(name);
     cy.contains('button', 'Create League').click();
@@ -166,7 +166,7 @@ describe('League Archive browser-local flows', () => {
     // The notice explains the store, and the create affordance is offered even though the visitor
     // has no account at all.
     cy.get('[data-cy="leagues-archive-local-notice"]').should('be.visible');
-    cy.get('[data-cy="leagues-archive-list-create-card"]').should('exist');
+    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
     // A rejected server read is raised, not swallowed, and never shown as a failure.
     cy.get('[data-cy="leagues-archive-server-unavailable"]').should('be.visible');
     assertNoErrorBanner();
@@ -450,9 +450,9 @@ describe('League Archive browser-local flows', () => {
     stubServerLeagueReads();
     visit('/leagues-archive');
 
-    // The read-only notice is about the server rows only — the create card is still offered.
+    // The read-only notice is about the server rows only — the create button is still offered.
     cy.get('[data-cy="leagues-archive-list-read-only"]').should('exist');
-    cy.get('[data-cy="leagues-archive-list-create-card"]').should('exist');
+    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
 
     cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').click();
     cy.get('[data-cy="leagues-archive-detail-read-only"]').should('exist');

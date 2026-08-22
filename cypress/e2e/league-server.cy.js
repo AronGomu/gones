@@ -215,7 +215,7 @@ describe('League server command flows', () => {
     mockLeagueServer();
     visit('/leagues-archive');
 
-    cy.get('[data-cy="leagues-archive-list-create-card"]').click();
+    cy.get('[data-cy="leagues-archive-list-create-button"]').click();
     cy.contains('mat-dialog-container', 'New League').within(() => {
       cy.get('input').type('Server League');
       cy.contains('button', 'Create League').click();

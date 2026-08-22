@@ -83,7 +83,7 @@ describe('Archive Tournament explicit staged editor', () => {
     signedOut(apiCalls);
     visit('/leagues-archive', true);
 
-    cy.get('[data-cy="leagues-archive-list-create-card"]').click();
+    cy.get('[data-cy="leagues-archive-list-create-button"]').click();
     cy.contains('mat-dialog-container', 'New League').within(() => {
       cy.get('input').type('Local Staged League');
       cy.contains('button', 'Create League').click();
@@ -126,7 +126,7 @@ describe('Archive Tournament explicit staged editor', () => {
   it('marks a local Tournament complete and can reopen it after reload', () => {
     visit('/leagues-archive', true);
 
-    cy.get('[data-cy="leagues-archive-list-create-card"]').click();
+    cy.get('[data-cy="leagues-archive-list-create-button"]').click();
     cy.contains('mat-dialog-container', 'New League').within(() => {
       cy.get('input').type('Completion Test League');
       cy.contains('button', 'Create League').click();
