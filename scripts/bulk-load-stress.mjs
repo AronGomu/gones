@@ -7,8 +7,8 @@
  * `deploy/` or `backend/` imports this file, and the guard below refuses to run against anything but
  * the local Compose stack reached over a Unix Docker socket. Accounts, organizations and formats still
  * go through the real HTTP API, and running tournaments are still replayed command by command — this
- * path exists because 1600 Events and 200 League Archives through the API would take an hour, not
- * because the API path is wrong.
+ * path exists because thousands of Events and hundreds of League Archives through the API would take
+ * hours, not because the API path is wrong.
  *
  * What this bypasses, and what the seeder does about it:
  * - the domain, so every row here must already be the shape a real write would produce. A League
@@ -27,6 +27,12 @@ import { expectedEventSlug, isLocalDockerEndpoint, localDateTime } from './dev-e
 
 /** One statement per chunk of rows: a single multi-megabyte INSERT is slower to parse than ten. */
 const CHUNK_SIZE = 500;
+/**
+ * League rows are whole archive documents — hundreds of kilobytes each, where every other row here is a
+ * few hundred bytes — so they chunk on their own count. Five hundred of them in one statement would be
+ * the entire archive in a single INSERT.
+ */
+const LEAGUE_CHUNK_SIZE = 20;
 
 function fail(message) {
   console.error(message);
@@ -78,10 +84,10 @@ function psql(sql, { capture = false } = {}) {
 }
 
 /** `INSERT INTO table (columns) VALUES ...;` in chunks, as one SQL script. */
-function insertStatements(table, columns, rows) {
+function insertStatements(table, columns, rows, chunkSize = CHUNK_SIZE) {
   const statements = [];
-  for (let start = 0; start < rows.length; start += CHUNK_SIZE) {
-    const chunk = rows.slice(start, start + CHUNK_SIZE);
+  for (let start = 0; start < rows.length; start += chunkSize) {
+    const chunk = rows.slice(start, start + chunkSize);
     statements.push(`INSERT INTO ${table} (${columns.join(', ')}) VALUES\n${chunk.map((row) => `  (${row.join(', ')})`).join(',\n')};`);
   }
   return statements;
@@ -230,7 +236,7 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
     ], registrationRows),
     ...insertStatements('league_archive_aggregates', [
       'id', 'document_id', 'name', 'status', 'updated_at', 'deleted_at', 'canonical_document', 'version'
-    ], leagueRows),
+    ], leagueRows, LEAGUE_CHUNK_SIZE),
     ...insertStatements('audit_records', [
       'id', 'actor_id', 'action', 'entity_type', 'entity_id', 'redacted_diff', 'occurred_at', 'version'
     ], auditRows),

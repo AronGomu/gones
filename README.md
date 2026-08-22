@@ -75,28 +75,35 @@ file, run the command again, and the next seeding picks it up — there is nothi
 | `empty` (default) | nothing. Plain `npm run dev` behaves exactly as it always has: no reset, no seeding. |
 | `minimal` | one verified account per role — `admin@gones.test` (Admin), `organizer@gones.test` (Organizer), `test@gones.test` (User), all with `Gones-dev-pass-123!`. |
 | `demo` | a populated app: 7 accounts, 2 organizations, 4 formats, 16 Events, 7 registrations, 2 League Archives and 2 Live tournaments. What you want to look at any screen with real content. |
-| `stress` | a hundredfold of `demo` for judging pages under weight. Generated, not committed — see below. |
+| `stress` | the French tournament circuit for a season, for judging pages under weight. Generated, not committed — see below. |
 
-### The `stress` environment (100×)
+### The `stress` environment (the French circuit)
 
 Two steps, because the fixtures are generated rather than committed:
 
 ```bash
-npm run dev:stress:generate -- --seed=1   # write the fixtures (seconds)
-npm run dev -- --env=stress               # reset the stack and load them (~1-2 minutes)
+npm run dev:stress:generate -- --seed=1   # write the fixtures (a second, ~48 MB)
+npm run dev -- --env=stress               # reset the stack and load them (minutes)
 ```
 
-It loads roughly 700 accounts, 200 organizations, 400 formats, 1600 Events, 700 registrations, 200
-League Archives (~400 Archive Tournaments over ~1200 player names, so rankings and player pages have
-depth), 10 running tournaments and 10 000 audit rows.
+It loads roughly 700 accounts, 200 clubs, 9 formats, 3800 Events, 2300 registrations and 185 League
+Archives (~1800 Archive Tournaments and 168 000 Round Entries over 2400 player names, so rankings and
+player pages have depth), plus 10 running tournaments and 10 000 audit rows.
+
+The Events are four tiers at the cadence the real circuit runs them — a weekly local at every club
+(8-30 players), a monthly Open at the busier ones (30-100), a Championnat Régional every two months in
+each région (100-300) and one Championnat de France a year (1000+) — placed on the real map of French
+cities. The sizes, cities, formats, archetypes and club-activity spread were read off 886 French paper
+events published on mtgtop8.com between 2025-01 and 2026-08; every player name, score, account and
+club name is synthetic. See `fixtures/dev-environments/README.md` for the full shape.
 
 The same `--seed` produces byte-identical files on any machine — every draw goes through the
 generator's own seeded PRNG and nothing reads the clock — so `--seed=1` is the shared dataset and any
 other seed is a private one. `fixtures/dev-environments/stress/` holds only `environment.json`;
 everything else there is gitignored, and `--env=stress` is refused until the generator has run.
 Unlike the other environments, its Events, registrations, League Archives and audit rows are
-bulk-inserted as SQL rather than driven through the HTTP API — sixteen hundred Events through
-preview-then-publish would take about an hour. That path is test-only and refuses to run unless
+bulk-inserted as SQL rather than driven through the HTTP API — thousands of Events through
+preview-then-publish would take hours. That path is test-only and refuses to run unless
 Docker points at a local Unix socket with the Compose `postgres` service up.
 
 Go back to a normal dataset with `npm run dev -- --env=demo`.

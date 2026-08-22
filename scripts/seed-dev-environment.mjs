@@ -10,7 +10,7 @@
  *
  * The second exception is the generated `stress` environment (T29), and only that one: its Events,
  * registrations, League Archives and audit rows are bulk-inserted by `scripts/bulk-load-stress.mjs`
- * because a hundredfold dataset through preview-then-publish would take about an hour. Its accounts,
+ * because a whole simulated circuit through preview-then-publish would take hours. Its accounts,
  * organizations, formats and running tournaments still take the API path above, and the bulk rows are
  * generated in exactly the shape those endpoints would have written.
  *
@@ -530,7 +530,7 @@ const formatSlugs = new Map(environment.formats.map((format) => [format.key, for
 const organizationIds = await seedOrganizations(environment, tokens);
 
 // Events, registrations, League Archives and audit rows go in as SQL for the stress environment only:
-// sixteen hundred Events through preview-then-publish is an hour of HTTP, and the rows are generated
+// thousands of Events through preview-then-publish is hours of HTTP, and the rows are generated
 // in exactly the shape those endpoints would have written. Everything else still goes through the API.
 let eventIds;
 let leagueIds;

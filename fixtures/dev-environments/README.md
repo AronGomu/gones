@@ -120,28 +120,67 @@ each Round), so what lands is a tournament that was actually run.
 
 ## The `stress` environment
 
-A hundredfold of `demo`, for judging page design under real weight: **~700 accounts, ~200
-organizations, ~400 formats, ~1600 Events, ~700 registrations, ~200 League Archives** (about 400
-Archive Tournaments over a bounded cast of ~1200 player names, so rankings and player pages have
-depth), **10 running tournaments** and **10 000 audit rows**.
+The French tournament circuit for a season, for judging page design under real weight: **~700
+accounts, 200 clubs, 9 formats, ~3800 Events, ~2300 registrations, ~185 League Archives** (about 1800
+Archive Tournaments and 168 000 Round Entries over a bounded cast of 2400 player names, so rankings
+and player pages have depth), **10 running tournaments** and **10 000 audit rows**.
 
 ```bash
-npm run dev:stress:generate -- --seed=1   # write the fixtures (seconds)
+npm run dev:stress:generate -- --seed=1   # write the fixtures (a second, ~48 MB)
 npm run dev -- --env=stress               # reset the stack and load them (minutes)
 ```
 
-The dataset is **generated, not committed**: several megabytes of JSON that is reproducible from its
-seed is not worth a diff. `fixtures/dev-environments/stress/` holds only `environment.json`;
-everything else there is gitignored, and `npm run dev -- --env=stress` fails on an empty directory
-until the generator has run. The same `--seed` produces byte-identical files on any machine — every
-draw goes through the generator's own seeded PRNG, and nothing in it reads the clock — so `--seed=1`
-is the shared dataset and any other seed is a private one.
+### What it simulates
+
+Four tiers of event, at the cadence and the field size the real circuit runs them:
+
+| tier | cadence | field | who runs it |
+| --- | --- | --- | --- |
+| local | weekly | 8-30 | every club, in its own weekly slot |
+| monthly | monthly | 30-100 | the clubs with a monthly Open |
+| regional | every 2 months | 100-300 | each région, host club rotating |
+| national | yearly | 1000+ | one Championnat de France, with its satellites |
+
+The cities and their postal codes, the field sizes, the format mix, the deck archetypes and the spread
+of club activity were read off the real thing: 886 French paper events published on mtgtop8.com
+between 2025-01-28 and 2026-08-20, over 264 venues and 172 cities. **Everything about a person is
+synthetic** — no player name, score, account or club name comes from that survey, only public facts
+about places, formats, deck archetypes and event sizes do, and the club names are generated from
+French game-shop naming patterns rather than copied, so no real shop is named as the host of results
+it never ran.
+
+A club roster is a core, the regulars behind it and the occasional entrants: the core takes about half
+the seats of a weekly and shows up on three nights in five, which is the recurrence the survey
+measured. Weekdays are a **rhythm, not a day** — a Calendar offset is relative to whatever day the
+seeding runs, so what the generator guarantees is that a club's local repeats every seven days, not
+that it lands on a Thursday. Archive dates are absolute, so those do carry the weekday the tier uses.
+
+The archive covers the clubs that run a real League and the regional circuits; the occasional clubs
+show up on the Calendar and nowhere else, which is how the circuit looks in the wild. The Championnat
+de France is split into `Jour 1` (the full Swiss) and `Jour 2 et annexes` (the cut plus the
+satellites), because a thousand-player field with its pairings does not fit in one League document —
+see the byte budget below.
+
+### How it is built and loaded
+
+The dataset is **generated, not committed**: about 48 MB of JSON that is reproducible from its seed is
+not worth a diff. `fixtures/dev-environments/stress/` holds only `environment.json`; everything else
+there is gitignored, and `npm run dev -- --env=stress` fails on an empty directory until the generator
+has run. The same `--seed` produces byte-identical files on any machine — every draw goes through the
+generator's own seeded PRNG, and nothing in it reads the clock — so `--seed=1` is the shared dataset
+and any other seed is a private one.
+
+`LeagueArchiveAggregate.MaximumDocumentBytes` refuses a League document over 1 MiB **on read**, and the
+bulk loader below writes rows the domain never validated — so the generator enforces the limit itself
+(`assertLeagueBudget`, 90% of it, gated by `npm run test`) and throws rather than trimming. That is
+why a season is four months and a regional circuit is one League per season: two three-hundred-player
+stages already carry more entries than a whole club season.
 
 Seeding it is not the pure-API path the other environments take. Accounts, organizations and formats
 still go through the real HTTP API, and the running tournaments are still replayed command by command,
 but Events, registrations, League Archives and audit rows are **bulk-inserted as SQL**
-(`scripts/bulk-load-stress.mjs`): sixteen hundred Events through preview-then-publish would take about
-an hour. That path is **test-only** — `fixtures/` is in no image, no release path reads it, and the
+(`scripts/bulk-load-stress.mjs`): thousands of Events through preview-then-publish would take hours.
+That path is **test-only** — `fixtures/` is in no image, no release path reads it, and the
 loader refuses to run unless Docker points at a local Unix socket with the Compose `postgres` service
 up. It also bypasses the domain, so every generated row has to already be the shape a real write would
 produce; `npm run test` checks that with the same `validateEnvironment` the seeder runs, and the seed
@@ -150,7 +189,12 @@ those documents is not one the server can read back.
 
 A seed takes roughly ten to twenty minutes on a warm image, most of it the seven hundred account
 registrations, and the local API's auth and write rate limits are raised further for this environment
-than for the others because of them.
+than for the others because of them. The archive is the other cost: 42 MB of League documents go in as
+SQL, and the startup `player_statistics` rebuild then reads all of them back.
+
+The knob to shrink it is `STRESS_VOLUMES.archiveSeasons` in the generator: each season dropped takes
+about a third of the Archive Tournaments, the Round Entries and the megabytes with it. `clubs`,
+`weeklyClubs` and `monthlyClubs` size the Calendar the same way.
 
 ### Editing it
 

@@ -2657,14 +2657,14 @@
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/global-stats.cy.js",
-                    "detail": "12-column headers, rating sort navigation, provisional/inactive badges, stale-cache fallback"
+                    "detail": "11-column headers, rating sort navigation, provisional/inactive badges, stale-cache fallback"
                 }
             ]
         },
         {
             "id": "doc09-global-stats-page",
             "doc": "09-frontend-angular.md",
-            "capability": "/global-stats page: 12-column searchable/sortable/paged ranking table fed by server Global Player Statistics API; home nav card; breadcrumb EN/FR; dual-source: server completed leagues only, local excluded.",
+            "capability": "/global-stats page: 11-column searchable/sortable/paged ranking table fed by server Global Player Statistics API; home nav card; breadcrumb EN/FR; dual-source: server completed leagues only, local excluded.",
             "section": "Product",
             "status": "proved",
             "acceptance": [
@@ -2938,7 +2938,7 @@
             "id": "product-global-stats-page",
             "section": "Product",
             "status": "proved",
-            "text": "Global Rankings page: 12-col table, search/sort/page, server-only source, home card, EN/FR nav."
+            "text": "Global Rankings page: 11-col table, search/sort/page, server-only source, home card, EN/FR nav."
         }
     ]
 }
