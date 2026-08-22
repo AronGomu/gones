@@ -121,7 +121,7 @@ internal static class PublicLeagueEndpoints
 
         // ADR 0040: the numbers come from the materialized read model, so Postgres does the filtering,
         // the ordering and the paging. Nothing on this path reads a League document any more.
-        var query = FilterGlobalStats(database.PlayerStatistics.AsNoTracking(), search);
+        var query = FilterGlobalStats(GlobalScope(database.PlayerStatistics.AsNoTracking()), search);
         var total = await query.CountAsync(cancellationToken);
 
         // The inactive flag and the bucket it orders by come from the request clock rather than the read
@@ -159,7 +159,7 @@ internal static class PublicLeagueEndpoints
         CancellationToken cancellationToken)
     {
         var ceiling = configuration.GetValue(GlobalStatsMaximumCatalogSizeKey, GlobalStatsMaximumCatalogSize);
-        var total = await database.PlayerStatistics.AsNoTracking().CountAsync(cancellationToken);
+        var total = await GlobalScope(database.PlayerStatistics.AsNoTracking()).CountAsync(cancellationToken);
         var exposeDecayedRating = PlayerStatisticsDecayedRatingExposure.Enabled(configuration);
         var today = clock.GetCurrentInstant().InUtc().Date;
         var etag = HashETag($"{await ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:{total}:catalog:{ceiling}:{exposeDecayedRating}");
@@ -168,7 +168,7 @@ internal static class PublicLeagueEndpoints
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
 
         // One row past the ceiling is what tells a truncated catalog from a table that ends exactly there.
-        var fetched = await database.PlayerStatistics.AsNoTracking()
+        var fetched = await GlobalScope(database.PlayerStatistics.AsNoTracking())
             .OrderByDescending(row => row.PlayedMatchCount)
             .ThenBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation))
             .Take(ceiling + 1)
@@ -185,6 +185,14 @@ internal static class PublicLeagueEndpoints
 
         return Results.Ok(new GlobalPlayerStatisticsCatalogResponse(items, total, truncated));
     }
+
+    /// <summary>
+    /// The legacy rankings only ever meant the whole archive, and <c>player_statistics</c> now holds a
+    /// row per scope. Without this the same player would appear once per League they played in.
+    /// Removed with this file at T17.
+    /// </summary>
+    private static IQueryable<PlayerStatisticsRow> GlobalScope(IQueryable<PlayerStatisticsRow> query) =>
+        query.Where(row => row.ScopeKind == PlayerStatisticsScope.Global);
 
     private static IQueryable<PlayerStatisticsRow> FilterGlobalStats(IQueryable<PlayerStatisticsRow> query, string? search)
     {

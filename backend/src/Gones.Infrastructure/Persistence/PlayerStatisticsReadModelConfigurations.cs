@@ -11,17 +11,23 @@ internal sealed class PlayerStatisticsRowConfiguration : IEntityTypeConfiguratio
     public void Configure(EntityTypeBuilder<PlayerStatisticsRow> builder)
     {
         builder.ToTable("player_statistics");
-        builder.HasKey(row => row.PlayerName);
+        builder.HasKey(row => new { row.ScopeKind, row.ScopeId, row.PlayerName });
         // Player Names are exact and unbounded inside a League document, so the key is plain text: a
         // length cap here would reject an archive write the domain accepts.
         builder.Property(row => row.PlayerName).HasColumnType("text");
+        builder.Property(row => row.ScopeKind).HasColumnType("text");
+        builder.Property(row => row.ScopeId).HasColumnType("text");
+        builder.ToTable(table => table.HasCheckConstraint(
+            "ck_player_statistics_scope_kind",
+            $"scope_kind IN ('{PlayerStatisticsScope.Global}','{PlayerStatisticsScope.League}','{PlayerStatisticsScope.Season}')"));
         ConfigureJson(builder.Property(row => row.Nemesis));
         ConfigureJson(builder.Property(row => row.Rival));
         ConfigureJson(builder.Property(row => row.MostPlayedArchetype));
 
-        // One index per sortable rankings column (ADR 0040). The primary key already indexes
-        // player_name for equality; the extra text_pattern_ops index is what lets a prefix search use
-        // an index under a non-C collation.
+        // One index per sortable rankings column (ADR 0040). The composite primary key indexes
+        // (scope_kind, scope_id) as its leading columns, which is the only access path the scope added;
+        // the extra text_pattern_ops index is what lets a prefix search use an index under a non-C
+        // collation.
         builder.HasIndex(row => row.PlayedMatchCount);
         builder.HasIndex(row => row.MatchWins);
         builder.HasIndex(row => row.MatchLosses);

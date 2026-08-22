@@ -91,16 +91,19 @@ internal static class PlayerEndpoints
     /// The row for this name. Player Names are exact and case-sensitive (ADR 0040), so an exact hit wins
     /// on the primary key; the case-insensitive fallback is what lets a link or a typed URL reach the
     /// row it obviously means, and it resolves ordinally when several spellings differ only in case.
+    ///
+    /// <para>Scoped to the global partition: the player page is the whole archive, and the read model now
+    /// holds one row per (scope, player).</para>
     /// </summary>
     private static async Task<PlayerStatisticsRow?> FindAsync(GonesDbContext database, string playerName, CancellationToken cancellationToken)
     {
         var exact = await database.PlayerStatistics.AsNoTracking()
-            .SingleOrDefaultAsync(row => row.PlayerName == playerName, cancellationToken);
+            .SingleOrDefaultAsync(row => row.ScopeKind == PlayerStatisticsScope.Global && row.PlayerName == playerName, cancellationToken);
         if (exact is not null) return exact;
 
         var pattern = PublicLeagueEndpoints.EscapeLikePattern(playerName);
         return await database.PlayerStatistics.AsNoTracking()
-            .Where(row => EF.Functions.ILike(row.PlayerName, pattern, "\\"))
+            .Where(row => row.ScopeKind == PlayerStatisticsScope.Global && EF.Functions.ILike(row.PlayerName, pattern, "\\"))
             .OrderBy(row => EF.Functions.Collate(row.PlayerName, PublicLeagueEndpoints.OrdinalCollation))
             .FirstOrDefaultAsync(cancellationToken);
     }

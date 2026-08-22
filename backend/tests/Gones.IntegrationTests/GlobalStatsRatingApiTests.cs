@@ -406,6 +406,8 @@ public sealed class GlobalStatsRatingApiTests : IAsyncLifetime
         int gameWins = 0,
         int gameLosses = 0) => new()
         {
+            ScopeKind = PlayerStatisticsScope.Global,
+            ScopeId = PlayerStatisticsScope.GlobalScopeId,
             PlayerName = playerName,
             PlayedMatchCount = matches,
             MatchWins = matches,

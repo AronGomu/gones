@@ -241,6 +241,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapPublicCatalogEndpoints();
     app.MapPublicArchiveEndpoints();
     app.MapPublicLeagueEndpoints();
+    app.MapArchivePlayerStatisticsEndpoints();
     app.MapLeagueCommandEndpoints();
     app.MapArchiveCommandEndpoints();
     app.MapArchiveTournamentCommandEndpoints();

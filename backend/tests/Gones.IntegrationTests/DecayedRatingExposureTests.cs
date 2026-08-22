@@ -146,6 +146,8 @@ public sealed class DecayedRatingExposureTests : IAsyncLifetime
 
     private static PlayerStatisticsRow SeedRow(string playerName, double rating, double decayedRating) => new()
     {
+        ScopeKind = PlayerStatisticsScope.Global,
+        ScopeId = PlayerStatisticsScope.GlobalScopeId,
         PlayerName = playerName,
         PlayedMatchCount = 10,
         MatchWins = 7,

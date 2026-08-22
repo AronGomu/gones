@@ -12,6 +12,14 @@ namespace Gones.Api.Leagues;
 /// a week. The rebuild is deliberately total rather than incremental: one edited Match can change a
 /// Nemesis, a Rival and a most-played archetype for two players at once, and recomputing everything is
 /// both simpler and impossible to leave half-applied.</para>
+///
+/// <para>Since the three-tier rebuild the table holds <b>one row per (scope, player)</b>: the global
+/// scope, one scope per League, one scope per LeagueSeason. Each scope is recomputed from its own
+/// Tournaments — rating, matches, tournaments played and winrate are all replayed inside the scope
+/// and are never a global number filtered down. A standalone Tournament belongs to no League and no
+/// Season, so it feeds the global scope only. The cost is roughly three passes over the archive
+/// instead of one, because every attached Tournament is walked once for its Season, once for its
+/// League and once globally.</para>
 /// </summary>
 internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsRebuildService> logger)
 {
@@ -41,20 +49,30 @@ internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsReb
             .Where(aggregate => aggregate.DeletedAt is null && !deleted.Contains(aggregate))
             .ToList();
 
-        var data = new GonesData(LeagueNormalizer.GonesDataVersion, live.Select(aggregate => aggregate.ReadDocument()).ToList(), []);
-        var rows = LeagueRules.CalculateGlobalPlayerStatistics(data);
+        var scopes = await ArchiveScopeSource.LoadAsync(
+            database,
+            live.Select(aggregate => aggregate.ReadDocument()).ToList(),
+            cancellationToken);
+        var rows = new List<PlayerStatisticsRow>();
+        foreach (var scope in scopes)
+        {
+            foreach (var statistics in LeagueRules.CalculateGlobalPlayerStatistics(scope.Data))
+            {
+                rows.Add(PlayerStatisticsRow.From(statistics, scope.ScopeKind, scope.ScopeId));
+            }
+        }
 
         // The delete runs inside the caller's transaction; the inserts are staged for the same
         // SaveChangesAsync. Any row this context still tracks belongs to the state being replaced.
         await database.Database.ExecuteSqlRawAsync("DELETE FROM player_statistics", cancellationToken);
         foreach (var entry in database.ChangeTracker.Entries<PlayerStatisticsRow>().ToList()) entry.State = EntityState.Detached;
-        database.PlayerStatistics.AddRange(rows.Select(PlayerStatisticsRow.From));
+        database.PlayerStatistics.AddRange(rows);
         await StampAsync(database, cancellationToken);
 
         logger.LogInformation(
-            "Player statistics rebuilt: {RowCount} rows from {LeagueCount} Leagues in {ElapsedMilliseconds} ms.",
+            "Player statistics rebuilt: {RowCount} rows across {ScopeCount} scopes in {ElapsedMilliseconds} ms.",
             rows.Count,
-            live.Count,
+            scopes.Count,
             Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 

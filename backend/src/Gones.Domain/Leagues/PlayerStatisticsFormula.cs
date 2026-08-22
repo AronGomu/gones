@@ -12,8 +12,11 @@ namespace Gones.Domain.Leagues;
 /// <para>Version 2 adds the ADR 0043 Glicko-2 rating: the same rebuild now also replays every completed
 /// Tournament in date order and stores the rating, its deviation and volatility, the previous rating and
 /// last delta, the Tournament count, the last played date and the decayed rating.</para>
+///
+/// <para>Version 3 re-keys the table by scope: the same maths now runs once per partition of the
+/// archive — global, per League, per LeagueSeason — so every stored row has to be recomputed.</para>
 /// </summary>
 public static class PlayerStatisticsFormula
 {
-    public const int Version = 2;
+    public const int Version = 3;
 }

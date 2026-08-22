@@ -135,6 +135,8 @@ public sealed class GlobalStatsRatingRoundingTests : IAsyncLifetime
     /// <summary>Ranked and active as of any plausible clock, so all four sit in the same default bucket.</summary>
     private static PlayerStatisticsRow Row(string playerName, double rating, double decayedRating) => new()
     {
+        ScopeKind = PlayerStatisticsScope.Global,
+        ScopeId = PlayerStatisticsScope.GlobalScopeId,
         PlayerName = playerName,
         PlayedMatchCount = 10,
         MatchWins = 10,

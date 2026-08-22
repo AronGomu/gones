@@ -133,6 +133,23 @@ export interface IClient {
      */
     export(id: string): Observable<LeagueExportResponse>;
     /**
+     * @param scopeKind (optional)
+     * @param scopeId (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @param search (optional)
+     * @param sort (optional)
+     * @param direction (optional)
+     * @return OK
+     */
+    getArchiveGlobalPlayerStatistics(scopeKind: string | undefined, scopeId: string | undefined, page: number | undefined, pageSize: number | undefined, search: string | undefined, sort: string | undefined, direction: string | undefined): Observable<ArchiveGlobalPlayerStatisticsResponse>;
+    /**
+     * @param scopeKind (optional)
+     * @param scopeId (optional)
+     * @return OK
+     */
+    getArchiveGlobalPlayerStatisticsCatalog(scopeKind: string | undefined, scopeId: string | undefined): Observable<ArchiveGlobalPlayerStatisticsCatalogResponse>;
+    /**
      * @return OK
      */
     getPlayer(playerName: string): Observable<PlayerDetailResponse>;
@@ -2447,6 +2464,171 @@ export class Client implements IClient {
             let result404: any = null;
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param scopeKind (optional)
+     * @param scopeId (optional)
+     * @param page (optional)
+     * @param pageSize (optional)
+     * @param search (optional)
+     * @param sort (optional)
+     * @param direction (optional)
+     * @return OK
+     */
+    getArchiveGlobalPlayerStatistics(scopeKind: string | undefined, scopeId: string | undefined, page: number | undefined, pageSize: number | undefined, search: string | undefined, sort: string | undefined, direction: string | undefined): Observable<ArchiveGlobalPlayerStatisticsResponse> {
+        let url_ = this.baseUrl + "/api/archive/global-player-statistics?";
+        if (scopeKind === null)
+            throw new globalThis.Error("The parameter 'scopeKind' cannot be null.");
+        else if (scopeKind !== undefined)
+            url_ += "scopeKind=" + encodeURIComponent("" + scopeKind) + "&";
+        if (scopeId === null)
+            throw new globalThis.Error("The parameter 'scopeId' cannot be null.");
+        else if (scopeId !== undefined)
+            url_ += "scopeId=" + encodeURIComponent("" + scopeId) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        if (search === null)
+            throw new globalThis.Error("The parameter 'search' cannot be null.");
+        else if (search !== undefined)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (sort === null)
+            throw new globalThis.Error("The parameter 'sort' cannot be null.");
+        else if (sort !== undefined)
+            url_ += "sort=" + encodeURIComponent("" + sort) + "&";
+        if (direction === null)
+            throw new globalThis.Error("The parameter 'direction' cannot be null.");
+        else if (direction !== undefined)
+            url_ += "direction=" + encodeURIComponent("" + direction) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetArchiveGlobalPlayerStatistics(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetArchiveGlobalPlayerStatistics(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveGlobalPlayerStatisticsResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveGlobalPlayerStatisticsResponse>;
+        }));
+    }
+
+    protected processGetArchiveGlobalPlayerStatistics(response: HttpResponseBase): Observable<ArchiveGlobalPlayerStatisticsResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveGlobalPlayerStatisticsResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @param scopeKind (optional)
+     * @param scopeId (optional)
+     * @return OK
+     */
+    getArchiveGlobalPlayerStatisticsCatalog(scopeKind: string | undefined, scopeId: string | undefined): Observable<ArchiveGlobalPlayerStatisticsCatalogResponse> {
+        let url_ = this.baseUrl + "/api/archive/global-player-statistics/all?";
+        if (scopeKind === null)
+            throw new globalThis.Error("The parameter 'scopeKind' cannot be null.");
+        else if (scopeKind !== undefined)
+            url_ += "scopeKind=" + encodeURIComponent("" + scopeKind) + "&";
+        if (scopeId === null)
+            throw new globalThis.Error("The parameter 'scopeId' cannot be null.");
+        else if (scopeId !== undefined)
+            url_ += "scopeId=" + encodeURIComponent("" + scopeId) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processGetArchiveGlobalPlayerStatisticsCatalog(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processGetArchiveGlobalPlayerStatisticsCatalog(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ArchiveGlobalPlayerStatisticsCatalogResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ArchiveGlobalPlayerStatisticsCatalogResponse>;
+        }));
+    }
+
+    protected processGetArchiveGlobalPlayerStatisticsCatalog(response: HttpResponseBase): Observable<ArchiveGlobalPlayerStatisticsCatalogResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ArchiveGlobalPlayerStatisticsCatalogResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -12266,6 +12448,53 @@ export interface ArchiveDeleteResponse {
     deleted: boolean;
     documentVersion: number;
     eTag: string;
+
+    [key: string]: any;
+}
+
+export interface ArchiveGlobalPlayerStatisticsCatalogResponse {
+    items: ArchiveGlobalPlayerStatisticsRow[];
+    totalCount: number;
+    truncated: boolean;
+
+    [key: string]: any;
+}
+
+export interface ArchiveGlobalPlayerStatisticsResponse {
+    items: ArchiveGlobalPlayerStatisticsRow[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    sort: string | undefined;
+    direction: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface ArchiveGlobalPlayerStatisticsRow {
+    position: number;
+    playerName: string;
+    playedMatchCount: number;
+    matchWins: number;
+    matchLosses: number;
+    matchDraws: number;
+    matchWinrate: number | undefined;
+    playedGameCount: number;
+    gameWins: number;
+    gameLosses: number;
+    gameWinrate: number | undefined;
+    nemesis: OpponentRecord | undefined;
+    rival: OpponentRecord | undefined;
+    mostPlayedArchetype: PlayerArchetypeUsage | undefined;
+    rating: number;
+    ratingDeviation: number;
+    previousRating: number;
+    lastRatingDelta: number;
+    tournamentsPlayed: number;
+    lastPlayedDate: string | undefined;
+    provisional: boolean;
+    inactive: boolean;
+    decayedRating: number | undefined;
 
     [key: string]: any;
 }
