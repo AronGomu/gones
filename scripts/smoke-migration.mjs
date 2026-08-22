@@ -136,10 +136,12 @@ INSERT INTO organizations
   (id, name, normalized_name, created_at, updated_at, version)
 VALUES
   ('${organizationId}', 'Migration Smoke ${suffix}', upper('Migration Smoke ${suffix}'), now(), now(), 1);
+-- ADR 0041 removed organization ownership, so OrganizationRoles.All now holds only Organizer and the
+-- importer looks for that role when it checks the mapping owner against the target organization.
 INSERT INTO organization_members
   (id, organization_id, user_id, role, created_at, updated_at, version)
 VALUES
-  ('${memberId}', '${organizationId}', '${userId}', 'Owner', now(), now(), 1);
+  ('${memberId}', '${organizationId}', '${userId}', 'Organizer', now(), now(), 1);
 `);
 
 function buildBundle(source, extraArchetypes = []) {
