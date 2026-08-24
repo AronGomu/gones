@@ -1,0 +1,74 @@
+[
+  {
+    "id": "demo-archive-season-gones-3",
+    "name": "Season 3",
+    "leagueId": "demo-archive-league-gones",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-gones-2026",
+    "name": "2026",
+    "leagueId": "demo-archive-league-gones",
+    "status": "active"
+  },
+  {
+    "id": "demo-archive-season-gones-2027",
+    "name": "2027",
+    "leagueId": "demo-archive-league-gones",
+    "status": "active"
+  },
+  {
+    "id": "demo-archive-season-f2f-2025-26",
+    "name": "2025-26",
+    "leagueId": "demo-archive-league-f2f",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-gp-1996-97",
+    "name": "1996-97",
+    "leagueId": "demo-archive-league-grand-prix",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-gp-s5r2",
+    "name": "Season 5 - Round 2",
+    "leagueId": "demo-archive-league-grand-prix",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-pt-aetherdrift",
+    "name": "2026",
+    "leagueId": "demo-archive-league-pro-tour",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-pt-ptq",
+    "name": "2026",
+    "leagueId": "demo-archive-league-pro-tour-ptq",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-worlds-2025",
+    "name": "2025",
+    "leagueId": "demo-archive-league-worlds",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-liga-sword-2026-2",
+    "name": "3ª Etapa Regular - 2026/2",
+    "leagueId": "demo-archive-league-liga-sword",
+    "status": "active"
+  },
+  {
+    "id": "demo-archive-season-liga-sword-primeira",
+    "name": "Liga Sword - Primeira Etapa",
+    "leagueId": "demo-archive-league-liga-sword",
+    "status": "completed"
+  },
+  {
+    "id": "demo-archive-season-spotlight-3",
+    "name": "Season 3",
+    "leagueId": "demo-archive-league-spotlight",
+    "status": "active"
+  }
+]

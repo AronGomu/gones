@@ -1,0 +1,32 @@
+{
+  "fixtureSet": "gones-archive-domain-v5",
+  "fixtureVersion": 5,
+  "archiveDataVersion": 5,
+  "source": {
+    "environment": "fixtures/dev-environments/demo",
+    "files": ["archive-leagues.json", "archive-league-seasons.json", "archive-tournaments.json"],
+    "assembler": "buildArchiveBundle (scripts/dev-environments.mjs)"
+  },
+  "serialization": "JSON.stringify(bundle, null, 2) + LF",
+  "bundleSha256": "ea22fb32e0743f36361591d3d1591c2bdea06acb1e18d4fda07e8880ce3dc2ad",
+  "anchorDate": "2026-08-22",
+  "provenance": {
+    "sourceSeriesId": null,
+    "note": "Public MTG archives expose no series and no season field. A real mtgtop8 event record carries a title, a venue, a format, a star rating, a player count, a date and decklists, and nothing else. The League tier is this project's own construct."
+  },
+  "caseCounts": {
+    "leagues": 8,
+    "leagueSeasons": 12,
+    "tournaments": 48,
+    "standaloneTournaments": 5,
+    "emptySeasons": 1,
+    "crossYearSeasons": 3,
+    "lockedTournaments": 24,
+    "unlockedTournaments": 24,
+    "leaguesEmbeddingAnotherLeagueName": 1,
+    "seasonsEmbeddingTheirLeagueName": 1,
+    "degenerateStandaloneNames": 4,
+    "nonAsciiNames": 5,
+    "distinctSeasonSizes": 8
+  }
+}

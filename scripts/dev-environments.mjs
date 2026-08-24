@@ -7,6 +7,12 @@
  * reset on it. Everything here is pure and Docker-free on purpose, so `ops/dev-environments.test.ts`
  * can run the same validation inside `npm run test` instead of leaving a typo to surface thirty
  * seconds into a reset.
+ *
+ * The format carries two archives side by side. `leagues.json` is the legacy flat one, kept because
+ * `live-tournaments.json` resolves its `leagueKey` against the legacy table. `archive-leagues.json`,
+ * `archive-league-seasons.json` and `archive-tournaments.json` are the three-tier one — League ->
+ * League Season -> Tournament, with a standalone Tournament carrying `"seasonId": null` — and go in
+ * through one `POST /api/archive/restore-full`.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,12 +21,32 @@ import { DEV_PASSWORD, meetsPasswordPolicy } from './dev-accounts.mjs';
 
 export const DEV_ENVIRONMENTS_DIR = 'fixtures/dev-environments';
 export const DEFAULT_DEV_ENVIRONMENT = 'empty';
-export const DATA_FILES = ['accounts', 'organizations', 'formats', 'tournaments', 'registrations', 'leagues', 'liveTournaments'];
+export const DATA_FILES = [
+  'accounts', 'organizations', 'formats', 'tournaments', 'registrations',
+  'leagues', 'liveTournaments',
+  'archiveLeagues', 'archiveLeagueSeasons', 'archiveTournaments'
+];
+/** The archive fixture keys, in bundle order. Every one of them is also a DATA_FILES key. */
+export const ARCHIVE_DATA_FILES = ['archiveLeagues', 'archiveLeagueSeasons', 'archiveTournaments'];
 
 const GLOBAL_ROLES = ['User', 'Organizer', 'Admin'];
 const LEAGUE_STATUSES = ['active', 'completed'];
 const ROUND_ENTRY_KINDS = ['match', 'bye'];
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const API_ORIGIN = 'http://127.0.0.1:5080';
+
+/** Export bundle version the three-tier archive speaks. */
+export const ARCHIVE_DATA_VERSION = 5;
+/** `kind` discriminator POST /api/archive/restore-full expects. */
+export const ARCHIVE_RESTORE_KIND = 'fullArchive';
+/** The one route a whole-bundle fixture restore goes through. */
+export const ARCHIVE_RESTORE_PATH = '/api/archive/restore-full';
+/** A Tournament locks this many whole UTC calendar days after the day it was played. */
+export const ARCHIVE_LOCK_WINDOW_DAYS = 365;
+/** The server's per-Tournament document ceiling (`ArchiveTournament.MaximumDocumentBytes`). */
+export const ARCHIVE_MAXIMUM_TOURNAMENT_BYTES = 1_048_576;
+/** Row caps the restore endpoint enforces; a fixture over them would be refused mid-reset. */
+export const ARCHIVE_RESTORE_CAPS = { leagues: 100, leagueSeasons: 1_000, tournaments: 10_000 };
 
 /** Only an absolute Unix socket is safe for destructive local development resets. */
 export function isLocalDockerEndpoint(endpoint) {
@@ -30,6 +56,64 @@ export function isLocalDockerEndpoint(endpoint) {
 /** Fixture references are case-insensitive everywhere, including post-reset token lookup. */
 export function normalizeFixtureEmail(email) {
   return String(email).toLowerCase();
+}
+
+/**
+ * True when a fixture round entry is one the server's standings pass counts.
+ *
+ * Mirrors `LeagueRules.Validate` byte for byte, because the stress bulk loader writes the derived
+ * `player_count` columns itself rather than letting the domain compute them.
+ */
+export function isCountedArchiveEntry(entry) {
+  if (entry === null || typeof entry !== 'object') return false;
+  const reserved = (value) => String(value ?? '').trim().toLowerCase() === 'bye';
+  if (entry.kind === 'bye') {
+    const player = String(entry.playerName ?? '').trim();
+    return player.length > 0 && !reserved(player);
+  }
+  if (entry.kind !== 'match') return false;
+  const player1 = String(entry.player1Name ?? '').trim();
+  const player2 = String(entry.player2Name ?? '').trim();
+  if (player1.length === 0 || player2.length === 0 || player1 === player2) return false;
+  if (reserved(player1) || reserved(player2)) return false;
+  return [entry.player1Score, entry.player2Score].every((score) => Number.isInteger(score) && score >= 0 && score <= 2);
+}
+
+/** The distinct trimmed player names one Tournament's valid entries name. */
+export function archiveTournamentPlayers(tournament) {
+  const players = new Set();
+  for (const round of tournament.rounds ?? []) {
+    for (const entry of round.entries ?? []) {
+      if (!isCountedArchiveEntry(entry)) continue;
+      if (entry.kind === 'bye') players.add(String(entry.playerName).trim());
+      else {
+        players.add(String(entry.player1Name).trim());
+        players.add(String(entry.player2Name).trim());
+      }
+    }
+  }
+  return players;
+}
+
+/** `player_count` for one Tournament: its standings row count. */
+export const countArchiveTournamentPlayers = (tournament) => archiveTournamentPlayers(tournament).size;
+
+/** `player_count` for a Season: the standings row count over all its Tournaments together. */
+export function countArchiveSeasonPlayers(tournaments) {
+  const players = new Set();
+  for (const tournament of tournaments) for (const player of archiveTournamentPlayers(tournament)) players.add(player);
+  return players.size;
+}
+
+/**
+ * The derived lock rule, mirrored from the domain: locked <=> more than 365 whole UTC calendar days
+ * have passed since the day it was played. Exactly 365 is not locked; 366 is.
+ */
+export function isArchiveTournamentLocked(tournamentDate, today = new Date()) {
+  const played = Date.parse(`${tournamentDate}T00:00:00Z`);
+  if (Number.isNaN(played)) return false;
+  const day = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  return Math.floor((day - played) / 86_400_000) > ARCHIVE_LOCK_WINDOW_DAYS;
 }
 
 /** `liveTournaments` -> `live-tournaments.json`; every other key is already its own file name. */
@@ -76,8 +160,22 @@ export function readEnvironment(name, root = DEV_ENVIRONMENTS_DIR) {
   return environment;
 }
 
+/**
+ * The `ArchiveRestoreRequest` body for one environment: the three fixture arrays, with the
+ * fixture-only `sourceSeriesId` provenance marker stripped off every League.
+ */
+export function buildArchiveBundle(environment) {
+  return {
+    kind: ARCHIVE_RESTORE_KIND,
+    version: ARCHIVE_DATA_VERSION,
+    leagues: (environment.archiveLeagues ?? []).map(({ sourceSeriesId, ...league }) => league),
+    leagueSeasons: [...(environment.archiveLeagueSeasons ?? [])],
+    tournaments: [...(environment.archiveTournaments ?? [])]
+  };
+}
+
 /** [] when valid; one human-readable string per problem otherwise. */
-export function validateEnvironment(environment) {
+export function validateEnvironment(environment, { today = new Date() } = {}) {
   const problems = [];
   const label = environment.directory ?? environment.name ?? '(unnamed)';
   const nonEmptyString = (value) => typeof value === 'string' && value.trim() !== '';
@@ -216,6 +314,76 @@ export function validateEnvironment(environment) {
         }
       }
     }
+  }
+
+  // The three-tier archive goes in as one `POST /api/archive/restore-full`, and restore validates the
+  // whole bundle before it writes a row — so a shape the server would refuse has to be refused here
+  // rather than thirty seconds into a reset, with the previous dataset already dropped.
+  const archiveLeagues = environment.archiveLeagues ?? [];
+  const archiveSeasons = environment.archiveLeagueSeasons ?? [];
+  const archiveTournaments = environment.archiveTournaments ?? [];
+  const archiveLeagueIds = new Set();
+  const archiveSeasonIds = new Set();
+  const archiveTournamentIds = new Set();
+
+  for (const league of archiveLeagues) {
+    if (!nonEmptyString(league.id) || !nonEmptyString(league.name)) problems.push(`${label}: archive League "${league.id ?? '(no id)'}" needs a non-empty id and name`);
+    if (archiveLeagueIds.has(league.id)) problems.push(`${label}: duplicate archive League id ${league.id}`);
+    archiveLeagueIds.add(league.id);
+    // Public archives expose no series and no season field at all, so a fixture League declares its own
+    // provenance rather than leaving the tier looking like something a real archive handed over.
+    if (!('sourceSeriesId' in league) || league.sourceSeriesId !== null) {
+      problems.push(`${label}: archive League ${league.id} must declare "sourceSeriesId": null — public archives expose no series field`);
+    }
+  }
+
+  for (const season of archiveSeasons) {
+    if (!nonEmptyString(season.id) || !nonEmptyString(season.name)) problems.push(`${label}: archive League Season "${season.id ?? '(no id)'}" needs a non-empty id and name`);
+    if (archiveSeasonIds.has(season.id)) problems.push(`${label}: duplicate archive League Season id ${season.id}`);
+    archiveSeasonIds.add(season.id);
+    // Restore refuses a bundle link that does not resolve inside the bundle itself.
+    if (!archiveLeagueIds.has(season.leagueId)) problems.push(`${label}: archive League Season ${season.id} references unknown archive League ${season.leagueId}`);
+    if (!LEAGUE_STATUSES.includes(season.status)) problems.push(`${label}: archive League Season ${season.id} has status "${season.status}", expected one of ${LEAGUE_STATUSES.join(', ')}`);
+  }
+
+  const archiveToday = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  for (const tournament of archiveTournaments) {
+    if (!nonEmptyString(tournament.id) || !nonEmptyString(tournament.name)) problems.push(`${label}: archive Tournament "${tournament.id ?? '(no id)'}" needs a non-empty id and name`);
+    if (archiveTournamentIds.has(tournament.id)) problems.push(`${label}: duplicate archive Tournament id ${tournament.id}`);
+    archiveTournamentIds.add(tournament.id);
+    // `null` is a standalone Tournament: a top-level record that belongs to no series, which is most of
+    // what a real public archive holds.
+    if (tournament.seasonId !== null && !archiveSeasonIds.has(tournament.seasonId)) {
+      problems.push(`${label}: archive Tournament ${tournament.id} references unknown archive League Season ${tournament.seasonId}`);
+    }
+    if (!LEAGUE_STATUSES.includes(tournament.status)) problems.push(`${label}: archive Tournament ${tournament.id} has status "${tournament.status}", expected one of ${LEAGUE_STATUSES.join(', ')}`);
+
+    const played = Date.parse(`${tournament.tournamentDate}T00:00:00Z`);
+    if (!ISO_DATE.test(String(tournament.tournamentDate ?? '')) || Number.isNaN(played)) {
+      problems.push(`${label}: archive Tournament ${tournament.id} has tournamentDate "${tournament.tournamentDate}", expected an ISO YYYY-MM-DD date`);
+    } else if (played > archiveToday) {
+      problems.push(`${label}: archive Tournament ${tournament.id} is dated in the future (${tournament.tournamentDate}) — an archive is history (ADR 0030)`);
+    }
+
+    for (const round of tournament.rounds ?? []) {
+      for (const entry of round.entries ?? []) {
+        if (!ROUND_ENTRY_KINDS.includes(entry.kind)) problems.push(`${label}: archive Tournament ${tournament.id} has a round entry of kind "${entry.kind}", expected one of ${ROUND_ENTRY_KINDS.join(', ')}`);
+      }
+    }
+
+    // The megabyte is per Tournament now, not per League: the domain refuses a bigger document on read.
+    const bytes = Buffer.byteLength(JSON.stringify(tournament), 'utf8');
+    if (bytes > ARCHIVE_MAXIMUM_TOURNAMENT_BYTES) {
+      problems.push(`${label}: archive Tournament ${tournament.id} is ${bytes} bytes, over the ${ARCHIVE_MAXIMUM_TOURNAMENT_BYTES} byte document limit the server refuses`);
+    }
+  }
+
+  for (const [collection, rows, cap] of [
+    ['Leagues', archiveLeagues, ARCHIVE_RESTORE_CAPS.leagues],
+    ['League Seasons', archiveSeasons, ARCHIVE_RESTORE_CAPS.leagueSeasons],
+    ['Tournaments', archiveTournaments, ARCHIVE_RESTORE_CAPS.tournaments]
+  ]) {
+    if (rows.length > cap) problems.push(`${label}: the archive carries ${rows.length} ${collection}, over the ${cap} the restore endpoint accepts`);
   }
 
   for (const live of environment.liveTournaments ?? []) {

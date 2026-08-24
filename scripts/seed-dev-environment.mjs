@@ -9,10 +9,17 @@
  * does (ADR 0029).
  *
  * The second exception is the generated `stress` environment (T29), and only that one: its Events,
- * registrations, League Archives and audit rows are bulk-inserted by `scripts/bulk-load-stress.mjs`
+ * registrations, archive rows and audit rows are bulk-inserted by `scripts/bulk-load-stress.mjs`
  * because a whole simulated circuit through preview-then-publish would take hours. Its accounts,
  * organizations, formats and running tournaments still take the API path above, and the bulk rows are
  * generated in exactly the shape those endpoints would have written.
+ *
+ * A committed environment's three-tier archive goes in as one `POST /api/archive/restore-full`. Restore
+ * rather than the interactive create route, because a fixture archive is history: the create route
+ * refuses a non-Admin a Tournament older than the 365-day lock window, and restore is exempt from that
+ * lock by design. The legacy `POST /api/leagues-archive/restore` stays beside it until the legacy
+ * surface is retired, because `live-tournaments.json` resolves its `leagueKey` against the legacy
+ * table.
  *
  * An environment that carries data resets the local stack first, so swapping environments never
  * leaves the previous dataset behind. The reset is the same volume-dropping sequence as
@@ -23,7 +30,7 @@ import { spawnSync } from 'node:child_process';
 
 import { bulkLoadStress } from './bulk-load-stress.mjs';
 import { DEV_PASSWORD } from './dev-accounts.mjs';
-import { DATA_FILES, devComposeEnv, expectedEventSlug, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, loginToken, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from './dev-environments.mjs';
+import { ARCHIVE_RESTORE_PATH, buildArchiveBundle, DATA_FILES, devComposeEnv, expectedEventSlug, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, loginToken, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from './dev-environments.mjs';
 import { readStressAuditRecords, STRESS_DIRECTORY, STRESS_ENVIRONMENT } from './generate-stress-environment.mjs';
 
 const API_ORIGIN = 'http://127.0.0.1:5080';
@@ -385,6 +392,33 @@ async function seedLeagues(environment, tokens) {
 }
 
 /**
+ * The whole three-tier archive of an environment in one `POST /api/archive/restore-full`.
+ *
+ * Restore is the only path a fixture archive can take: its dates are absolute history, and the
+ * interactive create route refuses a non-Admin a Tournament older than 365 days with `409`. Restore is
+ * exempt from that lock by design — it mints new ids and rewrites no protected row.
+ *
+ * Restore mints new identities, so a fixture `id` is only a key; the server's `sourceId` is what maps
+ * back to it. Returns `{ leagues, leagueSeasons, tournaments }`, three `Map<fixtureId, serverId>`.
+ */
+async function seedArchive(environment, tokens) {
+  const empty = { leagues: new Map(), leagueSeasons: new Map(), tournaments: new Map() };
+  if (!environment.archiveLeagues.length && !environment.archiveLeagueSeasons.length && !environment.archiveTournaments.length) return empty;
+
+  // restore-full is Admin-gated, and Admin owns no archive row, so ownership never blocks a re-seed.
+  const token = tokenForRole(environment, tokens, 'Admin', 'archive');
+  const restored = await requireResponse(await api('POST', ARCHIVE_RESTORE_PATH, {
+    token,
+    body: buildArchiveBundle(environment),
+    idempotencyKey: `${environment.name}-archive-restore-full`
+  }), 'archive', 'restore-full');
+
+  const body = await restored.json();
+  const map = (rows) => new Map(rows.map(({ sourceId, id }) => [sourceId, id]));
+  return { leagues: map(body.leagues), leagueSeasons: map(body.leagueSeasons), tournaments: map(body.tournaments) };
+}
+
+/**
  * Runs each fixture running tournament forward through the real Live commands: create, add every
  * player, then start / score / validate one Round per `scoredRounds`, and finally start one more
  * Round when `leaveRoundOpen` asks for a tournament caught mid-round.
@@ -464,10 +498,11 @@ async function waitForApiReady(timeoutMilliseconds = 300_000) {
 }
 
 /**
- * Rebuilds `player_statistics` after a bulk load.
+ * Rebuilds `player_statistics` after a bulk load or an archive restore.
  *
- * The read model is written inside archive write transactions (T22, ADR 0040) and a raw INSERT never
- * enters one, so a bulk-loaded archive would leave the table holding whatever the reset seeded.
+ * The read model is written inside archive write transactions (T22, ADR 0040) and neither a raw INSERT
+ * nor a `POST /api/archive/restore-full` enters one — the three-tier command endpoints carry no
+ * write-side rebuild — so either would leave the table holding whatever the reset seeded.
  * Clearing the formula stamp is what makes `PlayerStatisticsStartupRebuild` treat the table as stale:
  * the restarted API then recomputes every row from every stored League, which is also the only end to
  * end proof that each bulk-written document is one the domain can still read.
@@ -534,6 +569,7 @@ const organizationIds = await seedOrganizations(environment, tokens);
 // in exactly the shape those endpoints would have written. Everything else still goes through the API.
 let eventIds;
 let leagueIds;
+let archiveIds;
 if (bulk) {
   const loaded = bulkLoadStress({
     environment,
@@ -544,12 +580,18 @@ if (bulk) {
   });
   eventIds = loaded.eventIds;
   leagueIds = loaded.leagueIds;
-  console.log(`\nBulk-loaded ${loaded.counts.events} Events, ${loaded.counts.registrations} registrations, ${loaded.counts.leagues} League Archives and ${loaded.counts.auditRecords} audit rows.`);
+  archiveIds = loaded.archiveIds;
+  console.log(`\nBulk-loaded ${loaded.counts.events} Events, ${loaded.counts.registrations} registrations, ${loaded.counts.leagues} legacy League references, ${loaded.counts.archiveLeagues} archive Leagues, ${loaded.counts.archiveLeagueSeasons} League Seasons, ${loaded.counts.archiveTournaments} archive Tournaments and ${loaded.counts.auditRecords} audit rows.`);
   await rebuildPlayerStatistics();
 } else {
   eventIds = await seedEvents(environment, tokens, organizationIds, formatIds, formatSlugs);
   await seedRegistrations(environment, tokens, eventIds);
   leagueIds = await seedLeagues(environment, tokens);
+  archiveIds = await seedArchive(environment, tokens);
+  // The restore wrote the three-tier archive outside any transaction that recomputes the read model,
+  // so the rankings still describe the empty archive the API booted against. Same startup trigger the
+  // bulk branch uses, this time over the restored rows.
+  if (archiveIds.tournaments.size > 0) await rebuildPlayerStatistics();
 }
 await seedLiveTournaments(environment, tokens, leagueIds);
 
@@ -573,6 +615,9 @@ const seeded = [
   [eventIds.size, 'Events'],
   [environment.registrations.length, 'registrations'],
   [leagueIds.size, 'league archives'],
+  [archiveIds.leagues.size, 'archive Leagues'],
+  [archiveIds.leagueSeasons.size, 'archive League Seasons'],
+  [archiveIds.tournaments.size, 'archive Tournaments'],
   [environment.liveTournaments.length, 'running tournaments']
 ].filter(([count]) => count > 0);
 if (seeded.length) console.log(`\nSeeded ${seeded.map(([count, label]) => `${count} ${label}`).join(', ')}.`);

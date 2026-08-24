@@ -15,6 +15,25 @@
  * and no HTTP endpoint, so they are generated here — where the seed lives — and read straight from this
  * directory by `scripts/bulk-load-stress.mjs`.
  *
+ * ## The archive is three-tier
+ *
+ * League -> League Season -> Tournament, with a Tournament free to stand alone (`seasonId: null`). A
+ * **Season name is a free string**, never a year column: the public record labels seasons `2026`,
+ * `2025-26`, `Season 3`, `Season 5 - Round 2`, `2026/2` and `3ª Etapa Regular - 2026/2`, which is what
+ * {@link SEASON_LABEL_STYLES} draws from. The tournaments-per-Season spread comes from the observed
+ * size classes in {@link SEASON_SIZE_CLASSES} — a World Championship is one event, a late Grand Prix
+ * season is sixty — so the archive pages are judged against the real range and not a middling Season.
+ *
+ * `leagues.json` is no longer the archive: it holds only the legacy League rows the running tournaments
+ * point their `leagueId` at, one stub per referenced `leagueKey` with no Tournaments. The whole legacy
+ * archive beside a full three-tier one would be 44 MB of duplicate history and would double every
+ * `global`-scope ranking, because that scope folds both tables in until the legacy surface is retired.
+ *
+ * Archive dates are measured against {@link ARCHIVE_ANCHOR_DATE}, not the clock, so the dataset stays
+ * byte-identical from one day to the next — and therefore **ages**: past roughly mid-2027 every
+ * generated Tournament is inside the 365-day lock window. Refreshing it means moving the anchor and the
+ * epoch forward together.
+ *
  * ## What it simulates
  *
  * Four tiers of event, the shape of the real French circuit:
@@ -65,8 +84,10 @@ export const STRESS_VOLUMES = {
   monthlyClubs: 36,
   /** Weeks a club that is neither of the above waits between two of its locals. */
   occasionalWeeksBetweenLocals: 13,
-  /** Seasons of archived history per club that keeps a League. A season is `ARCHIVE_SEASON_WEEKS`. */
+  /** Seasons of archived history per archive League. One calendar year each, newest against the anchor. */
   archiveSeasons: 3,
+  /** Tournaments that belong to no Season. The archive is full of one-off events with no series. */
+  standaloneTournaments: 120,
   admins: 5,
   users: 450,
   unverifiedUsers: 100,
@@ -84,18 +105,19 @@ const NATIONAL_YEAR_DAYS = 364;
 
 /** Archive Tournaments are history, so their dates are absolute and counted off this fixed Monday. */
 const ARCHIVE_EPOCH = Date.UTC(2023, 0, 2);
-/** Weeks of archived history the last season ends on, so the archive stops just short of the epoch end. */
-const ARCHIVE_WEEKS = 170;
-/** A League Archive season, in weeks. Four months, the length a French club season really runs. */
-const ARCHIVE_SEASON_WEEKS = 17;
+
+/** The declared "today" every generated archive date is measured against. Absolute and clock-free: the
+ * generator must stay byte-deterministic, so the lock window cannot be read off the wall clock. */
+export const ARCHIVE_ANCHOR_DATE = '2026-08-22';
 
 /**
- * The domain refuses a League document over this on read (`LeagueArchiveAggregate.MaximumDocumentBytes`),
+ * The domain refuses a Tournament document over this on read (`ArchiveTournament.MaximumDocumentBytes`),
  * and the bulk loader writes rows the domain never validated — so a document generated over the limit
- * would only surface as a crashed statistics rebuild. `assertLeagueBudget` keeps a margin under it.
+ * would only surface as a crashed statistics rebuild. `assertTournamentBudget` keeps a margin under it.
+ * The megabyte is per Tournament now, not per League.
  */
-export const MAXIMUM_LEAGUE_BYTES = 1_048_576;
-const LEAGUE_BYTE_BUDGET = Math.floor(MAXIMUM_LEAGUE_BYTES * 0.9);
+export const MAXIMUM_TOURNAMENT_BYTES = 1_048_576;
+const TOURNAMENT_BYTE_BUDGET = Math.floor(MAXIMUM_TOURNAMENT_BYTES * 0.9);
 
 const FIRST_NAMES = [
   'Alix', 'Bastien', 'Camille', 'Damien', 'Elodie', 'Fabien', 'Gaelle', 'Hugo', 'Ines', 'Julien',
@@ -189,6 +211,42 @@ const STREETS = [
 const LOCAL_SERIES = ['Weekly', 'Ligue', 'Tournoi Hebdo', 'Soirée', 'League Night'];
 const MONTHLY_SERIES = ['Open', 'RCQ', 'Qualifier CdF', 'Grand Tournoi', 'Trial'];
 const NATIONAL_SATELLITES = ['Warm Up', 'Chill #1', 'Chill #2', 'Chill #3', 'Rebound', 'Last Chance'];
+
+/**
+ * Tournaments a Season really runs, as the public archives report it. Weights sum to 97.
+ *
+ * The weights are the volume knob: the régional and national Leagues take the class they are, so only
+ * the club Leagues draw, and `lateGrandPrix` is what carries the mean up to the ~2200 Tournaments the
+ * environment is sized for.
+ */
+export const SEASON_SIZE_CLASSES = [
+  { key: 'championship',   minimum: 1,  maximum: 1,  weight: 4 },   // a World Championship is one event
+  { key: 'proTour',        minimum: 3,  maximum: 4,  weight: 10 },  // the modern Pro Tour
+  { key: 'regional',       minimum: 6,  maximum: 6,  weight: 8 },   // Regional Championships
+  { key: 'spotlight',      minimum: 8,  maximum: 11, weight: 12 },  // Spotlight Series
+  { key: 'earlyGrandPrix', minimum: 5,  maximum: 13, weight: 18 },  // Grand Prix, early seasons
+  { key: 'weekly',         minimum: 7,  maximum: 20, weight: 40 },  // a store league's weekly legs
+  { key: 'lateGrandPrix',  minimum: 50, maximum: 60, weight: 5 }    // Grand Prix, late seasons
+];
+
+/** How a real Season labels itself. A Season name is a FREE STRING; none of these is a year column. */
+export const SEASON_LABEL_STYLES = [
+  { key: 'year',        weight: 34 },  // "2025"
+  { key: 'crossYear',   weight: 14 },  // "2025-26" — autumn-to-spring, or August-to-August
+  { key: 'numbered',    weight: 18 },  // "Season 3"
+  { key: 'numberedLeg', weight: 10 },  // "Season 5 - Round 2"
+  { key: 'yearSlash',   weight: 12 },  // "2026/2"
+  { key: 'ordinalLeg',  weight: 8 },   // "3ª Etapa Regular - 2026/2"
+  { key: 'namedLeg',    weight: 4 }    // "<League name> - Primeira Etapa"
+];
+
+/** Names carrying no series signal at all. These must become standalone Tournaments, never Leagues. */
+export const DEGENERATE_TOURNAMENT_NAMES = ['Series', '1K', 'FNM', 'Weekly'];
+
+/** Series names the generated archive borrows from the public record, diacritics included. */
+const ARCHIVE_SERIES_WORDS = ['Ligue', 'Circuit', 'Championnat', 'Tournoi', 'Étape', 'Liga Sword', 'Spotlight Series'];
+/** The one child series whose name embeds its parent's, so prefix-grouping heuristics visibly break. */
+const EMBEDDED_CHILD_SUFFIX = ' - 2nd Chance PTQ';
 
 /**
  * A club roster is a core, the regulars behind it and the occasional entrants who show up a few times a
@@ -340,6 +398,7 @@ function scaledVolumes(scale) {
     playerPool: scaled(STRESS_VOLUMES.playerPool),
     auditRecords: scaled(STRESS_VOLUMES.auditRecords),
     archiveSeasons: Math.min(STRESS_VOLUMES.archiveSeasons, scaled(STRESS_VOLUMES.archiveSeasons)),
+    standaloneTournaments: scaled(STRESS_VOLUMES.standaloneTournaments),
     // Ten Live command replays is already the slowest part of a seed; scaling down is allowed, up is not.
     liveTournaments: Math.min(STRESS_VOLUMES.liveTournaments, scaled(STRESS_VOLUMES.liveTournaments))
   };
@@ -710,7 +769,7 @@ function generateRegistrations(random, events, registrable, clubs) {
  * field is bucketed on wins and paired inside the buckets — so the standings the app computes read like
  * standings and not like a shuffle, and the odd field out gets its Bye.
  */
-function playTournament(random, { id, leagueId, name, tournamentDate, status, roster, rounds, decks, recordMatchArchetypes }) {
+function playTournament(random, { id, seasonId, name, tournamentDate, status, roster, rounds, decks, recordMatchArchetypes }) {
   const records = new Map(roster.map((player) => [player, 0]));
   const playedRounds = [];
 
@@ -769,8 +828,8 @@ function playTournament(random, { id, leagueId, name, tournamentDate, status, ro
 
   return {
     id,
-    leagueId,
     name,
+    seasonId,
     tournamentDate,
     status,
     rounds: playedRounds,
@@ -819,193 +878,236 @@ function decksFor(clubs, format, archetypesFor, random) {
   return decks;
 }
 
+/** Day offset off the archive epoch for a UTC calendar date. Clock-free: `Date.UTC` reads nothing. */
+const archiveDay = (year, month, day) => Math.round((Date.UTC(year, month - 1, day) - ARCHIVE_EPOCH) / 86400000);
+/** The declared "today", as a day offset. Nothing generated here is ever dated past it. */
+const ARCHIVE_ANCHOR_DAY = archiveDay(
+  Number(ARCHIVE_ANCHOR_DATE.slice(0, 4)),
+  Number(ARCHIVE_ANCHOR_DATE.slice(5, 7)),
+  Number(ARCHIVE_ANCHOR_DATE.slice(8, 10))
+);
+
 /**
- * The League Archive: the club seasons and the regional circuits that were actually played, plus the
- * Championnat de France. Archive dates are absolute (ADR 0030) and counted off the fixed epoch, which is
- * a Monday — so unlike the Calendar these do land on the weekday the tier really uses.
+ * One Season's window, as day offsets off the epoch, clamped to the anchor.
  *
- * Every document is kept under {@link LEAGUE_BYTE_BUDGET}: a League the domain refuses on read would
- * take the startup statistics rebuild with it, and the bulk loader writes rows the domain never saw.
+ * A `crossYear` Season runs August to August, the way a real autumn-to-spring season is labelled
+ * `2025-26`; every other style stays inside one calendar year. The clamp is what keeps an archive
+ * history: a Season whose window runs past the anchor simply stops there.
  */
-function generateLeagues(random, volumes, clubs, archetypesFor) {
-  const leagues = [];
-  const lastSeasonStart = ARCHIVE_WEEKS - ARCHIVE_SEASON_WEEKS;
+function seasonWindow(startYear, crossYear) {
+  const first = crossYear ? archiveDay(startYear, 8, 1) : archiveDay(startYear, 1, 8);
+  const last = crossYear ? archiveDay(startYear + 1, 7, 31) : archiveDay(startYear, 12, 20);
+  return [Math.min(first, ARCHIVE_ANCHOR_DAY), Math.min(last, ARCHIVE_ANCHOR_DAY)];
+}
+
+/**
+ * The free string one Season labels itself with. A Season name is never parsed, sorted or derived
+ * from: these styles exist so that assuming otherwise breaks a test rather than a page.
+ */
+function seasonLabel(style, leagueName, index, startYear) {
+  switch (style) {
+    case 'crossYear': return `${startYear}-${pad((startYear + 1) % 100, 2)}`;
+    case 'numbered': return `Season ${index + 1}`;
+    case 'numberedLeg': return `Season ${index + 1} - Round ${1 + (index % 3)}`;
+    case 'yearSlash': return `${startYear}/${1 + (index % 2)}`;
+    case 'ordinalLeg': return `${index + 1}ª Etapa Regular - ${startYear}/${1 + (index % 2)}`;
+    case 'namedLeg': return `${leagueName} - Primeira Etapa`;
+    default: return String(startYear);
+  }
+}
+
+/**
+ * The three-tier archive: `{ leagues, leagueSeasons, tournaments }`.
+ *
+ * A League is a series — a club's own league, a région's Championnat Régional, the Championnat de
+ * France and the child series whose name embeds its parent's. Each carries `volumes.archiveSeasons`
+ * Seasons, and a Season carries as many Tournaments as its drawn {@link SEASON_SIZE_CLASSES} says:
+ * one for a Championship, sixty for a late Grand Prix season. Club Leagues draw that class, because a
+ * store league really does vary; the régional and national ones are fixed to the class they are.
+ *
+ * Archive dates are absolute (ADR 0030), counted off the fixed epoch and clamped to
+ * {@link ARCHIVE_ANCHOR_DATE}. Nothing here reads the clock, so `--seed=1` is the same bytes anywhere.
+ */
+function generateArchive(random, volumes, clubs, archetypesFor) {
+  const leagueSeasons = [];
+  const tournaments = [];
+  const series = [];
+  const takenSlugs = new Set();
+  const slugFor = (value, index) => {
+    const base = slugify(value);
+    const slug = takenSlugs.has(base) ? `${base}-${pad(index, 3)}` : base;
+    takenSlugs.add(slug);
+    return slug;
+  };
 
   // Only the clubs that run something more than a few times a year keep a League; the rest of the
   // circuit shows up on the Calendar and nowhere else, which is exactly how it looks in the wild.
-  const archiving = clubs.filter((club) => club.activity !== 'occasional');
-  for (const club of archiving) {
-    for (let season = 0; season < volumes.archiveSeasons; season += 1) {
-      const seasonIndex = volumes.archiveSeasons - season;
-      const startWeek = lastSeasonStart - season * ARCHIVE_SEASON_WEEKS;
-      const leagueId = `stress-league-${club.key.slice(-3)}-s${pad(seasonIndex, 2)}`;
-      const running = season === 0;
-      const tournaments = [];
-      const step = club.activity === 'weekly' ? 1 : 2;
-      let day = 1;
-
-      for (let week = 0; week < ARCHIVE_SEASON_WEEKS; week += step) {
-        // The season in progress stops halfway: a running League has to look like one.
-        if (running && week > ARCHIVE_SEASON_WEEKS / 2) break;
-        const roster = drawField(random, club.roster, fieldSize(random, 'local'));
-        tournaments.push(playTournament(random, {
-          id: `${leagueId}-d${pad(day, 2)}`,
-          leagueId,
-          name: `Manche ${day}`,
-          // The club's weekday, counted off the epoch Monday: locals are weekday evenings.
-          tournamentDate: archiveDate((startWeek + week) * 7 + 1 + (club.index % 4)),
-          status: 'completed',
-          roster,
-          rounds: roundsFor(roster.length),
-          decks: club.decks,
-          recordMatchArchetypes: true
-        }));
-        day += 1;
-      }
-
-      if (club.activity === 'monthly') {
-        // The club's own monthly Open, played on the Sunday, drawing the région rather than the club.
-        const regionClubs = clubs.filter((other) => other.region === club.region);
-        const candidates = candidatePool(regionClubs);
-        const decks = decksFor(regionClubs, club.format, archetypesFor, random);
-        for (let month = 0; month < Math.floor(ARCHIVE_SEASON_WEEKS / 4); month += 1) {
-          if (running && month > 1) break;
-          const roster = drawField(random, candidates, fieldSize(random, 'monthly'));
-          tournaments.push(playTournament(random, {
-            id: `${leagueId}-o${pad(month + 1, 2)}`,
-            leagueId,
-            name: `Open ${month + 1}`,
-            tournamentDate: archiveDate((startWeek + month * 4 + 3) * 7 + 6),
-            status: 'completed',
-            roster,
-            rounds: roundsFor(roster.length),
-            decks,
-            recordMatchArchetypes: true
-          }));
-        }
-      }
-
-      if (tournaments.length === 0) continue;
-      leagues.push({
-        id: leagueId,
-        name: `${club.name} — Saison ${seasonIndex}`,
-        status: running ? 'active' : 'completed',
-        tournaments
+  for (const club of clubs.filter((candidate) => candidate.activity !== 'occasional')) {
+    const legs = [{ tier: 'local', candidates: club.roster, decks: club.decks, label: 'Manche' }];
+    if (club.activity === 'monthly') {
+      // The club's own monthly Open, drawing the région rather than the club: one leg in four.
+      const regionClubs = clubs.filter((other) => other.region === club.region);
+      legs.push({ tier: 'local', candidates: club.roster, decks: club.decks, label: 'Manche' });
+      legs.push({ tier: 'local', candidates: club.roster, decks: club.decks, label: 'Manche' });
+      legs.push({
+        tier: 'monthly',
+        candidates: candidatePool(regionClubs),
+        decks: decksFor(regionClubs, club.format, archetypesFor, random),
+        label: 'Open'
       });
     }
+    series.push({ slug: slugFor(club.name, club.index), name: `${club.name} ${pick(random, ARCHIVE_SERIES_WORDS)}`, sizeClass: null, legs });
   }
 
-  // One League per région per season for the Championnat Régional, so a circuit document stays small
-  // enough to read: two three-hundred-player events already carry more entries than a whole club season.
-  const regions = [...new Set(clubs.map((club) => club.region))];
-  for (const region of regions) {
+  for (const region of [...new Set(clubs.map((club) => club.region))]) {
     const regionClubs = clubs.filter((club) => club.region === region);
-    const candidates = candidatePool(regionClubs);
-    for (let season = 0; season < volumes.archiveSeasons; season += 1) {
-      const seasonIndex = volumes.archiveSeasons - season;
-      const startWeek = lastSeasonStart - season * ARCHIVE_SEASON_WEEKS;
-      const leagueId = `stress-cr-${slugify(region)}-s${pad(seasonIndex, 2)}`;
-      const format = regionClubs[season % regionClubs.length].format;
-      const decks = decksFor(regionClubs, format, archetypesFor, random);
-      const tournaments = [];
+    series.push({
+      slug: slugFor(`cr-${region}`, 0),
+      name: `Championnat Régional ${region}`,
+      sizeClass: 'regional',
+      legs: [{
+        tier: 'regional',
+        candidates: candidatePool(regionClubs),
+        decks: decksFor(regionClubs, regionClubs[0].format, archetypesFor, random),
+        label: 'Étape'
+      }]
+    });
+  }
 
-      // Every two months, so two stages fit a four-month season.
-      for (let stage = 0; stage < 2; stage += 1) {
-        const roster = drawField(random, candidates, fieldSize(random, 'regional'));
-        tournaments.push(playTournament(random, {
-          id: `${leagueId}-e${stage + 1}`,
-          leagueId,
-          name: `Étape ${stage + 1}`,
-          tournamentDate: archiveDate((startWeek + stage * 8 + 4) * 7 + 6),
-          status: 'completed',
+  // The Championnat de France weekend, the way it is really run and archived: Jour 1 is the full
+  // Swiss, Jour 2 is the quarter of the field that survived it, and the satellites are their own thing.
+  const nationwide = candidatePool(clubs);
+  const nationalDecks = decksFor(clubs, FORMATS[0], archetypesFor, random);
+  const national = { tier: 'national', candidates: nationwide, decks: nationalDecks };
+  series.push({
+    slug: slugFor('cdf', 0),
+    name: 'Championnat de France',
+    sizeClass: 'proTour',
+    legs: [
+      // Nine rounds of five hundred pairings would be over the megabyte the domain reads back; the real
+      // weekend runs six on Jour 1 and three on the cut, which is also what fits.
+      { ...national, label: 'Jour 1', numbered: false, rounds: NATIONAL_DAY_ONE_ROUNDS },
+      { ...national, tier: 'cut', label: 'Jour 2', numbered: false, rounds: NATIONAL_DAY_TWO_ROUNDS },
+      { tier: 'regional', candidates: nationwide, decks: nationalDecks, label: NATIONAL_SATELLITES[0], numbered: false },
+      { tier: 'regional', candidates: nationwide, decks: nationalDecks, label: NATIONAL_SATELLITES[4], numbered: false }
+    ]
+  });
+  // The one child series whose name embeds its parent's, so prefix-grouping heuristics visibly break.
+  series.push({
+    slug: slugFor('cdf-ptq', 0),
+    name: `Championnat de France${EMBEDDED_CHILD_SUFFIX}`,
+    sizeClass: 'regional',
+    legs: [{ tier: 'monthly', candidates: nationwide, decks: nationalDecks, label: 'Qualifier' }]
+  });
+
+  const sizeClasses = new Map(SEASON_SIZE_CLASSES.map((entry) => [entry.key, entry]));
+  const earliestDay = new Map();
+  for (const entry of series) {
+    const leagueId = `stress-archive-league-${entry.slug}`;
+    for (let index = 0; index < volumes.archiveSeasons; index += 1) {
+      // Oldest Season first, one calendar year apart, so the newest ends against the anchor.
+      const startYear = Number(ARCHIVE_ANCHOR_DATE.slice(0, 4)) - (volumes.archiveSeasons - 1 - index);
+      const sizeClass = entry.sizeClass === null
+        ? weighted(random, SEASON_SIZE_CLASSES.map((item) => [item, item.weight]))
+        : sizeClasses.get(entry.sizeClass);
+      const style = weighted(random, SEASON_LABEL_STYLES.map((item) => [item, item.weight]));
+      const count = between(random, sizeClass.minimum, sizeClass.maximum);
+      const seasonId = `stress-archive-season-${entry.slug}-s${pad(index + 1, 2)}`;
+      const [firstDay, lastDay] = seasonWindow(startYear, style.key === 'crossYear');
+      const running = index === volumes.archiveSeasons - 1;
+      leagueSeasons.push({
+        id: seasonId,
+        name: seasonLabel(style.key, entry.name, index, startYear),
+        leagueId,
+        status: running ? 'active' : 'completed',
+        sizeClass: sizeClass.key
+      });
+
+      let previous = null;
+      for (let leg = 0; leg < count; leg += 1) {
+        const shape = entry.legs[leg % entry.legs.length];
+        const roster = shape.tier === 'cut' && previous !== null
+          ? standings(previous).slice(0, Math.max(8, Math.floor(previous.playerArchetypes.length / 4)))
+          : drawField(random, shape.candidates, fieldSize(random, shape.tier === 'cut' ? 'regional' : shape.tier));
+        const day = Math.min(firstDay + Math.round((leg * (lastDay - firstDay)) / Math.max(count - 1, 1)), ARCHIVE_ANCHOR_DAY);
+        const played = playTournament(random, {
+          id: `stress-archive-tournament-${entry.slug}-s${pad(index + 1, 2)}-${pad(leg + 1, 3)}`,
+          seasonId,
+          name: shape.numbered === false ? shape.label : `${shape.label} ${leg + 1}`,
+          tournamentDate: archiveDate(day),
+          // The last leg of the Season in progress is the one still being played. A Season of one would
+          // then rank nobody, so it only happens once a completed leg sits behind it.
+          status: running && count > 1 && leg === count - 1 ? 'active' : 'completed',
           roster,
-          rounds: roundsFor(roster.length),
-          decks,
-          recordMatchArchetypes: true
-        }));
+          rounds: shape.rounds ?? roundsFor(roster.length),
+          decks: shape.decks,
+          // A thousand pairings carrying two archetypes each would push the document past what the
+          // domain reads back; the player list keeps every deck, which is where the archive really
+          // carries them.
+          recordMatchArchetypes: roster.length <= 300
+        });
+        tournaments.push(played);
+        previous = played;
+        earliestDay.set(leagueId, Math.min(earliestDay.get(leagueId) ?? day, day));
       }
-      leagues.push({ id: leagueId, name: `Championnat Régional ${region} — Saison ${seasonIndex}`, status: season === 0 ? 'active' : 'completed', tournaments });
     }
   }
 
-  // The Championnat de France, the one weekend of the year that puts four figures in a room. A field
-  // that size does not fit one League document — nine rounds of six hundred pairings is over the
-  // megabyte the domain reads back — which is also how the real weekend is run and archived: Jour 1 is
-  // the full Swiss, Jour 2 is the cut, and the satellites are their own thing.
-  const nationwide = candidatePool(clubs);
-  const nationalFormat = FORMATS[0];
-  const nationalDecks = decksFor(clubs, nationalFormat, archetypesFor, random);
-  for (const [index, year] of NATIONAL_YEARS.entries()) {
-    const week = lastSeasonStart - (1 - index) * ARCHIVE_SEASON_WEEKS * 2;
-    const mainId = `stress-cdf-${year}`;
-    const roster = drawField(random, nationwide, fieldSize(random, 'national'));
-    const dayOne = playTournament(random, {
-      id: `${mainId}-j1`,
-      leagueId: mainId,
-      name: 'Jour 1',
-      tournamentDate: archiveDate(week * 7 + 5),
+  // Standalone Tournaments: names carrying no series signal at all, plus a city. The public archive is
+  // full of them, and a heuristic that grouped them into Leagues would invent series nobody ran.
+  const cities = [...new Set(clubs.map((club) => club.city))];
+  for (let index = 0; index < volumes.standaloneTournaments; index += 1) {
+    const club = clubs[index % clubs.length];
+    const roster = drawField(random, club.roster, fieldSize(random, 'local'));
+    tournaments.push(playTournament(random, {
+      id: `stress-archive-tournament-standalone-${pad(index, 3)}`,
+      seasonId: null,
+      name: index % 5 === 4 ? cities[index % cities.length] : DEGENERATE_TOURNAMENT_NAMES[index % DEGENERATE_TOURNAMENT_NAMES.length],
+      tournamentDate: archiveDate(Math.round((index * ARCHIVE_ANCHOR_DAY) / Math.max(volumes.standaloneTournaments - 1, 1))),
+      // A standalone Tournament names no Season and therefore no League, so it feeds the `global`
+      // player-statistics scope only — and an `active` one would feed nothing at all.
       status: 'completed',
       roster,
-      rounds: NATIONAL_DAY_ONE_ROUNDS,
-      decks: nationalDecks,
-      // A thousand pairings carrying two archetypes each would push the document past what the domain
-      // reads back; the player list keeps every deck, which is where the archive really carries them.
-      recordMatchArchetypes: false
-    });
-    leagues.push({ id: mainId, name: `Championnat de France ${year} — Jour 1`, status: 'completed', tournaments: [dayOne] });
-
-    // Jour 2 is the quarter of the field that survived Jour 1, cut on record, plus the satellites the
-    // same weekend runs alongside it.
-    const cutId = `stress-cdf-${year}-j2`;
-    const cut = standings(dayOne).slice(0, Math.floor(roster.length / 4));
-    const tournaments = [playTournament(random, {
-      id: `${cutId}-j2`,
-      leagueId: cutId,
-      name: 'Jour 2',
-      tournamentDate: archiveDate(week * 7 + 6),
-      status: 'completed',
-      roster: cut,
-      rounds: NATIONAL_DAY_TWO_ROUNDS,
-      decks: nationalDecks,
+      rounds: roundsFor(roster.length),
+      decks: club.decks,
       recordMatchArchetypes: true
-    })];
-    for (const [satellite, name] of NATIONAL_SATELLITES.slice(0, 3).entries()) {
-      const field = drawField(random, nationwide, fieldSize(random, 'regional'));
-      tournaments.push(playTournament(random, {
-        id: `${cutId}-s${satellite + 1}`,
-        leagueId: cutId,
-        name,
-        tournamentDate: archiveDate(week * 7 + 3 + satellite),
-        status: 'completed',
-        roster: field,
-        rounds: roundsFor(field.length),
-        decks: nationalDecks,
-        recordMatchArchetypes: true
-      }));
-    }
-    leagues.push({ id: cutId, name: `Championnat de France ${year} — Jour 2 et annexes`, status: 'completed', tournaments });
+    }));
   }
 
-  return leagues;
+  const leagues = [...new Set(leagueSeasons.map((season) => season.leagueId))].map((leagueId) => ({
+    id: leagueId,
+    name: series.find((entry) => `stress-archive-league-${entry.slug}` === leagueId).name,
+    // Derived from the League's earliest Tournament, never from a clock.
+    createdAt: `${archiveDate(earliestDay.get(leagueId) ?? 0)}T09:00:00Z`,
+    // Public archives expose no series field; the League tier is this project's own construct.
+    sourceSeriesId: null
+  }));
+  return { leagues, leagueSeasons, tournaments };
 }
 
 /**
- * Every generated League has to stay under what the domain reads back, and the bulk loader writes past
- * the domain — so this is the only place the limit can be enforced. It throws rather than trims: a
+ * Every generated Tournament has to stay under what the domain reads back, and the bulk loader writes
+ * past the domain — so this is the only place the limit can be enforced. It throws rather than trims: a
  * silently shortened Championnat is a dataset that no longer describes what it claims to.
  */
-export function assertLeagueBudget(leagues) {
-  for (const league of leagues) {
-    const bytes = Buffer.byteLength(JSON.stringify(league), 'utf8');
-    if (bytes > LEAGUE_BYTE_BUDGET) {
-      throw new Error(`League ${league.id} is ${bytes} bytes, over the ${LEAGUE_BYTE_BUDGET} byte budget the domain reads back.`);
+export function assertTournamentBudget(tournaments) {
+  for (const tournament of tournaments) {
+    const bytes = Buffer.byteLength(JSON.stringify(tournament), 'utf8');
+    if (bytes > TOURNAMENT_BYTE_BUDGET) {
+      throw new Error(`Archive Tournament ${tournament.id} is ${bytes} bytes, over the ${TOURNAMENT_BYTE_BUDGET} byte budget the domain reads back.`);
     }
   }
-  return leagues;
+  return tournaments;
 }
 
-/** Running tournaments: the locals of the busiest clubs, caught at the point an organizer would be at. */
-function generateLiveTournaments(random, volumes, clubs, leagues) {
+/**
+ * Running tournaments: the locals of the busiest clubs, caught at the point an organizer would be at.
+ *
+ * The `leagueKey` is minted here rather than looked up, because the League it names is a **legacy**
+ * row: `POST /api/live-tournaments` still resolves its `leagueId` against `league_archive_aggregates`.
+ * {@link generateLiveReferenceLeagues} turns each key into the one stub row that resolution needs.
+ */
+function generateLiveTournaments(random, volumes, clubs) {
   const live = [];
   const hosts = clubs.filter((club) => club.activity !== 'occasional');
   for (let index = 0; index < volumes.liveTournaments; index += 1) {
@@ -1013,12 +1115,11 @@ function generateLiveTournaments(random, volumes, clubs, leagues) {
     const roundCount = 4;
     // Live pairing needs an even roster, and eight to twelve is what a local really seats.
     const players = drawField(random, club.roster, between(random, 4, 6) * 2);
-    const league = leagues.find((candidate) => candidate.id.startsWith(`stress-league-${club.key.slice(-3)}`));
     live.push({
       key: `stress-live-${pad(index, 2)}`,
       organizerEmail: club.organizerEmails[0],
       name: `${club.name} Live ${pad(index, 2)}`,
-      leagueKey: index % 3 === 0 || league === undefined ? null : league.id,
+      leagueKey: index % 3 === 0 ? null : `stress-legacy-league-${club.key.slice(-3)}`,
       tournamentDate: { offsetDays: 0 },
       roundCount,
       customRoundCount: true,
@@ -1035,6 +1136,24 @@ function generateLiveTournaments(random, volumes, clubs, leagues) {
     });
   }
   return live;
+}
+
+/**
+ * One legacy `league_archive_aggregates` stub per Live tournament that names a League.
+ *
+ * The whole legacy archive beside a full three-tier one would be 44 MB of duplicate history, and the
+ * `global` player-statistics scope folds both tables in until the legacy surface is retired — so every
+ * ranking number would double. What Live actually needs is a row to point its `leagueId` at.
+ */
+function generateLiveReferenceLeagues(liveTournaments, clubs) {
+  const byIndex = new Map(clubs.map((club) => [club.key.slice(-3), club]));
+  const referenced = [...new Set(liveTournaments.map((live) => live.leagueKey).filter((key) => key !== null))].sort();
+  return referenced.map((id) => ({
+    id,
+    name: `${byIndex.get(id.slice(-3)).name} — Live`,
+    status: 'active',
+    tournaments: []
+  }));
 }
 
 /**
@@ -1080,8 +1199,10 @@ export function generateStressEnvironment({ seed = DEFAULT_SEED, scale = 1, root
 
   const events = generateEvents(random, volumes, clubs, formatsByKey);
   const registrations = generateRegistrations(random, events, registrable, clubs);
-  const leagues = assertLeagueBudget(generateLeagues(random, volumes, clubs, archetypesFor));
-  const liveTournaments = generateLiveTournaments(random, volumes, clubs, leagues);
+  const archive = generateArchive(random, volumes, clubs, archetypesFor);
+  assertTournamentBudget(archive.tournaments);
+  const liveTournaments = generateLiveTournaments(random, volumes, clubs);
+  const leagues = generateLiveReferenceLeagues(liveTournaments, clubs);
   const auditRecords = generateAuditRecords(random, volumes, accounts);
 
   // `club`, `tier`, `region` and `year` are how this file reasons about an Event; the fixture format
@@ -1091,7 +1212,25 @@ export function generateStressEnvironment({ seed = DEFAULT_SEED, scale = 1, root
   const tournaments = events.map(({ club, tier, region, year, ...event }) => event);
   const labelled = events.map(({ club, ...event }) => event);
 
-  return { accounts, organizations, formats, tournaments, registrations, leagues, liveTournaments, auditRecords, events: labelled };
+  return {
+    accounts,
+    organizations,
+    formats,
+    tournaments,
+    registrations,
+    leagues,
+    archiveLeagues: archive.leagues,
+    // `sizeClass` is how this file reasons about a Season; the fixture format knows no such field and
+    // the restore endpoint would carry it straight to the API.
+    archiveLeagueSeasons: archive.leagueSeasons.map(({ sizeClass, ...season }) => season),
+    archiveTournaments: archive.tournaments,
+    liveTournaments,
+    auditRecords,
+    events: labelled,
+    // Kept out of `writeStressEnvironment`: it exists only so `countBySeasonSizeClass` has something to
+    // count in the tests that gate the spread.
+    leagueSeasonsBySizeClass: archive.leagueSeasons
+  };
 }
 
 /**
@@ -1109,6 +1248,9 @@ export function writeStressEnvironment(data, directory = STRESS_DIRECTORY) {
     ['tournaments.json', data.tournaments, false],
     ['registrations.json', data.registrations, false],
     ['leagues.json', data.leagues, false],
+    ['archive-leagues.json', data.archiveLeagues, true],
+    ['archive-league-seasons.json', data.archiveLeagueSeasons, true],
+    ['archive-tournaments.json', data.archiveTournaments, false],
     ['live-tournaments.json', data.liveTournaments, true],
     [AUDIT_FILE, data.auditRecords, false]
   ];
@@ -1142,6 +1284,13 @@ export function countByTier(events) {
   return counts;
 }
 
+/** `{ championship: n, proTour: n, ... }` for the console summary and the tests that gate the spread. */
+export function countBySeasonSizeClass(leagueSeasons) {
+  const counts = {};
+  for (const season of leagueSeasons) counts[season.sizeClass] = (counts[season.sizeClass] ?? 0) + 1;
+  return counts;
+}
+
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
   const seed = parseSeed(process.argv.slice(2));
   if (!Number.isInteger(seed) || seed < 0) {
@@ -1152,8 +1301,9 @@ if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
   const data = generateStressEnvironment({ seed });
   const written = writeStressEnvironment(data);
   const tiers = countByTier(data.events);
-  const entries = data.leagues.reduce((total, league) => total
-    + league.tournaments.reduce((sum, tournament) => sum + tournament.rounds.reduce((count, round) => count + round.entries.length, 0), 0), 0);
+  const entries = data.archiveTournaments.reduce((total, tournament) =>
+    total + tournament.rounds.reduce((count, round) => count + round.entries.length, 0), 0);
+  const standalone = data.archiveTournaments.filter((tournament) => tournament.seasonId === null).length;
 
   console.log(`Generated the "${STRESS_ENVIRONMENT}" environment from seed ${seed}:`);
   console.log([
@@ -1162,7 +1312,8 @@ if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
     `  ${data.formats.length} formats`,
     `  ${data.tournaments.length} Events (${tiers.local ?? 0} locals, ${tiers.monthly ?? 0} monthly Opens, ${tiers.regional ?? 0} regional, ${tiers.national ?? 0} national)`,
     `  ${data.registrations.length} registrations`,
-    `  ${data.leagues.length} League Archives (${data.leagues.reduce((total, league) => total + league.tournaments.length, 0)} Archive Tournaments, ${entries} Round Entries)`,
+    `  ${data.archiveLeagues.length} archive Leagues, ${data.archiveLeagueSeasons.length} League Seasons, ${data.archiveTournaments.length} Tournaments (${standalone} standalone, ${entries} Round Entries)`,
+    `  ${data.leagues.length} legacy League references for the running tournaments`,
     `  ${data.liveTournaments.length} running tournaments`,
     `  ${data.auditRecords.length} audit rows`
   ].join('\n'));

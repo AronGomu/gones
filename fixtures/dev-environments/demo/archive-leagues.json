@@ -1,0 +1,50 @@
+[
+  {
+    "id": "demo-archive-league-gones",
+    "name": "Gones League",
+    "createdAt": "2024-08-29T09:00:00Z",
+    "sourceSeriesId": null
+  },
+  {
+    "id": "demo-archive-league-f2f",
+    "name": "Face to Face Tour",
+    "createdAt": "2025-08-09T09:00:00Z",
+    "sourceSeriesId": null
+  },
+  {
+    "id": "demo-archive-league-pro-tour",
+    "name": "Pro Tour Aetherdrift",
+    "createdAt": "2026-02-14T09:00:00Z",
+    "sourceSeriesId": null
+  },
+  {
+    "id": "demo-archive-league-pro-tour-ptq",
+    "name": "Pro Tour Aetherdrift - 2nd Chance PTQ",
+    "createdAt": "2026-02-15T09:00:00Z",
+    "sourceSeriesId": null
+  },
+  {
+    "id": "demo-archive-league-worlds",
+    "name": "World Championship",
+    "createdAt": "2025-09-19T09:00:00Z",
+    "sourceSeriesId": null
+  },
+  {
+    "id": "demo-archive-league-liga-sword",
+    "name": "Liga Sword",
+    "createdAt": "2025-03-01T09:00:00Z",
+    "sourceSeriesId": null
+  },
+  {
+    "id": "demo-archive-league-grand-prix",
+    "name": "Grand Prix",
+    "createdAt": "1996-09-07T09:00:00Z",
+    "sourceSeriesId": null
+  },
+  {
+    "id": "demo-archive-league-spotlight",
+    "name": "Spotlight Series",
+    "createdAt": "2025-08-30T09:00:00Z",
+    "sourceSeriesId": null
+  }
+]

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Bulk-inserts the four largest slices of the `stress` environment straight into the local Compose
- * Postgres: Events, registrations, League Archives and audit rows (T29, round 2 Q6).
+ * Bulk-inserts the five largest slices of the `stress` environment straight into the local Compose
+ * Postgres: Events, registrations, the three-tier archive (`archive_leagues`,
+ * `archive_league_seasons`, `archive_tournaments`), the legacy League reference rows and audit rows
+ * (T29, round 2 Q6).
  *
  * **Test-only, and unreachable from any release artifact.** `fixtures/` is in no image, nothing under
  * `deploy/` or `backend/` imports this file, and the guard below refuses to run against anything but
@@ -17,13 +19,17 @@
  *   `scripts/seed-dev-environment.mjs` reads a sample back through the API afterwards.
  * - the `player_statistics` write-side rebuild (T22, ADR 0040), which only runs inside an archive write
  *   transaction. The seeder triggers the startup rebuild explicitly once this returns.
+ * - the archive tables' denormalized counters. `tournament_count`, `player_count` and the Season date
+ *   bounds are columns the domain would have computed inside the write; here they are written by hand,
+ *   which is why `countArchiveTournamentPlayers` mirrors the Swiss standings rule byte for byte. A
+ *   count that disagreed with the document would print a wrong number on every catalog row.
  * - the notification outbox and the Event lifecycle log, which a bulk Event carries none of. Reminder
  *   mails for the generated Events therefore do not exist; nothing in this environment tests them.
  */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
-import { expectedEventSlug, isLocalDockerEndpoint, localDateTime } from './dev-environments.mjs';
+import { countArchiveSeasonPlayers, countArchiveTournamentPlayers, expectedEventSlug, isLocalDockerEndpoint, localDateTime } from './dev-environments.mjs';
 
 /** One statement per chunk of rows: a single multi-megabyte INSERT is slower to parse than ten. */
 const CHUNK_SIZE = 500;
@@ -33,6 +39,8 @@ const CHUNK_SIZE = 500;
  * the entire archive in a single INSERT.
  */
 const LEAGUE_CHUNK_SIZE = 20;
+/** A Tournament row carries a whole document; twenty per statement, like the legacy League rows. */
+const TOURNAMENT_CHUNK_SIZE = 20;
 
 function fail(message) {
   console.error(message);
@@ -122,6 +130,29 @@ function searchText(event) {
     .slice(0, 600);
 }
 
+/**
+ * The stored `document` jsonb, byte-compatible with what the server writes: camelCase keys, and
+ * `seasonId` OMITTED when null so `document ->> 'seasonId' IS NOT DISTINCT FROM season_id` holds.
+ *
+ * The server's JSON options set `DefaultIgnoreCondition = WhenWritingNull`, so a standalone Tournament
+ * simply has no `seasonId` key and `->>` on an absent key yields SQL NULL. Writing `"seasonId": null`
+ * instead would be a JSON null, which is distinct from SQL NULL, and
+ * `ck_archive_tournament_document_metadata` would refuse the row.
+ */
+function archiveTournamentDocument(tournament) {
+  const document = {
+    id: tournament.id,
+    name: tournament.name,
+    tournamentDate: tournament.tournamentDate,
+    status: tournament.status,
+    rounds: tournament.rounds,
+    playerArchetypes: tournament.playerArchetypes
+  };
+  return tournament.seasonId === null || tournament.seasonId === undefined
+    ? document
+    : { ...document, seasonId: tournament.seasonId };
+}
+
 /** email -> user id, for every account the API already registered. One query, not one per row. */
 export function readUserIds() {
   const rows = psql('SELECT lower(normalized_email), id FROM asp_net_users;', { capture: true });
@@ -132,9 +163,10 @@ export function readUserIds() {
 }
 
 /**
- * Writes Events (with their single format), registrations, League Archives and audit rows in one psql
- * run. Returns the ids the caller needs afterwards: Events by fixture key, and Leagues by document id —
- * which for a bulk-inserted League is the fixture id itself, because nothing minted a new one.
+ * Writes Events (with their single format), registrations, the three-tier archive, the legacy League
+ * reference rows and audit rows in one psql run. Returns the ids the caller needs afterwards: Events by
+ * fixture key, and every archive row by document id — which for a bulk-inserted row is the fixture id
+ * itself, because nothing minted a new one, unlike the HTTP restore path.
  */
 export function bulkLoadStress({ environment, auditRecords, organizationIds, formatIds, formatSlugs, now = new Date() }) {
   requireLocalComposePostgres();
@@ -210,6 +242,64 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
     '1'
   ]);
 
+  // The catalog reads order by `updated_at DESC, document_id ASC`, and a bulk load that stamped one
+  // identical instant on two thousand rows would collapse that ordering onto the ID and hide every
+  // ordering bug this environment exists to surface. 61 seconds per row is a synthetic,
+  // seed-independent, strictly descending spread. Only `tournament_date` is history; `updated_at` is
+  // always measured from the seeding clock, because the year-partitioned catalog's ETag is a stamp over
+  // `max(updated_at)` and a backdated write would make a stale partition servable.
+  const writtenAt = (index) => literal(new Date(now.getTime() - index * 61_000).toISOString());
+
+  const archiveLeagueRows = environment.archiveLeagues.map((league, index) => [
+    literal(league.id),
+    literal(league.name),
+    literal(league.createdAt),
+    writtenAt(index),
+    '1',
+    'NULL'
+  ]);
+
+  const tournamentsBySeason = new Map();
+  for (const tournament of environment.archiveTournaments) {
+    if (tournament.seasonId === null || tournament.seasonId === undefined) continue;
+    const grouped = tournamentsBySeason.get(tournament.seasonId) ?? [];
+    grouped.push(tournament);
+    tournamentsBySeason.set(tournament.seasonId, grouped);
+  }
+
+  const archiveSeasonRows = environment.archiveLeagueSeasons.map((season, index) => {
+    const played = tournamentsBySeason.get(season.id) ?? [];
+    const dates = played.map((tournament) => tournament.tournamentDate).sort();
+    return [
+      literal(season.id),
+      literal(season.leagueId),
+      literal(season.name),
+      literal(season.status),
+      writtenAt(index),
+      '1',
+      'NULL',
+      String(played.length),
+      String(countArchiveSeasonPlayers(played)),
+      nullable(dates[0] ?? null),
+      nullable(dates[dates.length - 1] ?? null),
+      '1'
+    ];
+  });
+
+  const archiveTournamentRows = environment.archiveTournaments.map((tournament, index) => [
+    literal(tournament.id),
+    nullable(tournament.seasonId),
+    literal(tournament.name),
+    literal(tournament.tournamentDate),
+    literal(tournament.status),
+    json(archiveTournamentDocument(tournament)),
+    writtenAt(index),
+    '1',
+    'NULL',
+    String(countArchiveTournamentPlayers(tournament)),
+    '1'
+  ]);
+
   const auditRows = (auditRecords ?? []).map((record) => [
     literal(randomUUID()),
     record.actorEmail === null ? 'NULL' : literal(requireUser(record.actorEmail)),
@@ -237,6 +327,18 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
     ...insertStatements('league_archive_aggregates', [
       'id', 'document_id', 'name', 'status', 'updated_at', 'deleted_at', 'canonical_document', 'version'
     ], leagueRows, LEAGUE_CHUNK_SIZE),
+    // Leagues, then Seasons, then Tournaments: the foreign keys are checked immediately, not deferred.
+    ...insertStatements('archive_leagues', [
+      'document_id', 'name', 'created_at', 'updated_at', 'version', 'deleted_at'
+    ], archiveLeagueRows),
+    ...insertStatements('archive_league_seasons', [
+      'document_id', 'league_id', 'name', 'status', 'updated_at', 'version', 'deleted_at',
+      'tournament_count', 'player_count', 'first_tournament_date', 'last_tournament_date', 'counts_version'
+    ], archiveSeasonRows),
+    ...insertStatements('archive_tournaments', [
+      'document_id', 'season_id', 'name', 'tournament_date', 'status', 'document', 'updated_at',
+      'version', 'deleted_at', 'player_count', 'counts_version'
+    ], archiveTournamentRows, TOURNAMENT_CHUNK_SIZE),
     ...insertStatements('audit_records', [
       'id', 'actor_id', 'action', 'entity_type', 'entity_id', 'redacted_diff', 'occurred_at', 'version'
     ], auditRows),
@@ -248,10 +350,18 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
   return {
     eventIds,
     leagueIds: new Map(environment.leagues.map((league) => [league.id, league.id])),
+    archiveIds: {
+      leagues: new Map(environment.archiveLeagues.map((league) => [league.id, league.id])),
+      leagueSeasons: new Map(environment.archiveLeagueSeasons.map((season) => [season.id, season.id])),
+      tournaments: new Map(environment.archiveTournaments.map((tournament) => [tournament.id, tournament.id]))
+    },
     counts: {
       events: eventRows.length,
       registrations: registrationRows.length,
       leagues: leagueRows.length,
+      archiveLeagues: archiveLeagueRows.length,
+      archiveLeagueSeasons: archiveSeasonRows.length,
+      archiveTournaments: archiveTournamentRows.length,
       auditRecords: auditRows.length
     }
   };

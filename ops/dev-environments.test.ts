@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error - the dev account roster is a plain ESM module shared with the seeding script.
 import { DEV_PASSWORD, meetsPasswordPolicy } from '../scripts/dev-accounts.mjs';
 // @ts-expect-error - the environment loader is a plain ESM module shared with the seeding scripts.
-import { DATA_FILES, DEV_ENVIRONMENTS_DIR, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from '../scripts/dev-environments.mjs';
+import { ARCHIVE_DATA_FILES, ARCHIVE_DATA_VERSION, ARCHIVE_MAXIMUM_TOURNAMENT_BYTES, ARCHIVE_RESTORE_CAPS, ARCHIVE_RESTORE_KIND, buildArchiveBundle, countArchiveTournamentPlayers, DATA_FILES, DEV_ENVIRONMENTS_DIR, isArchiveTournamentLocked, isLocalDockerEndpoint, listEnvironmentNames, localDateTime, normalizeFixtureEmail, parseDevArgs, readEnvironment, validateEnvironment } from '../scripts/dev-environments.mjs';
 
 /**
  * ADR 0030 file-driven local development environments.
@@ -82,6 +82,30 @@ interface DevEnvironmentLeague {
   tournaments: { id: string; leagueId: string; rounds: { entries: DevEnvironmentRoundEntry[] }[] }[];
 }
 
+interface DevArchiveLeague {
+  id: string;
+  name: string;
+  createdAt: string;
+  sourceSeriesId: null;
+}
+
+interface DevArchiveLeagueSeason {
+  id: string;
+  name: string;
+  leagueId: string;
+  status: string;
+}
+
+interface DevArchiveTournament {
+  id: string;
+  name: string;
+  seasonId: string | null;
+  tournamentDate: string;
+  status: string;
+  rounds: { id: string; entries: DevEnvironmentRoundEntry[] }[];
+  playerArchetypes: { playerName: string; archetype: string }[];
+}
+
 interface DevEnvironment {
   name: string;
   description: string;
@@ -93,6 +117,9 @@ interface DevEnvironment {
   registrations: DevEnvironmentRegistration[];
   liveTournaments: DevEnvironmentLiveTournament[];
   leagues: DevEnvironmentLeague[];
+  archiveLeagues: DevArchiveLeague[];
+  archiveLeagueSeasons: DevArchiveLeagueSeason[];
+  archiveTournaments: DevArchiveTournament[];
   [key: string]: unknown;
 }
 
@@ -111,6 +138,13 @@ const slugify = (value: string): string => value
   .replace(/[^a-z0-9]+/g, '-')
   .replace(/^-|-$/g, '');
 
+/**
+ * The archive fixtures are absolute history (ADR 0030), so the lock window they straddle is measured
+ * against a declared anchor rather than the clock — a clock-measured expectation would rot silently.
+ */
+const ANCHOR_ISO = '2026-08-22';
+const ANCHOR = new Date(`${ANCHOR_ISO}T00:00:00Z`);
+
 const names = listEnvironmentNames() as string[];
 const dataFiles = DATA_FILES as string[];
 /**
@@ -126,7 +160,8 @@ function validEnvironment(): Record<string, unknown> {
   return {
     name: 'demo', directory: 'demo', description: 'valid fixture', resetDatabase: true,
     accounts: [{ email: 'user@gones.test', username: 'user', firstName: 'Demo', lastName: 'User', role: 'User', password: DEV_PASSWORD, emailConfirmed: true }],
-    organizations: [], formats: [], tournaments: [], registrations: [], leagues: [], liveTournaments: []
+    organizations: [], formats: [], tournaments: [], registrations: [], leagues: [], liveTournaments: [],
+    archiveLeagues: [], archiveLeagueSeasons: [], archiveTournaments: []
   };
 }
 
@@ -566,5 +601,324 @@ describe('seeder safety boundaries', () => {
 describe('relative fixture dates', () => {
   it('localDateTime builds a wire-shaped local timestamp', () => {
     expect(localDateTime(1, '09:00', new Date(2026, 0, 31))).toBe('2026-02-01T09:00');
+  });
+});
+
+/**
+ * The three-tier archive fixtures (League -> League Season -> Tournament).
+ *
+ * These files are restored in one `POST /api/archive/restore-full` thirty seconds into a Docker
+ * reset, so every shape the server would refuse has to be refused here first. The dates are absolute
+ * history (ADR 0030), which is why the lock window is measured against the declared `ANCHOR` and
+ * never against the clock: a clock-measured expectation would rot without anyone noticing.
+ */
+describe('three-tier archive fixtures', () => {
+  const demo = (): DevEnvironment => read('demo');
+  const nonAscii = (value: string): boolean => !/^[\x20-\x7e]*$/.test(value);
+  const archiveFixture = (overrides: Record<string, unknown>): Record<string, unknown> => ({ ...validEnvironment(), ...overrides });
+  const league = (id: string): DevArchiveLeague => ({ id, name: id, createdAt: '2024-01-08T09:00:00Z', sourceSeriesId: null });
+  const season = (id: string, leagueId: string, status = 'completed'): DevArchiveLeagueSeason => ({ id, name: id, leagueId, status });
+  const tournament = (id: string, seasonId: string | null, overrides: Record<string, unknown> = {}): DevArchiveTournament => ({
+    id, name: id, seasonId, tournamentDate: '2024-09-05', status: 'completed', rounds: [], playerArchetypes: [], ...overrides
+  } as DevArchiveTournament);
+  const problemsFor = (fixture: Record<string, unknown>): string[] => validateEnvironment(fixture, { today: ANCHOR }) as string[];
+
+  it('names the three archive files as ordinary data files', () => {
+    expect(ARCHIVE_DATA_FILES).toEqual(['archiveLeagues', 'archiveLeagueSeasons', 'archiveTournaments']);
+    for (const key of ARCHIVE_DATA_FILES as string[]) expect(dataFiles, key).toContain(key);
+  });
+
+  it('every shipped environment still validates with an archive', () => {
+    expect(shippedNames.length).toBeGreaterThan(0);
+    for (const name of shippedNames) expect(validateEnvironment(read(name), { today: ANCHOR }), name).toEqual([]);
+  });
+
+  it('the demo archive carries eight Leagues, twelve Seasons and forty-eight Tournaments', () => {
+    const fixtures = demo();
+
+    expect(fixtures.archiveLeagues).toHaveLength(8);
+    expect(fixtures.archiveLeagueSeasons).toHaveLength(12);
+    expect(fixtures.archiveTournaments).toHaveLength(48);
+  });
+
+  it('every demo archive League declares a null sourceSeriesId', () => {
+    // Public archives expose no series and no season field at all; the League tier is this project's
+    // own construct, and the fixture says so in a machine-checkable way rather than in a comment.
+    for (const entry of demo().archiveLeagues) {
+      expect(Object.hasOwn(entry, 'sourceSeriesId'), entry.id).toBe(true);
+      expect(entry.sourceSeriesId, entry.id).toBeNull();
+    }
+  });
+
+  it('every demo archive Season names a League that exists', () => {
+    const fixtures = demo();
+    const leagueIds = new Set(fixtures.archiveLeagues.map(({ id }) => id));
+    const named = new Set(fixtures.archiveLeagueSeasons.map(({ leagueId }) => leagueId));
+
+    for (const entry of fixtures.archiveLeagueSeasons) expect(leagueIds, entry.id).toContain(entry.leagueId);
+    for (const entry of fixtures.archiveLeagues) expect(named, entry.id).toContain(entry.id);
+  });
+
+  it('every demo archive Tournament is standalone or names a Season that exists', () => {
+    const fixtures = demo();
+    const seasonIds = new Set(fixtures.archiveLeagueSeasons.map(({ id }) => id));
+
+    for (const entry of fixtures.archiveTournaments) {
+      if (entry.seasonId !== null) expect(seasonIds, entry.id).toContain(entry.seasonId);
+    }
+    expect(fixtures.archiveTournaments.filter((entry) => entry.seasonId === null)).toHaveLength(5);
+  });
+
+  it('the demo archive keeps Season names as free strings', () => {
+    const labels = demo().archiveLeagueSeasons.map(({ name }) => name);
+
+    // The label styles real public archives use. None of them is a year column, and a fixture that
+    // only carried `2026` would let a year-parsing regression pass unnoticed.
+    for (const label of ['Season 3', '2026', '2025-26', '1996-97', 'Season 5 - Round 2', '3ª Etapa Regular - 2026/2', 'Liga Sword - Primeira Etapa']) {
+      expect(labels, label).toContain(label);
+    }
+    expect(labels.filter((label) => Number.isNaN(Number(label))).length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('the demo archive runs one Season across a calendar year boundary', () => {
+    const fixtures = demo();
+    const crossYear = fixtures.archiveLeagueSeasons.find(({ name }) => name === '2025-26');
+    const played = fixtures.archiveTournaments.filter((entry) => entry.seasonId === crossYear?.id);
+
+    expect(crossYear).toBeDefined();
+    expect(new Set(played.map((entry) => entry.tournamentDate.slice(0, 4)))).toEqual(new Set(['2025', '2026']));
+    expect(played.some((entry) => isArchiveTournamentLocked(entry.tournamentDate, ANCHOR))).toBe(true);
+    expect(played.some((entry) => !isArchiveTournamentLocked(entry.tournamentDate, ANCHOR))).toBe(true);
+  });
+
+  it('the demo archive spreads Tournaments per Season wildly', () => {
+    const fixtures = demo();
+    const counts = fixtures.archiveLeagueSeasons
+      .map((entry) => fixtures.archiveTournaments.filter((played) => played.seasonId === entry.id).length)
+      .sort((left, right) => left - right);
+
+    expect(counts).toEqual([0, 1, 1, 1, 2, 2, 3, 3, 4, 7, 8, 11]);
+    expect(new Set(counts).size).toBe(8);
+    expect(Math.max(...counts)).toBe(11);
+  });
+
+  it('the demo archive ships an empty Season', () => {
+    const fixtures = demo();
+    const empty = fixtures.archiveLeagueSeasons.filter((entry) =>
+      fixtures.archiveTournaments.every((played) => played.seasonId !== entry.id));
+
+    expect(empty).toHaveLength(1);
+  });
+
+  it('the demo archive ships a child series whose name embeds its parent\'s', () => {
+    const labels = demo().archiveLeagues.map(({ name }) => name);
+    const embedded = labels.flatMap((parent) => labels
+      .filter((child) => child !== parent && child.startsWith(parent))
+      .map((child) => [parent, child]));
+
+    expect(embedded).toEqual([['Pro Tour Aetherdrift', 'Pro Tour Aetherdrift - 2nd Chance PTQ']]);
+  });
+
+  it('the demo archive keeps degenerate names as standalone Tournaments', () => {
+    const fixtures = demo();
+    const degenerate = ['Series', '1K', 'FNM', 'Weekly'];
+    const standalone = fixtures.archiveTournaments.filter((entry) => entry.seasonId === null).map(({ name }) => name);
+
+    for (const name of degenerate) expect(standalone, name).toContain(name);
+    for (const name of degenerate) {
+      expect(fixtures.archiveLeagues.map((entry) => entry.name), name).not.toContain(name);
+      expect(fixtures.archiveLeagueSeasons.map((entry) => entry.name), name).not.toContain(name);
+    }
+  });
+
+  it('the demo archive carries non-ASCII names', () => {
+    const fixtures = demo();
+    const strings = [
+      ...fixtures.archiveLeagues.map(({ name }) => name),
+      ...fixtures.archiveLeagueSeasons.map(({ name }) => name),
+      ...fixtures.archiveTournaments.map(({ name }) => name),
+      ...fixtures.archiveTournaments.flatMap((entry) => entry.playerArchetypes.map(({ playerName }) => playerName))
+    ];
+
+    expect([...new Set(strings.filter(nonAscii))].sort()).toEqual(
+      ['3ª Etapa Regular - 2026/2', 'Gdańsk', 'Montréal', 'Zoé Rambaud', 'Łukasz Wiśniewski'].sort()
+    );
+  });
+
+  it('the demo archive reaches both sides of the lock window', () => {
+    const dates = demo().archiveTournaments.map(({ tournamentDate }) => tournamentDate);
+
+    expect(dates.filter((date) => isArchiveTournamentLocked(date, ANCHOR))).toHaveLength(24);
+    expect(dates.filter((date) => !isArchiveTournamentLocked(date, ANCHOR))).toHaveLength(24);
+  });
+
+  it('the demo archive keeps every Tournament in the past', () => {
+    for (const entry of demo().archiveTournaments) {
+      expect(Date.parse(entry.tournamentDate), entry.id).toBeLessThanOrEqual(Date.parse(ANCHOR_ISO));
+    }
+  });
+
+  it('every demo archive round entry is a match or a bye', () => {
+    const entries = demo().archiveTournaments.flatMap((entry) => entry.rounds.flatMap((round) => round.entries));
+
+    expect(entries.length).toBeGreaterThan(0);
+    for (const entry of entries) expect(['match', 'bye']).toContain(entry.kind);
+  });
+
+  it('every demo archive Season keeps a completed Tournament', () => {
+    const fixtures = demo();
+
+    for (const entry of fixtures.archiveLeagueSeasons) {
+      const played = fixtures.archiveTournaments.filter((candidate) => candidate.seasonId === entry.id);
+      if (played.length === 0) continue;
+      // An `active` Tournament contributes to no player-statistics scope, so a Season made only of
+      // them would be statistically empty and its rankings would render nothing.
+      expect(played.filter((candidate) => candidate.status === 'completed').length, entry.id).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('a dangling archive Season league reference is reported', () => {
+    const problems = problemsFor(archiveFixture({
+      archiveLeagues: [league('l1')],
+      archiveLeagueSeasons: [season('s1', 'nope')]
+    }));
+
+    expect(problems).toContain('demo: archive League Season s1 references unknown archive League nope');
+  });
+
+  it('a dangling archive Tournament season reference is reported', () => {
+    const problems = problemsFor(archiveFixture({
+      archiveLeagues: [league('l1')],
+      archiveLeagueSeasons: [season('s1', 'l1')],
+      archiveTournaments: [tournament('t1', 'nope')]
+    }));
+
+    expect(problems).toContain('demo: archive Tournament t1 references unknown archive League Season nope');
+  });
+
+  it('a standalone archive Tournament is accepted', () => {
+    expect(problemsFor(archiveFixture({ archiveTournaments: [tournament('t1', null)] }))).toEqual([]);
+  });
+
+  it('an archive League without the sourceSeriesId marker is reported', () => {
+    const expected = 'demo: archive League l1 must declare "sourceSeriesId": null — public archives expose no series field';
+    const { sourceSeriesId: _absent, ...missing } = league('l1');
+
+    expect(problemsFor(archiveFixture({ archiveLeagues: [missing] }))).toContain(expected);
+    expect(problemsFor(archiveFixture({ archiveLeagues: [{ ...league('l1'), sourceSeriesId: 'series-9' }] }))).toContain(expected);
+  });
+
+  it('a future archive Tournament date is reported', () => {
+    const problems = problemsFor(archiveFixture({ archiveTournaments: [tournament('t1', null, { tournamentDate: '2999-01-01' })] }));
+
+    expect(problems).toContain('demo: archive Tournament t1 is dated in the future (2999-01-01) — an archive is history (ADR 0030)');
+  });
+
+  it('a non-ISO archive Tournament date is reported', () => {
+    const problems = problemsFor(archiveFixture({ archiveTournaments: [tournament('t1', null, { tournamentDate: '05/09/2024' })] }));
+
+    expect(problems).toContain('demo: archive Tournament t1 has tournamentDate "05/09/2024", expected an ISO YYYY-MM-DD date');
+  });
+
+  it('a bad archive status is reported', () => {
+    const problems = problemsFor(archiveFixture({
+      archiveLeagues: [league('l1')],
+      archiveLeagueSeasons: [season('s1', 'l1', 'finished')],
+      archiveTournaments: [tournament('t1', 's1', { status: 'draft' })]
+    }));
+
+    expect(problems).toContain('demo: archive League Season s1 has status "finished", expected one of active, completed');
+    expect(problems).toContain('demo: archive Tournament t1 has status "draft", expected one of active, completed');
+  });
+
+  it('a duplicate archive id is reported at every tier', () => {
+    const problems = problemsFor(archiveFixture({
+      archiveLeagues: [league('l1'), league('l1')],
+      archiveLeagueSeasons: [season('s1', 'l1'), season('s1', 'l1')],
+      archiveTournaments: [tournament('t1', 's1'), tournament('t1', 's1')]
+    }));
+
+    expect(problems).toContain('demo: duplicate archive League id l1');
+    expect(problems).toContain('demo: duplicate archive League Season id s1');
+    expect(problems).toContain('demo: duplicate archive Tournament id t1');
+  });
+
+  it('an oversized archive Tournament document is reported', () => {
+    const padded = tournament('t1', null, {
+      playerArchetypes: [{ playerName: 'A'.repeat(ARCHIVE_MAXIMUM_TOURNAMENT_BYTES as number), archetype: '' }]
+    });
+
+    expect(problemsFor(archiveFixture({ archiveTournaments: [padded] })).join('\n'))
+      .toContain(`over the ${ARCHIVE_MAXIMUM_TOURNAMENT_BYTES} byte document limit the server refuses`);
+  });
+
+  it('an archive over the restore cap is reported', () => {
+    const cap = (ARCHIVE_RESTORE_CAPS as { leagues: number }).leagues;
+    const overflowing = Array.from({ length: cap + 1 }, (_, index) => league(`l${index}`));
+
+    expect(problemsFor(archiveFixture({ archiveLeagues: overflowing })))
+      .toContain(`demo: the archive carries ${cap + 1} Leagues, over the ${cap} the restore endpoint accepts`);
+  });
+
+  it('the lock rule matches the domain at both boundaries', () => {
+    const played = Date.parse('2025-01-01T00:00:00Z');
+    const dayAfter = (days: number): Date => new Date(played + days * 86_400_000);
+
+    // 365 whole UTC days is still writable; 366 is not. The domain draws the line in the same place.
+    expect(isArchiveTournamentLocked('2025-01-01', dayAfter(365))).toBe(false);
+    expect(isArchiveTournamentLocked('2025-01-01', dayAfter(366))).toBe(true);
+  });
+
+  it('the seeder restores the archive through restore-full as an Admin', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/seed-dev-environment.mjs'), 'utf8');
+    const start = source.indexOf('async function seedArchive');
+    const seedArchive = source.slice(start, source.indexOf('async function', start + 1));
+
+    expect(start).toBeGreaterThan(-1);
+    expect(seedArchive).toContain('ARCHIVE_RESTORE_PATH');
+    expect(seedArchive).toContain("tokenForRole(environment, tokens, 'Admin', 'archive')");
+    expect(seedArchive).toContain('buildArchiveBundle(environment)');
+    expect(seedArchive).toContain('-archive-restore-full');
+    // A fixture archive is history, and the interactive create route refuses a non-Admin a Tournament
+    // older than the lock window; restore is the only path it can take.
+    expect(seedArchive).not.toContain("/api/archive/tournaments'");
+  });
+
+  it('the seeder keeps the legacy League path for running tournaments', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/seed-dev-environment.mjs'), 'utf8');
+
+    // `POST /api/live-tournaments` still resolves its leagueId against the legacy table, so dropping
+    // the legacy restore would break every fixture running tournament that names a League.
+    expect(source).toContain("'/api/leagues-archive/restore'");
+    expect(source).toContain('seedLiveTournaments(environment, tokens, leagueIds)');
+  });
+
+  it('buildArchiveBundle strips the fixture-only provenance marker', () => {
+    const bundle = buildArchiveBundle(demo()) as { kind: string; version: number; leagues: Record<string, unknown>[] };
+
+    expect(bundle.kind).toBe(ARCHIVE_RESTORE_KIND);
+    expect(bundle.kind).toBe('fullArchive');
+    expect(bundle.version).toBe(ARCHIVE_DATA_VERSION);
+    expect(bundle.version).toBe(5);
+    for (const entry of bundle.leagues) expect(Object.hasOwn(entry, 'sourceSeriesId'), String(entry['id'])).toBe(false);
+  });
+
+  it('countArchiveTournamentPlayers counts the standings rows', () => {
+    const match = (id: string, player1Name: string, player2Name: string, player1Score: number, player2Score: number) =>
+      ({ kind: 'match', id, table: '1', player1Name, player2Name, player1Score, player2Score, player1DeckArchetype: '', player2DeckArchetype: '' });
+    const counted = countArchiveTournamentPlayers({
+      rounds: [{
+        id: 'r1',
+        entries: [
+          match('m1', 'Alix Aubert', 'Bastien Bonnet', 2, 0),
+          { kind: 'bye', id: 'b1', table: '2', playerName: 'Camille Chartier', deckArchetype: '' },
+          match('m2', 'Damien Delaunay', 'Damien Delaunay', 2, 0),
+          { kind: 'bye', id: 'b2', table: '3', playerName: 'BYE', deckArchetype: '' },
+          match('m3', 'Elodie Estivals', 'Fabien Fournier', 3, 0)
+        ]
+      }]
+    });
+
+    expect(counted).toBe(3);
   });
 });
