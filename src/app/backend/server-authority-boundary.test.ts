@@ -105,6 +105,8 @@ describe('canonical browser store containment', () => {
     expect(filesMatching(/\bindexedDB\b|\bIDB[A-Z]\w*/)).toEqual([
       // Promise wrapper over the raw request/transaction API. No data rules.
       'src/app/backend/indexed-db.ts',
+      // The three-tier archive browser-local authority (ADR 0028), composing the pure domain.
+      'src/app/backend/local-archive-backend.service.ts',
       // The League browser-local adapter (ADR 0028), composing the pure domain.
       'src/app/backend/local-league-archive-backend.service.ts',
       // The Live browser-local adapter itself (anonymous + `User`), composing the pure domain.
