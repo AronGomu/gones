@@ -67,6 +67,7 @@ export async function buildBreadcrumbs(
       : t('crumb.liveSuffix', { name: liveTournament?.name || t('crumb.liveTournament') });
     return [{ label: menu, link: ['/'] }, { label: t('crumb.runningTournaments'), link: ['/live-tournaments'] }, { label }];
   }
+  if (segments[0] === 'archive') return [{ label: menu, link: ['/'] }, { label: t('crumb.archive') }];
   if (segments[0] !== 'leagues-archive') return [{ label: menu, link: ['/'] }, { label: t('nav.notFound') }];
   if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues') }];
 
