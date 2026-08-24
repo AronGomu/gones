@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "exportedAt": "2024-05-04T12:00:00.000Z",
+  "league": {
+    "id": "legacy-league",
+    "name": "Legacy League",
+    "status": "finished",
+    "tournaments": []
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "fixtureSet": "gones-archive-export-parity",
+  "fixtureVersion": 5,
+  "source": {
+    "language": "TypeScript",
+    "exporter": "src/app/domain/archive-export-schemas.test.ts",
+    "sourceFiles": [
+      "src/app/domain/archive-models.ts",
+      "src/app/domain/archive-export-schemas.ts",
+      "src/app/data/archive-import.service.ts"
+    ],
+    "archiveDataVersion": 5
+  },
+  "serialization": "JSON.stringify(value, null, 2) + LF",
+  "bundleSha256": "458ec99b8d22b31b3e669c2d94460e84a731c231551eb24ed36e58361e5b3848",
+  "caseCounts": {
+    "leagues": 2,
+    "leagueSeasons": 3,
+    "tournaments": 4,
+    "standaloneTournaments": 1,
+    "calendarEvents": 1,
+    "refusedBundles": 2
+  }
+}

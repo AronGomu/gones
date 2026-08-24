@@ -1,0 +1,15 @@
+{
+  "kind": "fullData",
+  "gonesDataVersion": 4,
+  "gonesAppVersion": "0.1.0",
+  "exportedAt": "2026-01-15T00:00:00.000Z",
+  "leagues": [
+    {
+      "id": "legacy-league",
+      "name": "Legacy League",
+      "status": "completed",
+      "tournaments": []
+    }
+  ],
+  "calendarEvents": []
+}

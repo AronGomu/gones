@@ -1,0 +1,167 @@
+{
+  "version": 5,
+  "leagues": [
+    {
+      "id": "archive-league-1",
+      "name": "Lyon Circuit",
+      "createdAt": "2025-01-06T09:00:00.000Z"
+    },
+    {
+      "id": "archive-league-2",
+      "name": "Grenoble Circuit",
+      "createdAt": "2025-02-10T09:00:00.000Z"
+    }
+  ],
+  "leagueSeasons": [
+    {
+      "id": "season-1",
+      "name": "Lyon 2025",
+      "leagueId": "archive-league-1",
+      "status": "completed"
+    },
+    {
+      "id": "season-2",
+      "name": "Lyon 2026",
+      "leagueId": "archive-league-1",
+      "status": "active"
+    },
+    {
+      "id": "season-3",
+      "name": "Grenoble 2026",
+      "leagueId": "archive-league-2",
+      "status": "active"
+    }
+  ],
+  "tournaments": [
+    {
+      "id": "tournament-1",
+      "name": "Lyon Opener",
+      "seasonId": "season-1",
+      "tournamentDate": "2025-03-08",
+      "status": "completed",
+      "rounds": [
+        {
+          "id": "round-1",
+          "entries": [
+            {
+              "kind": "match",
+              "id": "match-1",
+              "table": "1",
+              "player1Name": "Alice",
+              "player2Name": "Bob",
+              "player1Score": 2,
+              "player2Score": 0,
+              "player1DeckArchetype": "Red Aggro",
+              "player2DeckArchetype": "Blue Control"
+            },
+            {
+              "kind": "bye",
+              "id": "bye-1",
+              "table": "2",
+              "playerName": "Carol",
+              "deckArchetype": "Green Ramp"
+            }
+          ]
+        }
+      ],
+      "playerArchetypes": [
+        {
+          "playerName": "Alice",
+          "archetype": "Red Aggro"
+        },
+        {
+          "playerName": "Bob",
+          "archetype": "Blue Control"
+        },
+        {
+          "playerName": "Carol",
+          "archetype": "Green Ramp"
+        }
+      ]
+    },
+    {
+      "id": "tournament-2",
+      "name": "Lyon Finals",
+      "seasonId": "season-1",
+      "tournamentDate": "2025-11-22",
+      "status": "completed",
+      "rounds": [],
+      "playerArchetypes": []
+    },
+    {
+      "id": "tournament-3",
+      "name": "Grenoble Open",
+      "seasonId": "season-3",
+      "tournamentDate": "2026-04-11",
+      "status": "active",
+      "rounds": [
+        {
+          "id": "round-3",
+          "entries": [
+            {
+              "kind": "invalid",
+              "id": "invalid-1",
+              "rawText": "bad,row",
+              "table": "",
+              "player": "Dana",
+              "result": "???",
+              "opponent": "Eve",
+              "playerDecklist": "",
+              "opponentDecklist": ""
+            }
+          ]
+        }
+      ],
+      "playerArchetypes": []
+    },
+    {
+      "id": "tournament-4",
+      "name": "Standalone Charity Cup",
+      "seasonId": null,
+      "tournamentDate": "2026-06-01",
+      "status": "completed",
+      "rounds": [
+        {
+          "id": "round-4",
+          "entries": [
+            {
+              "kind": "match",
+              "id": "match-4",
+              "table": "1",
+              "player1Name": "Alice",
+              "player2Name": "Dana",
+              "player1Score": 1,
+              "player2Score": 2,
+              "player1DeckArchetype": "",
+              "player2DeckArchetype": ""
+            }
+          ]
+        }
+      ],
+      "playerArchetypes": [
+        {
+          "playerName": "Dana",
+          "archetype": ""
+        }
+      ]
+    }
+  ],
+  "calendarEvents": [
+    {
+      "id": "event-1",
+      "slug": "lyon-opener-2025",
+      "title": "Lyon Opener",
+      "eventDate": "2025-03-08",
+      "startTime": "10:00",
+      "endTime": "18:00",
+      "location": "Club Lyon",
+      "country": "FR",
+      "city": "Lyon",
+      "address": "1 rue de la Republique",
+      "description": "Season opener",
+      "richDescriptionHtml": "<p>Season opener</p>",
+      "externalLink": "https://example.org/lyon"
+    }
+  ],
+  "checksum": "sha256:0eec97895a4851945a4520acbfaca92cd1bf902faef6c47d285d43783e3b3b70"
+}
