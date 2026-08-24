@@ -11,6 +11,7 @@ import {
   apiBoundaryInterceptor,
   applyApiBoundary,
   buildApiHeaders,
+  isAppGovernedRead,
   joinApiUrl,
   normalizeApiBaseUrl
 } from './api-boundary';
@@ -83,6 +84,41 @@ describe('API boundary', () => {
 
     expect(sent?.headers.get('Authorization')).toBe('Bearer injected-token');
     expect(sent?.withCredentials).toBe(true);
+  });
+
+  /**
+   * Measured, not reasoned: with `public, max-age=3600` on the archive catalogs and no request
+   * directive, pressing Synchronize made **zero** network requests — the browser answered out of its
+   * own HTTP cache. That second, invisible TTL also swallowed the refetch that follows
+   * `invalidateArchiveCaches()`, so a mutation stayed invisible for up to an hour (ADR 0039: the TTL
+   * governs navigation, never correctness).
+   */
+  it('marks the archive reads the app governs, and nothing else', () => {
+    expect(isAppGovernedRead('GET', 'http://api.test/api/archive/leagues/all')).toBe(true);
+    expect(isAppGovernedRead('GET', '/api/archive/tournaments/2026')).toBe(true);
+    // A write is not a read, the legacy surface keeps its own behaviour until it is retired, and a
+    // path that merely contains the word is not the archive.
+    expect(isAppGovernedRead('POST', '/api/archive/tournaments')).toBe(false);
+    expect(isAppGovernedRead('GET', '/api/leagues-archive/all')).toBe(false);
+    expect(isAppGovernedRead('GET', '/api/events')).toBe(false);
+  });
+
+  it('makes an app-governed archive read revalidate instead of answering from the HTTP cache', async () => {
+    const sent: Record<string, HttpRequest<unknown>> = {};
+    const send = async (url: string, key: string) => {
+      await firstValueFrom(applyApiBoundary(new HttpRequest('GET', url), candidate => {
+        sent[key] = candidate;
+        return of(new HttpResponse({ status: 200 }));
+      }));
+    };
+
+    await send('/api/archive/league-seasons/all', 'archive');
+    await send('/api/leagues-archive/all', 'legacy');
+
+    // `no-cache` is revalidate, not re-download: the browser still sends its stored validator and the
+    // server still answers `304` when nothing changed.
+    expect(sent['archive'].headers.get('Cache-Control')).toBe('no-cache');
+    expect(sent['legacy'].headers.has('Cache-Control')).toBe(false);
   });
 
   it('maps RFC 7807 responses to ApiProblemError', async () => {

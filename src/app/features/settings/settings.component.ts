@@ -14,6 +14,7 @@ import { dataAuthority } from '../../config/data-authority';
 import { ApiProblemError } from '../../api/api-boundary';
 import { AdminDeckArchetypeResponse, Client, MyOrganizationResponse, OrganizationNotificationSettingsResponse, PlayerNameSummary } from '../../api/generated/gones-api';
 import { AuthService } from '../../auth/auth.service';
+import { ArchiveRepository } from '../../data/archive-repository.service';
 import { leagueCommandError } from '../../data/league-archive-command-ux';
 import { LocalLeagueArchiveBackend } from '../../backend/local-league-archive-backend.service';
 import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
@@ -434,6 +435,22 @@ interface OwnedOrganizationSettings {
         </mat-card>
       }
 
+      <mat-card class="panel settings-panel settings-archetype-panel-card" data-cy="settings-archive-resync-card">
+        <mat-card-content data-cy="settings-archive-resync-card-content">
+          <mat-expansion-panel class="settings-collapsible-panel settings-archetype-panel" data-cy="settings-archive-resync-panel" [expanded]="false">
+            <mat-expansion-panel-header (click)="blurExpansionHeader($event)" data-cy="settings-archive-resync-panel-header">
+              <mat-panel-title data-cy="settings-archive-resync-panel-title">{{ i18n.t('settings.archiveResync') }}</mat-panel-title>
+            </mat-expansion-panel-header>
+
+            <p class="muted settings-archetype-copy" data-cy="settings-archive-resync-copy">{{ i18n.t('settings.archiveResyncHelp') }}</p>
+
+            <button mat-stroked-button type="button" class="secondary-action" data-cy="settings-archive-resync-button" [disabled]="archiveResyncing()" (click)="resynchronizeArchive()">{{ archiveResyncing() ? i18n.t('settings.archiveResyncRunning') : i18n.t('settings.archiveResync') }}</button>
+
+            @if (archiveResyncMessage()) { <p class="settings-saved" role="status" data-cy="settings-archive-resync-status">{{ archiveResyncMessage() }}</p> }
+          </mat-expansion-panel>
+        </mat-card-content>
+      </mat-card>
+
       @if (capabilities().orgNotifications && ownedOrganizations().length) {
         <mat-card class="panel settings-panel" data-cy="settings-org-card">
           <mat-card-content data-cy="settings-org-card-content">
@@ -464,6 +481,7 @@ export class SettingsComponent {
   readonly power = inject(PowerUserSettingsService);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly localBackend = inject(LocalLeagueArchiveBackend);
+  private readonly archiveRepo = inject(ArchiveRepository);
   private readonly client = inject(Client);
   private readonly cache = inject(ServerReadCacheService);
   private readonly dialog = inject(MatDialog);
@@ -507,6 +525,8 @@ export class SettingsComponent {
   readonly playerSaving = signal(false);
   readonly editingPlayer = signal<string | null>(null);
   readonly playerEdits = signal<Record<string, string>>({});
+  readonly archiveResyncing = signal(false);
+  readonly archiveResyncMessage = signal('');
   readonly serverPlayers = signal<PlayerNameSummary[]>([]);
   readonly filteredServerPlayers = computed(() => {
     const filter = playerNameKey(this.playerFilter());
@@ -576,6 +596,34 @@ export class SettingsComponent {
     const header = event.currentTarget;
     if (!(header instanceof HTMLElement)) return;
     queueMicrotask(() => header.blur());
+  }
+
+  /**
+   * The escape hatch for the one staleness the cache design accepts: a locked year partition is
+   * served from IndexedDB with no request at all, so an edit to data older than a year is invisible
+   * here until the user asks for it. This is that ask — clear first, then refill, so the backfill
+   * cannot decide a year it just dropped is still present.
+   */
+  async resynchronizeArchive(): Promise<void> {
+    if (this.archiveResyncing()) return;
+    this.archiveResyncing.set(true);
+    this.archiveResyncMessage.set('');
+    try {
+      await this.archiveRepo.invalidateArchiveCaches();
+      // Forced, or each read would be answered from the very copy the line above dropped. The
+      // Tournament read is what re-arms the year backfill: it enqueues every year the empty cache no
+      // longer has and drains it through the repository's own loader.
+      await this.archiveRepo.listLeagues({ force: true });
+      await this.archiveRepo.listLeagueSeasons({ force: true });
+      await this.archiveRepo.listTournaments({ force: true });
+      this.archiveResyncMessage.set(this.i18n.t('settings.archiveResyncDone'));
+      logBoundaryInfo('settings.resynchronizeArchive');
+    } catch (error) {
+      logBoundaryError('settings.resynchronizeArchive', error);
+      this.archiveResyncMessage.set(this.i18n.t('settings.archiveResyncFailed'));
+    } finally {
+      this.archiveResyncing.set(false);
+    }
   }
 
   canAddNewArchetype(): boolean {

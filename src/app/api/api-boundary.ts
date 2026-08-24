@@ -53,6 +53,29 @@ export function alignLoopbackApiUrl(requestUrl: string, pageHostname?: string): 
   }
 }
 
+/**
+ * The archive reads whose freshness the app governs, not the browser (ADR 0039).
+ *
+ * These endpoints answer `public, max-age=3600`, so the browser serves a repeat GET out of its own
+ * HTTP cache with no request at all. That second, invisible TTL can only make the app's contract
+ * wrong: pressing Synchronize refetched nothing, and a mutation that had just dropped the IndexedDB
+ * copy refilled it from the same stale bytes for up to an hour. The app already decides when a read
+ * is due — its own 24h TTL, the Synchronize button, `invalidateArchiveCaches()` — so every request
+ * it does issue has to reach the server. `no-cache` is revalidate, not re-download: the browser
+ * still sends its stored validator and the server still answers `304` when nothing changed.
+ */
+const APP_GOVERNED_READ_PATH = /^\/api\/archive\//;
+
+/** True for a GET whose freshness the app owns; those requests must not be answered from the HTTP cache. */
+export function isAppGovernedRead(method: string, url: string): boolean {
+  if (method !== 'GET') return false;
+  try {
+    return APP_GOVERNED_READ_PATH.test(new URL(url, 'https://gones.invalid').pathname);
+  } catch {
+    return false;
+  }
+}
+
 export function buildApiHeaders(accessToken?: string, etag?: string, idempotencyKey?: string): HttpHeaders {
   let headers = new HttpHeaders();
   if (accessToken) headers = headers.set('Authorization', `Bearer ${accessToken}`);
@@ -75,6 +98,7 @@ export function applyApiBoundary(
   for (const name of boundaryHeaders.keys()) headers = headers.set(name, boundaryHeaders.get(name)!);
 
   const url = alignLoopbackApiUrl(request.url, pageHostname);
+  if (isAppGovernedRead(request.method, url)) headers = headers.set('Cache-Control', 'no-cache');
   return next(request.clone({ url, headers, withCredentials: true })).pipe(
     catchError((error: unknown) => {
       if (error instanceof HttpErrorResponse) {

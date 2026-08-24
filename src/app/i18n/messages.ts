@@ -527,6 +527,11 @@ const en = {
   'settings.orgNotificationsHelp': 'Email preferences for organizations you own.',
   'settings.orgSaved': 'Preferences saved for {name}.',
   'settings.orgSaveFailed': 'Could not save preferences for {name}.',
+  'settings.archiveResync': 'Resynchronize everything',
+  'settings.archiveResyncRunning': 'Resynchronizing…',
+  'settings.archiveResyncHelp': 'Clears every copy of the Archive cached in this browser and downloads it again. Use it when a League Season or a Tournament looks out of date: an edit made to data older than a year is not visible here until you ask for it. Nothing you created is deleted.',
+  'settings.archiveResyncDone': 'Archive cache cleared. Fresh data is downloading.',
+  'settings.archiveResyncFailed': 'Could not resynchronize the Archive.',
 
   // Leagues
   'leagues.title': 'Leagues',
@@ -1888,6 +1893,11 @@ const fr: Record<MessageKey, string> = {
   'settings.orgNotificationsHelp': 'Préférences d’e-mail pour les organisations dont vous êtes propriétaire.',
   'settings.orgSaved': 'Préférences enregistrées pour {name}.',
   'settings.orgSaveFailed': 'Impossible d’enregistrer les préférences pour {name}.',
+  'settings.archiveResync': 'Tout resynchroniser',
+  'settings.archiveResyncRunning': 'Resynchronisation…',
+  'settings.archiveResyncHelp': 'Vide toutes les copies de l’archive mises en cache dans ce navigateur et les télécharge à nouveau. À utiliser lorsqu’une saison de ligue ou un tournoi semble périmé : une modification apportée à des données de plus d’un an n’apparaît ici que si vous la demandez. Rien de ce que vous avez créé n’est supprimé.',
+  'settings.archiveResyncDone': 'Cache de l’archive vidé. Les données fraîches sont en cours de téléchargement.',
+  'settings.archiveResyncFailed': 'Impossible de resynchroniser l’archive.',
 
   'leagues.title': 'Ligues',
   'leagues.search': 'Rechercher des ligues',

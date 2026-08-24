@@ -177,3 +177,84 @@ describe('settings server catalog cache', () => {
     }
   });
 });
+
+/**
+ * The Archive cache serves a locked year partition from IndexedDB forever with no request, so an
+ * edit to data older than a year is invisible here until the user asks for it. That staleness is an
+ * accepted risk of the caching design; this control is its escape hatch, and these tests pin that it
+ * stays collapsed, single-flight, and ordered clear-then-refill.
+ */
+describe('settings archive resynchronize', () => {
+  /** Clear first, then refill: a forced read must re-enqueue every year against an empty cache. */
+  function resyncComponent(archiveRepo: Record<string, unknown>, resyncing = false): SettingsComponent {
+    const component = Object.create(SettingsComponent.prototype) as SettingsComponent;
+    Object.assign(component, {
+      archiveRepo,
+      i18n: { t: (key: string) => key },
+      archiveResyncing: signal(resyncing),
+      archiveResyncMessage: signal('')
+    });
+    return component;
+  }
+
+  it('keeps the resynchronize section collapsed by default', () => {
+    expect(source).toContain('data-cy="settings-archive-resync-panel" [expanded]="false"');
+    expect(source).not.toContain('archiveResyncPanelExpanded');
+  });
+
+  it('clears the archive caches, then refills every catalog', async () => {
+    const order: string[] = [];
+    const archiveRepo = {
+      invalidateArchiveCaches: vi.fn(async () => { order.push('invalidate'); }),
+      listLeagues: vi.fn(async () => { order.push('leagues'); }),
+      listLeagueSeasons: vi.fn(async () => { order.push('seasons'); }),
+      listTournaments: vi.fn(async () => { order.push('tournaments'); })
+    };
+    const component = resyncComponent(archiveRepo);
+    const logged = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+
+    await component.resynchronizeArchive();
+
+    expect(order).toEqual(['invalidate', 'leagues', 'seasons', 'tournaments']);
+    // Every refill is forced, or the read it just emptied would be answered from the copy it dropped.
+    for (const read of [archiveRepo.listLeagues, archiveRepo.listLeagueSeasons, archiveRepo.listTournaments]) {
+      expect(read).toHaveBeenCalledWith({ force: true });
+    }
+    expect(component.archiveResyncMessage()).toBe('settings.archiveResyncDone');
+    expect(component.archiveResyncing()).toBe(false);
+    logged.mockRestore();
+  });
+
+  it('reports a failed resynchronize and releases the button', async () => {
+    const archiveRepo = {
+      invalidateArchiveCaches: vi.fn(async () => undefined),
+      listLeagues: vi.fn(async () => { throw new Error('boom'); }),
+      listLeagueSeasons: vi.fn(async () => undefined),
+      listTournaments: vi.fn(async () => undefined)
+    };
+    const component = resyncComponent(archiveRepo);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await component.resynchronizeArchive();
+
+    expect(component.archiveResyncMessage()).toBe('settings.archiveResyncFailed');
+    expect(component.archiveResyncing()).toBe(false);
+    expect(logged).toHaveBeenCalledTimes(1);
+    logged.mockRestore();
+  });
+
+  it('ignores a second run while one is in flight', async () => {
+    const archiveRepo = {
+      invalidateArchiveCaches: vi.fn(async () => undefined),
+      listLeagues: vi.fn(async () => undefined),
+      listLeagueSeasons: vi.fn(async () => undefined),
+      listTournaments: vi.fn(async () => undefined)
+    };
+    const component = resyncComponent(archiveRepo, true);
+
+    await component.resynchronizeArchive();
+
+    expect(archiveRepo.invalidateArchiveCaches).not.toHaveBeenCalled();
+    expect(archiveRepo.listLeagues).not.toHaveBeenCalled();
+  });
+});

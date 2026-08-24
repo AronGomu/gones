@@ -6,6 +6,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { ARCHIVE_UPDATED_EVENT } from './data/archive-repository.service';
 import { canManageLeague, leagueCommandError } from './data/league-archive-command-ux';
 import { isAnyPlaceholderLeagueId } from './data/league-archive-origin';
 import { LeagueArchiveRepository } from './data/league-archive-repository.service';
@@ -164,6 +165,13 @@ export class AppComponent {
     // would rebuild the header from the League that was just deleted.
     window.addEventListener('gones-league-updated', () => {
       clearLeagueCatalogCache();
+      void this.updateRouteState(this.router.url);
+    });
+    // The archive rebuild's own announcement. It sits beside the legacy `gones-league-updated`
+    // listener rather than replacing it: the legacy League pages still dispatch that one and are
+    // still routed, so both have to work at once. This handler clears no cache —
+    // `invalidateArchiveCaches()` already did, before it dispatched.
+    window.addEventListener(ARCHIVE_UPDATED_EVENT, () => {
       void this.updateRouteState(this.router.url);
     });
     this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd)).subscribe((event) => {
