@@ -33,12 +33,31 @@ export interface GlobalStatsSortGate {
   decayedRating?: boolean;
 }
 
+/** The sentinel both scope levels use for "not narrowed". Never a document id. */
+export const GLOBAL_STATS_SCOPE_ALL = 'all';
+
+export type GlobalStatsScopeKind = 'global' | 'league' | 'season';
+
+export interface GlobalStatsScopeSelection {
+  kind: GlobalStatsScopeKind;
+  /** `''` exactly when `kind === 'global'`; otherwise the League or LeagueSeason document id. */
+  id: string;
+}
+
+/** Minimal shapes these helpers need, so they stay usable from a test without a wire type. */
+export interface GlobalStatsLeagueOption { id: string; name: string; }
+export interface GlobalStatsSeasonOption { id: string; name: string; leagueId: string; }
+
 export interface GlobalStatsQuery {
   page: number;
   size: GlobalStatsPageSize;
   search: string;
   sort?: GlobalStatsSortCol;
   direction?: 'asc' | 'desc';
+  /** `'all'` or a League document id. */
+  league: string;
+  /** `'all'` or a LeagueSeason document id. */
+  season: string;
 }
 
 /**
@@ -66,10 +85,71 @@ export function parseGlobalStatsQuery(
   const allowed = known && (rawSort !== 'decayedRating' || (gate.decayedRating ?? false));
   const sort: GlobalStatsSortCol | undefined = allowed ? (rawSort as GlobalStatsSortCol) : undefined;
 
-  const rawDir = params.get('direction') ?? undefined;
+  // D2: the browser URL carries `dir`; `direction` is the wire name the API keeps, and a stale
+  // `?direction=` link simply falls back to the default order.
+  const rawDir = params.get('dir') ?? undefined;
   const direction: 'asc' | 'desc' | undefined = rawDir === 'asc' || rawDir === 'desc' ? rawDir : undefined;
 
-  return { page, size, search, sort, direction };
+  // Single-select at both levels: every selectable scope has a stored rating, so 'all' or exactly
+  // one id — there is no subset to combine and no on-demand replay to fall back on.
+  const league = (params.get('league') ?? '').trim() || GLOBAL_STATS_SCOPE_ALL;
+  const season = (params.get('season') ?? '').trim() || GLOBAL_STATS_SCOPE_ALL;
+
+  return { page, size, search, sort, direction, league, season };
+}
+
+/**
+ * The one scope the rankings are asked for. A Season is narrower than its League, so a chosen Season
+ * wins; both `'all'` is the global scope, whose id is the empty string.
+ */
+export function resolveGlobalStatsScope(query: Pick<GlobalStatsQuery, 'league' | 'season'>): GlobalStatsScopeSelection {
+  if (query.season !== GLOBAL_STATS_SCOPE_ALL) return { kind: 'season', id: query.season };
+  if (query.league !== GLOBAL_STATS_SCOPE_ALL) return { kind: 'league', id: query.league };
+  return { kind: 'global', id: '' };
+}
+
+/** The Seasons the Season select offers: every Season while the League is `'all'`, that League's otherwise. */
+export function scopeSeasonOptions<T extends { leagueId: string }>(seasons: readonly T[], league: string): T[] {
+  return league === GLOBAL_STATS_SCOPE_ALL ? [...seasons] : seasons.filter(season => season.leagueId === league);
+}
+
+/** Choosing a League drops a Season it does not own, and always returns to page 1. */
+export function selectScopeLeague(
+  query: GlobalStatsQuery,
+  league: string,
+  seasons: readonly GlobalStatsSeasonOption[]
+): GlobalStatsQuery {
+  const keeps = league !== GLOBAL_STATS_SCOPE_ALL
+    && query.season !== GLOBAL_STATS_SCOPE_ALL
+    && seasons.some(season => season.id === query.season && season.leagueId === league);
+  return { ...query, league, season: keeps ? query.season : GLOBAL_STATS_SCOPE_ALL, page: 1 };
+}
+
+/**
+ * Choosing a Season pins its owning League too: a badge naming a Season while the League select
+ * still read "All leagues" is exactly the ambiguity the badge exists to remove.
+ */
+export function selectScopeSeason(
+  query: GlobalStatsQuery,
+  season: string,
+  seasons: readonly GlobalStatsSeasonOption[]
+): GlobalStatsQuery {
+  if (season === GLOBAL_STATS_SCOPE_ALL) return { ...query, season: GLOBAL_STATS_SCOPE_ALL, page: 1 };
+  const owner = seasons.find(candidate => candidate.id === season);
+  return { ...query, season, league: owner ? owner.leagueId : query.league, page: 1 };
+}
+
+/**
+ * The human name of the active scope, or `undefined` while the catalog holding it has not landed
+ * or the id is unknown. The global scope has no name here — the caller labels it.
+ */
+export function globalStatsScopeName(
+  scope: GlobalStatsScopeSelection,
+  catalogs: { leagues: readonly GlobalStatsLeagueOption[]; seasons: readonly GlobalStatsSeasonOption[] }
+): string | undefined {
+  if (scope.kind === 'global') return undefined;
+  const list = scope.kind === 'league' ? catalogs.leagues : catalogs.seasons;
+  return list.find(entry => entry.id === scope.id)?.name;
 }
 
 /**
@@ -185,14 +265,17 @@ function compareOrdinal(left: string, right: string): number {
 
 /**
  * Serialises a `GlobalStatsQuery` to Angular router query params.
- * Omits defaults (page=1, size=100, empty search, no sort/direction) to keep URLs clean.
+ * Omits defaults (both scope levels `'all'`, page=1, size=100, empty search, no sort/direction) to
+ * keep URLs clean. The direction is written under `dir`; the key `direction` is never written.
  */
 export function globalStatsQueryParams(query: GlobalStatsQuery): Params {
   const params: Params = {};
+  if (query.league !== GLOBAL_STATS_SCOPE_ALL) params['league'] = query.league;
+  if (query.season !== GLOBAL_STATS_SCOPE_ALL) params['season'] = query.season;
   if (query.page !== 1) params['page'] = query.page;
   if (query.size !== 100) params['size'] = query.size;
   if (query.search) params['search'] = query.search;
   if (query.sort) params['sort'] = query.sort;
-  if (query.direction) params['direction'] = query.direction;
+  if (query.direction) params['dir'] = query.direction;
   return params;
 }

@@ -3,14 +3,28 @@ import { GlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
 import {
   GLOBAL_STATS_PAGE_SIZES,
   GLOBAL_STATS_GATED_SORT_COLS,
+  GLOBAL_STATS_SCOPE_ALL,
   GLOBAL_STATS_SORTABLE_COLS,
   globalStatsPageWindow,
+  globalStatsScopeName,
   parseGlobalStatsQuery,
+  resolveGlobalStatsScope,
+  scopeSeasonOptions,
+  selectScopeLeague,
+  selectScopeSeason,
   sortGlobalStatsRows,
   toggleGlobalStatsSort,
   globalStatsQueryParams,
   type GlobalStatsQuery,
 } from './global-stats-query';
+
+const LEAGUES = [{ id: 'L1', name: 'Ligue Lyon' }, { id: 'L2', name: 'Circuit Rhône-Alpes' }];
+const SEASONS = [
+  { id: 'S1', name: 'Ligue Lyon 2026', leagueId: 'L1' },
+  { id: 'S2', name: 'Ligue Lyon 2025', leagueId: 'L1' },
+  { id: 'S9', name: 'Circuit 2026', leagueId: 'L2' },
+];
+const BASE_QUERY: GlobalStatsQuery = { page: 1, size: 100, search: '', league: 'all', season: 'all' };
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -69,13 +83,13 @@ describe('parseGlobalStatsQuery — sanitization', () => {
   });
 
   it('drops invalid direction values', () => {
-    expect(parseGlobalStatsQuery(new URLSearchParams('direction=up')).direction).toBeUndefined();
-    expect(parseGlobalStatsQuery(new URLSearchParams('direction=DESC')).direction).toBeUndefined();
+    expect(parseGlobalStatsQuery(new URLSearchParams('dir=up')).direction).toBeUndefined();
+    expect(parseGlobalStatsQuery(new URLSearchParams('dir=DESC')).direction).toBeUndefined();
   });
 
   it('accepts asc and desc direction', () => {
-    expect(parseGlobalStatsQuery(new URLSearchParams('direction=asc')).direction).toBe('asc');
-    expect(parseGlobalStatsQuery(new URLSearchParams('direction=desc')).direction).toBe('desc');
+    expect(parseGlobalStatsQuery(new URLSearchParams('dir=asc')).direction).toBe('asc');
+    expect(parseGlobalStatsQuery(new URLSearchParams('dir=desc')).direction).toBe('desc');
   });
 
   it('trims whitespace from search', () => {
@@ -87,7 +101,7 @@ describe('parseGlobalStatsQuery — sanitization', () => {
 // Toggle sort
 // ---------------------------------------------------------------------------
 describe('toggleGlobalStatsSort', () => {
-  const base: GlobalStatsQuery = { page: 3, size: 25, search: 'foo' };
+  const base: GlobalStatsQuery = { ...BASE_QUERY, page: 3, size: 25, search: 'foo' };
 
   it('clicking a new column sets it desc and resets page to 1', () => {
     const q = toggleGlobalStatsSort(base, 'matchWins');
@@ -122,35 +136,159 @@ describe('toggleGlobalStatsSort', () => {
 // ---------------------------------------------------------------------------
 describe('globalStatsQueryParams round-trip', () => {
   it('omits page=1 from params', () => {
-    const params = globalStatsQueryParams({ page: 1, size: 100, search: '' });
+    const params = globalStatsQueryParams(BASE_QUERY);
     expect(Object.prototype.hasOwnProperty.call(params, 'page')).toBe(false);
   });
 
   it('omits size=100 from params', () => {
-    const params = globalStatsQueryParams({ page: 1, size: 100, search: '' });
+    const params = globalStatsQueryParams(BASE_QUERY);
     expect(Object.prototype.hasOwnProperty.call(params, 'size')).toBe(false);
   });
 
   it('omits empty search from params', () => {
-    const params = globalStatsQueryParams({ page: 1, size: 100, search: '' });
+    const params = globalStatsQueryParams(BASE_QUERY);
     expect(Object.prototype.hasOwnProperty.call(params, 'search')).toBe(false);
   });
 
   it('includes non-default values', () => {
-    const params = globalStatsQueryParams({ page: 3, size: 25, search: 'alice', sort: 'matchWins', direction: 'asc' });
+    const params = globalStatsQueryParams({ ...BASE_QUERY, page: 3, size: 25, search: 'alice', sort: 'matchWins', direction: 'asc' });
     expect(params['page']).toBe(3);
     expect(params['size']).toBe(25);
     expect(params['search']).toBe('alice');
     expect(params['sort']).toBe('matchWins');
-    expect(params['direction']).toBe('asc');
+    expect(params['dir']).toBe('asc');
   });
 
   it('round-trips a full query', () => {
-    const original: GlobalStatsQuery = { page: 2, size: 50, search: 'bob', sort: 'gameWinrate', direction: 'asc' };
+    const original: GlobalStatsQuery = { ...BASE_QUERY, page: 2, size: 50, search: 'bob', sort: 'gameWinrate', direction: 'asc', league: 'L1', season: 'S1' };
     const params = globalStatsQueryParams(original);
     const qs = new URLSearchParams(params as Record<string, string>);
     const parsed = parseGlobalStatsQuery(qs);
     expect(parsed).toEqual(original);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scope — the League / Season filter the rankings are read for
+// ---------------------------------------------------------------------------
+describe('global stats scope', () => {
+  it('parseGlobalStatsQuery reads league and season', () => {
+    const q = parseGlobalStatsQuery(new URLSearchParams('league=L1&season=S1'));
+    expect(q.league).toBe('L1');
+    expect(q.season).toBe('S1');
+  });
+
+  it('parseGlobalStatsQuery defaults both scope levels to all', () => {
+    const q = parseGlobalStatsQuery(new URLSearchParams(''));
+    expect(q.league).toBe('all');
+    expect(q.season).toBe('all');
+  });
+
+  it('parseGlobalStatsQuery treats a blank scope as all', () => {
+    const q = parseGlobalStatsQuery(new URLSearchParams('league=%20&season='));
+    expect(q.league).toBe('all');
+    expect(q.season).toBe('all');
+  });
+
+  it('parseGlobalStatsQuery reads the direction from dir', () => {
+    expect(parseGlobalStatsQuery(new URLSearchParams('dir=asc')).direction).toBe('asc');
+  });
+
+  /** D2: the URL key is `dir`; `direction` is the wire name and is not read back from the browser. */
+  it('parseGlobalStatsQuery ignores the legacy direction key', () => {
+    expect(parseGlobalStatsQuery(new URLSearchParams('direction=asc')).direction).toBeUndefined();
+  });
+
+  it('parseGlobalStatsQuery keeps the page size default at 100', () => {
+    expect(parseGlobalStatsQuery(new URLSearchParams('')).size).toBe(100);
+  });
+
+  it('globalStatsQueryParams omits an unnarrowed scope', () => {
+    const params = globalStatsQueryParams(BASE_QUERY);
+    expect(Object.prototype.hasOwnProperty.call(params, 'league')).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(params, 'season')).toBe(false);
+  });
+
+  it('globalStatsQueryParams writes both scope levels when narrowed', () => {
+    const params = globalStatsQueryParams({ ...BASE_QUERY, league: 'L1', season: 'S1' });
+    expect(params['league']).toBe('L1');
+    expect(params['season']).toBe('S1');
+  });
+
+  it('globalStatsQueryParams writes dir and never direction', () => {
+    const params = globalStatsQueryParams({ ...BASE_QUERY, direction: 'desc' });
+    expect(params['dir']).toBe('desc');
+    expect(params['direction']).toBeUndefined();
+  });
+
+  it('resolveGlobalStatsScope maps all and all to the global scope', () => {
+    expect(resolveGlobalStatsScope({ league: 'all', season: 'all' })).toEqual({ kind: 'global', id: '' });
+  });
+
+  it('resolveGlobalStatsScope maps a league alone to the league scope', () => {
+    expect(resolveGlobalStatsScope({ league: 'L1', season: 'all' })).toEqual({ kind: 'league', id: 'L1' });
+  });
+
+  /** A Season is the narrower scope, and the narrower scope is the one the server is asked for. */
+  it('resolveGlobalStatsScope prefers the season over its league', () => {
+    expect(resolveGlobalStatsScope({ league: 'L1', season: 'S1' })).toEqual({ kind: 'season', id: 'S1' });
+  });
+
+  it('scopeSeasonOptions offers every season while the league is all', () => {
+    expect(scopeSeasonOptions(SEASONS, GLOBAL_STATS_SCOPE_ALL)).toHaveLength(3);
+  });
+
+  it('scopeSeasonOptions narrows to the chosen league', () => {
+    expect(scopeSeasonOptions(SEASONS, 'L1').map((season) => season.id)).toEqual(['S1', 'S2']);
+  });
+
+  it('selectScopeLeague drops a season the league does not own', () => {
+    const next = selectScopeLeague({ ...BASE_QUERY, season: 'S9', page: 4 }, 'L1', SEASONS);
+    expect(next.league).toBe('L1');
+    expect(next.season).toBe('all');
+    expect(next.page).toBe(1);
+  });
+
+  it('selectScopeLeague keeps a season the league owns', () => {
+    const next = selectScopeLeague({ ...BASE_QUERY, season: 'S1' }, 'L1', SEASONS);
+    expect(next.season).toBe('S1');
+    expect(next.league).toBe('L1');
+    expect(next.page).toBe(1);
+  });
+
+  /** D3: without the pin the badge could name a Season while the League select still read "All". */
+  it('selectScopeSeason pins the owning league', () => {
+    const next = selectScopeSeason({ ...BASE_QUERY, page: 3 }, 'S1', SEASONS);
+    expect(next.league).toBe('L1');
+    expect(next.season).toBe('S1');
+    expect(next.page).toBe(1);
+  });
+
+  it('selectScopeSeason clearing back to all keeps the league', () => {
+    const next = selectScopeSeason({ ...BASE_QUERY, league: 'L1', season: 'S1' }, 'all', SEASONS);
+    expect(next.league).toBe('L1');
+    expect(next.season).toBe('all');
+    expect(next.page).toBe(1);
+  });
+
+  it('globalStatsScopeName resolves a season name', () => {
+    expect(globalStatsScopeName({ kind: 'season', id: 'S1' }, { leagues: LEAGUES, seasons: SEASONS })).toBe('Ligue Lyon 2026');
+  });
+
+  it('globalStatsScopeName returns undefined for an unknown id', () => {
+    expect(globalStatsScopeName({ kind: 'league', id: 'nope' }, { leagues: LEAGUES, seasons: SEASONS })).toBeUndefined();
+  });
+
+  it('globalStatsScopeName returns undefined for the global scope', () => {
+    expect(globalStatsScopeName({ kind: 'global', id: '' }, { leagues: LEAGUES, seasons: SEASONS })).toBeUndefined();
+  });
+
+  it('toggleGlobalStatsSort keeps the scope', () => {
+    const next = toggleGlobalStatsSort({ ...BASE_QUERY, league: 'L1', season: 'S1' }, 'rating');
+    expect(next.league).toBe('L1');
+    expect(next.season).toBe('S1');
+    expect(next.page).toBe(1);
+    expect(next.direction).toBe('desc');
   });
 });
 

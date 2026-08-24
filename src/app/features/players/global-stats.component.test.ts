@@ -10,13 +10,15 @@ vi.mock('@angular/core', async (importOriginal) => {
 
 import { Injector, runInInjectionContext } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, isObservable, of, throwError } from 'rxjs';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
-import { GlobalStatsCatalogCacheService } from './global-stats-catalog-cache.service';
 import { GlobalStatsComponent, SEARCH_DEBOUNCE_MS } from './global-stats.component';
 import { catalogs } from '../../i18n/messages';
-import type { GlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
+import { Client } from '../../api/generated/gones-api';
+import type { ArchiveGlobalPlayerStatisticsResponse, ArchiveGlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
+import { ArchiveRepository } from '../../data/archive-repository.service';
+import type { ArchiveLeagueRow, ArchiveLeagueSeasonRow } from '../../data/archive-repository.service';
 
 const source = readFileSync(join(__dirname, 'global-stats.component.ts'), 'utf8');
 
@@ -186,7 +188,7 @@ describe('GlobalStatsComponent template — search form and paging', () => {
 // Build helpers
 // ---------------------------------------------------------------------------
 
-function makeRow(overrides: Partial<GlobalPlayerStatisticsRow> = {}): GlobalPlayerStatisticsRow {
+function makeRow(overrides: Partial<ArchiveGlobalPlayerStatisticsRow> = {}): ArchiveGlobalPlayerStatisticsRow {
   return {
     position: 1,
     playerName: 'Alice',
@@ -215,30 +217,84 @@ function makeRow(overrides: Partial<GlobalPlayerStatisticsRow> = {}): GlobalPlay
   };
 }
 
-function makeCatalogResult(items: GlobalPlayerStatisticsRow[], extra: Partial<import('../../shared/catalog-cache').CatalogResult<GlobalPlayerStatisticsRow[]>> = {}): import('../../shared/catalog-cache').CatalogResult<GlobalPlayerStatisticsRow[]> {
-  return { items, fetchedAt: new Date().toISOString(), fromCache: false, stale: false, truncated: false, ...extra };
+function rankingsResponse(
+  items: ArchiveGlobalPlayerStatisticsRow[],
+  overrides: Partial<ArchiveGlobalPlayerStatisticsResponse> = {},
+): ArchiveGlobalPlayerStatisticsResponse {
+  return { items, page: 1, pageSize: 100, totalCount: items.length, sort: undefined, direction: undefined, ...overrides };
 }
 
-function buildComponent(
-  catalogResult: import('../../shared/catalog-cache').CatalogResult<GlobalPlayerStatisticsRow[]> = makeCatalogResult([]),
-  routeParams: Record<string, string | null> = {},
-) {
-  const load = vi.fn(async () => catalogResult);
-  const cacheService = { load } as unknown as GlobalStatsCatalogCacheService;
+function leagueSummary(id: string, name: string): ArchiveLeagueRow {
+  return { id, name, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', documentVersion: 1, isLocal: false };
+}
 
-  const route = {
-    queryParamMap: of({
-      keys: [],
-      has: () => false,
-      get: (k: string) => routeParams[k] ?? null,
-      getAll: () => [],
-    }),
-  } as unknown as ActivatedRoute;
-  const router = { navigate: vi.fn(async () => true) } as unknown as Router;
+function seasonSummary(id: string, name: string, leagueId: string): ArchiveLeagueSeasonRow {
+  return {
+    id, name, leagueId, status: 'completed',
+    updatedAt: '2026-01-01T00:00:00.000Z', documentVersion: 1,
+    tournamentCount: 0, playerCount: 0, firstTournamentDate: null, lastTournamentDate: null, isLocal: false,
+  };
+}
+
+/**
+ * A responder may hand back an Observable so a test can hold one request open — invariant 12 (a
+ * superseded response is dropped) cannot be expressed with an already-resolved value.
+ */
+type Responder = ArchiveGlobalPlayerStatisticsResponse
+  | ((scopeKind: string, scopeId: string | undefined) => ArchiveGlobalPlayerStatisticsResponse | Observable<ArchiveGlobalPlayerStatisticsResponse>);
+
+function paramMapOf(params: Record<string, string | null>) {
+  return {
+    keys: Object.keys(params),
+    has: (k: string) => params[k] !== undefined && params[k] !== null,
+    get: (k: string) => params[k] ?? null,
+    getAll: () => [],
+  };
+}
+
+/** The generated signature, so a test can assert on the `sort` and `direction` arguments by index. */
+type RankingsArgs = [
+  scopeKind: string, scopeId: string | undefined, page: number | undefined, pageSize: number | undefined,
+  search: string | undefined, sort: string | undefined, direction: string | undefined,
+];
+
+function buildComponent(
+  response: Responder = rankingsResponse([]),
+  routeParams: Record<string, string | null> = {},
+  scopeCatalogs: { leagues?: ArchiveLeagueRow[]; seasons?: ArchiveLeagueSeasonRow[]; fail?: boolean } = {},
+) {
+  // The app default is French; the copy assertions below name the English strings, so pin the
+  // language before `DeckArchetypeSettingsService` bootstraps from storage.
+  localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  localStorage.setItem('gones.settings.language', 'en');
+
+  const getArchiveGlobalPlayerStatistics = vi.fn((...args: RankingsArgs) => {
+    const result = typeof response === 'function' ? response(args[0], args[1]) : response;
+    return isObservable(result) ? result : of(result);
+  });
+  const client = { getArchiveGlobalPlayerStatistics } as unknown as Client;
+
+  const catalogResult = <T>(items: T[]) =>
+    ({ items, totalCount: items.length, truncated: false, fetchedAt: '2026-08-22T00:00:00.000Z', fromCache: false, stale: false });
+  const listLeagues = vi.fn(async () => {
+    if (scopeCatalogs.fail) throw new Error('offline');
+    return catalogResult(scopeCatalogs.leagues ?? []);
+  });
+  const listLeagueSeasons = vi.fn(async () => {
+    if (scopeCatalogs.fail) throw new Error('offline');
+    return catalogResult(scopeCatalogs.seasons ?? []);
+  });
+  const archive = { listLeagues, listLeagueSeasons } as unknown as ArchiveRepository;
+
+  const queryParamMap = new BehaviorSubject(paramMapOf(routeParams));
+  const route = { queryParamMap } as unknown as ActivatedRoute;
+  const navigate = vi.fn().mockResolvedValue(true);
+  const router = { navigate } as unknown as Router;
 
   const injector = Injector.create({
     providers: [
-      { provide: GlobalStatsCatalogCacheService, useValue: cacheService },
+      { provide: Client, useValue: client },
+      { provide: ArchiveRepository, useValue: archive },
       { provide: ActivatedRoute, useValue: route },
       { provide: Router, useValue: router },
       DeckArchetypeSettingsService,
@@ -247,8 +303,14 @@ function buildComponent(
   });
 
   const comp = runInInjectionContext(injector, () => new GlobalStatsComponent());
-  return { comp, load, router };
+  const emit = (params: Record<string, string | null>) => queryParamMap.next(paramMapOf(params));
+  return { comp, client: getArchiveGlobalPlayerStatistics, listLeagues, listLeagueSeasons, router: { navigate }, emit };
 }
+
+const lastQueryParams = (router: { navigate: ReturnType<typeof vi.fn> }): Record<string, unknown> => {
+  const extras = router.navigate.mock.calls.at(-1)?.[1] as { queryParams?: Record<string, unknown> } | undefined;
+  return extras?.queryParams ?? {};
+};
 
 // ---------------------------------------------------------------------------
 // Format helpers
@@ -359,70 +421,33 @@ describe('GlobalStatsComponent template — rating cell', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cache and catalog loading
+// Search — the term is committed to the URL and requested from the server
 // ---------------------------------------------------------------------------
 
-describe('GlobalStatsComponent — catalog cache', () => {
-  it('serves a fresh cache without calling the client again', async () => {
-    const result = makeCatalogResult([makeRow()], { fromCache: true });
-    const { load } = buildComponent(result);
-    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
-    // load is called once by constructor; returns fromCache:true meaning no network
-    expect(load).toHaveBeenCalledWith({});
-  });
-
-  it('refetches after 24h', async () => {
-    const staleResult = makeCatalogResult([makeRow()], { fromCache: false, stale: false });
-    const { load } = buildComponent(staleResult);
-    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
-    expect(load).toHaveBeenCalledWith({});
-  });
-
-  it('sync forces a refetch', async () => {
-    const { comp, load } = buildComponent();
-    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
-    comp.onSync();
-    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(load).toHaveBeenLastCalledWith({ force: true });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Client-side filtering, sorting, paging
-// ---------------------------------------------------------------------------
-
-describe('GlobalStatsComponent — filtering', () => {
+describe('GlobalStatsComponent — search', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('filters on input after debounce', async () => {
-    const rows = [
-      makeRow({ playerName: 'Lyon Player', position: 1 }),
-      makeRow({ playerName: 'Paris Player', position: 2 }),
-    ];
-    const { comp } = buildComponent(makeCatalogResult(rows));
-    // Resolve the async loadCatalog
+  it('commits the search to the URL after the debounce', async () => {
+    const { comp, router } = buildComponent();
     await vi.runAllTimersAsync();
 
     comp.setSearchDraft('ly');
     vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
 
-    const visible = comp.pagedRows().map(r => r.playerName);
-    expect(visible).toEqual(['Lyon Player']);
+    expect(lastQueryParams(router)['search']).toBe('ly');
   });
 
-  it('filters case-insensitively', async () => {
-    const rows = [
-      makeRow({ playerName: 'Lyon Player', position: 1 }),
-      makeRow({ playerName: 'Paris Player', position: 2 }),
-    ];
-    const { comp } = buildComponent(makeCatalogResult(rows));
+  /** The server owns the match: the client neither lower-cases the term nor filters the rows. */
+  it('sends the search term to the server unchanged', async () => {
+    const { comp, router } = buildComponent();
     await vi.runAllTimersAsync();
 
     comp.setSearchDraft('LY');
     vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
 
-    expect(comp.pagedRows().map(r => r.playerName)).toEqual(['Lyon Player']);
+    expect(lastQueryParams(router)['search']).toBe('LY');
+    expect(source).not.toContain('toLowerCase()');
   });
 
   it('debounces: three keystrokes inside 300 ms cause one navigation', async () => {
@@ -436,39 +461,6 @@ describe('GlobalStatsComponent — filtering', () => {
 
     expect(router.navigate).toHaveBeenCalledTimes(1);
   });
-
-  it('renumbers positions after filtering', async () => {
-    const rows = [
-      makeRow({ playerName: 'Alpha', position: 1, playedMatchCount: 10 }),
-      makeRow({ playerName: 'Beta', position: 2, playedMatchCount: 8 }),
-      makeRow({ playerName: 'Aleph', position: 3, playedMatchCount: 6 }),
-    ];
-    const { comp } = buildComponent(makeCatalogResult(rows));
-    await vi.runAllTimersAsync();
-
-    comp.setSearchDraft('al');
-    vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
-
-    const positions = comp.pagedRows().map(r => r.position);
-    expect(positions).toEqual([1, 2]);
-  });
-});
-
-describe('GlobalStatsComponent — sorting without a request', () => {
-  it('sorts without calling load again', async () => {
-    const rows = [
-      makeRow({ playerName: 'Alice', matchWins: 5, position: 1 }),
-      makeRow({ playerName: 'Bob', matchWins: 10, position: 2 }),
-    ];
-    const { comp, load } = buildComponent(makeCatalogResult(rows));
-    // Wait for async loadCatalog to resolve
-    await Promise.resolve();
-    await Promise.resolve();
-
-    const callCountBefore = load.mock.calls.length;
-    comp.sortBy('matchWins');
-    expect(load.mock.calls.length).toBe(callCountBefore);
-  });
 });
 
 describe('GlobalStatsComponent — numbered pagination', () => {
@@ -476,9 +468,8 @@ describe('GlobalStatsComponent — numbered pagination', () => {
     const rows = Array.from({ length: 200 }, (_, i) =>
       makeRow({ playerName: `Player ${i + 1}`, position: i + 1 })
     );
-    const { comp } = buildComponent(makeCatalogResult(rows));
-    await Promise.resolve();
-    await Promise.resolve();
+    const { comp } = buildComponent(rankingsResponse(rows));
+    await vi.waitFor(() => expect(comp.totalCount()).toBe(200));
 
     comp.currentSize.set(10);
     expect(comp.totalPages()).toBe(20);
@@ -487,37 +478,275 @@ describe('GlobalStatsComponent — numbered pagination', () => {
     comp.currentPage.set(9);
     expect(comp.pageWindow()).toEqual([1, 'gap', 8, 9, 10, 'gap', 20]);
   });
+});
 
-  it('jumps to the last page without calling load again', async () => {
-    const rows = Array.from({ length: 200 }, (_, i) =>
-      makeRow({ playerName: `Player ${i + 1}`, position: i + 1 })
+// ---------------------------------------------------------------------------
+// Scope filter — the League / Season the stored ratings are read for
+// ---------------------------------------------------------------------------
+
+const LEAGUES = [leagueSummary('L1', 'Ligue Lyon'), leagueSummary('L2', 'Circuit Rhône-Alpes')];
+const SEASONS = [
+  seasonSummary('S1', 'Ligue Lyon 2026', 'L1'),
+  seasonSummary('S2', 'Ligue Lyon 2025', 'L1'),
+  seasonSummary('S9', 'Circuit 2026', 'L2'),
+];
+const SCOPE_CATALOGS = { leagues: LEAGUES, seasons: SEASONS };
+
+describe('GlobalStatsComponent — scope filter', () => {
+  it('requests the global scope by default', async () => {
+    const { client } = buildComponent();
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(1));
+    expect(client).toHaveBeenCalledWith('global', undefined, 1, 100, undefined, undefined, undefined);
+  });
+
+  it('requests the league scope with its id', async () => {
+    const { client } = buildComponent(rankingsResponse([]), { league: 'L1' });
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(1));
+    expect(client.mock.calls[0][0]).toBe('league');
+    expect(client.mock.calls[0][1]).toBe('L1');
+  });
+
+  it('requests the season scope with its id', async () => {
+    const { client } = buildComponent(rankingsResponse([]), { league: 'L1', season: 'S1' });
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(1));
+    expect(client.mock.calls[0][0]).toBe('season');
+    expect(client.mock.calls[0][1]).toBe('S1');
+  });
+
+  /** D2: the URL says `dir`, the wire keeps the server's own `direction`. */
+  it('sends the URL direction under the wire name', async () => {
+    const { client } = buildComponent(rankingsResponse([]), { sort: 'matchWins', dir: 'asc' });
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(1));
+    expect(client.mock.calls[0][5]).toBe('matchWins');
+    expect(client.mock.calls[0][6]).toBe('asc');
+  });
+
+  /**
+   * The headline of the slice: a scoped row is the player's record inside that Season, read from
+   * `player_statistics`, and not their global numbers filtered down.
+   */
+  it('keeps the numbers the scope returned', async () => {
+    const scoped = makeRow({ playerName: 'Alice', position: 1, playedMatchCount: 6, tournamentsPlayed: 2, matchWinrate: 0.5 });
+    const global = makeRow({ playerName: 'Alice', position: 1, playedMatchCount: 40, tournamentsPlayed: 12, matchWinrate: 0.75 });
+    const { comp } = buildComponent(
+      (scopeKind, scopeId) => rankingsResponse([scopeKind === 'season' && scopeId === 'S1' ? scoped : global]),
+      { league: 'L1', season: 'S1' },
     );
-    const { comp, load, router } = buildComponent(makeCatalogResult(rows));
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBe(1));
 
-    comp.currentSize.set(10);
-    const callCountBefore = load.mock.calls.length;
-    comp.goPage(comp.totalPages());
+    expect(comp.pagedRows()[0].playedMatchCount).toBe(6);
+    expect(comp.pagedRows()[0].tournamentsPlayed).toBe(2);
+    expect(comp.pagedRows()[0].matchWinrate).toBe(0.5);
+  });
 
-    expect(load.mock.calls.length).toBe(callCountBefore);
-    expect(router.navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: expect.objectContaining({ page: 20 }) }));
+  it('renumbers positions from the scoped response', async () => {
+    const rows = [1, 2, 3].map((position) => makeRow({ playerName: `Player ${position}`, position }));
+    const { comp } = buildComponent(rankingsResponse(rows), { season: 'S1' });
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBe(3));
+
+    expect(comp.pagedRows().map((row) => row.position)).toEqual([1, 2, 3]);
+    expect(source).not.toContain('start + i + 1');
+  });
+
+  it('renders the scope note only in a scoped view', () => {
+    expect(source).toContain('data-cy="global-stats-scope-note"');
+    expect(source).toContain("@if (scope().kind !== 'global')");
+  });
+
+  it('names the active season in the badge', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), { league: 'L1', season: 'S1' }, SCOPE_CATALOGS);
+    await vi.waitFor(() => expect(comp.seasons().length).toBe(3));
+    expect(comp.scopeLabel()).toBe('Ligue Lyon 2026');
+  });
+
+  it('names the active league in the badge', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), { league: 'L1' }, SCOPE_CATALOGS);
+    await vi.waitFor(() => expect(comp.leagues().length).toBe(2));
+    expect(comp.scopeLabel()).toBe('Ligue Lyon');
+  });
+
+  it('labels the badge global when nothing is chosen', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), {}, SCOPE_CATALOGS);
+    await vi.waitFor(() => expect(comp.leagues().length).toBe(2));
+    expect(comp.scopeLabel()).toBe('All tournaments');
+  });
+
+  it('falls back to the raw id before the catalog lands', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), { season: 'S9' });
+    expect(comp.scopeLabel()).toBe('S9');
+  });
+
+  it('narrows the season options to the chosen league', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), { league: 'L1' }, SCOPE_CATALOGS);
+    await vi.waitFor(() => expect(comp.seasons().length).toBe(3));
+    expect(comp.seasonOptions().map((season) => season.id)).toEqual(['S1', 'S2']);
+  });
+
+  it('offers every season while the league is all', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), {}, SCOPE_CATALOGS);
+    await vi.waitFor(() => expect(comp.seasons().length).toBe(3));
+    expect(comp.seasonOptions().length).toBe(3);
+  });
+
+  it('navigates with both scope keys when a season is chosen', async () => {
+    const { comp, router } = buildComponent(rankingsResponse([]), {}, SCOPE_CATALOGS);
+    await vi.waitFor(() => expect(comp.seasons().length).toBe(3));
+
+    comp.setSeason('S1');
+
+    expect(lastQueryParams(router)['league']).toBe('L1');
+    expect(lastQueryParams(router)['season']).toBe('S1');
+    expect(lastQueryParams(router)['page']).toBeUndefined();
+  });
+
+  it('resets the season when the new league does not own it', async () => {
+    const { comp, router } = buildComponent(rankingsResponse([]), { league: 'L2', season: 'S9' }, SCOPE_CATALOGS);
+    await vi.waitFor(() => expect(comp.seasons().length).toBe(3));
+
+    comp.setLeague('L1');
+
+    expect(lastQueryParams(router)['season']).toBeUndefined();
+    expect(lastQueryParams(router)['league']).toBe('L1');
   });
 });
 
-describe('GlobalStatsComponent — paging without a request', () => {
-  it('pages without calling load again', async () => {
-    const rows = Array.from({ length: 15 }, (_, i) =>
-      makeRow({ playerName: `Player ${i + 1}`, position: i + 1 })
-    );
-    const { comp, load } = buildComponent(makeCatalogResult(rows));
-    await Promise.resolve();
-    await Promise.resolve();
+describe('GlobalStatsComponent — scoped empty state, status and paging', () => {
+  it('says the scope is empty rather than the archive', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), { season: 'S1' });
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    expect(comp.emptyMessage()).toBe('No player has a rating in this scope yet.');
+  });
 
-    comp.currentSize.set(10);
-    const callCountBefore = load.mock.calls.length;
-    comp.goPage(2);
-    expect(load.mock.calls.length).toBe(callCountBefore);
+  it('keeps the generic empty copy for an empty search', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), { season: 'S1', search: 'zzz' });
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    expect(comp.emptyMessage()).toBe('No players found.');
+  });
+
+  /** A standalone Tournament (`seasonId: null`) feeds the global scope only — say so in the gap. */
+  it('explains that standalone tournaments only feed the global scope', () => {
+    expect(source).toContain('data-cy="global-stats-empty-standalone-hint"');
+    expect(source).toContain('globalStats.standaloneHint');
+  });
+
+  it('counts players in this scope in the status line', async () => {
+    const { comp } = buildComponent(rankingsResponse([], { totalCount: 18 }), { season: 'S1' });
+    await vi.waitFor(() => expect(comp.totalCount()).toBe(18));
+    expect(comp.pageStatus()).toBe('Page 1 of 1 (18 players in this scope)');
+  });
+
+  it('counts players plainly in the global scope', async () => {
+    const { comp } = buildComponent(rankingsResponse([], { totalCount: 18 }));
+    await vi.waitFor(() => expect(comp.totalCount()).toBe(18));
+    expect(comp.pageStatus()).toBe('Page 1 of 1 (18 players)');
+  });
+
+  it('sorting issues a new scoped request', async () => {
+    const { comp, router } = buildComponent(rankingsResponse([]), { league: 'L1', season: 'S1' });
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    comp.sortBy('rating');
+
+    expect(lastQueryParams(router)).toMatchObject({ league: 'L1', season: 'S1', sort: 'rating', dir: 'desc' });
+  });
+
+  it('paging issues a new scoped request', async () => {
+    const { comp, router } = buildComponent(rankingsResponse([]), { season: 'S1' });
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    comp.goPage(3);
+
+    expect(lastQueryParams(router)['page']).toBe(3);
+    expect(lastQueryParams(router)['season']).toBe('S1');
+  });
+
+  it('page size 100 is the default and is not written to the URL', async () => {
+    const { comp, router } = buildComponent();
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    expect(comp.currentSize()).toBe(100);
+
+    comp.setSize(100);
+
+    expect(lastQueryParams(router)['size']).toBeUndefined();
+  });
+
+  it('drops sort=decayedRating from the request while the column is off the wire', async () => {
+    const { client } = buildComponent(rankingsResponse([makeRow({ decayedRating: undefined })]), { sort: 'decayedRating' });
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(1));
+    expect(client.mock.calls[0][5]).toBeUndefined();
+  });
+
+  it('sends sort=decayedRating once the column is on the wire', async () => {
+    const { client, comp, emit } = buildComponent(rankingsResponse([makeRow({ decayedRating: 1480 })]), { sort: 'decayedRating' });
+    await vi.waitFor(() => expect(comp.showDecayedRating()).toBe(true));
+
+    emit({ sort: 'decayedRating' });
+
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    expect(client.mock.calls.at(-1)?.[5]).toBe('decayedRating');
+  });
+});
+
+describe('GlobalStatsComponent — scoped failures', () => {
+  it('surfaces a filter failure without hiding the table', async () => {
+    const { comp } = buildComponent(rankingsResponse([makeRow()]), {}, { fail: true });
+    await vi.waitFor(() => expect(comp.scopeError()).toBeTruthy());
+
+    expect(comp.scopeError()).toBe('Could not load the League and Season filters.');
+    expect(comp.error()).toBe('');
+    expect(comp.pagedRows().length).toBe(1);
+  });
+
+  it('reports a rankings failure when nothing is on screen', async () => {
+    const { comp } = buildComponent(() => throwError(() => new Error('offline')));
+    await vi.waitFor(() => expect(comp.error()).toBeTruthy());
+
+    expect(comp.error()).toBe('Could not load global statistics.');
+    expect(comp.stale()).toBe(false);
+  });
+
+  it('keeps the previous page and goes stale when a refetch fails', async () => {
+    let calls = 0;
+    const { comp } = buildComponent(() => {
+      calls += 1;
+      return calls === 1 ? rankingsResponse([makeRow()]) : throwError(() => new Error('offline'));
+    });
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBe(1));
+
+    comp.onSync();
+
+    await vi.waitFor(() => expect(comp.stale()).toBe(true));
+    expect(comp.error()).toBe('');
+    expect(comp.pagedRows().length).toBe(1);
+  });
+
+  /** D4: a slow global response must not paint global numbers under a Season badge. */
+  it('drops a superseded response', async () => {
+    const pending = new Subject<ArchiveGlobalPlayerStatisticsResponse>();
+    const { comp, emit } = buildComponent((scopeKind) =>
+      scopeKind === 'global' ? pending : rankingsResponse([makeRow({ playerName: 'Season Player' })]));
+
+    emit({ season: 'S1' });
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBe(1));
+    expect(comp.pagedRows()[0].playerName).toBe('Season Player');
+
+    pending.next(rankingsResponse([makeRow({ playerName: 'Global Player' })]));
+    pending.complete();
+
+    expect(comp.pagedRows()[0].playerName).toBe('Season Player');
+  });
+
+  it('sync refetches the current scope', async () => {
+    const { comp, client } = buildComponent(rankingsResponse([]), { season: 'S1' });
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(1));
+
+    comp.onSync();
+
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    for (const call of client.mock.calls) {
+      expect(call[0]).toBe('season');
+      expect(call[1]).toBe('S1');
+    }
   });
 });
 
@@ -548,6 +777,18 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
     'globalStats.inactiveBadge',
     'globalStats.colRival',
     'globalStats.colArchetype',
+    'globalStats.scopeLeagueLabel',
+    'globalStats.scopeSeasonLabel',
+    'globalStats.scopeAllLeagues',
+    'globalStats.scopeAllSeasons',
+    'globalStats.scopeGlobalName',
+    'globalStats.scopeBadge',
+    'globalStats.scopeBadgeAria',
+    'globalStats.scopeNote',
+    'globalStats.scopeLoadFailed',
+    'globalStats.noResultsScope',
+    'globalStats.standaloneHint',
+    'globalStats.pageStatusScope',
     'crumb.globalStats',
     'home.globalStats',
     'home.globalStatsDesc',
@@ -567,26 +808,26 @@ describe('GlobalStatsComponent — i18n keys present in both catalogs', () => {
 
 describe('GlobalStatsComponent — decayed rating column', () => {
   it('hides the decayed column when every row is undefined', async () => {
-    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: undefined })]));
-    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    const { comp } = buildComponent(rankingsResponse([makeRow({ decayedRating: undefined })]));
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBeGreaterThan(0));
     expect(comp.showDecayedRating()).toBe(false);
   });
 
   it('shows the decayed column when a row carries one', async () => {
-    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: 1488 })]));
-    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    const { comp } = buildComponent(rankingsResponse([makeRow({ decayedRating: 1488 })]));
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBeGreaterThan(0));
     expect(comp.showDecayedRating()).toBe(true);
   });
 
   it('spans the empty row across the visible columns', async () => {
-    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: 1488 })]));
-    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    const { comp } = buildComponent(rankingsResponse([makeRow({ decayedRating: 1488 })]));
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBeGreaterThan(0));
     expect(comp.visibleColumnCount()).toBe(12);
   });
 
   it('spans the empty row across the visible columns when off', async () => {
-    const { comp } = buildComponent(makeCatalogResult([makeRow({ decayedRating: undefined })]));
-    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    const { comp } = buildComponent(rankingsResponse([makeRow({ decayedRating: undefined })]));
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBeGreaterThan(0));
     expect(comp.visibleColumnCount()).toBe(11);
   });
 
@@ -595,10 +836,10 @@ describe('GlobalStatsComponent — decayed rating column', () => {
     // the rows arrive without the column. The client honours the same gate rather than ordering by a
     // field that is not there.
     const { comp } = buildComponent(
-      makeCatalogResult([makeRow({ decayedRating: undefined })]),
-      { sort: 'decayedRating', direction: 'desc' },
+      rankingsResponse([makeRow({ decayedRating: undefined })]),
+      { sort: 'decayedRating', dir: 'desc' },
     );
-    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBeGreaterThan(0));
     expect(comp.showDecayedRating()).toBe(false);
     expect(comp.currentSort()).toBeUndefined();
     expect(comp.ariaSort('decayedRating')).toBeNull();
@@ -606,10 +847,10 @@ describe('GlobalStatsComponent — decayed rating column', () => {
 
   it('accepts ?sort=decayedRating once the column is on the wire', async () => {
     const { comp } = buildComponent(
-      makeCatalogResult([makeRow({ decayedRating: 1488 })]),
-      { sort: 'decayedRating', direction: 'desc' },
+      rankingsResponse([makeRow({ decayedRating: 1488 })]),
+      { sort: 'decayedRating', dir: 'desc' },
     );
-    await vi.waitFor(() => expect(comp.allRows().length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(comp.pagedRows().length).toBeGreaterThan(0));
     expect(comp.showDecayedRating()).toBe(true);
     // The gate re-reads the URL when the rows land: the params arrive before the catalog does.
     expect(comp.currentSort()).toBe('decayedRating');

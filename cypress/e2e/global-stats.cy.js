@@ -1,8 +1,16 @@
 /**
- * T24 — Global Stats page E2E tests.
- * After T24 the page fetches the full catalog once (/all), caches it 24h,
- * and filters / sorts / pages client-side. All intercepts target the /all endpoint.
+ * Global Stats page E2E tests. The page pages, sorts and searches on the server against
+ * `/api/archive/global-player-statistics` inside the scope the League and Season selects choose, so
+ * every intercept targets that endpoint plus the two archive catalogs that fill the selects.
  */
+
+const ARCHIVE_CACHE_DB = 'gones-archive-cache';
+const LYON_LEAGUE = { id: 'lyon', name: 'Ligue Lyon', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', documentVersion: 1 };
+const LYON_SEASON = {
+  id: 'lyon-2026', name: 'Ligue Lyon 2026', leagueId: 'lyon', status: 'completed',
+  updatedAt: '2026-01-01T00:00:00Z', documentVersion: 1, tournamentCount: 4, playerCount: 18,
+  firstTournamentDate: '2026-01-10', lastTournamentDate: '2026-06-20',
+};
 
 const BASE_ROW = {
   position: 1,
@@ -34,12 +42,45 @@ function makeRow(overrides) {
   return { ...BASE_ROW, ...overrides };
 }
 
-function mockCatalog(items = [BASE_ROW]) {
-  cy.intercept('GET', '**/api/leagues-archive/global-player-statistics/all', {
-    items,
-    totalCount: items.length,
-    truncated: false,
-  }).as('catalog');
+/**
+ * Stands in for the scoped endpoint: it honours `search`, `sort`, `direction`, `page` and `pageSize`
+ * exactly as the server does, and numbers `position` inside the answered page, so a test observes the
+ * same round trip the browser makes rather than a client-side filter that no longer exists.
+ */
+function mockRankings(items = [BASE_ROW], overrides = {}) {
+  cy.intercept('GET', '**/api/archive/global-player-statistics?*', (req) => {
+    const search = String(req.query.search || '').toLowerCase();
+    const sort = req.query.sort;
+    const sign = req.query.direction === 'asc' ? 1 : -1;
+    const page = Number(req.query.page || 1);
+    const pageSize = Number(req.query.pageSize || 100);
+
+    const matched = search ? items.filter((row) => row.playerName.toLowerCase().includes(search)) : [...items];
+    if (sort) matched.sort((left, right) => sign * ((left[sort] ?? 0) - (right[sort] ?? 0)));
+    const offset = (page - 1) * pageSize;
+
+    req.reply({
+      items: matched.slice(offset, offset + pageSize).map((row, index) => ({ ...row, position: offset + index + 1 })),
+      page,
+      pageSize,
+      totalCount: matched.length,
+      ...overrides,
+    });
+  }).as('rankings');
+}
+
+function mockScopeCatalogs(leagues = [LYON_LEAGUE], seasons = [LYON_SEASON]) {
+  cy.intercept('GET', '**/api/archive/leagues/all', { items: leagues, totalCount: leagues.length, truncated: false }).as('leagueCatalog');
+  cy.intercept('GET', '**/api/archive/league-seasons/all', { items: seasons, totalCount: seasons.length, truncated: false }).as('seasonCatalog');
+}
+
+/** The two select catalogs are cached in IndexedDB for 24h, so drop the store before each visit. */
+function visitRankings(url = '/global-stats') {
+  cy.visit(url, { onBeforeLoad(win) {
+    win.indexedDB.deleteDatabase(ARCHIVE_CACHE_DB);
+    win.localStorage.setItem('gones.settings.language', 'en');
+    win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  } });
 }
 
 // ---------------------------------------------------------------------------
@@ -48,12 +89,10 @@ function mockCatalog(items = [BASE_ROW]) {
 describe('Global Stats — 11 column headers', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
-    mockCatalog();
-    cy.visit('/global-stats', { onBeforeLoad(win) {
-      win.localStorage.setItem('gones.settings.language', 'en');
-      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
-    } });
-    cy.wait('@catalog');
+    mockRankings();
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
   });
 
   const HEADERS = ['#', 'Player', 'Rating', 'Tournaments', 'Matches', 'Wins', 'Losses', 'Draw', 'M%', 'Rival', 'Archetype (matches)'];
@@ -73,9 +112,9 @@ describe('Global Stats — 11 column headers', () => {
     cy.get('[data-cy="global-stats-col-rating"]').should('exist');
   });
 
-  it('clicking the Rating header navigates to ?sort=rating&direction=desc', () => {
+  it('clicking the Rating header navigates to ?sort=rating&dir=desc', () => {
     cy.get('[data-cy="global-stats-col-rating"]').click();
-    cy.url().should('include', 'sort=rating').and('include', 'direction=desc');
+    cy.url().should('include', 'sort=rating').and('include', 'dir=desc');
   });
 });
 
@@ -85,9 +124,10 @@ describe('Global Stats — rating column', () => {
     const rows = [
       makeRow({ position: 1, playerName: 'NewPlayer', provisional: true, inactive: false, tournamentsPlayed: 2 }),
     ];
-    mockCatalog(rows);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings(rows);
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
     cy.get('[data-cy="global-stats-cell-1-rating-provisional"]').should('exist');
     cy.get('[data-cy="global-stats-cell-1-rating-inactive"]').should('not.exist');
   });
@@ -97,18 +137,20 @@ describe('Global Stats — rating column', () => {
     const rows = [
       makeRow({ position: 1, playerName: 'OldPlayer', provisional: false, inactive: true }),
     ];
-    mockCatalog(rows);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings(rows);
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
     cy.get('[data-cy="global-stats-cell-1-rating-inactive"]').should('exist');
     cy.get('[data-cy="global-stats-cell-1-rating-provisional"]').should('not.exist');
   });
 
   it('renders no badge for an active ranked player', () => {
     cy.clearLocalStorage();
-    mockCatalog();
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings();
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
     cy.get('[data-cy="global-stats-cell-1-rating-provisional"]').should('not.exist');
     cy.get('[data-cy="global-stats-cell-1-rating-inactive"]').should('not.exist');
   });
@@ -118,9 +160,10 @@ describe('Global Stats — rating column', () => {
     const rows = [
       makeRow({ position: 1, rating: undefined, lastRatingDelta: undefined }),
     ];
-    mockCatalog(rows);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings(rows);
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
     cy.get('[data-cy="global-stats-cell-1-rating-value"]').should('have.text', '—');
   });
 });
@@ -135,9 +178,10 @@ describe('Global Stats — cell formatting', () => {
       makeRow({ position: 1, playerName: 'Alice', matchWinrate: 0.75, gameWinrate: 0.711 }),
       makeRow({ position: 2, playerName: 'Bob', matchWinrate: null, gameWinrate: null, nemesis: null, rival: null, mostPlayedArchetype: null }),
     ];
-    mockCatalog(rows);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings(rows);
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
   });
 
   it('shows percentage as whole number for Alice', () => {
@@ -165,21 +209,23 @@ describe('Global Stats — cell formatting', () => {
 // ---------------------------------------------------------------------------
 // Sorting — client-side, no request
 // ---------------------------------------------------------------------------
-describe('Global Stats — client-side sort', () => {
+describe('Global Stats — server-side sort', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
     const rows = [
       makeRow({ position: 1, playerName: 'Alice', matchWins: 5 }),
       makeRow({ position: 2, playerName: 'Bob', matchWins: 10 }),
     ];
-    mockCatalog(rows);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings(rows);
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
   });
 
-  it('clicking Match Wins header sorts client-side (no extra request)', () => {
+  it('clicking Match Wins header asks the server for that order', () => {
     cy.get('[data-cy="global-stats-col-match-wins"]').click();
-    // No second network request — Bob (10 wins) should be first
+    cy.wait('@rankings').its('request.query.sort').should('eq', 'matchWins');
+    // Bob (10 wins) comes back first, at the position the server assigned.
     cy.get('[data-cy="global-stats-cell-player-1"]').should('have.text', 'Bob');
   });
 
@@ -195,7 +241,7 @@ describe('Global Stats — client-side sort', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Search — on input, no Apply button
+// Search — on input, no Apply button; the term is answered by the server
 // ---------------------------------------------------------------------------
 describe('Global Stats — search on input', () => {
   beforeEach(() => {
@@ -204,16 +250,17 @@ describe('Global Stats — search on input', () => {
       makeRow({ position: 1, playerName: 'Alice' }),
       makeRow({ position: 2, playerName: 'Bob' }),
     ];
-    mockCatalog(rows);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings(rows);
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
   });
 
   it('has no apply button', () => {
     cy.get('[data-cy="global-stats-search-apply"]').should('not.exist');
   });
 
-  it('typing filters rows client-side', () => {
+  it('typing narrows the rows through the server', () => {
     cy.get('[data-cy="global-stats-search-input"]').type('ali');
     cy.get('[data-cy="global-stats-cell-player-1"]').should('have.text', 'Alice');
     cy.get('[data-cy="global-stats-cell-player-2"]').should('not.exist');
@@ -221,23 +268,23 @@ describe('Global Stats — search on input', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pagination — client-side
+// Pagination — server-side
 // ---------------------------------------------------------------------------
-describe('Global Stats — client-side paging', () => {
-  it('page sizes 25, 50 update the visible rows without a new request', () => {
+describe('Global Stats — server-side paging', () => {
+  it('choosing page size 25 asks the server for one page of 25', () => {
     cy.clearLocalStorage();
     const rows = Array.from({ length: 60 }, (_, i) => makeRow({ position: i + 1, playerName: `Player${i + 1}` }));
-    mockCatalog(rows);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings(rows);
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
 
     // Default size=100 shows all 60 — check last row
     cy.get('[data-cy="global-stats-cell-player-60"]').should('exist');
 
-    // The catalog is cached; changing page size must not send a new request
-    cy.intercept('GET', '**/api/leagues-archive/global-player-statistics/all').as('unexpectedCatalog');
     cy.get('[data-cy="global-stats-page-size-select"]').click();
     cy.get('[data-cy="global-stats-size-option-25"]').click();
+    cy.wait('@rankings').its('request.query.pageSize').should('eq', '25');
     cy.get('[data-cy="global-stats-cell-player-25"]').should('exist');
     cy.get('[data-cy="global-stats-cell-player-26"]').should('not.exist');
   });
@@ -249,21 +296,24 @@ describe('Global Stats — client-side paging', () => {
 describe('Global Stats — sync bar', () => {
   it('has a sync button', () => {
     cy.clearLocalStorage();
-    mockCatalog();
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings();
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
     cy.get('[data-cy="global-stats-sync-button"]').should('exist');
   });
 
-  it('pressing sync triggers a new catalog request', () => {
+  it('pressing sync triggers a new rankings request', () => {
     cy.clearLocalStorage();
-    mockCatalog();
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings();
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
 
-    mockCatalog();
+    mockRankings();
+    mockScopeCatalogs();
     cy.get('[data-cy="global-stats-sync-button"]').click();
-    cy.wait('@catalog');
+    cy.wait('@rankings');
   });
 });
 
@@ -273,9 +323,10 @@ describe('Global Stats — sync bar', () => {
 describe('Global Stats — player link navigation', () => {
   beforeEach(() => {
     cy.clearLocalStorage();
-    mockCatalog();
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    mockRankings();
+    mockScopeCatalogs();
+    visitRankings();
+    cy.wait('@rankings');
   });
 
   it('clicking a player name navigates to /players/:name', () => {
@@ -293,10 +344,11 @@ describe('Global Stats — heading row', () => {
 
   it('title and sync bar share a row on a wide viewport', () => {
     cy.clearLocalStorage();
-    mockCatalog();
+    mockRankings();
+    mockScopeCatalogs();
     cy.viewport(1280, 800);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    visitRankings();
+    cy.wait('@rankings');
 
     rect('[data-cy="global-stats-title"]').then(titleRect => {
       rect('[data-cy="global-stats-sync-button"]').then(syncRect => {
@@ -309,10 +361,11 @@ describe('Global Stats — heading row', () => {
 
   it('title and sync bar stack on a narrow viewport', () => {
     cy.clearLocalStorage();
-    mockCatalog();
+    mockRankings();
+    mockScopeCatalogs();
     cy.viewport(420, 800);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    visitRankings();
+    cy.wait('@rankings');
 
     rect('[data-cy="global-stats-title"]').then(titleRect => {
       rect('[data-cy="global-stats-sync-button"]').then(syncRect => {
@@ -323,15 +376,65 @@ describe('Global Stats — heading row', () => {
 
   it('heading hooks survive', () => {
     cy.clearLocalStorage();
-    mockCatalog();
+    mockRankings();
+    mockScopeCatalogs();
     cy.viewport(1280, 800);
-    cy.visit('/global-stats');
-    cy.wait('@catalog');
+    visitRankings();
+    cy.wait('@rankings');
 
     cy.get('[data-cy="global-stats-heading"]').should('exist');
     cy.get('[data-cy="global-stats-heading-text"]').should('exist');
     cy.get('[data-cy="global-stats-title"]').should('exist');
     cy.get('[data-cy="global-stats-sync-bar"]').should('exist');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scope filter — League and Season choose which stored ratings are read
+// ---------------------------------------------------------------------------
+describe('Global Stats — scope filter', () => {
+  beforeEach(() => {
+    cy.clearLocalStorage();
+    mockScopeCatalogs();
+  });
+
+  it('choosing a League scopes the request', () => {
+    mockRankings();
+    visitRankings();
+    cy.wait('@rankings');
+
+    cy.get('[data-cy="global-stats-league-select"]').click();
+    cy.get('[data-cy="global-stats-league-option-lyon"]').click();
+
+    cy.wait('@rankings').then(({ request }) => {
+      expect(request.query.scopeKind).to.eq('league');
+      expect(request.query.scopeId).to.eq('lyon');
+    });
+    cy.url().should('include', 'league=lyon');
+  });
+
+  it('choosing a Season scopes the request and names it in the badge', () => {
+    mockRankings();
+    visitRankings();
+    cy.wait('@rankings');
+
+    cy.get('[data-cy="global-stats-season-select"]').click();
+    cy.get('[data-cy="global-stats-season-option-lyon-2026"]').click();
+
+    cy.wait('@rankings').then(({ request }) => {
+      expect(request.query.scopeKind).to.eq('season');
+      expect(request.query.scopeId).to.eq('lyon-2026');
+    });
+    cy.get('[data-cy="global-stats-scope-badge"]').should('contain.text', 'Ligue Lyon 2026');
+  });
+
+  it('an empty scope explains itself', () => {
+    mockRankings([], { items: [], totalCount: 0 });
+    visitRankings('/global-stats?league=lyon&season=lyon-2026');
+    cy.wait('@rankings');
+
+    cy.get('[data-cy="global-stats-no-results"]').should('contain.text', 'No player has a rating in this scope yet.');
+    cy.get('[data-cy="global-stats-empty-standalone-hint"]').should('be.visible');
   });
 });
 

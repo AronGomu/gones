@@ -1,6 +1,7 @@
 import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -10,20 +11,27 @@ import { MatSelectModule } from '@angular/material/select';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { formatRatingDelta } from './rating-format';
 import { SyncBarComponent } from '../../shared/sync-bar.component';
-import { GlobalPlayerStatisticsRow, OpponentRecord, PlayerArchetypeUsage } from '../../api/generated/gones-api';
+import { ArchiveGlobalPlayerStatisticsRow, Client, OpponentRecord, PlayerArchetypeUsage } from '../../api/generated/gones-api';
+import { ArchiveRepository } from '../../data/archive-repository.service';
+import type { ArchiveLeagueRow, ArchiveLeagueSeasonRow } from '../../data/archive-repository.service';
 import { I18nService } from '../../i18n/i18n.service';
 import {
   GLOBAL_STATS_PAGE_SIZES,
+  GLOBAL_STATS_SCOPE_ALL,
   GlobalStatsPageSize,
+  GlobalStatsScopeSelection,
   GlobalStatsSortCol,
   GlobalStatsQuery,
   globalStatsPageWindow,
   globalStatsQueryParams,
+  globalStatsScopeName,
   parseGlobalStatsQuery,
-  sortGlobalStatsRows,
+  resolveGlobalStatsScope,
+  scopeSeasonOptions,
+  selectScopeLeague,
+  selectScopeSeason,
   toggleGlobalStatsSort,
 } from './global-stats-query';
-import { GlobalStatsCatalogCacheService } from './global-stats-catalog-cache.service';
 
 export const SEARCH_DEBOUNCE_MS = 300;
 
@@ -41,6 +49,36 @@ export const SEARCH_DEBOUNCE_MS = 300;
       </section>
       <gones-sync-bar cyPrefix="global-stats" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="onSync()" data-cy="global-stats-sync-bar" />
     </div>
+
+    <div class="global-stats-scope" data-cy="global-stats-scope">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="global-stats-scope-field" data-cy="global-stats-league-field">
+        <mat-label data-cy="global-stats-league-label">{{ i18n.t('globalStats.scopeLeagueLabel') }}</mat-label>
+        <mat-select data-cy="global-stats-league-select" [value]="currentLeague()" (selectionChange)="setLeague($event.value)">
+          <mat-option [value]="scopeAll" data-cy="global-stats-league-option-all">{{ i18n.t('globalStats.scopeAllLeagues') }}</mat-option>
+          @for (league of leagues(); track league.id) {
+            <mat-option [value]="league.id" [attr.data-cy]="'global-stats-league-option-' + league.id">{{ league.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="global-stats-scope-field" data-cy="global-stats-season-field">
+        <mat-label data-cy="global-stats-season-label">{{ i18n.t('globalStats.scopeSeasonLabel') }}</mat-label>
+        <mat-select data-cy="global-stats-season-select" [value]="currentSeason()" (selectionChange)="setSeason($event.value)">
+          <mat-option [value]="scopeAll" data-cy="global-stats-season-option-all">{{ i18n.t('globalStats.scopeAllSeasons') }}</mat-option>
+          @for (season of seasonOptions(); track season.id) {
+            <mat-option [value]="season.id" [attr.data-cy]="'global-stats-season-option-' + season.id">{{ season.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <!-- The badge names the scope the numbers were computed in, so a scoped rating is never read as
+           the global one. Its visible text is already the whole accessible name; an aria-label here
+           would replace "Rating scope: Ligue Lyon 2026" with "Rating scope" and hide the answer. -->
+      <span class="global-stats-scope-badge" data-cy="global-stats-scope-badge">
+        <span aria-hidden="true" data-cy="global-stats-scope-badge-mark">◆</span>{{ i18n.t('globalStats.scopeBadge', { scope: scopeLabel() }) }}
+      </span>
+    </div>
+    @if (scopeError()) {
+      <p class="warning" role="status" data-cy="global-stats-scope-error">{{ scopeError() }}</p>
+    }
 
     <div class="global-stats-controls" data-cy="global-stats-controls">
       <div class="global-stats-search-wrap" data-cy="global-stats-search-wrap">
@@ -76,13 +114,10 @@ export const SEARCH_DEBOUNCE_MS = 300;
     @if (error()) {
       <p class="error" role="alert" data-cy="global-stats-error">{{ error() }}</p>
     }
-    @if (truncated()) {
-      <p class="warning" role="status" data-cy="global-stats-truncated">{{ i18n.t('globalStats.truncatedWarning', { count: allRows().length }) }}</p>
-    }
 
     @if (!loading() && !error()) {
       <div class="global-stats-status-bar" data-cy="global-stats-status-bar">
-        <span aria-live="polite" data-cy="global-stats-count-status">{{ i18n.t('globalStats.pageStatus', { page: currentPage(), total: totalPages(), count: totalCount() }) }}</span>
+        <span aria-live="polite" data-cy="global-stats-count-status">{{ pageStatus() }}</span>
       </div>
 
       @if (totalCount()) {
@@ -112,7 +147,12 @@ export const SEARCH_DEBOUNCE_MS = 300;
           <tbody data-cy="global-stats-tbody">
             @if (!pagedRows().length) {
               <tr data-cy="global-stats-empty-row">
-                <td [attr.colspan]="visibleColumnCount()" data-cy="global-stats-no-results">{{ i18n.t('globalStats.noResults') }}</td>
+                <td [attr.colspan]="visibleColumnCount()" data-cy="global-stats-no-results">
+                  {{ emptyMessage() }}
+                  @if (scope().kind !== 'global' && !committedSearch()) {
+                    <span class="global-stats-empty-hint" data-cy="global-stats-empty-standalone-hint">{{ i18n.t('globalStats.standaloneHint') }}</span>
+                  }
+                </td>
               </tr>
             }
             @for (row of pagedRows(); track row.playerName) {
@@ -148,6 +188,9 @@ export const SEARCH_DEBOUNCE_MS = 300;
           </tbody>
         </table>
       </div>
+      @if (scope().kind !== 'global') {
+        <p class="global-stats-scope-note" data-cy="global-stats-scope-note">{{ i18n.t('globalStats.scopeNote') }}</p>
+      }
 
       @if (totalCount()) {
         <ng-container *ngTemplateOutlet="paginationNav; context: { $implicit: 'bottom' }" />
@@ -175,7 +218,7 @@ export const SEARCH_DEBOUNCE_MS = 300;
         </span>
         <!-- One live region for the page, and the status bar above the table already owns the top one. -->
         @if (place === 'bottom') {
-          <span data-cy="global-stats-page-status" aria-live="polite">{{ i18n.t('globalStats.pageStatus', { page: currentPage(), total: totalPages(), count: totalCount() }) }}</span>
+          <span data-cy="global-stats-page-status" aria-live="polite">{{ pageStatus() }}</span>
         }
       </nav>
     </ng-template>
@@ -186,6 +229,11 @@ export const SEARCH_DEBOUNCE_MS = 300;
     .global-stats-heading-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
     .global-stats-heading-row .page-heading { flex: 1 1 auto; min-width: 0; margin: 0; }
     .global-stats-heading-row gones-sync-bar { flex: 0 1 auto; }
+    .global-stats-scope { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin-top: 1.25rem; padding: .75rem; border: 1px solid var(--soot); background: var(--iron); }
+    .global-stats-scope-field { width: 16rem; }
+    .global-stats-scope-badge { display: inline-flex; align-items: center; gap: .4rem; padding: .28rem .6rem; border: 1px solid color-mix(in oklch, var(--hot-blood) 50%, var(--soot)); background: color-mix(in oklch, var(--blood) 16%, var(--iron)); color: var(--ash); font-size: .75rem; font-weight: 800; }
+    .global-stats-scope-note { margin: .6rem 0 0; color: var(--steel); font-size: .8rem; }
+    .global-stats-empty-hint { display: block; margin-top: .35rem; color: var(--steel); font-size: .8rem; }
     .global-stats-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .75rem; margin-top: 1.25rem; margin-bottom: 1rem; }
     .global-stats-search-wrap { display: flex; align-items: center; gap: .5rem; flex: 1 1 auto; min-width: 0; }
     .global-stats-search-field { flex: 1 1 auto; min-width: 0; max-width: 28rem; }
@@ -220,7 +268,8 @@ export const SEARCH_DEBOUNCE_MS = 300;
   `]
 })
 export class GlobalStatsComponent implements OnDestroy {
-  private readonly cacheService = inject(GlobalStatsCatalogCacheService);
+  private readonly client = inject(Client);
+  private readonly archive = inject(ArchiveRepository);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly i18n = inject(I18nService);
@@ -230,12 +279,21 @@ export class GlobalStatsComponent implements OnDestroy {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly stale = signal(false);
-  readonly truncated = signal(false);
+  readonly scopeError = signal('');
   readonly syncedAt = signal<string | undefined>(undefined);
 
-  readonly allRows = signal<GlobalPlayerStatisticsRow[]>([]);
+  /** One page of one scope, numbered by the server. Never the whole catalog. */
+  readonly rows = signal<ArchiveGlobalPlayerStatisticsRow[]>([]);
+  readonly totalCount = signal(0);
+  readonly leagues = signal<ArchiveLeagueRow[]>([]);
+  readonly seasons = signal<ArchiveLeagueSeasonRow[]>([]);
+  readonly committedSearch = signal('');
+  readonly currentLeague = signal<string>(GLOBAL_STATS_SCOPE_ALL);
+  readonly currentSeason = signal<string>(GLOBAL_STATS_SCOPE_ALL);
+  readonly scopeAll = GLOBAL_STATS_SCOPE_ALL;
+  private requestToken = 0;
 
-  readonly showDecayedRating = computed(() => this.allRows().some(row => row.decayedRating !== null && row.decayedRating !== undefined));
+  readonly showDecayedRating = computed(() => this.rows().some(row => row.decayedRating !== null && row.decayedRating !== undefined));
   readonly visibleColumnCount = computed(() => this.showDecayedRating() ? 12 : 11);
 
   readonly currentPage = signal(1);
@@ -255,25 +313,31 @@ export class GlobalStatsComponent implements OnDestroy {
   readonly currentDirection = signal<'asc' | 'desc' | undefined>(undefined);
   readonly searchDraft = signal('');
 
-  readonly filteredRows = computed(() => {
-    const term = this.searchDraft().toLowerCase().trim();
-    if (!term) return this.allRows();
-    return this.allRows().filter(r => r.playerName.toLowerCase().includes(term));
-  });
-
-  /** Server ordering, reproduced client-side so both rankings surfaces agree (see the helper). */
-  readonly sortedRows = computed(() => sortGlobalStatsRows(this.filteredRows(), this.currentSort(), this.currentDirection() ?? 'desc'));
-
-  readonly pagedRows = computed(() => {
-    const page = this.currentPage();
-    const size = this.currentSize();
-    const start = (page - 1) * size;
-    return this.sortedRows().slice(start, start + size).map((row, i) => ({ ...row, position: start + i + 1 }));
-  });
-
-  readonly totalCount = computed(() => this.filteredRows().length);
+  /** The server numbers the rows inside the requested scope, so positions renumber 1..n per scope. */
+  readonly pagedRows = computed(() => this.rows());
   readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.currentSize())));
   readonly pageWindow = computed(() => globalStatsPageWindow(this.currentPage(), this.totalPages()));
+
+  readonly scope = computed<GlobalStatsScopeSelection>(() =>
+    resolveGlobalStatsScope({ league: this.currentLeague(), season: this.currentSeason() }));
+
+  readonly seasonOptions = computed(() => scopeSeasonOptions(this.seasons(), this.currentLeague()));
+
+  /** Never blank: the resolved name, else the raw id, else the global label. */
+  readonly scopeLabel = computed(() => {
+    const scope = this.scope();
+    if (scope.kind === 'global') return this.i18n.t('globalStats.scopeGlobalName');
+    return globalStatsScopeName(scope, { leagues: this.leagues(), seasons: this.seasons() }) ?? scope.id;
+  });
+
+  readonly pageStatus = computed(() => this.i18n.t(
+    this.scope().kind === 'global' ? 'globalStats.pageStatus' : 'globalStats.pageStatusScope',
+    { page: this.currentPage(), total: this.totalPages(), count: this.totalCount() }));
+
+  readonly emptyMessage = computed(() =>
+    this.committedSearch() || this.scope().kind === 'global'
+      ? this.i18n.t('globalStats.noResults')
+      : this.i18n.t('globalStats.noResultsScope'));
 
   readonly pageSizes = GLOBAL_STATS_PAGE_SIZES;
 
@@ -285,46 +349,90 @@ export class GlobalStatsComponent implements OnDestroy {
       this.routeParams.set(params);
       this.currentDirection.set(query.direction);
       this.searchDraft.set(query.search);
+      this.committedSearch.set(query.search);
+      this.currentLeague.set(query.league);
+      this.currentSeason.set(query.season);
+      void this.loadRankings();
     });
-    void this.loadCatalog();
+    void this.loadScopeCatalogs();
   }
 
   ngOnDestroy(): void {
     if (this.debounceTimer !== undefined) clearTimeout(this.debounceTimer);
   }
 
-  private async loadCatalog(options: { force?: boolean } = {}): Promise<void> {
+  /**
+   * One page of one scope. The rating shown always comes from the stored `(scopeKind, scopeId)` row,
+   * so matches, tournaments and winrate are the player's record inside the scope — never their
+   * global numbers filtered down.
+   */
+  private async loadRankings(): Promise<void> {
+    const token = ++this.requestToken;
+    const scope = this.scope();
     this.loading.set(true);
-    this.error.set('');
     try {
-      const result = await this.cacheService.load(options);
-      this.allRows.set(result.items);
-      this.syncedAt.set(result.fetchedAt);
-      this.stale.set(result.stale);
-      this.truncated.set(result.truncated);
+      const response = await firstValueFrom(this.client.getArchiveGlobalPlayerStatistics(
+        scope.kind,
+        scope.kind === 'global' ? undefined : scope.id,
+        this.currentPage(),
+        this.currentSize(),
+        this.committedSearch() || undefined,
+        this.currentSort(),
+        this.currentDirection(),
+      ));
+      // A slower earlier request must not paint its scope under a newer scope's badge.
+      if (token !== this.requestToken) return;
+      this.rows.set(response.items ?? []);
+      this.totalCount.set(response.totalCount ?? 0);
+      this.syncedAt.set(new Date().toISOString());
+      this.stale.set(false);
+      this.error.set('');
     } catch {
-      this.error.set(this.i18n.t('globalStats.errorLoad'));
+      if (token !== this.requestToken) return;
+      if (this.rows().length) this.stale.set(true);
+      else this.error.set(this.i18n.t('globalStats.errorLoad'));
     } finally {
-      this.loading.set(false);
+      if (token === this.requestToken) this.loading.set(false);
+    }
+  }
+
+  /** The two selects. A failure here narrows the filter, it does not hide the ranking. */
+  private async loadScopeCatalogs(): Promise<void> {
+    try {
+      const [leagues, seasons] = await Promise.all([this.archive.listLeagues(), this.archive.listLeagueSeasons()]);
+      this.leagues.set(leagues.items);
+      this.seasons.set(seasons.items);
+      this.scopeError.set('');
+    } catch {
+      this.scopeError.set(this.i18n.t('globalStats.scopeLoadFailed'));
     }
   }
 
   onSync(): void {
-    void this.loadCatalog({ force: true });
+    void this.loadRankings();
+  }
+
+  private query(): GlobalStatsQuery {
+    return {
+      page: this.currentPage(),
+      size: this.currentSize(),
+      search: this.committedSearch(),
+      sort: this.currentSort(),
+      direction: this.currentDirection(),
+      league: this.currentLeague(),
+      season: this.currentSeason(),
+    };
+  }
+
+  private navigate(query: GlobalStatsQuery): void {
+    void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(query) });
   }
 
   setSearchDraft(value: string): void {
     this.searchDraft.set(value);
     if (this.debounceTimer !== undefined) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
-      const query: GlobalStatsQuery = {
-        page: 1,
-        size: this.currentSize(),
-        search: value,
-        sort: this.currentSort(),
-        direction: this.currentDirection(),
-      };
-      void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(query) });
+      this.navigate({ ...this.query(), search: value, page: 1 });
     }, SEARCH_DEBOUNCE_MS);
   }
 
@@ -332,16 +440,16 @@ export class GlobalStatsComponent implements OnDestroy {
     this.setSearchDraft('');
   }
 
+  setLeague(league: string): void {
+    this.navigate(selectScopeLeague(this.query(), league, this.seasons()));
+  }
+
+  setSeason(season: string): void {
+    this.navigate(selectScopeSeason(this.query(), season, this.seasons()));
+  }
+
   sortBy(col: GlobalStatsSortCol): void {
-    const current: GlobalStatsQuery = {
-      page: this.currentPage(),
-      size: this.currentSize(),
-      search: this.searchDraft(),
-      sort: this.currentSort(),
-      direction: this.currentDirection(),
-    };
-    const next = toggleGlobalStatsSort(current, col);
-    void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(next) });
+    this.navigate(toggleGlobalStatsSort(this.query(), col));
   }
 
   ariaSort(col: GlobalStatsSortCol): 'ascending' | 'descending' | null {
@@ -350,28 +458,11 @@ export class GlobalStatsComponent implements OnDestroy {
   }
 
   goPage(page: number): void {
-    const current: GlobalStatsQuery = {
-      page: this.currentPage(),
-      size: this.currentSize(),
-      search: this.searchDraft(),
-      sort: this.currentSort(),
-      direction: this.currentDirection(),
-    };
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: globalStatsQueryParams({ ...current, page }),
-    });
+    this.navigate({ ...this.query(), page });
   }
 
   setSize(size: GlobalStatsPageSize): void {
-    const current: GlobalStatsQuery = {
-      page: 1,
-      size,
-      search: this.searchDraft(),
-      sort: this.currentSort(),
-      direction: this.currentDirection(),
-    };
-    void this.router.navigate([], { relativeTo: this.route, queryParams: globalStatsQueryParams(current) });
+    this.navigate({ ...this.query(), size, page: 1 });
   }
 
   formatDelta(value: number | null | undefined): string { return formatRatingDelta(value); }
