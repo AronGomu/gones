@@ -92,9 +92,11 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
     { path: 'tournament-requests/:token', pathMatch: 'full', redirectTo: ({ params }) => `/event-requests/${encodeURIComponent(String(params['token'] ?? ''))}` },
     { path: 'archive', pathMatch: 'full', redirectTo: 'archive/league-seasons' },
     { path: 'archive/league-seasons', loadComponent: () => import('./features/archive/league-season-list.component').then((m) => m.LeagueSeasonListComponent) },
-    // Placeholder until the Tournaments tab ships: the tab strip links here, and bouncing back to the
-    // Seasons tab beats sending the click to the 404 page. Replaced by a `loadComponent` entry then.
-    { path: 'archive/tournaments', pathMatch: 'full', redirectTo: 'archive/league-seasons' },
+    { path: 'archive/tournaments', loadComponent: () => import('./features/archive/tournament-list.component').then((m) => m.TournamentListComponent) },
+    { path: 'archive/league-seasons/:seasonId', loadComponent: () => import('./features/archive/league-season-detail.component').then((m) => m.LeagueSeasonDetailComponent) },
+    { path: 'archive/tournaments/:tournamentId', loadComponent: () => import('./features/archive/tournament-detail.component').then((m) => m.TournamentDetailComponent) },
+    { path: 'archive/tournaments/:tournamentId/result', loadComponent: () => import('./features/archive/tournament-result.component').then((m) => m.TournamentResultComponent) },
+    { path: 'archive/tournaments/:tournamentId/result/metagames', loadComponent: () => import('./features/archive/tournament-result.component').then((m) => m.TournamentResultComponent) },
     { path: 'leagues-archive', loadComponent: () => import('./features/leagues-archive/league-archive-list.component').then((m) => m.LeagueArchiveListComponent) },
     { path: 'live-tournaments', loadComponent: () => import('./features/live-tournaments/live-tournament-list.component').then((m) => m.LiveTournamentListComponent) },
     { path: 'live-tournaments/new', canActivate: [powerUserGuard], loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },

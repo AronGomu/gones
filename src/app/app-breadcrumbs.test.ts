@@ -71,6 +71,46 @@ describe('buildBreadcrumbs', () => {
   });
 });
 
+describe('three-tier archive breadcrumbs', () => {
+  const en: Translator = (key, params) => translate('en', key, params);
+
+  it('labels the archive tournaments tab', async () => {
+    const crumbs = await buildBreadcrumbs('/archive/tournaments', en);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archive', 'Tournaments']);
+    expect(crumbs[1].link).toEqual(['/archive/league-seasons']);
+  });
+
+  it('labels an archived tournament and links its tab', async () => {
+    const crumbs = await buildBreadcrumbs('/archive/tournaments/t1', en);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archive', 'Tournaments', 'Tournament']);
+    expect(crumbs[2].link).toEqual(['/archive/tournaments']);
+    expect(crumbs[3].link).toBeUndefined();
+  });
+
+  it('labels an archived tournament result and links the tournament', async () => {
+    const crumbs = await buildBreadcrumbs('/archive/tournaments/t1/result', en);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archive', 'Tournaments', 'Tournament', 'Result']);
+    expect(crumbs[3].link).toEqual(['/archive/tournaments', 't1']);
+  });
+
+  it('labels the metagame view of a result the same way', async () => {
+    const crumbs = await buildBreadcrumbs('/archive/tournaments/t1/result/metagames', en);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archive', 'Tournaments', 'Tournament', 'Result']);
+  });
+
+  it('labels a league season', async () => {
+    const crumbs = await buildBreadcrumbs('/archive/league-seasons/s1', en);
+    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archive', 'Season']);
+  });
+
+  it('renders Not Found on no archive path', async () => {
+    for (const path of ['/archive', '/archive/league-seasons', '/archive/league-seasons/s1', '/archive/tournaments', '/archive/tournaments/t1', '/archive/tournaments/t1/result', '/archive/tournaments/t1/result/metagames']) {
+      const crumbs = await buildBreadcrumbs(path, en);
+      expect(crumbs.map((item) => item.label), path).not.toContain(translate('en', 'nav.notFound'));
+    }
+  });
+});
+
 /**
  * Feedback item 5: `/tournaments/new` rendered a "Not Found" breadcrumb because every Event page
  * fell through to the final `nav.notFound` return. The canonical `/events/*` paths get their own

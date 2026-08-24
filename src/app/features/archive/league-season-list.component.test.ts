@@ -20,6 +20,7 @@ import { ArchiveLeagueSeasonSummary, ArchiveLeagueSummary } from '../../data/arc
 import { I18nService } from '../../i18n/i18n.service';
 import { catalogs, MessageKey, translate } from '../../i18n/messages';
 import { DeckArchetypeSettingsService, SettingsLanguage } from '../../shared/deck-archetype-settings.service';
+import { ARCHIVE_SEASON_SOURCE } from './league-season-detail.component';
 import {
   ALL_LEAGUES,
   buildLeagueSeasonRows,
@@ -124,6 +125,8 @@ function buildComponent(options: {
   const router = { navigate: vi.fn(async () => true) };
   const injector = Injector.create({ providers: [
     { provide: ArchiveRepository, useValue: { listLeagueSeasons, listLeagues } },
+    // The row expansion reads through this port; the list itself never issues that read on load.
+    { provide: ARCHIVE_SEASON_SOURCE, useValue: { listSeasonTournaments: async () => ({ items: [], fromCache: true }) } },
     { provide: ActivatedRoute, useValue: { queryParamMap: of(params(options.query ?? '')) } },
     { provide: Router, useValue: router },
     // The real service defaults to French and reads `localStorage`; the language is pinned here so
@@ -684,9 +687,17 @@ describe('league season list template', () => {
     expect(source.slice(cell, nextCell)).toContain(`[routerLink]="['/archive/league-seasons', row.id]"`);
   });
 
-  it('the row itself is not interactive in this slice', () => {
-    expect(source).not.toContain('aria-expanded');
-    expect(source).not.toContain('toggleExpansion');
+  it('the row expands one level, and never into a second table', () => {
+    // The Tournaments tab ticket made the row interactive; what stays forbidden is a nested table
+    // and a second expansion vocabulary beside the one the shared read path drives. `aria-expanded`
+    // sits on the expander button, never on the `<tr>` — see the axe `aria-conditional-attr` rule.
+    const expanderStart = source.indexOf('<button type="button" class="archive-expand"');
+    expect(expanderStart, 'the expander button').toBeGreaterThan(-1);
+    const expander = source.slice(expanderStart, source.indexOf('</button>', expanderStart));
+    expect(expander).toContain('[attr.aria-expanded]="isSeasonExpanded(row.id)"');
+    expect(expander).toContain('[attr.aria-controls]="seasonChildrenRowId(row.id)"');
+    expect(source).toContain('[id]="seasonChildrenRowId(row.id)"');
+    expect(source).not.toContain('toggleExpansion(');
     expect(source).not.toContain('archive-seasons-chevron');
     expect(source).not.toContain('archive-seasons-kids');
   });
@@ -794,12 +805,13 @@ describe('archive routes', () => {
     expect(typeof routeFor('archive/league-seasons')?.loadComponent).toBe('function');
   });
 
-  it('registers the Tournaments tab as a placeholder redirect', () => {
-    expect(routeFor('archive/tournaments')?.redirectTo).toBe('archive/league-seasons');
+  it('registers the Tournaments tab', () => {
+    expect(typeof routeFor('archive/tournaments')?.loadComponent).toBe('function');
+    expect(routeFor('archive/tournaments')?.redirectTo).toBeUndefined();
   });
 
-  it('does not register the Season detail route yet', () => {
-    expect(routeFor('archive/league-seasons/:seasonId')).toBeUndefined();
+  it('registers the Season detail route the tab 1 rows link to', () => {
+    expect(typeof routeFor('archive/league-seasons/:seasonId')?.loadComponent).toBe('function');
   });
 
   it('leaves every legacy archive route in place', () => {

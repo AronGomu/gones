@@ -9,6 +9,9 @@ import { MessageKey } from '../../i18n/messages';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { ArchiveShellComponent } from './archive-shell.component';
+import {
+  ARCHIVE_SEASON_SOURCE, ArchiveTournamentRow, SEASON_EXPANSION_PREVIEW_LIMIT, SeasonExpansionState, readSeasonTournaments
+} from './league-season-detail.component';
 
 export const LEAGUE_SEASON_PAGE_SIZES = [25, 50, 100] as const;
 export type LeagueSeasonPageSize = (typeof LEAGUE_SEASON_PAGE_SIZES)[number];
@@ -355,10 +358,17 @@ function compareOrdinal(left: string, right: string): number {
               </tr>
             } @else {
               @for (row of pagedRows(); track row.id) {
-                <tr [attr.data-cy]="'archive-seasons-row-' + row.id">
+                <!-- \`aria-expanded\` lives on the expander button, not here: on a \`role=row\` outside a
+                     treegrid it is an attribute no assistive technology acts on, and axe-core's
+                     \`aria-conditional-attr\` rule fails the page for it. The button carries the state
+                     and \`aria-controls\`, which is how a reader learns both. -->
+                <tr [attr.data-cy]="'archive-seasons-row-' + row.id" (click)="toggleSeasonExpansion(row)">
                   <td [attr.data-cy]="'archive-seasons-cell-name-' + row.id">
                     <span class="archive-two-line" [attr.data-cy]="'archive-seasons-name-stack-' + row.id">
-                      <a class="archive-name-link" [routerLink]="['/archive/league-seasons', row.id]" [attr.aria-label]="i18n.t('archive.openSeasonAria', { name: row.name })" [attr.data-cy]="'archive-seasons-link-' + row.id">{{ row.name }}</a>
+                      <span class="archive-name-row" [attr.data-cy]="'archive-seasons-name-row-' + row.id">
+                        <button type="button" class="archive-expand" [attr.aria-expanded]="isSeasonExpanded(row.id)" [attr.aria-controls]="seasonChildrenRowId(row.id)" [attr.aria-label]="expandLabel(row)" [attr.data-cy]="'archive-seasons-expand-' + row.id" (click)="$event.stopPropagation(); toggleSeasonExpansion(row)">▸</button>
+                        <a class="archive-name-link" [routerLink]="['/archive/league-seasons', row.id]" [attr.aria-label]="i18n.t('archive.openSeasonAria', { name: row.name })" [attr.data-cy]="'archive-seasons-link-' + row.id" (click)="$event.stopPropagation()">{{ row.name }}</a>
+                      </span>
                       <span class="archive-sub" [attr.data-cy]="'archive-seasons-league-' + row.id">{{ leagueLabel(row) }}</span>
                     </span>
                   </td>
@@ -379,6 +389,28 @@ function compareOrdinal(left: string, right: string): number {
                     @if (row.locked) {
                       <span class="archive-lock" role="img" [attr.aria-label]="i18n.t('archive.lockedAria')" [attr.title]="i18n.t('archive.lockedTitle')" [attr.data-cy]="'archive-seasons-lock-' + row.id">🔒</span>
                     }
+                  </td>
+                </tr>
+                <tr class="archive-children" [id]="seasonChildrenRowId(row.id)" [hidden]="!isSeasonExpanded(row.id)" [attr.data-cy]="'archive-seasons-children-' + row.id">
+                  <td [attr.colspan]="4" [attr.data-cy]="'archive-seasons-children-cell-' + row.id">
+                    <div class="archive-child-list" [attr.data-cy]="'archive-seasons-child-list-' + row.id">
+                      @if (expansion().status === 'loading') {
+                        <span class="archive-child-placeholder" [attr.data-cy]="'archive-seasons-child-loading-' + row.id">{{ i18n.t('archiveSeason.fetching') }}</span>
+                      } @else if (expansion().status === 'failed') {
+                        <span class="archive-child-placeholder" [attr.data-cy]="'archive-seasons-child-failed-' + row.id">{{ i18n.t('archiveSeason.loadFailed') }}</span>
+                      } @else {
+                        @for (child of expandedChildren(); track child.id) {
+                          <a class="archive-child-line" [routerLink]="['/archive/tournaments', child.id]" [attr.data-cy]="'archive-seasons-child-' + child.id" (click)="$event.stopPropagation()">
+                            <b [attr.data-cy]="'archive-seasons-child-name-' + child.id">{{ child.name }}</b><span class="archive-child-separator" aria-hidden="true" [attr.data-cy]="'archive-seasons-child-separator-' + child.id">·</span><span class="archive-child-meta" [attr.data-cy]="'archive-seasons-child-meta-' + child.id">{{ childLine(child) }}</span>
+                          </a>
+                        } @empty {
+                          <span class="archive-child-placeholder" [attr.data-cy]="'archive-seasons-child-empty-' + row.id">{{ i18n.t('archiveSeason.noTournaments') }}</span>
+                        }
+                        @if (hasMoreChildren()) {
+                          <a class="archive-child-line" [routerLink]="['/archive/league-seasons', row.id]" [attr.data-cy]="'archive-seasons-child-more-' + row.id" (click)="$event.stopPropagation()"><b [attr.data-cy]="'archive-seasons-child-more-label-' + row.id">{{ i18n.t('archiveSeason.showAll', { count: expandedTotal() }) }}</b></a>
+                        }
+                      }
+                    </div>
                   </td>
                 </tr>
               }
@@ -435,6 +467,18 @@ function compareOrdinal(left: string, right: string): number {
     .archive-table tbody tr:nth-child(even) { background: color-mix(in oklch, var(--raised-iron) 52%, var(--iron)); }
     .archive-table tbody tr:hover { background: color-mix(in oklch, var(--blood) 13%, var(--raised-iron)); }
     .archive-two-line { display: flex; flex-direction: column; gap: .12rem; white-space: normal; }
+    .archive-name-row { display: flex; align-items: baseline; gap: .1rem; }
+    .archive-expand { min-height: 0; padding: 0 .35rem 0 0; border: 0; background: transparent; color: var(--steel); font: inherit; cursor: pointer; }
+    .archive-expand:hover { color: var(--ash); }
+    .archive-expand:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
+    .archive-expand[aria-expanded="true"] { color: var(--hot-blood); }
+    .archive-children > td { padding: 0; border-bottom: 1px solid var(--soot); background: var(--black-metal); }
+    .archive-child-list { padding: .35rem .7rem .5rem 2.1rem; }
+    .archive-child-line { display: block; margin: .1rem 0; padding: .36rem .5rem .36rem .75rem; border-left: 2px solid var(--rust-plate); font-size: .85rem; text-decoration: none; }
+    .archive-child-line:hover, .archive-child-line:focus-visible { border-left-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 14%, transparent); }
+    .archive-child-meta { color: var(--dim-ash); }
+    .archive-child-separator { margin: 0 .45rem; color: var(--soot); }
+    .archive-child-placeholder { display: block; padding: .36rem .5rem .36rem .75rem; border-left: 2px solid var(--rust-plate); color: var(--steel); font-size: .85rem; font-style: italic; }
     .archive-sub { color: var(--steel); font-size: .78rem; }
     .archive-name-link { color: var(--ash); font-weight: 700; text-decoration: none; }
     .archive-name-link:hover, .archive-name-link:focus-visible { color: var(--hot-blood); text-decoration: underline; text-underline-offset: .16em; }
@@ -456,9 +500,15 @@ function compareOrdinal(left: string, right: string): number {
 export class LeagueSeasonListComponent implements OnDestroy {
   readonly i18n = inject(I18nService);
   private readonly repo = inject(ArchiveRepository);
+  private readonly seasonSource = inject(ARCHIVE_SEASON_SOURCE);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** The one expanded Season, or `null`. One at a time: an expansion may issue a read-through
+   *  request, and holding several in flight multiplies exactly the cost §8.1 exists to avoid. */
+  readonly expandedSeasonId = signal<string | null>(null);
+  readonly expansion = signal<SeasonExpansionState>({ status: 'loading' });
 
   readonly loading = signal(true);
   readonly error = signal('');
@@ -594,6 +644,52 @@ export class LeagueSeasonListComponent implements OnDestroy {
   leagueLabel(row: LeagueSeasonRow): string { return row.leagueName || this.i18n.t('archive.unknownLeague'); }
   statusLabel(row: LeagueSeasonRow): string {
     return this.i18n.t(row.status === 'completed' ? 'common.completed' : 'common.active');
+  }
+
+  isSeasonExpanded(seasonId: string): boolean { return this.expandedSeasonId() === seasonId; }
+  seasonChildrenRowId(seasonId: string): string { return `archive-season-children-${seasonId}`; }
+
+  expandLabel(row: LeagueSeasonRow): string {
+    return this.i18n.t(this.isSeasonExpanded(row.id) ? 'archiveSeason.collapseAria' : 'archiveSeason.expandAria', { name: row.name });
+  }
+
+  expandedChildren(): readonly ArchiveTournamentRow[] {
+    const state = this.expansion();
+    return state.status === 'ready' ? state.items.slice(0, SEASON_EXPANSION_PREVIEW_LIMIT) : [];
+  }
+
+  hasMoreChildren(): boolean {
+    const state = this.expansion();
+    return state.status === 'ready' && state.items.length > SEASON_EXPANSION_PREVIEW_LIMIT;
+  }
+
+  expandedTotal(): number {
+    const state = this.expansion();
+    return state.status === 'ready' ? state.items.length : 0;
+  }
+
+  /** One Season open at a time: an expansion may issue a read-through request. */
+  async toggleSeasonExpansion(row: LeagueSeasonRow): Promise<void> {
+    if (this.isSeasonExpanded(row.id)) { this.expandedSeasonId.set(null); return; }
+    this.expandedSeasonId.set(row.id);
+    this.expansion.set({ status: 'loading' });
+    try {
+      const read = await readSeasonTournaments(row, this.seasonSource);
+      if (this.expandedSeasonId() !== row.id) return;   // a faster click won
+      this.expansion.set({ status: 'ready', origin: read.origin, items: read.items });
+    } catch (error) {
+      logBoundaryError('archive-season-expansion.load', error, { seasonId: row.id });
+      if (this.expandedSeasonId() === row.id) this.expansion.set({ status: 'failed' });
+    }
+  }
+
+  /** The compact one-line child, identical in shape to the Season page's list. */
+  childLine(row: ArchiveTournamentRow): string {
+    return this.i18n.t('archiveSeason.childLine', {
+      date: this.i18n.formatDate(row.tournamentDate),
+      players: this.i18n.plural(row.playerCount, 'archiveSeason.playerCount', 'archiveSeason.playerCountPlural'),
+      status: this.i18n.t(row.status === 'completed' ? 'archive.tournamentCompleted' : 'archive.tournamentActive')
+    });
   }
 
   sortLabel(key: LeagueSeasonSortKey): string { return this.i18n.t(LEAGUE_SEASON_SORT_LABEL_KEYS[key]); }

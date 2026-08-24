@@ -67,7 +67,21 @@ export async function buildBreadcrumbs(
       : t('crumb.liveSuffix', { name: liveTournament?.name || t('crumb.liveTournament') });
     return [{ label: menu, link: ['/'] }, { label: t('crumb.runningTournaments'), link: ['/live-tournaments'] }, { label }];
   }
-  if (segments[0] === 'archive') return [{ label: menu, link: ['/'] }, { label: t('crumb.archive') }];
+  if (segments[0] === 'archive') {
+    // Labels are static: resolving a Season or Tournament name here would mean new lookup plumbing
+    // through AppComponent for a breadcrumb, and every one of these pages prints its own name.
+    const root = { label: menu, link: ['/'] };
+    const archive = { label: t('crumb.archive'), link: ['/archive/league-seasons'] };
+    if (segments[1] === 'league-seasons' && segments[2]) return [root, archive, { label: t('crumb.season') }];
+    if (segments[1] !== 'tournaments') return [root, { label: t('crumb.archive') }];
+    if (!segments[2]) return [root, archive, { label: t('crumb.archiveTournaments') }];
+    const tab = { label: t('crumb.archiveTournaments'), link: ['/archive/tournaments'] };
+    const archivedTournamentId = decodeURIComponent(segments[2]);
+    if (segments[3] === 'result') {
+      return [root, archive, tab, { label: t('crumb.tournament'), link: ['/archive/tournaments', archivedTournamentId] }, { label: t('crumb.result') }];
+    }
+    return [root, archive, tab, { label: t('crumb.tournament') }];
+  }
   if (segments[0] !== 'leagues-archive') return [{ label: menu, link: ['/'] }, { label: t('nav.notFound') }];
   if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues') }];
 
