@@ -103,6 +103,12 @@ describe('canonical browser store containment', () => {
     // global, so a leaked `IDBDatabase` parameter in a repository or component is caught too. Adding
     // a file here is an ADR decision.
     expect(filesMatching(/\bindexedDB\b|\bIDB[A-Z]\w*/)).toEqual([
+      // The single writer of the public year partitions: one year, one transaction, whole or absent.
+      'src/app/backend/archive-backfill-queue.ts',
+      // Public archive catalog cache (ADR 0039 TTL). It is on IndexedDB rather than the shared
+      // key-value budget because one year partition may hold 25,000 rows. Public answers only, so
+      // logout does not purge it; anything user-scoped still belongs to `server-read-cache.service.ts`.
+      'src/app/backend/archive-cache.service.ts',
       // Promise wrapper over the raw request/transaction API. No data rules.
       'src/app/backend/indexed-db.ts',
       // The three-tier archive browser-local authority (ADR 0028), composing the pure domain.
@@ -172,6 +178,8 @@ describe('canonical browser store containment', () => {
    */
   it('keeps the public catalog cache helper to its declared importers', () => {
     expect(filesMatching(/from '[^']*shared\/catalog-cache'/)).toEqual([
+      // Imports `CATALOG_TTL_MS` only — the archive catalog cache is IndexedDB and writes no row here.
+      'src/app/backend/archive-cache.service.ts',
       // Public Event catalog — anonymous GET responses.
       'src/app/features/events/event-catalog-cache.service.ts',
       // Public League Archive catalog — anonymous GET responses.

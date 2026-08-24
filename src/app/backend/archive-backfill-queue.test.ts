@@ -1,0 +1,405 @@
+import '@angular/compiler';
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+/**
+ * `fake-indexeddb` is not a dependency and this ticket adds none, so the IndexedDB surface the
+ * cache uses is stubbed in-memory here — the same fake `local-league-archive-backend.service.test.ts`
+ * uses, plus `clear()` and string-normalized keys, because the year store is keyed by a number.
+ */
+interface FakeStore { keyPath: string; rows: Map<string, unknown> }
+interface FakeDatabaseState { version: number; stores: Map<string, FakeStore> }
+
+const databases = new Map<string, FakeDatabaseState>();
+let failPutAt: number | null = null;
+let putCount = 0;
+let readwriteTransactionCount = 0;
+
+function clone<T>(value: T): T {
+  return typeof structuredClone === 'function' ? structuredClone(value) : (JSON.parse(JSON.stringify(value)) as T);
+}
+
+class FakeRequest<T> {
+  result!: T;
+  error: DOMException | null = null;
+  onsuccess: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onupgradeneeded: (() => void) | null = null;
+  onblocked: (() => void) | null = null;
+}
+
+class FakeObjectStore {
+  constructor(private readonly store: FakeStore, private readonly transaction: FakeTransaction) {}
+
+  getAll(): FakeRequest<unknown[]> {
+    return this.transaction.enqueue(() => [...this.store.rows.values()].map((row) => clone(row)));
+  }
+
+  get(key: unknown): FakeRequest<unknown> {
+    const row = this.store.rows.get(String(key));
+    return this.transaction.enqueue(() => (row === undefined ? undefined : clone(row)));
+  }
+
+  put(value: Record<string, unknown>): FakeRequest<string> {
+    return this.transaction.enqueue(() => {
+      putCount += 1;
+      if (putCount === failPutAt) throw new DOMException('Injected put failure', 'ConstraintError');
+      const key = String(value[this.store.keyPath]);
+      this.store.rows.set(key, clone(value));
+      return key;
+    });
+  }
+
+  delete(key: unknown): FakeRequest<undefined> {
+    return this.transaction.enqueue(() => { this.store.rows.delete(String(key)); return undefined; });
+  }
+
+  clear(): FakeRequest<undefined> {
+    return this.transaction.enqueue(() => { this.store.rows.clear(); return undefined; });
+  }
+}
+
+class FakeTransaction {
+  error: DOMException | null = null;
+  oncomplete: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+  private pending = 0;
+  private failed = false;
+  private settled = false;
+  private readonly snapshot: Map<string, Map<string, unknown>>;
+
+  constructor(private readonly state: FakeDatabaseState, readonly mode: string) {
+    this.snapshot = new Map([...state.stores].map(([name, store]) => [name, new Map([...store.rows].map(([key, value]) => [key, clone(value)]))]));
+  }
+
+  abort(): void { this.failed = true; queueMicrotask(() => this.settle(true)); }
+
+  objectStore(name: string): FakeObjectStore {
+    const store = this.state.stores.get(name);
+    if (!store) throw new Error(`NotFoundError: object store ${name}`);
+    return new FakeObjectStore(store, this);
+  }
+
+  enqueue<T>(run: () => T): FakeRequest<T> {
+    const request = new FakeRequest<T>();
+    this.pending += 1;
+    queueMicrotask(() => {
+      this.pending -= 1;
+      try { request.result = run(); request.onsuccess?.(); }
+      catch (error) { this.failed = true; request.error = error as DOMException; request.onerror?.(); }
+      if (this.pending === 0) setTimeout(() => this.settle(), 0);
+    });
+    return request;
+  }
+
+  private settle(aborted = false): void {
+    if (this.settled) return;
+    this.settled = true;
+    if (this.failed) {
+      for (const [name, rows] of this.snapshot) {
+        const store = this.state.stores.get(name);
+        if (store) store.rows = new Map(rows);
+      }
+      if (aborted) this.onabort?.(); else this.onerror?.();
+    } else this.oncomplete?.();
+  }
+}
+
+class FakeDatabase {
+  readonly objectStoreNames: { contains: (name: string) => boolean };
+
+  constructor(private readonly state: FakeDatabaseState) {
+    this.objectStoreNames = { contains: (name: string) => this.state.stores.has(name) };
+  }
+
+  createObjectStore(name: string, options: { keyPath: string }): void {
+    this.state.stores.set(name, { keyPath: options.keyPath, rows: new Map() });
+  }
+
+  transaction(_names: string[], mode: string): FakeTransaction {
+    if (mode === 'readwrite') readwriteTransactionCount += 1;
+    return new FakeTransaction(this.state, mode);
+  }
+
+  close(): void {}
+}
+
+const fakeIndexedDb = {
+  open(name: string, version: number): FakeRequest<FakeDatabase> {
+    const request = new FakeRequest<FakeDatabase>();
+    queueMicrotask(() => {
+      const existing = databases.get(name);
+      const state = existing ?? { version: 0, stores: new Map<string, FakeStore>() };
+      if (!existing) databases.set(name, state);
+      const upgradeNeeded = state.version < version;
+      request.result = new FakeDatabase(state);
+      if (upgradeNeeded) { state.version = version; request.onupgradeneeded?.(); }
+      queueMicrotask(() => request.onsuccess?.());
+    });
+    return request;
+  }
+};
+
+const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+
+function installFakeIndexedDb(): void {
+  Object.defineProperty(globalThis, 'indexedDB', { value: fakeIndexedDb as unknown as IDBFactory, configurable: true, writable: true });
+}
+
+beforeEach(() => {
+  databases.clear();
+  failPutAt = null;
+  putCount = 0;
+  readwriteTransactionCount = 0;
+  installFakeIndexedDb();
+});
+
+afterEach(() => {
+  if (originalIndexedDb) Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
+  else Reflect.deleteProperty(globalThis as unknown as Record<string, unknown>, 'indexedDB');
+});
+
+import { Injector } from '@angular/core';
+import { ARCHIVE_CACHE_DB_NAME, ArchiveCacheService, CACHE_YEAR_PARTITION_STORE, CATALOG_TTL_MS } from './archive-cache.service';
+import type { ArchiveTournamentSummary, ArchiveYearEntry, ArchiveYearPartition } from './archive-cache.service';
+import { ArchiveBackfillQueue, classifyArchiveYear, isArchiveYearPartitionComplete } from './archive-backfill-queue';
+import type { ArchiveYearPage } from './archive-backfill-queue';
+
+const row = (id: string, tournamentDate: string): ArchiveTournamentSummary =>
+  ({ id, name: id, seasonId: null, tournamentDate, status: 'completed', updatedAt: '2026-08-01T00:00:00.000Z', documentVersion: 1, playerCount: 4 });
+const page = (items: ArchiveTournamentSummary[], totalCount = items.length, truncated = false): ArchiveYearPage => ({ items, totalCount, truncated });
+const entry = (year: number, locked: boolean): ArchiveYearEntry => ({ year, locked, tournamentCount: 1 });
+const build = (): { queue: ArchiveBackfillQueue; cache: ArchiveCacheService } => {
+  const cache = new ArchiveCacheService();
+  const injector = Injector.create({ providers: [ArchiveBackfillQueue, { provide: ArchiveCacheService, useValue: cache }] });
+  return { cache, queue: injector.get(ArchiveBackfillQueue) };
+};
+/** The raw stored row, bypassing the completeness filter, so "nothing was written" is provable. */
+const storedRow = (year: number): unknown =>
+  databases.get(ARCHIVE_CACHE_DB_NAME)?.stores.get(CACHE_YEAR_PARTITION_STORE)?.rows.get(String(year));
+
+const srcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const repoRoot = join(srcRoot, '..');
+
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((item) => {
+    const path = join(directory, item.name);
+    if (item.isDirectory()) return sourceFiles(path);
+    return item.isFile() && item.name.endsWith('.ts') && !item.name.endsWith('.test.ts') ? [path] : [];
+  });
+}
+
+function filesMatching(pattern: RegExp): string[] {
+  return sourceFiles(srcRoot)
+    .filter((path) => pattern.test(readFileSync(path, 'utf8')))
+    .map((path) => relative(repoRoot, path).split('\\').join('/'))
+    .sort();
+}
+
+describe('archive year freshness', () => {
+  it('classifies an absent partition as missing', () => {
+    expect(classifyArchiveYear(null, entry(2026, false))).toBe('missing');
+    expect(isArchiveYearPartitionComplete(null)).toBe(false);
+  });
+
+  it('classifies a partition without completedAt as missing', () => {
+    const partition: ArchiveYearPartition = { year: 2026, completedAt: undefined, rowCount: 0, items: [] };
+
+    expect(classifyArchiveYear(partition, entry(2026, false))).toBe('missing');
+    expect(isArchiveYearPartitionComplete(partition)).toBe(false);
+  });
+
+  it('classifies a locked year as fresh whatever its age', () => {
+    const now = Date.parse('2026-08-22T10:00:00.000Z');
+    const partition: ArchiveYearPartition = { year: 2024, completedAt: new Date(now - 400 * 86_400_000).toISOString(), rowCount: 0, items: [] };
+
+    expect(classifyArchiveYear(partition, entry(2024, true), now)).toBe('fresh');
+  });
+
+  it('classifies an unlocked year under 24h as fresh', () => {
+    const now = Date.parse('2026-08-22T10:00:00.000Z');
+    const partition: ArchiveYearPartition = { year: 2026, completedAt: new Date(now - 23 * 3_600_000).toISOString(), rowCount: 0, items: [] };
+
+    expect(classifyArchiveYear(partition, entry(2026, false), now)).toBe('fresh');
+  });
+
+  it('classifies an unlocked year at exactly 24h as stale', () => {
+    const now = Date.parse('2026-08-22T10:00:00.000Z');
+    const partition: ArchiveYearPartition = { year: 2026, completedAt: new Date(now - CATALOG_TTL_MS).toISOString(), rowCount: 0, items: [] };
+
+    expect(classifyArchiveYear(partition, entry(2026, false), now)).toBe('stale');
+  });
+
+  it('classifies an unparsable completedAt as stale when unlocked and fresh when locked', () => {
+    const partition: ArchiveYearPartition = { year: 2026, completedAt: 'soon', rowCount: 0, items: [] };
+
+    expect(classifyArchiveYear(partition, entry(2026, false))).toBe('stale');
+    expect(classifyArchiveYear(partition, entry(2026, true))).toBe('fresh');
+  });
+});
+
+describe('archive backfill queue', () => {
+  it('writes a partition stamped completedAt in one transaction', async () => {
+    const { cache, queue } = build();
+    await cache.database();
+    readwriteTransactionCount = 0;
+    queue.enqueue([2026]);
+
+    const report = await queue.drain(async () => page([row('id-a', '2026-01-02'), row('id-b', '2026-03-04')]));
+
+    expect(report.written).toEqual([2026]);
+    expect(readwriteTransactionCount).toBe(1);
+    const stored = await cache.readYearPartition(2026);
+    expect(stored).toMatchObject({ year: 2026, rowCount: 2 });
+    expect(stored!.items.map((item) => item.id)).toEqual(['id-a', 'id-b']);
+    expect(Number.isFinite(Date.parse(stored!.completedAt ?? ''))).toBe(true);
+  });
+
+  it('records the uncapped totalCount so truncation is visible', async () => {
+    const { cache, queue } = build();
+    queue.enqueue([2026]);
+
+    await queue.drain(async () => page([row('a', '2026-01-01'), row('b', '2026-01-02'), row('c', '2026-01-03')], 25_001, true));
+
+    const stored = await cache.readYearPartition(2026);
+    expect(stored!.rowCount).toBe(25_001);
+    expect(stored!.items).toHaveLength(3);
+  });
+
+  it('an aborted write leaves the previously stored partition unchanged', async () => {
+    const { cache, queue } = build();
+    queue.enqueue([2026]);
+    await queue.drain(async () => page([row('id-a', '2026-01-02'), row('id-b', '2026-03-04')]));
+    const first = await cache.readYearPartition(2026);
+    const firstRaw = structuredClone(storedRow(2026));
+    failPutAt = putCount + 1;
+    queue.enqueue([2026]);
+
+    const report = await queue.drain(async () => page([row('id-z', '2026-09-09')], 1));
+
+    expect(report.written).toEqual([]);
+    expect(report.failed).toHaveLength(1);
+    expect(report.failed[0].year).toBe(2026);
+    expect(await cache.readYearPartition(2026)).toEqual(first);
+    expect(storedRow(2026)).toEqual(firstRaw);
+  });
+
+  it('a rejected loader writes no record at all', async () => {
+    const { cache, queue } = build();
+    queue.enqueue([2026]);
+
+    const report = await queue.drain(async () => { throw new Error('offline'); });
+
+    expect(await cache.readYearPartition(2026)).toBeNull();
+    expect(await cache.readAllYearPartitions()).toEqual([]);
+    expect(storedRow(2026)).toBeUndefined();
+    expect((report.failed[0].error as Error).message).toBe('offline');
+    expect(report.written).toEqual([]);
+  });
+
+  it('a failed year does not stop the run', async () => {
+    const { cache, queue } = build();
+    queue.enqueue([2024, 2025]);
+
+    const report = await queue.drain(async (year) => {
+      if (year === 2024) throw new Error('offline');
+      return page([row('id-a', '2025-05-05')]);
+    });
+
+    expect(report.written).toEqual([2025]);
+    expect(report.failed.map((failure) => failure.year)).toEqual([2024]);
+    expect(await cache.readYearPartition(2025)).not.toBeNull();
+    expect(await cache.readYearPartition(2024)).toBeNull();
+  });
+
+  it('drains in enqueue order, one year at a time', async () => {
+    const { queue } = build();
+    const calls: number[] = [];
+    let inFlight = 0;
+    queue.enqueue([2026, 2024, 2025]);
+
+    await queue.drain(async (year) => {
+      inFlight += 1;
+      expect(inFlight).toBe(1);
+      calls.push(year);
+      await Promise.resolve();
+      inFlight -= 1;
+      return page([]);
+    });
+
+    expect(calls).toEqual([2026, 2024, 2025]);
+  });
+
+  it('deduplicates a year already queued', async () => {
+    const { queue } = build();
+    queue.enqueue([2026]);
+    queue.enqueue([2026, 2027]);
+
+    expect(queue.pending()).toEqual([2026, 2027]);
+
+    const calls: number[] = [];
+    await queue.drain(async (year) => { calls.push(year); return page([]); });
+
+    expect(calls).toEqual([2026, 2027]);
+  });
+
+  it('a year enqueued during a drain is processed by that drain', async () => {
+    const { queue } = build();
+    queue.enqueue([2026]);
+
+    const report = await queue.drain(async (year) => {
+      if (year === 2026) queue.enqueue([2027]);
+      return page([]);
+    });
+
+    expect(report.written).toEqual([2026, 2027]);
+  });
+
+  it('a second drain while one is running joins the first', async () => {
+    const { queue } = build();
+    queue.enqueue([2026]);
+    let loaderBCalls = 0;
+
+    const first = queue.drain(async () => page([]));
+    const second = queue.drain(async () => { loaderBCalls += 1; return page([]); });
+
+    expect(queue.running()).toBe(true);
+    expect(second).toBe(first);
+    expect(await first).toBe(await second);
+    expect(loaderBCalls).toBe(0);
+  });
+
+  it('pending and running track the queue', async () => {
+    const { queue } = build();
+    queue.enqueue([2026]);
+
+    expect(queue.pending()).toEqual([2026]);
+    expect(queue.running()).toBe(false);
+
+    let duringPending: readonly number[] = [-1];
+    let duringRunning = false;
+    await queue.drain(async () => {
+      duringPending = queue.pending();
+      duringRunning = queue.running();
+      return page([]);
+    });
+
+    expect(duringPending).toEqual([]);
+    expect(duringRunning).toBe(true);
+    expect(queue.pending()).toEqual([]);
+    expect(queue.running()).toBe(false);
+  });
+
+  it('is the only file that writes the year-partition store', () => {
+    expect(filesMatching(/CACHE_YEAR_PARTITION_STORE/)).toEqual([
+      'src/app/backend/archive-backfill-queue.ts',
+      'src/app/backend/archive-cache.service.ts'
+    ]);
+    expect(filesMatching(/objectStore\(CACHE_YEAR_PARTITION_STORE\)\.put\(/)).toEqual([
+      'src/app/backend/archive-backfill-queue.ts'
+    ]);
+  });
+});
