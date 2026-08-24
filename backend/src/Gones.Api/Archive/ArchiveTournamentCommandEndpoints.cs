@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Gones.Api.Errors;
+using Gones.Api.Leagues;
 using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Application.Concurrency;
@@ -179,10 +180,9 @@ internal static class ArchiveTournamentCommandEndpoints
 /// <summary>
 /// Every Tournament write funnels through <see cref="MutateAsync"/>: lock the row, check the version,
 /// check the derived 365-day lock, transform, apply in one version bump, then recompute the owning
-/// Season counters inside the same transaction. Statistics are deliberately not rebuilt here — that
-/// table is re-keyed by scope in a later ticket.
+/// Season counters and rebuild <c>player_statistics</c> inside the same transaction.
 /// </summary>
-internal sealed class ArchiveTournamentCommandService(GonesDbContext database, IClock clock)
+internal sealed class ArchiveTournamentCommandService(GonesDbContext database, IClock clock, PlayerStatisticsRebuildService playerStatistics)
 {
     public const int MaximumIdLength = 200;
     public const int ArchiveBundleVersion = 5;
@@ -210,6 +210,10 @@ internal sealed class ArchiveTournamentCommandService(GonesDbContext database, I
             AddAudit(actorId, "archive.tournament.created", TournamentEntityType, tournament.DocumentId, ["tournament"]);
             await SaveAsync(cancellationToken);
             await RecomputeSeasonCountsAsync([tournament.SeasonId], cancellationToken);
+            // No rebuild: a create mints an empty Tournament, and ADR 0040 counts Matches. With no Round
+            // there is no Match, no rating period and no player, so not one row of the read model can
+            // differ — and a rebuild is a full recompute of every scope. The first write that gives this
+            // Tournament a result goes through MutateAsync, which does rebuild.
             return Response(tournament);
         }, cancellationToken);
 
@@ -252,6 +256,7 @@ internal sealed class ArchiveTournamentCommandService(GonesDbContext database, I
         AddAudit(actorId: OrganizationPrincipal.UserId(principal), auditAction, TournamentEntityType, tournament.DocumentId, fields);
         await SaveAsync(cancellationToken);
         await RecomputeSeasonCountsAsync([previousSeasonId, tournament.SeasonId], cancellationToken);
+        await RebuildPlayerStatisticsAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Response(tournament);
     }
@@ -267,6 +272,7 @@ internal sealed class ArchiveTournamentCommandService(GonesDbContext database, I
         AddAudit(OrganizationPrincipal.UserId(principal), "archive.tournament.deleted", TournamentEntityType, tournament.DocumentId, ["deletedAt"]);
         await SaveAsync(cancellationToken);
         await RecomputeSeasonCountsAsync([seasonId], cancellationToken);
+        await RebuildPlayerStatisticsAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new ArchiveDeleteResponse(tournament.DocumentId, true, tournament.Version, StrongETag.Encode(tournament.Version));
     }
@@ -353,6 +359,7 @@ internal sealed class ArchiveTournamentCommandService(GonesDbContext database, I
 
         await SaveAsync(cancellationToken);
         await RecomputeSeasonCountsAsync([.. seasonIds.Values], cancellationToken);
+        await RebuildPlayerStatisticsAsync(cancellationToken);
         return new ArchiveRestoreResponse(leagues, seasons, tournaments);
     }
 
@@ -424,9 +431,28 @@ internal sealed class ArchiveTournamentCommandService(GonesDbContext database, I
             CreatedAt = now,
             ExpiresAt = now + Duration.FromHours(24)
         });
+        // No rebuild here: this save only stores the idempotency record, and a command routed through it
+        // has already rebuilt inside this same transaction if it needed to.
         await SaveAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return response;
+    }
+
+    /// <summary>
+    /// Rewrites <c>player_statistics</c> from the archive this command just changed, inside the caller's
+    /// transaction and before the <c>SaveChangesAsync</c> that stages the new rows, so the read model and
+    /// the write commit or roll back together — the same guarantee
+    /// <see cref="Gones.Api.Leagues.LeagueCommandService"/> gives the legacy surface (ADR 0040).
+    ///
+    /// <para>Called <b>after</b> the archive write has been saved, never before it. The rebuild takes a
+    /// transaction-scoped advisory lock and every archive row this command touches is already locked by
+    /// then, so the order is always rows first and statistics last: two concurrent writers can queue on
+    /// the rebuild, but neither can hold it while waiting for the other's rows.</para>
+    /// </summary>
+    private async Task RebuildPlayerStatisticsAsync(CancellationToken cancellationToken)
+    {
+        await playerStatistics.RebuildAsync(database, cancellationToken);
+        await SaveAsync(cancellationToken);
     }
 
     private LocalDate Today() => clock.GetCurrentInstant().InUtc().Date;

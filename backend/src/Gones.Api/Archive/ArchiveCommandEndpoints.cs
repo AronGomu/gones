@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Gones.Api.Errors;
+using Gones.Api.Leagues;
 using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Application.Concurrency;
@@ -89,7 +90,7 @@ internal static class ArchiveCommandEndpoints
     }
 }
 
-internal sealed class ArchiveCommandService(GonesDbContext database, IClock clock)
+internal sealed class ArchiveCommandService(GonesDbContext database, IClock clock, PlayerStatisticsRebuildService playerStatistics)
 {
     public const int MaximumNameLength = 200;
     public const int MaximumIdLength = 200;
@@ -191,6 +192,9 @@ internal sealed class ArchiveCommandService(GonesDbContext database, IClock cloc
         season.MoveToLeague(leagueId, clock.GetCurrentInstant());
         AddAudit(actorId, "archive.season.league.changed", SeasonEntityType, season.DocumentId, ["leagueId"]);
         await SaveAsync(cancellationToken);
+        // The League scope of player_statistics is "every Tournament of every Season this League owns",
+        // so re-parenting a Season moves its whole result history from one League scope to another.
+        await RebuildPlayerStatisticsAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Response(season.DocumentId, season.Version, season.UpdatedAt);
     }
@@ -218,6 +222,9 @@ internal sealed class ArchiveCommandService(GonesDbContext database, IClock cloc
         AddAudit(actorId, "archive.season.deleted", SeasonEntityType, season.DocumentId, ["deletedAt"]);
         if (detached > 0) AddAudit(actorId, "archive.season.tournaments.detached", SeasonEntityType, season.DocumentId, ["seasonId"]);
         await SaveAsync(cancellationToken);
+        // The detached Tournaments are standalone now, which drops this Season's scope entirely and takes
+        // its results back out of the owning League's scope.
+        await RebuildPlayerStatisticsAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new ArchiveDeleteResponse(season.DocumentId, true, season.Version, StrongETag.Encode(season.Version));
     }
@@ -279,6 +286,27 @@ internal sealed class ArchiveCommandService(GonesDbContext database, IClock cloc
         {
             throw new ConcurrencyConflictException();
         }
+    }
+
+    /// <summary>
+    /// Rewrites <c>player_statistics</c> from the archive this command just changed, inside the caller's
+    /// transaction and before the <c>SaveChangesAsync</c> that stages the new rows, so the read model and
+    /// the write commit or roll back together — the same guarantee
+    /// <see cref="Gones.Api.Leagues.LeagueCommandService"/> gives the legacy surface (ADR 0040).
+    ///
+    /// <para>Only two of this service's eight write paths call it, because a rebuild is a full recompute
+    /// of every scope and the other six cannot move a single number in it. A League or Season scope is
+    /// keyed by <b>document id</b> and computed from the results of the Tournaments underneath it, so
+    /// renaming either changes nothing; creating either produces a tier with no Tournament, and a scope
+    /// with no Match yields no row; a Season's own <c>status</c> is never read by the statistics, which
+    /// look at each Tournament's; and a League delete is refused while any live Season still points at
+    /// it, so a deletable League already owns no result. Only re-parenting a Season and deleting one —
+    /// which detaches its Tournaments — change which scope a result is counted in.</para>
+    /// </summary>
+    private async Task RebuildPlayerStatisticsAsync(CancellationToken cancellationToken)
+    {
+        await playerStatistics.RebuildAsync(database, cancellationToken);
+        await SaveAsync(cancellationToken);
     }
 
     private void AddAudit(Guid actorId, string action, string entityType, string entityId, IReadOnlyList<string> fields) =>

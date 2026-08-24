@@ -49,11 +49,13 @@ public sealed class ArchiveCommandApiTests : IAsyncLifetime
             // seasonId because ck_archive_tournament_document_metadata rejects a row whose envelope
             // columns and document disagree, and they travel as parameters because a JSON brace inside
             // a raw SQL string is read as a format placeholder.
+            // Both live Tournaments carry one played Match, because a Season write only shows up in
+            // player_statistics through the results the Season's Tournaments hold.
             const string attachedDocument = """
-                {"id":"tournament-attached","name":"Attached","seasonId":"season-alpha","tournamentDate":"2026-05-01","status":"completed","rounds":[],"playerArchetypes":[]}
+                {"id":"tournament-attached","name":"Attached","seasonId":"season-alpha","tournamentDate":"2026-05-01","status":"completed","rounds":[{"id":"attached-round-1","entries":[{"kind":"match","id":"attached-entry-1","table":"1","player1Name":"Alice","player2Name":"Bob","player1Score":2,"player2Score":1,"player1DeckArchetype":"Tempo","player2DeckArchetype":"Control"}]}],"playerArchetypes":[]}
                 """;
             const string standaloneDocument = """
-                {"id":"tournament-standalone","name":"Standalone","tournamentDate":"2026-06-01","status":"completed","rounds":[],"playerArchetypes":[]}
+                {"id":"tournament-standalone","name":"Standalone","tournamentDate":"2026-06-01","status":"completed","rounds":[{"id":"standalone-round-1","entries":[{"kind":"match","id":"standalone-entry-1","table":"1","player1Name":"Alice","player2Name":"Carol","player1Score":2,"player2Score":0,"player1DeckArchetype":"Tempo","player2DeckArchetype":"Aggro"}]}],"playerArchetypes":[]}
                 """;
             const string deletedDocument = """
                 {"id":"tournament-deleted","name":"Deleted","seasonId":"season-alpha","tournamentDate":"2026-04-01","status":"completed","rounds":[],"playerArchetypes":[]}
@@ -253,6 +255,61 @@ public sealed class ArchiveCommandApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Archive_League_Season_delete_drops_the_scopes_its_Tournaments_left()
+    {
+        // The startup rebuild put the detached Tournament's players in three scopes.
+        var before = await StatisticsAsync();
+        Assert.Equal([("global", ""), ("league", "league-alpha"), ("season", "season-alpha")], Scopes(before));
+        Assert.Equal(["Alice", "Bob"], Names(before, "season", "season-alpha"));
+
+        using var deleted = await SendJsonAsync(HttpMethod.Delete, "/api/archive/league-seasons/season-alpha", new { }, "Organizer", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+
+        // Detached, never deleted: the Tournament is standalone now, so it feeds the global scope only.
+        var after = await StatisticsAsync();
+        Assert.Equal([("global", "")], Scopes(after));
+        Assert.Equal(["Alice", "Bob", "Carol"], Names(after, "global", ""));
+    }
+
+    [Fact]
+    public async Task Archive_League_Season_move_re_keys_the_League_scope()
+    {
+        Assert.Equal(["Alice", "Bob"], Names(await StatisticsAsync(), "league", "league-alpha"));
+
+        using var moved = await SendJsonAsync(HttpMethod.Patch, "/api/archive/league-seasons/season-alpha/league", new { leagueId = "league-beta" }, "Organizer", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+
+        var rows = await StatisticsAsync();
+        Assert.Equal([("global", ""), ("league", "league-beta"), ("season", "season-alpha")], Scopes(rows));
+        Assert.Equal(["Alice", "Bob"], Names(rows, "league", "league-beta"));
+    }
+
+    /// <summary>
+    /// The deliberate omissions. A rebuild is a full recompute of every scope, so the write paths that
+    /// cannot move a single rating do not pay for one — and <c>rebuilt_at</c>, which every rebuild
+    /// stamps, is what proves none ran.
+    /// </summary>
+    [Fact]
+    public async Task Archive_League_and_Season_writes_that_cannot_move_a_rating_never_rebuild()
+    {
+        var before = await RebuiltAtAsync();
+
+        using var createdLeague = await SendJsonAsync(HttpMethod.Post, "/api/archive/leagues", new { name = "Ligue vide" }, "Organizer");
+        Assert.Equal(HttpStatusCode.Created, createdLeague.StatusCode);
+        using var renamedLeague = await SendJsonAsync(HttpMethod.Patch, "/api/archive/leagues/league-alpha/name", new { name = "Alpha renommée" }, "Organizer", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, renamedLeague.StatusCode);
+        using var createdSeason = await SendJsonAsync(HttpMethod.Post, "/api/archive/league-seasons", new { leagueId = "league-alpha", name = "Saison vide" }, "Organizer");
+        Assert.Equal(HttpStatusCode.Created, createdSeason.StatusCode);
+        using var renamedSeason = await SendJsonAsync(HttpMethod.Patch, "/api/archive/league-seasons/season-alpha/name", new { name = "Alpha 2026 renommée" }, "Organizer", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, renamedSeason.StatusCode);
+        using var status = await SendJsonAsync(HttpMethod.Patch, "/api/archive/league-seasons/season-alpha/status", new { status = "completed" }, "Organizer", ifMatch: StrongETag.Encode(2));
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+
+        Assert.Equal(before, await RebuiltAtAsync());
+        Assert.Equal([("global", ""), ("league", "league-alpha"), ("season", "season-alpha")], Scopes(await StatisticsAsync()));
+    }
+
+    [Fact]
     public async Task Archive_commands_reject_blank_and_over_long_names()
     {
         using var blank = await SendJsonAsync(HttpMethod.Post, "/api/archive/leagues", new { name = "   " }, "Organizer");
@@ -331,6 +388,30 @@ public sealed class ArchiveCommandApiTests : IAsyncLifetime
             Assert.DoesNotContain("Secret Ligue", audit.RedactedDiff, StringComparison.Ordinal);
             Assert.DoesNotContain("Also Secret", audit.RedactedDiff, StringComparison.Ordinal);
         });
+    }
+
+    /// <summary>Every materialized row, sorted ordinally so the scope tuples compare deterministically.</summary>
+    private async Task<IReadOnlyList<PlayerStatisticsRow>> StatisticsAsync()
+    {
+        await using var database = CreateContext();
+        var rows = await database.PlayerStatistics.AsNoTracking().ToListAsync();
+        return [.. rows
+            .OrderBy(row => row.ScopeKind, StringComparer.Ordinal)
+            .ThenBy(row => row.ScopeId, StringComparer.Ordinal)
+            .ThenBy(row => row.PlayerName, StringComparer.Ordinal)];
+    }
+
+    private static (string ScopeKind, string ScopeId)[] Scopes(IReadOnlyList<PlayerStatisticsRow> rows) =>
+        [.. rows.Select(row => (row.ScopeKind, row.ScopeId)).Distinct()];
+
+    private static string[] Names(IReadOnlyList<PlayerStatisticsRow> rows, string scopeKind, string scopeId) =>
+        [.. rows.Where(row => row.ScopeKind == scopeKind && row.ScopeId == scopeId).Select(row => row.PlayerName)];
+
+    /// <summary>The stamp every rebuild moves, and nothing else writes.</summary>
+    private async Task<Instant> RebuiltAtAsync()
+    {
+        await using var database = CreateContext();
+        return (await database.PlayerStatisticsMeta.AsNoTracking().SingleAsync()).RebuiltAt;
     }
 
     private async Task<HttpResponseMessage> SendJsonAsync(HttpMethod method, string path, object body, string? role, string? ifMatch = null)

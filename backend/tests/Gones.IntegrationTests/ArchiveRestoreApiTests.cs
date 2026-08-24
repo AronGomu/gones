@@ -114,6 +114,36 @@ public sealed class ArchiveRestoreApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Archive_restore_rebuilds_the_scoped_player_statistics()
+    {
+        using var response = await SendAsync("/api/archive/restore", Bundle("archive"), "Organizer", "statistics");
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await Body(response);
+        var leagueId = body.GetProperty("leagues")[0].GetProperty("id").GetString()!;
+        var seasonId = body.GetProperty("leagueSeasons")[0].GetProperty("id").GetString()!;
+
+        await using var database = CreateContext();
+        var rows = await database.PlayerStatistics.AsNoTracking().ToListAsync();
+        Assert.Equal(
+            [("global", ""), ("league", leagueId), ("season", seasonId)],
+            rows.Select(row => (row.ScopeKind, row.ScopeId))
+                .Distinct()
+                .OrderBy(scope => scope.ScopeKind, StringComparer.Ordinal)
+                .ToArray());
+        // Only the attached Tournament carries a Match; the standalone one is a bye, and a player with
+        // no rated Match never gets a row.
+        foreach (var (scopeKind, scopeId) in rows.Select(row => (row.ScopeKind, row.ScopeId)).Distinct())
+        {
+            Assert.Equal(
+                ["Alice", "Bob"],
+                rows.Where(row => row.ScopeKind == scopeKind && row.ScopeId == scopeId)
+                    .Select(row => row.PlayerName)
+                    .Order(StringComparer.Ordinal)
+                    .ToArray());
+        }
+    }
+
+    [Fact]
     public async Task Archive_restore_refuses_a_bundle_that_is_not_version_5()
     {
         using var response = await SendAsync("/api/archive/restore", Bundle("archive") with { Version = 4 }, "Organizer", "v4");

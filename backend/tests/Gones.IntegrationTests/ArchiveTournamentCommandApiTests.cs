@@ -563,6 +563,98 @@ public sealed class ArchiveTournamentCommandApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Tournament_write_rebuilds_player_statistics_in_every_scope_it_touches()
+    {
+        // The seeded Tournament is active, so the startup rebuild found nothing to count.
+        Assert.Empty(await StatisticsAsync());
+
+        await CompleteTournamentOneAsync();
+
+        var rows = await StatisticsAsync();
+        Assert.Equal([("global", ""), ("league", "league-1"), ("season", "season-1")], Scopes(rows));
+        foreach (var (scopeKind, scopeId) in Scopes(rows))
+        {
+            Assert.Equal(["Alice", "Bob"], Names(rows, scopeKind, scopeId));
+            Assert.Equal(1, Row(rows, scopeKind, scopeId, "Alice").MatchWins);
+            Assert.Equal(0, Row(rows, scopeKind, scopeId, "Bob").MatchWins);
+        }
+    }
+
+    [Fact]
+    public async Task Tournament_entry_edit_rewrites_the_scoped_rows_without_a_restart()
+    {
+        await CompleteTournamentOneAsync();
+        Assert.Equal(1, Row(await StatisticsAsync(), "season", "season-1", "Alice").MatchWins);
+
+        using var edited = await SendAsync(
+            HttpMethod.Patch,
+            "/api/archive/tournaments/tournament-1/rounds/round-1/entries/entry-1",
+            new { kind = "match", id = "entry-1", table = "1", player1Name = "Alice", player2Name = "Bob", player1Score = 0, player2Score = 2, player1DeckArchetype = "Tempo", player2DeckArchetype = "Control" },
+            "Organizer",
+            ifMatch: StrongETag.Encode(2));
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+
+        var rows = await StatisticsAsync();
+        foreach (var (scopeKind, scopeId) in Scopes(rows))
+        {
+            Assert.Equal(0, Row(rows, scopeKind, scopeId, "Alice").MatchWins);
+            Assert.Equal(1, Row(rows, scopeKind, scopeId, "Bob").MatchWins);
+        }
+    }
+
+    [Fact]
+    public async Task Tournament_delete_empties_every_scope_it_was_counted_in()
+    {
+        await CompleteTournamentOneAsync();
+        Assert.NotEmpty(await StatisticsAsync());
+
+        using var deleted = await SendAsync(HttpMethod.Delete, "/api/archive/tournaments/tournament-1", new { }, "Organizer", ifMatch: StrongETag.Encode(2));
+        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+
+        Assert.Empty(await StatisticsAsync());
+    }
+
+    [Fact]
+    public async Task Tournament_season_move_re_keys_the_scoped_rows()
+    {
+        await CompleteTournamentOneAsync();
+        Assert.Equal([("global", ""), ("league", "league-1"), ("season", "season-1")], Scopes(await StatisticsAsync()));
+
+        using var moved = await SendAsync(HttpMethod.Patch, "/api/archive/tournaments/tournament-1/season", new { seasonId = "season-2" }, "Organizer", ifMatch: StrongETag.Encode(2));
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+
+        // Both Seasons hang off the same League, so only the Season scope moves.
+        Assert.Equal([("global", ""), ("league", "league-1"), ("season", "season-2")], Scopes(await StatisticsAsync()));
+    }
+
+    [Fact]
+    public async Task A_created_Tournament_reaches_the_read_model_as_soon_as_it_carries_a_completed_result()
+    {
+        using var created = await SendAsync(HttpMethod.Post, "/api/archive/tournaments", new { name = "Nouvelle manche", tournamentDate = Iso(Today), seasonId = "season-2" }, "Organizer", key: "statistics-create");
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var id = (await Body(created)).GetProperty("id").GetString()!;
+        // A create mints an empty Tournament: no Round, no Match, so no player's rating can have moved.
+        Assert.Empty(await StatisticsAsync());
+
+        using var round = await SendAsync(HttpMethod.Post, $"/api/archive/tournaments/{id}/rounds", new { }, "Organizer", ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, round.StatusCode);
+        var roundId = (await Body(round)).GetProperty("rounds")[0].GetProperty("id").GetString()!;
+
+        const string csv = "Table,Player,Result,Opponent,Player_Decklist,Opponent_Decklist\n1,Carol,Won 2-0,Dan,Aggro,Control";
+        using var imported = await SendAsync(HttpMethod.Post, $"/api/archive/tournaments/{id}/rounds/{roundId}/import", new { text = csv }, "Organizer", ifMatch: StrongETag.Encode(2));
+        Assert.Equal(HttpStatusCode.OK, imported.StatusCode);
+        // ADR 0040 counts a Tournament, not a League: an active one contributes nothing yet.
+        Assert.Empty(await StatisticsAsync());
+
+        using var completed = await SendAsync(HttpMethod.Patch, $"/api/archive/tournaments/{id}", new { name = "Nouvelle manche", tournamentDate = Iso(Today), status = "completed" }, "Organizer", ifMatch: StrongETag.Encode(3));
+        Assert.Equal(HttpStatusCode.OK, completed.StatusCode);
+
+        var rows = await StatisticsAsync();
+        Assert.Equal([("global", ""), ("league", "league-1"), ("season", "season-2")], Scopes(rows));
+        Assert.Equal(["Carol", "Dan"], Names(rows, "season", "season-2"));
+    }
+
+    [Fact]
     public async Task Tournament_commands_audit_the_actor_without_leaking_names()
     {
         using var edited = await SendAsync(HttpMethod.Patch, "/api/archive/tournaments/tournament-1", new { name = "Nom Secret", tournamentDate = Iso(Today) }, "Organizer", ifMatch: StrongETag.Encode(1));
@@ -582,6 +674,38 @@ public sealed class ArchiveTournamentCommandApiTests : IAsyncLifetime
             Assert.DoesNotContain("Joueuse Secrète", audit.RedactedDiff, StringComparison.Ordinal);
         });
     }
+
+    /// <summary>Flips the seeded Tournament to <c>completed</c>, which is what makes its Match countable.</summary>
+    private async Task CompleteTournamentOneAsync()
+    {
+        using var completed = await SendAsync(
+            HttpMethod.Patch,
+            "/api/archive/tournaments/tournament-1",
+            new { name = "Tournoi 1", tournamentDate = Iso(Today), status = "completed" },
+            "Organizer",
+            ifMatch: StrongETag.Encode(1));
+        Assert.Equal(HttpStatusCode.OK, completed.StatusCode);
+    }
+
+    /// <summary>Every materialized row, sorted ordinally so the scope tuples compare deterministically.</summary>
+    private async Task<IReadOnlyList<PlayerStatisticsRow>> StatisticsAsync()
+    {
+        await using var database = CreateContext();
+        var rows = await database.PlayerStatistics.AsNoTracking().ToListAsync();
+        return [.. rows
+            .OrderBy(row => row.ScopeKind, StringComparer.Ordinal)
+            .ThenBy(row => row.ScopeId, StringComparer.Ordinal)
+            .ThenBy(row => row.PlayerName, StringComparer.Ordinal)];
+    }
+
+    private static (string ScopeKind, string ScopeId)[] Scopes(IReadOnlyList<PlayerStatisticsRow> rows) =>
+        [.. rows.Select(row => (row.ScopeKind, row.ScopeId)).Distinct()];
+
+    private static string[] Names(IReadOnlyList<PlayerStatisticsRow> rows, string scopeKind, string scopeId) =>
+        [.. rows.Where(row => row.ScopeKind == scopeKind && row.ScopeId == scopeId).Select(row => row.PlayerName)];
+
+    private static PlayerStatisticsRow Row(IReadOnlyList<PlayerStatisticsRow> rows, string scopeKind, string scopeId, string playerName) =>
+        rows.Single(row => row.ScopeKind == scopeKind && row.ScopeId == scopeId && row.PlayerName == playerName);
 
     private async Task<string> CreateTournamentWithAliceAsync()
     {
