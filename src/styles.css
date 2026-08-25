@@ -1385,3 +1385,7 @@ mat-dialog-content input:focus-visible { border-color: var(--hot-blood); outline
 .tournament-request-facts { display: grid; grid-template-columns: minmax(8rem, auto) 1fr; gap: .35rem .75rem; margin: 0 0 1rem; }
 .tournament-request-facts dt { font-weight: 700; color: var(--dim-ash); }
 .tournament-request-facts dd { margin: 0; }
+
+/* archive-local — the ADR 0028 dual-source markers. Tokens only. */
+.archive-local-badge { display: inline-flex; align-items: center; margin-left: .4rem; padding: .08rem .38rem; border: 1px solid var(--soot); background: var(--black-metal); color: var(--dim-ash); font-size: .64rem; font-weight: 900; letter-spacing: .06em; line-height: 1.5; text-transform: uppercase; vertical-align: middle; white-space: nowrap; }
+.archive-local-notice { margin: 0 0 .6rem; color: var(--steel); font-size: .82rem; }

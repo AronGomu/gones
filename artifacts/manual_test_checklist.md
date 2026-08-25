@@ -1664,5 +1664,64 @@ exist at all; `npm run dev:env` sets it, a bare `docker compose up` does not.
 - [ ] **French is complete.** Switch the language to French. Edit reads `Modifier`, Cancel Edit reads `Annuler la modification`, Save Changes reads `Enregistrer les modifications`, the save dialog reads `Enregistrer les modifications du tournoi ?`, the Season option reads `Indépendant — sans saison`, and the stale message starts `Ce tournoi a changé depuis son ouverture.` No raw key such as `archiveEdit.saveChanges` may appear anywhere.
 - [ ] **The legacy editor still works.** Open the legacy `/leagues-archive` surface, drill into a Tournament and stage an edit there. It behaves exactly as it did before this slice — both editors are alive until T19.
 - [ ] **The console is clean.** With DevTools open, walk the whole flow above: read-only load, Edit, draft mutation, empty save, refused save, `412`, Reload Latest, status toggle, Power User off. Zero console errors.
-- [ ] **Known, accepted — a browser-local Tournament cannot be reached from `/archive/**` yet.** The move is same-authority by design, but the new archive tabs do not list browser-local rows and `/archive/**` has no create affordance at this point in the plan, so there is no UI path to a local staged edit. The local write path is covered by `src/app/data/archive-repository.staged-edit.test.ts` (`routes a local id to the browser store`) and by the component test that classifies `ArchiveConcurrencyError` exactly like a wire `412`.
+- [ ] **Superseded by T18 — a browser-local Tournament IS now reachable from `/archive/**`.** When this section was written the new tabs listed no browser-local row and the detail route was server-only, so a local staged edit had no UI path. T18 unioned the local rows into both tabs and routed the detail read on the `local-` prefix, so the local staged edit now has a real entry point: see *T18 browser-local-union* below, which walks it end to end. The unit coverage named here — `src/app/data/archive-repository.staged-edit.test.ts` (`routes a local id to the browser store`) and the component test that classifies `ArchiveConcurrencyError` exactly like a wire `412` — still stands and still runs.
 - [ ] **Known, accepted — restoring a row after a test still bumps its version.** Every write bumps `documentVersion`, including the one that puts a name back. A demo row you edited and restored will read the original name at a higher version; that is correct optimistic-concurrency behaviour, not drift.
+
+## T18 browser-local-union
+
+This slice makes the Archive honour ADR 0028 on the read side: the list is the **union** of the
+server's records and the ones this browser authored in `gones-archive-local`, and every read routes on
+the `local-` id prefix. A browser-local row is badged **Local only**, is never locked whatever its
+date, is bucketed into its own calendar year on Tab 2, and is **never** written into the public
+catalog cache `gones-archive-cache` — that cache may be purged, the local store may not.
+
+It also closes the hole T14 flagged: `/archive/tournaments/:id` used to ask the server for a `local-`
+id, which both leaked the id onto the wire (ADR 0028 forbids it) and rendered *not found*. The detail
+read now routes on the prefix, which is what gives T17's staged editor a reachable entry point for a
+browser-local Tournament.
+
+`/archive/**` still has **no create affordance** — this slice adds no mutation surface of its own. The
+only way to author a browser-local record today is the console seed below, or the legacy
+`/leagues-archive` create button (a different store, `gones-leagues`).
+
+Start from a running stack on the demo data: `npm run dev:env -- --env=demo`, then `npm run dev:serve`.
+The dev server is `127.0.0.1:4200` and the local API is `127.0.0.1:5080`. If the `127.0.0.1:4200` bind
+fails, `pkill -f "ng serve"` and re-run.
+
+Seed one browser-local League, Season and Tournament from the DevTools console on `127.0.0.1:4200`:
+
+```js
+await new Promise((resolve) => {
+  const open = indexedDB.open('gones-archive-local', 1);
+  open.onupgradeneeded = () => { for (const s of ['leagues','league-seasons','tournaments']) if (!open.result.objectStoreNames.contains(s)) open.result.createObjectStore(s, { keyPath: 'id' }); };
+  open.onsuccess = () => {
+    const tx = open.result.transaction(['leagues','league-seasons','tournaments'], 'readwrite');
+    tx.objectStore('leagues').put({ id: 'local-league-b', name: 'My Browser League', createdAt: '2026-08-01T00:00:00Z', documentVersion: 1, updatedAt: '2026-08-01T00:00:00Z' });
+    tx.objectStore('league-seasons').put({ id: 'local-season-b', name: 'My Browser Season', leagueId: 'local-league-b', status: 'active', documentVersion: 1, updatedAt: '2026-08-01T00:00:00Z' });
+    tx.objectStore('tournaments').put({ id: 'local-t-b', name: 'Garage Night', seasonId: 'local-season-b', tournamentDate: '2026-04-04', status: 'active', rounds: [], playerArchetypes: [], documentVersion: 1, updatedAt: '2026-08-01T00:00:00Z' });
+    tx.oncomplete = () => { open.result.close(); resolve(); };
+  };
+});
+```
+
+- [ ] **The five gates are green.** `npm run test` prints `Test Files 174 passed (174)` and `Tests 2293 passed (2293)` with no failed suite; `npm run typecheck` exits `0` with no output; `npm run lint` prints `All files pass linting.`; `npm run build` exits `0`. `npx cypress run --spec cypress/e2e/league-local.cy.js` prints `All specs passed!` with `7` tests and `0` failing.
+- [ ] **Nothing local, nothing said.** Before seeding anything, open `/archive/league-seasons` signed out. There is no `Local only` badge anywhere and no browser-local notice — the notice is rendered only when the list actually holds a local row.
+- [ ] **Tab 1 lists the browser-local Season beside the server's.** Run the seed above, reload `/archive/league-seasons`. *My Browser Season* appears in the same table as the demo Seasons, carrying a **Local only** badge, and the demo rows carry none. The one-line notice says the records live in this browser and that clearing site data deletes them. There is no error banner.
+- [ ] **It is an ordinary row.** Search `browser` — only the local Season matches. Clear the search and pick *My Browser League* in the League filter — the browser League is offered in that dropdown, and selecting it leaves only the local Season. Sort by **Last played** in both directions and by **Season / League**: the local row moves through the list like any other and is never pinned to the top.
+- [ ] **It is never locked.** The seeded Season has no 🔒 marker. Re-seed the Tournament with `tournamentDate: '1990-01-01'` and reload: still no 🔒 on the Season or on the Tournament, while the demo's own 1996 and 1997 Tournaments do show one. The lock keys on the id prefix, not on the date.
+- [ ] **Tab 2 lists the browser-local Tournament under its own year.** Open `/archive/tournaments?year=2026`. *Garage Night* is in the table with a **Local only** badge, beside the demo's 2026 rows, and the notice is rendered once.
+- [ ] **A year only this browser occupies is reachable.** Re-seed a second Tournament dated `2019-05-04`. The year dropdown now offers **2019**, which the server's index does not contain — `curl -sS http://127.0.0.1:5080/api/archive/years` lists no 2019. Select it: the 2019 local Tournament is listed alone, and with DevTools → Network filtered to `archive`, **no request is made** for that year.
+- [ ] **The year filter really filters.** Switch back to 2026: the 2019 row is gone and *Garage Night* is back. No local Tournament ever appears under two years.
+- [ ] **An undated record is filed, not lost.** Re-seed a Tournament with `tournamentDate: ''`. It appears under the **current** UTC year, and the notice on that page gains the sentence *"Undated Tournaments created in this browser are listed under {year}."* Select a different year: the extra sentence disappears.
+- [ ] **Expanding the browser-local Season costs no request.** Back on `/archive/league-seasons`, click the expander on *My Browser Season* with the Network tab open. Its Tournaments are listed, each with a **Local only** badge, and **no** `GET /api/archive/league-seasons/local-…/tournaments` is issued. The Season's own id decides which store answers.
+- [ ] **No cross-authority join.** Expand any demo Season: none of the browser-local Tournaments appears inside it. Open the browser-local Season's own page from its name link: the header carries a **Local only** badge, no 🔒, and only browser-local Tournaments are listed.
+- [ ] **The detail page opens a browser-local Tournament.** From Tab 2, click *Garage Night*. The URL is `/archive/tournaments/local-t-b`, the page renders the Tournament — **not** the "Tournament not found" card — and, with the Network tab open, **no request naming `local-`** was made. Before this slice the app issued `GET /api/archive/tournaments/local-t-b` and rendered not-found on the 404.
+- [ ] **The staged edit works on it, and stays in the browser.** With **Power User** on in `/settings`, click **Edit** on that page, change the name, press **Save Changes** and confirm. The heading shows the new name, no error appears, and the Network tab shows **no** `POST` to the API at all. Reload: the new name is still there. In DevTools → Application → IndexedDB → `gones-archive-local` → `tournaments`, the row's `name` is the new one and its `documentVersion` has gone up by exactly one.
+- [ ] **The public cache stays pure.** After visiting both tabs and expanding the local Season, open DevTools → Application → IndexedDB → **`gones-archive-cache`** and read every store — `leagues`, `league-seasons`, `year-partitions`, `meta`. No id starts with `local-` anywhere, and no record carries an `isLocal` field. The cache is a cache; the local store is an authority; they are two databases for exactly this reason.
+- [ ] **Purging the cache does not touch what you authored.** Delete the `gones-archive-cache` database from DevTools and reload both tabs. The demo rows are refetched and the browser-local rows are still listed, unchanged.
+- [ ] **The archive survives with the API unreachable.** Stop the API (`docker compose stop api`) and reload `/archive/league-seasons` and `/archive/tournaments`. Both tabs still list the browser-local records, neither shows the red error banner, and the sync bar reports the stale state. Start the API again afterwards.
+- [ ] **French is complete.** Switch the language to French. The badge reads `Local uniquement`, its tooltip reads `Stocké uniquement dans ce navigateur — jamais envoyé au serveur`, and the notice starts `Les enregistrements créés hors connexion sont stockés uniquement dans ce navigateur.` No raw key such as `archive.localBadge` may appear anywhere.
+- [ ] **The legacy surface is untouched.** `/leagues-archive`, a legacy League page and a legacy Tournament page all still load and still work, and the fixed `placeholder-league` row is still there. The legacy list keeps its own `Local only` badge, which reads from the other store (`gones-leagues`) and is a different feature.
+- [ ] **The console is clean.** With DevTools open, walk the whole flow above: both tabs, the year filter, the expansion, the Season page, the detail page, the staged edit, the cache purge and the offline reload. Zero console errors.
+- [ ] **Known, accepted — `/archive/**` still has no create affordance.** A browser-local record can only be authored through the console seed above or through the legacy `/leagues-archive` create button, which writes the other store. This slice is a read-path union plus the detail route; the create affordance is not in it.
+- [ ] **Known, accepted — the rankings scope picker still offers browser-local scopes that read empty.** On `/global-stats`, a browser-local League or Season can be selected and returns an empty scope, because the server holds no rating for a record it has never seen. That is the empty-scope path behaving as designed. Narrowing the picker is a rankings change and this slice is explicitly forbidden from touching `/global-stats`.

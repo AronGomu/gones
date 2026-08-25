@@ -53,7 +53,10 @@ function templateBlock(opening: string): string {
   throw new Error(`unbalanced template block "${opening}"`);
 }
 
-function seasonSummary(overrides: Partial<ArchiveLeagueSeasonSummary> = {}): ArchiveLeagueSeasonSummary {
+/** A catalog row plus the origin flag the repository stamps on it (ADR 0028). */
+type LocalFlagged<T> = T & { isLocal?: boolean };
+
+function seasonSummary(overrides: Partial<LocalFlagged<ArchiveLeagueSeasonSummary>> = {}): LocalFlagged<ArchiveLeagueSeasonSummary> {
   return {
     id: 's-1',
     name: 'Ligue Lyon 2026',
@@ -69,7 +72,7 @@ function seasonSummary(overrides: Partial<ArchiveLeagueSeasonSummary> = {}): Arc
   };
 }
 
-function leagueSummary(overrides: Partial<ArchiveLeagueSummary> = {}): ArchiveLeagueSummary {
+function leagueSummary(overrides: Partial<LocalFlagged<ArchiveLeagueSummary>> = {}): LocalFlagged<ArchiveLeagueSummary> {
   return {
     id: 'lg-1',
     name: 'Ligue Lyon',
@@ -81,7 +84,7 @@ function leagueSummary(overrides: Partial<ArchiveLeagueSummary> = {}): ArchiveLe
 }
 
 function row(overrides: Partial<LeagueSeasonRow> = {}): LeagueSeasonRow {
-  return { ...seasonSummary(), leagueName: 'Ligue Lyon', locked: false, ...overrides };
+  return { ...seasonSummary(), leagueName: 'Ligue Lyon', locked: false, isLocal: false, ...overrides };
 }
 
 const params = (query: string) => new URLSearchParams(query);
@@ -91,15 +94,18 @@ function settled(): Promise<void> {
 }
 
 function buildComponent(options: {
-  seasons?: ArchiveLeagueSeasonSummary[];
-  leagues?: ArchiveLeagueSummary[];
+  seasons?: LocalFlagged<ArchiveLeagueSeasonSummary>[];
+  leagues?: LocalFlagged<ArchiveLeagueSummary>[];
   query?: string;
   language?: SettingsLanguage;
   seasonsError?: unknown;
   leaguesError?: unknown;
   truncated?: boolean;
   stale?: boolean;
+  /** Every repository member the component reaches, in order, so "and nothing else" is observable. */
+  recordRepositoryAccess?: string[];
 } = {}) {
+  const touched = options.recordRepositoryAccess;
   const listLeagueSeasons = vi.fn(async () => {
     if (options.seasonsError !== undefined) throw options.seasonsError;
     return {
@@ -123,8 +129,21 @@ function buildComponent(options: {
     };
   });
   const router = { navigate: vi.fn(async () => true) };
+  const repository: Record<string, unknown> = { listLeagueSeasons, listLeagues };
   const injector = Injector.create({ providers: [
-    { provide: ArchiveRepository, useValue: { listLeagueSeasons, listLeagues } },
+    {
+      provide: ArchiveRepository,
+      useValue: touched
+        ? new Proxy(repository, {
+          get(target, property: string | symbol) {
+            // Angular probes `ngOnDestroy` and `name` on a `useValue` provider; only a real member
+            // of the repository counts as the component reaching for it.
+            if (typeof property === 'string' && property in target) touched.push(property);
+            return Reflect.get(target, property) as unknown;
+          }
+        })
+        : repository
+    },
     // The row expansion reads through this port; the list itself never issues that read on load.
     { provide: ARCHIVE_SEASON_SOURCE, useValue: { listSeasonTournaments: async () => ({ items: [], fromCache: true }) } },
     { provide: ActivatedRoute, useValue: { queryParamMap: of(params(options.query ?? '')) } },
@@ -270,6 +289,26 @@ describe('buildLeagueSeasonRows', () => {
   it('carries every catalog field through untouched', () => {
     const season = seasonSummary();
     expect(buildLeagueSeasonRows([season], [leagueSummary()])[0]).toMatchObject(season);
+  });
+
+  it('flags a browser-local Season', () => {
+    const rows = buildLeagueSeasonRows([seasonSummary({ id: 'local-1', isLocal: true }), seasonSummary({ id: 's-1', isLocal: false })], []);
+
+    expect(rows[0].isLocal).toBe(true);
+    expect(rows[1].isLocal).toBe(false);
+  });
+
+  it('defaults isLocal to false for a bare wire summary', () => {
+    expect(buildLeagueSeasonRows([seasonSummary()], [])[0].isLocal).toBe(false);
+  });
+
+  it('still locks an old server Season', () => {
+    expect(buildLeagueSeasonRows([seasonSummary({ id: 's-1', lastTournamentDate: '1990-01-01' })], [], now)[0].locked).toBe(true);
+  });
+
+  it('never locks a browser-local Season however old it is', () => {
+    // The lock keys on the `local-` id prefix, not on `isLocal`: one derivation for the whole app.
+    expect(buildLeagueSeasonRows([seasonSummary({ id: 'local-1', isLocal: true, lastTournamentDate: '1990-01-01' })], [], now)[0].locked).toBe(false);
   });
 });
 
@@ -643,6 +682,76 @@ describe('league season list behaviour', () => {
     expect(component.leagueLabel(row({ leagueName: '' }))).toBe('Unknown League');
   });
 
+  it('reads the unioned catalogs and nothing else off the repository', async () => {
+    const touched: string[] = [];
+    const { component } = buildComponent({ recordRepositoryAccess: touched });
+    await settled();
+
+    expect(touched).toEqual(['listLeagueSeasons', 'listLeagues']);
+    expect(component.rows()).toHaveLength(1);
+  });
+
+  it('searches a browser-local Season beside a server one', async () => {
+    const { component } = buildComponent({
+      seasons: [seasonSummary({ id: 'local-1', name: 'Home Season', isLocal: true }), seasonSummary({ id: 's-1', name: 'Away Season' })],
+      query: 'search=home'
+    });
+    await settled();
+
+    expect(component.pagedRows().map((item) => item.id)).toEqual(['local-1']);
+  });
+
+  it('applies the League filter to a browser-local Season', async () => {
+    const { component } = buildComponent({
+      seasons: [seasonSummary({ id: 'local-1', leagueId: 'local-L', isLocal: true }), seasonSummary({ id: 's-1', leagueId: 'lg-1' })],
+      leagues: [leagueSummary({ id: 'local-L', name: 'Browser League', isLocal: true }), leagueSummary()],
+      query: 'league=local-L'
+    });
+    await settled();
+
+    expect(component.pagedRows().map((item) => item.id)).toEqual(['local-1']);
+  });
+
+  it('sorts a browser-local Season among the server rows', async () => {
+    const { component } = buildComponent({
+      seasons: [
+        seasonSummary({ id: 's-1', lastTournamentDate: '2025-01-01' }),
+        seasonSummary({ id: 'local-1', lastTournamentDate: '2026-01-01', isLocal: true })
+      ]
+    });
+    await settled();
+
+    expect(component.pagedRows()[0].id).toBe('local-1');
+  });
+
+  it('counts a browser-local Season in the pager and reaches it on page 2', async () => {
+    const seasons = [...manySeasons(25), seasonSummary({ id: 'local-1', lastTournamentDate: '2020-01-01', isLocal: true })];
+    const first = buildComponent({ seasons });
+    const second = buildComponent({ seasons, query: 'page=2' });
+    await settled();
+
+    expect(first.component.totalRows()).toBe(26);
+    expect(first.component.totalPages()).toBe(2);
+    expect(first.component.pagedRows().some((item) => item.isLocal)).toBe(false);
+    expect(second.component.pagedRows().map((item) => item.id)).toEqual(['local-1']);
+  });
+
+  it('holds a local row only when this browser authored one', async () => {
+    const serverOnly = buildComponent();
+    const withLocal = buildComponent({ seasons: [seasonSummary({ id: 'local-1', isLocal: true })] });
+    await settled();
+
+    expect(serverOnly.component.hasLocalRows()).toBe(false);
+    expect(withLocal.component.hasLocalRows()).toBe(true);
+  });
+
+  it('never locks a browser-local row it renders', async () => {
+    const { component } = buildComponent({ seasons: [seasonSummary({ id: 'local-1', lastTournamentDate: '1990-01-01', isLocal: true })] });
+    await settled();
+
+    expect(component.pagedRows()[0].locked).toBe(false);
+  });
+
   it('statusLabel translates both statuses', async () => {
     const en = buildComponent();
     const fr = buildComponent({ language: 'fr' });
@@ -655,7 +764,7 @@ describe('league season list behaviour', () => {
   });
 });
 
-function manySeasons(count: number): ArchiveLeagueSeasonSummary[] {
+function manySeasons(count: number): LocalFlagged<ArchiveLeagueSeasonSummary>[] {
   return Array.from({ length: count }, (_, index) =>
     seasonSummary({ id: `s-${String(index).padStart(2, '0')}`, name: `Season ${index}` }));
 }
@@ -711,6 +820,21 @@ describe('league season list template', () => {
   it('the lock marker is visible on a locked row and only there', () => {
     expect(source.match(/data-cy\]="'archive-seasons-lock-/g)).toHaveLength(1);
     expect(templateBlock('@if (row.locked) {')).toContain(`'archive-seasons-lock-'`);
+  });
+
+  it('the local badge is rendered on a browser-local row and only there', () => {
+    expect(source.match(/data-cy\]="'archive-seasons-local-badge-/g)).toHaveLength(1);
+    const badge = templateBlock('@if (row.isLocal) {');
+    expect(badge).toContain(`'archive-seasons-local-badge-'`);
+    expect(badge).toContain(`i18n.t('archive.localBadge')`);
+    // The name cell, beside the Season link — not a fifth column.
+    const nameCell = source.slice(source.indexOf(`'archive-seasons-cell-name-'`), source.indexOf(`'archive-seasons-cell-dates-'`));
+    expect(nameCell).toContain(`'archive-seasons-local-badge-'`);
+  });
+
+  it('the local notice is rendered only when this browser holds a row', () => {
+    expect(templateBlock('@if (hasLocalRows()) {')).toContain('archive-seasons-local-notice');
+    expect(source).toContain(`i18n.t('archive.localNotice')`);
   });
 
   it('the lock marker is announced', () => {

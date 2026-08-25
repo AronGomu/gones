@@ -78,8 +78,9 @@ function listRow(overrides: Partial<ArchiveLeagueSeasonRow> = {}): LeagueSeasonR
   return { ...seasonRow(overrides), leagueName: 'Ligue Lyon', locked: false };
 }
 
+
 /** A source that records every member touched, so "the read path wrote nothing" is observable. */
-function recordingSource(result: { items: ArchiveTournamentRow[]; fromCache: boolean }): {
+function recordingSource(result: { items: ArchiveTournamentRow[]; fromCache: boolean; truncated?: boolean }): {
   source: SeasonTournamentsSource;
   calls: string[];
 } {
@@ -87,7 +88,7 @@ function recordingSource(result: { items: ArchiveTournamentRow[]; fromCache: boo
   const target: SeasonTournamentsSource = {
     listSeasonTournaments: async (season) => {
       calls.push(`listSeasonTournaments:${season.id}`);
-      return result;
+      return { truncated: false, ...result };
     }
   };
   const source = new Proxy(target, {
@@ -103,7 +104,7 @@ function recordingSource(result: { items: ArchiveTournamentRow[]; fromCache: boo
 
 function buildSeasonPage(overrides: Partial<ArchiveSeasonSource> = {}, seasonId = 's-1'): LeagueSeasonDetailComponent {
   const source: ArchiveSeasonSource = {
-    listSeasonTournaments: async () => ({ items: [], fromCache: true }),
+    listSeasonTournaments: async () => ({ items: [], fromCache: true, truncated: false }),
     getSeason: async () => seasonRow(),
     getLeagueName: async () => 'Ligue Lyon',
     ...overrides
@@ -127,7 +128,7 @@ function buildTab1(source: Partial<SeasonTournamentsSource> = {}): LeagueSeasonL
       { provide: I18nService, useClass: I18nService },
       {
         provide: ARCHIVE_SEASON_SOURCE,
-        useValue: { listSeasonTournaments: async () => ({ items: [], fromCache: true }), ...source }
+        useValue: { listSeasonTournaments: async () => ({ items: [], fromCache: true, truncated: false }), ...source }
       },
       {
         provide: 'ArchiveRepositoryStub',
@@ -170,6 +171,14 @@ describe('season tournaments read path', () => {
     expect(calls).toEqual(['listSeasonTournaments:s-1']);
   });
 
+  it('carries the server half’s row cap through untouched', async () => {
+    const truncated = recordingSource({ items: [], fromCache: false, truncated: true });
+    const whole = recordingSource({ items: [], fromCache: true, truncated: false });
+
+    expect(await readSeasonTournaments(seasonRow(), truncated.source)).toMatchObject({ origin: 'server', truncated: true });
+    expect(await readSeasonTournaments(seasonRow(), whole.source)).toMatchObject({ origin: 'cache', truncated: false });
+  });
+
   it('never writes the cache on the read-through path', async () => {
     const { source, calls } = recordingSource({ items: [], fromCache: false });
     await expect(readSeasonTournaments(seasonRow(), source)).resolves.toBeDefined();
@@ -183,12 +192,12 @@ describe('season tournaments read path', () => {
     const source: SeasonTournamentsSource = {
       listSeasonTournaments: async (season) => {
         spans.push(season);
-        return { items: [], fromCache: true };
+        return { items: [], fromCache: true, truncated: false };
       }
     };
     const season = seasonRow({ firstTournamentDate: null, lastTournamentDate: null });
     const read = await readSeasonTournaments(season, source);
-    expect(read).toEqual({ origin: 'cache', items: [] });
+    expect(read).toEqual({ origin: 'cache', items: [], truncated: false });
     expect(spans).toEqual([season]);
   });
 
@@ -218,7 +227,7 @@ describe('season tournaments read path', () => {
 
 describe('league season detail page', () => {
   it('renders its tournaments through the read path', async () => {
-    const page = buildSeasonPage({ listSeasonTournaments: async () => ({ items: [tournamentRow()], fromCache: false }) });
+    const page = buildSeasonPage({ listSeasonTournaments: async () => ({ items: [tournamentRow()], fromCache: false, truncated: false }) });
     await page.load();
     expect(page.tournaments().map((row) => row.id)).toEqual(['t-1']);
     expect(page.origin()).toBe('server');
@@ -257,6 +266,31 @@ describe('league season detail page', () => {
   it('carries both back buttons', () => {
     expect(detailSource).toContain('position="top"');
     expect(detailSource).toContain('position="bottom"');
+  });
+
+  it('marks a browser-local Season and never locks it', async () => {
+    const page = buildSeasonPage(
+      { getSeason: async () => seasonRow({ id: 'local-1', isLocal: true, lastTournamentDate: '1990-01-01' }) },
+      'local-1'
+    );
+    await page.load();
+
+    expect(page.season()?.isLocal).toBe(true);
+    expect(page.locked()).toBe(false);
+    expect(block(detailSource, '@if (season()?.isLocal) {')).toContain('archive-season-local-badge');
+  });
+
+  it('never locks a browser-local Tournament of the Season, however old it is', async () => {
+    const page = buildSeasonPage();
+    await page.load();
+
+    expect(page.isLocked(tournamentRow({ id: 'local-t1', isLocal: true, tournamentDate: '1990-01-01' }))).toBe(false);
+    expect(page.isLocked(tournamentRow({ id: 't-1', tournamentDate: '1990-01-01' }))).toBe(true);
+  });
+
+  it('badges a browser-local Tournament in the Season’s list', () => {
+    expect(detailSource.match(/data-cy\]="'archive-season-tournament-local-/g)).toHaveLength(1);
+    expect(block(detailSource, '@if (child.isLocal) {')).toContain(`i18n.t('archive.localBadge')`);
   });
 });
 
@@ -326,9 +360,20 @@ describe('tab 1 season expansion', () => {
     expect(tab.expandedSeasonId()).toBe(null);
   });
 
+  it('lists the browser-local Tournaments of an expanded browser-local Season, each badged', async () => {
+    const items = [tournamentRow({ id: 'local-t1', isLocal: true }), tournamentRow({ id: 'local-t2', isLocal: true })];
+    const tab = buildTab1({ listSeasonTournaments: async () => ({ items, fromCache: true, truncated: false }) });
+
+    await tab.toggleSeasonExpansion(listRow({ id: 'local-1', isLocal: true }));
+
+    expect(tab.expandedChildren().map((child) => child.id)).toEqual(['local-t1', 'local-t2']);
+    expect(tab.expandedChildren().every((child) => child.isLocal)).toBe(true);
+    expect(listSource.match(/data-cy\]="'archive-seasons-child-local-/g)).toHaveLength(1);
+  });
+
   it('caps the expanded list and offers the rest', async () => {
     const items = Array.from({ length: 14 }, (_, index) => tournamentRow({ id: `t-${index}` }));
-    const tab = buildTab1({ listSeasonTournaments: async () => ({ items, fromCache: true }) });
+    const tab = buildTab1({ listSeasonTournaments: async () => ({ items, fromCache: true, truncated: false }) });
     await tab.toggleSeasonExpansion(listRow());
     expect(tab.expandedChildren().length).toBe(SEASON_EXPANSION_PREVIEW_LIMIT);
     expect(tab.hasMoreChildren()).toBe(true);
@@ -337,7 +382,7 @@ describe('tab 1 season expansion', () => {
 
   it('offers no show-all line for a short list', async () => {
     const items = Array.from({ length: 3 }, (_, index) => tournamentRow({ id: `t-${index}` }));
-    const tab = buildTab1({ listSeasonTournaments: async () => ({ items, fromCache: true }) });
+    const tab = buildTab1({ listSeasonTournaments: async () => ({ items, fromCache: true, truncated: false }) });
     await tab.toggleSeasonExpansion(listRow());
     expect(tab.expandedChildren().length).toBe(3);
     expect(tab.hasMoreChildren()).toBe(false);

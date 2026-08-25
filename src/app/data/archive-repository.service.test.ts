@@ -20,7 +20,10 @@ import { PowerUserSettingsService } from '../shared/power-user-settings.service'
 import type { PersistedArchiveTournament, PersistedLeagueSeason, RoundEntry } from '../domain/archive-models';
 import { summarizeArchiveTournament, summarizeLeagueSeason } from './archive-summary';
 import type { ArchiveCatalogResponse } from './archive-summary';
-import { ARCHIVE_UPDATED_EVENT, ArchiveRepository, archiveYearRange, compareArchiveTournamentRows } from './archive-repository.service';
+import {
+  ARCHIVE_UPDATED_EVENT, ArchiveRepository, archiveTournamentYear, archiveYearRange, compareArchiveTournamentRows,
+  mergeLocalArchiveYears
+} from './archive-repository.service';
 
 const NOW = Date.parse('2026-08-22T12:00:00.000Z');
 
@@ -588,5 +591,216 @@ describe('archive repository — invalidation and pure helpers', () => {
     expect(repositorySource).not.toMatch(/\bindexedDB\b/);
     expect(repositorySource).not.toMatch(/\bIDB[A-Z]\w*/);
     expect(repositorySource).not.toMatch(/localStorage|sessionStorage/);
+  });
+});
+
+describe('archive repository — the browser-local union (ADR 0028)', () => {
+  it('archiveTournamentYear reads the year out of a dated row', () => {
+    expect(archiveTournamentYear({ tournamentDate: '2024-03-01' })).toBe(2024);
+  });
+
+  it('archiveTournamentYear buckets an undated local row into the current UTC year', () => {
+    // `createTournament` stores `String(tournamentDate ?? '')`, so an undated Tournament is a real,
+    // reachable state — and a record the user authored must never become unreachable.
+    expect(archiveTournamentYear({ tournamentDate: '' })).toBe(2026);
+  });
+
+  it('archiveTournamentYear buckets a malformed date into the current UTC year', () => {
+    expect(archiveTournamentYear({ tournamentDate: '2024-3-1' })).toBe(2026);
+  });
+
+  it('mergeLocalArchiveYears adds a year only local rows occupy', () => {
+    expect(mergeLocalArchiveYears([{ year: 2025, locked: true, tournamentCount: 4 }], [2019])).toEqual([
+      { year: 2019, locked: false, tournamentCount: 1 },
+      { year: 2025, locked: true, tournamentCount: 4 }
+    ]);
+  });
+
+  it('mergeLocalArchiveYears adds to an existing year without unlocking it', () => {
+    expect(mergeLocalArchiveYears([{ year: 2020, locked: true, tournamentCount: 2 }], [2020, 2020]))
+      .toEqual([{ year: 2020, locked: true, tournamentCount: 4 }]);
+  });
+
+  it('mergeLocalArchiveYears sorts ascending and never duplicates a year', () => {
+    const merged = mergeLocalArchiveYears(
+      [{ year: 2025, locked: true, tournamentCount: 1 }, { year: 2021, locked: false, tournamentCount: 1 }],
+      [2023, 2023, 2021]
+    );
+
+    expect(merged.map((entry) => entry.year)).toEqual([2021, 2023, 2025]);
+    expect(merged).toHaveLength(3);
+  });
+
+  it('listLeagueSeasons unions the browser-local Seasons and flags them', async () => {
+    const local = localStub({ seasons: [serverSeason('local-s1')] });
+    const client = { getArchiveLeagueSeasonCatalog: () => of(catalogOf([serverSeason('s1')], 4)) };
+    const { repo } = build({ client, local });
+
+    const result = await repo.listLeagueSeasons();
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items.find((item) => item.id === 's1')!.isLocal).toBe(false);
+    expect(result.items.find((item) => item.id === 'local-s1')!.isLocal).toBe(true);
+    expect(result.totalCount).toBe(5);
+  });
+
+  it('listLeagueSeasons never writes a browser-local row into the cache', async () => {
+    const cache = cacheStub();
+    const local = localStub({ seasons: [serverSeason('local-s1')] });
+    const client = { getArchiveLeagueSeasonCatalog: () => of(catalogOf([serverSeason('s1')], 4)) };
+    const { repo } = build({ cache, client, local });
+
+    await repo.listLeagueSeasons();
+
+    const written = cache.writeSeasonCatalog.mock.calls[0][0];
+    expect(written.items.map((item) => item.id)).toEqual(['s1']);
+    expect(written.items.every((item) => !('isLocal' in item))).toBe(true);
+  });
+
+  it('the year loader never hands a browser-local row to the backfill queue', async () => {
+    const cache = cacheStub();
+    const queue = queueStub();
+    cache.readYearsMeta = vi.fn(async () => freshYearsMeta([{ year: 2025, locked: false, tournamentCount: 3 }]));
+    const client = {
+      getArchiveTournamentYearCatalog: () => of(catalogOf([
+        serverTournament('id-a', '2025-01-01'), serverTournament('id-b', '2025-02-02'), serverTournament('id-c', '2025-03-03')
+      ]))
+    };
+    const local = localStub({ tournaments: [serverTournament('local-t1', '2025-04-04')] });
+    const { repo } = build({ cache, queue, client, local });
+
+    await repo.listTournaments();
+    const loaded = await queue.drain.mock.calls[0][0](2025);
+
+    expect(loaded.items.some((item) => item.id.startsWith('local-'))).toBe(false);
+    expect(loaded.items.every((item) => !('isLocal' in item))).toBe(true);
+  });
+
+  it('listYears exposes a year that only a browser-local Tournament occupies', async () => {
+    const cache = cacheStub();
+    const local = localStub({ tournaments: [serverTournament('local-t1', '2019-05-04')] });
+    const client = { getArchiveYears: () => of({ years: [{ year: 2025, locked: true, tournamentCount: 2 }] }) };
+    const { repo } = build({ cache, client, local });
+
+    expect(await repo.listYears()).toContainEqual({ year: 2019, locked: false, tournamentCount: 1 });
+  });
+
+  it('listYears keeps serving local years when the years endpoint fails', async () => {
+    const local = localStub({ tournaments: [serverTournament('local-t1', '2019-05-04')] });
+    const client = { getArchiveYears: () => throwError(() => new Error('offline')) };
+    const { repo } = build({ client, local });
+
+    expect(await repo.listYears()).toEqual([{ year: 2019, locked: false, tournamentCount: 1 }]);
+  });
+
+  it('listYears still rethrows when the server fails and this browser holds nothing', async () => {
+    const failure = new Error('offline');
+    const { repo } = build({ client: { getArchiveYears: () => throwError(() => failure) } });
+
+    await expect(repo.listYears()).rejects.toBe(failure);
+  });
+
+  it('listTournaments restricted to a year serves that year plus its local rows', async () => {
+    const cache = cacheStub();
+    const queue = queueStub();
+    cache.readYearsMeta = vi.fn(async () => freshYearsMeta([{ year: 2025, locked: true, tournamentCount: 2 }]));
+    cache.readYearPartition = vi.fn(async (year: number) =>
+      (year === 2025 ? yearPartition(2025, [serverTournament('id-a', '2025-01-01'), serverTournament('id-b', '2025-03-03')]) : null));
+    const local = localStub({
+      tournaments: [serverTournament('local-t1', '2025-02-02'), serverTournament('local-t2', '2019-05-04')]
+    });
+    const { repo } = build({ cache, queue, client: {}, local });
+
+    const result = await repo.listTournaments({ year: 2025 });
+
+    expect(result.items.map((item) => item.id)).toEqual(['id-b', 'local-t1', 'id-a']);
+    expect(result.totalCount).toBe(3);
+  });
+
+  it('listTournaments restricted to a local-only year issues no request', async () => {
+    const cache = cacheStub();
+    const queue = queueStub();
+    cache.readYearsMeta = vi.fn(async () => freshYearsMeta([{ year: 2025, locked: true, tournamentCount: 2 }]));
+    const getArchiveTournamentYearCatalog = vi.fn(() => of(catalogOf([serverTournament('id-a', '2025-01-01')])));
+    const local = localStub({ tournaments: [serverTournament('local-t2', '2019-05-04')] });
+    const { repo } = build({ cache, queue, client: { getArchiveTournamentYearCatalog }, local });
+
+    const result = await repo.listTournaments({ year: 2019 });
+
+    expect(queue.enqueue).not.toHaveBeenCalled();
+    expect(getArchiveTournamentYearCatalog).not.toHaveBeenCalled();
+    expect(result.items.map((item) => item.id)).toEqual(['local-t2']);
+    expect(result.totalCount).toBe(1);
+  });
+
+  it('listTournaments without a year serves every year and every local row', async () => {
+    const cache = cacheStub();
+    cache.readYearsMeta = vi.fn(async () => freshYearsMeta([
+      { year: 2025, locked: true, tournamentCount: 1 }, { year: 2026, locked: true, tournamentCount: 1 }
+    ]));
+    cache.readAllYearPartitions = vi.fn(async () => [
+      yearPartition(2025, [serverTournament('id-a', '2025-01-01')]),
+      yearPartition(2026, [serverTournament('id-b', '2026-01-01')])
+    ]);
+    const local = localStub({
+      tournaments: [
+        serverTournament('local-t1', '2025-06-06'), serverTournament('local-t2', '2026-06-06'),
+        serverTournament('local-t3', '2026-07-07')
+      ]
+    });
+    const { repo } = build({ cache, local });
+
+    const result = await repo.listTournaments();
+
+    expect(result.items.map((item) => item.id)).toEqual(['local-t3', 'local-t2', 'id-b', 'local-t1', 'id-a']);
+    expect(result.totalCount).toBe(5);
+  });
+
+  it('listTournaments sorts local rows into the server order, not after it', async () => {
+    const cache = cacheStub();
+    cache.readYearsMeta = vi.fn(async () => freshYearsMeta([{ year: 2025, locked: true, tournamentCount: 1 }]));
+    cache.readAllYearPartitions = vi.fn(async () => [yearPartition(2025, [serverTournament('id-a', '2025-06-01')])]);
+    const local = localStub({ tournaments: [serverTournament('local-t1', '2025-07-01')] });
+    const { repo } = build({ cache, local });
+
+    expect((await repo.listTournaments()).items[0].id).toBe('local-t1');
+  });
+
+  it('listSeasonTournaments answers a browser-local Season without truncation', async () => {
+    const local = localStub({
+      tournaments: [serverTournament('local-t1', '2026-06-06', 'local-abc'), serverTournament('local-t2', '2026-05-05', 'local-abc')]
+    });
+    const archiveSeasonTournaments = vi.fn(() => of(catalogOf([])));
+    const { repo } = build({ client: { archiveSeasonTournaments }, local });
+
+    const result = await repo.listSeasonTournaments({ id: 'local-abc', firstTournamentDate: '2026-05-05', lastTournamentDate: '2026-06-06' });
+
+    expect(archiveSeasonTournaments).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ fromCache: true, truncated: false });
+    expect(result.items.every((item) => item.isLocal)).toBe(true);
+  });
+
+  it('listSeasonTournaments never joins a local Tournament into a server Season', async () => {
+    const cache = cacheStub();
+    cache.readYearsMeta = vi.fn(async () => freshYearsMeta([{ year: 2026, locked: false, tournamentCount: 1 }]));
+    const local = localStub({ tournaments: [serverTournament('local-t1', '2026-02-02', 'local-abc')] });
+    const archiveSeasonTournaments = vi.fn(() => of(catalogOf([serverTournament('id-a', '2026-02-02', 'server-1')])));
+    const { repo } = build({ cache, client: { archiveSeasonTournaments }, local });
+
+    const result = await repo.listSeasonTournaments({ id: 'server-1', firstTournamentDate: '2026-01-05', lastTournamentDate: '2026-06-06' });
+
+    expect(result.items.map((item) => item.id)).toEqual(['id-a']);
+    expect(result.items.some((item) => item.isLocal)).toBe(false);
+  });
+
+  it('listSeasonTournaments reports the read-through truncation', async () => {
+    const cache = cacheStub();
+    cache.readYearsMeta = vi.fn(async () => freshYearsMeta([{ year: 2026, locked: false, tournamentCount: 1 }]));
+    const archiveSeasonTournaments = vi.fn(() => of(catalogOf([serverTournament('id-a', '2026-02-02', 'server-1')], 9, true)));
+    const { repo } = build({ cache, client: { archiveSeasonTournaments } });
+
+    const result = await repo.listSeasonTournaments({ id: 'server-1', firstTournamentDate: '2026-01-05', lastTournamentDate: '2026-06-06' });
+
+    expect(result).toMatchObject({ fromCache: false, truncated: true });
   });
 });

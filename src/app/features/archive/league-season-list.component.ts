@@ -1,7 +1,7 @@
 import { Component, OnDestroy, Signal, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Params, Router, RouterLink } from '@angular/router';
-import { ArchiveRepository } from '../../data/archive-repository.service';
+import { ArchiveLeagueRow, ArchiveLeagueSeasonRow, ArchiveRepository } from '../../data/archive-repository.service';
 import { ArchiveLeagueSeasonSummary, ArchiveLeagueSummary, isLeagueSeasonRowLocked } from '../../data/archive-summary';
 import { LeagueStatus } from '../../domain/archive-models';
 import { I18nService } from '../../i18n/i18n.service';
@@ -104,6 +104,8 @@ export interface LeagueSeasonRow {
   firstTournamentDate: string | null;
   lastTournamentDate: string | null;
   locked: boolean;
+  /** This row lives in `gones-archive-local`. Display only — the lock keys on the id, not on this. */
+  isLocal: boolean;
 }
 
 /** Fixed locale so the order is a property of the code, not of the reader's browser. `numeric` puts
@@ -165,10 +167,13 @@ export function toggleLeagueSeasonSort(query: LeagueSeasonQuery, key: LeagueSeas
   return { ...query, sort: key, dir, page: 1 };
 }
 
-/** Joins the two catalogs and derives the lock. Pure; `now` is injectable for the tests. */
+/**
+ * Joins the two catalogs and derives the lock. Pure; `now` is injectable for the tests. Accepts rows
+ * from either authority: `isLocal` is optional so a bare wire summary is still assignable.
+ */
 export function buildLeagueSeasonRows(
-  seasons: readonly ArchiveLeagueSeasonSummary[],
-  leagues: readonly ArchiveLeagueSummary[],
+  seasons: readonly (ArchiveLeagueSeasonSummary & { isLocal?: boolean })[],
+  leagues: readonly (ArchiveLeagueSummary & { isLocal?: boolean })[],
   now: Date = new Date()
 ): LeagueSeasonRow[] {
   const names = new Map(leagues.map((league) => [league.id, league.name]));
@@ -178,7 +183,9 @@ export function buildLeagueSeasonRows(
     // Every Tournament of the Season is locked exactly when its LATEST one is, because the latest
     // one locks last. A Season with no Tournament has nothing to lock and stays editable, and so
     // does a browser-authored one — `isLeagueSeasonRowLocked` is the single definition of both.
-    locked: isLeagueSeasonRowLocked(season, now)
+    // Deriving the lock from `isLocal` here would be a second rule that could drift from the first.
+    locked: isLeagueSeasonRowLocked(season, now),
+    isLocal: season.isLocal ?? false
   }));
 }
 
@@ -314,6 +321,7 @@ function compareOrdinal(left: string, right: string): number {
 
       @if (error()) { <p class="error" role="alert" data-cy="archive-seasons-error">{{ error() }}</p> }
       @if (truncated()) { <p class="warning" role="status" data-cy="archive-seasons-truncated">{{ i18n.t('archive.truncatedSeasons', { shown: seasons().length }) }}</p> }
+      @if (hasLocalRows()) { <p class="archive-local-notice" role="status" data-cy="archive-seasons-local-notice">{{ i18n.t('archive.localNotice') }}</p> }
 
       <div class="archive-status-line" data-cy="archive-seasons-status-line">
         <span aria-live="polite" data-cy="archive-seasons-page-status">{{ i18n.t('archive.pageStatus', { page: currentPage(), total: totalPages(), count: totalRows() }) }}</span>
@@ -368,6 +376,9 @@ function compareOrdinal(left: string, right: string): number {
                       <span class="archive-name-row" [attr.data-cy]="'archive-seasons-name-row-' + row.id">
                         <button type="button" class="archive-expand" [attr.aria-expanded]="isSeasonExpanded(row.id)" [attr.aria-controls]="seasonChildrenRowId(row.id)" [attr.aria-label]="expandLabel(row)" [attr.data-cy]="'archive-seasons-expand-' + row.id" (click)="$event.stopPropagation(); toggleSeasonExpansion(row)">▸</button>
                         <a class="archive-name-link" [routerLink]="['/archive/league-seasons', row.id]" [attr.aria-label]="i18n.t('archive.openSeasonAria', { name: row.name })" [attr.data-cy]="'archive-seasons-link-' + row.id" (click)="$event.stopPropagation()">{{ row.name }}</a>
+                        @if (row.isLocal) {
+                          <span class="archive-local-badge" [attr.title]="i18n.t('archive.localBadgeTitle')" [attr.data-cy]="'archive-seasons-local-badge-' + row.id">{{ i18n.t('archive.localBadge') }}</span>
+                        }
                       </span>
                       <span class="archive-sub" [attr.data-cy]="'archive-seasons-league-' + row.id">{{ leagueLabel(row) }}</span>
                     </span>
@@ -401,7 +412,9 @@ function compareOrdinal(left: string, right: string): number {
                       } @else {
                         @for (child of expandedChildren(); track child.id) {
                           <a class="archive-child-line" [routerLink]="['/archive/tournaments', child.id]" [attr.data-cy]="'archive-seasons-child-' + child.id" (click)="$event.stopPropagation()">
-                            <b [attr.data-cy]="'archive-seasons-child-name-' + child.id">{{ child.name }}</b><span class="archive-child-separator" aria-hidden="true" [attr.data-cy]="'archive-seasons-child-separator-' + child.id">·</span><span class="archive-child-meta" [attr.data-cy]="'archive-seasons-child-meta-' + child.id">{{ childLine(child) }}</span>
+                            <b [attr.data-cy]="'archive-seasons-child-name-' + child.id">{{ child.name }}</b>@if (child.isLocal) {
+                              <span class="archive-local-badge" [attr.title]="i18n.t('archive.localBadgeTitle')" [attr.data-cy]="'archive-seasons-child-local-' + child.id">{{ i18n.t('archive.localBadge') }}</span>
+                            }<span class="archive-child-separator" aria-hidden="true" [attr.data-cy]="'archive-seasons-child-separator-' + child.id">·</span><span class="archive-child-meta" [attr.data-cy]="'archive-seasons-child-meta-' + child.id">{{ childLine(child) }}</span>
                           </a>
                         } @empty {
                           <span class="archive-child-placeholder" [attr.data-cy]="'archive-seasons-child-empty-' + row.id">{{ i18n.t('archiveSeason.noTournaments') }}</span>
@@ -515,8 +528,8 @@ export class LeagueSeasonListComponent implements OnDestroy {
   readonly stale = signal(false);
   readonly truncated = signal(false);
   readonly syncedAt = signal<string | undefined>(undefined);
-  readonly seasons = signal<ArchiveLeagueSeasonSummary[]>([]);
-  readonly leagues = signal<ArchiveLeagueSummary[]>([]);
+  readonly seasons = signal<ArchiveLeagueSeasonRow[]>([]);
+  readonly leagues = signal<ArchiveLeagueRow[]>([]);
   readonly searchDraft = signal('');
   private readonly routeParams = signal<{ get(key: string): string | null } | null>(null);
 
@@ -538,6 +551,8 @@ export class LeagueSeasonListComponent implements OnDestroy {
   readonly pagedRows: Signal<LeagueSeasonRow[]>;
   /** True when at least one filter is active, which selects the "nothing matched" empty message. */
   readonly filtered: Signal<boolean>;
+  /** At least one row of this list lives in this browser — the ADR 0028 notice is rendered only then. */
+  readonly hasLocalRows: Signal<boolean>;
   /** What the "nothing matched" message quotes: the search term, or the filtered League's name. */
   readonly filterLabel: Signal<string>;
 
@@ -557,6 +572,7 @@ export class LeagueSeasonListComponent implements OnDestroy {
       const start = (this.currentPage() - 1) * this.query().size;
       return this.sortedRows().slice(start, start + this.query().size);
     });
+    this.hasLocalRows = computed(() => this.rows().some((row) => row.isLocal));
     this.filtered = computed(() => this.query().search !== '' || this.query().league !== ALL_LEAGUES);
     this.filterLabel = computed(() =>
       this.query().search || this.leagues().find((league) => league.id === this.query().league)?.name || '');

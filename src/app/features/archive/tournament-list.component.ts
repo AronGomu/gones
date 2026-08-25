@@ -94,38 +94,20 @@ export interface ArchiveTournamentTabSource {
   listSeasonLeagueNames(): Promise<ReadonlyMap<string, string>>;
 }
 
-/**
- * The calendar year a row belongs to, or `null` when its date is not a `YYYY-MM-DD`. A row whose date
- * will not parse has no year to belong to, so it is dropped rather than filed under the wrong one —
- * the parser upstream only checks that the value is a string.
- */
-export function archiveRowYear(row: Pick<ArchiveTournamentRow, 'tournamentDate'>): number | null {
-  const match = /^(\d{4})-\d{2}-\d{2}$/.exec(row.tournamentDate);
-  return match ? Number(match[1]) : null;
-}
-
-/** The rows of one calendar year. Order preserved. */
-export function rowsForYear(rows: readonly ArchiveTournamentRow[], year: number): ArchiveTournamentRow[] {
-  return rows.filter((row) => archiveRowYear(row) === year);
-}
-
 function archiveTournamentTabSourceFactory(): ArchiveTournamentTabSource {
   const repo = inject(ArchiveRepository);
   return {
+    // Unioned: a year only a browser-local Tournament occupies is offered too (ADR 0028).
     listYears: () => repo.listYears(),
-    // The year partition is the repository's fetch unit, not a second read path: `listTournaments`
-    // already backfills every due year through the single queue, and the tab renders one of them.
+    // One year at a time, and the union is the repository's job: this returns the server partition
+    // for `year` plus the browser-local Tournaments bucketed into `year`. The bucketing rule lives
+    // there once, and it is total — an undated browser-local row is filed, never dropped.
     loadYear: async (year, force = false) => {
-      const catalog = await repo.listTournaments({ force });
-      const items = rowsForYear(catalog.items, year);
-      const serverRows = items.filter((row) => !row.isLocal).length;
-      // `tournamentCount` is the server's uncapped count for the year, so a capped year shows up as
-      // fewer server rows than the index says it holds.
-      const indexed = (await repo.listYears()).find((entry) => entry.year === year)?.tournamentCount ?? serverRows;
+      const catalog = await repo.listTournaments({ force, year });
       return {
-        items,
-        totalCount: indexed + (items.length - serverRows),
-        truncated: serverRows < indexed,
+        items: catalog.items,
+        totalCount: catalog.totalCount,
+        truncated: catalog.truncated,
         syncedAt: catalog.fetchedAt,
         stale: catalog.stale
       };
@@ -340,6 +322,7 @@ function compareOrdinal(left: string, right: string): number {
 
       @if (error()) { <p class="error" role="alert" data-cy="archive-tournaments-error">{{ error() }}</p> }
       @if (truncated()) { <p class="warning" role="status" data-cy="archive-tournaments-truncated">{{ truncationMessage() }}</p> }
+      @if (hasLocalRows()) { <p class="archive-local-notice" role="status" data-cy="archive-tournaments-local-notice">{{ localNotice() }}</p> }
 
       <div class="archive-status-line" data-cy="archive-tournaments-status-line">
         <span aria-live="polite" data-cy="archive-tournaments-page-status">{{ i18n.t('archiveTournaments.pageStatus', { page: currentPage(), total: totalPages(), count: totalRows() }) }}</span>
@@ -388,6 +371,9 @@ function compareOrdinal(left: string, right: string): number {
                   <td [attr.data-cy]="'archive-tournaments-cell-name-' + row.id">
                     <span class="archive-two-line" [attr.data-cy]="'archive-tournaments-name-' + row.id">
                       <a class="archive-name-link" [routerLink]="['/archive/tournaments', row.id]" [attr.aria-label]="i18n.t('archiveTournaments.openAria', { name: row.name })" [attr.data-cy]="'archive-tournaments-link-' + row.id">{{ row.name }}</a>
+                      @if (row.isLocal) {
+                        <span class="archive-local-badge" [attr.title]="i18n.t('archive.localBadgeTitle')" [attr.data-cy]="'archive-tournaments-local-badge-' + row.id">{{ i18n.t('archive.localBadge') }}</span>
+                      }
                       <span class="archive-sub" [attr.data-cy]="'archive-tournaments-league-' + row.id">{{ leagueNameOf(row) }}</span>
                     </span>
                   </td>
@@ -503,6 +489,10 @@ export class TournamentListComponent implements OnDestroy {
   readonly pagedRows: Signal<ArchiveTournamentRow[]>;
   readonly yearOptions: Signal<ArchiveYearEntry[]>;
   readonly emptyArchive: Signal<boolean>;
+  /** At least one row on this page lives in this browser — the ADR 0028 notice is rendered only then. */
+  readonly hasLocalRows: Signal<boolean>;
+  /** A shown browser-local row whose date is not a `YYYY-MM-DD`, and so was bucketed by the clock. */
+  readonly localUndatedShown: Signal<boolean>;
 
   constructor() {
     this.filteredRows = computed(() =>
@@ -516,6 +506,9 @@ export class TournamentListComponent implements OnDestroy {
       const start = (this.currentPage() - 1) * this.query().size;
       return this.sortedRows().slice(start, start + this.query().size);
     });
+    this.hasLocalRows = computed(() => this.pagedRows().some((row) => row.isLocal));
+    this.localUndatedShown = computed(() =>
+      this.pagedRows().some((row) => row.isLocal && !/^\d{4}-\d{2}-\d{2}$/.test(row.tournamentDate)));
     /** Newest first: the year a reader wants is almost always the last one played. */
     this.yearOptions = computed(() => [...this.years()].sort((left, right) => right.year - left.year));
     this.emptyArchive = computed(() => !this.loading() && !this.error() && this.years().length === 0);
@@ -593,6 +586,16 @@ export class TournamentListComponent implements OnDestroy {
 
   statusLabel(row: ArchiveTournamentRow): string {
     return this.i18n.t(row.status === 'completed' ? 'archive.tournamentCompleted' : 'archive.tournamentActive');
+  }
+
+  /**
+   * The ADR 0028 notice, plus the bucketing sentence only while an undated browser-local row is on
+   * screen: without it that record appears in a year it was never played in, with no explanation.
+   */
+  localNotice(): string {
+    const notice = this.i18n.t('archive.localNotice');
+    if (!this.localUndatedShown()) return notice;
+    return `${notice} ${this.i18n.t('archive.localUndated', { year: this.query().year ?? '' })}`;
   }
 
   truncationMessage(): string {

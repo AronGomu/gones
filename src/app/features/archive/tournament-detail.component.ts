@@ -95,6 +95,10 @@ function archiveTournamentDetailSourceFactory(): ArchiveTournamentDetailSource {
     // A Tournament document is not catalog data: it is the read-through, never-cached half of the
     // archive, so it comes straight off the route instead of through the catalog cache.
     getTournament: async (tournamentId) => {
+      // ADR 0028: origin is encoded in the id, and a `local-` row is never sent to a server — not
+      // even to be asked for. The repository already picks its port from the prefix, so this routes
+      // through it rather than opening the browser store a second time.
+      if (isLocalArchiveId(tournamentId)) return (await repo.getTournament(tournamentId)) ?? undefined;
       try {
         const raw = await firstValueFrom(client.archiveTournamentDetail(tournamentId));
         return {

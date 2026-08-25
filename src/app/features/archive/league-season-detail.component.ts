@@ -20,6 +20,8 @@ export interface SeasonTournamentsPage {
   readonly items: readonly ArchiveTournamentRow[];
   /** true ⇒ served from IndexedDB or the browser-local store; no request was made. */
   readonly fromCache: boolean;
+  /** The server half's row cap. A cache-served or browser-local answer is never truncated. */
+  readonly truncated: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ export const ARCHIVE_SEASON_SOURCE = new InjectionToken<ArchiveSeasonSource>('AR
 export interface SeasonTournamentsRead {
   readonly origin: 'cache' | 'server';
   readonly items: readonly ArchiveTournamentRow[];
+  readonly truncated: boolean;
 }
 
 export type SeasonExpansionState =
@@ -80,7 +83,7 @@ export async function readSeasonTournaments(
   source: SeasonTournamentsSource
 ): Promise<SeasonTournamentsRead> {
   const page = await source.listSeasonTournaments(season);
-  return { origin: page.fromCache ? 'cache' : 'server', items: [...page.items] };
+  return { origin: page.fromCache ? 'cache' : 'server', items: [...page.items], truncated: page.truncated };
 }
 
 /**
@@ -100,6 +103,9 @@ export async function readSeasonTournaments(
     @if (season(); as row) {
       <section class="page-heading" data-cy="archive-season-heading">
         <h1 data-cy="archive-season-title">{{ row.name }}</h1>
+        @if (season()?.isLocal) {
+          <span class="archive-local-badge" [attr.title]="i18n.t('archive.localBadgeTitle')" data-cy="archive-season-local-badge">{{ i18n.t('archive.localBadge') }}</span>
+        }
         <p class="archive-season-league" data-cy="archive-season-league">{{ leagueLabel() }}</p>
         <p class="archive-season-badges" data-cy="archive-season-badges">
           <span class="status" [class.completed]="row.status === 'completed'" data-cy="archive-season-status"><span class="status-dot" aria-hidden="true" data-cy="archive-season-status-dot"></span>{{ statusLabel() }}</span>
@@ -120,7 +126,9 @@ export async function readSeasonTournaments(
           } @else {
             @for (child of tournaments(); track child.id) {
               <a class="archive-child-line" [routerLink]="['/archive/tournaments', child.id]" [attr.data-cy]="'archive-season-tournament-' + child.id">
-                <b [attr.data-cy]="'archive-season-tournament-name-' + child.id">{{ child.name }}</b><span class="archive-child-separator" aria-hidden="true" [attr.data-cy]="'archive-season-tournament-separator-' + child.id">·</span><span class="archive-child-meta" [attr.data-cy]="'archive-season-tournament-meta-' + child.id">{{ childLine(child) }}</span>
+                <b [attr.data-cy]="'archive-season-tournament-name-' + child.id">{{ child.name }}</b>@if (child.isLocal) {
+                  <span class="archive-local-badge" [attr.title]="i18n.t('archive.localBadgeTitle')" [attr.data-cy]="'archive-season-tournament-local-' + child.id">{{ i18n.t('archive.localBadge') }}</span>
+                }<span class="archive-child-separator" aria-hidden="true" [attr.data-cy]="'archive-season-tournament-separator-' + child.id">·</span><span class="archive-child-meta" [attr.data-cy]="'archive-season-tournament-meta-' + child.id">{{ childLine(child) }}</span>
                 @if (isLocked(child)) {
                   <span class="archive-lock" role="img" [attr.aria-label]="i18n.t('archiveSeason.tournamentLocked')" [attr.data-cy]="'archive-season-tournament-lock-' + child.id">🔒</span>
                 }

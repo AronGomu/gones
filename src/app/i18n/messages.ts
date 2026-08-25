@@ -1395,6 +1395,12 @@ const en = {
   'archiveEdit.invalidSave': 'The server refused these changes. Check the Tournament data and try again.',
   'archiveEdit.saveFailed': 'Could not save this Tournament.',
   'archiveEdit.lockedNotice': 'Locked — this Tournament was played more than 365 days ago and can no longer be edited.',
+
+  // Archive dual-source markers (ADR 0028)
+  'archive.localBadge': 'Local only',
+  'archive.localBadgeTitle': 'Stored in this browser only — never sent to the server',
+  'archive.localNotice': 'Records you create while signed out are stored in this browser only. They are never sent to the server, and clearing site data deletes them. Export is the backup.',
+  'archive.localUndated': 'Undated Tournaments created in this browser are listed under {year}.',
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -2774,6 +2780,12 @@ const fr: Record<MessageKey, string> = {
   'archiveEdit.invalidSave': 'Le serveur a refusé ces modifications. Vérifiez les données du tournoi et réessayez.',
   'archiveEdit.saveFailed': 'Impossible d’enregistrer ce tournoi.',
   'archiveEdit.lockedNotice': 'Verrouillé — ce tournoi a été joué il y a plus de 365 jours et ne peut plus être modifié.',
+
+  // Archive dual-source markers (ADR 0028)
+  'archive.localBadge': 'Local uniquement',
+  'archive.localBadgeTitle': 'Stocké uniquement dans ce navigateur — jamais envoyé au serveur',
+  'archive.localNotice': 'Les enregistrements créés hors connexion sont stockés uniquement dans ce navigateur. Ils ne sont jamais envoyés au serveur et effacer les données du site les supprime. L’export est la sauvegarde.',
+  'archive.localUndated': 'Les tournois sans date créés dans ce navigateur sont listés sous {year}.',
 };
 
 export const catalogs: Record<SettingsLanguage, Record<MessageKey, string>> = {

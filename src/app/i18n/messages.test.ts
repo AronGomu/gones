@@ -38,6 +38,21 @@ describe('messages', () => {
     expect(translate('fr', 'home.calendar')).toBe('Événements');
   });
 
+  it('en local badge is Local only', () => {
+    expect(translate('en', 'archive.localBadge')).toBe('Local only');
+  });
+
+  it('fr local badge is Local uniquement', () => {
+    expect(translate('fr', 'archive.localBadge')).toBe('Local uniquement');
+  });
+
+  it('the local notice says the browser is the only copy in both languages', () => {
+    // ADR 0028's stated consequence: clearing site data destroys these records, and the list page
+    // is where the reader is told so.
+    expect(translate('en', 'archive.localNotice')).toMatch(/this browser only/);
+    expect(translate('fr', 'archive.localNotice')).toMatch(/uniquement dans ce navigateur/);
+  });
+
   it('no french label still says mondial', () => {
     // "Classement Mondial" was renamed to "Classement Global". An exact-equality guard let the aria,
     // pagination and error strings keep the old word, which a screen reader reads out loud on a table

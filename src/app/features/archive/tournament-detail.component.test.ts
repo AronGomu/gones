@@ -175,6 +175,26 @@ describe('toResultInput', () => {
 });
 
 describe('archived tournament detail page', () => {
+  it('reads a browser-local Tournament from the browser store, and never puts its id on the wire', () => {
+    // ADR 0028: a `local-` id lives in this browser and is never sent to a server. Without the guard
+    // the detail route issues `GET /api/archive/tournaments/local-…`, which leaks the id and then
+    // renders not-found on the 404 — the row is listed in both tabs but cannot be opened.
+    const factory = source.slice(
+      source.indexOf('function archiveTournamentDetailSourceFactory'),
+      source.indexOf('export const ARCHIVE_TOURNAMENT_DETAIL_SOURCE')
+    );
+    const guard = factory.indexOf('isLocalArchiveId(tournamentId)');
+    const wire = factory.indexOf('client.archiveTournamentDetail(tournamentId)');
+
+    expect(guard, 'the browser-local guard').toBeGreaterThan(-1);
+    expect(wire, 'the server read').toBeGreaterThan(-1);
+    // The guard returns BEFORE the wire call, which is the whole invariant.
+    expect(guard).toBeLessThan(wire);
+    // Routed through the repository, which already picks its port from the id prefix — not a second
+    // reader of `gones-archive-local`.
+    expect(factory).toContain('repo.getTournament(tournamentId)');
+  });
+
   it('computes the ranking from the document', async () => {
     const page = build();
     await page.load();

@@ -25,10 +25,8 @@ import {
   ArchiveTournamentTabSource,
   ArchiveYearRows,
   TournamentListComponent,
-  archiveRowYear,
   archiveTournamentQueryParams,
   filterArchiveTournamentRows,
-  rowsForYear,
   parseArchiveTournamentQuery,
   sortArchiveTournamentRows,
   toggleArchiveTournamentSort
@@ -263,7 +261,10 @@ describe('tournaments tab', () => {
   it('renders the league line as a real element even when it is empty', () => {
     const nameStack = source.slice(source.indexOf('archive-tournaments-name-'), source.indexOf('archive-tournaments-dates-'));
     expect(nameStack).toContain('class="archive-sub"');
-    expect(nameStack).not.toContain('@if');
+    // The League sub-line is never guarded. The one conditional the name cell carries is the
+    // browser-local badge, which is about the row's authority, not about the line's height.
+    expect(nameStack.match(/@if/g)).toHaveLength(1);
+    expect(nameStack).toContain('@if (row.isLocal) {');
   });
 
   it('marks a locked row and leaves a row played exactly 365 days ago unmarked', async () => {
@@ -306,13 +307,13 @@ describe('tournaments tab', () => {
     expect(new Set([...first, ...second]).size).toBe(30);
   });
 
-  it('drops a row whose date is malformed rather than filing it under a wrong year', () => {
-    // `tournamentDate` is only checked to be a string upstream, so junk can reach a row. It belongs
-    // to no year and must not be counted into the displayed one.
-    const rows = [row({ id: 'good' }), row({ id: 'junk', tournamentDate: 'not-a-date' }), row({ id: 'empty', tournamentDate: '' })];
-    expect(rowsForYear(rows, 2026).map((item) => item.id)).toEqual(['good']);
-    expect(archiveRowYear(row({ tournamentDate: 'not-a-date' }))).toBe(null);
-    expect(rowsForYear(rows, Number.NaN)).toEqual([]);
+  it('asks the repository for one year and re-derives no year rule of its own', () => {
+    // The bucketing rule is `archiveTournamentYear` in the repository, and it is total: an undated
+    // browser-local Tournament falls into the current UTC year rather than being dropped. A second
+    // rule here would file that record under no year at all.
+    expect(source).toContain('repo.listTournaments({ force, year })');
+    expect(source).not.toContain('rowsForYear');
+    expect(source).not.toContain('archiveRowYear');
   });
 
   it('resets the page when the search changes', async () => {
@@ -355,5 +356,108 @@ describe('tournaments tab', () => {
   it('carries both back buttons', () => {
     expect(source).toContain('position="top"');
     expect(source).toContain('position="bottom"');
+  });
+});
+
+describe('tournaments tab — browser-local rows (ADR 0028)', () => {
+  const localRow = (overrides: Partial<ArchiveTournamentRow> = {}) =>
+    row({ id: 'local-1', name: 'Kitchen Table', isLocal: true, ...overrides });
+
+  it('offers a year only a browser-local Tournament occupies', async () => {
+    const { component } = build({
+      query: 'year=2019',
+      years: [{ year: 2025, locked: true, tournamentCount: 3 }, { year: 2019, locked: false, tournamentCount: 1 }]
+    });
+    await settle();
+
+    expect(component.yearOptions().map((option) => option.year)).toEqual([2025, 2019]);
+  });
+
+  it('renders exactly the year the repository unioned, with no second filter of its own', async () => {
+    const rows = [row({ id: 't-1', tournamentDate: '2025-06-01' }), localRow({ tournamentDate: '2025-07-01' })];
+    const { component, loadYear } = build({
+      query: 'year=2025',
+      years: [{ year: 2025, locked: false, tournamentCount: 1 }, { year: 2019, locked: false, tournamentCount: 1 }],
+      rows
+    });
+    await settle();
+
+    expect(loadYear).toHaveBeenCalledTimes(1);
+    expect(loadYear).toHaveBeenCalledWith(2025, false);
+    expect(component.rows().map((item) => item.id)).toEqual(['t-1', 'local-1']);
+  });
+
+  it('searches a browser-local Tournament beside a server one', async () => {
+    const { component } = build({
+      query: 'year=2026&search=kitchen',
+      rows: [row({ id: 't-1', name: 'Grand Prix' }), localRow()]
+    });
+    await settle();
+
+    expect(component.pagedRows().map((item) => item.id)).toEqual(['local-1']);
+  });
+
+  it('sorts a browser-local Tournament among the server rows', async () => {
+    const { component } = build({
+      query: 'year=2026',
+      rows: [row({ id: 't-1', tournamentDate: '2025-06-01' }), localRow({ tournamentDate: '2025-07-01' })]
+    });
+    await settle();
+
+    expect(component.pagedRows()[0].id).toBe('local-1');
+  });
+
+  it('counts a browser-local Tournament in the pager and reaches it on page 2', async () => {
+    const rows = [
+      ...Array.from({ length: 25 }, (_, index) => row({ id: `t-${index}`, tournamentDate: '2026-02-14' })),
+      localRow({ tournamentDate: '2019-01-01' })
+    ];
+    const first = build({ query: 'year=2026', rows });
+    const second = build({ query: 'year=2026&page=2', rows });
+    await settle();
+
+    expect(first.component.totalRows()).toBe(26);
+    expect(first.component.totalPages()).toBe(2);
+    expect(first.component.pagedRows().some((item) => item.isLocal)).toBe(false);
+    expect(second.component.pagedRows().map((item) => item.id)).toEqual(['local-1']);
+  });
+
+  it('holds a local row only when one is on the page', async () => {
+    const serverOnly = build({ query: 'year=2026' });
+    const withLocal = build({ query: 'year=2026', rows: [localRow()] });
+    await settle();
+
+    expect(serverOnly.component.hasLocalRows()).toBe(false);
+    expect(withLocal.component.hasLocalRows()).toBe(true);
+  });
+
+  it('explains the undated bucket only while an undated local row is shown', async () => {
+    const undated = build({ query: 'year=2026', rows: [localRow({ tournamentDate: '' })] });
+    const dated = build({ query: 'year=2026', rows: [localRow()] });
+    await settle();
+
+    expect(undated.component.localNotice()).toBe(
+      `${translate('en', 'archive.localNotice')} ${translate('en', 'archive.localUndated', { year: 2026 })}`);
+    expect(undated.component.localNotice()).toContain('2026');
+    expect(dated.component.localNotice()).toBe(translate('en', 'archive.localNotice'));
+  });
+
+  it('never locks a browser-local row it renders', async () => {
+    const { component } = build({ query: 'year=2026', rows: [localRow({ tournamentDate: '1990-01-01' })] });
+    await settle();
+
+    expect(component.isLocked(component.pagedRows()[0])).toBe(false);
+  });
+
+  it('badges a browser-local row in the name cell, and only there', () => {
+    expect(source.match(/data-cy\]="'archive-tournaments-local-badge-/g)).toHaveLength(1);
+    const nameCell = source.slice(source.indexOf(`'archive-tournaments-cell-name-'`), source.indexOf(`'archive-tournaments-dates-'`));
+    expect(nameCell).toContain(`'archive-tournaments-local-badge-'`);
+    expect(nameCell).toContain('@if (row.isLocal) {');
+  });
+
+  it('renders the local notice only when the page holds a local row', () => {
+    expect(source).toContain('@if (hasLocalRows()) {');
+    expect(source).toContain('data-cy="archive-tournaments-local-notice"');
   });
 });

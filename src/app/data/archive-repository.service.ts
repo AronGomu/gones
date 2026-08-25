@@ -59,6 +59,8 @@ export interface ArchiveSeasonTournamentsResult {
   items: ArchiveTournamentRow[];
   /** true ⇒ served from IndexedDB or from the browser-local store; no request was made. */
   fromCache: boolean;
+  /** The server half's row cap. A cache-served or browser-local answer is never truncated. */
+  truncated: boolean;
 }
 
 /** The runtime JSON, not the generated typing: NodaTime fields arrive as ISO strings. */
@@ -109,6 +111,36 @@ export function compareArchiveTournamentRows(left: ArchiveTournamentSummary, rig
   if (left.tournamentDate !== right.tournamentDate) return left.tournamentDate < right.tournamentDate ? 1 : -1;
   if (left.id === right.id) return 0;
   return left.id < right.id ? -1 : 1;
+}
+
+/**
+ * The calendar year a Tournament row belongs to on Tab 2. A browser-local Tournament may carry an
+ * empty `tournamentDate` — `createTournament` stores `String(tournamentDate ?? '')` — and a record
+ * the user authored must never become unreachable, so an unusable date is bucketed into the current
+ * UTC year rather than dropped.
+ */
+export function archiveTournamentYear(row: Pick<ArchiveTournamentSummary, 'tournamentDate'>, now: Date = new Date()): number {
+  return /^\d{4}-\d{2}-\d{2}$/.test(row.tournamentDate)
+    ? Number(row.tournamentDate.slice(0, 4))
+    : now.getUTCFullYear();
+}
+
+/**
+ * The years index, unioned. A browser-local Tournament adds its own year to the index and adds to
+ * that year's count, but NEVER changes a server year's `locked` flag: `locked` describes the server's
+ * rows and drives `classifyArchiveYear`, and a local row is never cached, so it cannot make a cached
+ * partition stale. A year only browser-local Tournaments occupy is `locked: false` and has no server
+ * partition to read.
+ */
+export function mergeLocalArchiveYears(server: readonly ArchiveYearEntry[], localYears: readonly number[]): ArchiveYearEntry[] {
+  const counts = new Map<number, number>();
+  for (const year of localYears) counts.set(year, (counts.get(year) ?? 0) + 1);
+  const merged: ArchiveYearEntry[] = server.map((entry) => ({ ...entry, tournamentCount: entry.tournamentCount + (counts.get(entry.year) ?? 0) }));
+  const known = new Set(server.map((entry) => entry.year));
+  for (const [year, count] of counts) {
+    if (!known.has(year)) merged.push({ year, locked: false, tournamentCount: count });
+  }
+  return merged.sort((left, right) => left.year - right.year);
 }
 
 const toStatus = (value: string): LeagueStatus => (value === 'completed' ? 'completed' : 'active');
@@ -174,24 +206,42 @@ export class ArchiveRepository {
     }, options.force === true);
   }
 
-  /** Ascending by year. Served from the `meta` snapshot only while it carries today's UTC day. */
+  /**
+   * Ascending by year, and unioned: a year only a browser-local Tournament occupies is in the index
+   * too, `locked: false`. Served from the `meta` snapshot only while it carries today's UTC day.
+   */
   async listYears(options: { force?: boolean } = {}): Promise<ArchiveYearEntry[]> {
-    return (await this.loadYears(options)).years;
+    const localYears = (await this.readLocal(() => this.local.listArchiveTournamentSummaries())).map((row) => archiveTournamentYear(row));
+    try {
+      return mergeLocalArchiveYears((await this.loadYears(options)).years, localYears);
+    } catch (error) {
+      // A browser-local Tournament is authority data: it must stay reachable when the server is not.
+      if (localYears.length === 0) throw error;
+      return mergeLocalArchiveYears([], localYears);
+    }
   }
 
-  /** Backfills every missing or stale year, then serves every cached partition plus local rows. */
-  async listTournaments(options: { force?: boolean } = {}): Promise<ArchiveCatalogResult<ArchiveTournamentRow>> {
-    const localRows = await this.readLocal(() => this.local.listArchiveTournamentSummaries());
+  /**
+   * Backfills every missing or stale year, then serves the cached partitions plus the local rows.
+   * `year` absent ⇒ every indexed year, as before. `year` present ⇒ exactly that year: its server
+   * partition plus the browser-local Tournaments played in it.
+   */
+  async listTournaments(options: { force?: boolean; year?: number } = {}): Promise<ArchiveCatalogResult<ArchiveTournamentRow>> {
+    const localRows = (await this.readLocal(() => this.local.listArchiveTournamentSummaries()))
+      .filter((row) => options.year === undefined || archiveTournamentYear(row) === options.year);
     const loaded = await this.loadYearsOrDegrade(options);
     let stale = loaded.stale;
     let fromCache = loaded.fromCache;
+    // A year the SERVER index does not hold exists only because a browser-local Tournament falls in
+    // it, so nothing is enqueued for it and no request is made.
+    const selected = options.year === undefined ? loaded.years : loaded.years.filter((entry) => entry.year === options.year);
 
-    let partitions = await this.cache.readAllYearPartitions();
+    let partitions = await this.readPartitions(options.year);
     // A years index that came from the offline fallback cannot say which years are locked, so running
     // the queue off it would refetch the whole archive on every load. Serve what is stored instead.
     if (!loaded.unavailable && !stale) {
       const cached = new Map(partitions.map((partition) => [partition.year, partition]));
-      const due = loaded.years
+      const due = selected
         .filter((entry) => options.force === true || classifyArchiveYear(cached.get(entry.year), entry) !== 'fresh')
         .map((entry) => entry.year);
       if (due.length > 0) {
@@ -199,7 +249,7 @@ export class ArchiveRepository {
         const report = await this.queue.drain((year) => this.loadYearPage(year));
         if (report.failed.length > 0) stale = true;
         fromCache = false;
-        partitions = await this.cache.readAllYearPartitions();
+        partitions = await this.readPartitions(options.year);
       }
     }
     if (loaded.unavailable && partitions.length === 0 && localRows.length === 0) throw loaded.error;
@@ -228,12 +278,15 @@ export class ArchiveRepository {
       const tournaments = await this.readLocal(() => this.local.listArchiveTournamentSummaries());
       return {
         items: tournaments.filter((item) => item.seasonId === season.id).map((item) => tag(item, true)).sort(compareArchiveTournamentRows),
-        fromCache: true
+        fromCache: true,
+        truncated: false
       };
     }
     const years = archiveYearRange(season.firstTournamentDate, season.lastTournamentDate);
-    if (years.length === 0) return { items: [], fromCache: true };
-    const index = new Map((await this.listYears()).map((entry) => [entry.year, entry]));
+    if (years.length === 0) return { items: [], fromCache: true, truncated: false };
+    // The SERVER index, not the unioned one: this decides whether the server's own partitions may
+    // answer for a server Season, and a browser-local year has no say in that.
+    const index = new Map((await this.loadYears({})).years.map((entry) => [entry.year, entry]));
     const partitions = await Promise.all(years.map((year) => this.cache.readYearPartition(year)));
     // Cached, complete AND locked for every year the Season spans — anything less and a row could
     // have changed since the partition was taken, so the server answers instead.
@@ -245,7 +298,8 @@ export class ArchiveRepository {
           .filter((item) => item.seasonId === season.id)
           .map((item) => tag(item, false))
           .sort(compareArchiveTournamentRows),
-        fromCache: true
+        fromCache: true,
+        truncated: false
       };
     }
     // Deliberately not cached: caching it here would make a second writer of the year store and
@@ -253,7 +307,8 @@ export class ArchiveRepository {
     const response = await firstValueFrom(this.client.archiveSeasonTournaments(season.id));
     return {
       items: (response.items ?? []).map((raw) => tag(toTournamentRow(raw), false)).sort(compareArchiveTournamentRows),
-      fromCache: false
+      fromCache: false,
+      truncated: response.truncated ?? false
     };
   }
 
@@ -376,6 +431,13 @@ export class ArchiveRepository {
       if (snapshot) return { years: snapshot.years.map((entry) => ({ ...entry, locked: false })), stale: true, fromCache: true };
       throw error;
     }
+  }
+
+  /** The server partitions in scope. The whole index ⇒ every stored partition, exactly as before. */
+  private async readPartitions(year: number | undefined): Promise<ArchiveYearPartition[]> {
+    if (year === undefined) return this.cache.readAllYearPartitions();
+    const partition = await this.cache.readYearPartition(year);
+    return isArchiveYearPartitionComplete(partition) ? [partition] : [];
   }
 
   private async loadYearPage(year: number): Promise<ArchiveYearPage> {

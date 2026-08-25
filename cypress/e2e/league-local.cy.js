@@ -1,11 +1,16 @@
 /**
- * Browser-local League Archive (ADR 0028).
+ * The browser-local half of the Archive (ADR 0028), on the new `/archive/**` routes.
  *
- * Signed out, so it costs zero auth permits: the refresh call is stubbed 401 and never leaves the
- * browser. Every League Archive API call is stubbed 401 too and recorded, so the whole flow below —
- * create a league, a tournament, a round and an entry — proves the local path depends on the server
- * for nothing at all. The reload at the end is the IndexedDB proof.
+ * What this spec proves: a record authored in this browser is unioned into Tab 1 and Tab 2 beside
+ * the server's rows, is badged `Local only`, is never locked whatever its date, is bucketed into its
+ * own calendar year, stays listed when the whole archive API answers 401 — and never, ever reaches
+ * the public catalog cache `gones-archive-cache`, which a purge is allowed to delete.
+ *
+ * Signed out throughout, so it costs zero auth permits: the refresh call is stubbed 401 and never
+ * leaves the browser.
  */
+const LOCAL_ARCHIVE_DB_NAME = 'gones-archive-local';
+const ARCHIVE_CACHE_DB_NAME = 'gones-archive-cache';
 const LOCAL_LEAGUE_DB_NAME = 'gones-leagues';
 
 function seedSettings(win) {
@@ -29,69 +34,279 @@ function visit(path, { clearLocalStore = false } = {}) {
   cy.reload();
 }
 
-const profile = {
-  id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', email: 'organizer@example.test', emailVerified: true, globalRole: 'Organizer',
-  username: 'organizer-user', firstName: 'Organizer', lastName: 'User', preferredLanguage: 'en', isFirstNamePublic: false,
-  isLastNamePublic: false, isLocationPublic: false, isBirthYearPublic: false, isPreferredLanguagePublic: false
-};
-
-const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00Z' };
-
-/** The same League as the slim catalog sees it (ADR 0042): two denormalized counts, no documents. */
-const serverLeagueSummary = {
-  id: serverLeague.id, name: serverLeague.name, status: serverLeague.status,
-  updatedAt: serverLeague.updatedAt, documentVersion: serverLeague.documentVersion,
-  tournamentCount: 0, playerCount: 0
-};
-
-/**
- * The list reads the whole archive in one catalog request (ADR 0039); a detail page still reads one.
- * `/all` and `/all/documents` are stubbed apart (ADR 0042) so the list page gets summary rows and
- * only the Settings export ever sees a document body.
- */
-function stubServerLeagueReads() {
-  cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague).as('leagueDetail');
-  cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, { items: [serverLeague], totalCount: 1, truncated: false }).as('leagueDocuments');
-  cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeagueSummary], totalCount: 1, truncated: false }).as('leagueList');
-}
-
-function stubSignedIn(globalRole) {
-  cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'memory-token', expiresAt: '2030-01-01T01:00:00Z', tokenType: 'Bearer' }).as('refresh');
-  cy.intercept('GET', '**/api/users/me', { ...profile, globalRole }).as('profile');
-}
-
-/**
- * Create one browser-local league, signed out — the only way one can be born (ADR 0028). Dialog
- * contents are asserted with `exist`, not `be.visible`: Material's open animation leaves the
- * container at opacity 0 under headless Electron, which Cypress reads as hidden while still allowing
- * the click.
- */
-function createLocalLeague(name) {
-  cy.get('[data-cy="leagues-archive-list-create-button"]').click();
-  cy.contains('mat-dialog-container', 'New League').should('exist').within(() => {
-    cy.get('input').type(name);
-    cy.contains('button', 'Create League').click();
-  });
-  cy.location('pathname').should('match', /^\/leagues-archive\/local-.+$/);
-}
-
-/** Read the browser store directly — the spec's stand-in for DevTools → Application → IndexedDB. */
-function readLocalLeagueRows() {
-  return cy.window().then((win) => new Cypress.Promise((resolve, reject) => {
-    const open = win.indexedDB.open(LOCAL_LEAGUE_DB_NAME);
+/** Write the three browser-local stores directly. Seeding the authority is what this spec is about —
+ *  not how a record got there, which is the editing UI's own coverage. */
+function seedLocalArchive(win, { leagues = [], leagueSeasons = [], tournaments = [] }) {
+  return new Cypress.Promise((resolve, reject) => {
+    const open = win.indexedDB.open(LOCAL_ARCHIVE_DB_NAME, 1);
+    open.onupgradeneeded = () => {
+      for (const store of ['leagues', 'league-seasons', 'tournaments']) {
+        if (!open.result.objectStoreNames.contains(store)) open.result.createObjectStore(store, { keyPath: 'id' });
+      }
+    };
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
-      const rows = open.result.transaction('leagues', 'readonly').objectStore('leagues').getAll();
-      rows.onsuccess = () => { open.result.close(); resolve(rows.result); };
-      rows.onerror = () => { open.result.close(); reject(rows.error); };
+      const database = open.result;
+      const transaction = database.transaction(['leagues', 'league-seasons', 'tournaments'], 'readwrite');
+      for (const row of leagues) transaction.objectStore('leagues').put(row);
+      for (const row of leagueSeasons) transaction.objectStore('league-seasons').put(row);
+      for (const row of tournaments) transaction.objectStore('tournaments').put(row);
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
     };
-  }));
+  });
 }
 
+/** Both archive databases dropped, whatever their current state. A blocked delete resolves too: the
+ *  next `open` recreates the stores anyway, and a hung promise here would fail every test. */
+function dropArchiveDatabases(win) {
+  const names = [LOCAL_ARCHIVE_DB_NAME, ARCHIVE_CACHE_DB_NAME];
+  return Cypress.Promise.all(names.map((name) => new Cypress.Promise((resolve) => {
+    const request = win.indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    request.onblocked = () => resolve();
+  })));
+}
+
+/** Every row of every `gones-archive-cache` store, for the purity assertion. Resolves `[]` when the
+ *  database was never created — a browser that cached nothing has cached nothing local either. */
+function readArchiveCacheRows(win) {
+  return new Cypress.Promise((resolve, reject) => {
+    const open = win.indexedDB.open(ARCHIVE_CACHE_DB_NAME);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const database = open.result;
+      const stores = [...database.objectStoreNames];
+      if (!stores.length) { database.close(); resolve([]); return; }
+      const rows = [];
+      const transaction = database.transaction(stores, 'readonly');
+      for (const store of stores) {
+        const request = transaction.objectStore(store).getAll();
+        request.onsuccess = () => rows.push(...request.result);
+      }
+      transaction.oncomplete = () => { database.close(); resolve(rows); };
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+    };
+  });
+}
+
+/** A deterministic start: both archive databases dropped, then the browser-local authority seeded. */
+function visitArchive(path, { seed = {} } = {}) {
+  cy.visit(path, {
+    onBeforeLoad: (win) => {
+      seedSettings(win);
+      return dropArchiveDatabases(win).then(() => seedLocalArchive(win, seed));
+    }
+  });
+  cy.window().then((win) => seedSettings(win));
+  cy.reload();
+}
+
+const localLeague = {
+  id: 'local-league-1', name: 'Browser League', createdAt: '2026-08-01T00:00:00Z',
+  documentVersion: 1, updatedAt: '2026-08-01T00:00:00Z'
+};
+
+const localSeason = {
+  id: 'local-season-1', name: 'Browser Season', leagueId: 'local-league-1', status: 'active',
+  documentVersion: 1, updatedAt: '2026-08-01T00:00:00Z'
+};
+
+const localTournament = (id, name, tournamentDate) => ({
+  id, name, seasonId: 'local-season-1', tournamentDate, status: 'completed',
+  rounds: [], playerArchetypes: [], documentVersion: 1, updatedAt: '2026-08-01T00:00:00Z'
+});
+
+const LOCAL_SEED = {
+  leagues: [localLeague],
+  leagueSeasons: [localSeason],
+  tournaments: [
+    localTournament('local-t-1', 'Kitchen Table 2025', '2025-02-02'),
+    localTournament('local-t-2', 'Kitchen Table 2019', '2019-05-04'),
+    localTournament('local-t-old', 'Kitchen Table 1990', '1990-01-01')
+  ]
+};
+
+const serverLeagueRow = {
+  id: 'srv-league-1', name: 'Server League', createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-02T00:00:00Z', documentVersion: 1
+};
+
+const serverSeasonRow = {
+  id: 'srv-season-1', name: 'Server Season', leagueId: 'srv-league-1', status: 'active',
+  updatedAt: '2026-01-02T00:00:00Z', documentVersion: 1, tournamentCount: 1, playerCount: 4,
+  firstTournamentDate: '2025-03-03', lastTournamentDate: '2025-03-03'
+};
+
+const serverTournamentRow = (id, name, tournamentDate) => ({
+  id, name, seasonId: 'srv-season-1', tournamentDate, status: 'completed',
+  updatedAt: '2026-01-02T00:00:00Z', documentVersion: 1, playerCount: 4
+});
+
+const catalog = (items) => ({ items, totalCount: items.length, truncated: false });
+
 /**
- * The player page reads `GET /api/players/{playerName}` (ADR 0039 read model) and never downloads a
- * League document. Browser-local leagues can only ever reach it through the client-side merge, so
- * the server half is stubbed with one match nobody in this browser has.
+ * Every archive read the two tabs make, answered from a fixture and recorded. `years` knows only the
+ * server's rows — 2019 and 1990 are reachable only because this browser holds a Tournament in them.
+ */
+function stubArchiveApi(recorded, { years = [{ year: 2025, locked: false, tournamentCount: 1 }] } = {}) {
+  cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
+  const record = (req) => recorded.push(req.url);
+  cy.intercept('GET', '**/api/archive/leagues/all', (req) => { record(req); req.reply(catalog([serverLeagueRow])); }).as('leagueCatalog');
+  cy.intercept('GET', '**/api/archive/league-seasons/all', (req) => { record(req); req.reply(catalog([serverSeasonRow])); }).as('seasonCatalog');
+  cy.intercept('GET', '**/api/archive/years', (req) => { record(req); req.reply({ years }); }).as('years');
+  cy.intercept('GET', '**/api/archive/tournaments/all*', (req) => {
+    record(req);
+    const year = new URL(req.url).searchParams.get('year');
+    const rows = year === '1990'
+      ? [serverTournamentRow('srv-t-old', 'Server Day 1990', '1990-01-01')]
+      : [serverTournamentRow('srv-t-1', 'Server Day 2025', '2025-03-03')];
+    req.reply(catalog(year === '2025' || year === '1990' ? rows : []));
+  }).as('yearCatalog');
+  cy.intercept('GET', /\/api\/archive\/league-seasons\/[^/]+\/tournaments/, (req) => {
+    record(req);
+    req.reply(catalog([serverTournamentRow('srv-t-1', 'Server Day 2025', '2025-03-03')]));
+  }).as('seasonTournaments');
+}
+
+/** Every archive read refused, recorded, so "the local half still renders" is a real assertion. */
+function stubArchiveApiUnavailable(recorded) {
+  cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
+  cy.intercept(/\/api\/archive\//, (req) => {
+    recorded.push(req.url);
+    req.reply({ statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } });
+  }).as('archiveApi');
+}
+
+describe('Archive browser-local union (ADR 0028)', () => {
+  beforeEach(() => cy.viewport(1280, 800));
+
+  it('lists browser-local Seasons and Tournaments beside server ones in both tabs', () => {
+    const recorded = [];
+    stubArchiveApi(recorded);
+
+    visitArchive('/archive/league-seasons', { seed: LOCAL_SEED });
+
+    // Tab 1: two Seasons, one grid, different write rules — and only the browser one is badged.
+    cy.get('[data-cy="archive-seasons-row-local-season-1"]').should('exist')
+      .find('[data-cy="archive-seasons-local-badge-local-season-1"]').should('contain.text', 'Local only');
+    cy.get('[data-cy="archive-seasons-row-srv-season-1"]').should('exist');
+    cy.get('[data-cy="archive-seasons-local-badge-srv-season-1"]').should('not.exist');
+    cy.get('[data-cy="archive-seasons-local-notice"]').should('contain.text', 'this browser only');
+    cy.get('[data-cy="archive-seasons-error"]').should('not.exist');
+    // The browser League is offered as a filter beside the server one: it is a catalog row too.
+    cy.get('[data-cy="archive-seasons-league-option-local-league-1"]').should('exist');
+
+    visitArchive('/archive/tournaments', { seed: LOCAL_SEED });
+
+    // Tab 2 resolves the newest indexed year, which the union puts at 2025.
+    cy.get('[data-cy="archive-tournaments-row-local-t-1"]').should('exist')
+      .find('[data-cy="archive-tournaments-local-badge-local-t-1"]').should('contain.text', 'Local only');
+    cy.get('[data-cy="archive-tournaments-row-srv-t-1"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-local-badge-srv-t-1"]').should('not.exist');
+    cy.get('[data-cy="archive-tournaments-local-notice"]').should('contain.text', 'this browser only');
+    cy.get('[data-cy="archive-tournaments-error"]').should('not.exist');
+  });
+
+  it('never locks a browser-local record however old it is', () => {
+    const recorded = [];
+    stubArchiveApi(recorded, {
+      years: [{ year: 1990, locked: true, tournamentCount: 1 }, { year: 2025, locked: false, tournamentCount: 1 }]
+    });
+
+    visitArchive('/archive/tournaments?year=1990', { seed: LOCAL_SEED });
+
+    // Same date, same table, opposite verdicts: the lock keys on the `local-` id prefix.
+    cy.get('[data-cy="archive-tournaments-row-srv-t-old"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-lock-srv-t-old"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-row-local-t-old"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-lock-local-t-old"]').should('not.exist');
+  });
+
+  it('keeps browser-local records out of the public catalog cache', () => {
+    const recorded = [];
+    stubArchiveApi(recorded);
+
+    visitArchive('/archive/league-seasons', { seed: LOCAL_SEED });
+    cy.get('[data-cy="archive-seasons-expand-local-season-1"]').click();
+    cy.get('[data-cy="archive-seasons-child-local-t-1"]').should('exist');
+    cy.visit('/archive/tournaments');
+    cy.get('[data-cy="archive-tournaments-row-local-t-1"]').should('exist');
+
+    // The load-bearing invariant: the cache is a cache and may be purged; the local store is an
+    // authority and may not. Nothing browser-authored is ever written into the former.
+    cy.window().then((win) => readArchiveCacheRows(win)).then((rows) => {
+      expect(rows.length, 'the public catalog cache was populated').to.be.greaterThan(0);
+      const serialised = JSON.stringify(rows);
+      expect(serialised, 'no browser-local id in gones-archive-cache').not.to.contain('local-');
+      expect(serialised, 'no isLocal field in gones-archive-cache').not.to.contain('isLocal');
+    });
+  });
+
+  it('buckets a browser-local Tournament under its own year', () => {
+    const recorded = [];
+    stubArchiveApi(recorded);
+
+    visitArchive('/archive/tournaments?year=2025', { seed: LOCAL_SEED });
+
+    // 2019 is in the index only because this browser holds a Tournament played in it.
+    cy.get('[data-cy="archive-tournaments-year-option-2019"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-row-local-t-1"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-row-local-t-2"]').should('not.exist');
+
+    cy.visit('/archive/tournaments?year=2019');
+    cy.get('[data-cy="archive-tournaments-row-local-t-2"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-row-local-t-1"]').should('not.exist');
+    // A local-only year has no server partition to fetch, so it costs no request.
+    cy.then(() => {
+      expect(recorded.filter((url) => url.includes('year=2019')), 'requests for the local-only year').to.have.length(0);
+    });
+  });
+
+  it('survives a fully unavailable archive API', () => {
+    const recorded = [];
+    stubArchiveApiUnavailable(recorded);
+
+    visitArchive('/archive/league-seasons', { seed: LOCAL_SEED });
+
+    cy.get('[data-cy="archive-seasons-row-local-season-1"]').should('exist');
+    cy.get('[data-cy="archive-seasons-error"]').should('not.exist');
+
+    cy.visit('/archive/tournaments');
+    cy.get('[data-cy="archive-tournaments-row-local-t-1"]').should('exist');
+    cy.get('[data-cy="archive-tournaments-error"]').should('not.exist');
+
+    cy.get('@archiveApi.all').then((calls) => {
+      expect(calls.length, 'archive requests made').to.be.greaterThan(0);
+      for (const call of calls) expect(call.response.statusCode, `response to ${call.request.url}`).to.eq(401);
+    });
+  });
+
+  it('expands a browser-local Season without making a request', () => {
+    const recorded = [];
+    stubArchiveApi(recorded);
+
+    visitArchive('/archive/league-seasons', { seed: LOCAL_SEED });
+    cy.get('[data-cy="archive-seasons-expand-local-season-1"]').click();
+
+    // Its own store answers: a `local-` Season has no server half, and asking would 404 forever.
+    cy.get('[data-cy="archive-seasons-child-local-t-1"]').should('exist')
+      .find('[data-cy="archive-seasons-child-local-local-t-1"]').should('contain.text', 'Local only');
+    cy.get('[data-cy="archive-seasons-child-local-t-2"]').should('exist');
+    cy.then(() => {
+      const asked = recorded.filter((url) => /\/api\/archive\/league-seasons\/local-[^/]+\/tournaments/.test(url));
+      expect(asked, 'read-through requests for a browser-local Season').to.have.length(0);
+    });
+  });
+});
+
+/**
+ * The legacy browser-local League Archive — retires with the legacy pages.
+ *
+ * This one exercises `gones-leagues` and the `/leagues-archive` pages, not `gones-archive-local` and
+ * `/archive/**`. No ticket in this plan has re-pointed the player page at the new store, so deleting
+ * this coverage now would drop a proved capability with nothing replacing it.
  */
 const serverPlayerPayload = {
   statistics: {
@@ -118,228 +333,21 @@ function stubSignedOut(leagueApiCalls) {
 }
 
 /**
- * Capture what `saveJsonFile` hands to the browser. The export builds a Blob and clicks an anchor,
- * so stubbing `URL.createObjectURL` reads the artifact without waiting on a real download.
+ * Create one browser-local league, signed out — the only way one can be born (ADR 0028). Dialog
+ * contents are asserted with `exist`, not `be.visible`: Material's open animation leaves the
+ * container at opacity 0 under headless Electron, which Cypress reads as hidden while still allowing
+ * the click.
  */
-function captureDownloads() {
-  cy.window().then((win) => {
-    win.__gonesDownloads = [];
-    const original = win.URL.createObjectURL.bind(win.URL);
-    cy.stub(win.URL, 'createObjectURL').callsFake((blob) => {
-      win.__gonesDownloads.push(blob);
-      return original(blob);
-    });
+function createLocalLeague(name) {
+  cy.get('[data-cy="leagues-archive-list-create-button"]').click();
+  cy.contains('mat-dialog-container', 'New League').should('exist').within(() => {
+    cy.get('input').type(name);
+    cy.contains('button', 'Create League').click();
   });
+  cy.location('pathname').should('match', /^\/leagues-archive\/local-.+$/);
 }
 
-/** The text of the first captured download, as a Cypress subject. */
-function readCapturedDownload() {
-  return cy.window().its('__gonesDownloads.0').then((blob) => new Cypress.Promise((resolve, reject) => blob.text().then(resolve, reject)));
-}
-
-/** Delete one league through the header menu, the only delete affordance a local league has. */
-function deleteLeague(name) {
-  visit('/leagues-archive');
-  cy.contains('[data-cy="leagues-archive-list-item"]', name).click();
-  cy.get('[data-cy="app-league-actions-trigger"]').click();
-  cy.get('[data-cy="app-delete-league-button"]').click();
-  cy.get('[data-cy="confirm-dialog-confirm"]').click();
-  cy.location('pathname').should('eq', '/leagues-archive');
-}
-
-/** No error banner from any surface — the local path must never look like a failure to the user. */
-function assertNoErrorBanner() {
-  cy.get('[data-cy="leagues-archive-list-error"]').should('not.exist');
-  cy.get('[data-cy="leagues-archive-detail-error"]').should('not.exist');
-  cy.get('[data-cy="app-import-error-banner"]').should('not.exist');
-}
-
-describe('League Archive browser-local flows', () => {
-  it('creates and fills a league entirely in the browser and survives a reload', () => {
-    cy.viewport(1280, 800);
-
-    const leagueApiCalls = [];
-    stubSignedOut(leagueApiCalls);
-
-    visit('/leagues-archive', { clearLocalStore: true });
-
-    // The notice explains the store, and the create affordance is offered even though the visitor
-    // has no account at all.
-    cy.get('[data-cy="leagues-archive-local-notice"]').should('be.visible');
-    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
-    // A rejected server read is raised, not swallowed, and never shown as a failure.
-    cy.get('[data-cy="leagues-archive-server-unavailable"]').should('be.visible');
-    assertNoErrorBanner();
-
-    createLocalLeague('Local League');
-    cy.contains('h1', 'Local League').should('be.visible');
-    assertNoErrorBanner();
-
-    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
-    cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
-
-    cy.get('[data-cy="tournament-archive-detail-edit"]').click();
-    cy.get('[data-cy="tournament-archive-detail-add-round"]').click();
-    cy.contains('mat-expansion-panel', 'Round 1').find('mat-expansion-panel-header').click();
-    cy.get('[data-cy="tournament-archive-detail-add-match"]').click();
-    cy.get('[data-cy="tournament-archive-detail-round-entry-row"]').should('have.length', 1);
-
-    cy.get('[data-cy="tournament-archive-detail-match-player1-input"]').clear().type('Alice');
-    cy.get('[data-cy="tournament-archive-detail-match-player1-score-input"]').clear().type('2');
-    cy.get('[data-cy="tournament-archive-detail-match-player2-input"]').clear().type('Bob');
-    cy.get('[data-cy="tournament-archive-detail-match-player2-score-input"]').clear().type('0');
-    cy.document().trigger('keydown', { key: 's', code: 'KeyS', ctrlKey: true, force: true });
-    cy.get('[data-cy="confirm-dialog-confirm"]').click();
-    cy.get('[data-cy="tournament-archive-detail-edit"]').should('exist');
-    cy.get('[data-cy="ranking-table"]').should('contain', 'Alice').and('contain', 'Bob');
-
-    // Everything above is in IndexedDB, not in a signal: a full reload brings it all back.
-    cy.reload();
-    cy.get('[data-cy="tournament-archive-detail-round-entry-row"]').should('have.length', 1);
-    cy.get('[data-cy="tournament-archive-detail-match-player1-input"]').should('have.value', 'Alice');
-    cy.get('[data-cy="ranking-table"]').should('contain', 'Alice').and('contain', 'Bob');
-
-    // The literal store check: a `gones-leagues` database exists and holds the whole document.
-    readLocalLeagueRows().then((rows) => {
-      const stored = rows.filter((row) => row.name === 'Local League');
-      expect(stored, 'gones-leagues rows named Local League').to.have.length(1);
-      expect(stored[0].id, 'stored league id').to.match(/^local-/);
-      expect(stored[0].tournaments[0].rounds[0].entries[0].player1Name).to.eq('Alice');
-    });
-
-    // Back on the list, the league is there and badged as living in this browser only.
-    visit('/leagues-archive');
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Local League').should('exist')
-      .find('[data-cy="leagues-archive-list-item-local-badge"]').should('exist');
-    // The counts a browser-local League has no server to ask for: derived here from the one
-    // Tournament and the one Alice-vs-Bob match entered above (ADR 0042).
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Local League')
-      .find('[data-cy="leagues-archive-list-item-meta"]')
-      .should('have.text', '1 Tournament · 2 Players');
-    assertNoErrorBanner();
-
-    // The negative assertion the whole spec exists for: every League Archive request the app made
-    // was answered 401, and none of them was needed.
-    cy.then(() => {
-      for (const url of leagueApiCalls) expect(url, 'stubbed League Archive request').to.match(/\/api\/leagues-archive/);
-    });
-    cy.get('@leagueApi.all').then((calls) => {
-      for (const call of calls) expect(call.response.statusCode, `response to ${call.request.url}`).to.eq(401);
-    });
-  });
-
-  it('merges a readable server league into the list and refuses to move a tournament across the boundary', () => {
-    cy.viewport(1280, 800);
-
-    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
-    // Catch-all first, the two reads after it: later intercepts win in Cypress, so every *write* to
-    // the server is still refused while the merged list has something server-side to show.
-    cy.intercept(/\/api\/leagues-archive/, { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('leagueApi');
-    stubServerLeagueReads();
-
-    visit('/leagues-archive', { clearLocalStore: true });
-
-    // Two leagues, one grid, different write rules — and only the browser one is badged.
-    cy.get('[data-cy="leagues-archive-server-unavailable"]').should('not.exist');
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').should('exist')
-      .find('[data-cy="leagues-archive-list-item-local-badge"]').should('not.exist');
-    // Both halves of the merged list print the same meta line, one from the server's denormalized
-    // counts and one computed in this browser (ADR 0042) — the page cannot tell them apart.
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League')
-      .find('[data-cy="leagues-archive-list-item-meta"]')
-      .should('have.text', '0 Tournaments · 0 Players');
-    // A server league nobody signed in can manage is what the read-only notice is about.
-    cy.get('[data-cy="leagues-archive-list-read-only"]').should('exist');
-
-    createLocalLeague('Browser League');
-    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
-    cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
-
-    cy.get('[data-cy="tournament-archive-detail-edit"]').click();
-    cy.get('[data-cy="tournament-archive-detail-league-select"]').click();
-    cy.contains('mat-option', 'Server League').should('not.exist');
-    cy.get('body').type('{esc}');
-
-    // No cross-authority target can be staged; the tournament stays in its browser League.
-    cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
-    cy.get('[data-cy="tournament-archive-detail-cancel-edit"]').click();
-  });
-
-  it('exports both browser leagues and imports them back into an emptied browser', () => {
-    cy.viewport(1280, 800);
-
-    const leagueApiCalls = [];
-    stubSignedOut(leagueApiCalls);
-
-    visit('/leagues-archive', { clearLocalStore: true });
-
-    for (const name of ['Export League A', 'Export League B']) {
-      createLocalLeague(name);
-      cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
-      cy.location('pathname').should('match', /^\/leagues-archive\/local-[^/]+\/tournaments-archive\/[^/]+$/);
-      visit('/leagues-archive');
-    }
-
-    // The import affordance is offered to a visitor with no account at all (ADR 0028).
-    cy.get('[data-cy="app-leagues-import-button"]').should('exist');
-
-    captureDownloads();
-    cy.get('[data-cy="app-full-data-export-button"]').click();
-    readCapturedDownload().then((text) => {
-      const bundle = JSON.parse(text);
-      expect(bundle.kind, 'export kind').to.eq('fullData');
-      // Both browser leagues are in the file, and neither placeholder is: the bucket is not a league.
-      // Scoped by name rather than by count: Cypress keeps the previous test's page alive, so its
-      // `deleteDatabase` can be blocked and leave that test's league in this browser.
-      const names = bundle.leagues.map((league) => league.name);
-      expect(names, 'exported league names').to.include('Export League A').and.to.include('Export League B');
-      expect(bundle.leagues.every((league) => league.id.startsWith('local-')), 'every exported id is browser-local').to.eq(true);
-      expect(text, 'no placeholder league in the bundle').not.to.contain('placeholder-league');
-      cy.wrap(text).as('exportedBundle');
-    });
-
-    deleteLeague('Export League A');
-    deleteLeague('Export League B');
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Export League').should('not.exist');
-
-    cy.get('@exportedBundle').then((text) => {
-      cy.get('[data-cy="header-import-input"]').selectFile(
-        { contents: Cypress.Buffer.from(text), fileName: 'gones-full-data.gones.json', mimeType: 'application/json' },
-        { force: true }
-      );
-    });
-    // The import lands in the browser store, so it navigates to a `local-` league, not a server one.
-    cy.location('pathname').should('match', /^\/leagues-archive\/local-.+$/);
-    assertNoErrorBanner();
-
-    visit('/leagues-archive');
-    for (const name of ['Export League A', 'Export League B']) {
-      cy.contains('[data-cy="leagues-archive-list-item"]', name).should('exist')
-        .find('[data-cy="leagues-archive-list-item-local-badge"]').should('exist');
-    }
-
-    // The tournaments came back with them, in the browser store and nowhere else. Restore is
-    // additive and uniquifies names, so a leftover league from a blocked `deleteDatabase` (see the
-    // comment above) turns into an extra `X (restored)` row: a fixed row count would assert the
-    // leftovers, not the restore. The intent is that both exported leagues are back, browser-local,
-    // and each carries its one tournament.
-    readLocalLeagueRows().then((rows) => {
-      const restored = rows.filter((row) => row.name.startsWith('Export League'));
-      const restoredNames = restored.map((row) => row.name);
-      for (const name of ['Export League A', 'Export League B']) {
-        expect(restoredNames, 'restored gones-leagues rows').to.include(name);
-      }
-      for (const row of restored) {
-        expect(row.id, 'restored league id').to.match(/^local-/);
-        expect(row.tournaments, `tournaments of ${row.name}`).to.have.length(1);
-      }
-    });
-
-    cy.get('@leagueApi.all').then((calls) => {
-      for (const call of calls) expect(call.response.statusCode, `response to ${call.request.url}`).to.eq(401);
-    });
-  });
-
+describe('Legacy browser-local League Archive — retires with the legacy pages', () => {
   it('folds this browser\u2019s matches into the player page only while Online-only is off', () => {
     cy.viewport(1280, 800);
 
@@ -406,62 +414,5 @@ describe('League Archive browser-local flows', () => {
     cy.get('@leagueCallsBeforePlayerPage').then((before) => {
       expect(leagueApiCalls.length, 'League Archive requests made from the player page').to.eq(before);
     });
-  });
-
-  it('shows an Admin both stores in one list, each still writable', () => {
-    cy.viewport(1280, 800);
-
-    // The browser league has to be born signed out — an Admin creating one writes the server.
-    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
-    cy.intercept(/\/api\/leagues-archive/, { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('leagueApi');
-    visit('/leagues-archive', { clearLocalStore: true });
-    createLocalLeague('Browser League');
-    cy.location().then((location) => cy.wrap(location.pathname).as('localLeaguePath'));
-
-    stubSignedIn('Admin');
-    stubServerLeagueReads();
-    visit('/leagues-archive');
-
-    // One heterogeneous grid: the server's league and this browser's, and only the local one badged.
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').find('[data-cy="leagues-archive-list-item-local-badge"]').should('not.exist');
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Browser League').find('[data-cy="leagues-archive-list-item-local-badge"]').should('exist');
-    // Nothing in the list is read-only for an Admin.
-    cy.get('[data-cy="leagues-archive-list-read-only"]').should('not.exist');
-
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').click();
-    cy.get('[data-cy="leagues-archive-detail-editable-title"]').should('exist');
-    cy.get('[data-cy="leagues-archive-detail-read-only"]').should('not.exist');
-
-    cy.get('@localLeaguePath').then((path) => visit(path));
-    cy.get('[data-cy="leagues-archive-detail-editable-title"]').should('exist');
-    cy.get('[data-cy="leagues-archive-detail-read-only"]').should('not.exist');
-  });
-
-  it('keeps server leagues read-only for a plain user while their own browser leagues stay editable', () => {
-    cy.viewport(1280, 800);
-
-    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
-    cy.intercept(/\/api\/leagues-archive/, { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('leagueApi');
-    visit('/leagues-archive', { clearLocalStore: true });
-    createLocalLeague('Browser League');
-    cy.location().then((location) => cy.wrap(location.pathname).as('localLeaguePath'));
-
-    stubSignedIn('User');
-    stubServerLeagueReads();
-    visit('/leagues-archive');
-
-    // The read-only notice is about the server rows only — the create button is still offered.
-    cy.get('[data-cy="leagues-archive-list-read-only"]').should('exist');
-    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
-
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').click();
-    cy.get('[data-cy="leagues-archive-detail-read-only"]').should('exist');
-    cy.get('[data-cy="leagues-archive-detail-editable-title"]').should('not.exist');
-    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').should('not.exist');
-
-    cy.get('@localLeaguePath').then((path) => visit(path));
-    cy.get('[data-cy="leagues-archive-detail-editable-title"]').should('exist');
-    cy.get('[data-cy="leagues-archive-detail-read-only"]').should('not.exist');
-    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').should('exist');
   });
 });
