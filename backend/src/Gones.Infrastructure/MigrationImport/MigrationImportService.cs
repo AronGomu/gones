@@ -135,12 +135,20 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
         // resolutions and the verifier all key on. Its Tournaments become their own rows beneath it.
         foreach (var league in plan.LeaguesToCreate)
         {
+            ArchiveTournamentDocument[] documents = [.. league.Tournaments.Select(tournament => ArchiveDocument(tournament, league.Id))];
+            var season = ArchiveLeagueSeason.Create(league.Id, LeagueTierId(league.Id), league.Name, league.Status, now);
             database.ArchiveLeagues.Add(ArchiveLeague.Create(LeagueTierId(league.Id), league.Name, now));
-            database.ArchiveLeagueSeasons.Add(ArchiveLeagueSeason.Create(league.Id, LeagueTierId(league.Id), league.Name, league.Status, now));
-            foreach (var tournament in league.Tournaments)
+            database.ArchiveLeagueSeasons.Add(season);
+            foreach (var document in documents)
             {
-                database.ArchiveTournaments.Add(ArchiveTournament.Create(ArchiveDocument(tournament, league.Id), now));
+                database.ArchiveTournaments.Add(ArchiveTournament.Create(document, now));
             }
+
+            // The same counters a Tournament command would leave behind, from the same formula, inside
+            // the import's own transaction. Nothing else would ever write them: the only other callers of
+            // RefreshCatalogCounts are the two Tournament command paths, so a Season imported at zero
+            // prints zero and expands to nothing until one of its Tournaments is edited through the API.
+            season.RefreshCatalogCounts(ArchiveCatalogCounts.ForSeason(league.Id, documents));
         }
 
         // No League, no Season: the fixed placeholder row they used to merge into is retired.

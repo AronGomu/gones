@@ -513,6 +513,33 @@ describe('GlobalStatsComponent — scope filter', () => {
     expect(client.mock.calls[0][1]).toBe('S1');
   });
 
+  /**
+   * ADR 0028: a `local-` id lives in this browser's IndexedDB and has no meaning on the wire. A
+   * scope the picker offers is a scope the picker can send, so a browser-local row must never reach
+   * either select.
+   */
+  it('never offers a browser-local League or Season as a scope', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), {}, {
+      leagues: [...LEAGUES, { ...leagueSummary('local-a1', 'Draft League'), isLocal: true }],
+      seasons: [...SEASONS, { ...seasonSummary('local-b2', 'Draft Season', 'local-a1'), isLocal: true }],
+    });
+    await vi.waitFor(() => expect(comp.leagues().length).toBeGreaterThan(0));
+
+    expect(comp.leagues().map((league) => league.id)).toEqual(['L1', 'L2']);
+    expect(comp.seasons().map((season) => season.id)).toEqual(['S1', 'S2', 'S9']);
+  });
+
+  /** The Season select reads `seasonOptions()`, so the filter has to survive that derivation too. */
+  it('keeps a browser-local Season out of the Season options of its own League', async () => {
+    const { comp } = buildComponent(rankingsResponse([]), { league: 'L1' }, {
+      leagues: LEAGUES,
+      seasons: [...SEASONS, { ...seasonSummary('local-b2', 'Draft Season', 'L1'), isLocal: true }],
+    });
+    await vi.waitFor(() => expect(comp.seasons().length).toBeGreaterThan(0));
+
+    expect(comp.seasonOptions().map((season) => season.id)).toEqual(['S1', 'S2']);
+  });
+
   /** D2: the URL says `dir`, the wire keeps the server's own `direction`. */
   it('sends the URL direction under the wire name', async () => {
     const { client } = buildComponent(rankingsResponse([]), { sort: 'matchWins', dir: 'asc' });

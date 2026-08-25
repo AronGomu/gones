@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Gones.Api.Archive;
 using Gones.Api.Leagues;
 using Gones.Application.Migration;
+using Gones.Domain.Archive;
 using Gones.Domain.Catalog;
 using Gones.Domain.Organizations;
 using Gones.Infrastructure.Identity;
@@ -151,6 +152,38 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         Assert.Equal(1, await verify.Events.CountAsync(item => item.Slug == "summer-cup"));
         Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(record => record.Scope == MigrationImportService.IdempotencyScope));
         Assert.Equal(1, await verify.AuditRecords.CountAsync(record => record.Action == "migration.import"));
+    }
+
+    /// <summary>
+    /// An imported Season owns the same four denormalized counters a commanded one does, computed in the
+    /// import's own transaction. Nothing else ever repairs them: the only callers of
+    /// <c>RefreshCatalogCounts</c> are the two Tournament command paths, so a Season left at zero stays
+    /// at zero until one of its Tournaments is written through the API. The two dates are the sharp end
+    /// — the browser reads them to pick which cached year partitions may serve the Season expansion, and
+    /// a null pair is an empty year set, which is an expansion that answers nothing without ever asking
+    /// the server.
+    /// </summary>
+    [Fact]
+    public async Task An_imported_Season_carries_the_counters_its_catalog_row_prints()
+    {
+        await using var db = await CreateMigratedContextAsync();
+        var seed = await SeedAsync(db);
+        var inputs = WriteInputs(seed);
+        var dryRun = await new MigrationImportService(db, new FixedClock(Now)).RunAsync(Options(inputs, dryRun: true));
+
+        await using var importContext = CreateContext();
+        var outcome = await new MigrationImportService(importContext, new FixedClock(Now))
+            .RunAsync(Options(inputs, dryRun: false, acceptReportHash: dryRun.Report!.ReportHash));
+        Assert.Equal(0, outcome.ExitCode);
+
+        await using var verify = CreateContext();
+        var season = await verify.ArchiveLeagueSeasons.SingleAsync(item => item.DocumentId == "league-1");
+        // One imported Tournament on 2026-01-10, one match between Alice and Bob: two standings rows.
+        Assert.Equal(1, season.TournamentCount);
+        Assert.Equal(2, season.PlayerCount);
+        Assert.Equal(new LocalDate(2026, 1, 10), season.FirstTournamentDate);
+        Assert.Equal(new LocalDate(2026, 1, 10), season.LastTournamentDate);
+        Assert.Equal(ArchiveCatalogCounts.Version, season.CountsVersion);
     }
 
     [Fact]

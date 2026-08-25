@@ -102,6 +102,7 @@ public sealed class ArchiveAggregateTests
         Assert.Null(season.FirstTournamentDate);
         Assert.Null(season.LastTournamentDate);
         Assert.Equal(ArchiveCatalogCounts.Version, season.CountsVersion);
+        Assert.Equal(0, season.CountsRevision);
         Assert.Equal(1, season.Version);
     }
 
@@ -176,6 +177,40 @@ public sealed class ArchiveAggregateTests
         Assert.Equal(ArchiveCatalogCounts.Version, season.CountsVersion);
         Assert.Equal(1, season.Version);
         Assert.Equal(Now, season.UpdatedAt);
+        // The row is untouched, so the catalog stamp needs this to move instead.
+        Assert.Equal(1, season.CountsRevision);
+    }
+
+    /// <summary>
+    /// The counters cannot carry their own change to the catalog ETag — a Tournament moved between two
+    /// Seasons is <c>-1</c> here and <c>+1</c> there, and a re-dated Tournament moves no counter at all
+    /// — so every write that lands on different numbers has to move something that only ever grows.
+    /// </summary>
+    [Fact]
+    public void Season_RefreshCatalogCounts_counts_every_write_that_changes_a_printed_number()
+    {
+        var season = ArchiveLeagueSeason.Create("s1", "l1", "2026", "active", Now);
+        var date = new LocalDate(2026, 1, 2);
+
+        season.RefreshCatalogCounts(new ArchiveSeasonCounts(2, 7, date, date));
+        season.RefreshCatalogCounts(new ArchiveSeasonCounts(1, 7, date, date));
+        season.RefreshCatalogCounts(new ArchiveSeasonCounts(1, 7, date, new LocalDate(2026, 3, 4)));
+
+        Assert.Equal(3, season.CountsRevision);
+    }
+
+    [Fact]
+    public void Season_RefreshCatalogCounts_over_the_same_numbers_leaves_the_catalog_alone()
+    {
+        var season = ArchiveLeagueSeason.Create("s1", "l1", "2026", "active", Now);
+        var counts = new ArchiveSeasonCounts(3, 7, new LocalDate(2026, 1, 2), new LocalDate(2026, 7, 8));
+        season.RefreshCatalogCounts(counts);
+
+        season.RefreshCatalogCounts(counts);
+
+        // Every Tournament write refreshes its Season and most leave the numbers where they were:
+        // bumping here would expire every client's catalog copy for nothing.
+        Assert.Equal(1, season.CountsRevision);
     }
 
     [Fact]

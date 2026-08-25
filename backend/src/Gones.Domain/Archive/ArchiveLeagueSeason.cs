@@ -27,6 +27,15 @@ public sealed class ArchiveLeagueSeason
     public int CountsVersion { get; private set; }
 
     /// <summary>
+    /// Counts the writes that moved the four counters, so the catalog ETag has one strictly increasing
+    /// input per row for the fields <see cref="Version"/> deliberately does not cover. The counters
+    /// themselves cannot play that part: a Tournament moved between two Seasons is <c>-1</c> on one row
+    /// and <c>+1</c> on the other, and a re-dated Tournament moves only the two dates, so a stamp summed
+    /// over the counters answers <c>304</c> over a body that changed.
+    /// </summary>
+    public int CountsRevision { get; private set; }
+
+    /// <summary>
     /// A Season is born with no Tournaments, so its counters are stamped at the current formula version:
     /// that zero is computed, not unknown.
     /// </summary>
@@ -47,7 +56,8 @@ public sealed class ArchiveLeagueSeason
             PlayerCount = 0,
             FirstTournamentDate = null,
             LastTournamentDate = null,
-            CountsVersion = ArchiveCatalogCounts.Version
+            CountsVersion = ArchiveCatalogCounts.Version,
+            CountsRevision = 0
         };
     }
 
@@ -92,17 +102,27 @@ public sealed class ArchiveLeagueSeason
     /// <summary>
     /// Rewrites the denormalized counters from the Season's Tournaments. Deliberately touches neither
     /// <see cref="UpdatedAt"/> nor <see cref="Version"/>: concurrency is per row, and editing a
-    /// Tournament must never invalidate a client's copy of its Season.
+    /// Tournament must never invalidate a client's copy of its Season. <see cref="CountsRevision"/> is
+    /// what carries the change to the catalog ETag instead.
     /// </summary>
     public void RefreshCatalogCounts(ArchiveSeasonCounts counts)
     {
         EnsureWritable();
         ArgumentNullException.ThrowIfNull(counts);
+        // A recompute that lands on the same four numbers changed nothing a client can see, so it must
+        // not move the ETag either: every Tournament write refreshes its Season, and most of them leave
+        // the counters exactly where they were.
+        if (TournamentCount == counts.TournamentCount
+            && PlayerCount == counts.PlayerCount
+            && FirstTournamentDate == counts.FirstTournamentDate
+            && LastTournamentDate == counts.LastTournamentDate
+            && CountsVersion == ArchiveCatalogCounts.Version) return;
         TournamentCount = counts.TournamentCount;
         PlayerCount = counts.PlayerCount;
         FirstTournamentDate = counts.FirstTournamentDate;
         LastTournamentDate = counts.LastTournamentDate;
         CountsVersion = ArchiveCatalogCounts.Version;
+        CountsRevision = checked(CountsRevision + 1);
     }
 
     private void EnsureWritable()

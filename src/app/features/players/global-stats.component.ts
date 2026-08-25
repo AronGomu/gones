@@ -14,6 +14,7 @@ import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { ArchiveGlobalPlayerStatisticsRow, Client, OpponentRecord, PlayerArchetypeUsage } from '../../api/generated/gones-api';
 import { ArchiveRepository } from '../../data/archive-repository.service';
 import type { ArchiveLeagueRow, ArchiveLeagueSeasonRow } from '../../data/archive-repository.service';
+import { isLocalArchiveId } from '../../data/archive-origin';
 import { I18nService } from '../../i18n/i18n.service';
 import {
   GLOBAL_STATS_PAGE_SIZES,
@@ -396,12 +397,20 @@ export class GlobalStatsComponent implements OnDestroy {
     }
   }
 
-  /** The two selects. A failure here narrows the filter, it does not hide the ranking. */
+  /**
+   * The two selects. A failure here narrows the filter, it does not hide the ranking.
+   *
+   * The repository serves the union of both stores (ADR 0028), and the scope is a query parameter of
+   * a server route: a `local-` id lives in this browser's IndexedDB alone and must never be sent.
+   * Offering the scope is what would send it, so the browser-local rows are dropped here. Their
+   * ranking is not lost — the server holds no statistics for them, so the scope could only ever have
+   * rendered an empty table.
+   */
   private async loadScopeCatalogs(): Promise<void> {
     try {
       const [leagues, seasons] = await Promise.all([this.archive.listLeagues(), this.archive.listLeagueSeasons()]);
-      this.leagues.set(leagues.items);
-      this.seasons.set(seasons.items);
+      this.leagues.set(leagues.items.filter((league) => !isLocalArchiveId(league.id)));
+      this.seasons.set(seasons.items.filter((season) => !isLocalArchiveId(season.id)));
       this.scopeError.set('');
     } catch {
       this.scopeError.set(this.i18n.t('globalStats.scopeLoadFailed'));

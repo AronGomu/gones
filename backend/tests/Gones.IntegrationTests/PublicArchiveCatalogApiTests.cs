@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Gones.Api.Identity;
+using Gones.Domain.Archive;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -284,25 +285,70 @@ public sealed class PublicArchiveCatalogApiTests : IAsyncLifetime
         Assert.NotEqual(leagues, seasons);
     }
 
+    /// <summary>
+    /// The counters are written by a <em>Tournament</em> command, through the aggregate and never
+    /// through raw SQL, and <c>RefreshCatalogCounts</c> deliberately moves neither <c>version</c> nor
+    /// <c>updated_at</c> so that editing a Tournament cannot invalidate a client's copy of its Season.
+    /// Driving the write through the aggregate is the whole point of this test: bumping <c>version</c>
+    /// in the test's own SQL would prove a stamp that watches <c>version</c> alone, which is a path
+    /// production never takes.
+    /// </summary>
     [Fact]
     public async Task Changes_the_Season_catalog_ETag_when_a_counter_moves()
     {
         using var client = CreateClient();
         var before = (await client.GetAsync(SeasonPath)).Headers.ETag!.ToString();
 
-        await using (var database = CreateContext())
-        {
-            await database.Database.ExecuteSqlRawAsync(
-                "UPDATE archive_league_seasons SET player_count = 9, version = version + 1 WHERE document_id = 'season-alpha'");
-        }
+        await RefreshCountsAsync("season-alpha", new ArchiveSeasonCounts(2, 9, new LocalDate(2031, 5, 1), new LocalDate(2031, 5, 2)));
 
         var after = (await client.GetAsync(SeasonPath)).Headers.ETag!.ToString();
         Assert.NotEqual(before, after);
 
         // A counter written by a Tournament command must not leave a stale body behind a 304 for an hour.
-        using var conditional = new HttpRequestMessage(HttpMethod.Get, SeasonPath);
-        conditional.Headers.TryAddWithoutValidation("If-None-Match", before);
-        using var replay = await client.SendAsync(conditional);
+        using var replay = await client.SendAsync(Revalidate(SeasonPath, before));
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+    }
+
+    /// <summary>
+    /// Re-dating the one Tournament of a Season moves the two boundary dates and nothing else: the row
+    /// still prints the same <c>tournamentCount</c> and the same <c>playerCount</c>. The dates are
+    /// rendered, and the client reads them to choose which cached year partitions may serve the Season
+    /// expansion, so a body that keeps the old pair behind a 304 sends it to the wrong years.
+    /// </summary>
+    [Fact]
+    public async Task Changes_the_Season_catalog_ETag_when_only_a_boundary_date_moves()
+    {
+        using var client = CreateClient();
+        var before = (await client.GetAsync(SeasonPath)).Headers.ETag!.ToString();
+
+        await RefreshCountsAsync("season-alpha", new ArchiveSeasonCounts(2, 3, new LocalDate(2031, 5, 1), new LocalDate(2031, 6, 4)));
+
+        Assert.NotEqual(before, (await client.GetAsync(SeasonPath)).Headers.ETag!.ToString());
+        using var replay = await client.SendAsync(Revalidate(SeasonPath, before));
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+
+        var body = await (await client.GetAsync(SeasonPath)).Content.ReadFromJsonAsync<JsonElement>();
+        var alpha = body.GetProperty("items").EnumerateArray().Single(item => item.GetProperty("id").GetString() == "season-alpha");
+        Assert.Equal("2031-06-04", alpha.GetProperty("lastTournamentDate").GetString());
+    }
+
+    /// <summary>
+    /// Moving one Tournament from one Season to another writes both rows in one transaction, and the
+    /// two <c>tournamentCount</c> deltas are equal and opposite. Any stamp that sums the counters is
+    /// blind to it by construction, however many counters it sums.
+    /// </summary>
+    [Fact]
+    public async Task Changes_the_Season_catalog_ETag_when_a_Tournament_moves_between_two_Seasons()
+    {
+        using var client = CreateClient();
+        var before = (await client.GetAsync(SeasonPath)).Headers.ETag!.ToString();
+
+        // Both rosters already held every player of the moved Tournament, so only the two counts move.
+        await RefreshCountsAsync("season-alpha", new ArchiveSeasonCounts(1, 3, new LocalDate(2031, 5, 1), new LocalDate(2031, 5, 1)));
+        await RefreshCountsAsync("season-beta", new ArchiveSeasonCounts(1, 0, new LocalDate(2031, 5, 2), new LocalDate(2031, 5, 2)));
+
+        Assert.NotEqual(before, (await client.GetAsync(SeasonPath)).Headers.ETag!.ToString());
+        using var replay = await client.SendAsync(Revalidate(SeasonPath, before));
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
     }
 
@@ -401,6 +447,22 @@ public sealed class PublicArchiveCatalogApiTests : IAsyncLifetime
             VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11})
             """, documentId, leagueId, name, status, updatedAt, version, deletedAt!,
             tournamentCount, playerCount, firstTournamentDate!, lastTournamentDate!, 1);
+
+    /// <summary>The write a Tournament command performs on a Season row: the counters, and nothing else.</summary>
+    private async Task RefreshCountsAsync(string documentId, ArchiveSeasonCounts counts)
+    {
+        await using var database = CreateContext();
+        var season = await database.ArchiveLeagueSeasons.SingleAsync(item => item.DocumentId == documentId);
+        season.RefreshCatalogCounts(counts);
+        await database.SaveChangesAsync();
+    }
+
+    private static HttpRequestMessage Revalidate(string path, string etag)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, path);
+        request.Headers.TryAddWithoutValidation("If-None-Match", etag);
+        return request;
+    }
 
     private static HttpRequestMessage Read(string path, string? acceptEncoding)
     {

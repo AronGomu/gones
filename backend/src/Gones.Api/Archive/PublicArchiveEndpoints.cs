@@ -190,7 +190,7 @@ internal static class PublicArchiveEndpoints
         var (total, notModified) = await PrepareCatalogAsync(
             VisibleSeasons(database),
             season => (Instant?)season.UpdatedAt,
-            season => (long)season.Version + season.TournamentCount + season.PlayerCount + season.CountsVersion,
+            season => (long)season.Version + season.CountsRevision,
             "archive-league-seasons",
             ceiling,
             CatalogCacheControl,
@@ -589,8 +589,12 @@ internal static class PublicArchiveEndpoints
     /// stamp, and it is load-bearing. A Season's counters are written by a <em>Tournament</em>
     /// command, and a Tournament moved between two Seasons that are neither of them the newest row
     /// leaves the newest row untouched — that archive would keep answering 304 with stale counters
-    /// for the whole hour the body is cacheable. Summing a strictly increasing per-row version plus
-    /// the counters themselves moves on every write to any row.</para>
+    /// for the whole hour the body is cacheable. Every field it sums must therefore be strictly
+    /// increasing per row: the counters themselves are not, and summing them hides exactly the write
+    /// this stamp exists to catch, because the two <c>tournament_count</c> deltas of a move are equal
+    /// and opposite and a re-dated Tournament moves no counter at all. Each row contributes its
+    /// document version plus, where a derived column is written without one, its revision of that
+    /// column.</para>
     /// </summary>
     private static async Task<(int Total, bool NotModified)> PrepareCatalogAsync<TEntity>(
         IQueryable<TEntity> visible,
